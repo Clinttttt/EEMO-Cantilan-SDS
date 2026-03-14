@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj" />
+  <Project Path="EEMOCantilanSDS.Application/EEMOCantilanSDS.Application.csproj" />
+  <Project Path="EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj" />
+  <Project Path="EEMOCantilanSDS.Domain/EEMOCantilanSDS.Domain.csproj" />
+  <Project Path="EEMOCantilanSDS.Infrastructure/EEMOCantilanSDS.Infrastructure.csproj" />
+  <Project Path="EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj" />
+</Solution>
