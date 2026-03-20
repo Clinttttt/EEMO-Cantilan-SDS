@@ -1,0 +1,151 @@
+﻿@page "/menu"
+@inject NavigationManager Navigation
+
+
+
+<!-- ░░ PAGE SHELL ░░ -->
+<div class="page-shell">
+    <AppHeader CollectorName="Clint" />
+    <!-- Scrollable Content -->
+    <div class="content">
+
+        <!-- Summary Strip -->
+        <div class="summary-strip">
+            <div class="summary-item">
+                <div class="summary-value">₱0</div>
+                <div class="summary-key">Today</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">0</div>
+                <div class="summary-key">Collected</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">0</div>
+                <div class="summary-key">Pending</div>
+            </div>
+        </div>
+
+        <!-- Market Collections -->
+        <div class="section-label">Market Collections</div>
+
+        <div class="menu-card" @onclick='() => GoTo("/market")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">New Public Market</div>
+                <div class="card-sub">NPM — Stall Rental &amp; Fees</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <div class="menu-card" @onclick='() => GoTo("/town-center")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Town Center Commercial</div>
+                <div class="card-sub">TCC — Commercial Stall Rental</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <div class="menu-card" @onclick='() => GoTo("/commercial-center")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">New Commercial Center</div>
+                <div class="card-sub">NCC — Commercial Unit Rental</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <!-- Enterprise Collections -->
+        <div class="group-spacer"></div>
+        <div class="section-label">Enterprise Collections</div>
+
+        <div class="menu-card" @onclick='() => GoTo("/ecf")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Miscellaneous — ECF</div>
+                <div class="card-sub">Economic Collection Fund</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <div class="menu-card" @onclick='() => GoTo("/wcf")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Miscellaneous — WCF</div>
+                <div class="card-sub">Working Capital Fund</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <!-- Other Revenue Units -->
+        <div class="group-spacer"></div>
+        <div class="section-label">Other Revenue Units</div>
+
+        <div class="menu-card" @onclick='() => GoTo("/terminal")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 3v5h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Transport Terminal</div>
+                <div class="card-sub">Terminal &amp; Parking Fees</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <div class="menu-card" @onclick='() => GoTo("/slaughterhouse")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Slaughterhouse</div>
+                <div class="card-sub">Slaughter &amp; Inspection Fees</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+        <div class="menu-card" @onclick='() => GoTo("/cemetery")'>
+            <div class="card-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z" /><circle cx="12" cy="10" r="3" /></svg>
+            </div>
+            <div class="card-info">
+                <div class="card-title">Cemetery</div>
+                <div class="card-sub">Lot &amp; Interment Fees</div>
+            </div>
+            <div class="card-arrow">›</div>
+        </div>
+
+    </div>
+
+    
+    <BottomNav ActiveTab="menu" />
+</div>
+<!-- end .page-shell -->
+@code {
+
+    // ── Date & Greeting ───────────────────────────────────────────────────────
+    // Computed properties — evaluated once on render, no JS needed at all
+    string Today => DateTime.Now.ToString("MMM d, yyyy");
+
+    string Greeting => DateTime.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening"
+    };
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    // forceLoad: false  → stays inside Blazor router, no full WebView reload
+    //                     this is what kills the flicker on MAUI Hybrid
+    // No replace: true  → keeps history stack intact so repeated taps work
+    void GoTo(string path) => Navigation.NavigateTo(path, forceLoad: false);
+}

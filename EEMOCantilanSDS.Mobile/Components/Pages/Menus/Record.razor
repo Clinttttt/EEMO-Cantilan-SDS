@@ -1,0 +1,384 @@
+﻿@page "/records"
+@inject NavigationManager Navigation
+
+
+
+
+
+<div class="page-shell">
+
+ 
+    <AppHeader CollectorName="Clint" />
+
+ 
+    <!-- Scrollable Content -->
+    <div class="content">
+
+        <!-- Summary Strip -->
+        <div class="summary-strip">
+            <div class="summary-item">
+                <div class="summary-value">₱@GrandTotal.ToString("N0")</div>
+                <div class="summary-key">Total</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">@TotalPaidCount</div>
+                <div class="summary-key">Paid</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">@TotalUnpaidCount</div>
+                <div class="summary-key">Unpaid</div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input type="text"
+                   placeholder="Search name, OR no., facility…"
+                   @bind="SearchQuery"
+                   @bind:event="oninput" />
+        </div>
+
+        <!-- Period Filter Tabs -->
+        <div class="filter-tabs">
+            @foreach (var tab in PeriodOptions)
+            {
+                <div class="filter-tab @(ActivePeriod == tab ? "active" : "")"
+                     @onclick="() => ActivePeriod = tab">@tab</div>
+            }
+        </div>
+
+        <!-- Facility Filter Tabs -->
+        <div class="filter-tabs">
+            @foreach (var tab in FacilityOptions)
+            {
+                <div class="filter-tab @(ActiveFacility == tab ? "active" : "")"
+                     @onclick="() => ActiveFacility = tab">@tab</div>
+            }
+        </div>
+
+        <!-- Records List -->
+        @if (!FilteredRecords.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                </div>
+                <div class="empty-title">No Records Found</div>
+                <div class="empty-sub">Try adjusting the filters or search query.</div>
+            </div>
+        }
+        else
+        {
+            <!-- Group records by date -->
+            @foreach (var group in GroupedRecords)
+            {
+                <div class="section-label">
+                    @group.Key
+                    <span class="section-count">@group.Value.Count() entries</span>
+                </div>
+
+                @foreach (var rec in group.Value)
+                {
+                    <div class="record-card @(rec.IsPaid ? "paid" : "unpaid")"
+                         @onclick="() => OpenDetail(rec)">
+
+                        <div class="record-icon @(rec.IsPaid ? "paid-icon" : "")">
+                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                        </div>
+
+                        <div class="record-info">
+                            <div class="record-name">@rec.PayorName</div>
+                            <div class="record-meta">
+                                <span class="record-facility">@rec.FacilityCode</span>
+                                <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt") · OR #@rec.ORNumber</span>
+                            </div>
+                        </div>
+
+                        <div class="record-amount-col">
+                            <div class="record-amount">₱@rec.Amount.ToString("N0")</div>
+                            <span class="record-status-pill @GetPillClass(rec)">@GetStatusLabel(rec)</span>
+                        </div>
+
+                    </div>
+                }
+
+                <div class="group-spacer"></div>
+            }
+        }
+
+    </div>
+    <!-- end .content -->
+
+    <!-- Bottom Nav -->
+    <BottomNav ActiveTab="records" />
+
+</div>
+<!-- end .page-shell -->
+
+
+<!-- ════════════════════════════════════════════
+     RECORD DETAIL BOTTOM SHEET
+     Tap any record card to view full details
+════════════════════════════════════════════ -->
+@if (ShowDetailSheet && SelectedRecord is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseDetail">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+
+            <div class="sheet-title">@SelectedRecord.PayorName</div>
+            <div class="sheet-sub">Collection Record Detail</div>
+
+            <div class="detail-row">
+                <span class="detail-key">OR Number</span>
+                <span class="detail-val">#@SelectedRecord.ORNumber</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Facility</span>
+                <span class="detail-val">@SelectedRecord.FacilityName</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Stall / Unit</span>
+                <span class="detail-val">@SelectedRecord.StallNo</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Section</span>
+                <span class="detail-val">@SelectedRecord.Section</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Nature of Collection</span>
+                <span class="detail-val">@SelectedRecord.NatureOfCollection</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Date &amp; Time</span>
+                <span class="detail-val">@SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt")</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Collector</span>
+                <span class="detail-val">@SelectedRecord.CollectorName</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Status</span>
+                <span class="detail-val">
+                    <span class="record-status-pill @GetPillClass(SelectedRecord)">
+                        @GetStatusLabel(SelectedRecord)
+                    </span>
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Amount</span>
+                <span class="detail-val amount-val">₱@SelectedRecord.Amount.ToString("N0")</span>
+            </div>
+
+            <div class="sheet-btn-row">
+                <div class="btn-close" @onclick="CloseDetail">Close</div>
+                <div class="btn-primary">Print OR</div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    void GoTo(string path) => Navigation.NavigateTo(path, forceLoad: false);
+
+    // ── Date ──────────────────────────────────────────────────────────────────
+    string Today => DateTime.Now.ToString("MMM d, yyyy");
+
+    // ── Search & Filters ──────────────────────────────────────────────────────
+    string SearchQuery   = string.Empty;
+    string ActivePeriod  = "Today";
+    string ActiveFacility = "All";
+
+    readonly List<string> PeriodOptions   = new() { "Today", "This Week", "This Month", "All Time" };
+    readonly List<string> FacilityOptions = new() { "All", "NPM", "TCC", "NCC", "ECF", "WCF", "Terminal", "Slaughterhouse", "Cemetery" };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // RECORD MODEL
+    // ─────────────────────────────────────────────────────────────────────────
+    class CollectionRecord
+    {
+        public string   ORNumber            { get; set; } = string.Empty;
+        public string   PayorName           { get; set; } = string.Empty;
+        public string   FacilityCode        { get; set; } = string.Empty;  // NPM, TCC, etc.
+        public string   FacilityName        { get; set; } = string.Empty;  // Full name
+        public string   StallNo             { get; set; } = string.Empty;
+        public string   Section             { get; set; } = string.Empty;
+        public string   NatureOfCollection  { get; set; } = string.Empty;
+        public string   CollectorName       { get; set; } = "Collector";
+        public decimal  Amount              { get; set; }
+        public bool     IsPaid              { get; set; }
+        public bool     IsPartial           { get; set; }
+        public DateTime CollectedAt         { get; set; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAMPLE RECORDS
+    // Replace with DB call: Records = await RecordsService.GetAsync()
+    // ─────────────────────────────────────────────────────────────────────────
+    List<CollectionRecord> Records = new()
+    {
+        new() {
+            ORNumber="2315601", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Today.AddHours(8).AddMinutes(14)
+        },
+        new() {
+            ORNumber="2315602", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Today.AddHours(8).AddMinutes(31)
+        },
+        new() {
+            ORNumber="2315603", PayorName="Reyes, Luzviminda A.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="05", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Today.AddHours(9).AddMinutes(5)
+        },
+        new() {
+            ORNumber="2315604", PayorName="Buenaventura, Carlo",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="T1", Section="Open Area",
+            NatureOfCollection="Temporary Vendor Fee", CollectorName="Collector",
+            Amount=50, IsPaid=true,
+            CollectedAt=DateTime.Today.AddHours(9).AddMinutes(22)
+        },
+        new() {
+            ORNumber="2315605", PayorName="Villanueva, Ricardo",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="14", Section="Sec. D · General",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Today.AddHours(10).AddMinutes(8)
+        },
+        new() {
+            ORNumber="2315606", PayorName="Garcia, Flordeliza B.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="06", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=150, IsPaid=false,
+            CollectedAt=DateTime.Today.AddHours(10).AddMinutes(45)
+        },
+        new() {
+            ORNumber="2315607", PayorName="Mangubat, Jose P.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="09", Section="Sec. C · Fish/Meat",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=200, IsPaid=false,
+            CollectedAt=DateTime.Today.AddHours(11).AddMinutes(3)
+        },
+        new() {
+            ORNumber="2315600", PayorName="Cañada, Elvira M.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="11", Section="Sec. C · Fish/Meat",
+            NatureOfCollection="Stall Rental", CollectorName="Collector",
+            Amount=200, IsPaid=false, IsPartial=true,
+            CollectedAt=DateTime.Today.AddHours(11).AddMinutes(30)
+        },
+        // Yesterday entries
+        new() {
+            ORNumber="2315590", PayorName="Peralta, Nimfa R.",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-02", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Collector",
+            Amount=300, IsPaid=true,
+            CollectedAt=DateTime.Today.AddDays(-1).AddHours(9).AddMinutes(10)
+        },
+        new() {
+            ORNumber="2315591", PayorName="Tiu, Marcelino",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-05", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Collector",
+            Amount=300, IsPaid=true,
+            CollectedAt=DateTime.Today.AddDays(-1).AddHours(10).AddMinutes(40)
+        },
+        new() {
+            ORNumber="2315592", PayorName="Oquendo, Prescilla",
+            FacilityCode="Terminal", FacilityName="Transport Terminal",
+            StallNo="—", Section="Parking Area",
+            NatureOfCollection="Parking Fee", CollectorName="Collector",
+            Amount=20, IsPaid=true,
+            CollectedAt=DateTime.Today.AddDays(-1).AddHours(14).AddMinutes(5)
+        },
+    };
+
+    // ── Filtered Records ──────────────────────────────────────────────────────
+    IEnumerable<CollectionRecord> FilteredRecords => Records.Where(r =>
+    {
+        // Period filter
+        bool matchPeriod = ActivePeriod switch
+        {
+            "Today"      => r.CollectedAt.Date == DateTime.Today,
+            "This Week"  => r.CollectedAt >= DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek),
+            "This Month" => r.CollectedAt.Month == DateTime.Now.Month && r.CollectedAt.Year == DateTime.Now.Year,
+            _            => true
+        };
+
+        // Facility filter
+        bool matchFacility = ActiveFacility == "All"
+            || r.FacilityCode.Equals(ActiveFacility, StringComparison.OrdinalIgnoreCase);
+
+        // Search
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || r.PayorName.Contains(SearchQuery,   StringComparison.OrdinalIgnoreCase)
+            || r.ORNumber.Contains(SearchQuery,    StringComparison.OrdinalIgnoreCase)
+            || r.FacilityCode.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || r.StallNo.Contains(SearchQuery,     StringComparison.OrdinalIgnoreCase);
+
+        return matchPeriod && matchFacility && matchSearch;
+    }).OrderByDescending(r => r.CollectedAt);
+
+    // ── Grouped by date label ─────────────────────────────────────────────────
+    Dictionary<string, IEnumerable<CollectionRecord>> GroupedRecords =>
+        FilteredRecords
+            .GroupBy(r => GetDateLabel(r.CollectedAt))
+            .ToDictionary(g => g.Key, g => g.AsEnumerable());
+
+    string GetDateLabel(DateTime dt)
+    {
+        if (dt.Date == DateTime.Today)           return "Today";
+        if (dt.Date == DateTime.Today.AddDays(-1)) return "Yesterday";
+        return dt.ToString("MMMM d, yyyy");
+    }
+
+    // ── Summary Computeds ─────────────────────────────────────────────────────
+    decimal GrandTotal      => FilteredRecords.Where(r =>  r.IsPaid).Sum(r => r.Amount);
+    int     TotalPaidCount  => FilteredRecords.Count(r =>  r.IsPaid && !r.IsPartial);
+    int     TotalUnpaidCount => FilteredRecords.Count(r => !r.IsPaid || r.IsPartial);
+
+    // ── Detail Sheet ──────────────────────────────────────────────────────────
+    bool              ShowDetailSheet = false;
+    CollectionRecord? SelectedRecord  = null;
+
+    void OpenDetail(CollectionRecord rec)
+    {
+        SelectedRecord  = rec;
+        ShowDetailSheet = true;
+    }
+
+    void CloseDetail()
+    {
+        ShowDetailSheet = false;
+        SelectedRecord  = null;
+    }
+
+    // ── Pill Helpers ──────────────────────────────────────────────────────────
+    string GetPillClass(CollectionRecord r) =>
+        r.IsPartial ? "record-status-pill pill-partial" :
+        r.IsPaid    ? "record-status-pill pill-paid"    :
+                      "record-status-pill pill-unpaid";
+
+    string GetStatusLabel(CollectionRecord r) =>
+        r.IsPartial ? "Partial" :
+        r.IsPaid    ? "Paid"    : "Unpaid";
+}

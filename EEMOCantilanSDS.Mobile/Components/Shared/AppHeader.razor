@@ -1,0 +1,117 @@
+﻿@* ═══════════════════════════════════════════════════════════
+   AppHeader.razor  —  Shared EEMO header component
+   Place in: Components/Shared/AppHeader.razor
+
+   USAGE — Home page (logo row, greeting bar):
+     <AppHeader />
+
+   USAGE — Sub-page (back button, eyebrow, title):
+     <AppHeader IsSubPage="true"
+                Eyebrow="Market Collections"
+                Title="New Public Market"
+                SubTitle="NPM — Stall Rental & Fees"
+                OnBack="GoBack" />
+
+   USAGE — Sub-page with date strip instead of greeting:
+     <AppHeader IsSubPage="true"
+                Eyebrow="Market Collections"
+                Title="New Public Market"
+                SubTitle="NPM — Stall Rental & Fees"
+                OnBack="GoBack"
+                CollectorName="M. Reyes" />
+═══════════════════════════════════════════════════════════ *@
+
+@* ── Parameters ── *@
+@* Sub-page mode *@
+@if (IsSubPage)
+{
+    <div class="eemo-header">
+        <div class="header-eyebrow">@Eyebrow</div>
+        <div class="header-back-row">
+            <div class="header-back-btn" @onclick="OnBack">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </div>
+            <div class="header-title-block">
+                <div class="header-page-title">@Title</div>
+                @if (!string.IsNullOrEmpty(SubTitle))
+                {
+                    <div class="header-page-sub">@SubTitle · @Today</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Date strip shown on sub-pages -->
+    <div class="date-strip">
+        <div class="date-strip-left">
+            Collector: <span>@(string.IsNullOrEmpty(CollectorName) ? "Collector" : CollectorName)</span>
+        </div>
+        <div class="date-pill">@Today</div>
+    </div>
+}
+@* Home mode *@
+else
+{
+    <div class="eemo-header">
+        <div class="header-gov-label">Republic of the Philippines</div>
+        <div class="header-logo-row">
+            <div class="header-seal">
+               
+                    <img src="images/eemo-logov2.png" alt="EEMO Seal" />
+                
+                @* else: empty — add image later *@
+            </div>
+            <div class="header-text">
+                <div class="header-org-name">
+                    Economic Enterprise &amp;<br />Management Office
+                </div>
+                <div class="header-org-sub">Municipality of Cantilan, Surigao del Sur</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Greeting bar shown on home -->
+    <div class="greeting-bar">
+        <div class="greeting-text">
+            @Greeting, <span>@(string.IsNullOrEmpty(CollectorName) ? "Collector" : CollectorName)</span>
+        </div>
+        <div class="date-badge">@Today</div>
+    </div>
+}
+
+@code {
+
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    /// <summary>True = sub-page layout (back btn + eyebrow).
+    /// False (default) = home layout (seal + greeting).</summary>
+    [Parameter] public bool IsSubPage { get; set; } = false;
+
+    /// <summary>Small uppercase label above the title. e.g. "Market Collections"</summary>
+    [Parameter] public string Eyebrow { get; set; } = string.Empty;
+
+    /// <summary>Main page title. e.g. "New Public Market"</summary>
+    [Parameter] public string Title { get; set; } = string.Empty;
+
+    /// <summary>Subtitle below title. e.g. "NPM — Stall Rental & Fees"</summary>
+    [Parameter] public string SubTitle { get; set; } = string.Empty;
+
+    /// <summary>Logged-in collector name. Shown in greeting / date strip.</summary>
+    [Parameter] public string CollectorName { get; set; } = string.Empty;
+
+    /// <summary>Path to seal image in wwwroot. Leave empty until image is ready.</summary>
+    [Parameter] public string SealImageSrc { get; set; } = string.Empty;
+
+    /// <summary>Callback fired when the back button is tapped.</summary>
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    // ── Computed ──────────────────────────────────────────────────────────────
+    string Today => DateTime.Now.ToString("MMM d, yyyy");
+
+    string Greeting => DateTime.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening"
+    };
+}

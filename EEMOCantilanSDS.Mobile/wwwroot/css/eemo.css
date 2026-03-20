@@ -1,0 +1,1858 @@
+/*
+ * ═══════════════════════════════════════════════════════════════
+ *  EEMO SHARED STYLESHEET
+ *  Economic Enterprise & Management Office
+ *  Municipality of Cantilan, Surigao del Sur
+ *
+ *  Reference: EEMO_ColorScheme.md
+ *  Link in wwwroot/index.html:
+ *    <link rel="stylesheet" href="css/eemo.css" />
+ *
+ *  TABLE OF CONTENTS
+ *  ─────────────────────────────────────────────────────────────
+ *
+ *  ★ SHARED — used across ALL pages
+ *  ─────────────────────────────────────────────────────────────
+ *   0.  CSS Variables (Design Tokens)
+ *   1.  Reset & Base
+ *   2.  Page Shell            → every page
+ *   3.  Header                → AppHeader.razor
+ *   4.  Date / Greeting Strip → AppHeader.razor
+ *   5.  Bottom Nav            → BottomNav.razor
+ *   6.  Summary Strip         → Index, Market, Records, Reports
+ *   7.  Section Label         → Market, Records, Reports
+ *   8.  Search Bar            → Market, Records
+ *   9.  Filter Tabs           → Market, Records, Reports
+ *  10.  Status Pills          → Market, Records, Reports
+ *  11.  Bottom Sheet (base)   → Market, Records, Reports
+ *  12.  Form Fields           → Market (Add Vendor sheet)
+ *  13.  Empty State           → Records, Reports
+ *
+ *  ★ PAGE-SPECIFIC — only used in their page
+ *  ─────────────────────────────────────────────────────────────
+ *  14.  Menu Cards            → Index.razor
+ *  15.  Record Cards          → Records.razor
+ *  16.  Detail Sheet Rows     → Records.razor + Reports.razor
+ *  17.  Reports Page          → Reports.razor
+ *  18.  Market / Stall Rows   → Market.razor
+ *
+ * ═══════════════════════════════════════════════════════════════
+ */
+
+
+/* ════════════════════════════════════════════════════════════════
+   ★ SHARED — used across ALL pages
+════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────
+   0. CSS VARIABLES (DESIGN TOKENS)
+   All pages — reference these instead of
+   raw hex values so colors stay consistent
+───────────────────────────────────────────── */
+:root {
+    /* Palette */
+    --navy-primary: #0d2137; /* headers, primary text, active nav */
+    --navy-secondary: #112d47; /* greeting bar, date strip bg */
+    --navy-accent: #1e3a5f; /* borders on dark, seal gradient */
+    --gold-primary: #c8a84b; /* accents, icons, divider line */
+    --gold-light: #e8cc76; /* text on dark navy */
+    /* Surfaces */
+    --bg-page: #f0f4f8; /* page / app background */
+    --bg-card: #ffffff; /* cards, nav, sheets */
+    --bg-icon: #eef2f6; /* icon containers, stall number bg */
+    --border: #dde4ea; /* card borders, dividers */
+    --border-subtle: #c8d8e4; /* checkbox unchecked border */
+    /* Text */
+    --text-primary: #0d2137; /* card titles, names, amounts */
+    --text-muted: #8faabf; /* subtitles, section labels */
+    --text-subtle: #6a8aa0; /* dates, secondary info */
+    --text-nav: #b0c4d4; /* bottom nav inactive */
+    /* Status */
+    --paid-green: #2d7a5f; /* paid checkbox, left border, pill */
+    --paid-green-bg: #e6f4ef; /* paid pill background */
+    --error-red: #8b3a3a; /* form error text */
+    --error-red-bg: #fdf0f0; /* form error background */
+}
+
+
+/* ─────────────────────────────────────────────
+   1. RESET & BASE
+   All pages — applied globally to html + body
+───────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root, html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    color-scheme: light;
+    background-color: var(--bg-page);
+    -webkit-tap-highlight-color: transparent; /* removes tap flash on Android */
+    -webkit-touch-callout: none; /* disables long-press popup on iOS */
+    user-select: none; /* prevents text selection on tap */
+}
+
+
+/* ─────────────────────────────────────────────
+   2. PAGE SHELL
+   All pages — every .razor page uses this
+   as the outermost wrapper + scrollable area
+───────────────────────────────────────────── */
+.page-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg-page);
+    /* Anti-flicker: promotes to GPU layer so
+       WebView doesn't white-flash on navigation */
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px;
+    /* extra bottom padding = nav bar + safe area (iPhone home bar etc.) */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+    .content::-webkit-scrollbar {
+        display: none;
+    }
+
+/* vertical spacing between card groups */
+.group-spacer {
+    margin-top: 18px;
+}
+
+
+/* ─────────────────────────────────────────────
+   3. HEADER
+   Component: AppHeader.razor
+   ──────────────────────────────────────────
+   HOME variant  (IsSubPage=false):
+     .eemo-header + .header-logo-row
+     + .header-gov-label + .header-seal
+     + .header-org-name + .header-org-sub
+
+   SUB-PAGE variant (IsSubPage=true):
+     .eemo-header + .header-eyebrow
+     + .header-back-row + .header-back-btn
+     + .header-page-title + .header-page-sub
+───────────────────────────────────────────── */
+.eemo-header {
+    background: var(--navy-primary);
+    padding: 54px 24px 20px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+    /* gold gradient line at the bottom of every header */
+    .eemo-header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    }
+
+/* ── Home variant ── */
+.header-gov-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: var(--gold-primary);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.header-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.header-seal {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
+    border: 1.5px solid var(--gold-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+    .header-seal img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+.header-text {
+    flex: 1;
+}
+
+.header-org-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.header-org-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+/* ── Sub-page variant ── */
+.header-eyebrow {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 2.5px;
+    color: var(--gold-primary);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.header-back-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-back-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: rgba(200,168,75,0.12);
+    border: 1px solid rgba(200,168,75,0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+    .header-back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--gold-primary);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.header-title-block {
+    flex: 1;
+}
+
+.header-page-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.15;
+}
+
+.header-page-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 2px;
+}
+
+
+/* ─────────────────────────────────────────────
+   4. DATE / GREETING STRIP
+   Component: AppHeader.razor
+   ──────────────────────────────────────────
+   .date-strip   → sub-pages: Market, Records, Reports
+   .greeting-bar → home page: Index.razor (menu)
+───────────────────────────────────────────── */
+
+/* Sub-page date strip */
+.date-strip {
+    background: var(--navy-secondary);
+    padding: 10px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.date-strip-left {
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.4);
+}
+
+    .date-strip-left span {
+        color: var(--gold-light);
+        font-weight: 500;
+    }
+
+.date-pill {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    background: var(--navy-primary);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--navy-accent);
+}
+
+/* Home greeting bar */
+.greeting-bar {
+    background: var(--navy-secondary);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.greeting-text {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+    .greeting-text span {
+        color: var(--gold-light);
+        font-weight: 500;
+    }
+
+.date-badge {
+    font-size: 10px;
+    color: var(--text-subtle);
+    background: var(--navy-primary);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--navy-accent);
+}
+
+
+/* ─────────────────────────────────────────────
+   5. BOTTOM NAV
+   Component: BottomNav.razor
+   All main tab pages: Index, Records, Reports, Profile
+   ActiveTab prop controls which item is highlighted
+───────────────────────────────────────────── */
+.bottom-nav {
+    flex-shrink: 0;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 10000;
+    height: calc(64px + env(safe-area-inset-bottom, 12px));
+    padding-bottom: env(safe-area-inset-bottom, 12px);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    box-shadow: 0 -6px 18px rgba(13,33,55,0.06);
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 10px;
+}
+
+    .nav-item .nav-label {
+        font-size: 9px;
+        color: var(--text-nav);
+        letter-spacing: 0.5px;
+    }
+
+    /* active tab: navy icon + label */
+    .nav-item.active .nav-label {
+        color: var(--navy-primary);
+        font-weight: 600;
+    }
+
+    .nav-item svg {
+        width: 22px;
+        height: 22px;
+        stroke: var(--text-nav);
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+    }
+
+    .nav-item.active svg {
+        stroke: var(--navy-primary);
+    }
+
+
+/* ─────────────────────────────────────────────
+   6. SUMMARY STRIP
+   Pages: Index.razor, Market.razor,
+          Records.razor, Reports.razor
+   3-column stats banner at the top of content
+───────────────────────────────────────────── */
+.summary-strip {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+}
+
+.summary-item {
+    flex: 1;
+    text-align: center;
+}
+
+    .summary-item + .summary-item {
+        border-left: 1px solid var(--bg-icon);
+    }
+
+.summary-value {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+.summary-key {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+
+/* ─────────────────────────────────────────────
+   7. SECTION LABEL
+   Pages: Market.razor, Records.razor, Reports.razor
+   Uppercase label above a group of cards,
+   optionally shows a count badge on the right
+───────────────────────────────────────────── */
+.section-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin: 0 0 10px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-count {
+    background: var(--bg-icon);
+    color: var(--text-muted);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 0;
+    font-weight: 500;
+    text-transform: none;
+}
+
+
+/* ─────────────────────────────────────────────
+   8. SEARCH BAR
+   Pages: Market.razor, Records.razor
+   Gold search icon + plain text input
+───────────────────────────────────────────── */
+.search-wrap {
+    background: var(--bg-card);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    margin-bottom: 10px;
+    height: 40px;
+}
+
+    .search-wrap svg {
+        width: 15px;
+        height: 15px;
+        stroke: var(--gold-primary);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+    .search-wrap input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12.5px;
+        color: var(--text-primary);
+        background: transparent;
+    }
+
+        .search-wrap input::placeholder {
+            color: var(--text-nav);
+        }
+
+
+/* ─────────────────────────────────────────────
+   9. FILTER TABS
+   Pages: Market.razor, Records.razor, Reports.razor
+   Horizontally scrollable pill tabs row
+   Active tab = navy bg + gold text
+───────────────────────────────────────────── */
+.filter-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+    .filter-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+.filter-tab {
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+    .filter-tab.active {
+        background: var(--navy-primary);
+        color: var(--gold-light);
+        border-color: var(--navy-primary);
+    }
+
+
+/* ─────────────────────────────────────────────
+   10. STATUS PILLS
+   Pages: Market.razor, Records.razor, Reports.razor
+   Inline badge showing Paid / Unpaid / Partial
+───────────────────────────────────────────── */
+.status-pill {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    display: inline-block;
+    letter-spacing: 0.3px;
+}
+
+/* green = paid */
+.pill-paid {
+    background: var(--paid-green-bg);
+    color: var(--paid-green);
+}
+/* grey = unpaid */
+.pill-unpaid {
+    background: var(--bg-icon);
+    color: var(--text-muted);
+}
+/* gold tint = partial payment */
+.pill-partial {
+    background: rgba(200,168,75,0.15);
+    color: #7a5c10;
+}
+
+
+/* ─────────────────────────────────────────────
+   11. BOTTOM SHEET  (base styles)
+   Pages: Market.razor, Records.razor, Reports.razor
+   Dark overlay + white sheet slides up from bottom
+   All sheets share these base classes:
+     .sheet-overlay .sheet .sheet-handle
+     .sheet-title .sheet-sub
+     .sheet-btn-row .btn-cancel .btn-confirm
+───────────────────────────────────────────── */
+.sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13,33,55,0.5);
+    z-index: 20000;
+    display: flex;
+    align-items: flex-end;
+    animation: eemo-fadeIn 0.18s ease;
+}
+
+@keyframes eemo-fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.sheet {
+    width: 100%;
+    background: var(--bg-card);
+    border-radius: 20px 20px 0 0;
+    /* extra bottom padding for iPhone home indicator */
+    padding: 18px 24px calc(28px + env(safe-area-inset-bottom, 16px)) 24px;
+    animation: eemo-slideUp 0.22s ease;
+}
+
+@keyframes eemo-slideUp {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 18px;
+}
+
+.sheet-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.sheet-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 18px;
+}
+
+.sheet-btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+/* Cancel / Close button */
+.btn-cancel, .btn-close {
+    flex: 1;
+    padding: 13px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s;
+}
+
+    .btn-cancel:active, .btn-close:active {
+        background: var(--bg-page);
+    }
+
+/* Confirm / Primary action button */
+.btn-confirm, .btn-primary {
+    flex: 1;
+    padding: 13px;
+    border-radius: 12px;
+    border: none;
+    background: var(--navy-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold-light);
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 0.15s;
+}
+
+    .btn-confirm:active, .btn-primary:active {
+        opacity: 0.85;
+    }
+
+
+/* ─────────────────────────────────────────────
+   12. FORM FIELDS
+   Page: Market.razor  (Add Temporary Vendor sheet)
+   .form-field .form-label .form-input
+   .form-row .form-error
+───────────────────────────────────────────── */
+.form-field {
+    margin-bottom: 14px;
+}
+
+.form-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-page);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+    /* gold border on focus */
+    .form-input:focus {
+        border-color: var(--gold-primary);
+        background: var(--bg-card);
+    }
+
+    .form-input::placeholder {
+        color: var(--text-nav);
+    }
+
+/* side-by-side fields (e.g. Stall No + Section) */
+.form-row {
+    display: flex;
+    gap: 10px;
+}
+
+    .form-row .form-field {
+        flex: 1;
+    }
+
+/* inline validation error */
+.form-error {
+    font-size: 11px;
+    color: var(--error-red);
+    background: var(--error-red-bg);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+}
+
+
+/* ─────────────────────────────────────────────
+   13. EMPTY STATE
+   Pages: Records.razor, Reports.razor
+   Shown when a filtered list returns no results
+───────────────────────────────────────────── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.empty-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+    .empty-icon svg {
+        width: 24px;
+        height: 24px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.empty-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.empty-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   ★ PAGE-SPECIFIC — only used in their respective page
+════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────
+   14. MENU CARDS
+   Page: Index.razor  (main menu / home)
+   .menu-card .card-icon .card-info
+   .card-title .card-sub .card-arrow
+   Gold left border appears on :active tap
+───────────────────────────────────────────── */
+.menu-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    /* gold left accent on tap */
+    .menu-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: transparent;
+        transition: background 0.18s;
+    }
+
+    .menu-card:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
+
+        .menu-card:active::before {
+            background: var(--gold-primary);
+        }
+
+.card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .card-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--navy-primary);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.card-info {
+    flex: 1;
+}
+
+.card-title {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.1px;
+}
+
+.card-sub {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.card-arrow {
+    color: var(--border-subtle);
+    font-size: 16px;
+}
+
+
+/* ─────────────────────────────────────────────
+   15. RECORD CARDS
+   Page: Records.razor
+   .record-card .record-icon .record-info
+   .record-name .record-meta .record-facility
+   .record-time .record-amount-col .record-amount
+   .record-status-pill
+   Green left border = paid, grey = unpaid
+───────────────────────────────────────────── */
+.record-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 13px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .record-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--bg-icon);
+    }
+
+    .record-card.paid::before {
+        background: var(--paid-green);
+    }
+
+    .record-card.unpaid::before {
+        background: var(--border);
+    }
+
+    .record-card:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
+
+/* receipt icon box — green tint when paid */
+.record-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .record-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--navy-primary);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .record-icon.paid-icon {
+        background: var(--paid-green-bg);
+        border-color: #c8e6da;
+    }
+
+        .record-icon.paid-icon svg {
+            stroke: var(--paid-green);
+        }
+
+.record-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.record-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.1px;
+}
+
+.record-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+}
+
+/* facility code badge e.g. NPM, TCC */
+.record-facility {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: rgba(13,33,55,0.07);
+    color: var(--navy-primary);
+}
+
+.record-time {
+    font-size: 9.5px;
+    color: var(--text-muted);
+}
+
+.record-amount-col {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.record-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* per-row status pill inside record cards */
+.record-status-pill {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-top: 3px;
+    display: inline-block;
+    letter-spacing: 0.3px;
+}
+
+
+/* ─────────────────────────────────────────────
+   16. DETAIL SHEET ROWS
+   Pages: Records.razor + Reports.razor
+   Key-value rows inside the detail bottom sheet
+   .detail-row .detail-key .detail-val .amount-val
+───────────────────────────────────────────── */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--bg-icon);
+}
+
+    .detail-row:last-of-type {
+        border-bottom: none;
+    }
+
+.detail-key {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+.detail-val {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+    /* amount row — larger green value */
+    .detail-val.amount-val {
+        font-family: 'EB Garamond', serif;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--paid-green);
+    }
+
+
+/* ─────────────────────────────────────────────
+   17. REPORTS PAGE
+   Page: Reports.razor  only
+   ──────────────────────────────────────────
+   .period-selector  — month nav with arrows
+   .report-type-tabs — By Facility/By Day/Summary
+   .total-banner     — dark navy grand total
+   .facility-row     — per-facility breakdown row
+   .day-row          — per-day breakdown row
+   .sheet-stat-row   — mini stats in detail sheet
+───────────────────────────────────────────── */
+
+/* Month navigator */
+.period-selector {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.period-arrow {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+    .period-arrow:active {
+        background: var(--border);
+    }
+
+    .period-arrow svg {
+        width: 15px;
+        height: 15px;
+        stroke: var(--navy-primary);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.period-label-block {
+    flex: 1;
+    text-align: center;
+}
+
+.period-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    line-height: 1.2;
+}
+
+.period-sub {
+    font-size: 9.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+/* Segmented tab toggle: By Facility / By Day / Summary */
+.report-type-tabs {
+    display: flex;
+    background: var(--bg-icon);
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 16px;
+    gap: 2px;
+}
+
+.report-type-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 6px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+    .report-type-tab.active {
+        background: var(--bg-card);
+        color: var(--navy-primary);
+        font-weight: 600;
+        box-shadow: 0 1px 4px rgba(13,33,55,0.08);
+    }
+
+/* Grand total navy banner */
+.total-banner {
+    background: var(--navy-primary);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+    /* gold gradient line at bottom of banner */
+    .total-banner::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    }
+
+.total-banner-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.total-banner-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1;
+}
+
+.total-banner-right {
+    text-align: right;
+}
+
+.total-banner-stat {
+    margin-bottom: 6px;
+}
+
+    .total-banner-stat:last-child {
+        margin-bottom: 0;
+    }
+
+.stat-val {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--gold-light);
+}
+
+.stat-key {
+    font-size: 8.5px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.5px;
+    display: block;
+    text-transform: uppercase;
+}
+
+/* right-side section total (gold text) */
+.section-total {
+    font-family: 'EB Garamond', serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* Facility breakdown row — gold left border */
+.facility-row {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 13px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .facility-row::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--gold-primary);
+    }
+
+    .facility-row:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
+
+.facility-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .facility-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--navy-primary);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.facility-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.facility-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy-primary);
+    letter-spacing: 0.1px;
+}
+
+.facility-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+}
+
+.facility-code {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: rgba(13,33,55,0.07);
+    color: var(--navy-primary);
+}
+
+.facility-count {
+    font-size: 9.5px;
+    color: var(--text-muted);
+}
+
+.facility-amount-col {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.facility-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+/* gold progress bar relative to highest facility */
+.facility-progress {
+    height: 3px;
+    background: var(--bg-icon);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+    width: 60px;
+}
+
+.facility-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-primary), var(--gold-light));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+/* Daily breakdown row — navy left border */
+.day-row {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+    .day-row::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--navy-primary);
+    }
+
+.day-date-block {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.day-date-num {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    line-height: 1;
+}
+
+.day-date-mon {
+    font-size: 7px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.day-info {
+    flex: 1;
+}
+
+.day-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--navy-primary);
+}
+
+.day-meta {
+    font-size: 9.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.day-amount-col {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.day-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+.day-count {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Mini stat cards inside facility detail sheet */
+.sheet-stat-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.sheet-stat {
+    flex: 1;
+    background: var(--bg-page);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+}
+
+.sheet-stat-val {
+    font-family: 'EB Garamond', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+.sheet-stat-key {
+    font-size: 8.5px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+
+/* ─────────────────────────────────────────────
+   18. MARKET / STALL ROWS
+   Page: Market.razor  only
+   ──────────────────────────────────────────
+   Header (Market uses its own header markup,
+   not AppHeader component yet):
+     .header .header-row .back-btn
+     .header-eyebrow .header-title-block
+     .header-title .header-sub
+
+   Confirm sheet preview card:
+     .sheet-preview .preview-num
+     .preview-info .preview-name .preview-detail
+
+   Stall list:
+     .stall-row .stall-check .stall-num
+     .stall-info .stall-type-badge
+     .stall-amount-col .stall-status-pill
+     .add-temp-row .add-temp-icon
+───────────────────────────────────────────── */
+
+/* ── Market header (direct markup, not AppHeader) ── */
+.header {
+    background: var(--navy-primary);
+    padding: 54px 24px 16px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+    .header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    }
+
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* back chevron button */
+.back-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: rgba(200,168,75,0.12);
+    border: 1px solid rgba(200,168,75,0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+    .back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--gold-primary);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.header-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.15;
+}
+
+.header-sub {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    margin-top: 2px;
+}
+
+/* ── Confirm sheet stall preview card ── */
+.sheet-preview {
+    background: var(--bg-page);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* large stall number in the preview card */
+.preview-num {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.preview-info {
+    flex: 1;
+}
+
+.preview-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy-primary);
+}
+
+.preview-detail {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+
+.stall-row {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 13px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    .stall-row::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--bg-icon);
+        transition: background 0.18s;
+    }
+
+    /* green left border = paid */
+    .stall-row.paid::before {
+        background: var(--paid-green);
+    }
+
+    .stall-row.unpaid::before {
+        background: var(--border);
+    }
+
+    .stall-row:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
+
+/* checkbox — filled green when checked */
+.stall-check {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    border: 1.8px solid var(--border-subtle);
+    background: var(--bg-page);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+    .stall-check.checked {
+        background: var(--paid-green);
+        border-color: var(--paid-green);
+    }
+
+    .stall-check svg {
+        width: 12px;
+        height: 12px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* stall number block */
+.stall-num {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.stall-num-label {
+    font-size: 7px;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.stall-num-val {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    line-height: 1.1;
+}
+
+.stall-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.stall-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.1px;
+}
+
+.stall-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+}
+
+/* Permanent / Temporary type badge */
+.stall-type-badge {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.badge-permanent {
+    background: rgba(13,33,55,0.07);
+    color: var(--navy-primary);
+}
+
+.badge-temporary {
+    background: rgba(200,168,75,0.14);
+    color: #7a5c10;
+}
+
+.stall-section {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.stall-amount-col {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.stall-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+/* per-stall status pill */
+.stall-status-pill {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-top: 3px;
+    display: inline-block;
+    letter-spacing: 0.3px;
+}
+
+/* dashed gold row to add a new temporary vendor */
+.add-temp-row {
+    border: 1.5px dashed var(--gold-primary);
+    border-radius: 12px;
+    padding: 13px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    background: transparent;
+    transition: all 0.18s ease;
+}
+
+    .add-temp-row:active {
+        background: rgba(200,168,75,0.06);
+    }
+
+.add-temp-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(200,168,75,0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .add-temp-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--gold-primary);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.add-temp-text {
+    font-size: 12.5px;
+    color: var(--gold-primary);
+    font-weight: 500;
+}

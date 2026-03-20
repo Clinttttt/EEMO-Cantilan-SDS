@@ -1,0 +1,787 @@
+﻿@page "/market"
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    :root, html, body {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        color-scheme: light;
+        background-color: #f0f4f8;
+    }
+
+    /* ── Header ── */
+    .header {
+        background: #0d2137;
+        padding: 54px 24px 16px;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #c8a84b, #e8cc76, #c8a84b);
+        }
+
+    .header-eyebrow {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 2.5px;
+        color: #c8a84b;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+
+    .header-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .back-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: rgba(200,168,75,0.12);
+        border: 1px solid rgba(200,168,75,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+        .back-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: #c8a84b;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    .header-title-block {
+        flex: 1;
+    }
+
+    .header-title {
+        font-family: 'EB Garamond', serif;
+        font-size: 17px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1.15;
+    }
+
+    .header-sub {
+        font-size: 10px;
+        color: #8faabf;
+        margin-top: 2px;
+    }
+
+    /* ── Date Strip ── */
+    .date-strip {
+        background: #112d47;
+        padding: 9px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+
+    .date-strip-left {
+        font-size: 10.5px;
+        color: #8faabf;
+    }
+
+        .date-strip-left span {
+            color: #e8cc76;
+            font-weight: 500;
+        }
+
+    .date-pill {
+        font-size: 9.5px;
+        color: #6a8aa0;
+        background: #0d2137;
+        padding: 3px 10px;
+        border-radius: 20px;
+        border: 1px solid #1e3a5f;
+    }
+
+    /* ── Summary Strip ── */
+    .summary-strip {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #dde4ea;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        display: flex;
+    }
+
+    .summary-item {
+        flex: 1;
+        text-align: center;
+    }
+
+        .summary-item + .summary-item {
+            border-left: 1px solid #eef2f6;
+        }
+
+    .summary-value {
+        font-family: 'EB Garamond', serif;
+        font-size: 17px;
+        font-weight: 600;
+        color: #0d2137;
+    }
+
+        .summary-value.green { color: #2d7a5f; }
+        .summary-value.red   { color: #8b3a3a; }
+
+    .summary-key {
+        font-size: 8.5px;
+        color: #8faabf;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+
+    /* ── Search Bar ── */
+    .search-wrap {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 1px solid #dde4ea;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        gap: 8px;
+        margin-bottom: 10px;
+        height: 38px;
+    }
+
+        .search-wrap svg {
+            width: 15px;
+            height: 15px;
+            stroke: #8faabf;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .search-wrap input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12.5px;
+            color: #0d2137;
+            background: transparent;
+        }
+
+            .search-wrap input::placeholder { color: #b0c4d4; }
+
+    /* ── Filter Tabs ── */
+    .filter-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+        .filter-tabs::-webkit-scrollbar { display: none; }
+
+    .filter-tab {
+        font-size: 10.5px;
+        font-weight: 500;
+        padding: 5px 12px;
+        border-radius: 20px;
+        border: 1px solid #dde4ea;
+        background: #ffffff;
+        color: #8faabf;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+
+        .filter-tab.active {
+            background: #0d2137;
+            color: #e8cc76;
+            border-color: #0d2137;
+        }
+
+    /* ── Section Label ── */
+    .section-label {
+        font-size: 9px;
+        font-weight: 600;
+        letter-spacing: 2.5px;
+        color: #8faabf;
+        text-transform: uppercase;
+        margin: 0 0 8px 2px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .section-count {
+        background: #eef2f6;
+        color: #6a8aa0;
+        font-size: 9px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        letter-spacing: 0;
+        font-weight: 500;
+    }
+
+    /* ── Stall Row ── */
+    .stall-row {
+        background: #ffffff;
+        border-radius: 11px;
+        border: 1px solid #dde4ea;
+        padding: 11px 13px;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.15s;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .stall-row::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+        }
+
+        .stall-row.paid::before   { background: #2d7a5f; }
+        .stall-row.unpaid::before { background: #dde4ea; }
+
+        .stall-row:active {
+            background: #f8fafb;
+            transform: scale(0.985);
+        }
+
+    /* ── Checkbox ── */
+    .stall-check {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+        border-radius: 6px;
+        border: 1.8px solid #c8d8e4;
+        background: #f0f4f8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+    }
+
+        .stall-check.checked {
+            background: #2d7a5f;
+            border-color: #2d7a5f;
+        }
+
+        .stall-check svg {
+            width: 12px;
+            height: 12px;
+            stroke: #fff;
+            fill: none;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    /* ── Stall Number Badge ── */
+    .stall-num {
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
+        border-radius: 9px;
+        background: #eef2f6;
+        border: 1px solid #dde4ea;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stall-num-label {
+        font-size: 7px;
+        color: #8faabf;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        line-height: 1;
+    }
+
+    .stall-num-val {
+        font-family: 'EB Garamond', serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #0d2137;
+        line-height: 1.1;
+    }
+
+    /* ── Stall Info ── */
+    .stall-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .stall-name {
+        font-size: 12.5px;
+        font-weight: 500;
+        color: #0d2137;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .stall-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 2px;
+    }
+
+    .stall-type-badge {
+        font-size: 8px;
+        font-weight: 600;
+        padding: 1.5px 6px;
+        border-radius: 4px;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+    }
+
+    .badge-permanent { background: #e8f0f7; color: #1e3a5f; }
+    .badge-temporary { background: #fff8e6; color: #8b6a1a; }
+
+    .stall-section {
+        font-size: 9.5px;
+        color: #8faabf;
+    }
+
+    /* ── Amount Column ── */
+    .stall-amount-col {
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    .stall-amount {
+        font-family: 'EB Garamond', serif;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: #0d2137;
+    }
+
+    .stall-status-pill {
+        font-size: 8px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 10px;
+        margin-top: 3px;
+        display: inline-block;
+        letter-spacing: 0.3px;
+    }
+
+    .pill-paid    { background: #e6f4ef; color: #2d7a5f; }
+    .pill-unpaid  { background: #fdf0f0; color: #8b3a3a; }
+    .pill-partial { background: #fff8e6; color: #8b6a1a; }
+
+    /* ── Add Temporary Row ── */
+    .add-temp-row {
+        border: 1.5px dashed #c8d8e4;
+        border-radius: 11px;
+        padding: 11px 13px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        margin-bottom: 8px;
+        background: transparent;
+        transition: all 0.15s;
+    }
+
+        .add-temp-row:active { background: #eef2f6; }
+
+    .add-temp-icon {
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+        border-radius: 9px;
+        background: #eef2f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .add-temp-icon svg {
+            width: 16px;
+            height: 16px;
+            stroke: #8faabf;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    .add-temp-text {
+        font-size: 12px;
+        color: #8faabf;
+    }
+
+    /* ── Group Spacer ── */
+    .group-spacer { margin-top: 14px; }
+
+    /* ── Page Shell ── */
+    .page-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        overflow: hidden;
+        background: #f0f4f8;
+    }
+
+    /* ── Scrollable Content ── */
+    .content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 16px 18px;
+        padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+        .content::-webkit-scrollbar { display: none; }
+
+    /* ── Bottom Nav ── */
+    .bottom-nav {
+        flex-shrink: 0;
+        background: #ffffff;
+        border-top: 1px solid #dde4ea;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        z-index: 10000;
+        height: calc(64px + env(safe-area-inset-bottom, 12px));
+        padding-bottom: env(safe-area-inset-bottom, 12px);
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        box-shadow: 0 -6px 18px rgba(13,33,55,0.06);
+    }
+
+    .nav-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 10px;
+    }
+
+        .nav-item .nav-label {
+            font-size: 9px;
+            color: #b0c4d4;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-item.active .nav-label {
+            color: #0d2137;
+            font-weight: 600;
+        }
+
+        .nav-item svg {
+            width: 22px;
+            height: 22px;
+            stroke: #b0c4d4;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
+        .nav-item.active svg { stroke: #0d2137; }
+</style>
+
+
+<!-- ░░ PAGE SHELL ░░ -->
+<div class="page-shell">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-eyebrow">Market Collections</div>
+        <div class="header-row">
+            <div class="back-btn" @onclick="GoBack">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            </div>
+            <div class="header-title-block">
+                <div class="header-title">New Public Market</div>
+                <div class="header-sub">NPM — Stall Rental &amp; Fees · @DateTime.Now.ToString("MMM dd, yyyy")</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Strip -->
+    <div class="date-strip">
+        <div class="date-strip-left">Collector: <span>@CollectorName</span></div>
+        <div class="date-pill" id="date-badge">@DateTime.Now.ToString("MMM d, yyyy")</div>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div class="content">
+
+        <!-- Summary Strip -->
+        <div class="summary-strip">
+            <div class="summary-item">
+                <div class="summary-value green">₱@TotalCollected.ToString("N0")</div>
+                <div class="summary-key">Collected</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value red">₱@TotalPending.ToString("N0")</div>
+                <div class="summary-key">Pending</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">@Stalls.Count</div>
+                <div class="summary-key">Total Stalls</div>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="Search stall no. or name…"
+                   @bind="SearchQuery" @bind:event="oninput" />
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+            @foreach (var tab in FilterOptions)
+            {
+                <div class="filter-tab @(ActiveFilter == tab ? "active" : "")"
+                     @onclick="() => SetFilter(tab)">@tab</div>
+            }
+        </div>
+
+        <!-- Permanent Stalls -->
+        <div class="section-label">
+            Permanent Stalls
+            <span class="section-count">@PermanentStalls.Count() stalls</span>
+        </div>
+
+        @foreach (var stall in PermanentStalls)
+        {
+            <div class="stall-row @(stall.IsPaid ? "paid" : "unpaid")"
+                 @onclick="() => TogglePaid(stall)">
+                <div class="stall-check @(stall.IsPaid ? "checked" : "")">
+                    @if (stall.IsPaid)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    }
+                </div>
+                <div class="stall-num">
+                    <span class="stall-num-label">Stall</span>
+                    <span class="stall-num-val">@stall.StallNo</span>
+                </div>
+                <div class="stall-info">
+                    <div class="stall-name">@stall.PayorName</div>
+                    <div class="stall-meta">
+                        <span class="stall-type-badge badge-permanent">Permanent</span>
+                        <span class="stall-section">@stall.Section</span>
+                    </div>
+                </div>
+                <div class="stall-amount-col">
+                    <div class="stall-amount">₱@stall.Amount.ToString("N0")</div>
+                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                </div>
+            </div>
+        }
+
+        <!-- Temporary Stalls -->
+        <div class="group-spacer"></div>
+        <div class="section-label">
+            Temporary Stalls
+            <span class="section-count">@TemporaryStalls.Count() stalls</span>
+        </div>
+
+        @foreach (var stall in TemporaryStalls)
+        {
+            <div class="stall-row @(stall.IsPaid ? "paid" : "unpaid")"
+                 @onclick="() => TogglePaid(stall)">
+                <div class="stall-check @(stall.IsPaid ? "checked" : "")">
+                    @if (stall.IsPaid)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    }
+                </div>
+                <div class="stall-num">
+                    <span class="stall-num-label">Stall</span>
+                    <span class="stall-num-val">@stall.StallNo</span>
+                </div>
+                <div class="stall-info">
+                    <div class="stall-name">@stall.PayorName</div>
+                    <div class="stall-meta">
+                        <span class="stall-type-badge badge-temporary">Temporary</span>
+                        <span class="stall-section">@stall.Section</span>
+                    </div>
+                </div>
+                <div class="stall-amount-col">
+                    <div class="stall-amount">₱@stall.Amount.ToString("N0")</div>
+                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                </div>
+            </div>
+        }
+
+        <!-- Add Temporary Vendor -->
+        <div class="add-temp-row" @onclick="AddTemporaryVendor">
+            <div class="add-temp-icon">
+                <svg viewBox="0 0 24 24">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+            </div>
+            <div class="add-temp-text">Add temporary vendor / payor…</div>
+        </div>
+
+    </div>
+    <!-- end .content -->
+
+    <!-- Bottom Nav -->
+    <div class="bottom-nav">
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <span class="nav-label">Menu</span>
+        </div>
+        <div class="nav-item active">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="nav-label">Records</span>
+        </div>
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span class="nav-label">Reports</span>
+        </div>
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span class="nav-label">Profile</span>
+        </div>
+    </div>
+
+</div>
+<!-- end .page-shell -->
+
+
+@code {
+
+    // ── Collector Info ────────────────────────────────────────────────────────
+    string CollectorName = "M. Reyes";
+
+    // ── Search & Filter ───────────────────────────────────────────────────────
+    string SearchQuery = string.Empty;
+    string ActiveFilter = "All";
+    List<string> FilterOptions = new() { "All", "Permanent", "Temporary", "Paid", "Unpaid" };
+
+    // ── Stall Model ───────────────────────────────────────────────────────────
+    class StallEntry
+    {
+        public string StallNo    { get; set; } = string.Empty;
+        public string PayorName  { get; set; } = string.Empty;
+        public string Section    { get; set; } = string.Empty;
+        public decimal Amount    { get; set; }
+        public bool IsPaid       { get; set; }
+        public bool IsTemporary  { get; set; }
+        public bool IsPartial    { get; set; }
+    }
+
+    // ── Master Stall List ─────────────────────────────────────────────────────
+    List<StallEntry> Stalls = new()
+    {
+        // Permanent
+        new() { StallNo="01", PayorName="Dela Cruz, Maria S.",    Section="Sec. A · Dry Goods",  Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="02", PayorName="Santos, Rodrigo T.",     Section="Sec. A · Dry Goods",  Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="03", PayorName="Bautista, Nena L.",      Section="Sec. A · Dry Goods",  Amount=150, IsPaid=false, IsTemporary=false },
+        new() { StallNo="05", PayorName="Reyes, Luzviminda A.",   Section="Sec. B · Vegetables", Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="06", PayorName="Garcia, Flordeliza B.",  Section="Sec. B · Vegetables", Amount=150, IsPaid=false, IsTemporary=false },
+        new() { StallNo="09", PayorName="Mangubat, Jose P.",      Section="Sec. C · Fish/Meat",  Amount=200, IsPaid=false, IsTemporary=false },
+        new() { StallNo="11", PayorName="Cañada, Elvira M.",      Section="Sec. C · Fish/Meat",  Amount=200, IsPaid=false, IsTemporary=false, IsPartial=true },
+        new() { StallNo="14", PayorName="Villanueva, Ricardo",    Section="Sec. D · General",    Amount=150, IsPaid=true,  IsTemporary=false },
+        // Temporary
+        new() { StallNo="T1", PayorName="Buenaventura, Carlo",   Section="Open Area",            Amount=50,  IsPaid=true,  IsTemporary=true },
+        new() { StallNo="T2", PayorName="Peralta, Nimfa R.",     Section="Open Area",            Amount=50,  IsPaid=false, IsTemporary=true },
+        new() { StallNo="T3", PayorName="Tiu, Marcelino",        Section="Open Area",            Amount=50,  IsPaid=false, IsTemporary=true },
+    };
+
+    // ── Computed Filtered Views ───────────────────────────────────────────────
+    IEnumerable<StallEntry> FilteredStalls => Stalls.Where(s =>
+    {
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || s.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+
+        bool matchFilter = ActiveFilter switch
+        {
+            "Permanent" => !s.IsTemporary,
+            "Temporary" => s.IsTemporary,
+            "Paid"      => s.IsPaid,
+            "Unpaid"    => !s.IsPaid,
+            _           => true
+        };
+
+        return matchSearch && matchFilter;
+    });
+
+    IEnumerable<StallEntry> PermanentStalls => FilteredStalls.Where(s => !s.IsTemporary);
+    IEnumerable<StallEntry> TemporaryStalls => FilteredStalls.Where(s =>  s.IsTemporary);
+
+    // ── Computed Totals ───────────────────────────────────────────────────────
+    decimal TotalCollected => Stalls.Where(s => s.IsPaid).Sum(s => s.Amount);
+    decimal TotalPending   => Stalls.Where(s => !s.IsPaid).Sum(s => s.Amount);
+
+    // ── Actions ───────────────────────────────────────────────────────────────
+    void TogglePaid(StallEntry stall)
+    {
+        stall.IsPaid = !stall.IsPaid;
+        if (stall.IsPaid) stall.IsPartial = false;
+    }
+
+    void SetFilter(string filter) => ActiveFilter = filter;
+
+    void GoBack()
+    {
+        // NavigationManager.NavigateTo("/");  // Uncomment when NavigationManager is injected
+    }
+
+    void AddTemporaryVendor()
+    {
+        // Open modal / navigate to add vendor form
+        // e.g. NavigationManager.NavigateTo("/market/add-temp");
+    }
+
+    // ── Pill Helpers ──────────────────────────────────────────────────────────
+    string GetPillClass(StallEntry s) =>
+        s.IsPartial ? "stall-status-pill pill-partial" :
+        s.IsPaid    ? "stall-status-pill pill-paid"    :
+                      "stall-status-pill pill-unpaid";
+
+    string GetStatusLabel(StallEntry s) =>
+        s.IsPartial ? "Partial" :
+        s.IsPaid    ? "Paid"    : "Unpaid";
+}

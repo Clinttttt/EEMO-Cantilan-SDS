@@ -1,0 +1,420 @@
+﻿@page "/market"
+@inject NavigationManager Navigation
+
+
+
+<!-- ░░ PAGE SHELL ░░ -->
+<div class="page-shell">
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-eyebrow">Market Collections</div>
+        <div class="header-row">
+            <div class="back-btn" @onclick="GoBack">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </div>
+            <div class="header-title-block">
+                <div class="header-title">New Public Market</div>
+                <div class="header-sub">NPM — Stall Rental &amp; Fees · @DateTime.Now.ToString("MMM dd, yyyy")</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Date Strip -->
+    <div class="date-strip">
+        <div class="date-strip-left">Collector: <span>Clint</span></div>
+        <div class="date-pill">@DateTime.Now.ToString("MMM d, yyyy")</div>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div class="content">
+
+        <!-- Summary Strip -->
+        <div class="summary-strip">
+            <div class="summary-item">
+                <div class="summary-value">₱@TotalCollected.ToString("N0")</div>
+                <div class="summary-key">Collected</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">₱@TotalPending.ToString("N0")</div>
+                <div class="summary-key">Pending</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value">@Stalls.Count</div>
+                <div class="summary-key">Total Stalls</div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-wrap">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input type="text" placeholder="Search stall no. or name…"
+                   @bind="SearchQuery" @bind:event="oninput" />
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+            @foreach (var tab in FilterOptions)
+            {
+                <div class="filter-tab @(ActiveFilter == tab ? "active" : "")"
+                     @onclick="() => ActiveFilter = tab">@tab</div>
+            }
+        </div>
+
+        <!-- Permanent Stalls -->
+        <div class="section-label">
+            Permanent Stalls
+            <span class="section-count">@PermanentStalls.Count() stalls</span>
+        </div>
+
+        @foreach (var stall in PermanentStalls)
+        {
+            <div class="stall-row @(stall.IsPaid ? "paid" : "")"
+                 @onclick="() => RequestToggle(stall)">
+                <div class="stall-check @(stall.IsPaid ? "checked" : "")">
+                    @if (stall.IsPaid)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+                <div class="stall-num">
+                    <span class="stall-num-label">Stall</span>
+                    <span class="stall-num-val">@stall.StallNo</span>
+                </div>
+                <div class="stall-info">
+                    <div class="stall-name">@stall.PayorName</div>
+                    <div class="stall-meta">
+                        <span class="stall-type-badge badge-permanent">Permanent</span>
+                        <span class="stall-section">@stall.Section</span>
+                    </div>
+                </div>
+                <div class="stall-amount-col">
+                    <div class="stall-amount">₱@stall.Amount.ToString("N0")</div>
+                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                </div>
+            </div>
+        }
+
+        <!-- Temporary Stalls -->
+        <div class="group-spacer"></div>
+        <div class="section-label">
+            Temporary Stalls
+            <span class="section-count">@TemporaryStalls.Count() stalls</span>
+        </div>
+
+        @foreach (var stall in TemporaryStalls)
+        {
+            <div class="stall-row @(stall.IsPaid ? "paid" : "")"
+                 @onclick="() => RequestToggle(stall)">
+                <div class="stall-check @(stall.IsPaid ? "checked" : "")">
+                    @if (stall.IsPaid)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+                <div class="stall-num">
+                    <span class="stall-num-label">Stall</span>
+                    <span class="stall-num-val">@stall.StallNo</span>
+                </div>
+                <div class="stall-info">
+                    <div class="stall-name">@stall.PayorName</div>
+                    <div class="stall-meta">
+                        <span class="stall-type-badge badge-temporary">Temporary</span>
+                        <span class="stall-section">@stall.Section</span>
+                    </div>
+                </div>
+                <div class="stall-amount-col">
+                    <div class="stall-amount">₱@stall.Amount.ToString("N0")</div>
+                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                </div>
+            </div>
+        }
+
+        <!-- Add Temporary Vendor -->
+        <div class="add-temp-row" @onclick="OpenAddVendor">
+            <div class="add-temp-icon">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </div>
+            <div class="add-temp-text">Add temporary vendor / payor…</div>
+        </div>
+
+    </div>
+    <!-- end .content -->
+
+    <!-- Bottom Nav -->
+    <BottomNav ActiveTab="menu" />
+
+</div>
+<!-- end .page-shell -->
+
+
+<!-- ════════════════════════════════════════════
+     CONFIRM BOTTOM SHEET
+     Shows before any paid/unpaid toggle
+     so accidental taps don't change records
+════════════════════════════════════════════ -->
+@if (ShowConfirmSheet && PendingToggle is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseConfirm">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+
+            <div class="sheet-title">
+                @(PendingToggle.IsPaid ? "Mark as Unpaid?" : "Mark as Paid?")
+            </div>
+            <div class="sheet-sub">Confirm before updating the payment status.</div>
+
+            <!-- Stall Preview -->
+            <div class="sheet-preview">
+                <div class="preview-num">@PendingToggle.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@PendingToggle.PayorName</div>
+                    <div class="preview-detail">
+                        @PendingToggle.Section &nbsp;·&nbsp; ₱@PendingToggle.Amount.ToString("N0")
+                    </div>
+                </div>
+            </div>
+
+            <div class="sheet-btn-row">
+                <div class="btn-cancel"  @onclick="CloseConfirm">Cancel</div>
+                <div class="btn-confirm" @onclick="ConfirmToggle">
+                    @(PendingToggle.IsPaid ? "Yes, Unpaid" : "Yes, Paid ✓")
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- ════════════════════════════════════════════
+     ADD VENDOR BOTTOM SHEET
+     Full custom info: name, stall no,
+     section/area, and amount
+════════════════════════════════════════════ -->
+@if (ShowAddVendorSheet)
+{
+    <div class="sheet-overlay" @onclick="CloseAddVendor">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+
+            <div class="sheet-title">Add Temporary Vendor</div>
+            <div class="sheet-sub">Fill in the vendor details below.</div>
+
+            <div class="form-field">
+                <div class="form-label">Payor / Vendor Name</div>
+                <input class="form-input" type="text"
+                       placeholder="e.g. Juan dela Cruz"
+                       @bind="NewVendorName"
+                       @bind:event="oninput" />
+            </div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <div class="form-label">Stall No.</div>
+                    <input class="form-input" type="text"
+                           placeholder="e.g. T4"
+                           @bind="NewVendorStallNo"
+                           @bind:event="oninput" />
+                </div>
+                <div class="form-field">
+                    <div class="form-label">Section / Area</div>
+                    <input class="form-input" type="text"
+                           placeholder="e.g. Open Area"
+                           @bind="NewVendorSection"
+                           @bind:event="oninput" />
+                </div>
+            </div>
+
+            <div class="form-field">
+                <div class="form-label">Amount (₱)</div>
+                <input class="form-input" type="number"
+                       placeholder="e.g. 50"
+                       @bind="NewVendorAmount"
+                       @bind:event="oninput" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(AddVendorError))
+            {
+                <div class="form-error">@AddVendorError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <div class="btn-cancel"  @onclick="CloseAddVendor">Cancel</div>
+                <div class="btn-confirm" @onclick="ConfirmAddVendor">Add Vendor</div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    // forceLoad: false → stays inside the Blazor router, no full WebView reload
+    // replace: true is intentionally removed — in MAUI Hybrid it corrupts the
+    // internal history stack so the 2nd navigation silently does nothing
+    void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    // ── Search & Filter ───────────────────────────────────────────────────────
+    string SearchQuery  = string.Empty;
+    string ActiveFilter = "All";
+
+    readonly List<string> FilterOptions = new()
+        { "All", "Permanent", "Temporary", "Paid", "Unpaid" };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // STALL MODEL
+    // ─────────────────────────────────────────────────────────────────────────
+    class StallEntry
+    {
+        public string  StallNo     { get; set; } = string.Empty;
+        public string  PayorName   { get; set; } = string.Empty;
+        public string  Section     { get; set; } = string.Empty;
+        public decimal Amount      { get; set; }
+        public bool    IsPaid      { get; set; }
+        public bool    IsPartial   { get; set; }
+        public bool    IsTemporary { get; set; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MASTER STALL LIST
+    // Replace with DB call later: Stalls = await MarketService.GetStallsAsync()
+    // ─────────────────────────────────────────────────────────────────────────
+    List<StallEntry> Stalls = new()
+    {
+        new() { StallNo="01", PayorName="Dela Cruz, Maria S.",   Section="Sec. A · Dry Goods",  Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="02", PayorName="Santos, Rodrigo T.",    Section="Sec. A · Dry Goods",  Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="03", PayorName="Bautista, Nena L.",     Section="Sec. A · Dry Goods",  Amount=150, IsPaid=false, IsTemporary=false },
+        new() { StallNo="05", PayorName="Reyes, Luzviminda A.",  Section="Sec. B · Vegetables", Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="06", PayorName="Garcia, Flordeliza B.", Section="Sec. B · Vegetables", Amount=150, IsPaid=false, IsTemporary=false },
+        new() { StallNo="09", PayorName="Mangubat, Jose P.",     Section="Sec. C · Fish/Meat",  Amount=200, IsPaid=false, IsTemporary=false },
+        new() { StallNo="11", PayorName="Cañada, Elvira M.",     Section="Sec. C · Fish/Meat",  Amount=200, IsPaid=false, IsTemporary=false, IsPartial=true },
+        new() { StallNo="14", PayorName="Villanueva, Ricardo",   Section="Sec. D · General",    Amount=150, IsPaid=true,  IsTemporary=false },
+        new() { StallNo="T1", PayorName="Buenaventura, Carlo",   Section="Open Area",           Amount=50,  IsPaid=true,  IsTemporary=true  },
+        new() { StallNo="T2", PayorName="Peralta, Nimfa R.",     Section="Open Area",           Amount=50,  IsPaid=false, IsTemporary=true  },
+        new() { StallNo="T3", PayorName="Tiu, Marcelino",        Section="Open Area",           Amount=50,  IsPaid=false, IsTemporary=true  },
+    };
+
+    // ── Filtered Views ────────────────────────────────────────────────────────
+    IEnumerable<StallEntry> FilteredStalls => Stalls.Where(s =>
+    {
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || s.StallNo.Contains(SearchQuery,  StringComparison.OrdinalIgnoreCase)
+            || s.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+
+        bool matchFilter = ActiveFilter switch
+        {
+            "Permanent" => !s.IsTemporary,
+            "Temporary" =>  s.IsTemporary,
+            "Paid"      =>  s.IsPaid && !s.IsPartial,
+            "Unpaid"    => !s.IsPaid || s.IsPartial,
+            _           => true
+        };
+
+        return matchSearch && matchFilter;
+    });
+
+    IEnumerable<StallEntry> PermanentStalls => FilteredStalls.Where(s => !s.IsTemporary);
+    IEnumerable<StallEntry> TemporaryStalls => FilteredStalls.Where(s =>  s.IsTemporary);
+
+    // ── Totals ────────────────────────────────────────────────────────────────
+    decimal TotalCollected => Stalls.Where(s =>  s.IsPaid && !s.IsPartial).Sum(s => s.Amount);
+    decimal TotalPending   => Stalls.Where(s => !s.IsPaid ||  s.IsPartial).Sum(s => s.Amount);
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CONFIRM SHEET — prevents misclick from changing payment status
+    // ─────────────────────────────────────────────────────────────────────────
+    bool        ShowConfirmSheet = false;
+    StallEntry? PendingToggle    = null;
+
+    void RequestToggle(StallEntry stall)
+    {
+        PendingToggle    = stall;
+        ShowConfirmSheet = true;
+    }
+
+    void ConfirmToggle()
+    {
+        if (PendingToggle is null) return;
+        PendingToggle.IsPaid    = !PendingToggle.IsPaid;
+        PendingToggle.IsPartial = false;   // clear partial on any manual toggle
+        CloseConfirm();
+    }
+
+    void CloseConfirm()
+    {
+        ShowConfirmSheet = false;
+        PendingToggle    = null;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ADD VENDOR SHEET — custom name, stall no, section, amount
+    // ─────────────────────────────────────────────────────────────────────────
+    bool    ShowAddVendorSheet = false;
+    string  NewVendorName      = string.Empty;
+    string  NewVendorStallNo   = string.Empty;
+    string  NewVendorSection   = "Open Area";
+    decimal NewVendorAmount    = 50;
+    string  AddVendorError     = string.Empty;
+
+    void OpenAddVendor()
+    {
+        int next          = Stalls.Count(s => s.IsTemporary) + 1;
+        NewVendorStallNo  = $"T{next}";
+        NewVendorName     = string.Empty;
+        NewVendorSection  = "Open Area";
+        NewVendorAmount   = 50;
+        AddVendorError    = string.Empty;
+        ShowAddVendorSheet = true;
+    }
+
+    void ConfirmAddVendor()
+    {
+        // Validation
+        if (string.IsNullOrWhiteSpace(NewVendorName))
+        {
+            AddVendorError = "Payor / vendor name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(NewVendorStallNo))
+        {
+            AddVendorError = "Stall number is required.";
+            return;
+        }
+        if (NewVendorAmount <= 0)
+        {
+            AddVendorError = "Amount must be greater than ₱0.";
+            return;
+        }
+
+        Stalls.Add(new StallEntry
+        {
+            StallNo     = NewVendorStallNo.Trim().ToUpper(),
+            PayorName   = NewVendorName.Trim(),
+            Section     = string.IsNullOrWhiteSpace(NewVendorSection)
+                            ? "Open Area"
+                            : NewVendorSection.Trim(),
+            Amount      = NewVendorAmount,
+            IsPaid      = false,
+            IsTemporary = true
+        });
+
+        CloseAddVendor();
+    }
+
+    void CloseAddVendor()
+    {
+        ShowAddVendorSheet = false;
+        AddVendorError     = string.Empty;
+    }
+
+    // ── Pill helpers ──────────────────────────────────────────────────────────
+    string GetPillClass(StallEntry s) =>
+        s.IsPartial ? "stall-status-pill pill-partial" :
+        s.IsPaid    ? "stall-status-pill pill-paid"    :
+                      "stall-status-pill pill-unpaid";
+
+    string GetStatusLabel(StallEntry s) =>
+        s.IsPartial ? "Partial" :
+        s.IsPaid    ? "Paid"    : "Unpaid";
+}

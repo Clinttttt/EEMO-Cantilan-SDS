@@ -1,0 +1,492 @@
+﻿@page "/login"
+@inject NavigationManager Navigation
+
+<style>
+    /* ─────────────────────────────────────────────
+           LOGIN PAGE — Login.razor only
+           Full-screen navy layout, no bottom nav,
+           no header component — standalone entry point
+        ───────────────────────────────────────────── */
+
+
+    /* ── Login Shell ── */
+    .login-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        overflow: hidden;
+        background: #0d2137;
+        will-change: transform;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+    }
+
+    /* ── Top Section — Logo + Org Name ── */
+    .login-top {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: calc(env(safe-area-inset-top, 20px) + 40px) 32px 28px;
+        position: relative;
+    }
+
+        /* decorative gold ring behind logo */
+        .login-top::before {
+            content: '';
+            position: absolute;
+            top: calc(env(safe-area-inset-top, 20px) + 20px);
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            border: 1px solid rgba(200,168,75,0.08);
+            pointer-events: none;
+        }
+
+    .login-seal {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 2px solid var(--gold-primary, #c8a84b);
+        filter: drop-shadow(0 0 22px rgba(200,168,75,0.28)) drop-shadow(0 6px 20px rgba(0,0,0,0.4));
+        margin-bottom: 20px;
+        flex-shrink: 0;
+    }
+
+        .login-seal img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .login-gov {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 3px;
+        color: #c8a84b;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+
+    .login-org {
+        font-family: 'EB Garamond', serif;
+        font-size: 20px;
+        font-weight: 600;
+        color: #ffffff;
+        text-align: center;
+        line-height: 1.25;
+        letter-spacing: 0.2px;
+        margin-bottom: 4px;
+    }
+
+    .login-sub {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 10.5px;
+        color: rgba(255,255,255,0.35);
+        text-align: center;
+        letter-spacing: 0.3px;
+        margin-bottom: 0;
+    }
+
+    /* gold line divider */
+    .login-divider {
+        width: 44px;
+        height: 1.5px;
+        background: linear-gradient(90deg, transparent, #c8a84b, transparent);
+        border-radius: 1px;
+        margin: 14px auto 0;
+    }
+
+    /* ── Bottom Card — Login Form ── */
+    .login-card {
+        flex: 1;
+        min-height: 0;
+        background: #f0f4f8;
+        border-radius: 28px 28px 0 0;
+        padding: 28px 24px calc(env(safe-area-inset-bottom, 16px) + 24px);
+        overflow-y: auto;
+        scrollbar-width: none;
+        position: relative;
+    }
+
+        .login-card::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* gold top accent on card */
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #c8a84b, #e8cc76, #c8a84b, transparent);
+            border-radius: 1px;
+        }
+
+    .login-card-title {
+        font-family: 'EB Garamond', serif;
+        font-size: 22px;
+        font-weight: 600;
+        color: #0d2137;
+        margin-bottom: 3px;
+    }
+
+    .login-card-sub {
+        font-size: 11px;
+        color: #8faabf;
+        margin-bottom: 24px;
+        letter-spacing: 0.2px;
+    }
+
+    /* ── Form Fields ── */
+    .login-field {
+        margin-bottom: 14px;
+    }
+
+    .login-label {
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 1.5px;
+        color: #8faabf;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
+    /* input wrapper — icon + field */
+    .login-input-wrap {
+        background: #ffffff;
+        border-radius: 11px;
+        border: 1.5px solid #dde4ea;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        gap: 10px;
+        height: 48px;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+        .login-input-wrap:focus-within {
+            border-color: #c8a84b;
+            box-shadow: 0 0 0 3px rgba(200,168,75,0.12);
+        }
+
+        .login-input-wrap svg {
+            width: 16px;
+            height: 16px;
+            stroke: #b0c4d4;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+            transition: stroke 0.15s;
+        }
+
+        .login-input-wrap:focus-within svg {
+            stroke: #c8a84b;
+        }
+
+        .login-input-wrap input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13.5px;
+            color: #0d2137;
+            background: transparent;
+            height: 100%;
+        }
+
+            .login-input-wrap input::placeholder {
+                color: #b0c4d4;
+            }
+
+    /* eye toggle for password */
+    .pw-toggle {
+        cursor: pointer;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+    }
+
+        .pw-toggle svg {
+            width: 16px;
+            height: 16px;
+            stroke: #b0c4d4;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    /* ── Error Banner ── */
+    .login-error {
+        background: #fdf0f0;
+        border: 1px solid #f5c6c6;
+        border-radius: 10px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        color: #8b3a3a;
+        font-weight: 500;
+    }
+
+        .login-error svg {
+            width: 15px;
+            height: 15px;
+            stroke: #8b3a3a;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+    /* ── Login Button ── */
+    .login-btn {
+        width: 100%;
+        padding: 15px;
+        border-radius: 12px;
+        background: #0d2137;
+        border: none;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #e8cc76;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: opacity 0.15s, transform 0.15s;
+        margin-top: 6px;
+        position: relative;
+        overflow: hidden;
+        letter-spacing: 0.3px;
+        box-sizing: border-box;
+    }
+
+        /* gold shimmer line at top of btn */
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(200,168,75,0.4), transparent);
+        }
+
+        .login-btn:active {
+            opacity: 0.84;
+            transform: scale(0.985);
+        }
+
+        /* loading state — just dim + block clicks */
+        .login-btn.loading {
+            opacity: 0.65;
+            pointer-events: none;
+            letter-spacing: 1.5px;
+        }
+
+    /* ── Notice Banner ── */
+    .login-notice {
+        background: rgba(13,33,55,0.05);
+        border-radius: 10px;
+        border: 1px solid #dde4ea;
+        padding: 12px 14px;
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        margin-top: 18px;
+    }
+
+        .login-notice svg {
+            width: 14px;
+            height: 14px;
+            stroke: #8faabf;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+    .login-notice-text {
+        font-size: 10.5px;
+        color: #8faabf;
+        line-height: 1.55;
+    }
+
+        .login-notice-text strong {
+            color: #6a8aa0;
+            font-weight: 600;
+        }
+
+    /* ── Footer ── */
+    .login-footer {
+        text-align: center;
+        font-size: 8.5px;
+        color: #b0c4d4;
+        letter-spacing: 0.3px;
+        line-height: 1.6;
+        margin-top: 20px;
+    }
+</style>
+
+
+<div class="login-shell">
+
+    <!-- Top: Logo + Org Name -->
+    <div class="login-top">
+        <div class="login-seal">
+            <img src="images/eemo-logo.png" alt="EEMO Seal" />
+        </div>
+        <div class="login-gov">Republic of the Philippines</div>
+        <div class="login-org">Economic Enterprise &amp;<br />Management Office</div>
+        <div class="login-sub">Municipality of Cantilan, Surigao del Sur</div>
+        <div class="login-divider"></div>
+    </div>
+
+    <!-- Bottom: Login Form Card -->
+    <div class="login-card">
+
+        <div class="login-card-title">Collector Sign In</div>
+        <div class="login-card-sub">Enter your credentials to access the system.</div>
+
+        <!-- Error Banner -->
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="login-error">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                @ErrorMessage
+            </div>
+        }
+
+        <!-- Username -->
+        <div class="login-field">
+            <div class="login-label">Username / Employee ID</div>
+            <div class="login-input-wrap">
+                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                <input type="text"
+                       placeholder="e.g. EEMO-2024-001"
+                       @bind="Username"
+                       @bind:event="oninput"
+                       @onkeydown="HandleKeyDown" />
+            </div>
+        </div>
+
+        <!-- Password -->
+        <div class="login-field">
+            <div class="login-label">Password</div>
+            <div class="login-input-wrap">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                <input type="@(ShowPassword ? "text" : "password")"
+                       placeholder="Enter your password"
+                       @bind="Password"
+                       @bind:event="oninput"
+                       @onkeydown="HandleKeyDown" />
+                <div class="pw-toggle" @onclick="() => ShowPassword = !ShowPassword">
+                    @if (ShowPassword)
+                    {
+                        <!-- eye-off icon -->
+                        <svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                    }
+                    else
+                    {
+                        <!-- eye icon -->
+                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Login Button -->
+        <div class="login-btn @(IsLoading ? "loading" : "")" @onclick="HandleLogin">
+            @(IsLoading ? "Signing in…" : "Sign In")
+        </div>
+
+        <!-- Notice -->
+        <div class="login-notice">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+            <div class="login-notice-text">
+                <strong>No registration available here.</strong> Accounts are created exclusively by the administrator through the web portal. Contact your office administrator if you need access.
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="login-footer">
+            EEMO Collectors v1.0 · For authorized personnel only<br />
+            Municipality of Cantilan, Surigao del Sur
+        </div>
+
+    </div>
+    <!-- end .login-card -->
+
+</div>
+<!-- end .login-shell -->
+@code {
+
+    // ── Form State ────────────────────────────────────────────────────────────
+    string Username = string.Empty;
+    string Password = string.Empty;
+    bool ShowPassword = false;
+    bool IsLoading = false;
+    string ErrorMessage = string.Empty;
+
+    // ── Enter Key Support ─────────────────────────────────────────────────────
+    void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") HandleLogin();
+    }
+
+    // ── Login Handler ─────────────────────────────────────────────────────────
+    // Kept synchronous — any Task.Delay / await triggers MAUI's native
+    // WebView loading indicator which shows a large system spinner on screen
+    void HandleLogin()
+    {
+        ErrorMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(Username))
+        {
+            ErrorMessage = "Please enter your username or employee ID.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Password))
+        {
+            ErrorMessage = "Please enter your password.";
+            return;
+        }
+
+        IsLoading = true;
+
+        // ── TODO: Replace with real sync/auth check ───────────────────────────
+        // For async API calls, use a service that handles its own threading
+        // and call NavigateTo only after the result is confirmed:
+        //   var ok = AuthService.ValidateCredentials(Username, Password);
+        //   if (ok) Navigation.NavigateTo("/menu", forceLoad: false);
+        //   else    ErrorMessage = "Invalid credentials.";
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Demo check — replace with real auth
+        if (Username.Trim().Length > 0 && Password.Length >= 4)
+        {
+            Navigation.NavigateTo("/menu", forceLoad: false);
+        }
+        else
+        {
+            ErrorMessage = "Invalid credentials. Please check your username and password.";
+            IsLoading = false;
+        }
+    }
+}

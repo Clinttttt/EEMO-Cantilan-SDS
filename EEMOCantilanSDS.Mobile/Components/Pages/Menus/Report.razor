@@ -1,0 +1,425 @@
+﻿@page "/reports"
+@inject NavigationManager Navigation
+
+
+
+<!-- ░░ PAGE SHELL ░░ -->
+<div class="page-shell">
+
+
+    <AppHeader CollectorName="Clint" />
+
+   
+
+    <!-- Scrollable Content -->
+    <div class="content">
+
+        <!-- Period Selector -->
+        <div class="period-selector">
+            <div class="period-arrow" @onclick="PrevPeriod">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </div>
+            <div class="period-label-block">
+                <div class="period-title">@PeriodTitle</div>
+                <div class="period-sub">@PeriodSubtitle</div>
+            </div>
+            <div class="period-arrow" @onclick="NextPeriod">
+                <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
+            </div>
+        </div>
+
+        <!-- Report Type Toggle -->
+        <div class="report-type-tabs">
+            @foreach (var tab in ReportTypes)
+            {
+                <div class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
+                     @onclick="() => ActiveReportType = tab">@tab</div>
+            }
+        </div>
+
+        <!-- Grand Total Banner -->
+        <div class="total-banner">
+            <div class="total-banner-left">
+                <div class="total-banner-label">Total Collection</div>
+                <div class="total-banner-amount">₱@GrandTotal.ToString("N0")</div>
+            </div>
+            <div class="total-banner-right">
+                <div class="total-banner-stat">
+                    <span class="stat-val">@TotalTransactions</span>
+                    <span class="stat-key">Transactions</span>
+                </div>
+                <div class="total-banner-stat">
+                    <span class="stat-val">@TotalUnpaid</span>
+                    <span class="stat-key">Unpaid</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── BY FACILITY view ── -->
+        @if (ActiveReportType == "By Facility")
+        {
+            <div class="section-label">
+                Breakdown by Facility
+                <span class="section-total">₱@GrandTotal.ToString("N0")</span>
+            </div>
+
+            @if (!FacilitySummaries.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </div>
+                    <div class="empty-title">No Data</div>
+                    <div class="empty-sub">No collections recorded for this period.</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var f in FacilitySummaries)
+                {
+                    <div class="facility-row" @onclick="() => OpenFacilityDetail(f)">
+                        <div class="facility-icon">
+                            @((MarkupString)GetFacilityIcon(f.Code))
+                        </div>
+                        <div class="facility-info">
+                            <div class="facility-name">@f.Name</div>
+                            <div class="facility-meta">
+                                <span class="facility-code">@f.Code</span>
+                                <span class="facility-count">@f.TransactionCount transactions</span>
+                            </div>
+                        </div>
+                        <div class="facility-amount-col">
+                            <div class="facility-amount">₱@f.Total.ToString("N0")</div>
+                            <div class="facility-progress">
+                                <div class="facility-progress-fill"
+                                     style="width:@GetProgressPercent(f.Total)%"></div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        }
+
+        <!-- ── BY DAY view ── -->
+        @if (ActiveReportType == "By Day")
+        {
+            <div class="section-label">
+                Daily Breakdown
+                <span class="section-total">@DailySummaries.Count() days</span>
+            </div>
+
+            @if (!DailySummaries.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    </div>
+                    <div class="empty-title">No Data</div>
+                    <div class="empty-sub">No collections recorded for this period.</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var day in DailySummaries)
+                {
+                    <div class="day-row">
+                        <div class="day-date-block">
+                            <span class="day-date-num">@day.Date.Day</span>
+                            <span class="day-date-mon">@day.Date.ToString("MMM")</span>
+                        </div>
+                        <div class="day-info">
+                            <div class="day-label">@GetDayLabel(day.Date)</div>
+                            <div class="day-meta">@day.FacilityCount facilities collected</div>
+                        </div>
+                        <div class="day-amount-col">
+                            <div class="day-amount">₱@day.Total.ToString("N0")</div>
+                            <div class="day-count">@day.TransactionCount entries</div>
+                        </div>
+                    </div>
+                }
+            }
+        }
+
+        <!-- ── SUMMARY view ── -->
+        @if (ActiveReportType == "Summary")
+        {
+            <div class="section-label">
+                Collection Summary
+            </div>
+
+            <div class="facility-row">
+                <div class="facility-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div class="facility-info">
+                    <div class="facility-name">Total Collected</div>
+                    <div class="facility-meta">
+                        <span class="facility-count">All facilities · @PeriodTitle</span>
+                    </div>
+                </div>
+                <div class="facility-amount-col">
+                    <div class="facility-amount">₱@GrandTotal.ToString("N0")</div>
+                </div>
+            </div>
+
+            <div class="facility-row">
+                <div class="facility-icon">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="facility-info">
+                    <div class="facility-name">Paid Transactions</div>
+                    <div class="facility-meta">
+                        <span class="facility-count">Successfully collected</span>
+                    </div>
+                </div>
+                <div class="facility-amount-col">
+                    <div class="facility-amount">@TotalTransactions</div>
+                </div>
+            </div>
+
+            <div class="facility-row">
+                <div class="facility-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <div class="facility-info">
+                    <div class="facility-name">Unpaid / Pending</div>
+                    <div class="facility-meta">
+                        <span class="facility-count">Awaiting collection</span>
+                    </div>
+                </div>
+                <div class="facility-amount-col">
+                    <div class="facility-amount">₱@TotalPendingAmount.ToString("N0")</div>
+                </div>
+            </div>
+
+            <div class="group-spacer"></div>
+            <div class="section-label">Active Facilities</div>
+
+            @foreach (var f in FacilitySummaries.Take(3))
+            {
+                <div class="facility-row" @onclick="() => OpenFacilityDetail(f)">
+                    <div class="facility-icon">
+                        @((MarkupString)GetFacilityIcon(f.Code))
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-name">@f.Name</div>
+                        <div class="facility-meta">
+                            <span class="facility-code">@f.Code</span>
+                            <span class="facility-count">@f.TransactionCount transactions</span>
+                        </div>
+                    </div>
+                    <div class="facility-amount-col">
+                        <div class="facility-amount">₱@f.Total.ToString("N0")</div>
+                        <div class="facility-progress">
+                            <div class="facility-progress-fill"
+                                 style="width:@GetProgressPercent(f.Total)%"></div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+    </div>
+    <!-- end .content -->
+
+    <!-- Bottom Nav -->
+    <BottomNav ActiveTab="reports" />
+
+</div>
+<!-- end .page-shell -->
+
+
+<!-- ════════════════════════════════════════════
+     FACILITY DETAIL SHEET
+════════════════════════════════════════════ -->
+@if (ShowDetailSheet && SelectedFacility is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseDetail">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+
+            <div class="sheet-title">@SelectedFacility.Name</div>
+            <div class="sheet-sub">@PeriodTitle · @SelectedFacility.Code</div>
+
+            <!-- Mini stats -->
+            <div class="sheet-stat-row">
+                <div class="sheet-stat">
+                    <div class="sheet-stat-val">₱@SelectedFacility.Total.ToString("N0")</div>
+                    <div class="sheet-stat-key">Collected</div>
+                </div>
+                <div class="sheet-stat">
+                    <div class="sheet-stat-val">@SelectedFacility.TransactionCount</div>
+                    <div class="sheet-stat-key">Transactions</div>
+                </div>
+                <div class="sheet-stat">
+                    <div class="sheet-stat-val">@SelectedFacility.UnpaidCount</div>
+                    <div class="sheet-stat-key">Unpaid</div>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-key">Facility Code</span>
+                <span class="detail-val">@SelectedFacility.Code</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Total Amount</span>
+                <span class="detail-val">₱@SelectedFacility.Total.ToString("N2")</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Transactions</span>
+                <span class="detail-val">@SelectedFacility.TransactionCount entries</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Unpaid</span>
+                <span class="detail-val">@SelectedFacility.UnpaidCount entries</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Period</span>
+                <span class="detail-val">@PeriodTitle</span>
+            </div>
+
+            <div class="sheet-btn-row">
+                <div class="btn-close" @onclick="CloseDetail">Close</div>
+                <div class="btn-primary">Export</div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    void GoTo(string path) => Navigation.NavigateTo(path, forceLoad: false);
+
+    // ── Date ──────────────────────────────────────────────────────────────────
+    string Today => DateTime.Now.ToString("MMM d, yyyy");
+
+    // ── Report Type Toggle ────────────────────────────────────────────────────
+    string ActiveReportType = "By Facility";
+    readonly List<string> ReportTypes = new() { "By Facility", "By Day", "Summary" };
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PERIOD NAVIGATION
+    // ─────────────────────────────────────────────────────────────────────────
+    // 0 = current month, -1 = last month, +1 = next month, etc.
+    int PeriodOffset = 0;
+
+    DateTime PeriodDate => DateTime.Now.AddMonths(PeriodOffset);
+
+    string PeriodTitle => PeriodOffset == 0
+        ? "This Month"
+        : PeriodDate.ToString("MMMM yyyy");
+
+    string PeriodSubtitle =>
+        $"{new DateTime(PeriodDate.Year, PeriodDate.Month, 1):MMM d} – " +
+        $"{new DateTime(PeriodDate.Year, PeriodDate.Month, DateTime.DaysInMonth(PeriodDate.Year, PeriodDate.Month)):MMM d, yyyy}";
+
+    void PrevPeriod() => PeriodOffset--;
+    void NextPeriod()
+    {
+        // Don't allow navigating into the future
+        if (PeriodOffset < 0) PeriodOffset++;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FACILITY SUMMARY MODEL
+    // ─────────────────────────────────────────────────────────────────────────
+    class FacilitySummary
+    {
+        public string  Code             { get; set; } = string.Empty;
+        public string  Name             { get; set; } = string.Empty;
+        public decimal Total            { get; set; }
+        public int     TransactionCount { get; set; }
+        public int     UnpaidCount      { get; set; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DAILY SUMMARY MODEL
+    // ─────────────────────────────────────────────────────────────────────────
+    class DailySummary
+    {
+        public DateTime Date             { get; set; }
+        public decimal  Total            { get; set; }
+        public int      TransactionCount { get; set; }
+        public int      FacilityCount    { get; set; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAMPLE DATA
+    // Replace with: FacilitySummaries = await ReportsService.GetFacilityAsync(PeriodDate)
+    // ─────────────────────────────────────────────────────────────────────────
+    IEnumerable<FacilitySummary> FacilitySummaries => new List<FacilitySummary>
+    {
+        new() { Code="NPM",          Name="New Public Market",       Total=4750, TransactionCount=32, UnpaidCount=5 },
+        new() { Code="TCC",          Name="Town Center Commercial",  Total=3600, TransactionCount=12, UnpaidCount=2 },
+        new() { Code="NCC",          Name="New Commercial Center",   Total=2800, TransactionCount=10, UnpaidCount=1 },
+        new() { Code="Terminal",     Name="Transport Terminal",      Total=1240, TransactionCount=62, UnpaidCount=0 },
+        new() { Code="Slaughterhouse",Name="Slaughterhouse",         Total=980,  TransactionCount=14, UnpaidCount=3 },
+        new() { Code="Cemetery",     Name="Cemetery",                Total=600,  TransactionCount=4,  UnpaidCount=0 },
+        new() { Code="ECF",          Name="Miscellaneous – ECF",     Total=420,  TransactionCount=8,  UnpaidCount=1 },
+        new() { Code="WCF",          Name="Miscellaneous – WCF",     Total=310,  TransactionCount=6,  UnpaidCount=0 },
+    }
+    .OrderByDescending(f => f.Total);
+
+    IEnumerable<DailySummary> DailySummaries => Enumerable.Range(0, 7)
+        .Select(i => new DailySummary
+        {
+            Date             = DateTime.Today.AddDays(-i),
+            Total            = (decimal)(new Random(i + 1).Next(800, 2200)),
+            TransactionCount = new Random(i + 2).Next(8, 28),
+            FacilityCount    = new Random(i + 3).Next(2, 6)
+        })
+        .OrderByDescending(d => d.Date);
+
+    // ── Computed Totals ───────────────────────────────────────────────────────
+    decimal GrandTotal          => FacilitySummaries.Sum(f => f.Total);
+    int     TotalTransactions   => FacilitySummaries.Sum(f => f.TransactionCount);
+    int     TotalUnpaid         => FacilitySummaries.Sum(f => f.UnpaidCount);
+    decimal TotalPendingAmount  => TotalUnpaid * 150m; // placeholder — wire to real data
+
+    // ── Progress bar % relative to highest facility ───────────────────────────
+    int GetProgressPercent(decimal amount)
+    {
+        var max = FacilitySummaries.Any() ? FacilitySummaries.Max(f => f.Total) : 1;
+        return max == 0 ? 0 : (int)(amount / max * 100);
+    }
+
+    // ── Day label helper ──────────────────────────────────────────────────────
+    string GetDayLabel(DateTime dt)
+    {
+        if (dt.Date == DateTime.Today)             return "Today";
+        if (dt.Date == DateTime.Today.AddDays(-1)) return "Yesterday";
+        return dt.ToString("dddd");   // Monday, Tuesday, etc.
+    }
+
+    // ── Facility SVG icons ────────────────────────────────────────────────────
+    string GetFacilityIcon(string code) => code switch
+    {
+        "NPM"  => """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
+        "TCC"  => """<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
+        "NCC"  => """<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
+        "Terminal" => """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
+        "Slaughterhouse" => """<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
+        "Cemetery" => """<svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>""",
+        "ECF"  => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>""",
+        "WCF"  => """<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>""",
+        _      => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>"""
+    };
+
+    // ── Facility Detail Sheet ─────────────────────────────────────────────────
+    bool             ShowDetailSheet  = false;
+    FacilitySummary? SelectedFacility = null;
+
+    void OpenFacilityDetail(FacilitySummary f)
+    {
+        SelectedFacility = f;
+        ShowDetailSheet  = true;
+    }
+
+    void CloseDetail()
+    {
+        ShowDetailSheet  = false;
+        SelectedFacility = null;
+    }
+}
