@@ -2,14 +2,10 @@
 @inject NavigationManager Navigation
 
 
-
 <!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
 
-
     <AppHeader CollectorName="Clint" />
-
-   
 
     <!-- Scrollable Content -->
     <div class="content">
@@ -33,7 +29,9 @@
             @foreach (var tab in ReportTypes)
             {
                 <div class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
-                     @onclick="() => ActiveReportType = tab">@tab</div>
+                     @onclick="() => ActiveReportType = tab">
+                    @tab
+                </div>
             }
         </div>
 
@@ -67,7 +65,7 @@
             {
                 <div class="empty-state">
                     <div class="empty-icon">
-                        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
                     </div>
                     <div class="empty-title">No Data</div>
                     <div class="empty-sub">No collections recorded for this period.</div>
@@ -104,7 +102,7 @@
         @if (ActiveReportType == "By Day")
         {
             <div class="section-label">
-                Daily Breakdown
+                Daily Breakdown · @PeriodDate.ToString("MMMM yyyy")
                 <span class="section-total">@DailySummaries.Count() days</span>
             </div>
 
@@ -112,7 +110,7 @@
             {
                 <div class="empty-state">
                     <div class="empty-icon">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                     </div>
                     <div class="empty-title">No Data</div>
                     <div class="empty-sub">No collections recorded for this period.</div>
@@ -140,6 +138,84 @@
             }
         }
 
+        <!-- ── PER PAYEE view ── -->
+        @if (ActiveReportType == "Per Payee")
+        {
+            <div class="section-label">
+                Per Payee Summary
+                <span class="section-total">@FilteredPayees.Count() payors</span>
+            </div>
+
+            <!-- Search — only visible in Per Payee tab -->
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text"
+                       placeholder="Search payor name or stall no…"
+                       @bind="PayeeSearch"
+                       @bind:event="oninput" />
+                @if (!string.IsNullOrEmpty(PayeeSearch))
+                {
+                    <div style="cursor:pointer;padding:0 4px;color:var(--text-muted);font-size:16px;"
+                         @onclick="() => PayeeSearch = string.Empty">
+                        ×
+                    </div>
+                }
+            </div>
+
+            @if (!FilteredPayees.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                    </div>
+                    <div class="empty-title">No Data</div>
+                    <div class="empty-sub">No collections recorded for this period.</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var p in FilteredPayees)
+                {
+                    <div class="payee-row">
+                        <div class="payee-status-dot @GetPayeeStatusClass(p)"></div>
+
+                        <div class="payee-info">
+                            <div class="payee-name">@p.PayorName</div>
+                            <div class="payee-meta">
+                                <span class="facility-code">@p.FacilityCode</span>
+                                <span class="payee-months">Stall @p.StallNo · ₱@p.MonthlyRate.ToString("N0")/mo</span>
+                            </div>
+                            <div class="payee-last-paid">
+                                @if (p.MonthsUnpaid == 0)
+                                {
+                                    <span class="last-paid-ok">✓ Paid @p.LastPaidMonth</span>
+                                }
+                                else
+                                {
+                                    <span class="last-paid-warn">Last paid: @p.LastPaidMonth</span>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="payee-amount-col">
+                            @if (p.MonthsUnpaid == 0)
+                            {
+                                <div class="payee-total paid-total">₱0 due</div>
+                            }
+                            else
+                            {
+                                <div class="payee-total">₱@p.BalanceDue.ToString("N0")</div>
+                                <div class="payee-balance-sub">@p.MonthsUnpaid mo. unpaid</div>
+                            }
+                            <div class="payee-status-label @GetPayeeStatusClass(p)">
+                                @GetPayeeStatusLabel(p)
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        }
+
         <!-- ── SUMMARY view ── -->
         @if (ActiveReportType == "Summary")
         {
@@ -149,7 +225,7 @@
 
             <div class="facility-row">
                 <div class="facility-icon">
-                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                 </div>
                 <div class="facility-info">
                     <div class="facility-name">Total Collected</div>
@@ -164,7 +240,7 @@
 
             <div class="facility-row">
                 <div class="facility-icon">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
                 <div class="facility-info">
                     <div class="facility-name">Paid Transactions</div>
@@ -179,7 +255,7 @@
 
             <div class="facility-row">
                 <div class="facility-icon">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                 </div>
                 <div class="facility-info">
                     <div class="facility-name">Unpaid / Pending</div>
@@ -220,15 +296,10 @@
         }
 
     </div>
-    <!-- end .content -->
-
-    <!-- Bottom Nav -->
     <BottomNav ActiveTab="reports" />
 
 </div>
 <!-- end .page-shell -->
-
-
 <!-- ════════════════════════════════════════════
      FACILITY DETAIL SHEET
 ════════════════════════════════════════════ -->
@@ -297,7 +368,7 @@
 
     // ── Report Type Toggle ────────────────────────────────────────────────────
     string ActiveReportType = "By Facility";
-    readonly List<string> ReportTypes = new() { "By Facility", "By Day", "Summary" };
+    readonly List<string> ReportTypes = new() { "By Facility", "By Day", "Per Payee", "Summary" };
 
     // ─────────────────────────────────────────────────────────────────────────
     // PERIOD NAVIGATION
@@ -327,11 +398,11 @@
     // ─────────────────────────────────────────────────────────────────────────
     class FacilitySummary
     {
-        public string  Code             { get; set; } = string.Empty;
-        public string  Name             { get; set; } = string.Empty;
-        public decimal Total            { get; set; }
-        public int     TransactionCount { get; set; }
-        public int     UnpaidCount      { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public decimal Total { get; set; }
+        public int TransactionCount { get; set; }
+        public int UnpaidCount { get; set; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -339,44 +410,57 @@
     // ─────────────────────────────────────────────────────────────────────────
     class DailySummary
     {
-        public DateTime Date             { get; set; }
-        public decimal  Total            { get; set; }
-        public int      TransactionCount { get; set; }
-        public int      FacilityCount    { get; set; }
+        public DateTime Date { get; set; }
+        public decimal Total { get; set; }
+        public int TransactionCount { get; set; }
+        public int FacilityCount { get; set; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // SAMPLE DATA
     // Replace with: FacilitySummaries = await ReportsService.GetFacilityAsync(PeriodDate)
-    // ─────────────────────────────────────────────────────────────────────────
-    IEnumerable<FacilitySummary> FacilitySummaries => new List<FacilitySummary>
+    // Sample data varies per month so the total banner updates when switching periods
+    IEnumerable<FacilitySummary> FacilitySummaries
     {
-        new() { Code="NPM",          Name="New Public Market",       Total=4750, TransactionCount=32, UnpaidCount=5 },
-        new() { Code="TCC",          Name="Town Center Commercial",  Total=3600, TransactionCount=12, UnpaidCount=2 },
-        new() { Code="NCC",          Name="New Commercial Center",   Total=2800, TransactionCount=10, UnpaidCount=1 },
-        new() { Code="Terminal",     Name="Transport Terminal",      Total=1240, TransactionCount=62, UnpaidCount=0 },
-        new() { Code="Slaughterhouse",Name="Slaughterhouse",         Total=980,  TransactionCount=14, UnpaidCount=3 },
-        new() { Code="Cemetery",     Name="Cemetery",                Total=600,  TransactionCount=4,  UnpaidCount=0 },
-        new() { Code="ECF",          Name="Miscellaneous – ECF",     Total=420,  TransactionCount=8,  UnpaidCount=1 },
-        new() { Code="WCF",          Name="Miscellaneous – WCF",     Total=310,  TransactionCount=6,  UnpaidCount=0 },
-    }
-    .OrderByDescending(f => f.Total);
-
-    IEnumerable<DailySummary> DailySummaries => Enumerable.Range(0, 7)
-        .Select(i => new DailySummary
+        get
         {
-            Date             = DateTime.Today.AddDays(-i),
-            Total            = (decimal)(new Random(i + 1).Next(800, 2200)),
-            TransactionCount = new Random(i + 2).Next(8, 28),
-            FacilityCount    = new Random(i + 3).Next(2, 6)
-        })
-        .OrderByDescending(d => d.Date);
+            // Seed by year+month so numbers are consistent but different per month
+            int seed = PeriodDate.Year * 100 + PeriodDate.Month;
+            var rng = new Random(seed);
+
+            return new List<FacilitySummary>
+            {
+                new() { Code="NPM",           Name="New Public Market",      Total=rng.Next(3500,6000),  TransactionCount=rng.Next(25,45), UnpaidCount=rng.Next(2,8)  },
+                new() { Code="TCC",           Name="Town Center Commercial", Total=rng.Next(2500,4500),  TransactionCount=rng.Next(8,18),  UnpaidCount=rng.Next(0,4)  },
+                new() { Code="NCC",           Name="New Commercial Center",  Total=rng.Next(1800,3500),  TransactionCount=rng.Next(6,14),  UnpaidCount=rng.Next(0,3)  },
+                new() { Code="Terminal",      Name="Transport Terminal",     Total=rng.Next(800,1800),   TransactionCount=rng.Next(40,80), UnpaidCount=0              },
+                new() { Code="Slaughterhouse",Name="Slaughterhouse",         Total=rng.Next(600,1200),   TransactionCount=rng.Next(8,18),  UnpaidCount=rng.Next(0,4)  },
+                new() { Code="Cemetery",      Name="Cemetery",               Total=rng.Next(300,800),    TransactionCount=rng.Next(2,8),   UnpaidCount=0              },
+                new() { Code="ECF",           Name="Miscellaneous – ECF",    Total=rng.Next(200,600),    TransactionCount=rng.Next(4,12),  UnpaidCount=rng.Next(0,2)  },
+                new() { Code="WCF",           Name="Miscellaneous – WCF",    Total=rng.Next(150,500),    TransactionCount=rng.Next(3,10),  UnpaidCount=0              },
+            }
+            .OrderByDescending(f => f.Total);
+        }
+    }
+
+    IEnumerable<DailySummary> DailySummaries =>
+        Enumerable.Range(1, DateTime.DaysInMonth(PeriodDate.Year, PeriodDate.Month))
+            .Select(day => new DailySummary
+            {
+                Date = new DateTime(PeriodDate.Year, PeriodDate.Month, day),
+                Total = (decimal)(new Random(day + 1).Next(800, 2200)),
+                TransactionCount = new Random(day + 2).Next(8, 28),
+                FacilityCount = new Random(day + 3).Next(2, 6)
+            })
+            // Only show days up to today (can't have future data)
+            .Where(d => d.Date.Date <= DateTime.Today)
+            .OrderByDescending(d => d.Date);
 
     // ── Computed Totals ───────────────────────────────────────────────────────
-    decimal GrandTotal          => FacilitySummaries.Sum(f => f.Total);
-    int     TotalTransactions   => FacilitySummaries.Sum(f => f.TransactionCount);
-    int     TotalUnpaid         => FacilitySummaries.Sum(f => f.UnpaidCount);
-    decimal TotalPendingAmount  => TotalUnpaid * 150m; // placeholder — wire to real data
+    decimal GrandTotal => FacilitySummaries.Sum(f => f.Total);
+    int TotalTransactions => FacilitySummaries.Sum(f => f.TransactionCount);
+    int TotalUnpaid => FacilitySummaries.Sum(f => f.UnpaidCount);
+    decimal TotalPendingAmount => TotalUnpaid * 150m; // placeholder — wire to real data
 
     // ── Progress bar % relative to highest facility ───────────────────────────
     int GetProgressPercent(decimal amount)
@@ -388,7 +472,7 @@
     // ── Day label helper ──────────────────────────────────────────────────────
     string GetDayLabel(DateTime dt)
     {
-        if (dt.Date == DateTime.Today)             return "Today";
+        if (dt.Date == DateTime.Today) return "Today";
         if (dt.Date == DateTime.Today.AddDays(-1)) return "Yesterday";
         return dt.ToString("dddd");   // Monday, Tuesday, etc.
     }
@@ -396,30 +480,83 @@
     // ── Facility SVG icons ────────────────────────────────────────────────────
     string GetFacilityIcon(string code) => code switch
     {
-        "NPM"  => """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
-        "TCC"  => """<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
-        "NCC"  => """<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
+        "NPM" => """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
+        "TCC" => """<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
+        "NCC" => """<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
         "Terminal" => """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
         "Slaughterhouse" => """<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
         "Cemetery" => """<svg viewBox="0 0 24 24"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0112 2a8 8 0 018 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>""",
-        "ECF"  => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>""",
-        "WCF"  => """<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>""",
-        _      => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>"""
+        "ECF" => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>""",
+        "WCF" => """<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>""",
+        _ => """<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>"""
     };
 
-    // ── Facility Detail Sheet ─────────────────────────────────────────────────
-    bool             ShowDetailSheet  = false;
+    // ─────────────────────────────────────────────────────────────────────────
+    // PER PAYEE MODEL — Option 2: Months Unpaid / Balance Due
+    // ─────────────────────────────────────────────────────────────────────────
+    class PayeeSummary
+    {
+        public string PayorName { get; set; } = string.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string FacilityCode { get; set; } = string.Empty;
+        public decimal MonthlyRate { get; set; }   // rent per month
+        public int MonthsUnpaid { get; set; }   // how many months not paid
+        public decimal BalanceDue => MonthlyRate * MonthsUnpaid;
+        public string LastPaidMonth { get; set; } = string.Empty;  // e.g. "Mar 2026"
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SAMPLE PAYEE DATA
+    // Replace with: PayeeSummaries = await ReportsService.GetPayeeSummaryAsync()
+    // ─────────────────────────────────────────────────────────────────────────
+    IEnumerable<PayeeSummary> PayeeSummaries => new List<PayeeSummary>
+    {
+        new() { PayorName="Dela Cruz, Maria S.", StallNo="01", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=0,  LastPaidMonth=DateTime.Now.ToString("MMM yyyy") },
+        new() { PayorName="Santos, Rodrigo T.",  StallNo="02", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=0,  LastPaidMonth=DateTime.Now.ToString("MMM yyyy") },
+        new() { PayorName="Reyes, Luzviminda A.",StallNo="05", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=0,  LastPaidMonth=DateTime.Now.ToString("MMM yyyy") },
+        new() { PayorName="Bautista, Nena L.",   StallNo="03", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=1,  LastPaidMonth=DateTime.Now.AddMonths(-1).ToString("MMM yyyy") },
+        new() { PayorName="Villanueva, Ricardo",  StallNo="14", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=2,  LastPaidMonth=DateTime.Now.AddMonths(-2).ToString("MMM yyyy") },
+        new() { PayorName="Garcia, Flordeliza B.",StallNo="06", FacilityCode="NPM", MonthlyRate=150, MonthsUnpaid=3,  LastPaidMonth=DateTime.Now.AddMonths(-3).ToString("MMM yyyy") },
+        new() { PayorName="Cañada, Elvira M.",    StallNo="11", FacilityCode="NPM", MonthlyRate=200, MonthsUnpaid=4,  LastPaidMonth=DateTime.Now.AddMonths(-4).ToString("MMM yyyy") },
+        new() { PayorName="Mangubat, Jose P.",    StallNo="09", FacilityCode="NPM", MonthlyRate=200, MonthsUnpaid=7,  LastPaidMonth=DateTime.Now.AddMonths(-7).ToString("MMM yyyy") },
+        new() { PayorName="Peralta, Nimfa R.",    StallNo="B-02", FacilityCode="TCC", MonthlyRate=300, MonthsUnpaid=0, LastPaidMonth=DateTime.Now.ToString("MMM yyyy") },
+        new() { PayorName="Tiu, Marcelino",       StallNo="B-05", FacilityCode="TCC", MonthlyRate=300, MonthsUnpaid=1, LastPaidMonth=DateTime.Now.AddMonths(-1).ToString("MMM yyyy") },
+    }
+    .OrderByDescending(p => p.MonthsUnpaid)   // most overdue first
+    .ThenBy(p => p.PayorName);
+
+    // ── Payee status helpers ──────────────────────────────────────────────────
+    string GetPayeeStatusClass(PayeeSummary p) =>
+        p.MonthsUnpaid == 0 ? "status-consistent" :
+        p.MonthsUnpaid >= 3 ? "status-delinquent" :
+                               "status-partial";
+
+    string GetPayeeStatusLabel(PayeeSummary p) =>
+        p.MonthsUnpaid == 0 ? "Up to date" :
+        p.MonthsUnpaid == 1 ? "1 month overdue" :
+                               $"{p.MonthsUnpaid} months overdue";
+
+    // ── Per Payee Search ──────────────────────────────────────────────────────
+    string PayeeSearch = string.Empty;
+
+    IEnumerable<PayeeSummary> FilteredPayees => PayeeSummaries.Where(p =>
+        string.IsNullOrWhiteSpace(PayeeSearch)
+        || p.PayorName.Contains(PayeeSearch, StringComparison.OrdinalIgnoreCase)
+        || p.StallNo.Contains(PayeeSearch, StringComparison.OrdinalIgnoreCase)
+        || p.FacilityCode.Contains(PayeeSearch, StringComparison.OrdinalIgnoreCase));
+
+    bool ShowDetailSheet = false;
     FacilitySummary? SelectedFacility = null;
 
     void OpenFacilityDetail(FacilitySummary f)
     {
         SelectedFacility = f;
-        ShowDetailSheet  = true;
+        ShowDetailSheet = true;
     }
 
     void CloseDetail()
     {
-        ShowDetailSheet  = false;
+        ShowDetailSheet = false;
         SelectedFacility = null;
     }
 }

@@ -1,0 +1,59 @@
+.header {
+    background: var(--navy-primary);
+    padding: 54px 24px 16px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+}
+
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-org-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.header-org-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+.profile-sheet {
+    padding: 16px;
+}
+
+.profile-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.profile-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+.profile-role {
+    font-size: 12px;
+    color: var(--text-muted);
+}

@@ -1,0 +1,32 @@
+.login-sheet {
+    padding: 24px;
+}
+
+.login-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    margin-bottom: 8px;
+}
+
+.login-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-bottom: 16px;
+}
+
+.login-btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.btn-primary {
+    background: var(--navy-primary);
+    color: var(--gold-light);
+}
+
+.btn-cancel {
+    background: var(--bg-card);
+}

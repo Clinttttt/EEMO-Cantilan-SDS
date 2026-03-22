@@ -1,0 +1,271 @@
+.page-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg-page);
+    /* Anti-flicker: promotes to GPU layer so
+       WebView doesn't white-flash on navigation */
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px;
+    /* extra bottom padding = nav bar + safe area (iPhone home bar etc.) */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+    .content::-webkit-scrollbar {
+        display: none;
+    }
+
+/* vertical spacing between card groups */
+.group-spacer {
+    margin-top: 18px;
+}
+
+/* Market header (direct markup, not AppHeader) */
+.header {
+    background: var(--navy-primary);
+    padding: 54px 24px 16px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+    .header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    }
+
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-gov-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: var(--gold-primary);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.header-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.header-seal {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
+    border: 1.5px solid var(--gold-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+    .header-seal img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+.header-text {
+    flex: 1;
+}
+
+.header-org-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.header-org-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+/* Home greeting bar */
+.greeting-bar {
+    background: var(--navy-secondary);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.greeting-text {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+    .greeting-text span {
+        color: var(--gold-light);
+        font-weight: 500;
+    }
+
+.date-badge {
+    font-size: 10px;
+    color: var(--text-subtle);
+    background: var(--navy-primary);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--navy-accent);
+}
+
+/* ─────────────────────────────────────────────
+   14. MENU CARDS
+ */
+.menu-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+    /* gold left accent on tap */
+    .menu-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: transparent;
+        transition: background 0.18s;
+    }
+
+    .menu-card:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
+
+        .menu-card:active::before {
+            background: var(--gold-primary);
+        }
+
+.card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .card-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--navy-primary);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.card-info {
+    flex: 1;
+}
+
+.card-title {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-primary);
+    letter-spacing: 0.1px;
+}
+
+.card-sub {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.card-arrow {
+    color: var(--border-subtle);
+    font-size: 16px;
+}
+
+/* ─────────────────────────────────────────────
+   6. SUMMARY STRIP
+ */
+.summary-strip {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    display: flex;
+}
+
+.summary-item {
+    flex: 1;
+    text-align: center;
+}
+
+    .summary-item + .summary-item {
+        border-left: 1px solid var(--bg-icon);
+    }
+
+.summary-value {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navy-primary);
+}
+
+.summary-key {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+.section-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin: 0 0 10px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}

@@ -1,0 +1,351 @@
+/*
+ * ─────────────────────────────────────────────
+ *  Market.razor.css
+ *  Page: Market.razor only
+ *  Only classes NOT already in eemo.css
+ *  All shared styles (stall-row, header, etc.)
+ *  live in eemo.css section 18
+ * ─────────────────────────────────────────────
+ */
+
+/* ── Collection Month Pill (date strip) ── */
+.collection-month-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #e8cc76;
+    background: rgba(200,168,75,0.15);
+    border: 1px solid rgba(200,168,75,0.3);
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+
+    .collection-month-pill svg {
+        width: 11px;
+        height: 11px;
+        stroke: #e8cc76;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+/* ── Month Banner (above search bar) ── */
+.month-banner {
+    background: #0d2137;
+    border-radius: 12px;
+    padding: 13px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+    /* subtle gold shimmer line at bottom */
+    .month-banner::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #c8a84b, #e8cc76, #c8a84b, transparent);
+    }
+
+.month-banner-left {
+}
+
+.month-banner-label {
+    font-size: 8.5px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 3px;
+}
+
+.month-banner-month {
+    font-family: 'EB Garamond', serif;
+    font-size: 17px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1;
+}
+
+.month-banner-right {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.month-banner-stat {
+    margin-bottom: 6px;
+}
+
+.month-banner-val {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #e8cc76;
+    margin-right: 3px;
+}
+
+.month-banner-key {
+    font-size: 9px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.3px;
+}
+
+/* payment progress bar */
+.month-progress-wrap {
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    width: 80px;
+    margin-left: auto;
+}
+
+.month-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #c8a84b, #e8cc76);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    min-width: 4px;
+}
+
+/* ── Status Picker Options ── */
+.status-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-page);
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+    .status-option:active {
+        opacity: 0.8;
+    }
+
+/* active/selected state */
+.status-option-active.paid {
+    border-color: var(--paid-green);
+    background: var(--paid-green-bg);
+}
+
+.status-option-active.partial {
+    border-color: #c8a84b;
+    background: rgba(200,168,75,0.08);
+}
+
+.status-option-active.unpaid {
+    border-color: var(--border);
+    background: var(--bg-icon);
+}
+
+/* icon box */
+.status-option-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .status-option-icon svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.paid-icon-sm {
+    background: var(--paid-green-bg);
+}
+
+    .paid-icon-sm svg {
+        stroke: var(--paid-green);
+    }
+
+.partial-icon-sm {
+    background: rgba(200,168,75,0.15);
+}
+
+    .partial-icon-sm svg {
+        stroke: #c8a84b;
+    }
+
+.unpaid-icon-sm {
+    background: var(--bg-icon);
+}
+
+    .unpaid-icon-sm svg {
+        stroke: var(--text-muted);
+    }
+
+.status-option-info {
+    flex: 1;
+}
+
+.status-option-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy-primary);
+}
+
+.status-option-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* checkmark when selected */
+.status-option-check {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--paid-green);
+    flex-shrink: 0;
+}
+
+/* ── Stall row — 4 left border states ── */
+.stall-row.paid::before {
+    background: var(--paid-green);
+}
+
+.stall-row.partial::before {
+    background: #c8a84b;
+}
+
+.stall-row.confirmed-unpaid::before {
+    background: var(--error-red);
+}
+/* unvisited stays default grey — no override needed */
+
+/* ── Checkbox — 3 filled states ── */
+/* Paid — green */
+.stall-check.checked-paid {
+    background: var(--paid-green);
+    border-color: var(--paid-green);
+}
+
+    .stall-check.checked-paid svg {
+        stroke: #fff;
+        stroke-width: 2.5;
+    }
+
+/* Partial — gold */
+.stall-check.checked-partial {
+    background: rgba(200,168,75,0.15);
+    border-color: #c8a84b;
+}
+
+    .stall-check.checked-partial svg {
+        stroke: #c8a84b;
+        stroke-width: 2.5;
+    }
+
+/* Confirmed Unpaid — red ✗ */
+.stall-check.checked-unpaid {
+    background: var(--error-red-bg);
+    border-color: var(--error-red);
+}
+
+    .stall-check.checked-unpaid svg {
+        stroke: var(--error-red);
+        stroke-width: 2.5;
+    }
+
+/* ── Partial Amount Input ── */
+.partial-amount-wrap {
+    background: rgba(200,168,75,0.06);
+    border: 1.5px solid rgba(200,168,75,0.3);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.partial-amount-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #c8a84b;
+    margin-bottom: 10px;
+}
+
+    .partial-amount-label svg {
+        width: 13px;
+        height: 13px;
+        stroke: #c8a84b;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.partial-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border-radius: 10px;
+    border: 1.5px solid rgba(200,168,75,0.4);
+    padding: 0 14px;
+    height: 48px;
+}
+
+.partial-peso-sign {
+    font-family: 'EB Garamond', serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #c8a84b;
+    flex-shrink: 0;
+}
+
+.partial-amount-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: 'EB Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    background: transparent;
+    width: 100%;
+}
+
+    .partial-amount-input::placeholder {
+        color: var(--border);
+    }
+
+.partial-of-total {
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.partial-remaining {
+    font-size: 10.5px;
+    color: var(--text-subtle);
+    margin-top: 8px;
+    text-align: right;
+}

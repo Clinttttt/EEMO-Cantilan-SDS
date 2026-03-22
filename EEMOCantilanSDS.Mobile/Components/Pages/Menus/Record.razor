@@ -2,15 +2,11 @@
 @inject NavigationManager Navigation
 
 
-
-
-
+<!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
 
- 
     <AppHeader CollectorName="Clint" />
 
- 
     <!-- Scrollable Content -->
     <div class="content">
 
@@ -44,7 +40,9 @@
             @foreach (var tab in PeriodOptions)
             {
                 <div class="filter-tab @(ActivePeriod == tab ? "active" : "")"
-                     @onclick="() => ActivePeriod = tab">@tab</div>
+                     @onclick="() => _activeOffset = int.Parse(tab)">
+                    @GetMonthLabel(tab)
+                </div>
             }
         </div>
 
@@ -53,7 +51,9 @@
             @foreach (var tab in FacilityOptions)
             {
                 <div class="filter-tab @(ActiveFacility == tab ? "active" : "")"
-                     @onclick="() => ActiveFacility = tab">@tab</div>
+                     @onclick="() => ActiveFacility = tab">
+                    @tab
+                </div>
             }
         </div>
 
@@ -108,15 +108,10 @@
         }
 
     </div>
-    <!-- end .content -->
-
-    <!-- Bottom Nav -->
     <BottomNav ActiveTab="records" />
 
 </div>
 <!-- end .page-shell -->
-
-
 <!-- ════════════════════════════════════════════
      RECORD DETAIL BOTTOM SHEET
      Tap any record card to view full details
@@ -189,11 +184,31 @@
     string Today => DateTime.Now.ToString("MMM d, yyyy");
 
     // ── Search & Filters ──────────────────────────────────────────────────────
-    string SearchQuery   = string.Empty;
-    string ActivePeriod  = "Today";
+    string SearchQuery = string.Empty;
+    // Store active period as months-back offset (0 = this month, 1 = last month, etc.)
+    int ActiveOffset => _activeOffset;
+    int _activeOffset = 0;
+    string ActivePeriod => GetTabKey(_activeOffset);  // used for comparisons
     string ActiveFacility = "All";
 
-    readonly List<string> PeriodOptions   = new() { "Today", "This Week", "This Month", "All Time" };
+    // 12 tab keys — just the offset as string key
+    List<string> PeriodOptions => Enumerable.Range(0, 12)
+        .Select(i => GetTabKey(i))
+        .ToList();
+
+    // Display label for the tab header (short month name)
+    string GetMonthLabel(string key)
+    {
+        int i = int.Parse(key);
+        var mon = DateTime.Now.AddMonths(-i).ToString("MMM");
+        return i == 0 ? $"This Month ({mon})"
+             : i == 1 ? $"Last Month ({mon})"
+             : $"{i} Months Ago ({mon})";
+    }
+
+    // Unique key per tab = just the offset number as string
+    static string GetTabKey(int i) => i.ToString();
+
     readonly List<string> FacilityOptions = new() { "All", "NPM", "TCC", "NCC", "ECF", "WCF", "Terminal", "Slaughterhouse", "Cemetery" };
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -201,18 +216,18 @@
     // ─────────────────────────────────────────────────────────────────────────
     class CollectionRecord
     {
-        public string   ORNumber            { get; set; } = string.Empty;
-        public string   PayorName           { get; set; } = string.Empty;
-        public string   FacilityCode        { get; set; } = string.Empty;  // NPM, TCC, etc.
-        public string   FacilityName        { get; set; } = string.Empty;  // Full name
-        public string   StallNo             { get; set; } = string.Empty;
-        public string   Section             { get; set; } = string.Empty;
-        public string   NatureOfCollection  { get; set; } = string.Empty;
-        public string   CollectorName       { get; set; } = "Collector";
-        public decimal  Amount              { get; set; }
-        public bool     IsPaid              { get; set; }
-        public bool     IsPartial           { get; set; }
-        public DateTime CollectedAt         { get; set; }
+        public string ORNumber { get; set; } = string.Empty;
+        public string PayorName { get; set; } = string.Empty;
+        public string FacilityCode { get; set; } = string.Empty;  // NPM, TCC, etc.
+        public string FacilityName { get; set; } = string.Empty;  // Full name
+        public string StallNo { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string NatureOfCollection { get; set; } = string.Empty;
+        public string CollectorName { get; set; } = "Collector";
+        public decimal Amount { get; set; }
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public DateTime CollectedAt { get; set; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -290,7 +305,7 @@
             ORNumber="2315590", PayorName="Peralta, Nimfa R.",
             FacilityCode="TCC", FacilityName="Town Center Commercial",
             StallNo="B-02", Section="Ground Floor",
-            NatureOfCollection="Commercial Stall Rental", CollectorName="Collector",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
             Amount=300, IsPaid=true,
             CollectedAt=DateTime.Today.AddDays(-1).AddHours(9).AddMinutes(10)
         },
@@ -298,7 +313,7 @@
             ORNumber="2315591", PayorName="Tiu, Marcelino",
             FacilityCode="TCC", FacilityName="Town Center Commercial",
             StallNo="B-05", Section="Ground Floor",
-            NatureOfCollection="Commercial Stall Rental", CollectorName="Collector",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
             Amount=300, IsPaid=true,
             CollectedAt=DateTime.Today.AddDays(-1).AddHours(10).AddMinutes(40)
         },
@@ -306,23 +321,243 @@
             ORNumber="2315592", PayorName="Oquendo, Prescilla",
             FacilityCode="Terminal", FacilityName="Transport Terminal",
             StallNo="—", Section="Parking Area",
-            NatureOfCollection="Parking Fee", CollectorName="Collector",
+            NatureOfCollection="Parking Fee", CollectorName="Clint",
             Amount=20, IsPaid=true,
             CollectedAt=DateTime.Today.AddDays(-1).AddHours(14).AddMinutes(5)
+        },
+
+        // ── 1 Month Ago ───────────────────────────────────────────────────────
+        new() {
+            ORNumber="2315501", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(2)
+        },
+        new() {
+            ORNumber="2315502", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(2)
+        },
+        new() {
+            ORNumber="2315503", PayorName="Bautista, Nena L.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="03", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=false,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(2)
+        },
+        new() {
+            ORNumber="2315504", PayorName="Reyes, Luzviminda A.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="05", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(3)
+        },
+        new() {
+            ORNumber="2315505", PayorName="Garcia, Flordeliza B.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="06", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=false,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(3)
+        },
+        new() {
+            ORNumber="2315506", PayorName="Peralta, Nimfa R.",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-02", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
+            Amount=300, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(4)
+        },
+        new() {
+            ORNumber="2315507", PayorName="Mangubat, Jose P.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="09", Section="Sec. C · Fish/Meat",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=200, IsPaid=false,
+            CollectedAt=DateTime.Now.AddMonths(-1).AddDays(5)
+        },
+
+        // ── 2 Months Ago ──────────────────────────────────────────────────────
+        new() {
+            ORNumber="2315401", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(2)
+        },
+        new() {
+            ORNumber="2315402", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(2)
+        },
+        new() {
+            ORNumber="2315403", PayorName="Reyes, Luzviminda A.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="05", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(3)
+        },
+        new() {
+            ORNumber="2315404", PayorName="Villanueva, Ricardo",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="14", Section="Sec. D · General",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(3)
+        },
+        new() {
+            ORNumber="2315405", PayorName="Cañada, Elvira M.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="11", Section="Sec. C · Fish/Meat",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=200, IsPaid=false, IsPartial=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(4)
+        },
+        new() {
+            ORNumber="2315406", PayorName="Tiu, Marcelino",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-05", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
+            Amount=300, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-2).AddDays(5)
+        },
+
+        // ── 3 Months Ago ──────────────────────────────────────────────────────
+        new() {
+            ORNumber="2315301", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-3).AddDays(2)
+        },
+        new() {
+            ORNumber="2315302", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-3).AddDays(2)
+        },
+        new() {
+            ORNumber="2315303", PayorName="Garcia, Flordeliza B.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="06", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=false,
+            CollectedAt=DateTime.Now.AddMonths(-3).AddDays(3)
+        },
+        new() {
+            ORNumber="2315304", PayorName="Peralta, Nimfa R.",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-02", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
+            Amount=300, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-3).AddDays(4)
+        },
+
+        // ── 4–11 Months Ago (lighter sample, replace with DB later) ──────────
+        new() {
+            ORNumber="2315201", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-4).AddDays(2)
+        },
+        new() {
+            ORNumber="2315202", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-4).AddDays(2)
+        },
+        new() {
+            ORNumber="2315101", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-5).AddDays(2)
+        },
+        new() {
+            ORNumber="2315102", PayorName="Peralta, Nimfa R.",
+            FacilityCode="TCC", FacilityName="Town Center Commercial",
+            StallNo="B-02", Section="Ground Floor",
+            NatureOfCollection="Commercial Stall Rental", CollectorName="Clint",
+            Amount=300, IsPaid=false,
+            CollectedAt=DateTime.Now.AddMonths(-5).AddDays(3)
+        },
+        new() {
+            ORNumber="2315001", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-6).AddDays(2)
+        },
+        new() {
+            ORNumber="2314901", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-7).AddDays(2)
+        },
+        new() {
+            ORNumber="2314801", PayorName="Reyes, Luzviminda A.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="05", Section="Sec. B · Vegetables",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-8).AddDays(2)
+        },
+        new() {
+            ORNumber="2314701", PayorName="Villanueva, Ricardo",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="14", Section="Sec. D · General",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-9).AddDays(2)
+        },
+        new() {
+            ORNumber="2314601", PayorName="Dela Cruz, Maria S.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="01", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-10).AddDays(2)
+        },
+        new() {
+            ORNumber="2314501", PayorName="Santos, Rodrigo T.",
+            FacilityCode="NPM", FacilityName="New Public Market",
+            StallNo="02", Section="Sec. A · Dry Goods",
+            NatureOfCollection="Stall Rental", CollectorName="Clint",
+            Amount=150, IsPaid=true,
+            CollectedAt=DateTime.Now.AddMonths(-11).AddDays(2)
         },
     };
 
     // ── Filtered Records ──────────────────────────────────────────────────────
     IEnumerable<CollectionRecord> FilteredRecords => Records.Where(r =>
     {
-        // Period filter
-        bool matchPeriod = ActivePeriod switch
-        {
-            "Today"      => r.CollectedAt.Date == DateTime.Today,
-            "This Week"  => r.CollectedAt >= DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek),
-            "This Month" => r.CollectedAt.Month == DateTime.Now.Month && r.CollectedAt.Year == DateTime.Now.Year,
-            _            => true
-        };
+        // Period filter — use int offset directly, no string parsing needed
+        var targetDate = DateTime.Now.AddMonths(-_activeOffset);
+        bool matchPeriod = r.CollectedAt.Year == targetDate.Year &&
+                           r.CollectedAt.Month == targetDate.Month;
 
         // Facility filter
         bool matchFacility = ActiveFacility == "All"
@@ -330,10 +565,10 @@
 
         // Search
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
-            || r.PayorName.Contains(SearchQuery,   StringComparison.OrdinalIgnoreCase)
-            || r.ORNumber.Contains(SearchQuery,    StringComparison.OrdinalIgnoreCase)
+            || r.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || r.ORNumber.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || r.FacilityCode.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || r.StallNo.Contains(SearchQuery,     StringComparison.OrdinalIgnoreCase);
+            || r.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
 
         return matchPeriod && matchFacility && matchSearch;
     }).OrderByDescending(r => r.CollectedAt);
@@ -346,39 +581,39 @@
 
     string GetDateLabel(DateTime dt)
     {
-        if (dt.Date == DateTime.Today)           return "Today";
+        if (dt.Date == DateTime.Today) return "Today";
         if (dt.Date == DateTime.Today.AddDays(-1)) return "Yesterday";
         return dt.ToString("MMMM d, yyyy");
     }
 
     // ── Summary Computeds ─────────────────────────────────────────────────────
-    decimal GrandTotal      => FilteredRecords.Where(r =>  r.IsPaid).Sum(r => r.Amount);
-    int     TotalPaidCount  => FilteredRecords.Count(r =>  r.IsPaid && !r.IsPartial);
-    int     TotalUnpaidCount => FilteredRecords.Count(r => !r.IsPaid || r.IsPartial);
+    decimal GrandTotal => FilteredRecords.Where(r => r.IsPaid).Sum(r => r.Amount);
+    int TotalPaidCount => FilteredRecords.Count(r => r.IsPaid && !r.IsPartial);
+    int TotalUnpaidCount => FilteredRecords.Count(r => !r.IsPaid || r.IsPartial);
 
     // ── Detail Sheet ──────────────────────────────────────────────────────────
-    bool              ShowDetailSheet = false;
-    CollectionRecord? SelectedRecord  = null;
+    bool ShowDetailSheet = false;
+    CollectionRecord? SelectedRecord = null;
 
     void OpenDetail(CollectionRecord rec)
     {
-        SelectedRecord  = rec;
+        SelectedRecord = rec;
         ShowDetailSheet = true;
     }
 
     void CloseDetail()
     {
         ShowDetailSheet = false;
-        SelectedRecord  = null;
+        SelectedRecord = null;
     }
 
     // ── Pill Helpers ──────────────────────────────────────────────────────────
     string GetPillClass(CollectionRecord r) =>
         r.IsPartial ? "record-status-pill pill-partial" :
-        r.IsPaid    ? "record-status-pill pill-paid"    :
+        r.IsPaid ? "record-status-pill pill-paid" :
                       "record-status-pill pill-unpaid";
 
     string GetStatusLabel(CollectionRecord r) =>
         r.IsPartial ? "Partial" :
-        r.IsPaid    ? "Paid"    : "Unpaid";
+        r.IsPaid ? "Paid" : "Unpaid";
 }

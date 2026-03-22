@@ -41,15 +41,15 @@
 
 
 /* ════════════════════════════════════════════════════════════════
-   ★ SHARED — used across ALL pages
+   EEMO SHARED STYLESHEET (tokens + minimal reset)
+
+   This file now contains only design tokens (CSS variables) and a
+   minimal reset. Page- and component-specific rules were moved to
+   `*.razor.css` files next to their components under
+   `Components/...`. Edit styles there instead of this global file.
 ════════════════════════════════════════════════════════════════ */
 
-
-/* ─────────────────────────────────────────────
-   0. CSS VARIABLES (DESIGN TOKENS)
-   All pages — reference these instead of
-   raw hex values so colors stay consistent
-───────────────────────────────────────────── */
+/* 0. CSS VARIABLES (DESIGN TOKENS) */
 :root {
     /* Palette */
     --navy-primary: #0d2137; /* headers, primary text, active nav */
@@ -75,10 +75,28 @@
     --error-red-bg: #fdf0f0; /* form error background */
 }
 
+/* 1. Minimal reset & environment hints (safe and small) */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
 
-/* ─────────────────────────────────────────────
-   1. RESET & BASE
-   All pages — applied globally to html + body
+html, body, #app {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-page);
+}
+
+/* Remove tap highlight for WebView */
+:root {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* NOTE: component/page styles were moved to per-component `.razor.css` files
+   (for example `Components/Pages/Home.razor.css`,
+   `Components/Shared/BottomNav.razor.css`, etc.).
+   Edit those files to change layout/visual rules; leave these tokens here. */
 ───────────────────────────────────────────── */
 *, *::before, *::after {
     box-sizing: border-box;
@@ -1767,11 +1785,12 @@
 /* Permanent / Temporary type badge */
 .stall-type-badge {
     font-size: 8px;
-    font-weight: 600;
+    font-weight: 400;
     padding: 1.5px 6px;
     border-radius: 4px;
     letter-spacing: 0.3px;
     text-transform: uppercase;
+    color: var(--text-muted);
 }
 
 .badge-permanent {

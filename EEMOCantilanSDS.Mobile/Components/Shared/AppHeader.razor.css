@@ -1,0 +1,101 @@
+.eemo-header {
+    background: var(--navy-primary);
+    padding: 54px 24px 20px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+    /* gold gradient line at the bottom of every header */
+    .eemo-header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold-primary), var(--gold-light), var(--gold-primary));
+    }
+
+.header-gov-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    color: var(--gold-primary);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.header-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.header-seal {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, var(--navy-accent), var(--navy-primary));
+    border: 1.5px solid var(--gold-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+    .header-seal img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+.header-text {
+    flex: 1;
+}
+
+.header-org-name {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+}
+
+.header-org-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+.greeting-bar {
+    background: var(--navy-secondary);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.greeting-text {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+    .greeting-text span {
+        color: var(--gold-light);
+        font-weight: 500;
+    }
+
+.date-badge {
+    font-size: 10px;
+    color: var(--text-subtle);
+    background: var(--navy-primary);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--navy-accent);
+}
