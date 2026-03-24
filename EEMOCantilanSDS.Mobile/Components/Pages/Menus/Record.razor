@@ -6,6 +6,7 @@
 <div class="page-shell">
 
     <AppHeader CollectorName="Clint" />
+  
 
     <!-- Scrollable Content -->
     <div class="content">
@@ -51,9 +52,7 @@
             @foreach (var tab in FacilityOptions)
             {
                 <div class="filter-tab @(ActiveFacility == tab ? "active" : "")"
-                     @onclick="() => ActiveFacility = tab">
-                    @tab
-                </div>
+                     @onclick="() => ActiveFacility = tab">@tab</div>
             }
         </div>
 
@@ -94,7 +93,7 @@
                                 <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt") · OR #@rec.ORNumber</span>
                             </div>
                         </div>
-
+                          
                         <div class="record-amount-col">
                             <div class="record-amount">₱@rec.Amount.ToString("N0")</div>
                             <span class="record-status-pill @GetPillClass(rec)">@GetStatusLabel(rec)</span>
@@ -112,6 +111,8 @@
 
 </div>
 <!-- end .page-shell -->
+
+
 <!-- ════════════════════════════════════════════
      RECORD DETAIL BOTTOM SHEET
      Tap any record card to view full details
@@ -165,6 +166,17 @@
                 <span class="detail-key">Amount</span>
                 <span class="detail-val amount-val">₱@SelectedRecord.Amount.ToString("N0")</span>
             </div>
+            @if (SelectedRecord.IsPartial)
+            {
+                <div class="detail-row">
+                    <span class="detail-key">Collected</span>
+                    <span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@SelectedRecord.PartialAmountPaid.ToString("N0")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Balance Due</span>
+                    <span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRecord.Amount - SelectedRecord.PartialAmountPaid).ToString("N0"))</span>
+                </div>
+            }
 
             <div class="sheet-btn-row">
                 <div class="btn-close" @onclick="CloseDetail">Close</div>
@@ -184,11 +196,11 @@
     string Today => DateTime.Now.ToString("MMM d, yyyy");
 
     // ── Search & Filters ──────────────────────────────────────────────────────
-    string SearchQuery = string.Empty;
+    string SearchQuery    = string.Empty;
     // Store active period as months-back offset (0 = this month, 1 = last month, etc.)
-    int ActiveOffset => _activeOffset;
-    int _activeOffset = 0;
-    string ActivePeriod => GetTabKey(_activeOffset);  // used for comparisons
+    int    ActiveOffset   => _activeOffset;
+    int    _activeOffset  = 0;
+    string ActivePeriod   => GetTabKey(_activeOffset);  // used for comparisons
     string ActiveFacility = "All";
 
     // 12 tab keys — just the offset as string key
@@ -203,7 +215,7 @@
         var mon = DateTime.Now.AddMonths(-i).ToString("MMM");
         return i == 0 ? $"This Month ({mon})"
              : i == 1 ? $"Last Month ({mon})"
-             : $"{i} Months Ago ({mon})";
+             :           $"{i} Months Ago ({mon})";
     }
 
     // Unique key per tab = just the offset number as string
@@ -216,18 +228,19 @@
     // ─────────────────────────────────────────────────────────────────────────
     class CollectionRecord
     {
-        public string ORNumber { get; set; } = string.Empty;
-        public string PayorName { get; set; } = string.Empty;
-        public string FacilityCode { get; set; } = string.Empty;  // NPM, TCC, etc.
-        public string FacilityName { get; set; } = string.Empty;  // Full name
-        public string StallNo { get; set; } = string.Empty;
-        public string Section { get; set; } = string.Empty;
-        public string NatureOfCollection { get; set; } = string.Empty;
-        public string CollectorName { get; set; } = "Collector";
-        public decimal Amount { get; set; }
-        public bool IsPaid { get; set; }
-        public bool IsPartial { get; set; }
-        public DateTime CollectedAt { get; set; }
+        public string   ORNumber            { get; set; } = string.Empty;
+        public string   PayorName           { get; set; } = string.Empty;
+        public string   FacilityCode        { get; set; } = string.Empty;  // NPM, TCC, etc.
+        public string   FacilityName        { get; set; } = string.Empty;  // Full name
+        public string   StallNo             { get; set; } = string.Empty;
+        public string   Section             { get; set; } = string.Empty;
+        public string   NatureOfCollection  { get; set; } = string.Empty;
+        public string   CollectorName       { get; set; } = "Collector";
+        public decimal  Amount              { get; set; }
+        public bool     IsPaid              { get; set; }
+        public bool     IsPartial           { get; set; }
+        public decimal  PartialAmountPaid   { get; set; }  // amount actually collected when Partial
+        public DateTime CollectedAt         { get; set; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -297,7 +310,7 @@
             FacilityCode="NPM", FacilityName="New Public Market",
             StallNo="11", Section="Sec. C · Fish/Meat",
             NatureOfCollection="Stall Rental", CollectorName="Collector",
-            Amount=200, IsPaid=false, IsPartial=true,
+            Amount=200, IsPaid=false, IsPartial=true, PartialAmountPaid=100,
             CollectedAt=DateTime.Today.AddHours(11).AddMinutes(30)
         },
         // Yesterday entries
@@ -422,7 +435,7 @@
             FacilityCode="NPM", FacilityName="New Public Market",
             StallNo="11", Section="Sec. C · Fish/Meat",
             NatureOfCollection="Stall Rental", CollectorName="Clint",
-            Amount=200, IsPaid=false, IsPartial=true,
+            Amount=200, IsPaid=false, IsPartial=true, PartialAmountPaid=80,
             CollectedAt=DateTime.Now.AddMonths(-2).AddDays(4)
         },
         new() {
@@ -556,7 +569,7 @@
     {
         // Period filter — use int offset directly, no string parsing needed
         var targetDate = DateTime.Now.AddMonths(-_activeOffset);
-        bool matchPeriod = r.CollectedAt.Year == targetDate.Year &&
+        bool matchPeriod = r.CollectedAt.Year  == targetDate.Year &&
                            r.CollectedAt.Month == targetDate.Month;
 
         // Facility filter
@@ -565,10 +578,10 @@
 
         // Search
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
-            || r.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || r.ORNumber.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || r.PayorName.Contains(SearchQuery,   StringComparison.OrdinalIgnoreCase)
+            || r.ORNumber.Contains(SearchQuery,    StringComparison.OrdinalIgnoreCase)
             || r.FacilityCode.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || r.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+            || r.StallNo.Contains(SearchQuery,     StringComparison.OrdinalIgnoreCase);
 
         return matchPeriod && matchFacility && matchSearch;
     }).OrderByDescending(r => r.CollectedAt);
@@ -581,39 +594,39 @@
 
     string GetDateLabel(DateTime dt)
     {
-        if (dt.Date == DateTime.Today) return "Today";
+        if (dt.Date == DateTime.Today)           return "Today";
         if (dt.Date == DateTime.Today.AddDays(-1)) return "Yesterday";
         return dt.ToString("MMMM d, yyyy");
     }
 
     // ── Summary Computeds ─────────────────────────────────────────────────────
-    decimal GrandTotal => FilteredRecords.Where(r => r.IsPaid).Sum(r => r.Amount);
-    int TotalPaidCount => FilteredRecords.Count(r => r.IsPaid && !r.IsPartial);
-    int TotalUnpaidCount => FilteredRecords.Count(r => !r.IsPaid || r.IsPartial);
+    decimal GrandTotal      => FilteredRecords.Where(r =>  r.IsPaid).Sum(r => r.Amount);
+    int     TotalPaidCount  => FilteredRecords.Count(r =>  r.IsPaid && !r.IsPartial);
+    int     TotalUnpaidCount => FilteredRecords.Count(r => !r.IsPaid || r.IsPartial);
 
     // ── Detail Sheet ──────────────────────────────────────────────────────────
-    bool ShowDetailSheet = false;
-    CollectionRecord? SelectedRecord = null;
+    bool              ShowDetailSheet = false;
+    CollectionRecord? SelectedRecord  = null;
 
     void OpenDetail(CollectionRecord rec)
     {
-        SelectedRecord = rec;
+        SelectedRecord  = rec;
         ShowDetailSheet = true;
     }
 
     void CloseDetail()
     {
         ShowDetailSheet = false;
-        SelectedRecord = null;
+        SelectedRecord  = null;
     }
 
     // ── Pill Helpers ──────────────────────────────────────────────────────────
     string GetPillClass(CollectionRecord r) =>
         r.IsPartial ? "record-status-pill pill-partial" :
-        r.IsPaid ? "record-status-pill pill-paid" :
+        r.IsPaid    ? "record-status-pill pill-paid"    :
                       "record-status-pill pill-unpaid";
 
     string GetStatusLabel(CollectionRecord r) =>
-        r.IsPartial ? "Partial" :
-        r.IsPaid ? "Paid" : "Unpaid";
+        r.IsPartial ? $"₱{r.PartialAmountPaid:N0} paid" :
+        r.IsPaid    ? "Paid"    : "Unpaid";
 }

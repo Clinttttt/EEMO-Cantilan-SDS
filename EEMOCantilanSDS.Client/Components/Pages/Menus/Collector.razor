@@ -1,0 +1,617 @@
+﻿@page "/collectors"
+
+@rendermode InteractiveServer
+<PageTitle>EEMO Admin — Collectors</PageTitle>
+
+<div class="admin-layout">
+
+    <!-- ═══════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════ -->
+      <Sidebar/>
+
+    <!-- ═══════════════════════════════════════
+         MAIN CONTENT
+    ═══════════════════════════════════════ -->
+    <main class="admin-main">
+
+        <header class="topbar">
+            <div class="topbar-left">
+                <div class="topbar-title">Collectors</div>
+                <div class="topbar-breadcrumb">
+                    <span>EEMO Admin</span>
+                    <span class="breadcrumb-sep">/</span>
+                    <span class="breadcrumb-active">Collectors</span>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-date">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    @DateTime.Now.ToString("MMMM d, yyyy")
+                </div>
+                <div class="topbar-admin">
+                    <div class="admin-avatar">A</div>
+                    <div class="admin-info">
+                        <div class="admin-name">Administrator</div>
+                        <div class="admin-role">EEMO Office</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+
+            <!-- KPI Strip -->
+            <div class="kpi-strip">
+                <div class="kpi-card">
+                    <div class="kpi-icon kpi-icon-blue">
+                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value">@Collectors.Count</div>
+                        <div class="kpi-label">Total Collectors</div>
+                        <div class="kpi-sub">@Collectors.Count(c => c.IsActive) active</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon kpi-icon-green">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value">₱@Collectors.Sum(c => c.CollectedThisMonth).ToString("N0")</div>
+                        <div class="kpi-label">Total Collected</div>
+                        <div class="kpi-sub">@DateTime.Now.ToString("MMMM yyyy")</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon kpi-icon-gold">
+                        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value">@Collectors.Sum(c => c.AssignedFacilities.Count)</div>
+                        <div class="kpi-label">Facility Assignments</div>
+                        <div class="kpi-sub">Across all collectors</div>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon kpi-icon-red">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    </div>
+                    <div class="kpi-body">
+                        <div class="kpi-value">@Collectors.Count(c => !c.IsActive)</div>
+                        <div class="kpi-label">Inactive Accounts</div>
+                        <div class="kpi-sub">Deactivated or suspended</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="page-toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input type="text"
+                               placeholder="Search name, ID, facility…"
+                               @bind="SearchQuery"
+                               @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(SearchQuery))
+                        {
+                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
+                        }
+                    </div>
+                    <div class="filter-tabs">
+                        @foreach (var f in StatusFilters)
+                        {
+                            <div class="filter-tab @(ActiveFilter == f ? "active" : "")"
+                                 @onclick="() => ActiveFilter = f">
+                                @f
+                            </div>
+                        }
+                    </div>
+                </div>
+                <button class="btn-primary" @onclick="OpenCreate">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add Collector
+                </button>
+            </div>
+
+            <!-- Collectors Table -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">Collector Accounts</div>
+                    <div class="panel-count">@FilteredCollectors.Count() records</div>
+                </div>
+
+                @if (!FilteredCollectors.Any())
+                {
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                        <div class="empty-title">No Collectors Found</div>
+                        <div class="empty-sub">Try adjusting your search or filter.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Collector</th>
+                                    <th>Employee ID</th>
+                                    <th>Contact</th>
+                                    <th>Assigned Facilities</th>
+                                    <th>Collected (This Month)</th>
+                                    <th>Transactions</th>
+                                    <th>Last Active</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in FilteredCollectors)
+                                {
+                                    <tr class="@(!c.IsActive ? "row-inactive" : "")">
+                                        <td>
+                                            <div class="collector-cell">
+                                                <div class="collector-avatar">@GetInitials(c.FullName)</div>
+                                                <div>
+                                                    <div class="collector-name">@c.FullName</div>
+                                                    <div class="collector-email">@c.Email</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><span class="mono">@c.EmployeeId</span></td>
+                                        <td class="td-contact">@c.ContactNumber</td>
+                                        <td>
+                                            <div class="facility-tags">
+                                                @foreach (var f in c.AssignedFacilities)
+                                                {
+                                                    <span class="code-badge">@f</span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="amount-val">₱@c.CollectedThisMonth.ToString("N0")</span>
+                                        </td>
+                                        <td class="td-center">@c.TransactionsThisMonth</td>
+                                        <td class="td-date">@c.LastActive.ToString("MMM d, yyyy")</td>
+                                        <td>
+                                            <span class="status-pill @(c.IsActive ? "pill-active" : "pill-inactive")">
+                                                @(c.IsActive ? "Active" : "Inactive")
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="action-btns">
+                                                <button class="action-btn" title="Edit" @onclick="() => OpenEdit(c)">
+                                                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                                </button>
+                                                <button class="action-btn" title="View Activity" @onclick="() => OpenActivity(c)">
+                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </button>
+                                                <button class="action-btn @(c.IsActive ? "action-danger" : "action-success")"
+                                                        title="@(c.IsActive ? "Deactivate" : "Activate")"
+                                                        @onclick="() => ToggleStatus(c)">
+                                                    @if (c.IsActive)
+                                                    {
+                                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                    }
+                                                    else
+                                                    {
+                                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    }
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+        </div>
+    </main>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     CREATE / EDIT MODAL
+══════════════════════════════════════════════ -->
+@if (ShowModal)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModal">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">@(IsEditing ? "Edit Collector" : "Add New Collector")</div>
+                <button class="eemo-modal-close" @onclick="CloseModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="eemo-modal-body">
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Full Name <span class="req">*</span></label>
+                        <input class="form-input" type="text" placeholder="e.g. Juan dela Cruz"
+                               @bind="Form.FullName" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Employee ID <span class="req">*</span></label>
+                        <input class="form-input" type="text" placeholder="e.g. EEMO-2024-001"
+                               @bind="Form.EmployeeId" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Contact Number</label>
+                        <input class="form-input" type="tel" placeholder="+63 9xx xxx xxxx"
+                               @bind="Form.ContactNumber" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input class="form-input" type="email" placeholder="collector@cantilan.gov.ph"
+                               @bind="Form.Email" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Username <span class="req">*</span></label>
+                        <input class="form-input" type="text" placeholder="Login username"
+                               @bind="Form.Username" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">
+                            @(IsEditing ? "New Password" : "Password") <span class="req">@(IsEditing ? "" : "*")</span>
+                        </label>
+                        <input class="form-input" type="password"
+                               placeholder="@(IsEditing ? "Leave blank to keep current" : "Set initial password")"
+                               @bind="Form.Password" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Assigned Facilities <span class="req">*</span></label>
+                    <div class="facility-checkboxes">
+                        @foreach (var fac in AvailableFacilities)
+                        {
+                            var isChecked = Form.AssignedFacilities.Contains(fac.Code);
+                            <div class="fac-checkbox @(isChecked ? "checked" : "")"
+                                 @onclick="() => ToggleFacility(fac.Code)">
+                                <div class="fac-check-box">
+                                    @if (isChecked)
+                                    {
+                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                </div>
+                                <span class="code-badge">@fac.Code</span>
+                                <span class="fac-check-name">@fac.Name</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(FormError))
+                {
+                    <div class="form-error">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        @FormError
+                    </div>
+                }
+            </div>
+
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
+                <button class="btn-primary" @onclick="SaveCollector">
+                    @(IsEditing ? "Save Changes" : "Create Account")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     ACTIVITY MODAL
+══════════════════════════════════════════════ -->
+@if (ShowActivity && ActivityCollector is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="() => ShowActivity = false">
+        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">@ActivityCollector.FullName</div>
+                    <div class="eemo-modal-sub">Activity — @DateTime.Now.ToString("MMMM yyyy")</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="() => ShowActivity = false">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="activity-stats">
+                    <div class="act-stat">
+                        <div class="act-stat-val">₱@ActivityCollector.CollectedThisMonth.ToString("N0")</div>
+                        <div class="act-stat-key">Collected This Month</div>
+                    </div>
+                    <div class="act-stat">
+                        <div class="act-stat-val">@ActivityCollector.TransactionsThisMonth</div>
+                        <div class="act-stat-key">Transactions</div>
+                    </div>
+                    <div class="act-stat">
+                        <div class="act-stat-val">@ActivityCollector.AssignedFacilities.Count</div>
+                        <div class="act-stat-key">Facilities</div>
+                    </div>
+                    <div class="act-stat">
+                        <div class="act-stat-val">@ActivityCollector.LastActive.ToString("MMM d")</div>
+                        <div class="act-stat-key">Last Active</div>
+                    </div>
+                </div>
+
+                <div class="act-section-label">Recent Transactions</div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>OR #</th>
+                            <th>Payor</th>
+                            <th>Facility</th>
+                            <th>Nature</th>
+                            <th>Amount</th>
+                            <th>Status</th>
+                            <th>Date &amp; Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tx in GetCollectorActivity(ActivityCollector))
+                        {
+                            <tr>
+                                <td class="mono">#@tx.OR</td>
+                                <td>@tx.Payor</td>
+                                <td><span class="code-badge">@tx.Facility</span></td>
+                                <td class="td-nature">@tx.Nature</td>
+                                <td class="amount-val">₱@tx.Amount.ToString("N0")</td>
+                                <td><span class="status-pill @(tx.Paid ? "pill-active" : "pill-inactive")">@(tx.Paid ? "Paid" : "Unpaid")</span></td>
+                                <td class="td-date">@tx.At.ToString("MMM d · hh:mm tt")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="() => ShowActivity = false">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     CONFIRM TOGGLE STATUS
+══════════════════════════════════════════════ -->
+@if (ShowConfirm && ConfirmTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="() => ShowConfirm = false">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">@(ConfirmTarget.IsActive ? "Deactivate Collector?" : "Activate Collector?")</div>
+            </div>
+            <div class="eemo-modal-body">
+                <p class="confirm-text">
+                    @if (ConfirmTarget.IsActive)
+                    {
+                        @($"Are you sure you want to deactivate {ConfirmTarget.FullName}? They will no longer be able to log in to the mobile app.")
+                    }
+                    else
+                    {
+                        @($"Reactivate {ConfirmTarget.FullName}? They will regain access to the mobile app.")
+                    }
+                </p>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="() => ShowConfirm = false">Cancel</button>
+                <button class="@(ConfirmTarget.IsActive ? "btn-danger" : "btn-primary")"
+                        @onclick="ConfirmToggle">
+                    @(ConfirmTarget.IsActive ? "Yes, Deactivate" : "Yes, Activate")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+
+    bool SidebarCollapsed = false;
+
+    // ── Search & Filter ───────────────────────────────────────────────────────
+    string SearchQuery = string.Empty;
+    string ActiveFilter = "All";
+    readonly List<string> StatusFilters = new() { "All", "Active", "Inactive" };
+
+    // ── Collector Model ───────────────────────────────────────────────────────
+    class CollectorAccount
+    {
+        public int Id { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string EmployeeId { get; set; } = string.Empty;
+        public string ContactNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+        public List<string> AssignedFacilities { get; set; } = new();
+        public decimal CollectedThisMonth { get; set; }
+        public int TransactionsThisMonth { get; set; }
+        public DateTime LastActive { get; set; }
+    }
+
+    // Replace with: Collectors = await CollectorService.GetAllAsync()
+    List<CollectorAccount> Collectors = new()
+    {
+        new() { Id=1, FullName="Clint Reyes",  EmployeeId="EEMO-2024-001", ContactNumber="+63 912 345 6789", Email="clint@cantilan.gov.ph", Username="clint.reyes",  IsActive=true,  AssignedFacilities=new(){"NPM","TCC"}, CollectedThisMonth=62400, TransactionsThisMonth=87, LastActive=DateTime.Today },
+        new() { Id=2, FullName="Ruel Santos",  EmployeeId="EEMO-2024-002", ContactNumber="+63 917 234 5678", Email="ruel@cantilan.gov.ph",  Username="ruel.santos",  IsActive=true,  AssignedFacilities=new(){"NCC","ICE"}, CollectedThisMonth=38500, TransactionsThisMonth=54, LastActive=DateTime.Today },
+        new() { Id=3, FullName="Marco Dizon",  EmployeeId="EEMO-2024-003", ContactNumber="+63 921 456 7890", Email="marco@cantilan.gov.ph", Username="marco.dizon",  IsActive=true,  AssignedFacilities=new(){"SLH","BBQ"}, CollectedThisMonth=18350, TransactionsThisMonth=32, LastActive=DateTime.Today.AddDays(-1) },
+        new() { Id=4, FullName="Ana Lim",      EmployeeId="EEMO-2023-004", ContactNumber="+63 918 567 8901", Email="ana@cantilan.gov.ph",   Username="ana.lim",      IsActive=false, AssignedFacilities=new(){"NPM"},       CollectedThisMonth=0,     TransactionsThisMonth=0,  LastActive=DateTime.Today.AddMonths(-2) },
+    };
+
+    // ── Filtered ──────────────────────────────────────────────────────────────
+    IEnumerable<CollectorAccount> FilteredCollectors => Collectors.Where(c =>
+    {
+        bool matchFilter = ActiveFilter switch
+        {
+            "Active" => c.IsActive,
+            "Inactive" => !c.IsActive,
+            _ => true
+        };
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || c.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || c.EmployeeId.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || c.AssignedFacilities.Any(f => f.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+        return matchFilter && matchSearch;
+    });
+
+    string GetInitials(string name) =>
+        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                          .Take(2).Select(w => char.ToUpper(w[0])));
+
+    // ── Available Facilities ──────────────────────────────────────────────────
+    class FacilityOption { public string Code { get; set; } = ""; public string Name { get; set; } = ""; }
+    readonly List<FacilityOption> AvailableFacilities = new()
+    {
+        new() { Code="NPM", Name="New Public Market" },
+        new() { Code="TCC", Name="Tampak Commercial Center" },
+        new() { Code="NCC", Name="New Commercial Center" },
+        new() { Code="BBQ", Name="Barbecue Stand" },
+        new() { Code="ICE", Name="Iceplant" },
+        new() { Code="SLH", Name="Slaughterhouse" },
+    };
+
+    // ── Form ──────────────────────────────────────────────────────────────────
+    class CollectorForm
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string EmployeeId { get; set; } = string.Empty;
+        public string ContactNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public List<string> AssignedFacilities { get; set; } = new();
+    }
+
+    bool ShowModal = false;
+    bool IsEditing = false;
+    CollectorForm Form = new();
+    string FormError = string.Empty;
+    int EditingId = 0;
+
+    void OpenCreate()
+    {
+        IsEditing = false;
+        Form = new();
+        FormError = string.Empty;
+        ShowModal = true;
+    }
+
+    void OpenEdit(CollectorAccount c)
+    {
+        IsEditing = true;
+        EditingId = c.Id;
+        Form = new CollectorForm
+        {
+            FullName = c.FullName,
+            EmployeeId = c.EmployeeId,
+            ContactNumber = c.ContactNumber,
+            Email = c.Email,
+            Username = c.Username,
+            Password = string.Empty,
+            AssignedFacilities = new(c.AssignedFacilities)
+        };
+        FormError = string.Empty;
+        ShowModal = true;
+    }
+
+    void ToggleFacility(string code)
+    {
+        if (Form.AssignedFacilities.Contains(code))
+            Form.AssignedFacilities.Remove(code);
+        else
+            Form.AssignedFacilities.Add(code);
+    }
+
+    void SaveCollector()
+    {
+        if (string.IsNullOrWhiteSpace(Form.FullName)) { FormError = "Full name is required."; return; }
+        if (string.IsNullOrWhiteSpace(Form.EmployeeId)) { FormError = "Employee ID is required."; return; }
+        if (string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
+        if (!IsEditing && string.IsNullOrWhiteSpace(Form.Password)) { FormError = "Password is required for new accounts."; return; }
+        if (!Form.AssignedFacilities.Any()) { FormError = "Assign at least one facility."; return; }
+
+        if (IsEditing)
+        {
+            var existing = Collectors.First(c => c.Id == EditingId);
+            existing.FullName = Form.FullName.Trim();
+            existing.EmployeeId = Form.EmployeeId.Trim();
+            existing.ContactNumber = Form.ContactNumber.Trim();
+            existing.Email = Form.Email.Trim();
+            existing.Username = Form.Username.Trim();
+            existing.AssignedFacilities = new(Form.AssignedFacilities);
+        }
+        else
+        {
+            Collectors.Add(new CollectorAccount
+            {
+                Id = Collectors.Count + 1,
+                FullName = Form.FullName.Trim(),
+                EmployeeId = Form.EmployeeId.Trim(),
+                ContactNumber = Form.ContactNumber.Trim(),
+                Email = Form.Email.Trim(),
+                Username = Form.Username.Trim(),
+                IsActive = true,
+                AssignedFacilities = new(Form.AssignedFacilities),
+                CollectedThisMonth = 0,
+                TransactionsThisMonth = 0,
+                LastActive = DateTime.Now
+            });
+        }
+
+        CloseModal();
+        // TODO: await CollectorService.SaveAsync(...)
+    }
+
+    void CloseModal()
+    {
+        ShowModal = false;
+        FormError = string.Empty;
+    }
+
+    // ── Toggle Status ─────────────────────────────────────────────────────────
+    bool ShowConfirm = false;
+    CollectorAccount? ConfirmTarget = null;
+
+    void ToggleStatus(CollectorAccount c) { ConfirmTarget = c; ShowConfirm = true; }
+
+    void ConfirmToggle()
+    {
+        if (ConfirmTarget is null) return;
+        ConfirmTarget.IsActive = !ConfirmTarget.IsActive;
+        ShowConfirm = false;
+        ConfirmTarget = null;
+        // TODO: await CollectorService.SetActiveAsync(id, isActive)
+    }
+
+    // ── Activity Modal ────────────────────────────────────────────────────────
+    bool ShowActivity = false;
+    CollectorAccount? ActivityCollector = null;
+
+    void OpenActivity(CollectorAccount c) { ActivityCollector = c; ShowActivity = true; }
+
+    class ActivityTx { public string OR = ""; public string Payor = ""; public string Facility = ""; public string Nature = ""; public decimal Amount; public bool Paid; public DateTime At; }
+
+    IEnumerable<ActivityTx> GetCollectorActivity(CollectorAccount c) => new List<ActivityTx>
+    {
+        new() { OR="2315701", Payor="Dela Cruz, Maria S.", Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(10).AddMinutes(14) },
+        new() { OR="2315702", Payor="Santos, Rodrigo T.",  Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(10).AddMinutes(32) },
+        new() { OR="2315703", Payor="Trugillo, Elpedia",   Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=false, At=DateTime.Today.AddHours(11).AddMinutes(5)  },
+        new() { OR="2315704", Payor="Arnaldo, Elmalyn",    Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(11).AddMinutes(40) },
+    };
+}

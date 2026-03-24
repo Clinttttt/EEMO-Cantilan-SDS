@@ -1,0 +1,130 @@
+﻿<aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
+    <div class="sidebar-brand">
+        <div class="sidebar-seal">
+            <img src="images/eemo-logov2.png" alt="EEMO" />
+        </div>
+        <div class="sidebar-brand-text">
+            <div class="sidebar-brand-name">EEMO</div>
+            <div class="sidebar-brand-sub">Admin Portal</div>
+        </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-group-label">Main</div>
+
+        <a href="/menu" class="nav-item active">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+            <span>Dashboard</span>
+        </a>
+        <a href="/collectors" class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+            <span>Collectors</span>
+        </a>
+        <a href="/vendors" class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>
+            <span>Vendors &amp; Stalls</span>
+        </a>
+
+        <div class="nav-group-label" style="margin-top:1rem;">Facilities</div>
+
+        @foreach (var fac in Facilities)
+        {
+            <a href="/facility/@fac.Code.ToLower()" class="nav-item">
+                @((MarkupString)fac.IconSvg)
+                <span>@fac.ShortName</span>
+                @if (fac.UnpaidCount > 0)
+                {
+                    <span class="nav-badge">@fac.UnpaidCount</span>
+                }
+            </a>
+        }
+
+        <div class="nav-group-label" style="margin-top:1rem;">Reports</div>
+
+        <a href="/reports" class="nav-item">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+            <span>Financial Reports</span>
+        </a>
+        <a href="/audit" class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+            <span>Audit Trail</span>
+        </a>
+        <a href="/export" class="nav-item">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            <span>Export Data</span>
+        </a>
+
+        <div class="nav-group-label" style="margin-top:1rem;">System</div>
+
+        <a href="/settings" class="nav-item">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93l-1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M4.93 4.93l1.41 1.41M21 12h-2M5 12H3M12 21v-2M12 5V3" /></svg>
+            <span>Settings</span>
+        </a>
+    </nav>
+
+    <button class="sidebar-toggle" @onclick="() => SidebarCollapsed = !SidebarCollapsed">
+        <svg viewBox="0 0 24 24"><polyline points="@(SidebarCollapsed ? "9 6 15 12 9 18" : "15 18 9 12 15 6")" /></svg>
+    </button>
+</aside>
+@code{
+    bool SidebarCollapsed = false;
+    
+    class FacilityItem
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string ShortName { get; set; } = string.Empty;
+        public string IconSvg { get; set; } = string.Empty;
+        public decimal Collected { get; set; }
+        public decimal Pending { get; set; }
+        public int TotalVendors { get; set; }
+        public int UnpaidCount { get; set; }
+        public int CollectionRate => TotalVendors == 0 ? 0
+                                        : (int)((double)(TotalVendors - UnpaidCount) / TotalVendors * 100);
+        public bool HasAlert => UnpaidCount > 0;
+        public List<string> FeeTypes { get; set; } = new();
+    }
+
+    
+    List<FacilityItem> Facilities = new()
+    {
+        new() {
+            Code="NPM", Name="New Public Market", ShortName="Public Market",
+            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
+            Collected=62400, Pending=18000, TotalVendors=100, UnpaidCount=20,
+            FeeTypes=new() { "Stall ₱30/day", "Fish ₱1/kg", "Electricity", "Water" }
+        },
+        new() {
+            Code="TCC", Name="Tampak Commercial Center", ShortName="Tampak Comm.",
+            IconSvg="""<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
+            Collected=48600, Pending=12000, TotalVendors=43, UnpaidCount=8,
+            FeeTypes=new() { "Monthly Rental", "Electricity", "Water" }
+        },
+        new() {
+            Code="NCC", Name="New Commercial Center", ShortName="New Comm. Center",
+            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
+            Collected=56520, Pending=8400, TotalVendors=28, UnpaidCount=5,
+            FeeTypes=new() { "Monthly Rental", "Corner Premium" }
+        },
+        new() {
+            Code="BBQ", Name="Barbecue Stand", ShortName="BBQ Stand",
+            IconSvg="""<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""",
+            Collected=38400, Pending=9600, TotalVendors=5, UnpaidCount=1,
+            FeeTypes=new() { "Space Rental" }
+        },
+        new() {
+            Code="ICE", Name="Iceplant", ShortName="Iceplant",
+            IconSvg="""<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""",
+            Collected=24000, Pending=12000, TotalVendors=4, UnpaidCount=2,
+            FeeTypes=new() { "Space Rental" }
+        },
+        new() {
+            Code="SLH", Name="Slaughterhouse", ShortName="Slaughterhouse",
+            IconSvg="""<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
+            Collected=12250, Pending=3750, TotalVendors=30, UnpaidCount=6,
+            FeeTypes=new() { "Hog ₱250/head", "Carabao/Cow ₱365/head" }
+        },
+    };
+}
