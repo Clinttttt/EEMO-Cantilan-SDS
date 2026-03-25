@@ -21,7 +21,7 @@
             </div>
             <div class="topbar-right">
                 <div class="topbar-date">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                     @DateTime.Now.ToString("MMMM d, yyyy")
                 </div>
                 <div class="topbar-admin">
@@ -40,7 +40,7 @@
             <div class="kpi-strip">
                 <div class="kpi-card kpi-card-stalls">
                     <div class="kpi-icon kpi-icon-blue">
-                        <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>
                     </div>
                     <div class="kpi-body kpi-body-stalls">
                         <div class="kpi-stalls-row">
@@ -49,18 +49,13 @@
                                 <div class="kpi-label">Total Stalls</div>
                                 <div class="kpi-sub">@Vendors.Count(v => v.IsActive) active · @Vendors.Count(v => !v.IsActive) closed</div>
                             </div>
-                            <div class="kpi-stalls-divider"></div>
-                            <div class="kpi-stalls-unpaid">
-                                <div class="kpi-unpaid-val">@Vendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
-                                <div class="kpi-unpaid-label">Unpaid</div>
-                                <div class="kpi-unpaid-sub">rental</div>
-                            </div>
+                                        
                         </div>
                     </div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon kpi-icon-green">
-                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                     <div class="kpi-body">
                         <div class="kpi-value">@Vendors.Count(v => v.IsActive && v.IsPaidThisMonth)</div>
@@ -70,7 +65,7 @@
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon kpi-icon-red">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                     </div>
                     <div class="kpi-body">
                         <div class="kpi-value">@Vendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
@@ -80,7 +75,7 @@
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-icon kpi-icon-gold">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
                     </div>
                     <div class="kpi-body">
                         <div class="kpi-value">₱@(Vendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
@@ -102,7 +97,7 @@
                         {
                             <span class="fac-trigger-badge">@ActiveFacilityTab.UnpaidCount unpaid</span>
                         }
-                        <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                        <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
                     </div>
 
                     @if (FacDropdownOpen)
@@ -114,10 +109,13 @@
                             {
                                 <div class="fac-dd-item @(ActiveFacility == f.Code ? "active" : "")" @onclick="() => SelectFacility(f.Code)">
                                     <div class="fac-dd-body"><span class="fac-dd-name">@f.Name</span></div>
-                                    @if (f.UnpaidCount > 0) { <span class="fac-dd-badge">@f.UnpaidCount</span> }
+                                    @if (f.UnpaidCount > 0)
+                                    {
+                                        <span class="fac-dd-badge">@f.UnpaidCount</span>
+                                    }
                                     @if (ActiveFacility == f.Code)
                                     {
-                                        <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                                        <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                                     }
                                 </div>
                             }
@@ -127,7 +125,7 @@
 
                 <div class="vs-actions">
                     <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                         <input type="text" placeholder="Search stall no. or name…" @bind="SearchQuery" @bind:event="oninput" />
                         @if (!string.IsNullOrEmpty(SearchQuery))
                         {
@@ -135,7 +133,7 @@
                         }
                     </div>
                     <button class="btn-primary" @onclick="OpenCreate">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                         Add Vendor
                     </button>
                 </div>
@@ -157,7 +155,7 @@
                 @if (!FilteredVendors.Any())
                 {
                     <div class="empty-state">
-                        <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/></svg>
+                        <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
                         <div class="empty-title">No Vendors Found</div>
                         <div class="empty-sub">Try adjusting the filters or search.</div>
                     </div>
@@ -170,6 +168,7 @@
                                 <tr>
                                     <th>Stall No.</th>
                                     <th>Actual Occupant</th>
+                                    <th>OR No.</th>
                                     <th>Section / Area</th>
                                     <th>Status</th>
                                     <th>Actions</th>
@@ -196,6 +195,11 @@
                                                 </div>
                                             </div>
                                         </td>
+                 
+                                        <td>
+                                            <span class="or-no">@(string.IsNullOrEmpty(v.OrNo) ? "—" : v.OrNo)</span>
+                                        </td>
+                                     
                                         <td><span class="section-tag">@v.Section</span></td>
                                         <td @onclick:stopPropagation="true">
                                             <span class="status-pill @(v.IsActive ? "pill-active" : "pill-inactive")">
@@ -205,24 +209,24 @@
                                         <td @onclick:stopPropagation="true">
                                             <div class="action-btns">
                                                 <button class="action-btn" title="View Details" @onclick="() => OpenDetail(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                                                 </button>
                                                 <button class="action-btn" title="Edit" @onclick="() => OpenEdit(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                                                 </button>
                                                 <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
                                                 </button>
                                                 <button class="action-btn @(v.IsActive ? "action-danger" : "action-success")"
                                                         title="@(v.IsActive ? "Close Stall" : "Reopen Stall")"
                                                         @onclick="() => ToggleVendor(v)">
                                                     @if (v.IsActive)
                                                     {
-                                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                                                     }
                                                     else
                                                     {
-                                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                                                     }
                                                 </button>
                                             </div>
@@ -268,7 +272,7 @@
                     </div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowDetail = false">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
 
@@ -278,7 +282,7 @@
                 <div class="detail-stats-row">
                     <div class="detail-stat-card">
                         <div class="detail-stat-icon ds-icon-gold">
-                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
                         </div>
                         <div>
                             <div class="detail-stat-val">₱@DetailVendor.MonthlyRate.ToString("N0")</div>
@@ -287,7 +291,7 @@
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-icon ds-icon-blue">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         </div>
                         <div>
                             <div class="detail-stat-val">
@@ -305,7 +309,7 @@
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-icon ds-icon-green">
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                         </div>
                         <div>
                             <div class="detail-stat-val">
@@ -318,7 +322,7 @@
                     </div>
                     <div class="detail-stat-card">
                         <div class="detail-stat-icon ds-icon-navy">
-                            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
                         </div>
                         <div>
                             <div class="detail-stat-val">@(DetailVendor.AreaSqm > 0 ? $"{DetailVendor.AreaSqm} sq.m" : "—")</div>
@@ -333,7 +337,7 @@
                     <!-- LEFT: Vendor Info -->
                     <div class="detail-section">
                         <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                             Vendor Information
                         </div>
                         <div class="detail-info-grid">
@@ -395,25 +399,25 @@
                     <!-- RIGHT: Fee Structure — Fish & Meat now separate -->
                     <div class="detail-section">
                         <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
                             Fee Structure
                         </div>
 
                         @{
-                            bool hasVegDaily    = DetailVendor.FacilityCode == "NPM" &&
+                            bool hasVegDaily = DetailVendor.FacilityCode == "NPM" &&
                                                   DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase);
                             bool hasFishSection = DetailVendor.FacilityCode == "NPM" &&
                                                   DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
                             bool hasMeatSection = DetailVendor.FacilityCode == "NPM" &&
                                                   DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
-                            bool hasFishPerKg   = DetailVendor.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"));
+                            bool hasFishPerKg = DetailVendor.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"));
                         }
 
                         <!-- Monthly rental -->
                         <div class="fee-breakdown-item fee-item-rental">
                             <div class="fee-item-left">
                                 <div class="fee-item-icon">
-                                    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                                    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
                                 </div>
                                 <div>
                                     <div class="fee-item-name">Monthly Rental</div>
@@ -428,7 +432,7 @@
                             <div class="fee-breakdown-item fee-item-daily">
                                 <div class="fee-item-left">
                                     <div class="fee-item-icon fee-icon-green">
-                                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2z"/><path d="M12 8v8M8 12h8"/></svg>
+                                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2z" /><path d="M12 8v8M8 12h8" /></svg>
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
@@ -444,7 +448,7 @@
                             <div class="fee-breakdown-item fee-item-daily">
                                 <div class="fee-item-left">
                                     <div class="fee-item-icon fee-icon-blue">
-                                        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path d="M9 9h.01M15 9h.01M9.5 15a3.5 3.5 0 005 0"/></svg>
+                                        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path d="M9 9h.01M15 9h.01M9.5 15a3.5 3.5 0 005 0" /></svg>
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
@@ -460,7 +464,7 @@
                             <div class="fee-breakdown-item fee-item-daily">
                                 <div class="fee-item-left">
                                     <div class="fee-item-icon fee-icon-red-soft">
-                                        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+                                        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Daily Collection</div>
@@ -476,7 +480,7 @@
                             <div class="fee-breakdown-item fee-item-perkg">
                                 <div class="fee-item-left">
                                     <div class="fee-item-icon fee-icon-gold">
-                                        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+                                        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
                                     </div>
                                     <div>
                                         <div class="fee-item-name">Fish Fee (by weight)</div>
@@ -489,22 +493,22 @@
 
                         @foreach (var fee in DetailVendor.FeeTypes.Where(f => !f.Contains("kg")))
                         {
-                            var isElec  = fee.Contains("Electricity");
+                            var isElec = fee.Contains("Electricity");
                             var isWater = fee.Contains("Water");
                             <div class="fee-breakdown-item fee-item-utility">
                                 <div class="fee-item-left">
                                     <div class="fee-item-icon fee-icon-utility">
                                         @if (isElec)
                                         {
-                                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
                                         }
                                         else if (isWater)
                                         {
-                                            <svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>
+                                            <svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" /></svg>
                                         }
                                         else
                                         {
-                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /></svg>
                                         }
                                     </div>
                                     <div>
@@ -536,37 +540,37 @@
                 @if (showDailyCal)
                 {
                    
-                        var calFirst   = new DateTime(CalendarMonth.Year, CalendarMonth.Month, 1);
-                        var calDays    = DateTime.DaysInMonth(CalendarMonth.Year, CalendarMonth.Month);
-                        var calOffset  = (int)calFirst.DayOfWeek;
-                        var calMStr    = CalendarMonth.ToString("yyyy-MM");
-                        var calToday   = DateTime.Now.Date;
-                        var isCurMo    = CalendarMonth.Year == calToday.Year && CalendarMonth.Month == calToday.Month;
-                        var maxDay     = isCurMo ? calToday.Day : calDays;
-                        var calCollected = 0;
-                        for (int ci = 1; ci <= maxDay; ci++)
-                        {
-                            var ck = $"{calMStr}-{ci:D2}";
-                            if (DetailVendor.DailyCollections.ContainsKey(ck) && DetailVendor.DailyCollections[ck])
-                                calCollected++;
-                        }
-                        var calMissed  = maxDay - calCollected;
-                        var calTotal   = calCollected * 30;
-                        var canGoNext  = CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                    var calFirst = new DateTime(CalendarMonth.Year, CalendarMonth.Month, 1);
+                    var calDays = DateTime.DaysInMonth(CalendarMonth.Year, CalendarMonth.Month);
+                    var calOffset = (int)calFirst.DayOfWeek;
+                    var calMStr = CalendarMonth.ToString("yyyy-MM");
+                    var calToday = DateTime.Now.Date;
+                    var isCurMo = CalendarMonth.Year == calToday.Year && CalendarMonth.Month == calToday.Month;
+                    var maxDay = isCurMo ? calToday.Day : calDays;
+                    var calCollected = 0;
+                    for (int ci = 1; ci <= maxDay; ci++)
+                    {
+                        var ck = $"{calMStr}-{ci:D2}";
+                        if (DetailVendor.DailyCollections.ContainsKey(ck) && DetailVendor.DailyCollections[ck])
+                            calCollected++;
+                    }
+                    var calMissed = maxDay - calCollected;
+                    var calTotal = calCollected * 30;
+                    var canGoNext = CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
                     
                     <div class="detail-section">
                         <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                             Daily Collection — ₱30/day
                         </div>
 
                         <div class="cal-nav">
                             <button class="cal-nav-btn" @onclick="PrevCalMonth">
-                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                             </button>
                             <span class="cal-month-label">@CalendarMonth.ToString("MMMM yyyy")</span>
                             <button class="cal-nav-btn" @onclick="NextCalMonth" disabled="@(!canGoNext)">
-                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                             </button>
                         </div>
 
@@ -586,10 +590,10 @@
 
                             @for (int d = 1; d <= calDays; d++)
                             {
-                                var day      = new DateTime(CalendarMonth.Year, CalendarMonth.Month, d);
-                                var dayKey   = day.ToString("yyyy-MM-dd");
+                                var day = new DateTime(CalendarMonth.Year, CalendarMonth.Month, d);
+                                var dayKey = day.ToString("yyyy-MM-dd");
                                 var isFuture = day.Date > calToday;
-                                var isToday  = day.Date == calToday;
+                                var isToday = day.Date == calToday;
                                 var isMarked = DetailVendor.DailyCollections.ContainsKey(dayKey) && DetailVendor.DailyCollections[dayKey];
                                 var cellClass = isFuture ? "cal-future" : (isMarked ? "cal-paid" : "cal-miss");
 
@@ -625,7 +629,7 @@
                      MONTHLY UTILITY PAYMENTS
                 ══════════════════════════════════ -->
                 @{
-                    bool hasElecFee  = DetailVendor.FeeTypes.Contains("Electricity");
+                    bool hasElecFee = DetailVendor.FeeTypes.Contains("Electricity");
                     bool hasWaterFee = DetailVendor.FeeTypes.Contains("Water");
                 }
 
@@ -633,47 +637,47 @@
                 {
                     <div class="detail-section">
                         <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
                             Monthly Utility Payments
                         </div>
                         <div class="util-months-list">
-      @for (int mo = 0; mo >= -5; mo--)
-    {
-        var mDate = DateTime.Now.AddMonths(mo);
-        var mKey = mDate.ToString("yyyy-MM");
-        var mLabel = mDate.ToString("MMMM yyyy");
+                            @for (int mo = 0; mo >= -5; mo--)
+                            {
+                                var mDate = DateTime.Now.AddMonths(mo);
+                                var mKey = mDate.ToString("yyyy-MM");
+                                var mLabel = mDate.ToString("MMMM yyyy");
 
-        var elecPaid = DetailVendor.ElectricityPaidMonths.Contains(mKey);
-        var waterPaid = DetailVendor.WaterPaidMonths.Contains(mKey);
+                                var elecPaid = DetailVendor.ElectricityPaidMonths.Contains(mKey);
+                                var waterPaid = DetailVendor.WaterPaidMonths.Contains(mKey);
 
-        <div class="util-month-row">
-            <span class="util-month-name">@mLabel</span>
+                                <div class="util-month-row">
+                                    <span class="util-month-name">@mLabel</span>
             
-            <div class="util-pills">
-                @if (hasElecFee)
-                {
-                    <button class="util-pill @(elecPaid ? "util-pill-paid" : "util-pill-unpaid")"
-                            @onclick="@(() => ToggleUtility(DetailVendor, "Electricity", mKey))">
-                        <svg viewBox="0 0 24 24">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                        </svg>
-                        @(elecPaid ? "Electricity Paid ✓" : "Electricity Unpaid")
-                    </button>
-                }
+                                    <div class="util-pills">
+                                        @if (hasElecFee)
+                                        {
+                                            <button class="util-pill @(elecPaid ? "util-pill-paid" : "util-pill-unpaid")"
+                                                    @onclick="@(() => ToggleUtility(DetailVendor, "Electricity", mKey))">
+                                                <svg viewBox="0 0 24 24">
+                                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                                                </svg>
+                                                @(elecPaid ? "Electricity Paid ✓" : "Electricity Unpaid")
+                                            </button>
+                                        }
 
-                @if (hasWaterFee)
-                {
-                    <button class="util-pill @(waterPaid ? "util-pill-paid" : "util-pill-unpaid")"
-                            @onclick="@(() => ToggleUtility(DetailVendor, "Water", mKey))">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
-                        </svg>
-                        @(waterPaid ? "Water Paid ✓" : "Water Unpaid")
-                    </button>
-                }
-            </div>
-        </div>
-    }
+                                        @if (hasWaterFee)
+                                        {
+                                            <button class="util-pill @(waterPaid ? "util-pill-paid" : "util-pill-unpaid")"
+                                                    @onclick="@(() => ToggleUtility(DetailVendor, "Water", mKey))">
+                                                <svg viewBox="0 0 24 24">
+                                                    <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
+                                                </svg>
+                                                @(waterPaid ? "Water Paid ✓" : "Water Unpaid")
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
     
                         </div>
                     </div>
@@ -684,14 +688,14 @@
                 ══════════════════════════════════ -->
                 <div class="detail-section" style="margin-top:0;">
                     <div class="detail-section-title">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         12-Month Rental Payment History
                     </div>
                     <div class="hist-grid" style="margin-bottom:14px;">
                         @for (int i = 11; i >= 0; i--)
                         {
                             var month = DateTime.Now.AddMonths(-i);
-                            var paid  = DetailVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
+                            var paid = DetailVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
                                         && DetailVendor.PaymentHistory[month.ToString("yyyy-MM")];
                             <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
                                 <div class="hist-month-name">@month.ToString("MMM")</div>
@@ -724,12 +728,14 @@
 
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowDetail = false">Close</button>
-                <button class="btn-outline" @onclick="() => { ShowDetail = false; OpenHistory(DetailVendor); }">
-                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-right:5px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    Payment History
+                <button class="btn-outline"
+                        style="display:inline-flex; align-items:center;"
+                        @onclick="() => { ShowDetail = false; OpenHistory(DetailVendor); }">
+                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-right:5px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                     History
                 </button>
                 <button class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
-                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                     Edit Vendor
                 </button>
             </div>
@@ -751,7 +757,7 @@
                     <div class="eemo-modal-sub">@(IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system.")</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="CloseModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
             <div class="eemo-modal-body">
@@ -825,7 +831,10 @@
                             var isChecked = Form.FeeTypes.Contains(fee);
                             <div class="fac-checkbox @(isChecked ? "checked" : "")" @onclick="() => ToggleFee(fee)">
                                 <div class="fac-check-box">
-                                    @if (isChecked) { <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> }
+                                    @if (isChecked)
+                                    {
+                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
                                 </div>
                                 <span class="fac-check-name">@fee</span>
                             </div>
@@ -835,7 +844,7 @@
                 @if (!string.IsNullOrEmpty(FormError))
                 {
                     <div class="form-error">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                         @FormError
                     </div>
                 }
@@ -864,7 +873,7 @@
                     <div class="eemo-modal-sub">Stall @HistoryVendor.StallNo · @HistoryVendor.FacilityCode · ₱@HistoryVendor.MonthlyRate.ToString("N0")/month</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowHistory = false">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
             <div class="eemo-modal-body">
@@ -873,7 +882,7 @@
                     @for (int i = 11; i >= 0; i--)
                     {
                         var month = DateTime.Now.AddMonths(-i);
-                        var paid  = HistoryVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
+                        var paid = HistoryVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
                                     && HistoryVendor.PaymentHistory[month.ToString("yyyy-MM")];
                         <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
                             <div class="hist-month-name">@month.ToString("MMM")</div>
@@ -971,12 +980,12 @@
     // ── Dropdown state ────────────────────────────────────────────────────────
     bool FacDropdownOpen = false;
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
-    void CloseFacDropdown()  => FacDropdownOpen = false;
+    void CloseFacDropdown() => FacDropdownOpen = false;
 
     // ── Filters ───────────────────────────────────────────────────────────────
-    string SearchQuery    = string.Empty;
+    string SearchQuery = string.Empty;
     string ActiveFacility = "NPM";
-    string ActiveStatus   = "All";
+    string ActiveStatus = "All";
 
     readonly List<string> StatusFilters = new() { "All", "Paid", "Unpaid", "Closed" };
 
@@ -985,11 +994,11 @@
     // ── Facility Tab Model ────────────────────────────────────────────────────
     class FacilityTab
     {
-        public string Code        { get; set; } = string.Empty;
-        public string Name        { get; set; } = string.Empty;
-        public string ShortName   { get; set; } = string.Empty;
-        public string IconSvg     { get; set; } = string.Empty;
-        public int    UnpaidCount { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string ShortName { get; set; } = string.Empty;
+        public string IconSvg { get; set; } = string.Empty;
+        public int UnpaidCount { get; set; }
     }
 
     List<FacilityTab> FacilityTabs = new()
@@ -1011,68 +1020,77 @@
     // ── Vendor Model ──────────────────────────────────────────────────────────
     class VendorEntry
     {
-        public int       Id                  { get; set; }
-        public string    FacilityCode        { get; set; } = string.Empty;
-        public string    StallNo             { get; set; } = string.Empty;
-        public string    ActualOccupant      { get; set; } = string.Empty;
-        public string    ContractName        { get; set; } = string.Empty;
-        public string    Section             { get; set; } = string.Empty;
-        public double    AreaSqm             { get; set; }
-        public DateTime? ContractDate        { get; set; }
-        public int       ContractYears       { get; set; }
-        public decimal   MonthlyRate         { get; set; }
-        public string    AreaLocation        { get; set; } = string.Empty;
-        public List<string> FeeTypes         { get; set; } = new();
-        public bool      HasAdditionalFees   => FeeTypes.Any();
-        public bool      IsActive            { get; set; } = true;
-        public bool      IsPaidThisMonth     { get; set; }
-        public bool      IsPartialThisMonth  { get; set; }
-        public Dictionary<string, bool>  PaymentHistory       { get; set; } = new();
+        public int Id { get; set; }
+        public string FacilityCode { get; set; } = string.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string? OrNo { get; set; }
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public int ContractYears { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public string AreaLocation { get; set; } = string.Empty;
+        public List<string> FeeTypes { get; set; } = new();
+        public bool HasAdditionalFees => FeeTypes.Any();
+        public bool IsActive { get; set; } = true;
+        public bool IsPaidThisMonth { get; set; }
+        public bool IsPartialThisMonth { get; set; }
+        public Dictionary<string, bool> PaymentHistory { get; set; } = new();
         // ── NEW: daily collection & utility tracking ──────────────────────────
-        public Dictionary<string, bool>  DailyCollections     { get; set; } = new(); // "yyyy-MM-dd" → collected
-        public HashSet<string>           ElectricityPaidMonths { get; set; } = new(); // "yyyy-MM"
-        public HashSet<string>           WaterPaidMonths       { get; set; } = new(); // "yyyy-MM"
+        public Dictionary<string, bool> DailyCollections { get; set; } = new(); // "yyyy-MM-dd" → collected
+        public HashSet<string> ElectricityPaidMonths { get; set; } = new(); // "yyyy-MM"
+        public HashSet<string> WaterPaidMonths { get; set; } = new(); // "yyyy-MM"
     }
 
     List<VendorEntry> Vendors = new()
     {
-        // ── NPM Vegetable Area ────────────────────────────────────────────────
-        new() { Id=1,  FacilityCode="NPM", StallNo="01", ActualOccupant="Trugillo, Elpedia C.",   ContractName="Nila F. Andoy",         Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(10) },
-        new() { Id=2,  FacilityCode="NPM", StallNo="02", ActualOccupant="Bohol, Marilyn C.",       ContractName="Marilyn C. Bohol",       Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=3,  FacilityCode="NPM", StallNo="03", ActualOccupant="Arnaldo, Elmalyn P.",     ContractName="Elmalyn P. Arnaldo",     Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(11) },
-        new() { Id=4,  FacilityCode="NPM", StallNo="04", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(8)  },
-        new() { Id=5,  FacilityCode="NPM", StallNo="05", ActualOccupant="Rodriguez, Jinky L.",     ContractName="Jinky L. Rodriguez",     Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=6,  FacilityCode="NPM", StallNo="06", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(7)  },
-        new() { Id=7,  FacilityCode="NPM", StallNo="24", ActualOccupant="Tesado, Ariel",            ContractName="Judianne C. Cahutay",    Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(9)  },
-        new() { Id=8,  FacilityCode="NPM", StallNo="26", ActualOccupant="Closed",                  ContractName="Elsie B. Abuso",         Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(),                        IsPaidThisMonth=false, IsActive=false, PaymentHistory=MakeHistory(3)  },
-        // ── NPM Fish Section (separate from Meat) ────────────────────────────
-        new() { Id=9,  FacilityCode="NPM", StallNo="F01",ActualOccupant="Dela Cruz, Maria S.",      ContractName="Dela Cruz, Maria S.",    Section="Fish Section",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=10, FacilityCode="NPM", StallNo="F02",ActualOccupant="Santos, Rodrigo T.",       ContractName="Santos, Rodrigo T.",     Section="Fish Section",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(6)  },
-        // ── NPM Meat Section (separate from Fish) ────────────────────────────
-        new() { Id=11, FacilityCode="NPM", StallNo="M01",ActualOccupant="Garcia, Lorna B.",         ContractName="Lorna B. Garcia",        Section="Meat Section",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(10) },
-        new() { Id=12, FacilityCode="NPM", StallNo="M02",ActualOccupant="Flores, Danilo R.",         ContractName="Danilo R. Flores",       Section="Meat Section",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900,  FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(4)  },
-        // ── TCC ───────────────────────────────────────────────────────────────
-        new() { Id=20, FacilityCode="TCC", StallNo="31", ActualOccupant="Pude, Myra",               ContractName="Myra Pude",              Section="TCC",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=2400, FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=21, FacilityCode="TCC", StallNo="32", ActualOccupant="Guerta, Alvin",             ContractName="Alvin Guerta",           Section="TCC",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3000, FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true,  PaymentHistory=MakeHistory(11) },
-        new() { Id=22, FacilityCode="TCC", StallNo="37", ActualOccupant="Urbiztondo, Ronnie",        ContractName="Ronnie Urbiztondo",      Section="TCC",  AreaSqm=70,   ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=4800, FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(4)  },
-        new() { Id=23, FacilityCode="TCC", StallNo="39", ActualOccupant="Datumanong, Salnoden",      ContractName="No contract",            Section="TCC",  AreaSqm=35,   ContractDate=null, ContractYears=0, MonthlyRate=2400, FeeTypes=new(){"Electricity"},                         IsPaidThisMonth=false, PaymentHistory=MakeHistory(0)  },
-        // ── NCC ───────────────────────────────────────────────────────────────
-        new() { Id=30, FacilityCode="NCC", StallNo="01", ActualOccupant="Bebero, Lucrecia R.",       ContractName="Lucrecia R. Bebero",     Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=31, FacilityCode="NCC", StallNo="02", ActualOccupant="Bebero, Ruel R.",            ContractName="Ruel R. Bebero",         Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=32, FacilityCode="NCC", StallNo="13", ActualOccupant="Lago, Florena R.",           ContractName="Florena R. Lago",        Section="Corner",    AreaSqm=35,   ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3240, FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(7)  },
-        new() { Id=33, FacilityCode="NCC", StallNo="23", ActualOccupant="Armendarez, Ramil Jose",     ContractName="Ramil Jose Armendarez",  Section="Corner",    AreaSqm=35,   ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3840, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(10) },
-        // ── BBQ ───────────────────────────────────────────────────────────────
-        new() { Id=40, FacilityCode="BBQ", StallNo="1",  ActualOccupant="Ruaza, Joy",                ContractName="No contract",            Section="BBQ Stand",  AreaSqm=0, MonthlyRate=1600, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        new() { Id=41, FacilityCode="BBQ", StallNo="2",  ActualOccupant="Benablo, Mary May",          ContractName="No contract",            Section="BBQ Stand",  AreaSqm=0, MonthlyRate=3200, FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(5)  },
-        new() { Id=42, FacilityCode="BBQ", StallNo="3",  ActualOccupant="Arreo, Loida",               ContractName="No contract",            Section="BBQ Stand",  AreaSqm=0, MonthlyRate=1600, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(11) },
-        new() { Id=43, FacilityCode="BBQ", StallNo="4",  ActualOccupant="Plaza, Irene",               ContractName="No contract",            Section="BBQ Stand",  AreaSqm=0, MonthlyRate=1600, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(9)  },
-        new() { Id=44, FacilityCode="BBQ", StallNo="5",  ActualOccupant="Mendaña, Claudine",          ContractName="No contract",            Section="BBQ Stand",  AreaSqm=0, MonthlyRate=9600, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-        // ── ICE ───────────────────────────────────────────────────────────────
-        new() { Id=50, FacilityCode="ICE", StallNo="ICE-1", ActualOccupant="Mendaña, Recto",         ContractName="No contract",            Section="Iceplant",   AreaSqm=0, MonthlyRate=2000, FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(3)  },
-        new() { Id=51, FacilityCode="ICE", StallNo="ICE-2", ActualOccupant="Orpina, Rebecca S.",      ContractName="No contract",            Section="Iceplant",   AreaSqm=0, MonthlyRate=1000, FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(2)  },
-        new() { Id=52, FacilityCode="ICE", StallNo="ICE-3", ActualOccupant="Dumaran, Martin",         ContractName="No contract",            Section="Iceplant",   AreaSqm=0, MonthlyRate=1000, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(10) },
-        new() { Id=53, FacilityCode="ICE", StallNo="ICE-4", ActualOccupant="Mendaña, Roel",           ContractName="No contract",            Section="Iceplant",   AreaSqm=0, MonthlyRate=2000, FeeTypes=new(), IsPaidThisMonth=true,  PaymentHistory=MakeHistory(12) },
-    };
+    // ── NPM Vegetable Area ─────────────────────────
+    new() { Id=1, FacilityCode="NPM", StallNo="01", ActualOccupant="Trugillo, Elpedia C.", ContractName="Nila F. Andoy", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-001", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
+
+    new() { Id=2, FacilityCode="NPM", StallNo="02", ActualOccupant="Bohol, Marilyn C.", ContractName="Marilyn C. Bohol", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-002", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=3, FacilityCode="NPM", StallNo="03", ActualOccupant="Arnaldo, Elmalyn P.", ContractName="Elmalyn P. Arnaldo", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-003", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(11) },
+
+    new() { Id=4, FacilityCode="NPM", StallNo="04", ActualOccupant="Tecson, Reymart P.", ContractName="Nicolas S. Cupina", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-004", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(8) },
+
+    new() { Id=5, FacilityCode="NPM", StallNo="05", ActualOccupant="Rodriguez, Jinky L.", ContractName="Jinky L. Rodriguez", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-005", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=6, FacilityCode="NPM", StallNo="06", ActualOccupant="Cuartero, Elen L.", ContractName="Berlina A. Cuartero", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-006", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(7) },
+
+    new() { Id=7, FacilityCode="NPM", StallNo="24", ActualOccupant="Tesado, Ariel", ContractName="Judianne C. Cahutay", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-007", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(9) },
+
+    new() { Id=8, FacilityCode="NPM", StallNo="26", ActualOccupant="Closed", ContractName="Elsie B. Abuso", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-008", FeeTypes=new(), IsPaidThisMonth=false, IsActive=false, PaymentHistory=MakeHistory(3) },
+
+    // Fish
+    new() { Id=9, FacilityCode="NPM", StallNo="F01", ActualOccupant="Dela Cruz, Maria S.", ContractName="Dela Cruz, Maria S.", Section="Fish Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-009", FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=10, FacilityCode="NPM", StallNo="F02", ActualOccupant="Santos, Rodrigo T.", ContractName="Santos, Rodrigo T.", Section="Fish Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-010", FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(6) },
+
+    // Meat
+    new() { Id=11, FacilityCode="NPM", StallNo="M01", ActualOccupant="Garcia, Lorna B.", ContractName="Lorna B. Garcia", Section="Meat Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-011", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
+
+    new() { Id=12, FacilityCode="NPM", StallNo="M02", ActualOccupant="Flores, Danilo R.", ContractName="Danilo R. Flores", Section="Meat Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-012", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(4) },
+
+    // TCC
+    new() { Id=20, FacilityCode="TCC", StallNo="31", ActualOccupant="Pude, Myra", ContractName="Myra Pude", Section="TCC", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=2400, OrNo="OR-2024-020", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=21, FacilityCode="TCC", StallNo="32", ActualOccupant="Guerta, Alvin", ContractName="Alvin Guerta", Section="TCC", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3000, OrNo="OR-2024-021", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(11) },
+
+    new() { Id=22, FacilityCode="TCC", StallNo="37", ActualOccupant="Urbiztondo, Ronnie", ContractName="Ronnie Urbiztondo", Section="TCC", AreaSqm=70, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=4800, OrNo="OR-2024-022", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(4) },
+
+    new() { Id=23, FacilityCode="TCC", StallNo="39", ActualOccupant="Datumanong, Salnoden", ContractName="No contract", Section="TCC", AreaSqm=35, ContractDate=null, ContractYears=0, MonthlyRate=2400, OrNo="OR-2024-023", FeeTypes=new(){"Electricity"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(0) },
+
+    // NCC
+    new() { Id=30, FacilityCode="NCC", StallNo="01", ActualOccupant="Bebero, Lucrecia R.", ContractName="Lucrecia R. Bebero", Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, OrNo="OR-2024-030", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=31, FacilityCode="NCC", StallNo="02", ActualOccupant="Bebero, Ruel R.", ContractName="Ruel R. Bebero", Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, OrNo="OR-2024-031", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+
+    new() { Id=32, FacilityCode="NCC", StallNo="13", ActualOccupant="Lago, Florena R.", ContractName="Florena R. Lago", Section="Corner", AreaSqm=35, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3240, OrNo="OR-2024-032", FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(7) },
+
+    new() { Id=33, FacilityCode="NCC", StallNo="23", ActualOccupant="Armendarez, Ramil Jose", ContractName="Ramil Jose Armendarez", Section="Corner", AreaSqm=35, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3840, OrNo="OR-2024-033", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
+};
 
     static Dictionary<string, bool> MakeHistory(int paidCount)
     {
@@ -1090,10 +1108,10 @@
         if (v.FacilityCode != ActiveFacility) return false;
         bool matchStatus = ActiveStatus switch
         {
-            "Paid"   =>  v.IsPaidThisMonth && v.IsActive,
+            "Paid" => v.IsPaidThisMonth && v.IsActive,
             "Unpaid" => !v.IsPaidThisMonth && v.IsActive,
             "Closed" => !v.IsActive,
-            _        => true
+            _ => true
         };
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || v.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
@@ -1108,9 +1126,9 @@
 
     void OpenDetail(VendorEntry v)
     {
-        DetailVendor   = v;
-        ShowDetail     = true;
-        CalendarMonth  = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        DetailVendor = v;
+        ShowDetail = true;
+        CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
     }
 
     // ── Form ──────────────────────────────────────────────────────────────────
@@ -1119,36 +1137,36 @@
 
     class VendorForm
     {
-        public string    FacilityCode   { get; set; } = string.Empty;
-        public string    StallNo        { get; set; } = string.Empty;
-        public string    ActualOccupant { get; set; } = string.Empty;
-        public string    ContractName   { get; set; } = string.Empty;
-        public string    Section        { get; set; } = string.Empty;
-        public double    AreaSqm        { get; set; }
-        public DateTime? ContractDate   { get; set; }
-        public int       ContractYears  { get; set; }
-        public decimal   MonthlyRate    { get; set; }
-        public string    AreaLocation   { get; set; } = string.Empty;
-        public List<string> FeeTypes    { get; set; } = new();
+        public string FacilityCode { get; set; } = string.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public int ContractYears { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public string AreaLocation { get; set; } = string.Empty;
+        public List<string> FeeTypes { get; set; } = new();
     }
 
-    bool       ShowModal = false;
-    bool       IsEditing = false;
-    int        EditingId = 0;
-    VendorForm Form      = new();
-    string     FormError = string.Empty;
+    bool ShowModal = false;
+    bool IsEditing = false;
+    int EditingId = 0;
+    VendorForm Form = new();
+    string FormError = string.Empty;
 
     void OpenCreate()
     {
         IsEditing = false;
-        Form      = new VendorForm { FacilityCode = ActiveFacility, ContractDate = new DateTime(2023,6,7), ContractYears = 3 };
+        Form = new VendorForm { FacilityCode = ActiveFacility, ContractDate = new DateTime(2023, 6, 7), ContractYears = 3 };
         FormError = string.Empty;
         ShowModal = true;
     }
 
     void SelectFacility(string code)
     {
-        ActiveFacility  = code;
+        ActiveFacility = code;
         FacDropdownOpen = false;
     }
 
@@ -1158,17 +1176,17 @@
         EditingId = v.Id;
         Form = new VendorForm
         {
-            FacilityCode   = v.FacilityCode,
-            StallNo        = v.StallNo,
+            FacilityCode = v.FacilityCode,
+            StallNo = v.StallNo,
             ActualOccupant = v.ActualOccupant,
-            ContractName   = v.ContractName,
-            Section        = v.Section,
-            AreaSqm        = v.AreaSqm,
-            ContractDate   = v.ContractDate,
-            ContractYears  = v.ContractYears,
-            MonthlyRate    = v.MonthlyRate,
-            AreaLocation   = v.AreaLocation,
-            FeeTypes       = new(v.FeeTypes)
+            ContractName = v.ContractName,
+            Section = v.Section,
+            AreaSqm = v.AreaSqm,
+            ContractDate = v.ContractDate,
+            ContractYears = v.ContractYears,
+            MonthlyRate = v.MonthlyRate,
+            AreaLocation = v.AreaLocation,
+            FeeTypes = new(v.FeeTypes)
         };
         FormError = string.Empty;
         ShowModal = true;
@@ -1182,43 +1200,43 @@
 
     void SaveVendor()
     {
-        if (string.IsNullOrWhiteSpace(Form.FacilityCode))  { FormError = "Please select a facility."; return; }
-        if (string.IsNullOrWhiteSpace(Form.StallNo))       { FormError = "Stall number is required."; return; }
-        if (string.IsNullOrWhiteSpace(Form.ActualOccupant)){ FormError = "Actual occupant name is required."; return; }
-        if (Form.MonthlyRate <= 0)                          { FormError = "Monthly rate must be greater than ₱0."; return; }
+        if (string.IsNullOrWhiteSpace(Form.FacilityCode)) { FormError = "Please select a facility."; return; }
+        if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
+        if (string.IsNullOrWhiteSpace(Form.ActualOccupant)) { FormError = "Actual occupant name is required."; return; }
+        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than ₱0."; return; }
 
         if (IsEditing)
         {
             var v = Vendors.First(x => x.Id == EditingId);
-            v.FacilityCode   = Form.FacilityCode;
-            v.StallNo        = Form.StallNo.Trim();
+            v.FacilityCode = Form.FacilityCode;
+            v.StallNo = Form.StallNo.Trim();
             v.ActualOccupant = Form.ActualOccupant.Trim();
-            v.ContractName   = Form.ContractName.Trim();
-            v.Section        = Form.Section.Trim();
-            v.AreaSqm        = Form.AreaSqm;
-            v.ContractDate   = Form.ContractDate;
-            v.ContractYears  = Form.ContractYears;
-            v.MonthlyRate    = Form.MonthlyRate;
-            v.AreaLocation   = Form.AreaLocation.Trim();
-            v.FeeTypes       = new(Form.FeeTypes);
+            v.ContractName = Form.ContractName.Trim();
+            v.Section = Form.Section.Trim();
+            v.AreaSqm = Form.AreaSqm;
+            v.ContractDate = Form.ContractDate;
+            v.ContractYears = Form.ContractYears;
+            v.MonthlyRate = Form.MonthlyRate;
+            v.AreaLocation = Form.AreaLocation.Trim();
+            v.FeeTypes = new(Form.FeeTypes);
         }
         else
         {
             Vendors.Add(new VendorEntry
             {
-                Id             = Vendors.Count + 1,
-                FacilityCode   = Form.FacilityCode,
-                StallNo        = Form.StallNo.Trim(),
+                Id = Vendors.Count + 1,
+                FacilityCode = Form.FacilityCode,
+                StallNo = Form.StallNo.Trim(),
                 ActualOccupant = Form.ActualOccupant.Trim(),
-                ContractName   = Form.ContractName.Trim(),
-                Section        = Form.Section.Trim(),
-                AreaSqm        = Form.AreaSqm,
-                ContractDate   = Form.ContractDate,
-                ContractYears  = Form.ContractYears,
-                MonthlyRate    = Form.MonthlyRate,
-                AreaLocation   = Form.AreaLocation.Trim(),
-                FeeTypes       = new(Form.FeeTypes),
-                IsActive       = true,
+                ContractName = Form.ContractName.Trim(),
+                Section = Form.Section.Trim(),
+                AreaSqm = Form.AreaSqm,
+                ContractDate = Form.ContractDate,
+                ContractYears = Form.ContractYears,
+                MonthlyRate = Form.MonthlyRate,
+                AreaLocation = Form.AreaLocation.Trim(),
+                FeeTypes = new(Form.FeeTypes),
+                IsActive = true,
                 PaymentHistory = MakeHistory(0)
             });
         }

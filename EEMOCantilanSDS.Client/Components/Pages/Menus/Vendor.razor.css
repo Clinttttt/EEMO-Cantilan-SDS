@@ -292,47 +292,14 @@
     min-width: 0;
 }
 
-.kpi-stalls-divider {
-    width: 1px;
-    height: 46px;
-    background: var(--border);
-    margin: 0 18px;
-    flex-shrink: 0;
-    border-radius: 1px;
-}
 
-.kpi-stalls-unpaid {
-    text-align: center;
-    flex-shrink: 0;
-    padding: 4px 8px;
-    background: var(--red-bg);
-    border: 1px solid rgba(139,58,58,0.15);
-    border-radius: 10px;
-}
 
-.kpi-unpaid-val {
-    font-family: 'EB Garamond', serif;
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--red);
-    line-height: 1;
-}
 
-.kpi-unpaid-label {
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--red);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-top: 3px;
-    opacity: 0.9;
-}
 
-.kpi-unpaid-sub {
-    font-size: 9px;
-    color: var(--text-subtle);
-    margin-top: 1px;
-}
+
+
+
+
 
 /* ══════════════════════════════════════════
    TABLE
@@ -391,6 +358,12 @@
     font-size: 10.5px;
     color: var(--text-muted);
     margin-top: 1px;
+}
+.or-no {
+    font-size: 12px;
+    color: var(--text-subtle);
+    font-family: monospace;
+    white-space: nowrap;
 }
 
 .section-tag {

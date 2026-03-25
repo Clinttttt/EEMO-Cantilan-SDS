@@ -1,0 +1,803 @@
+/* ============================================================
+   Reports.razor.css — Scoped styles for the Financial Reports page
+   Global tokens (--navy, --gold, etc.) are defined in app.css
+   ============================================================ */
+
+/* ── FILTER BAR — single row pill system ── */
+.filter-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    height: 48px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+
+/* Allow the filter row to scroll horizontally on narrow screens so items
+   never wrap or get clipped. Keep smooth scrolling for touch devices. */
+.filter-bar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px; /* give room for scrollbar when visible */
+}
+
+/* Hide default scrollbar while preserving scrolling */
+.filter-bar::-webkit-scrollbar { height: 6px; }
+.filter-bar::-webkit-scrollbar-thumb { background: transparent; }
+.filter-bar { scrollbar-width: none; }
+.filter-bar::-webkit-scrollbar { display: none; }
+
+/* Segment / pill helpers */
+.fb-seg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap; /* keep label + pills on one line */
+    min-width: max-content; /* prevent shrinking when scrolling */
+}
+
+.fb-pills {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.fb-div { flex: 0 0 6px; }
+
+/* Pills used for the period/month/facility selectors */
+.fpill {
+    padding: 7px 14px;
+    border-radius: 9px;
+    background: var(--bg);
+    border: 1.2px solid var(--border);
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.fpill.on {
+    background: var(--bg-card);
+    color: var(--navy);
+    box-shadow: 0 1px 3px rgba(13,33,55,0.06);
+}
+
+.fpill-sm { padding: 6px 10px; font-size: 12px; }
+
+/* Export button segment — keep pushed to the right */
+.fb-seg-export { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+/* PDF / Excel buttons in the compact filter bar */
+.rpt-btn-pdf,
+.rpt-btn-excel {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.rpt-btn-pdf {
+    background: var(--bg-card);
+    border: 1.2px solid var(--border);
+    color: var(--text-muted);
+}
+
+.rpt-btn-pdf svg {
+    width: 30px;
+    height: 30px;
+    padding: 6px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1.2px solid var(--border);
+    box-sizing: content-box;
+}
+
+.rpt-btn-excel {
+    background: var(--navy);
+    color: var(--gold-light);
+    border: none;
+}
+
+.rpt-btn-excel svg { width: 16px; height: 16px; }
+
+/* Ensure the filter row doesn't get cut off by the content area */
+.content-area { overflow: visible; }
+
+/* Each labeled segment inside the bar */
+.fb-seg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    border-right: 1px solid #eef2f6;
+    flex-shrink: 0;
+}
+
+    .fb-seg:last-child {
+        border-right: none;
+    }
+
+/* Export segment pushed to far right */
+.fb-seg-export {
+    margin-left: auto;
+    gap: 7px;
+    padding-right: 10px;
+}
+
+/* Vertical divider line used inside export segment */
+.fb-div {
+    width: 1px;
+    height: 22px;
+    background: var(--border);
+    flex-shrink: 0;
+}
+
+/* Uppercase micro-label for each segment */
+.fb-seg-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    white-space: nowrap;
+}
+
+/* Pill group container */
+.fb-pills {
+    display: flex;
+    gap: 2px;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 2px;
+    border: 1px solid var(--border);
+}
+
+/* Individual pill button */
+.fpill {
+    padding: 4px 11px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: all .12s;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+    .fpill:hover {
+        color: var(--navy);
+        background: rgba(255,255,255,.6);
+    }
+
+    .fpill.on {
+        background: var(--bg-card);
+        color: var(--navy);
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0,0,0,.1);
+    }
+
+/* Smaller pills for months and facility codes */
+.fpill-sm {
+    padding: 4px 8px;
+    font-size: 11.5px;
+}
+
+/* PDF export button */
+.rpt-btn-pdf {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    height: 30px;
+    transition: all .12s;
+    white-space: nowrap;
+}
+
+    .rpt-btn-pdf svg {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+    }
+
+    .rpt-btn-pdf:hover {
+        background: var(--bg-icon);
+        border-color: var(--text-subtle);
+        color: var(--navy);
+    }
+
+/* Excel export button */
+.rpt-btn-excel {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--navy);
+    color: var(--gold);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    height: 30px;
+    transition: background .12s;
+    white-space: nowrap;
+}
+
+    .rpt-btn-excel svg {
+        width: 12px;
+        height: 12px;
+        flex-shrink: 0;
+    }
+
+    .rpt-btn-excel:hover {
+        background: var(--navy-2);
+    }
+
+/* ── KPI ROW ── */
+.kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+/* ── TWO COLUMN LAYOUT ── */
+.two-col {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+/* ── SECTION CARD ── */
+.section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.section-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.section-action {
+    font-size: 12px;
+    color: var(--text-muted);
+    border: 1.5px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    background: none;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    transition: all .15s;
+}
+
+    .section-action:hover {
+        border-color: var(--navy);
+        color: var(--navy);
+    }
+
+/* ── BAR CHART ── */
+.chart-wrap {
+    padding: 20px 22px;
+}
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 180px;
+    padding: 0 2px;
+}
+
+.bar-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.bar-wrap {
+    width: 100%;
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 160px;
+}
+
+.bar {
+    flex: 1;
+    border-radius: 5px 5px 0 0;
+    transition: opacity .2s;
+    cursor: pointer;
+}
+
+    .bar:hover {
+        opacity: .8;
+    }
+
+    .bar.collected {
+        background: var(--navy);
+    }
+
+    .bar.unpaid {
+        background: #dde4ea;
+    }
+
+    .bar.gold-bar {
+        background: var(--gold);
+    }
+
+.bar-month {
+    font-size: 10.5px;
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+.chart-legend {
+    display: flex;
+    gap: 18px;
+    padding: 0 2px 4px;
+    margin-top: 8px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+}
+
+/* Chart summary row below bars */
+.rpt-chart-summary {
+    margin-top: 18px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    display: flex;
+    gap: 0;
+}
+
+.rpt-chart-summary-col {
+    flex: 1;
+    text-align: center;
+    border-left: 1px solid var(--border);
+}
+
+    .rpt-chart-summary-col:first-child {
+        border-left: none;
+    }
+
+.rpt-chart-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+    .rpt-chart-val.gold-text {
+        color: var(--gold);
+    }
+
+.rpt-chart-sublabel {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ── FACILITY TABLE ── */
+.fac-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+    .fac-table th {
+        text-align: left;
+        padding: 10px 22px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: .7px;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+        background: #f8fafb;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .fac-table td {
+        padding: 13px 22px;
+        border-bottom: 1px solid #f0f4f8;
+        vertical-align: middle;
+    }
+
+    .fac-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .fac-table tr:hover td {
+        background: #fafcfd;
+    }
+
+.fac-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-cell {
+    min-width: 120px;
+}
+
+.progress-bar-bg {
+    background: #eef2f6;
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--gold);
+    transition: width .3s;
+}
+
+.mono-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+}
+
+/* ── DELINQUENCY PANEL ── */
+.delinq-list {
+    padding: 0;
+}
+
+.delinq-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 22px;
+    border-bottom: 1px solid #f0f4f8;
+    cursor: pointer;
+    transition: background .12s;
+}
+
+    .delinq-item:last-child {
+        border-bottom: none;
+    }
+
+    .delinq-item:hover {
+        background: #fafcfd;
+    }
+
+.delinq-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.delinq-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.delinq-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.delinq-loc {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.delinq-amount {
+    text-align: right;
+}
+
+.delinq-amt-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--red);
+}
+
+.delinq-months {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ── RECENT TRANSACTIONS ── */
+.tx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+    .tx-table th {
+        text-align: left;
+        padding: 10px 22px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: .7px;
+        text-transform: uppercase;
+        color: var(--text-subtle);
+        background: #f8fafb;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .tx-table td {
+        padding: 12px 22px;
+        border-bottom: 1px solid #f0f4f8;
+        vertical-align: middle;
+    }
+
+    .tx-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .tx-table tr:hover td {
+        background: #fafcfd;
+    }
+
+.tx-id {
+    font-family: 'DM Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.pay-method {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    background: var(--bg-icon);
+    color: var(--text-muted);
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.amount-green {
+    color: var(--green);
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+}
+
+/* ── SUMMARY BOTTOM GRID ── */
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 22px;
+}
+
+.summary-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--text-subtle);
+    margin-bottom: 14px;
+}
+
+/* Donut chart */
+.donut-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.donut-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+}
+
+    .donut-wrap svg {
+        width: 80px;
+        height: 80px;
+    }
+
+.donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.donut-legend {
+    flex: 1;
+}
+
+.donut-legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 7px;
+    font-size: 12.5px;
+}
+
+.donut-legend-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--text-muted);
+}
+
+.donut-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+}
+
+.donut-legend-val {
+    font-weight: 600;
+    color: var(--navy);
+}
+
+/* YTD mini list */
+.mini-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f4f8;
+    font-size: 13px;
+}
+
+    .mini-list-item:last-child {
+        border-bottom: none;
+    }
+
+.mini-list-label {
+    color: var(--text-muted);
+}
+
+.mini-list-val {
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    color: var(--navy);
+}
+
+/* Collection rate bars */
+.collection-rate-bar {
+    margin-top: 14px;
+}
+
+.cr-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 7px;
+}
+
+.cr-val {
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.cr-bar-bg {
+    height: 8px;
+    background: #eef2f6;
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.cr-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1100px) {
+    .kpi-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .two-col {
+        grid-template-columns: 1fr;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 680px) {
+    .kpi-row {
+        grid-template-columns: 1fr;
+    }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .filter-bar {
+        height: auto;
+        flex-wrap: wrap;
+        padding: 10px;
+    }
+
+    .fb-seg {
+        border-right: none;
+        border-bottom: 1px solid #eef2f6;
+        padding: 8px 10px;
+        width: 100%;
+    }
+
+    .fb-seg-export {
+        margin-left: 0;
+        border-bottom: none;
+    }
+}

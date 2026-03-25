@@ -6,4 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Content Include="Documentation\APP_CSS_DOCUMENTATION.md" />
+    <Content Include="Documentation\PROJECT_DOCUMENTATION.md" />
+  </ItemGroup>
+
 </Project>

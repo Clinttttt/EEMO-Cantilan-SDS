@@ -1,0 +1,802 @@
+﻿/* ============================================================
+   NPM_2.razor.css  —  New Public Market page-scoped styles
+   Blazor CSS isolation: only applies to NPM_2.razor
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.npm-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+    .npm-back-btn:hover {
+        background: var(--bg-icon);
+        color: var(--navy);
+        border-color: var(--navy);
+    }
+
+    .npm-back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.npm-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+    .npm-hero::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+.npm-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.npm-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .npm-hero-icon svg {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.npm-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.npm-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.npm-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.npm-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.npm-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+    .npm-hero-stat:first-child {
+        padding-left: 0;
+    }
+
+.npm-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.npm-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.npm-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.npm-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.npm-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+
+/* ── Section Tabs ────────────────────────────────────────── */
+.npm-section-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.npm-sec-tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: border-color .15s, background .15s, box-shadow .15s;
+    position: relative;
+    user-select: none;
+    flex: 1 1 160px;
+}
+
+    .npm-sec-tab:hover {
+        border-color: var(--gold);
+        background: #fffdf5;
+    }
+
+    .npm-sec-tab.active {
+        border-color: var(--navy);
+        background: var(--navy);
+    }
+
+.npm-sec-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.npm-sec-tab.active .npm-sec-icon {
+    background: rgba(255,255,255,.12);
+}
+
+.npm-sec-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--navy);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.npm-sec-tab.active .npm-sec-icon svg {
+    stroke: var(--gold);
+}
+
+.npm-sec-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.npm-sec-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+.npm-sec-tab.active .npm-sec-name,
+.npm-sec-tab.active .npm-sec-sub {
+    color: #fff;
+}
+
+.npm-sec-tab.active .npm-sec-sub {
+    color: rgba(255,255,255,.6);
+}
+
+.npm-sec-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+}
+
+
+/* ── Section Info Bar ────────────────────────────────────── */
+.npm-section-info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.npm-section-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.npm-section-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.fee-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.fee-chip {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    border: 1px solid var(--border);
+}
+
+.npm-section-mini-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.npm-mini-stat {
+    text-align: center;
+    min-width: 60px;
+}
+
+.npm-mini-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.npm-mini-key {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.npm-mini-stat.unpaid-stat .npm-mini-val {
+    color: var(--red);
+}
+
+.npm-mini-stat.partial-stat .npm-mini-val {
+    color: #b07d2b;
+}
+
+
+/* ── Table — NPM-specific cells ─────────────────────────── */
+.table-wrap {
+    overflow-x: unset;
+}
+
+.stall-num-cell {
+    display: flex;
+    align-items: center;
+}
+
+.stall-num-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 6px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    font-family: monospace;
+}
+
+.td-name {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.td-contract-name {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.td-center {
+    text-align: center;
+}
+
+.td-date {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.no-contract {
+    font-size: 11px;
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+.amount-val {
+    font-weight: 600;
+    font-family: monospace;
+    color: var(--navy);
+}
+
+.row-inactive {
+    opacity: .55;
+}
+
+
+/* ── Record Payment Modal ────────────────────────────────── */
+.pay-options {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.pay-option {
+    flex: 1 1 100px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: border-color .15s, background .15s, color .15s;
+    user-select: none;
+}
+
+    .pay-option svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .pay-option:hover {
+        border-color: var(--navy);
+        color: var(--navy);
+    }
+
+.pay-opt-paid {
+    border-color: var(--green);
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pay-opt-partial {
+    border-color: #b07d2b;
+    background: #fffbea;
+    color: #7a5500;
+}
+
+.pay-opt-unpaid {
+    border-color: var(--red);
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pay-fee-block {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    margin-bottom: 10px;
+}
+
+.pay-fee-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.pay-fee-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.pay-fee-rate {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.npm-pay-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--navy);
+    margin-top: 12px;
+}
+
+.npm-pay-total-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,.65);
+}
+
+.npm-pay-total-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gold);
+    font-family: monospace;
+}
+
+
+/* ── Payment History Modal ───────────────────────────────── */
+.hist-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.hist-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.hist-month {
+    border-radius: 10px;
+    padding: 10px 6px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+}
+
+.hist-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.hist-unpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.hist-month-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.hist-month-year {
+    font-size: 10px;
+    color: var(--text-subtle);
+    margin-top: 1px;
+}
+
+.hist-month-icon {
+    font-size: 14px;
+    margin-top: 6px;
+    color: var(--green);
+}
+
+.hist-unpaid .hist-month-icon {
+    color: var(--red);
+}
+
+.hist-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.act-stat {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.act-stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.act-stat-key {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+
+/* ── Payment Record (read-only rows) ─────────────────────── */
+.pay-record-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+}
+
+.pay-record-key {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.pay-record-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+    .pay-record-val.green {
+        color: var(--green);
+    }
+
+    .pay-record-val.red {
+        color: var(--red);
+    }
+
+    .pay-record-val.mono {
+        font-family: monospace;
+    }
+
+.pay-badge-unpaid {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+/* OR + Collector meta row */
+.pay-meta-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.pay-meta-item {
+    flex: 1 1 160px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pay-meta-key {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-subtle);
+}
+
+.pay-meta-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+    .pay-meta-val svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .pay-meta-val.mono {
+        font-family: monospace;
+    }
+
+/* Total bar variants */
+.npm-pay-total-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,.45);
+    margin-top: 3px;
+}
+
+.total-unpaid {
+    background: var(--red);
+}
+
+.total-partial {
+    background: #7a5500;
+}
+
+.total-balance-tag {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,.6);
+    margin-top: 3px;
+}
+
+/* ── Collector display ───────────────────────────────────── */
+.collector-assigned {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: default;
+    pointer-events: none;
+}
+
+    .collector-assigned svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+/* Pills — used in Payment modal only */
+.status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pill-paid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pill-unpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pill-partial {
+    background: #fff8e1;
+    color: #7a5c00;
+}
+
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .npm-hero {
+        padding: 20px;
+        gap: 16px;
+    }
+
+    .npm-hero-title {
+        font-size: 18px;
+    }
+
+    .npm-hero-val {
+        font-size: 18px;
+    }
+
+    .npm-hero-stat {
+        padding: 0 12px;
+    }
+
+    .npm-section-tabs {
+        gap: 8px;
+    }
+
+    .npm-sec-tab {
+        flex: 1 1 calc(50% - 4px);
+    }
+
+    .hist-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .hist-summary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

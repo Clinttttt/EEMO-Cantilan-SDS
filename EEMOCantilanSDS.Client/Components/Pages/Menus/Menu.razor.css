@@ -1,0 +1,277 @@
+/* ══════════════════════════════════════════
+   DASHBOARD / MENU — Facility grid & Bottom row
+══════════════════════════════════════════ */
+.facility-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.facility-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: box-shadow 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+    .facility-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .facility-card:hover {
+        box-shadow: 0 6px 24px rgba(13,33,55,0.1);
+        transform: translateY(-2px);
+    }
+
+        .facility-card:hover::before {
+            opacity: 1;
+        }
+
+    .facility-card.has-alert {
+        border-color: rgba(139,58,58,0.2);
+    }
+
+.facility-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.facility-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .facility-card-icon svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.facility-card-code {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.facility-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.facility-alert-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-left: auto;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px var(--red-bg);
+}
+
+.facility-card-stats {
+    display: flex;
+    gap: 0;
+}
+
+.fac-stat {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px;
+    background: var(--bg);
+    border-radius: 8px;
+}
+
+    .fac-stat + .fac-stat {
+        margin-left: 6px;
+    }
+
+.fac-stat-val {
+    font-family: 'EB Garamond', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+    .fac-stat-val.unpaid-val {
+        color: var(--red);
+    }
+
+.fac-stat-key {
+    font-size: 8.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 2px;
+}
+
+.facility-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.facility-progress-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--bg-icon);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.facility-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.facility-progress-pct {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    flex-shrink: 0;
+    min-width: 30px;
+    text-align: right;
+}
+
+.fee-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.fee-chip {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(200,168,75,0.1);
+    color: #7a5010;
+    border: 1px solid rgba(200,168,75,0.25);
+    letter-spacing: 0.3px;
+}
+
+.facility-card-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px;
+    border-radius: 8px;
+    background: var(--navy);
+    color: var(--gold-light);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    margin-top: auto;
+    text-decoration: none;
+}
+
+    .facility-card-btn:hover {
+        opacity: 0.88;
+    }
+
+    .facility-card-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--gold-light);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* ══════════════════════════════════════════
+   BOTTOM ROW (Dashboard)
+══════════════════════════════════════════ */
+.bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+}
+
+.delinquent-list {
+    padding: 8px 0;
+}
+
+.delinquent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--bg-icon);
+    gap: 12px;
+    transition: background 0.12s;
+    cursor: pointer;
+}
+
+    .delinquent-item:hover {
+        background: var(--bg);
+    }
+
+    .delinquent-item:last-child {
+        border-bottom: none;
+    }
+
+.delinquent-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--navy);
+}
+
+.delinquent-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.delinquent-right {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.delinquent-amount {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--red);
+}
+
+.delinquent-months {
+    font-size: 10px;
+    margin-top: 2px;
+}
