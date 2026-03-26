@@ -38,6 +38,9 @@
         stroke-linejoin: round;
     }
 
+.npm-icon-svg {
+    color: var(--gold);
+}
 
 /* ── Hero Banner ─────────────────────────────────────────── */
 .npm-hero {
@@ -407,6 +410,27 @@
     opacity: .55;
 }
 
+/* Row status left-border indicators (match BBQ style) */
+.row-paid td:first-child {
+    border-left: 3px solid var(--green);
+}
+
+.row-unpaid td:first-child {
+    border-left: 3px solid var(--red);
+}
+
+.row-partial td:first-child {
+    border-left: 3px solid #b87333;
+}
+
+.row-closed {
+    opacity: 0.55;
+}
+
+.row-closed td:first-child {
+    border-left: 3px solid var(--border);
+}
+
 
 /* ── Record Payment Modal ────────────────────────────────── */
 .pay-options {
@@ -764,7 +788,41 @@
     color: #7a5c00;
 }
 
+/* ── Action Buttons ──────────────────────────────────────── */
+.action-btns {
+    display: flex;
+    gap: 6px;
+}
 
+.action-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+
+.action-btn:hover {
+    background: var(--navy);
+    color: var(--gold-light);
+    border-color: var(--navy);
+}
+
+.action-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
     .npm-hero {

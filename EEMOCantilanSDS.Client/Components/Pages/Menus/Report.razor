@@ -6,10 +6,8 @@
 
 <div class="admin-layout">
 
-    <!-- SIDEBAR -->
     <Sidebar />
 
-    <!-- MAIN CONTENT -->
     <main class="admin-main">
 
         <header class="topbar">
@@ -42,84 +40,111 @@
 
         <div class="content-area">
 
-            <!-- FILTER BAR — single row, pill-based, no dropdowns -->
-            <div class="filter-bar">
+            <!-- ══════════════════════════════════════════════════
+                 FILTER PANEL v3
+                 Row 1: Period pills · Year dropdown · Month dropdown · Export
+                 Row 2: Facility chips (scrollable) · Active summary badge
+                 ══════════════════════════════════════════════════ -->
+            <div class="rpt-filter-panel">
 
-                <!-- Period segment -->
-                <div class="fb-seg">
-                    <span class="fb-seg-label">Period</span>
-                    <div class="fb-pills">
-                        <button class="fpill @(ActiveTab == "Monthly" ? "on" : "")" @onclick='() => SetTab("Monthly")'>Monthly</button>
-                        <button class="fpill @(ActiveTab == "Quarterly" ? "on" : "")" @onclick='() => SetTab("Quarterly")'>Quarterly</button>
-                        <button class="fpill @(ActiveTab == "Annual" ? "on" : "")" @onclick='() => SetTab("Annual")'>Annual</button>
+                <div class="rfp-top">
+
+                    <!-- Period — pills (only 3, compact) -->
+                    <div class="rfp-ctrl">
+                        <div class="rfp-label">Period</div>
+                        <div class="rfp-period-pills">
+                            <button class="rpp @(ActiveTab == "Monthly"   ? "on" : "")" @onclick='() => SetTab("Monthly")'>Monthly</button>
+                            <button class="rpp @(ActiveTab == "Quarterly" ? "on" : "")" @onclick='() => SetTab("Quarterly")'>Quarterly</button>
+                            <button class="rpp @(ActiveTab == "Annual"    ? "on" : "")" @onclick='() => SetTab("Annual")'>Annual</button>
+                        </div>
+                    </div>
+
+                    <!-- Year — dropdown -->
+                    <div class="rfp-ctrl">
+                        <div class="rfp-label">Year</div>
+                        <div class="rfp-sel-wrap">
+                            <select class="rfp-select" @bind="SelectedYear">
+                                <option value="2024">2024</option>
+                                <option value="2025">2025</option>
+                                <option value="2026">2026</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Month — dropdown, Monthly mode only -->
+                    @if (ActiveTab == "Monthly")
+                    {
+                        <div class="rfp-ctrl">
+                            <div class="rfp-label">Month</div>
+                            <div class="rfp-sel-wrap">
+                                <select class="rfp-select" @bind="SelectedMonth">
+                                    @foreach (var m in Months)
+                                    {
+                                        <option value="@m">@m</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Export — pushed right -->
+                    <div class="rfp-export">
+                        <button class="rpt-btn-pdf" @onclick="ExportPdf">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="9" y1="13" x2="15" y2="13" />
+                                <line x1="9" y1="17" x2="15" y2="17" />
+                            </svg>
+                            Export PDF
+                        </button>
+                        <button class="rpt-btn-excel" @onclick="ExportExcel">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Export Excel
+                        </button>
                     </div>
                 </div>
 
-                <div class="fb-div"></div>
+                <div class="rfp-divider"></div>
 
-                <!-- Year segment -->
-                <div class="fb-seg">
-                    <span class="fb-seg-label">Year</span>
-                    <div class="fb-pills">
-                        <button class="fpill @(SelectedYear == "2024" ? "on" : "")" @onclick='() => SelectedYear = "2024"'>2024</button>
-                        <button class="fpill @(SelectedYear == "2025" ? "on" : "")" @onclick='() => SelectedYear = "2025"'>2025</button>
-                        <button class="fpill @(SelectedYear == "2026" ? "on" : "")" @onclick='() => SelectedYear = "2026"'>2026</button>
-                    </div>
-                </div>
-
-                <div class="fb-div"></div>
-
-                <!-- Month segment — hidden on Quarterly / Annual -->
-                @if (ActiveTab == "Monthly")
-                {
-                    <div class="fb-seg">
-                        <span class="fb-seg-label">Month</span>
-                        <div class="fb-pills">
-                            @foreach (var m in Months)
+                <!-- Row 2 — Facility + badge -->
+                <div class="rfp-bottom">
+                    <div class="rfp-fac-row">
+                        <div class="rfp-label rfp-label-inline">Facility</div>
+                        <div class="rfp-chips">
+                            @foreach (var (codes, label) in FacilityOptions)
                             {
-                                var month = m;
-                                <button class="fpill fpill-sm @(SelectedMonth == month ? "on" : "")" @onclick='() => SelectedMonth = month'>@month[..3]</button>
+                                var fc = codes;
+                                var lbl = label;
+                                <button class="rfp-chip @(SelectedFacility == fc ? "on" : "")"
+                                        @onclick='() => SelectedFacility = fc'>
+                                    @if (codes != "All")
+                                    {
+                                        <span class="rfp-chip-code">@codes</span>
+                                    }
+                                    @lbl
+                                </button>
                             }
                         </div>
                     </div>
-                    <div class="fb-div"></div>
-                }
 
-                <!-- Facility segment -->
-                <div class="fb-seg">
-                    <span class="fb-seg-label">Facility</span>
-                    <div class="fb-pills">
-                        @foreach (var (code, label) in FacilityOptions)
-                        {
-                            var fc = code;
-                            <button class="fpill fpill-sm @(SelectedFacility == fc ? "on" : "")" @onclick='() => SelectedFacility = fc'>@label</button>
-                        }
+                    <div class="rfp-badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        <strong>@(SelectedFacility == "All" ? "All Facilities" : SelectedFacility)</strong>
+                        &nbsp;·&nbsp;
+                        <strong>@(ActiveTab == "Monthly" ? SelectedMonth + " " : "")@SelectedYear</strong>
+                        &nbsp;·&nbsp; @ActiveTab
                     </div>
                 </div>
 
-                <!-- Export buttons — pushed right -->
-                <div class="fb-seg fb-seg-export">
-                    <div class="fb-div"></div>
-                    <button class="rpt-btn-pdf" @onclick="ExportPdf">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="9" y1="13" x2="15" y2="13" />
-                            <line x1="9" y1="17" x2="15" y2="17" />
-                        </svg>
-                        PDF
-                    </button>
-                    <button class="rpt-btn-excel" @onclick="ExportExcel">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        Excel
-                    </button>
-                </div>
-
             </div>
+            <!-- END FILTER PANEL -->
 
             <!-- KPI ROW -->
             <div class="kpi-row">
@@ -179,8 +204,6 @@
 
             <!-- CHART + DELINQUENCY -->
             <div class="two-col">
-
-                <!-- BAR CHART — Monthly Revenue Trend -->
                 <div class="section-card">
                     <div class="section-header">
                         <div>
@@ -191,12 +214,8 @@
                     </div>
                     <div class="chart-wrap">
                         <div class="chart-legend">
-                            <div class="legend-item">
-                                <div class="legend-dot" style="background:var(--navy)"></div> Collected
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-dot" style="background:#dde4ea"></div> Unpaid
-                            </div>
+                            <div class="legend-item"><div class="legend-dot" style="background:var(--navy)"></div> Collected</div>
+                            <div class="legend-item"><div class="legend-dot" style="background:#dde4ea"></div> Unpaid</div>
                         </div>
                         <div class="bar-chart">
                             @foreach (var m in MonthlyTrend)
@@ -212,7 +231,6 @@
                                 </div>
                             }
                         </div>
-
                         <div class="rpt-chart-summary">
                             @foreach (var m in MonthlyTrend)
                             {
@@ -225,7 +243,6 @@
                     </div>
                 </div>
 
-                <!-- TOP DELINQUENTS -->
                 <div class="section-card">
                     <div class="section-header">
                         <div>
@@ -251,10 +268,9 @@
                         }
                     </div>
                 </div>
-
             </div>
 
-            <!-- FACILITY COLLECTION TABLE -->
+            <!-- FACILITY TABLE -->
             <div class="section-card" style="margin-bottom:20px;">
                 <div class="section-header">
                     <div>
@@ -266,13 +282,8 @@
                 <table class="fac-table">
                     <thead>
                         <tr>
-                            <th>Facility</th>
-                            <th>Vendors</th>
-                            <th>Collected</th>
-                            <th>Unpaid</th>
-                            <th>Progress</th>
-                            <th>Rate</th>
-                            <th>Status</th>
+                            <th>Facility</th><th>Vendors</th><th>Collected</th>
+                            <th>Unpaid</th><th>Progress</th><th>Rate</th><th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -294,7 +305,7 @@
                                     </div>
                                     <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">@f.PaidLabel</div>
                                 </td>
-                                <td style="font-weight:700; color:var(--navy);">@(f.Rate)%</td>
+                                <td style="font-weight:700;color:var(--navy);">@(f.Rate)%</td>
                                 <td><span class="status-pill @f.StatusClass">@f.StatusLabel</span></td>
                             </tr>
                         }
@@ -314,13 +325,8 @@
                 <table class="tx-table">
                     <thead>
                         <tr>
-                            <th>Ref #</th>
-                            <th>Vendor / Stall</th>
-                            <th>Facility</th>
-                            <th>Date</th>
-                            <th>Collector</th>
-                            <th>Method</th>
-                            <th>Amount</th>
+                            <th>Ref #</th><th>Vendor / Stall</th><th>Facility</th>
+                            <th>Date</th><th>Collector</th><th>Method</th><th>Amount</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -342,8 +348,6 @@
 
             <!-- SUMMARY BOTTOM 3 CARDS -->
             <div class="summary-grid">
-
-                <!-- Collection Rate Breakdown (Donut) -->
                 <div class="summary-card">
                     <div class="summary-card-title">Collection Rate Breakdown</div>
                     <div class="donut-row">
@@ -357,28 +361,21 @@
                         </div>
                         <div class="donut-legend">
                             <div class="donut-legend-item">
-                                <div class="donut-legend-label">
-                                    <div class="donut-dot" style="background:var(--gold)"></div> Collected
-                                </div>
+                                <div class="donut-legend-label"><div class="donut-dot" style="background:var(--gold)"></div> Collected</div>
                                 <div class="donut-legend-val">₱242,170</div>
                             </div>
                             <div class="donut-legend-item">
-                                <div class="donut-legend-label">
-                                    <div class="donut-dot" style="background:#dde4ea"></div> Unpaid
-                                </div>
+                                <div class="donut-legend-label"><div class="donut-dot" style="background:#dde4ea"></div> Unpaid</div>
                                 <div class="donut-legend-val" style="color:var(--red)">₱63,750</div>
                             </div>
                             <div class="donut-legend-item">
-                                <div class="donut-legend-label">
-                                    <div class="donut-dot" style="background:#eef2f6"></div> Total
-                                </div>
+                                <div class="donut-legend-label"><div class="donut-dot" style="background:#eef2f6"></div> Total</div>
                                 <div class="donut-legend-val">₱305,920</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Year-to-Date Summary -->
                 <div class="summary-card">
                     <div class="summary-card-title">Year-to-Date · @SelectedYear</div>
                     <div class="mini-list">
@@ -392,7 +389,6 @@
                     </div>
                 </div>
 
-                <!-- Monthly Target Progress -->
                 <div class="summary-card">
                     <div class="summary-card-title">Monthly Target Progress</div>
                     @foreach (var (cr, i) in CollectionRates.Select((x, i) => (x, i)))
@@ -408,7 +404,6 @@
                         </div>
                     }
                 </div>
-
             </div>
 
         </div>
@@ -422,10 +417,7 @@
     private string SelectedMonth = "March";
     private string SelectedFacility = "All";
 
-    private void SetTab(string tab)
-    {
-        ActiveTab = tab;
-    }
+    private void SetTab(string tab) { ActiveTab = tab; }
 
     private static readonly List<string> Months = new()
     {
@@ -435,13 +427,16 @@
 
     private static readonly List<(string Code, string Label)> FacilityOptions = new()
     {
-        ("All","All"), ("NPM","NPM"), ("TCC","TCC"),
-        ("NCC","NCC"), ("BBQ","BBQ"), ("ICE","ICE"), ("SLH","SLH")
+        ("All", "All Facilities"),
+        ("NPM", "New Public Market"),
+        ("TCC", "Tampak Comm."),
+        ("NCC", "New Comm. Center"),
+        ("BBQ", "BBQ Stand"),
+        ("ICE", "Iceplant"),
+        ("SLH", "Slaughterhouse"),
     };
 
-    // ── Monthly Trend Data ──────────────────────────────
     private record MonthData(string Label, int CollectedPct, int UnpaidPct, string CollectedFormatted, bool IsCurrent);
-
     private List<MonthData> MonthlyTrend = new()
     {
         new("Jan", 68, 32, "₱223,440", false),
@@ -449,34 +444,28 @@
         new("Mar", 80, 20, "₱242,170", true),
     };
 
-    // ── Top Delinquents ─────────────────────────────────
     private record DelinquentEntry(string Initials, string Name, string Location, string Amount, string Duration);
-
     private List<DelinquentEntry> TopDelinquents = new()
     {
-        new("RM", "Rosa Magbanua",    "TCC · Stall 04",           "₱4,800", "3 months"),
-        new("JD", "Jose Dalumpines",  "NCC · Stall 11-B",         "₱3,600", "2 months"),
-        new("MV", "Maria Velasco",    "NPM · Stall 22 (Fish)",    "₱3,150", "1 month + arrears"),
-        new("EB", "Eduardo Briones",  "BBQ Stand · Unit 2",       "₱2,700", "3 months"),
-        new("NL", "Nelly Lumabas",    "TCC · Stall 09 (Corner)",  "₱2,400", "2 months"),
+        new("RM", "Rosa Magbanua",   "TCC · Stall 04",          "₱4,800", "3 months"),
+        new("JD", "Jose Dalumpines", "NCC · Stall 11-B",        "₱3,600", "2 months"),
+        new("MV", "Maria Velasco",   "NPM · Stall 22 (Fish)",   "₱3,150", "1 month + arrears"),
+        new("EB", "Eduardo Briones", "BBQ Stand · Unit 2",      "₱2,700", "3 months"),
+        new("NL", "Nelly Lumabas",   "TCC · Stall 09 (Corner)", "₱2,400", "2 months"),
     };
 
-    // ── Facility Rows ────────────────────────────────────
     private record FacilityRow(string Code, string Name, int Vendors, string Collected, string Unpaid, int Rate, string PaidLabel, string StatusClass, string StatusLabel);
-
     private List<FacilityRow> FacilityRows = new()
     {
-        new("NPM", "New Public Market",        100, "₱62,400",  "₱15,600", 80, "80 / 100 paid",  "warn", "On Track"),
-        new("TCC", "Tampak Commercial Center",  43, "₱48,600",  "₱9,600",  81, "35 / 43 paid",   "warn", "On Track"),
-        new("NCC", "New Commercial Center",     28, "₱56,520",  "₱12,480", 82, "23 / 28 paid",   "good", "Good"),
-        new("BBQ", "Barbecue Stand",             8, "₱5,600",   "₱1,400",  88, "7 / 8 paid",     "good", "Good"),
-        new("ICE", "Iceplant",                   5, "₱40,650",  "₱8,130",  60, "3 / 5 paid",     "bad",  "Behind"),
-        new("SLH", "Slaughterhouse",             0, "₱28,400",  "₱16,540", 63, "Per-head basis", "bad",  "Behind"),
+        new("NPM", "New Public Market",        100, "₱62,400", "₱15,600", 80, "80 / 100 paid",  "warn", "On Track"),
+        new("TCC", "Tampak Commercial Center",  43, "₱48,600", "₱9,600",  81, "35 / 43 paid",   "warn", "On Track"),
+        new("NCC", "New Commercial Center",     28, "₱56,520", "₱12,480", 82, "23 / 28 paid",   "good", "Good"),
+        new("BBQ", "Barbecue Stand",             8, "₱5,600",  "₱1,400",  88, "7 / 8 paid",     "good", "Good"),
+        new("ICE", "Iceplant",                   5, "₱40,650", "₱8,130",  60, "3 / 5 paid",     "bad",  "Behind"),
+        new("SLH", "Slaughterhouse",             0, "₱28,400", "₱16,540", 63, "Per-head basis", "bad",  "Behind"),
     };
 
-    // ── Recent Transactions ──────────────────────────────
     private record Transaction(string RefNo, string Vendor, string FacilityCode, string Date, string Collector, string Method, string Amount);
-
     private List<Transaction> RecentTransactions = new()
     {
         new("#TX-2026-0168", "Luzviminda Cano · Stall 5",   "NPM", "Mar 25, 2026", "Dela Cruz, J.", "Cash", "930"),
@@ -487,20 +476,17 @@
         new("#TX-2026-0163", "Florentina Cruz · Stall 8",   "NPM", "Mar 23, 2026", "Santos, M.",    "Cash", "960"),
     };
 
-    // ── YTD List ─────────────────────────────────────────
     private record YtdItem(string Month, string Amount, string BorderStyle, string LabelStyle, string ValStyle);
-
     private List<YtdItem> YtdItems = new()
     {
-        new("January",          "₱223,440", "",                                                          "",                                    ""),
-        new("February",         "₱233,800", "",                                                          "",                                    ""),
-        new("March (current)",  "₱242,170", "",                                                          "color:var(--gold);font-weight:600",   "color:var(--gold)"),
-        new("YTD Total",        "₱699,410", "border-top:2px solid var(--border);padding-top:10px;margin-top:4px;", "font-weight:700;color:var(--navy)", "color:var(--green);font-size:15px"),
+        new("January",         "₱223,440", "", "", ""),
+        new("February",        "₱233,800", "", "", ""),
+        new("March (current)", "₱242,170", "", "color:var(--gold);font-weight:600", "color:var(--gold)"),
+        new("YTD Total",       "₱699,410", "border-top:2px solid var(--border);padding-top:10px;margin-top:4px;",
+            "font-weight:700;color:var(--navy)", "color:var(--green);font-size:15px"),
     };
 
-    // ── Collection Rates ─────────────────────────────────
     private record CollectionRate(string Label, int Rate);
-
     private List<CollectionRate> CollectionRates = new()
     {
         new("New Public Market", 80),
@@ -510,14 +496,6 @@
         new("Iceplant",          60),
     };
 
-    // ── Actions ──────────────────────────────────────────
-    private void ExportPdf()
-    {
-        // TODO: Implement PDF export
-    }
-
-    private void ExportExcel()
-    {
-        // TODO: Implement Excel export
-    }
+    private void ExportPdf()   { /* TODO */ }
+    private void ExportExcel() { /* TODO */ }
 }

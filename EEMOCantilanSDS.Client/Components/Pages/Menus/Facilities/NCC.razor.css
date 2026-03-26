@@ -1,2 +1,531 @@
-﻿body {
+﻿/* ============================================================
+   NCC.razor.css  —  New Commercial Center page-scoped styles
+   Blazor CSS isolation: only applies to NCC.razor
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.ncc-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+.ncc-back-btn:hover {
+    background: var(--bg-icon);
+    color: var(--navy);
+    border-color: var(--navy);
+}
+
+.ncc-back-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.ncc-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+.ncc-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.ncc-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.ncc-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ncc-hero-icon svg {
+    width: 26px;
+    height: 26px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.ncc-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.ncc-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.ncc-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.ncc-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.ncc-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+.ncc-hero-stat:first-child {
+    padding-left: 0;
+}
+
+.ncc-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.ncc-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.ncc-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.ncc-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.ncc-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+
+/* ── Facility Info Bar ───────────────────────────────────── */
+.ncc-facility-info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.ncc-facility-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.ncc-facility-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.ncc-facility-info-left {
+    flex: 1 1 300px;
+}
+
+.ncc-facility-mini-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 0 1 auto;
+}
+
+.ncc-mini-stat {
+    text-align: center;
+    padding: 6px 12px;
+}
+
+.ncc-mini-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.ncc-mini-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.ncc-mini-stat.unpaid-stat .ncc-mini-val {
+    color: var(--red);
+}
+
+.ncc-mini-stat.partial-stat .ncc-mini-val {
+    color: #b87333;
+}
+
+.fee-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.fee-chip {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+
+/* ── Fee Blocks ──────────────────────────────────────────── */
+.pay-fee-block {
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    margin-bottom: 12px;
+}
+
+    .pay-fee-block:last-of-type {
+        margin-bottom: 16px;
+    }
+
+.pay-fee-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    gap: 12px;
+}
+
+.pay-fee-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    flex: 0 0 auto;
+}
+
+.pay-fee-rate {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: right;
+    flex: 1;
+}
+
+.pay-badge-unpaid {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pay-record-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    font-size: 13px;
+    gap: 12px;
+}
+
+    .pay-record-row:first-of-type {
+        margin-top: 0;
+        border-top: none;
+        padding-top: 0;
+    }
+
+.pay-record-key {
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.pay-record-val {
+    font-weight: 600;
+    color: var(--navy);
+    flex: 0 0 auto;
+    text-align: right;
+}
+
+.pay-record-val.green {
+    color: var(--green);
+}
+
+.pay-record-val.red {
+    color: var(--red);
+}
+
+.pay-record-val.mono {
+    font-family: monospace;
+}
+
+
+/* ── History Grid ────────────────────────────────────────── */
+.hist-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.hist-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.hist-month {
+    border-radius: 10px;
+    padding: 10px 6px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+}
+
+.hist-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.hist-unpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.hist-month-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.hist-month-year {
+    font-size: 10px;
+    color: var(--text-subtle);
+    margin-top: 1px;
+}
+
+.hist-month-icon {
+    font-size: 14px;
+    margin-top: 6px;
+    color: var(--green);
+}
+
+.hist-unpaid .hist-month-icon {
+    color: var(--red);
+}
+
+
+/* ── History Summary ─────────────────────────────────────── */
+.hist-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.act-stat {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.act-stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.act-stat-key {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+
+/* ── Modal Footer ────────────────────────────────────────── */
+.eemo-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.btn-ghost,
+.btn-primary {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+}
+
+.btn-ghost {
+    background: var(--bg-card);
+    color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+    background: var(--bg);
+    color: var(--text);
+}
+
+.btn-primary {
+    background: var(--navy);
+    color: #fff;
+    border-color: var(--navy);
+}
+
+.btn-primary:hover {
+    background: #051219;
+    border-color: #051219;
+}
+
+
+/* ── Utilities ───────────────────────────────────────────── */
+.no-contract {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.mono {
+    font-family: 'Consolas', monospace;
+}
+
+/* Row status left-border indicators */
+.row-paid td:first-child {
+    border-left: 3px solid var(--green);
+}
+
+.row-unpaid td:first-child {
+    border-left: 3px solid var(--red);
+}
+
+.row-partial td:first-child {
+    border-left: 3px solid #b87333;
+}
+
+.row-closed td:first-child {
+    border-left: 3px solid var(--border);
+}
+
+.action-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.action-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+
+.action-btn:hover {
+    background: var(--navy);
+    color: var(--gold-light);
+    border-color: var(--navy);
+}
+
+.action-btn svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }

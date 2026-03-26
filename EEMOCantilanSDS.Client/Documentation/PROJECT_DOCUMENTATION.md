@@ -26,6 +26,7 @@ A system where vendor/lessee records are pre-loaded. Staff just **tick/check** w
 
 ---
 
+
 ## Key Fee Details
 
 **NPM (New Public Market)** — 3 sections: Vegetable, Meat, Fish  

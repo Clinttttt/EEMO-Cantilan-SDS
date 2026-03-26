@@ -1,2 +1,465 @@
-﻿body {
+﻿/* ============================================================
+   SH.razor.css  —  Slaughterhouse page-scoped styles
+   Blazor CSS isolation: only applies to SH.razor
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.slh-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
 }
+
+    .slh-back-btn:hover {
+        background: var(--bg-icon);
+        color: var(--navy);
+        border-color: var(--navy);
+    }
+
+    .slh-back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.slh-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+    .slh-hero::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+.slh-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.slh-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .slh-hero-icon svg {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.slh-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.slh-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.slh-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.slh-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.slh-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+    .slh-hero-stat:first-child {
+        padding-left: 0;
+    }
+
+.slh-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.slh-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.slh-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.slh-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.slh-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+.page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+
+/* ── Facility Info Bar ───────────────────────────────────── */
+.slh-facility-info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.slh-facility-info-left {
+    flex: 1 1 300px;
+}
+
+/* Label row: title + info icon side by side */
+.slh-facility-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slh-facility-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.slh-facility-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+
+/* ── Info Icon + Tooltip ─────────────────────────────────── */
+.slh-info-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.slh-info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--text-subtle);
+    transition: color .15s;
+    flex-shrink: 0;
+}
+
+    .slh-info-icon:hover {
+        color: var(--navy);
+    }
+
+    .slh-info-icon svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Tooltip panel — hidden by default, shown on hover */
+.slh-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    background: var(--navy);
+    color: #fff;
+    border-radius: 10px;
+    padding: 14px 16px;
+    width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    pointer-events: none;
+}
+
+    /* Small arrow pointing up */
+    .slh-tooltip::before {
+        content: "";
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-left: 6px solid transparent;
+        border-right: 6px solid transparent;
+        border-bottom: 6px solid var(--navy);
+    }
+
+.slh-info-wrap:hover .slh-tooltip {
+    display: block;
+}
+
+.slh-tooltip-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--gold);
+    margin-bottom: 10px;
+}
+
+.slh-tooltip-section {
+    margin-bottom: 4px;
+}
+
+.slh-tooltip-animal {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+}
+
+/* 2-column grid for fee breakdown rows */
+.slh-tooltip-breakdown {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 3px 12px;
+    padding-left: 4px;
+}
+
+    .slh-tooltip-breakdown span:nth-child(odd) {
+        font-size: 11px;
+        color: rgba(255,255,255,.65);
+    }
+
+    .slh-tooltip-breakdown span:nth-child(even) {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--gold-light);
+        text-align: right;
+    }
+
+.slh-tooltip-divider {
+    height: 1px;
+    background: rgba(255,255,255,.12);
+    margin: 10px 0;
+}
+
+
+/* ── Facility Mini Stats ─────────────────────────────────── */
+.slh-facility-mini-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 0 1 auto;
+}
+
+.slh-mini-stat {
+    text-align: center;
+    padding: 6px 12px;
+}
+
+.slh-mini-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.slh-mini-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.slh-mini-stat.hog-stat .slh-mini-val {
+    color: var(--green);
+}
+
+/* Carabao = teal-ish blue to differentiate from Cow */
+.slh-mini-stat.carabao-stat .slh-mini-val {
+    color: #2e7bb5;
+}
+
+/* Cow = warm amber/brown */
+.slh-mini-stat.cow-stat .slh-mini-val {
+    color: #b87333;
+}
+
+
+/* ── Data Table Panel ────────────────────────────────────── */
+.panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+
+/* ── Table Row Accents ───────────────────────────────────── */
+.row-hog td:first-child {
+    border-left: 3px solid var(--green);
+}
+
+.row-carabao td:first-child {
+    border-left: 3px solid #2e7bb5;
+}
+
+.row-cow td:first-child {
+    border-left: 3px solid #b87333;
+}
+
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.action-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-action {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+
+    .btn-action:hover {
+        background: var(--navy);
+        color: var(--gold-light);
+        border-color: var(--navy);
+    }
+
+    .btn-action svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+
+/* ── Utilities ───────────────────────────────────────────── */
+.mono {
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 32px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+    .empty-state svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--text-subtle);
+        fill: none;
+        stroke-width: 2;
+        vertical-align: middle;
+        margin-right: 6px;
+    }

@@ -1,2 +1,484 @@
-﻿body {
+﻿/* ============================================================
+   BBQ.razor.css  —  BBQ Stand page-scoped styles
+   Blazor CSS isolation: only applies to BBQ.razor
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.bbq-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+.bbq-back-btn:hover {
+    background: var(--bg-icon);
+    color: var(--navy);
+    border-color: var(--navy);
+}
+
+.bbq-back-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.bbq-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+.bbq-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.bbq-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.bbq-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.bbq-hero-icon svg {
+    width: 26px;
+    height: 26px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.bbq-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.bbq-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.bbq-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.bbq-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.bbq-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+.bbq-hero-stat:first-child {
+    padding-left: 0;
+}
+
+.bbq-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.bbq-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.bbq-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.bbq-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.bbq-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+.page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-outline {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    white-space: nowrap;
+}
+
+.btn-outline:hover {
+    border-color: var(--gold);
+    background: #fffbf0;
+}
+
+
+/* ── Facility Info Bar ───────────────────────────────────── */
+.bbq-facility-info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.bbq-facility-info-left {
+    flex: 1 1 300px;
+}
+
+.bbq-facility-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.bbq-facility-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.fee-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.fee-chip {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.bbq-facility-mini-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 0 1 auto;
+}
+
+.bbq-mini-stat {
+    text-align: center;
+    padding: 6px 12px;
+}
+
+.bbq-mini-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.bbq-mini-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.bbq-mini-stat.paid-stat .bbq-mini-val {
+    color: var(--green);
+}
+
+.bbq-mini-stat.unpaid-stat .bbq-mini-val {
+    color: var(--red);
+}
+
+.bbq-mini-stat.partial-stat .bbq-mini-val {
+    color: #b87333;
+}
+
+/* ── Data Table Panel ────────────────────────────────────── */
+.panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+
+/* ── Table Rows ──────────────────────────────────────────── */
+.row-paid td:first-child {
+    border-left: 3px solid var(--green);
+}
+
+.row-unpaid td:first-child {
+    border-left: 3px solid var(--red);
+}
+
+.row-partial td:first-child {
+    border-left: 3px solid #b87333;
+}
+
+.row-closed {
+    opacity: 0.55;
+}
+
+.row-closed td:first-child {
+    border-left: 3px solid var(--border);
+}
+
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.action-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-action {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+
+.btn-action:hover {
+    background: var(--navy);
+    color: var(--gold-light);
+    border-color: var(--navy);
+}
+
+
+.btn-action.pay.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn-action svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
+/* ── Utilities ───────────────────────────────────────────── */
+.mono {
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+.text-subtle {
+    color: var(--text-subtle);
+}
+
+/* ── Payment Modal Styles ────────────────────────────────── */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.req {
+    color: var(--red);
+}
+
+.pay-fee-block {
+    padding: 16px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.pay-fee-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.pay-fee-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.pay-fee-rate {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.pay-record-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.pay-record-key {
+    color: var(--text-muted);
+}
+
+.pay-record-val {
+    font-weight: 600;
+}
+
+.pay-record-val.green {
+    color: var(--green);
+}
+
+.pay-record-val.red {
+    color: var(--red);
+}
+
+.btn-primary,
+.btn-ghost {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all .15s;
+}
+
+.btn-primary {
+    background: var(--navy);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: rgba(13, 33, 55, 0.9);
+}
+
+.btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+    background: var(--bg);
+    border-color: var(--text-muted);
 }

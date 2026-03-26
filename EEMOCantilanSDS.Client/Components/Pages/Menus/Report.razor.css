@@ -1,216 +1,159 @@
 /* ============================================================
-   Reports.razor.css — Scoped styles for the Financial Reports page
-   Global tokens (--navy, --gold, etc.) are defined in app.css
+   Reports.razor.css — Financial Reports page
+   Global tokens (--navy, --gold, etc.) defined in app.css
    ============================================================ */
 
-/* ── FILTER BAR — single row pill system ── */
-.filter-bar {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    margin-bottom: 24px;
+/* ══════════════════════════════════════════════════════════════
+   FILTER PANEL v3
+   ══════════════════════════════════════════════════════════════ */
+
+.rpt-filter-panel {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    height: 48px;
+    border-radius: 16px;
     overflow: hidden;
-    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+    box-shadow: 0 1px 6px rgba(13, 33, 55, .05);
+    margin-bottom: 24px;
 }
 
-/* Allow the filter row to scroll horizontally on narrow screens so items
-   never wrap or get clipped. Keep smooth scrolling for touch devices. */
-.filter-bar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px; /* give room for scrollbar when visible */
-}
-
-/* Hide default scrollbar while preserving scrolling */
-.filter-bar::-webkit-scrollbar { height: 6px; }
-.filter-bar::-webkit-scrollbar-thumb { background: transparent; }
-.filter-bar { scrollbar-width: none; }
-.filter-bar::-webkit-scrollbar { display: none; }
-
-/* Segment / pill helpers */
-.fb-seg {
+/* ── Top row ── */
+.rfp-top {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap; /* keep label + pills on one line */
-    min-width: max-content; /* prevent shrinking when scrolling */
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 18px 20px 16px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
 }
 
-.fb-pills {
+/* Individual control block (label above + control below) */
+.rfp-ctrl {
     display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.fb-div { flex: 0 0 6px; }
-
-/* Pills used for the period/month/facility selectors */
-.fpill {
-    padding: 7px 14px;
-    border-radius: 9px;
-    background: var(--bg);
-    border: 1.2px solid var(--border);
-    color: var(--text-muted);
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 13px;
-}
-
-.fpill.on {
-    background: var(--bg-card);
-    color: var(--navy);
-    box-shadow: 0 1px 3px rgba(13,33,55,0.06);
-}
-
-.fpill-sm { padding: 6px 10px; font-size: 12px; }
-
-/* Export button segment — keep pushed to the right */
-.fb-seg-export { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-/* PDF / Excel buttons in the compact filter bar */
-.rpt-btn-pdf,
-.rpt-btn-excel {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 13px;
-}
-
-.rpt-btn-pdf {
-    background: var(--bg-card);
-    border: 1.2px solid var(--border);
-    color: var(--text-muted);
-}
-
-.rpt-btn-pdf svg {
-    width: 30px;
-    height: 30px;
-    padding: 6px;
-    border-radius: 8px;
-    background: var(--bg);
-    border: 1.2px solid var(--border);
-    box-sizing: content-box;
-}
-
-.rpt-btn-excel {
-    background: var(--navy);
-    color: var(--gold-light);
-    border: none;
-}
-
-.rpt-btn-excel svg { width: 16px; height: 16px; }
-
-/* Ensure the filter row doesn't get cut off by the content area */
-.content-area { overflow: visible; }
-
-/* Each labeled segment inside the bar */
-.fb-seg {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 14px;
-    border-right: 1px solid #eef2f6;
+    flex-direction: column;
+    gap: 6px;
     flex-shrink: 0;
 }
 
-    .fb-seg:last-child {
-        border-right: none;
-    }
-
-/* Export segment pushed to far right */
-.fb-seg-export {
-    margin-left: auto;
-    gap: 7px;
-    padding-right: 10px;
-}
-
-/* Vertical divider line used inside export segment */
-.fb-div {
-    width: 1px;
-    height: 22px;
-    background: var(--border);
-    flex-shrink: 0;
-}
-
-/* Uppercase micro-label for each segment */
-.fb-seg-label {
+/* Uppercase micro-label */
+.rfp-label {
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: .7px;
+    letter-spacing: .8px;
     text-transform: uppercase;
     color: var(--text-subtle);
     white-space: nowrap;
 }
 
-/* Pill group container */
-.fb-pills {
+/* ── Period pills (only 3 — compact, stays as pills) ── */
+.rfp-period-pills {
     display: flex;
     gap: 2px;
     background: var(--bg);
-    border-radius: 8px;
-    padding: 2px;
     border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 3px;
+    height: 36px;
+    align-items: center;
 }
 
-/* Individual pill button */
-.fpill {
-    padding: 4px 11px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-muted);
-    cursor: pointer;
+.rpp {
+    padding: 5px 14px;
+    border-radius: 7px;
     border: none;
-    background: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
     font-family: 'DM Sans', sans-serif;
-    transition: all .12s;
+    cursor: pointer;
     white-space: nowrap;
-    line-height: 1.2;
+    transition: all .12s;
+    line-height: 1.3;
 }
 
-    .fpill:hover {
+    .rpp:hover {
         color: var(--navy);
-        background: rgba(255,255,255,.6);
+        background: rgba(255, 255, 255, .7);
     }
 
-    .fpill.on {
+    .rpp.on {
         background: var(--bg-card);
         color: var(--navy);
         font-weight: 600;
-        box-shadow: 0 1px 3px rgba(0,0,0,.1);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
     }
 
-/* Smaller pills for months and facility codes */
-.fpill-sm {
-    padding: 4px 8px;
-    font-size: 11.5px;
+/* ── Dropdown select ── */
+.rfp-sel-wrap {
+    position: relative;
 }
 
-/* PDF export button */
+    .rfp-sel-wrap::after {
+        content: '';
+        position: absolute;
+        right: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid var(--text-muted);
+        pointer-events: none;
+    }
+
+.rfp-select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 36px;
+    padding: 0 32px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-card);
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    outline: none;
+    min-width: 130px;
+    transition: border-color .12s;
+}
+
+    .rfp-select:hover {
+        border-color: #aab6c4;
+    }
+
+    .rfp-select:focus {
+        border-color: var(--navy);
+    }
+
+/* ── Export buttons ── */
+.rfp-export {
+    margin-left: auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .rpt-btn-pdf {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 11px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 9px;
+    border: 1.5px solid var(--border);
     background: var(--bg);
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 500;
-    cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    height: 30px;
-    transition: all .12s;
+    cursor: pointer;
     white-space: nowrap;
+    transition: all .12s;
 }
 
     .rpt-btn-pdf svg {
@@ -220,41 +163,161 @@
     }
 
     .rpt-btn-pdf:hover {
-        background: var(--bg-icon);
-        border-color: var(--text-subtle);
+        border-color: var(--navy);
         color: var(--navy);
+        background: var(--bg-card);
     }
 
-/* Excel export button */
 .rpt-btn-excel {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 5px 12px;
-    border-radius: 8px;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 9px;
     border: none;
     background: var(--navy);
     color: var(--gold);
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
-    cursor: pointer;
     font-family: 'DM Sans', sans-serif;
-    height: 30px;
-    transition: background .12s;
+    cursor: pointer;
     white-space: nowrap;
+    transition: background .12s;
 }
 
     .rpt-btn-excel svg {
-        width: 12px;
-        height: 12px;
+        width: 13px;
+        height: 13px;
         flex-shrink: 0;
     }
 
     .rpt-btn-excel:hover {
-        background: var(--navy-2);
+        background: var(--navy-2, #0a2038);
     }
 
-/* ── KPI ROW ── */
+/* ── Divider ── */
+.rfp-divider {
+    height: 1px;
+    background: var(--border);
+}
+
+/* ── Bottom row ── */
+.rfp-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 20px;
+    background: #f8fafb;
+    flex-wrap: wrap;
+}
+
+.rfp-fac-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Inline variant of the label (same row as chips) */
+.rfp-label-inline {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
+/* ── Facility chips — horizontally scrollable ── */
+.rfp-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    flex: 1;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+}
+
+    .rfp-chips::-webkit-scrollbar {
+        display: none;
+    }
+
+.rfp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px 5px 7px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all .12s;
+}
+
+    .rfp-chip:hover {
+        border-color: #aab6c4;
+        color: var(--navy);
+    }
+
+    .rfp-chip.on {
+        background: var(--navy);
+        color: #fff;
+        border-color: var(--navy);
+    }
+
+/* Code badge inside chip */
+.rfp-chip-code {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .4px;
+    background: #eef2f6;
+    color: var(--navy);
+    border-radius: 4px;
+    padding: 1px 5px;
+    line-height: 1.6;
+    transition: background .12s, color .12s;
+}
+
+.rfp-chip.on .rfp-chip-code {
+    background: rgba(255, 255, 255, .2);
+    color: #fff;
+}
+
+/* ── Active filter summary badge ── */
+.rfp-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+    .rfp-badge svg {
+        width: 12px;
+        height: 12px;
+        opacity: .4;
+        flex-shrink: 0;
+    }
+
+    .rfp-badge strong {
+        color: var(--navy);
+    }
+
+/* ══════════════════════════════════════════════════════════════
+   KPI ROW
+   ══════════════════════════════════════════════════════════════ */
 .kpi-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -262,7 +325,9 @@
     margin-bottom: 28px;
 }
 
-/* ── TWO COLUMN LAYOUT ── */
+/* ══════════════════════════════════════════════════════════════
+   TWO COLUMN LAYOUT
+   ══════════════════════════════════════════════════════════════ */
 .two-col {
     display: grid;
     grid-template-columns: 1fr 380px;
@@ -270,7 +335,9 @@
     margin-bottom: 20px;
 }
 
-/* ── SECTION CARD ── */
+/* ══════════════════════════════════════════════════════════════
+   SECTION CARD
+   ══════════════════════════════════════════════════════════════ */
 .section-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -316,7 +383,9 @@
         color: var(--navy);
     }
 
-/* ── BAR CHART ── */
+/* ══════════════════════════════════════════════════════════════
+   BAR CHART
+   ══════════════════════════════════════════════════════════════ */
 .chart-wrap {
     padding: 20px 22px;
 }
@@ -395,13 +464,11 @@
     border-radius: 3px;
 }
 
-/* Chart summary row below bars */
 .rpt-chart-summary {
     margin-top: 18px;
     border-top: 1px solid var(--border);
     padding-top: 14px;
     display: flex;
-    gap: 0;
 }
 
 .rpt-chart-summary-col {
@@ -430,7 +497,9 @@
     margin-top: 2px;
 }
 
-/* ── FACILITY TABLE ── */
+/* ══════════════════════════════════════════════════════════════
+   FACILITY TABLE
+   ══════════════════════════════════════════════════════════════ */
 .fac-table {
     width: 100%;
     border-collapse: collapse;
@@ -492,7 +561,9 @@
     font-size: 13px;
 }
 
-/* ── DELINQUENCY PANEL ── */
+/* ══════════════════════════════════════════════════════════════
+   DELINQUENCY PANEL
+   ══════════════════════════════════════════════════════════════ */
 .delinq-list {
     padding: 0;
 }
@@ -564,7 +635,9 @@
     color: var(--text-muted);
 }
 
-/* ── RECENT TRANSACTIONS ── */
+/* ══════════════════════════════════════════════════════════════
+   RECENT TRANSACTIONS
+   ══════════════════════════════════════════════════════════════ */
 .tx-table {
     width: 100%;
     border-collapse: collapse;
@@ -621,7 +694,9 @@
     font-family: 'DM Mono', monospace;
 }
 
-/* ── SUMMARY BOTTOM GRID ── */
+/* ══════════════════════════════════════════════════════════════
+   SUMMARY BOTTOM GRID
+   ══════════════════════════════════════════════════════════════ */
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -645,7 +720,6 @@
     margin-bottom: 14px;
 }
 
-/* Donut chart */
 .donut-row {
     display: flex;
     align-items: center;
@@ -704,7 +778,6 @@
     color: var(--navy);
 }
 
-/* YTD mini list */
 .mini-list-item {
     display: flex;
     justify-content: space-between;
@@ -728,7 +801,6 @@
     color: var(--navy);
 }
 
-/* Collection rate bars */
 .collection-rate-bar {
     margin-top: 14px;
 }
@@ -759,7 +831,9 @@
     background: linear-gradient(90deg, var(--gold), var(--gold-light));
 }
 
-/* ── RESPONSIVE ── */
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
     .kpi-row {
         grid-template-columns: repeat(2, 1fr);
@@ -774,6 +848,19 @@
     }
 }
 
+@media (max-width: 900px) {
+    .rfp-top {
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .rfp-export {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
 @media (max-width: 680px) {
     .kpi-row {
         grid-template-columns: 1fr;
@@ -783,21 +870,12 @@
         grid-template-columns: 1fr;
     }
 
-    .filter-bar {
-        height: auto;
-        flex-wrap: wrap;
-        padding: 10px;
+    .rfp-bottom {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
-    .fb-seg {
-        border-right: none;
-        border-bottom: 1px solid #eef2f6;
-        padding: 8px 10px;
-        width: 100%;
-    }
-
-    .fb-seg-export {
-        margin-left: 0;
-        border-bottom: none;
+    .rfp-badge {
+        display: none;
     }
 }

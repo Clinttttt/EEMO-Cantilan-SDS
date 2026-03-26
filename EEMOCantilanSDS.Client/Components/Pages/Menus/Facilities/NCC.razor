@@ -1,5 +1,512 @@
-﻿<h3>NCC</h3>
+﻿@page "/ncc"
+@page "/facility/ncc"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>EEMO Admin — New Commercial Center</PageTitle>
+
+<div class="admin-layout">
+
+    <!-- ═══════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════ -->
+    <Sidebar />
+
+    <main class="admin-main">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left flex gap-2">
+                <a href="/menu" class="ncc-back-btn">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </a>
+                <div>
+                    <div class="topbar-title">New Commercial Center</div>
+                    <div class="topbar-breadcrumb">
+                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                        <span class="breadcrumb-sep">/</span>
+                        <span class="breadcrumb-active">NCC — @DateTime.Now.ToString("MMMM yyyy")</span>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-date">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    @DateTime.Now.ToString("MMMM d, yyyy")
+                </div>
+                <div class="topbar-admin">
+                    <div class="admin-avatar">A</div>
+                    <div class="admin-info">
+                        <div class="admin-name">Administrator</div>
+                        <div class="admin-role">EEMO Office</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+
+            <!-- ── NCC Hero Banner ── -->
+            <div class="ncc-hero">
+                <div class="ncc-hero-left">
+                    <div class="ncc-hero-icon">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                    </div>
+                    <div>
+                        <div class="ncc-hero-eyebrow">Facility · NCC</div>
+                        <div class="ncc-hero-title">New Commercial Center</div>
+                        <div class="ncc-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
+                    </div>
+                </div>
+                <div class="ncc-hero-stats">
+                    <div class="ncc-hero-stat">
+                        <div class="ncc-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="ncc-hero-key">Collected</div>
+                    </div>
+                    <div class="ncc-hero-divider"></div>
+                    <div class="ncc-hero-stat">
+                        <div class="ncc-hero-val">₱@TotalPending.ToString("N0")</div>
+                        <div class="ncc-hero-key">Pending</div>
+                    </div>
+                    <div class="ncc-hero-divider"></div>
+                    <div class="ncc-hero-stat">
+                        <div class="ncc-hero-val">@CollectionRate%</div>
+                        <div class="ncc-hero-key">Collection Rate</div>
+                    </div>
+                    <div class="ncc-hero-divider"></div>
+                    <div class="ncc-hero-stat">
+                        <div class="ncc-hero-val">@ActiveStalls.Count()</div>
+                        <div class="ncc-hero-key">Total Stalls</div>
+                    </div>
+                </div>
+                <div class="ncc-hero-progress">
+                    <div class="ncc-hero-progress-fill" style="width:@CollectionRate%"></div>
+                </div>
+            </div>
+
+            <!-- ── Toolbar ── -->
+            <div class="page-toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input type="text" placeholder="Search stall no. or occupant…"
+                               @bind="SearchQuery" @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(SearchQuery))
+                        {
+                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
+                        }
+                    </div>
+                    <div class="filter-tabs">
+                        @foreach (var f in StatusFilters)
+                        {
+                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")"
+                                 @onclick="() => ActiveStatus = f">
+                                @f
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <a href="/vendors?facility=ncc" class="btn-outline">
+                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        Manage Vendors
+                    </a>
+                </div>
+            </div>
+
+            <!-- ── Facility Info Bar ── -->
+            <div class="ncc-facility-info">
+                <div class="ncc-facility-info-left">
+                    <div class="ncc-facility-label">All Stalls</div>
+                    <div class="ncc-facility-desc">Monthly rental · 3-year contracts (started Jun 7, 2023) · Stall sizes: 10.5, 17.5, 35, 70 sqm</div>
+                    <div class="fee-chips" style="margin-top:8px;">
+                        <span class="fee-chip">Rental ₱900–₱4,800/mo</span>
+                        <span class="fee-chip">Electricity</span>
+                        <span class="fee-chip">Water</span>
+                    </div>
+                </div>
+                <div class="ncc-facility-mini-stats">
+                    <div class="ncc-mini-stat">
+                        <div class="ncc-mini-val">@FilteredStalls.Count(s => s.IsPaid)</div>
+                        <div class="ncc-mini-key">Paid</div>
+                    </div>
+                    <div class="ncc-mini-stat unpaid-stat">
+                        <div class="ncc-mini-val">@FilteredStalls.Count(s => !s.IsPaid && !s.IsPartial)</div>
+                        <div class="ncc-mini-key">Unpaid</div>
+                    </div>
+                    <div class="ncc-mini-stat partial-stat">
+                        <div class="ncc-mini-val">@FilteredStalls.Count(s => s.IsPartial)</div>
+                        <div class="ncc-mini-key">Partial</div>
+                    </div>
+                    <div class="ncc-mini-stat">
+                        <div class="ncc-mini-val">₱@FilteredStalls.Where(s => s.IsPaid).Sum(s => s.MonthlyRate).ToString("N0")</div>
+                        <div class="ncc-mini-key">Collected</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Stalls Table ── -->
+            <div class="panel">
+                @if (!FilteredStalls.Any())
+                {
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                        <div class="empty-title">No Stalls Found</div>
+                        <div class="empty-sub">Try adjusting the filters or search.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Stall No.</th>
+                                    <th>Actual Occupant</th>
+                                    <th>Name on Contract</th>
+                                    <th>Area (sqm)</th>
+                                    <th>Contract Date</th>
+                                    <th>Monthly Rent</th>
+                                    <th>OR No.</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in FilteredStalls)
+                                {
+                                    <tr class="@GetRowClass(s)">
+                                        <td>@s.StallNo</td>
+                                        <td>@s.ActualOccupant</td>
+                                        <td>
+                                            @if (string.IsNullOrEmpty(s.ContractName) || s.ContractName.StartsWith("No contract"))
+                                            {
+                                                <span>No contract</span>
+                                            }
+                                            else
+                                            {
+                                                @s.ContractName
+                                            }
+                                        </td>
+                                        <td>@(s.AreaSqm > 0 ? $"{s.AreaSqm}" : "—")</td>
+                                        <td>@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("MMM d, yyyy") : "—")</td>
+                                        <td>₱@s.MonthlyRate.ToString("N0")</td>
+                                        <td>
+                                            <span class="mono">@(string.IsNullOrEmpty(s.ORNumber) ? "—" : s.ORNumber)</span>
+                                        </td>
+                                        <td>
+                                            <div class="action-btns">
+                                                <button class="action-btn" title="View / Record Payment" @onclick="() => OpenPayment(s)">
+                                                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                                </button>
+                                                <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(s)">
+                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                                </button>
+                                                <button class="action-btn" title="View Profile" @onclick="() => OpenEdit(s)">
+                                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+        </div><!-- end content-area -->
+    </main>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     RECORD PAYMENT MODAL
+══════════════════════════════════════════════ -->
+@if (ShowPayment && PaymentStall is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="ClosePayment">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Payment Record</div>
+                    <div class="eemo-modal-sub">Stall @PaymentStall.StallNo · @PaymentStall.ActualOccupant · @DateTime.Now.ToString("MMMM yyyy")</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="ClosePayment">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+
+                <!-- Status Badge -->
+                <div style="padding:12px 16px;border-radius:8px;text-align:center;margin-bottom:16px;
+                            background:@(PaymentStall.IsPaid ? "var(--green-bg)" : PaymentStall.IsPartial ? "rgba(184, 115, 51, 0.08)" : "var(--red-bg)");">
+                    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+                               color:@(PaymentStall.IsPaid ? "var(--green)" : PaymentStall.IsPartial ? "#b87333" : "var(--red)");">
+                        Status: @(PaymentStall.IsPaid ? "Paid" : PaymentStall.IsPartial ? $"Partial — ₱{PaymentStall.PartialAmount:N0}" : "Unpaid")
+                    </div>
+                </div>
+
+                <!-- Monthly Rent -->
+                <div class="pay-fee-block">
+                    <div class="pay-fee-header">
+                        <span class="pay-fee-label">Monthly Rent</span>
+                        <span class="pay-fee-rate">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                    </div>
+                    @if (PaymentStall.IsPaid)
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Amount Due</span>
+                            <span class="pay-record-val">✓ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                        </div>
+                    }
+                    else if (PaymentStall.IsPartial)
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Amount Due</span>
+                            <span class="pay-record-val">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                        </div>
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Amount Paid</span>
+                            <span class="pay-record-val">✓ ₱@PaymentStall.PartialAmount.ToString("N0")</span>
+                        </div>
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Balance Remaining</span>
+                            <span class="pay-record-val">⚠ ₱@((PaymentStall.MonthlyRate - PaymentStall.PartialAmount).ToString("N0"))</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Amount Due</span>
+                            <span class="pay-record-val">✗ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                        </div>
+                    }
+                </div>
+
+                <!-- Financial Summary/Breakdown -->
+                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
+                    <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px;">
+                        Financial Breakdown
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:2px solid var(--border);margin-bottom:8px;">
+                        <span>Monthly Rental:</span>
+                        <span style="font-weight:600;">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
+                        <span>Total Paid:</span>
+                        <span style="font-weight:600;">₱@PaymentStall.TotalPaid.ToString("N0")</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
+                        <span>Balance Due:</span>
+                        <span style="font-weight:600;">₱@PaymentStall.BalanceDue.ToString("N0")</span>
+                    </div>
+                </div>
+
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="ClosePayment">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- Payment History Modal -->
+@if (ShowHistory && HistoryStall is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="() => ShowHistory = false">
+        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">@HistoryStall.ActualOccupant</div>
+                    <div class="eemo-modal-sub">Stall @HistoryStall.StallNo · ₱@HistoryStall.MonthlyRate.ToString("N0")/month</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="() => ShowHistory = false">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="hist-label">12-Month Payment History</div>
+                <div class="hist-grid">
+                    @for (int i = 11; i >= 0; i--)
+                    {
+                        var month = DateTime.Now.AddMonths(-i);
+                        var key = month.ToString("yyyy-MM");
+                        var paid = HistoryStall.PaymentHistory.ContainsKey(key) && HistoryStall.PaymentHistory[key];
+                        <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
+                            <div class="hist-month-name">@month.ToString("MMM")</div>
+                            <div class="hist-month-year">@month.ToString("yy")</div>
+                            <div class="hist-month-icon">@(paid ? "✓" : "✗")</div>
+                        </div>
+                    }
+                </div>
+                <div class="hist-summary">
+                    <div class="act-stat">
+                        <div class="act-stat-val">@HistoryStall.PaymentHistory.Count(p => p.Value)</div>
+                        <div class="act-stat-key">Months Paid</div>
+                    </div>
+                    <div class="act-stat">
+                        <div class="act-stat-val">@(12 - HistoryStall.PaymentHistory.Count(p => p.Value))</div>
+                        <div class="act-stat-key">Months Unpaid</div>
+                    </div>
+                    <div class="act-stat">
+                        <div class="act-stat-val">₱@(HistoryStall.MonthlyRate* HistoryStall.PaymentHistory.Count(p => p.Value)).ToString("N0")</div>
+                        <div class="act-stat-key">Total Collected</div>
+                    </div>
+                    <div class="act-stat" style="@(HistoryStall.PaymentHistory.Any(p => !p.Value) ? "background:var(--red-bg);" : "")">
+                        <div class="act-stat-val" style="color:var(--red)">₱@(HistoryStall.MonthlyRate* HistoryStall.PaymentHistory.Count(p => !p.Value)).ToString("N0")</div>
+                        <div class="act-stat-key">Balance Due</div>
+                    </div>
+                </div>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="() => ShowHistory = false">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 
 @code {
 
+    bool SidebarCollapsed = false;
+
+    string SearchQuery = string.Empty;
+    string ActiveStatus = "All";
+    readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+
+    protected override void OnInitialized()
+    {
+        ResetState();
+    }
+
+    private void ResetState()
+    {
+        SearchQuery = string.Empty;
+        ActiveStatus = "All";
+        ShowPayment = false;
+        PaymentStall = null;
+        ShowHistory = false;
+        HistoryStall = null;
+    }
+
+    class NccStall
+    {
+        public int Id { get; set; }
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public bool HasElectricity { get; set; } = true;
+        public bool HasWater { get; set; } = true;
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public decimal PartialAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string ORNumber { get; set; } = string.Empty;
+        public string CollectorName { get; set; } = string.Empty;
+        public decimal ElecReading { get; set; }
+        public decimal ElecAmount { get; set; }
+        public decimal WaterReading { get; set; }
+        public decimal WaterAmount { get; set; }
+        public decimal TotalBill => MonthlyRate + ElecAmount + WaterAmount;
+        public decimal TotalPaid => IsPaid ? TotalBill : IsPartial ? PartialAmount : 0;
+        public decimal BalanceDue => TotalBill - TotalPaid;
+        public Dictionary<string, bool> PaymentHistory { get; set; } = new();
+    }
+
+    List<NccStall> Stalls = new()
+    {
+        new() { Id=1,  StallNo="N-01", ActualOccupant="Santos, Maria L.",        ContractName="Maria L. Santos",        AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=142, ElecAmount=285, WaterReading=18, WaterAmount=120, ORNumber="OR-2026-N01", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
+        new() { Id=2,  StallNo="N-02", ActualOccupant="Dela Cruz, Jose R.",      ContractName="Jose R. Dela Cruz",      AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=98,  ElecAmount=196, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-N02", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
+        new() { Id=3,  StallNo="N-03", ActualOccupant="Reyes, Ana M.",           ContractName="Ana M. Reyes",           AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=true,  ElecReading=115, ElecAmount=230, WaterReading=14, WaterAmount=95,  ORNumber="OR-2026-N03", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
+        new() { Id=4,  StallNo="N-04", ActualOccupant="Garcia, Luz P.",          ContractName="Luz P. Garcia",          AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPartial=true, PartialAmount=750, ElecReading=130, ElecAmount=260, WaterReading=16, WaterAmount=110, ORNumber="OR-2026-N04", CollectorName="Clint Reyes",  PaymentHistory=MakeH(7) },
+        new() { Id=5,  StallNo="N-05", ActualOccupant="Bautista, Carlo T.",     ContractName="Carlo T. Bautista",     AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=true,  ElecReading=88,  ElecAmount=176, WaterReading=10, WaterAmount=70,  ORNumber="OR-2026-N05", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
+        new() { Id=6,  StallNo="N-06", ActualOccupant="Torres, Myla S.",        ContractName="Myla S. Torres",        AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPartial=true, PartialAmount=2100, ElecReading=105, ElecAmount=210, WaterReading=13, WaterAmount=88,  ORNumber="OR-2026-N06", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8) },
+        new() { Id=7,  StallNo="N-07", ActualOccupant="Navarro, Ben E.",        ContractName="Ben E. Navarro",        AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=92,  ElecAmount=184, WaterReading=11, WaterAmount=75,  ORNumber="OR-2026-N07", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
+        new() { Id=8,  StallNo="N-08", ActualOccupant="Lim, Patricia D.",       ContractName="Patricia D. Lim",       AreaSqm=70,   ContractDate=new DateTime(2023,6,7), MonthlyRate=4800, IsPaid=true,  ElecReading=120, ElecAmount=240, WaterReading=15, WaterAmount=100, ORNumber="OR-2026-N08", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
+        new() { Id=9,  StallNo="N-09", ActualOccupant="Cabrera, Roy A.",        ContractName="Roy A. Cabrera",        AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=false, ElecReading=110, ElecAmount=220, WaterReading=14, WaterAmount=93,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(11) },
+        new() { Id=10, StallNo="N-10", ActualOccupant="Villanueva, Carmen O.",  ContractName="Carmen O. Villanueva",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=95,  ElecAmount=190, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-N10", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
+        new() { Id=11, StallNo="N-11", ActualOccupant="Closed",                 ContractName="",                      AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=false, IsActive=false, ORNumber="",             CollectorName="", PaymentHistory=MakeH(2) },
+        new() { Id=12, StallNo="N-12", ActualOccupant="Mendoza, Erlinda V.",    ContractName="Erlinda V. Mendoza",    AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=true,  ElecReading=102, ElecAmount=204, WaterReading=13, WaterAmount=86,  ORNumber="OR-2026-N12", CollectorName="Marco Dizon",  PaymentHistory=MakeH(9) },
+        new() { Id=13, StallNo="N-13", ActualOccupant="Aquino, Roberto F.",     ContractName="Roberto F. Aquino",     AreaSqm=70,   ContractDate=new DateTime(2023,6,7), MonthlyRate=4800, IsPartial=true, PartialAmount=3600, ElecReading=135, ElecAmount=270, WaterReading=17, WaterAmount=113, ORNumber="OR-2026-N13", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
+        new() { Id=14, StallNo="N-14", ActualOccupant="Fernandez, Diana C.",    ContractName="Diana C. Fernandez",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="OR-2026-N14", CollectorName="Ruel Santos",  PaymentHistory=MakeH(4) },
+        new() { Id=15, StallNo="N-15", ActualOccupant="Soriano, Felix G.",      ContractName="Felix G. Soriano",      AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=false, ElecReading=89,  ElecAmount=178, WaterReading=11, WaterAmount=73,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
+    };
+
+    static Dictionary<string, bool> MakeH(int paid)
+    {
+        var d = new Dictionary<string, bool>();
+        for (int i = 11; i >= 0; i--)
+            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
+        return d;
+    }
+
+    IEnumerable<NccStall> ActiveStalls => Stalls.Where(s => s.IsActive);
+
+    decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
+    decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
+    int CollectionRate => ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0;
+
+    IEnumerable<NccStall> FilteredStalls => Stalls.Where(s =>
+    {
+        bool matchStatus = ActiveStatus switch
+        {
+            "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
+            "Partial" => s.IsPartial && s.IsActive,
+            "Unpaid" => !s.IsPaid && !s.IsPartial && s.IsActive,
+            "Closed" => !s.IsActive,
+            _ => true
+        };
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+        return matchStatus && matchSearch;
+    }).OrderBy(s => s.StallNo);
+
+    string GetRowClass(NccStall s)
+    {
+        if (!s.IsActive) return "row-closed";
+        if (s.IsPartial) return "row-partial";
+        if (s.IsPaid) return "row-paid";
+        return "row-unpaid";
+    }
+
+    string GetPayPillClass(NccStall s) =>
+        s.IsPartial ? "pill-partial" :
+        s.IsPaid ? "pill-paid" : "pill-unpaid";
+
+    string GetPayLabel(NccStall s) =>
+        s.IsPartial ? $"₱{s.PartialAmount:N0} paid" :
+        s.IsPaid ? "Paid" : "Unpaid";
+
+    bool ShowPayment = false;
+    NccStall? PaymentStall = null;
+
+    void OpenPayment(NccStall s)
+    {
+        PaymentStall = s;
+        ShowPayment = true;
+    }
+
+    void MarkAsPaid()
+    {
+        if (PaymentStall is null) return;
+        PaymentStall.IsPaid = true;
+        PaymentStall.IsPartial = false;
+        var key = DateTime.Now.ToString("yyyy-MM");
+        PaymentStall.PaymentHistory[key] = true;
+        ClosePayment();
+    }
+
+    void ClosePayment() { ShowPayment = false; PaymentStall = null; }
+
+    bool ShowHistory = false;
+    NccStall? HistoryStall = null;
+    void OpenHistory(NccStall s) { HistoryStall = s; ShowHistory = true; }
+    void OpenEdit(NccStall s) { Navigation.NavigateTo("/profile"); }
 }
+

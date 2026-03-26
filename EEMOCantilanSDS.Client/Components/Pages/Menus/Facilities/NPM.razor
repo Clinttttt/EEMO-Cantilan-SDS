@@ -1,6 +1,7 @@
 @page "/npm"
 @page "/facility/npm"
 @rendermode InteractiveServer
+@inject NavigationManager Navigation
 
 <PageTitle>EEMO Admin — New Public Market</PageTitle>
 
@@ -49,7 +50,7 @@
             <div class="npm-hero">
                 <div class="npm-hero-left">
                     <div class="npm-hero-icon">
-                        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                        <svg viewBox="0 0 24 24" class="npm-icon-svg"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
                     </div>
                     <div>
                         <div class="npm-hero-eyebrow">Facility · NPM</div>
@@ -198,28 +199,24 @@
                             <tbody>
                                 @foreach (var s in FilteredStalls)
                                 {
-                                    <tr class="@(!s.IsActive ? "row-inactive" : "")">
+                                    <tr class="@GetRowClass(s)">
+                                        <td>@s.StallNo</td>
+                                        <td>@s.ActualOccupant</td>
                                         <td>
-                                            <div class="stall-num-cell">
-                                                <span class="stall-num-badge">@s.StallNo</span>
-                                            </div>
-                                        </td>
-                                        <td class="td-name">@s.ActualOccupant</td>
-                                        <td class="td-contract-name">
                                             @if (string.IsNullOrEmpty(s.ContractName) || s.ContractName.StartsWith("No contract"))
                                             {
-                                                <span class="no-contract">No contract</span>
+                                                <span>No contract</span>
                                             }
                                             else
                                             {
                                                 @s.ContractName
                                             }
                                         </td>
-                                        <td class="td-center">@(s.AreaSqm > 0 ? $"{s.AreaSqm}" : "—")</td>
-                                        <td class="td-date">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("MMM d, yyyy") : "—")</td>
-                                        <td><span class="amount-val">₱@s.MonthlyRate.ToString("N0")</span></td>
-                                        <td class="td-center">
-                                            <span class="mono td-or">@(string.IsNullOrEmpty(s.ORNumber) ? "—" : s.ORNumber)</span>
+                                        <td>@(s.AreaSqm > 0 ? $"{s.AreaSqm}" : "—")</td>
+                                        <td>@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("MMM d, yyyy") : "—")</td>
+                                        <td>₱@s.MonthlyRate.ToString("N0")</td>
+                                        <td>
+                                            <span class="mono">@(string.IsNullOrEmpty(s.ORNumber) ? "—" : s.ORNumber)</span>
                                         </td>
                                         <td>
                                             <div class="action-btns">
@@ -229,8 +226,8 @@
                                                 <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(s)">
                                                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
                                                 </button>
-                                                <button class="action-btn" title="Edit Stall" @onclick="() => OpenEdit(s)">
-                                                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                                <button class="action-btn" title="View Profile" @onclick="() => OpenEdit(s)">
+                                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                                                 </button>
                                             </div>
                                         </td>
@@ -248,7 +245,7 @@
 
 
 <!-- ══════════════════════════════════════════════
-     RECORD PAYMENT MODAL
+     PAYMENT RECORD MODAL (READ-ONLY)
 ══════════════════════════════════════════════ -->
 @if (ShowPayment && PaymentStall is not null)
 {
@@ -265,25 +262,12 @@
             </div>
             <div class="eemo-modal-body">
 
-                <!-- Payment Status -->
-                <div class="form-group">
-                    <label class="form-label">Payment Status <span class="req">*</span></label>
-                    <div class="pay-options">
-                        <div class="pay-option @(PayForm.Status == "Paid" ? "pay-opt-paid" : "")"
-                             @onclick='() => PayForm.Status = "Paid"'>
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                            <span>Paid</span>
-                        </div>
-                        <div class="pay-option @(PayForm.Status == "Partial" ? "pay-opt-partial" : "")"
-                             @onclick='() => PayForm.Status = "Partial"'>
-                            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            <span>Partial</span>
-                        </div>
-                        <div class="pay-option @(PayForm.Status == "Unpaid" ? "pay-opt-unpaid" : "")"
-                             @onclick='() => PayForm.Status = "Unpaid"'>
-                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                            <span>Unpaid</span>
-                        </div>
+                <!-- Status Badge -->
+                <div style="padding:12px 16px;border-radius:8px;text-align:center;margin-bottom:16px;
+                            background:@(PaymentStall.IsPaid ? "var(--green-bg)" : PaymentStall.IsPartial ? "rgba(184, 115, 51, 0.08)" : "var(--red-bg)");">
+                    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+                               color:@(PaymentStall.IsPaid ? "var(--green)" : PaymentStall.IsPartial ? "#b87333" : "var(--red)");">
+                        Status: @(PaymentStall.IsPaid ? "Paid" : PaymentStall.IsPartial ? $"Partial — ₱{PaymentStall.PartialAmount:N0}" : "Unpaid")
                     </div>
                 </div>
 
@@ -293,29 +277,33 @@
                         <span class="pay-fee-label">Daily Market Fee</span>
                         <span class="pay-fee-rate">₱30/day · ₱@PaymentStall.MonthlyRate.ToString("N0")/mo</span>
                     </div>
-                    @if (PayForm.Status == "Paid")
+                    @if (PaymentStall.IsPaid)
                     {
                         <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Paid</span>
-                            <span class="pay-record-val green">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                            <span class="pay-record-key">Amount Due</span>
+                            <span class="pay-record-val">✓ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
                         </div>
                     }
-                    else if (PayForm.Status == "Partial")
+                    else if (PaymentStall.IsPartial)
                     {
                         <div class="pay-record-row">
+                            <span class="pay-record-key">Amount Due</span>
+                            <span class="pay-record-val">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                        </div>
+                        <div class="pay-record-row">
                             <span class="pay-record-key">Amount Paid</span>
-                            <span class="pay-record-val green">₱@PaymentStall.PartialAmount.ToString("N0")</span>
+                            <span class="pay-record-val">✓ ₱@PaymentStall.PartialAmount.ToString("N0")</span>
                         </div>
                         <div class="pay-record-row">
                             <span class="pay-record-key">Balance Remaining</span>
-                            <span class="pay-record-val red">₱@((PaymentStall.MonthlyRate - PaymentStall.PartialAmount).ToString("N0"))</span>
+                            <span class="pay-record-val">⚠ ₱@((PaymentStall.MonthlyRate - PaymentStall.PartialAmount).ToString("N0"))</span>
                         </div>
                     }
                     else
                     {
                         <div class="pay-record-row">
                             <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val red">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
+                            <span class="pay-record-val">✗ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
                         </div>
                     }
                 </div>
@@ -326,34 +314,34 @@
                     <div class="pay-fee-block">
                         <div class="pay-fee-header">
                             <span class="pay-fee-label">Electricity Bill</span>
-                            @if (PayForm.Status == "Unpaid")
-                            {
-                                <span class="pay-badge-unpaid">Unpaid</span>
-                            }
                         </div>
-                        @if (PayForm.Status == "Paid")
+                        @if (PaymentStall.IsPaid)
                         {
                             <div class="pay-record-row">
-                                <span class="pay-record-key">Amount Paid</span>
-                                <span class="pay-record-val green">₱@PaymentStall.ElecAmount.ToString("N0")</span>
+                                <span class="pay-record-key">Amount Due</span>
+                                <span class="pay-record-val">✓ ₱@PaymentStall.ElecAmount.ToString("N0")</span>
                             </div>
                         }
-                        else if (PayForm.Status == "Partial")
+                        else if (PaymentStall.IsPartial)
                         {
                             <div class="pay-record-row">
+                                <span class="pay-record-key">Amount Due</span>
+                                <span class="pay-record-val">₱@PaymentStall.ElecAmount.ToString("N0")</span>
+                            </div>
+                            <div class="pay-record-row">
                                 <span class="pay-record-key">Amount Paid</span>
-                                <span class="pay-record-val green">₱@((PaymentStall.ElecAmount / 2).ToString("N0"))</span>
+                                <span class="pay-record-val">✓ ₱@((PaymentStall.ElecAmount / 2).ToString("N0"))</span>
                             </div>
                             <div class="pay-record-row">
                                 <span class="pay-record-key">Balance Remaining</span>
-                                <span class="pay-record-val red">₱@((PaymentStall.ElecAmount / 2).ToString("N0"))</span>
+                                <span class="pay-record-val">⚠ ₱@((PaymentStall.ElecAmount / 2).ToString("N0"))</span>
                             </div>
                         }
                         else
                         {
                             <div class="pay-record-row">
                                 <span class="pay-record-key">Amount Due</span>
-                                <span class="pay-record-val red">₱@PaymentStall.ElecAmount.ToString("N0")</span>
+                                <span class="pay-record-val">✗ ₱@PaymentStall.ElecAmount.ToString("N0")</span>
                             </div>
                         }
                     </div>
@@ -365,115 +353,87 @@
                     <div class="pay-fee-block">
                         <div class="pay-fee-header">
                             <span class="pay-fee-label">Water Bill</span>
-                            @if (PayForm.Status == "Unpaid")
-                            {
-                                <span class="pay-badge-unpaid">Unpaid</span>
-                            }
                         </div>
-                        @if (PayForm.Status == "Paid")
+                        @if (PaymentStall.IsPaid)
                         {
                             <div class="pay-record-row">
-                                <span class="pay-record-key">Amount Paid</span>
-                                <span class="pay-record-val green">₱@PaymentStall.WaterAmount.ToString("N0")</span>
+                                <span class="pay-record-key">Amount Due</span>
+                                <span class="pay-record-val">✓ ₱@PaymentStall.WaterAmount.ToString("N0")</span>
                             </div>
                         }
-                        else if (PayForm.Status == "Partial")
+                        else if (PaymentStall.IsPartial)
                         {
                             <div class="pay-record-row">
+                                <span class="pay-record-key">Amount Due</span>
+                                <span class="pay-record-val">₱@PaymentStall.WaterAmount.ToString("N0")</span>
+                            </div>
+                            <div class="pay-record-row">
                                 <span class="pay-record-key">Amount Paid</span>
-                                <span class="pay-record-val green">₱@((PaymentStall.WaterAmount / 2).ToString("N0"))</span>
+                                <span class="pay-record-val">✓ ₱@((PaymentStall.WaterAmount / 2).ToString("N0"))</span>
                             </div>
                             <div class="pay-record-row">
                                 <span class="pay-record-key">Balance Remaining</span>
-                                <span class="pay-record-val red">₱@((PaymentStall.WaterAmount / 2).ToString("N0"))</span>
+                                <span class="pay-record-val">⚠ ₱@((PaymentStall.WaterAmount / 2).ToString("N0"))</span>
                             </div>
                         }
                         else
                         {
                             <div class="pay-record-row">
                                 <span class="pay-record-key">Amount Due</span>
-                                <span class="pay-record-val red">₱@PaymentStall.WaterAmount.ToString("N0")</span>
+                                <span class="pay-record-val">✗ ₱@PaymentStall.WaterAmount.ToString("N0")</span>
                             </div>
                         }
                     </div>
-                }
+                     }
 
-                <!-- Fish Fee (Fish Section only) -->
-                @if (ActiveSection == "Fish Section")
-                {
-                    <div class="pay-fee-block">
-                        <div class="pay-fee-header">
-                            <span class="pay-fee-label">Fish Fee (₱1 per kilo)</span>
+                    <!-- Financial Summary/Breakdown -->
+                    <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
+                        <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px;">
+                            Financial Breakdown
                         </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Kilos Sold</span>
-                            <span class="pay-record-val mono">@PaymentStall.FishKilos kg</span>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                            <span>Daily Market Fee:</span>
+                            <span style="font-weight:600;">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
                         </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Fish Fee</span>
-                            <span class="pay-record-val">₱@PaymentStall.FishFee.ToString("N0")</span>
-                        </div>
-                    </div>
-                }
-
-                <!-- OR Number + Collector (read-only) -->
-                <div class="pay-meta-row">
-                    <div class="pay-meta-item">
-                        <span class="pay-meta-key">OR Number</span>
-                        <span class="pay-meta-val mono">
-                            @(string.IsNullOrEmpty(PaymentStall.ORNumber) ? "— Not issued" : PaymentStall.ORNumber)
-                        </span>
-                    </div>
-                    <div class="pay-meta-item">
-                        <span class="pay-meta-key">Collector</span>
-                        <span class="pay-meta-val">
-                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            @(string.IsNullOrEmpty(PaymentStall.CollectorName) ? "—" : PaymentStall.CollectorName)
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Total -->
-                <div class="npm-pay-total @(PayForm.Status == "Unpaid" ? "total-unpaid" : PayForm.Status == "Partial" ? "total-partial" : "")">
-                    <div>
-                        <div class="npm-pay-total-label">
-                            @(PayForm.Status == "Paid" ? "Total Paid" : PayForm.Status == "Partial" ? "Total Paid (Partial)" : "Total Amount Due")
-                        </div>
-                        <div class="npm-pay-total-sub">
-                            Valid for @DateTime.Now.ToString("MMMM yyyy") · 1 month
-                        </div>
-                    </div>
-                    <div class="npm-pay-total-val">
-                        @if (PayForm.Status == "Paid")
+                        @if (PaymentStall.HasElectricity)
                         {
-                            <span>₱@PaymentStall.TotalBill.ToString("N0")</span>
-                        }
-                        else if (PayForm.Status == "Partial")
-                        {
-                            <div>
-                                <span>₱@PaymentStall.PartialAmount.ToString("N0")</span>
-                                <span class="total-balance-tag">₱@PaymentStall.BalanceDue.ToString("N0") due</span>
+                            <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                                <span>Electricity Bill:</span>
+                                <span style="font-weight:600;">₱@PaymentStall.ElecAmount.ToString("N0")</span>
                             </div>
                         }
-                        else
+                        @if (PaymentStall.HasWater)
                         {
-                            <span>₱@PaymentStall.TotalBill.ToString("N0")</span>
+                            <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                                <span>Water Bill:</span>
+                                <span style="font-weight:600;">₱@PaymentStall.WaterAmount.ToString("N0")</span>
+                            </div>
                         }
+                        @if (PaymentStall.FishFee > 0)
+                        {
+                            <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);">
+                                <span>Fish Fee (@PaymentStall.FishKilos kg @@₱1/kg):</span>
+                                <span style="font-weight:600;">₱@PaymentStall.FishFee.ToString("N0")</span>
+                            </div>
+                        }
+                        <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:14px;font-weight:700;border-bottom:2px solid var(--border);margin:8px 0;">
+                            <span>TOTAL BILL:</span>
+                            <span>₱@PaymentStall.TotalBill.ToString("N0")</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
+                            <span>Total Paid:</span>
+                            <span style="font-weight:600;">₱@PaymentStall.TotalPaid.ToString("N0")</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
+                            <span>Balance Due:</span>
+                            <span style="font-weight:600;">₱@PaymentStall.BalanceDue.ToString("N0")</span>
+                        </div>
                     </div>
-                </div>
 
-                @if (!string.IsNullOrEmpty(PayError))
-                {
-                    <div class="form-error">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        @PayError
-                    </div>
-                }
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="ClosePayment">Close</button>
-                <button class="btn-primary" @onclick="SavePayment">Save Status</button>
-            </div>
+                </div>
+                <div class="eemo-modal-footer">
+                    <button class="btn-ghost" @onclick="ClosePayment">Close</button>
+                </div>
         </div>
     </div>
 }
@@ -540,9 +500,25 @@
     bool SidebarCollapsed = false;
 
     string SearchQuery = string.Empty;
-    string ActiveSection = "Vegetable Area";
+    string ActiveSection = "Vegetable Section";
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+
+    protected override void OnInitialized()
+    {
+        ResetState();
+    }
+
+    private void ResetState()
+    {
+        SearchQuery = string.Empty;
+        ActiveSection = "Vegetable Area";
+        ActiveStatus = "All";
+        ShowPayment = false;
+        PaymentStall = null;
+        ShowHistory = false;
+        HistoryStall = null;
+    }
 
     class SectionInfo
     {
@@ -609,17 +585,17 @@
         new() { Id=1,  StallNo="01", Section="Vegetable Area", ActualOccupant="Trugillo, Elpedia C.",   ContractName="Nila F. Andoy",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=142, ElecAmount=285, WaterReading=18, WaterAmount=120, ORNumber="OR-2026-0301", CollectorName="Clint Reyes",  PaymentHistory=MakeH(11) },
         new() { Id=2,  StallNo="02", Section="Vegetable Area", ActualOccupant="Bohol, Marilyn C.",       ContractName="Marilyn C. Bohol",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=98,  ElecAmount=196, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0302", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
         new() { Id=3,  StallNo="03", Section="Vegetable Area", ActualOccupant="Arnaldo, Elmalyn P.",     ContractName="Elmalyn P. Arnaldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=115, ElecAmount=230, WaterReading=14, WaterAmount=95,  ORNumber="OR-2026-0303", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        new() { Id=4,  StallNo="04", Section="Vegetable Area", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=130, ElecAmount=260, WaterReading=16, WaterAmount=110, ORNumber="",             CollectorName="Clint Reyes",  PaymentHistory=MakeH(7)  },
+        new() { Id=4,  StallNo="04", Section="Vegetable Area", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=420, ElecReading=130, ElecAmount=260, WaterReading=16, WaterAmount=110, ORNumber="OR-2026-0304", CollectorName="Clint Reyes",  PaymentHistory=MakeH(7)  },
         new() { Id=5,  StallNo="05", Section="Vegetable Area", ActualOccupant="Rodriguez, Jinky L.",     ContractName="Jinky L. Rodriguez",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=88,  ElecAmount=176, WaterReading=10, WaterAmount=70,  ORNumber="OR-2026-0305", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=6,  StallNo="06", Section="Vegetable Area", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=105, ElecAmount=210, WaterReading=13, WaterAmount=88,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
+        new() { Id=6,  StallNo="06", Section="Vegetable Area", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=180, ElecReading=105, ElecAmount=210, WaterReading=13, WaterAmount=88,  ORNumber="OR-2026-0306", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
         new() { Id=7,  StallNo="07", Section="Vegetable Area", ActualOccupant="Aristain, Gina C.",       ContractName="Gina C. Aristain",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=92,  ElecAmount=184, WaterReading=11, WaterAmount=75,  ORNumber="OR-2026-0307", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
         new() { Id=8,  StallNo="08", Section="Vegetable Area", ActualOccupant="Gonzales, Christine G.",  ContractName="Christine G. Gonzales",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=120, ElecAmount=240, WaterReading=15, WaterAmount=100, ORNumber="OR-2026-0308", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
         new() { Id=9,  StallNo="09", Section="Vegetable Area", ActualOccupant="Doloriel, Gloria L.",     ContractName="Gloria L. Doloriel",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=110, ElecAmount=220, WaterReading=14, WaterAmount=93,  ORNumber="OR-2026-0309", CollectorName="Marco Dizon",  PaymentHistory=MakeH(11) },
-        new() { Id=10, StallNo="10", Section="Vegetable Area", ActualOccupant="Dumas, Nora B.",          ContractName="Nora B. Dumas",          AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=95,  ElecAmount=190, WaterReading=12, WaterAmount=80,  ORNumber="",             CollectorName="Clint Reyes",  PaymentHistory=MakeH(5)  },
+        new() { Id=10, StallNo="10", Section="Vegetable Area", ActualOccupant="Dumas, Nora B.",          ContractName="Nora B. Dumas",          AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=300, ElecReading=95,  ElecAmount=190, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0310", CollectorName="Clint Reyes",  PaymentHistory=MakeH(5)  },
         new() { Id=11, StallNo="11", Section="Vegetable Area", ActualOccupant="Mori, Merlita",           ContractName="Merlita Mori",           AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=128, ElecAmount=256, WaterReading=16, WaterAmount=107, ORNumber="OR-2026-0311", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
         new() { Id=12, StallNo="12", Section="Vegetable Area", ActualOccupant="Orozco, Antonio N.",      ContractName="Antonio N. Orozco",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=102, ElecAmount=204, WaterReading=13, WaterAmount=86,  ORNumber="OR-2026-0312", CollectorName="Marco Dizon",  PaymentHistory=MakeH(9)  },
         new() { Id=13, StallNo="13", Section="Vegetable Area", ActualOccupant="Mollaneda, Ma. Jeana O.", ContractName="Ma. Jeana O. Mollaneda", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=135, ElecAmount=270, WaterReading=17, WaterAmount=113, ORNumber="OR-2026-0313", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=14, StallNo="14", Section="Vegetable Area", ActualOccupant="Santillan, Vincent D.",   ContractName="Vincent D. Santillan",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="",             CollectorName="Ruel Santos",  PaymentHistory=MakeH(4)  },
+        new() { Id=14, StallNo="14", Section="Vegetable Area", ActualOccupant="Santillan, Vincent D.",   ContractName="Vincent D. Santillan",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=540, ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="OR-2026-0314", CollectorName="Ruel Santos",  PaymentHistory=MakeH(4)  },
         new() { Id=15, StallNo="15", Section="Vegetable Area", ActualOccupant="Bruzon, Elma E.",         ContractName="Elma E. Bruzon",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=89,  ElecAmount=178, WaterReading=11, WaterAmount=73,  ORNumber="OR-2026-0315", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
         new() { Id=19, StallNo="19", Section="Vegetable Area", ActualOccupant="Gonzales, Jonalyn",       ContractName="Retchel R. Estrada",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=107, ElecAmount=214, WaterReading=13, WaterAmount=89,  ORNumber="OR-2026-0319", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
         new() { Id=24, StallNo="24", Section="Vegetable Area", ActualOccupant="Tesado, Ariel",           ContractName="Judianne C. Cahutay",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=96,  ElecAmount=192, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0324", CollectorName="Ruel Santos",  PaymentHistory=MakeH(9)  },
@@ -628,11 +604,11 @@
         new() { Id=31, StallNo="31", Section="Vegetable Area", ActualOccupant="Geraldo, Jocelyn D.",     ContractName="Jocelyn D. Geraldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=114, ElecAmount=228, WaterReading=14, WaterAmount=96,  ORNumber="OR-2026-0331", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
         // FISH SECTION
         new() { Id=40, StallNo="F01", Section="Fish Section", ActualOccupant="Dela Cruz, Maria S.",  ContractName="Dela Cruz, Maria S.",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=140, ElecAmount=280, WaterReading=18, WaterAmount=120, FishKilos=85,  ORNumber="OR-2026-F001", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=41, StallNo="F02", Section="Fish Section", ActualOccupant="Santos, Rodrigo T.",   ContractName="Santos, Rodrigo T.",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=122, ElecAmount=244, WaterReading=15, WaterAmount=100, FishKilos=60,  ORNumber="",             CollectorName="Ruel Santos",  PaymentHistory=MakeH(6)  },
-        new() { Id=42, StallNo="F03", Section="Fish Section", ActualOccupant="Bautista, Nena L.",    ContractName="Bautista, Nena L.",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, ElecReading=108, ElecAmount=216, WaterReading=13, WaterAmount=88,  FishKilos=45,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
+        new() { Id=41, StallNo="F02", Section="Fish Section", ActualOccupant="Santos, Rodrigo T.",   ContractName="Santos, Rodrigo T.",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=360, ElecReading=122, ElecAmount=244, WaterReading=15, WaterAmount=100, FishKilos=60,  ORNumber="OR-2026-F002", CollectorName="Ruel Santos",  PaymentHistory=MakeH(6)  },
+        new() { Id=42, StallNo="F03", Section="Fish Section", ActualOccupant="Bautista, Nena L.",    ContractName="Bautista, Nena L.",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=270, ElecReading=108, ElecAmount=216, WaterReading=13, WaterAmount=88,  FishKilos=45,  ORNumber="OR-2026-F003", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
         new() { Id=43, StallNo="F04", Section="Fish Section", ActualOccupant="Reyes, Luzviminda A.", ContractName="Reyes, Luzviminda A.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=155, ElecAmount=310, WaterReading=20, WaterAmount=133, FishKilos=102, ORNumber="OR-2026-F004", CollectorName="Clint Reyes",  PaymentHistory=MakeH(11) },
         // MEAT SECTION
-        new() { Id=44, StallNo="M01", Section="Meat Section", ActualOccupant="Garcia, Flordeliza B.", ContractName="Garcia, Flordeliza B.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false,  ElecReading=132, ElecAmount=264, WaterReading=17, WaterAmount=112, ORNumber="",             CollectorName="Ruel Santos",  PaymentHistory=MakeH(3)  },
+        new() { Id=44, StallNo="M01", Section="Meat Section", ActualOccupant="Garcia, Flordeliza B.", ContractName="Garcia, Flordeliza B.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=600, ElecReading=132, ElecAmount=264, WaterReading=17, WaterAmount=112, ORNumber="OR-2026-M001", CollectorName="Ruel Santos",  PaymentHistory=MakeH(3)  },
         new() { Id=45, StallNo="M02", Section="Meat Section", ActualOccupant="Mangubat, Jose P.",     ContractName="Mangubat, Jose P.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false,  ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(0)  },
         new() { Id=46, StallNo="M03", Section="Meat Section", ActualOccupant="Cañada, Elvira M.",     ContractName="Cañada, Elvira M.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=750, ElecReading=125, ElecAmount=250, WaterReading=16, WaterAmount=105, ORNumber="OR-2026-M003", CollectorName="Clint Reyes",  PaymentHistory=MakeH(5)  },
         new() { Id=47, StallNo="M04", Section="Meat Section", ActualOccupant="Villanueva, Ricardo",   ContractName="Villanueva, Ricardo",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   ElecReading=145, ElecAmount=290, WaterReading=18, WaterAmount=122, ORNumber="OR-2026-M004", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
@@ -671,6 +647,14 @@
         return matchStatus && matchSearch;
     }).OrderBy(s => s.StallNo);
 
+    string GetRowClass(NpmStall s)
+    {
+        if (!s.IsActive) return "row-closed";
+        if (s.IsPaid && !s.IsPartial) return "row-paid";
+        if (s.IsPartial) return "row-partial";
+        return "row-unpaid";
+    }
+
     string GetPayPillClass(NpmStall s) =>
         s.IsPartial ? "pill-partial" :
         s.IsPaid ? "pill-paid" : "pill-unpaid";
@@ -679,37 +663,21 @@
         s.IsPartial ? $"₱{s.PartialAmount:N0} paid" :
         s.IsPaid ? "Paid" : "Unpaid";
 
-    class PaymentForm { public string Status { get; set; } = "Paid"; }
-
     bool ShowPayment = false;
     NpmStall? PaymentStall = null;
-    PaymentForm PayForm = new();
-    string PayError = string.Empty;
 
     void OpenPayment(NpmStall s)
     {
         PaymentStall = s;
-        PayForm = new PaymentForm { Status = s.IsPartial ? "Partial" : s.IsPaid ? "Paid" : "Unpaid" };
-        PayError = string.Empty;
         ShowPayment = true;
     }
 
-    void SavePayment()
-    {
-        if (PaymentStall is null) return;
-        PaymentStall.IsPaid = PayForm.Status == "Paid";
-        PaymentStall.IsPartial = PayForm.Status == "Partial";
-        var key = DateTime.Now.ToString("yyyy-MM");
-        PaymentStall.PaymentHistory[key] = PayForm.Status == "Paid";
-        ClosePayment();
-    }
-
-    void ClosePayment() { ShowPayment = false; PaymentStall = null; PayError = string.Empty; }
+    void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
     bool ShowHistory = false;
     NpmStall? HistoryStall = null;
     void OpenHistory(NpmStall s) { HistoryStall = s; ShowHistory = true; }
-    void OpenEdit(NpmStall s) { /* navigate to /vendors?stall=s.Id */ }
+    void OpenEdit(NpmStall s) { Navigation.NavigateTo("/profile"); }
     void SetSection(string key)
     {
         ActiveSection = key;
