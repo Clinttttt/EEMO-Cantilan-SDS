@@ -1,0 +1,510 @@
+﻿@* ══════════════════════════════════════════════════════════════════════
+   AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
+
+   USAGE — Vendors page (facility dropdown is open):
+       <AddVendorModal Show="ShowModal"
+                       IsEditing="IsEditing"
+                       Form="Form"
+                       FormError="FormError"
+                       FacilityOptions="FacilityTabsAsOptions()"
+                       FacilityLocked="false"
+                       OnSave="SaveVendor"
+                       OnCancel="CloseModal"
+                       OnFacilityChanged="OnFacilityChanged"
+                       OnSectionChanged="OnSectionChanged"
+                       OnToggleFee="ToggleFee" />
+
+   USAGE — Facility page e.g. NPM (facility is fixed / locked):
+       <AddVendorModal Show="ShowAddModal"
+                       IsEditing="false"
+                       Form="AddForm"
+                       FormError="AddFormError"
+                       FacilityOptions='new(){ new(){ Code="NPM", Name="New Public Market" } }'
+                       FacilityLocked="true"
+                       OnSave="SaveNewVendor"
+                       OnCancel="CloseAddModal"
+                       OnFacilityChanged="OnFacilityChanged"
+                       OnSectionChanged="OnSectionChanged"
+                       OnToggleFee="ToggleFee" />
+
+   PARAMETERS:
+     Show              – bool        – controls visibility
+     IsEditing         – bool        – true = edit mode, false = add mode
+     Form              – VendorModalForm  – two-way bound form data
+     FormError         – string      – validation message shown in red
+     FacilityOptions   – List<VendorFacilityOption> – dropdown items
+     FacilityLocked    – bool        – true = read-only facility label (facility page)
+                                       false = full dropdown (vendors page)
+     OnSave            – EventCallback      – Save / Add Vendor clicked
+     OnCancel          – EventCallback      – Cancel or ✕ clicked
+     OnFacilityChanged – EventCallback      – facility select changed
+     OnSectionChanged  – EventCallback      – section select changed
+     OnToggleFee       – EventCallback<string> – fee toggle clicked (fee name passed)
+══════════════════════════════════════════════════════════════════════ *@
+
+@if (Show)
+{
+    <div class="eemo-modal-overlay" @onclick="HandleCancel">
+        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+
+            <!-- ── Header ──────────────────────────────────────────────── -->
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">@(IsEditing ? "Edit Vendor / Stall" : "Add New Vendor")</div>
+                    <div class="eemo-modal-sub">@(IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system.")</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="HandleCancel">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <!-- ── Body ───────────────────────────────────────────────── -->
+            <div class="eemo-modal-body">
+
+                <!-- §1 Leasee Information -->
+                <div class="avm-section">
+                    <div class="avm-section-label">Leasee Information</div>
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
+                            <input class="avm-input" type="text" placeholder="Current stall occupant"
+                                   @bind="Form.ActualOccupant" @bind:event="oninput" />
+                        </div>
+                        <div class="avm-group">
+                            <label class="avm-label">Name on Contract (Per Signed Contract)</label>
+                            <input class="avm-input" type="text" placeholder="Leave blank if no contract"
+                                   @bind="Form.ContractName" @bind:event="oninput" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §2 Space & Contract Details -->
+                <div class="avm-section">
+                    <div class="avm-section-label">Space &amp; Contract Details</div>
+
+                    <div class="avm-row-2">
+                        <!-- Facility: locked read-only OR full dropdown -->
+                        <div class="avm-group">
+                            <label class="avm-label">Facility <span class="avm-req">*</span></label>
+                            @if (FacilityLocked)
+                            {
+                                <div class="avm-input avm-input-locked">
+                                    @(FacilityOptions.FirstOrDefault()?.Name ?? Form.FacilityCode)
+                                </div>
+                            }
+                            else
+                            {
+                                <select class="avm-input"
+                                        @bind="Form.FacilityCode"
+                                        @bind:after="HandleFacilityChanged">
+                                    <option value="">-- Select Facility --</option>
+                                    @foreach (var f in FacilityOptions)
+                                    {
+                                        <option value="@f.Code">@f.Name</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+
+                        <div class="avm-group">
+                            <label class="avm-label">Stall / Space No. <span class="avm-req">*</span></label>
+                            <input class="avm-input" type="text" placeholder="e.g. 01, T4, B-02"
+                                   @bind="Form.StallNo" @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">OR No.</label>
+                            <input class="avm-input" type="text" placeholder="e.g. OR-2024-001"
+                                   @bind="Form.OrNo" @bind:event="oninput" />
+                        </div>
+                        <div class="avm-group" style="visibility:hidden;"></div>
+                    </div>
+
+                    <!-- Section dropdown — NPM only -->
+                    @if (Form.FacilityCode == "NPM")
+                    {
+                        <div class="avm-row-2">
+                            <div class="avm-group">
+                                <label class="avm-label">Section / Category <span class="avm-req">*</span></label>
+                                <select class="avm-input"
+                                        @bind="Form.SelectedSection"
+                                        @bind:after="HandleSectionChanged">
+                                    <option value="">-- Select Section --</option>
+                                    <option value="Vegetable">Vegetable Area</option>
+                                    <option value="Fish">Fish Section</option>
+                                    <option value="Meat">Meat Section</option>
+                                </select>
+                            </div>
+                            <div class="avm-group" style="visibility:hidden;"></div>
+                        </div>
+                    }
+
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">Contract Effectivity Date</label>
+                            <input class="avm-input" type="date"
+                                   @bind="Form.ContractDate" />
+                        </div>
+                        <div class="avm-group">
+                            <label class="avm-label">Contract Duration (No. of Years)</label>
+                            <select class="avm-input" @bind="Form.ContractYears">
+                                <option value="0">No contract</option>
+                                <option value="1">1 year</option>
+                                <option value="2">2 years</option>
+                                <option value="3">3 years</option>
+                                <option value="5">5 years</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §3 Space Information -->
+                <div class="avm-section">
+                    <div class="avm-section-label">Space Information</div>
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">Section / Area</label>
+                            <input class="avm-input" type="text"
+                                   placeholder="e.g. Vegetable Area, Fish Section"
+                                   @bind="Form.Section" @bind:event="oninput" />
+                            @if (Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection))
+                            {
+                                <div class="avm-hint-ok">✓ Auto-filled from section</div>
+                            }
+                        </div>
+                        <div class="avm-group">
+                            <label class="avm-label">Area (sq.m)</label>
+                            <input class="avm-input" type="number" min="0" placeholder="e.g. 4.8"
+                                   @bind="Form.AreaSqm" @bind:event="oninput" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §4 Rental Rates -->
+                <div class="avm-section">
+                    <div class="avm-section-label">
+                        @if (Form.FacilityCode == "SLH")
+                        {
+                            <text>Fixed Charges</text>
+                        }
+                        else
+                        {
+
+                            <text>Rental Rates</text>
+                        }
+                    </div>
+
+                    @if (Form.FacilityCode == "SLH")
+                    {
+                        <div class="avm-info-box">
+                            <div class="avm-info-box-title"><strong>Per Head Charges:</strong></div>
+                            <div class="avm-info-box-grid">
+                                <div>• Slaughter Fee</div><div>• Ante Mortem</div>
+                                <div>• Post Mortem</div><div>• Table Charge</div>
+                                <div>• Entrance Fee</div><div>• Livestock Fee</div>
+                            </div>
+                            <div class="avm-info-box-hint">These are fixed per-head charges for slaughterhouse</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="avm-row-2">
+                            <div class="avm-group">
+                                <label class="avm-label">Monthly Rental / Rate (₱) <span class="avm-req">*</span></label>
+                                <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
+                                       @bind="Form.MonthlyRate" @bind:event="oninput" />
+                                <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
+                            </div>
+                            <div class="avm-group">
+                                <label class="avm-label">Actual Monthly Rental (₱)</label>
+                                <input class="avm-input" type="number" min="0"
+                                       placeholder="Leave blank if same as contract"
+                                       @bind="Form.ActualMonthlyRental" @bind:event="oninput" />
+                                <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearActualRental.ToString("N0")</div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Vegetable")
+                    {
+                        <div class="avm-fee-highlight">
+                            <div><strong>Daily Collection:</strong> ₱30/day (Vegetable vendors)</div>
+                        </div>
+                    }
+                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Fish")
+                    {
+                        <div class="avm-fee-highlight">
+                            <div><strong>Daily Collection:</strong> ₱30/day (Fish vendors)</div>
+                            <div><strong>Fish Fee:</strong> ₱1/kg (per kilo sold)</div>
+                        </div>
+                    }
+                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Meat")
+                    {
+                        <div class="avm-fee-highlight">
+                            <div><strong>Daily Collection:</strong> ₱30/day (Meat vendors)</div>
+                        </div>
+                    }
+                </div>
+
+                <!-- §5 Additional Information -->
+                <div class="avm-section">
+                    <div class="avm-section-label">Additional Information</div>
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">Area Location / Note</label>
+                            <input class="avm-input" type="text" placeholder="e.g. Extension, Corner"
+                                   @bind="Form.AreaLocation" @bind:event="oninput" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- §6 Applicable Charges — hidden for SLH -->
+                @if (!string.IsNullOrEmpty(Form.FacilityCode) && Form.FacilityCode != "SLH")
+                {
+                    <div class="avm-section">
+
+                        <div class="avm-divider-header">
+                            <div class="avm-divider-line"></div>
+                            <span class="avm-divider-text">Applicable Charges</span>
+                            <div class="avm-divider-line"></div>
+                        </div>
+
+                        <!-- Base Rental card -->
+                        <div class="avm-sublabel">Base Rental</div>
+                        <div class="avm-rental-card">
+                            <div class="avm-rental-info">
+                                <div class="avm-rental-icon">
+                                    <svg viewBox="0 0 24 24">
+                                        <rect x="3" y="9" width="18" height="12" rx="2" />
+                                        <path d="M3 9l9-6 9 6" />
+                                        <line x1="9" y1="21" x2="9" y2="13" />
+                                        <line x1="15" y1="21" x2="15" y2="13" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <div class="avm-rental-title">Monthly Rental</div>
+                                    <div class="avm-rental-sub">
+                                        @if (Form.FacilityCode == "NPM")
+                                        {
+                                            <text>New Public Market · ₱30/day base</text>
+                                        }
+                                        else
+                                        {
+                                            @(FacilityOptions.FirstOrDefault(f => f.Code == Form.FacilityCode)?.Name ?? Form.FacilityCode)
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ± Spinner -->
+                            <div class="avm-spinner">
+                                <button type="button" class="avm-spin-btn avm-spin-left"
+                                        @onclick="() => { if (Form.MonthlyRate >= 100) Form.MonthlyRate -= 100; }">
+                                    −
+                                </button>
+                                <div class="avm-spin-inner">
+                                    <span class="avm-spin-currency">₱</span>
+                                    <input type="number" min="0" class="avm-spin-input"
+                                           @bind="Form.MonthlyRate" @bind:event="oninput" />
+                                    <span class="avm-spin-freq">/mo</span>
+                                </div>
+                                <button type="button" class="avm-spin-btn avm-spin-right"
+                                        @onclick="() => Form.MonthlyRate += 100">
+                                    +
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Whole-year hint -->
+                        <div class="avm-yearly-hint">
+                            <span class="avm-yearly-label">Whole-year equivalent</span>
+                            <strong class="avm-yearly-value">₱@Form.WholeYearRental.ToString("N2")</strong>
+                        </div>
+
+                        <!-- Utility charges — NPM only -->
+                        @if (Form.FacilityCode == "NPM")
+                        {
+                            @if (!string.IsNullOrEmpty(Form.SelectedSection))
+                            {
+                                <div class="avm-util-divider"></div>
+                                <div class="avm-sublabel">Utility Charges</div>
+
+                                <!-- Electricity -->
+                                <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
+                                     @onclick='() => OnToggleFee.InvokeAsync("Electricity")'>
+                                    <div class="avm-fee-icon">
+                                        <svg viewBox="0 0 24 24" style="stroke:#d4920a;">
+                                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                                        </svg>
+                                    </div>
+                                    <div class="avm-fee-text">
+                                        <div class="avm-fee-title">Electricity</div>
+                                        <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
+                                    </div>
+                                    <div class="avm-fee-check @(Form.FeeTypes.Contains("Electricity") ? "checked" : "")">
+                                        @if (Form.FeeTypes.Contains("Electricity"))
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Water -->
+                                <div class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
+                                     @onclick='() => OnToggleFee.InvokeAsync("Water")'>
+                                    <div class="avm-fee-icon">
+                                        <svg viewBox="0 0 24 24" style="stroke:#1a7ab5;">
+                                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="avm-fee-text">
+                                        <div class="avm-fee-title">Water</div>
+                                        <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
+                                    </div>
+                                    <div class="avm-fee-check @(Form.FeeTypes.Contains("Water") ? "checked" : "")">
+                                        @if (Form.FeeTypes.Contains("Water"))
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Fish fee — Fish section only -->
+                                @if (Form.SelectedSection == "Fish")
+                                {
+                                    <div class="avm-util-divider"></div>
+                                    <div class="avm-sublabel">Section-Specific Fees</div>
+                                    <div class="avm-fish-fee">
+                                        <div class="avm-fish-icon">
+                                            <svg viewBox="0 0 24 24">
+                                                <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" />
+                                                <circle cx="9" cy="12" r="1.5" />
+                                            </svg>
+                                        </div>
+                                        <div class="avm-fish-text">
+                                            <div class="avm-fish-title">Fish Fee</div>
+                                            <div class="avm-fish-sub">₱1.00 per kilo of fish sold — Fish Section only</div>
+                                        </div>
+                                        <span class="avm-fish-badge">✓ Always included</span>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="avm-section-note">Select a section above to configure utility charges.</div>
+                            }
+                        }
+
+                    </div>
+                }
+
+                <!-- Validation error -->
+                @if (!string.IsNullOrEmpty(FormError))
+                {
+                    <div class="avm-error">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        @FormError
+                    </div>
+                }
+
+            </div><!-- /eemo-modal-body -->
+            <!-- ── Footer ──────────────────────────────────────────────── -->
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="HandleCancel">Cancel</button>
+                <button class="btn-primary" @onclick="() => OnSave.InvokeAsync()">
+                    @(IsEditing ? "Save Changes" : "Add Vendor")
+                </button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    /// Controls modal visibility
+    [Parameter] public bool Show { get; set; }
+
+    /// true = Edit mode   false = Add mode
+    [Parameter] public bool IsEditing { get; set; }
+
+    /// Bound form data — mutated directly (class = reference type, no need for two-way EventCallback)
+    [Parameter] public VendorModalForm Form { get; set; } = new();
+
+    /// Validation error shown at the bottom of the form
+    [Parameter] public string FormError { get; set; } = string.Empty;
+
+    /// EventCallback for two-way binding of FormError — enables @bind-FormError in parent
+    [Parameter] public EventCallback<string> FormErrorChanged { get; set; }
+
+    /// Facility options for the dropdown.
+    /// Vendors page  → pass all facilities.
+    /// Facility page → pass a single-item list  +  FacilityLocked="true"
+    [Parameter] public List<VendorFacilityOption> FacilityOptions { get; set; } = new();
+
+    /// true  → show a read-only facility label   (called from a facility page e.g. NPM)
+    /// false → show the full facility dropdown   (called from Vendor.razor)
+    [Parameter] public bool FacilityLocked { get; set; } = false;
+
+    /// Fires when Save / Add Vendor is clicked — host runs its own validation + save logic
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    /// Fires when Cancel or the ✕ button is clicked
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// Fires after the facility dropdown changes — host should call its OnFacilityChanged / AutoPopulateFees
+    [Parameter] public EventCallback OnFacilityChanged { get; set; }
+
+    /// Fires after the section dropdown changes — host should call its OnSectionChanged / AutoPopulateFees
+    [Parameter] public EventCallback OnSectionChanged { get; set; }
+
+    /// Fires when a fee toggle (Electricity / Water) is clicked — host calls ToggleFee(feeName)
+    [Parameter] public EventCallback<string> OnToggleFee { get; set; }
+
+    // ── Private relay handlers ────────────────────────────────────────────────
+
+    private async Task HandleCancel() => await OnCancel.InvokeAsync();
+    private async Task HandleFacilityChanged() => await OnFacilityChanged.InvokeAsync();
+    private async Task HandleSectionChanged() => await OnSectionChanged.InvokeAsync();
+
+    // ── Shared models ─────────────────────────────────────────────────────────
+    // Defined inside this component so host pages reference them as:
+    //   AddVendorModal.VendorModalForm
+    //   AddVendorModal.VendorFacilityOption
+
+    /// One entry in the Facility dropdown
+    public class VendorFacilityOption
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    /// All form fields bound to the modal — pass a new instance from the host page
+    public class VendorModalForm
+    {
+        public string FacilityCode { get; set; } = string.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string OrNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string SelectedSection { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public int ContractYears { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public decimal ActualMonthlyRental { get; set; }
+        public string AreaLocation { get; set; } = string.Empty;
+        public List<string> FeeTypes { get; set; } = new();
+
+        public decimal WholeYearRental
+            => MonthlyRate * 12;
+
+        public decimal WholeYearActualRental
+            => ActualMonthlyRental > 0 ? ActualMonthlyRental * 12 : WholeYearRental;
+    }
+}

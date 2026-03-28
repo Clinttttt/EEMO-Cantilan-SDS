@@ -5,7 +5,7 @@
    ============================================================ */
 
 
-/* ── Back Button ─────────────────────────────────────────── */
+/* -- Back Button ------------------------------------------- */
 .slh-back-btn {
     display: inline-flex;
     align-items: center;
@@ -39,7 +39,7 @@
     }
 
 
-/* ── Hero Banner ─────────────────────────────────────────── */
+/* -- Hero Banner ------------------------------------------- */
 .slh-hero {
     position: relative;
     background: var(--navy);
@@ -168,24 +168,169 @@
 }
 
 
-/* ── Toolbar ─────────────────────────────────────────────── */
-.page-toolbar {
+/* -- Toolbar (Unified Design) ------------------------------ */
+.toolbar-unified {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: nowrap;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 12px;
 }
 
-.toolbar-left {
+.search-box {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 10px;
+    flex: 1;
+    min-width: 180px;
+    max-width: 350px;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+    .search-box:focus-within {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 3px rgba(200,168,75,0.08);
+    }
 
-/* ── Facility Info Bar ───────────────────────────────────── */
+    .search-box svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+    .search-box input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        font-size: 12px;
+        color: var(--text);
+        outline: none;
+        min-width: 0;
+    }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+.search-clear {
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s;
+    user-select: none;
+}
+
+    .search-clear:hover {
+        color: var(--text);
+    }
+
+.filter-tabs-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.filter-tab {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+    .filter-tab:hover {
+        background: var(--bg-icon);
+        color: var(--text-subtle);
+    }
+
+    .filter-tab.active {
+        background: var(--navy);
+        color: #fff;
+        font-weight: 600;
+    }
+
+        .filter-tab.active:hover {
+            background: #051219;
+        }
+
+.toolbar-middle {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    height: auto;
+    text-decoration: none;
+}
+
+    .btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+.btn-primary {
+    background: var(--navy);
+    color: var(--gold);
+    border-color: var(--navy);
+}
+
+    .btn-primary:hover {
+        background: #051219;
+        border-color: #051219;
+        color: #d4af70;
+    }
+
+
+/* -- Facility Info Bar ------------------------------------- */
 .slh-facility-info {
     display: flex;
     align-items: flex-start;
@@ -223,7 +368,7 @@
 }
 
 
-/* ── Info Icon + Tooltip ─────────────────────────────────── */
+/* -- Info Icon + Tooltip ----------------------------------- */
 .slh-info-wrap {
     position: relative;
     display: inline-flex;
@@ -337,7 +482,7 @@
 }
 
 
-/* ── Facility Mini Stats ─────────────────────────────────── */
+/* -- Facility Mini Stats ----------------------------------- */
 .slh-facility-mini-stats {
     display: flex;
     gap: 20px;
@@ -380,7 +525,7 @@
 }
 
 
-/* ── Data Table Panel ────────────────────────────────────── */
+/* -- Data Table Panel -------------------------------------- */
 .panel {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -390,7 +535,7 @@
 }
 
 
-/* ── Table Row Accents ───────────────────────────────────── */
+/* -- Table Row Accents ------------------------------------- */
 .row-hog td:first-child {
     border-left: 3px solid var(--green);
 }
@@ -404,7 +549,7 @@
 }
 
 
-/* ── Action Buttons ──────────────────────────────────────── */
+/* -- Action Buttons ---------------------------------------- */
 .action-btns {
     display: flex;
     gap: 6px;
@@ -441,7 +586,7 @@
     }
 
 
-/* ── Utilities ───────────────────────────────────────────── */
+/* -- Utilities --------------------------------------------- */
 .mono {
     font-family: 'Consolas', monospace;
     font-size: 12px;

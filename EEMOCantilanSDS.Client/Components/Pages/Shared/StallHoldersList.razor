@@ -1,0 +1,440 @@
+﻿@page "/list-stall-holders"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<PageTitle>EEMO Admin — List of Stall Holders</PageTitle>
+
+<div class="admin-layout">
+
+    <Sidebar />
+
+    <main class="admin-main">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left flex gap-2">
+                <a href="@BackLink" class="lsh-back-btn">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </a>
+                <div>
+                    <div class="topbar-title">List of Stall Holders</div>
+                    <div class="topbar-breadcrumb">
+                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                        <span class="breadcrumb-sep">/</span>
+                        <a href="@BackLink" class="breadcrumb-link">@FacilityName</a>
+                        <span class="breadcrumb-sep">/</span>
+                        <span class="breadcrumb-active">Stall Holders List</span>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-date">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    @DateTime.Now.ToString("MMMM d, yyyy")
+                </div>
+                <div class="topbar-admin">
+                    <div class="admin-avatar">A</div>
+                    <div class="admin-info">
+                        <div class="admin-name">Administrator</div>
+                        <div class="admin-role">EEMO Office</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+
+            <!-- ── Hero Banner ── -->
+            <div class="lsh-hero">
+                <div class="lsh-hero-left">
+                    <div class="lsh-hero-icon">
+                        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><circle cx="3" cy="6" r="1" /><circle cx="3" cy="12" r="1" /><circle cx="3" cy="18" r="1" /></svg>
+                    </div>
+                    <div>
+                        <div class="lsh-hero-eyebrow">@FacilityCode · @FacilityName</div>
+                        <div class="lsh-hero-title">List of Stall Holders</div>
+                        <div class="lsh-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
+                    </div>
+                </div>
+                <div class="lsh-hero-stats">
+                    <div class="lsh-hero-stat">
+                        <div class="lsh-hero-val">@AllActiveStalls.Count()</div>
+                        <div class="lsh-hero-key">Total Stalls</div>
+                    </div>
+                    @if (IsFacility("npm"))
+                    {
+                        <div class="lsh-hero-divider"></div>
+                        <div class="lsh-hero-stat">
+                            <div class="lsh-hero-val">@VegetableStalls.Count()</div>
+                            <div class="lsh-hero-key">Vegetable</div>
+                        </div>
+                        <div class="lsh-hero-divider"></div>
+                        <div class="lsh-hero-stat">
+                            <div class="lsh-hero-val">@FishStalls.Count()</div>
+                            <div class="lsh-hero-key">Fish</div>
+                        </div>
+                        <div class="lsh-hero-divider"></div>
+                        <div class="lsh-hero-stat">
+                            <div class="lsh-hero-val">@MeatStalls.Count()</div>
+                            <div class="lsh-hero-key">Meat</div>
+                        </div>
+                    }
+                </div>
+                <div class="lsh-hero-progress">
+                    <div class="lsh-hero-progress-fill" style="width:100%"></div>
+                </div>
+            </div>
+
+            <!-- ── Toolbar ── -->
+            <div class="page-toolbar">
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input type="text" placeholder="Search name or stall no…"
+                               @bind="SearchQuery" @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(SearchQuery))
+                        {
+                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
+                        }
+                    </div>
+                    @if (IsFacility("npm"))
+                    {
+                        <div class="filter-tabs">
+                            @foreach (var sec in SectionKeys)
+                            {
+                                <div class="filter-tab @(ActiveSection == sec ? "active" : "")"
+                                     @onclick="() => ActiveSection = sec">
+                                    @sec
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-outline" onclick="window.print()">
+                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
+                            <polyline points="6 9 6 2 18 2 18 9" />
+                            <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+                            <rect x="6" y="14" width="12" height="8" />
+                        </svg>
+                        Print / Export
+                    </button>
+                    <a href="@BackLink" class="btn-outline">
+                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
+                            <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                        Back to @FacilityName
+                    </a>
+                </div>
+            </div>
+
+            <!-- ── Document Panel ── -->
+            <div class="lsh-doc-panel">
+
+                <!-- Document Header -->
+                <div class="lsh-doc-header">
+                    <div class="lsh-doc-gov">Municipality of Cantilan</div>
+                    <div class="lsh-doc-title">List of Stallholders</div>
+                    <div class="lsh-doc-facility">@FacilityName.ToUpper()</div>
+                </div>
+
+                @if (IsFacility("npm"))
+                {
+                    @foreach (var sections in VisibleSections)
+                    {
+                        var sectionStalls = GetSectionStalls(sections).Where(MatchSearch).ToList();
+                        if (!sectionStalls.Any()) continue;
+
+                        <div class="lsh-section-block">
+                            <div class="lsh-section-label-row">
+                                <span class="lsh-section-label">@sections.ToUpper()</span>
+                                <span class="lsh-section-count">@sectionStalls.Count stall@(sectionStalls.Count != 1 ? "s" : "")</span>
+                            </div>
+
+                            <table class="lsh-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-no">#</th>
+                                        <th class="col-name">Name of Lessee<br /><span class="th-sub">(Actual Occupants)</span></th>
+                                        <th class="col-contract">Name of Lessee per<br />Signed Contract</th>
+                                        <th class="col-stall">Stall /<br />Space No.</th>
+                                        <th class="col-date">Effectivity of<br />Lessee Contract</th>
+                                        <th class="col-years">No. of<br />Years</th>
+                                        <th class="col-area">Area</th>
+                                        <th class="col-rate">Monthly Rentals<br />per Contract</th>
+                                        <th class="col-actual">Actual Mo.<br />Rentals</th>
+                                        <th class="col-whole">Whole Year<br />Rental</th>
+                                        @if (sections == "Fish Section")
+                                        {
+                                            <th class="col-fish">Fish Fee<br />(₱1/kg)</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        int rowNum = 1;
+                                    }
+                                    @foreach (var s in sectionStalls)
+                                    {
+                                        <tr class="@(!s.IsActive ? "row-closed" : "")">
+                                            <td class="c">@rowNum</td>
+                                            <td class="tl fw @(!s.IsActive ? "txt-closed" : "")">@s.ActualOccupant</td>
+                                            <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
+                                            <td class="c">@s.StallNo</td>
+                                            <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
+                                            <td class="c">3 yrs</td>
+                                            <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
+                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
+                                            @if (sections == "Fish Section")
+                                            {
+                                                <td class="r">@(s.FishKilos > 0 ? $"₱{s.FishKilos:N2}" : "—")</td>
+                                            }
+                                        </tr>
+                                        rowNum++;
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="tfoot-row">
+                                        <td colspan="@(sections == "Fish Section" ? 7 : 6)" class="tfoot-label">
+                                            Section Total — @sectionStalls.Count(s => s.IsActive) active stall@(sectionStalls.Count(s => s.IsActive) != 1 ? "s" : "")
+                                        </td>
+                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
+                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
+                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
+                                        @if (sections == "Fish Section")
+                                        {
+                                            <td class="r tfoot-val">₱@sectionStalls.Sum(s => s.FishKilos).ToString("N2")</td>
+                                        }
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <!-- For non-NPM facilities: Simple flat list without sections -->
+                    <div class="lsh-section-block">
+                        <div class="lsh-section-label-row">
+                            <span class="lsh-section-label">ALL STALLS</span>
+                            <span class="lsh-section-count">@FilteredNonNpmStalls.Count() stall@(FilteredNonNpmStalls.Count() != 1 ? "s" : "")</span>
+                        </div>
+
+                        <table class="lsh-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-no">#</th>
+                                    <th class="col-name">Name of Lessee<br /><span class="th-sub">(Actual Occupants)</span></th>
+                                    <th class="col-contract">Name of Lessee per<br />Signed Contract</th>
+                                    <th class="col-stall">Stall /<br />Space No.</th>
+                                    <th class="col-date">Effectivity of<br />Lessee Contract</th>
+                                    <th class="col-years">No. of<br />Years</th>
+                                    <th class="col-area">Area</th>
+                                    <th class="col-rate">Monthly Rentals<br />per Contract</th>
+                                    <th class="col-actual">Actual Mo.<br />Rentals</th>
+                                    <th class="col-whole">Whole Year<br />Rental</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    int rowNum = 1;
+                                }
+                                @foreach (var s in FilteredNonNpmStalls)
+                                {
+                                    <tr class="@(!s.IsActive ? "row-closed" : "")">
+                                        <td class="c">@rowNum</td>
+                                        <td class="tl fw @(!s.IsActive ? "txt-closed" : "")">@s.ActualOccupant</td>
+                                        <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
+                                        <td class="c">@s.StallNo</td>
+                                        <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
+                                        <td class="c">3 yrs</td>
+                                        <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
+                                        <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                        <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                        <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
+                                    </tr>
+                                    rowNum++;
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="tfoot-row">
+                                    <td colspan="6" class="tfoot-label">
+                                        Total — @FilteredNonNpmStalls.Count(s => s.IsActive) active stall@(FilteredNonNpmStalls.Count(s => s.IsActive) != 1 ? "s" : "")
+                                    </td>
+                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
+                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
+                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+
+                @if (ActiveSection == "All" || !IsFacility("npm"))
+                {
+                    <div class="lsh-grand-total">
+                        <div class="lsh-grand-label">Grand Total — @FacilityName</div>
+                        <div class="lsh-grand-stats">
+                            <div class="lsh-grand-stat">
+                                <div class="lsh-grand-val">@AllActiveStalls.Count()</div>
+                                <div class="lsh-grand-key">Active Stalls</div>
+                            </div>
+                            <div class="lsh-grand-stat">
+                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.MonthlyRate).ToString("N2")</div>
+                                <div class="lsh-grand-key">Total Monthly Rate</div>
+                            </div>
+                            <div class="lsh-grand-stat">
+                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.MonthlyRate * 12).ToString("N2")</div>
+                                <div class="lsh-grand-key">Total Whole Year Rental</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+            </div>
+
+        </div>
+    </main>
+</div>
+
+@code {
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? Facility { get; set; }
+
+    string SearchQuery = string.Empty;
+    string ActiveSection = "All";
+
+    readonly string[] SectionKeys = ["All", "Vegetable Area", "Fish Section", "Meat Section"];
+
+    // Facility detection
+    string FacilityCode => Facility?.ToUpper() ?? "NPM";
+    string BackLink => $"/facility/{Facility?.ToLower() ?? "npm"}";
+
+    string FacilityName => Facility?.ToLower() switch
+    {
+        "npm" => "New Public Market",
+        "tcc" => "Tampak Commercial Center",
+        "ncc" => "New Commercial Center",
+        "bbq" => "Barbecue Stand",
+        "ice" => "Iceplant",
+        "slh" => "Slaughter House",
+        _ => "New Public Market"
+    };
+
+    bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
+
+    IEnumerable<string> VisibleSections => ActiveSection == "All"
+        ? new[] { "Vegetable Area", "Fish Section", "Meat Section" }
+        : new[] { ActiveSection };
+
+    IEnumerable<NpmStall> GetSectionStalls(string sec) =>
+        Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == sec).OrderBy(s => s.StallNo);
+
+    IEnumerable<NpmStall> AllActiveStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.IsActive);
+    IEnumerable<NpmStall> VegetableStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Vegetable Area");
+    IEnumerable<NpmStall> FishStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Fish Section");
+    IEnumerable<NpmStall> MeatStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Meat Section");
+
+    IEnumerable<NpmStall> FilteredNonNpmStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && MatchSearch(s)).OrderBy(s => s.StallNo);
+
+    bool MatchSearch(NpmStall s) =>
+        string.IsNullOrWhiteSpace(SearchQuery) ||
+        s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+        s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+        s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+
+    class NpmStall
+    {
+        public int Id { get; set; }
+        public string Facility { get; set; } = "npm";
+        public string StallNo { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public decimal MonthlyRate { get; set; } = 900;
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public decimal PartialAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string ORNumber { get; set; } = string.Empty;
+        public decimal FishKilos { get; set; }
+    }
+
+    List<NpmStall> Stalls = new()
+    {
+        // NPM - VEGETABLE AREA
+        new() { Id=1,  Facility="npm", StallNo="01", Section="Vegetable Area", ActualOccupant="Trugillo, Elpedia C.",   ContractName="Nila F. Andoy",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=2,  Facility="npm", StallNo="02", Section="Vegetable Area", ActualOccupant="Bohol, Marilyn C.",       ContractName="Marilyn C. Bohol",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=3,  Facility="npm", StallNo="03", Section="Vegetable Area", ActualOccupant="Arnaldo, Elmalyn P.",     ContractName="Elmalyn P. Arnaldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=4,  Facility="npm", StallNo="04", Section="Vegetable Area", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=420 },
+        new() { Id=5,  Facility="npm", StallNo="05", Section="Vegetable Area", ActualOccupant="Rodriguez, Jinky L.",     ContractName="Jinky L. Rodriguez",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=6,  Facility="npm", StallNo="06", Section="Vegetable Area", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=180 },
+        new() { Id=7,  Facility="npm", StallNo="07", Section="Vegetable Area", ActualOccupant="Aristain, Gina C.",       ContractName="Gina C. Aristain",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=8,  Facility="npm", StallNo="08", Section="Vegetable Area", ActualOccupant="Gonzales, Christine G.",  ContractName="Christine G. Gonzales",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=9,  Facility="npm", StallNo="09", Section="Vegetable Area", ActualOccupant="Doloriel, Gloria L.",     ContractName="Gloria L. Doloriel",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=10, Facility="npm", StallNo="10", Section="Vegetable Area", ActualOccupant="Dumas, Nora B.",          ContractName="Nora B. Dumas",          AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=300 },
+        new() { Id=11, Facility="npm", StallNo="11", Section="Vegetable Area", ActualOccupant="Mori, Merlita",           ContractName="Merlita Mori",           AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=12, Facility="npm", StallNo="12", Section="Vegetable Area", ActualOccupant="Orozco, Antonio N.",      ContractName="Antonio N. Orozco",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=13, Facility="npm", StallNo="13", Section="Vegetable Area", ActualOccupant="Mollaneda, Ma. Jeana O.", ContractName="Ma. Jeana O. Mollaneda", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=14, Facility="npm", StallNo="14", Section="Vegetable Area", ActualOccupant="Santillan, Vincent D.",   ContractName="Vincent D. Santillan",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=540 },
+        new() { Id=15, Facility="npm", StallNo="15", Section="Vegetable Area", ActualOccupant="Bruzon, Elma E.",         ContractName="Elma E. Bruzon",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=19, Facility="npm", StallNo="19", Section="Vegetable Area", ActualOccupant="Gonzales, Jonalyn",       ContractName="Retchel R. Estrada",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=24, Facility="npm", StallNo="24", Section="Vegetable Area", ActualOccupant="Tesado, Ariel",           ContractName="Judianne C. Cahutay",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        new() { Id=26, Facility="npm", StallNo="26", Section="Vegetable Area", ActualOccupant="Closed",                  ContractName="Elsie B. Abuso",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsActive=false },
+        new() { Id=27, Facility="npm", StallNo="27", Section="Vegetable Area", ActualOccupant="Closed",                  ContractName="Arlyn B. Guardalupe",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsActive=false },
+        new() { Id=31, Facility="npm", StallNo="31", Section="Vegetable Area", ActualOccupant="Geraldo, Jocelyn D.",     ContractName="Jocelyn D. Geraldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        // NPM - FISH SECTION
+        new() { Id=40, Facility="npm", StallNo="F01", Section="Fish Section", ActualOccupant="Dela Cruz, Maria S.",  ContractName="Dela Cruz, Maria S.",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   FishKilos=85  },
+        new() { Id=41, Facility="npm", StallNo="F02", Section="Fish Section", ActualOccupant="Santos, Rodrigo T.",   ContractName="Santos, Rodrigo T.",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=360, FishKilos=60  },
+        new() { Id=42, Facility="npm", StallNo="F03", Section="Fish Section", ActualOccupant="Bautista, Nena L.",    ContractName="Bautista, Nena L.",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=270, FishKilos=45  },
+        new() { Id=43, Facility="npm", StallNo="F04", Section="Fish Section", ActualOccupant="Reyes, Luzviminda A.", ContractName="Reyes, Luzviminda A.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   FishKilos=102 },
+        // NPM - MEAT SECTION
+        new() { Id=44, Facility="npm", StallNo="M01", Section="Meat Section", ActualOccupant="Garcia, Flordeliza B.", ContractName="Garcia, Flordeliza B.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=600 },
+        new() { Id=45, Facility="npm", StallNo="M02", Section="Meat Section", ActualOccupant="Mangubat, Jose P.",     ContractName="Mangubat, Jose P.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false },
+        new() { Id=46, Facility="npm", StallNo="M03", Section="Meat Section", ActualOccupant="Cañada, Elvira M.",     ContractName="Cañada, Elvira M.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=750 },
+        new() { Id=47, Facility="npm", StallNo="M04", Section="Meat Section", ActualOccupant="Villanueva, Ricardo",   ContractName="Villanueva, Ricardo",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+
+        // TCC - TAMPAK COMMERCIAL CENTER
+        new() { Id=50, Facility="tcc", StallNo="A01", Section="", ActualOccupant="Santos, Mariana P.",       ContractName="Mariana P. Santos",       AreaSqm=6.0, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
+        new() { Id=51, Facility="tcc", StallNo="A02", Section="", ActualOccupant="Reyes, Francisco R.",       ContractName="Francisco R. Reyes",      AreaSqm=6.0, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
+        new() { Id=52, Facility="tcc", StallNo="B01", Section="", ActualOccupant="Cruz, Angelina T.",         ContractName="Angelina T. Cruz",        AreaSqm=5.5, ContractDate=new DateTime(2023,3,15), IsPartial=true, PartialAmount=500  },
+        new() { Id=53, Facility="tcc", StallNo="B02", Section="", ActualOccupant="Garcia, Esteban M.",        ContractName="Esteban M. Garcia",       AreaSqm=5.5, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
+
+        // NCC - NEW COMMERCIAL CENTER
+        new() { Id=60, Facility="ncc", StallNo="01", Section="", ActualOccupant="Molina, Rosa L.",            ContractName="Rosa L. Molina",          AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=true  },
+        new() { Id=61, Facility="ncc", StallNo="02", Section="", ActualOccupant="Lopez, Carlos V.",           ContractName="Carlos V. Lopez",         AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=false },
+        new() { Id=62, Facility="ncc", StallNo="03", Section="", ActualOccupant="Fernandez, Petra S.",        ContractName="Petra S. Fernandez",      AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=true  },
+        new() { Id=63, Facility="ncc", StallNo="04", Section="", ActualOccupant="Torres, Manuel R.",          ContractName="Manuel R. Torres",        AreaSqm=7.0, ContractDate=new DateTime(2023,2,10), IsPartial=true, PartialAmount=850 },
+        new() { Id=64, Facility="ncc", StallNo="05", Section="", ActualOccupant="Villanueva, Ana G.",         ContractName="Ana G. Villanueva",       AreaSqm=6.5, ContractDate=new DateTime(2023,2,10), IsPaid=true, MonthlyRate=1100  },
+        new() { Id=65, Facility="ncc", StallNo="06", Section="", ActualOccupant="Sánchez, Eduardo L.",        ContractName="Eduardo L. Sánchez",      AreaSqm=6.5, ContractDate=new DateTime(2023,3,01), IsPartial=true, PartialAmount=550, MonthlyRate=1100 },
+
+        // TCC - TAMPAK COMMERCIAL CENTER (Additional)
+        new() { Id=54, Facility="tcc", StallNo="C01", Section="", ActualOccupant="Diaz, Josephine M.",        ContractName="Josephine M. Diaz",       AreaSqm=5.5, ContractDate=new DateTime(2023,4,12), IsPaid=true  },
+        new() { Id=55, Facility="tcc", StallNo="C02", Section="", ActualOccupant="Mercado, Vicente L.",       ContractName="Vicente L. Mercado",      AreaSqm=5.5, ContractDate=new DateTime(2023,4,12), IsPartial=true, PartialAmount=420  },
+        new() { Id=56, Facility="tcc", StallNo="D01", Section="", ActualOccupant="Robles, Sylvia T.",         ContractName="Sylvia T. Robles",        AreaSqm=6.0, ContractDate=new DateTime(2023,5,08), IsPaid=false },
+        new() { Id=57, Facility="tcc", StallNo="D02", Section="", ActualOccupant="Castillo, Ramon J.",        ContractName="Ramon J. Castillo",       AreaSqm=6.0, ContractDate=new DateTime(2023,5,08), IsPaid=true, MonthlyRate=1050  },
+
+        // BBQ - BARBECUE STAND
+        new() { Id=70, Facility="bbq", StallNo="01", Section="", ActualOccupant="Aquino, Nestor B.",          ContractName="Nestor B. Aquino",        AreaSqm=8.0, ContractDate=new DateTime(2023,3,25), IsPaid=true, MonthlyRate=1200  },
+        new() { Id=71, Facility="bbq", StallNo="02", Section="", ActualOccupant="Ramirez, Luz M.",             ContractName="Luz M. Ramirez",          AreaSqm=8.0, ContractDate=new DateTime(2023,3,25), IsPartial=true, PartialAmount=600, MonthlyRate=1200  },
+        new() { Id=72, Facility="bbq", StallNo="03", Section="", ActualOccupant="Mendoza, Julius P.",          ContractName="Julius P. Mendoza",       AreaSqm=8.0, ContractDate=new DateTime(2023,4,01), IsPaid=true, MonthlyRate=1200  },
+        new() { Id=73, Facility="bbq", StallNo="04", Section="", ActualOccupant="Closed",                      ContractName="Castro, Rosita V.",       AreaSqm=8.0, ContractDate=new DateTime(2023,4,01), IsActive=false },
+
+        // ICEPLANT
+        new() { Id=80, Facility="ice", StallNo="01", Section="", ActualOccupant="Pimentel, Ricardo S.",        ContractName="Ricardo S. Pimentel",     AreaSqm=10.0, ContractDate=new DateTime(2023,2,14), IsPaid=true, MonthlyRate=1500  },
+        new() { Id=81, Facility="ice", StallNo="02", Section="", ActualOccupant="Salazar, Angelica R.",       ContractName="Angelica R. Salazar",     AreaSqm=10.0, ContractDate=new DateTime(2023,2,14), IsPartial=true, PartialAmount=750, MonthlyRate=1500  },
+        new() { Id=82, Facility="ice", StallNo="03", Section="", ActualOccupant="Navarro, Danilo C.",         ContractName="Danilo C. Navarro",       AreaSqm=10.0, ContractDate=new DateTime(2023,3,20), IsPaid=false, MonthlyRate=1500  },
+
+        // SLAUGHTER HOUSE
+        new() { Id=90, Facility="slh", StallNo="01", Section="", ActualOccupant="Gutierrez, Herminia L.",      ContractName="Herminia L. Gutierrez",   AreaSqm=9.5, ContractDate=new DateTime(2023,1,10), IsPaid=true, MonthlyRate=1350  },
+        new() { Id=91, Facility="slh", StallNo="02", Section="", ActualOccupant="Coronel, Mario T.",           ContractName="Mario T. Coronel",        AreaSqm=9.5, ContractDate=new DateTime(2023,1,10), IsPartial=true, PartialAmount=675, MonthlyRate=1350  },
+        new() { Id=92, Facility="slh", StallNo="03", Section="", ActualOccupant="Santos, Elena M.",             ContractName="Elena M. Santos",         AreaSqm=9.5, ContractDate=new DateTime(2023,2,05), IsPaid=true, MonthlyRate=1350  },
+        new() { Id=93, Facility="slh", StallNo="04", Section="", ActualOccupant="Domingo, Francisco J.",       ContractName="Francisco J. Domingo",    AreaSqm=9.5, ContractDate=new DateTime(2023,2,05), IsPaid=false, MonthlyRate=1350  },
+    };
+}

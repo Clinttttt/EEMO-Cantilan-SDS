@@ -482,3 +482,53 @@
     background: var(--bg);
     border-color: var(--text-muted);
 }
+
+/* ── Toolbar Layout ──────────────────────────────────────── */
+::deep .page-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+::deep .page-toolbar .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+::deep .page-toolbar .search-box {
+    flex-shrink: 0;
+    min-width: 200px;
+}
+
+::deep .page-toolbar .filter-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+}
+
+::deep .page-toolbar .filter-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    ::deep .page-toolbar .toolbar-left {
+        flex-wrap: wrap;
+    }
+
+    ::deep .page-toolbar .search-box {
+        min-width: 100%;
+        order: -1;
+        margin-bottom: 8px;
+    }
+
+    ::deep .page-toolbar .filter-tabs {
+        min-width: 100%;
+    }
+}

@@ -823,6 +823,10 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+/* ── Toolbar Layout ──────────────────────────────────────── */
+/* Toolbar styles are now in Toolbar.razor.css (reusable component) */
+
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
     .npm-hero {
@@ -856,5 +860,19 @@
 
     .hist-summary {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    ::deep .page-toolbar .toolbar-left {
+        flex-wrap: wrap;
+    }
+
+    ::deep .page-toolbar .search-box {
+        min-width: 100%;
+        order: -1;
+        margin-bottom: 8px;
+    }
+
+    ::deep .page-toolbar .filter-tabs {
+        min-width: 100%;
     }
 }

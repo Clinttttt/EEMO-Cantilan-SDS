@@ -8,7 +8,7 @@
     <!-- ═══════════════════════════════════════
          SIDEBAR
     ═══════════════════════════════════════ -->
-      <Sidebar/>
+    <Sidebar />
 
     <!-- ═══════════════════════════════════════
          MAIN CONTENT
@@ -41,47 +41,53 @@
 
         <div class="content-area">
 
-            <!-- KPI Strip -->
-            <div class="kpi-strip">
-                <div class="kpi-card">
-                    <div class="kpi-icon kpi-icon-blue">
-                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+            <!-- Collector Hero Banner -->
+            <div class="vs-hero">
+                <div class="vs-hero-left">
+                    <div class="vs-hero-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                            <path d="M16 3.13a4 4 0 010 7.75" />
+                        </svg>
                     </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">@Collectors.Count</div>
-                        <div class="kpi-label">Total Collectors</div>
-                        <div class="kpi-sub">@Collectors.Count(c => c.IsActive) active</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon kpi-icon-green">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">₱@Collectors.Sum(c => c.CollectedThisMonth).ToString("N0")</div>
-                        <div class="kpi-label">Total Collected</div>
-                        <div class="kpi-sub">@DateTime.Now.ToString("MMMM yyyy")</div>
+                    <div>
+                        <div class="vs-hero-eyebrow">EEMO Admin · Collectors</div>
+                        <div class="vs-hero-title">Revenue Collectors</div>
+                        <div class="vs-hero-sub">Collection Period: @DateTime.Now.ToString("MMMM yyyy")</div>
                     </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon kpi-icon-gold">
-                        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                <div class="vs-hero-stats">
+                    <div class="vs-hero-stat">
+                        <div class="vs-hero-val">@Collectors.Count</div>
+                        <div class="vs-hero-key">Total Collectors</div>
+                        <div class="vs-hero-sub2">@Collectors.Count(c => c.IsActive) active</div>
                     </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">@Collectors.Sum(c => c.AssignedFacilities.Count)</div>
-                        <div class="kpi-label">Facility Assignments</div>
-                        <div class="kpi-sub">Across all collectors</div>
+                    <div class="vs-hero-divider"></div>
+                    <div class="vs-hero-stat">
+                        <div class="vs-hero-val">₱@Collectors.Sum(c => c.CollectedThisMonth).ToString("N0")</div>
+                        <div class="vs-hero-key">Total Collected</div>
+                        <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy")</div>
+                    </div>
+                    <div class="vs-hero-divider"></div>
+                    <div class="vs-hero-stat">
+                        <div class="vs-hero-val">@Collectors.Sum(c => c.AssignedFacilities.Count)</div>
+                        <div class="vs-hero-key">Facility Assignments</div>
+                        <div class="vs-hero-sub2">Across all collectors</div>
+                    </div>
+                    <div class="vs-hero-divider"></div>
+                    <div class="vs-hero-stat">
+                        <div class="vs-hero-val">@Collectors.Count(c => !c.IsActive)</div>
+                        <div class="vs-hero-key">Inactive Accounts</div>
+                        <div class="vs-hero-sub2">Deactivated or suspended</div>
                     </div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon kpi-icon-red">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">@Collectors.Count(c => !c.IsActive)</div>
-                        <div class="kpi-label">Inactive Accounts</div>
-                        <div class="kpi-sub">Deactivated or suspended</div>
-                    </div>
+                <div class="vs-hero-progress">
+                    @{
+                        var activeRate = Collectors.Count > 0 ? (Collectors.Count(c => c.IsActive) * 100 / Collectors.Count) : 0;
+                    }
+                    <div class="vs-hero-progress-fill" style="width: @activeRate%;"></div>
                 </div>
             </div>
 
@@ -138,12 +144,10 @@
                                 <tr>
                                     <th>Collector</th>
                                     <th>Employee ID</th>
-                                    <th>Contact</th>
                                     <th>Assigned Facilities</th>
                                     <th>Collected (This Month)</th>
                                     <th>Transactions</th>
                                     <th>Last Active</th>
-                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -153,33 +157,27 @@
                                     <tr class="@(!c.IsActive ? "row-inactive" : "")">
                                         <td>
                                             <div class="collector-cell">
-                                                <div class="collector-avatar">@GetInitials(c.FullName)</div>
+
                                                 <div>
-                                                    <div class="collector-name">@c.FullName</div>
+                                                    <div>@c.FullName</div>
                                                     <div class="collector-email">@c.Email</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><span class="mono">@c.EmployeeId</span></td>
-                                        <td class="td-contact">@c.ContactNumber</td>
+                                        <td><span>@c.EmployeeId</span></td>
                                         <td>
                                             <div class="facility-tags">
                                                 @foreach (var f in c.AssignedFacilities)
                                                 {
-                                                    <span class="code-badge">@f</span>
+                                                    <span>@f</span>
                                                 }
                                             </div>
                                         </td>
                                         <td>
-                                            <span class="amount-val">₱@c.CollectedThisMonth.ToString("N0")</span>
+                                            <span>₱@c.CollectedThisMonth.ToString("N0")</span>
                                         </td>
-                                        <td class="td-center">@c.TransactionsThisMonth</td>
-                                        <td class="td-date">@c.LastActive.ToString("MMM d, yyyy")</td>
-                                        <td>
-                                            <span class="status-pill @(c.IsActive ? "pill-active" : "pill-inactive")">
-                                                @(c.IsActive ? "Active" : "Inactive")
-                                            </span>
-                                        </td>
+                                        <td>@c.TransactionsThisMonth</td>
+                                        <td>@c.LastActive.ToString("MMM d, yyyy")</td>
                                         <td>
                                             <div class="action-btns">
                                                 <button class="action-btn" title="Edit" @onclick="() => OpenEdit(c)">

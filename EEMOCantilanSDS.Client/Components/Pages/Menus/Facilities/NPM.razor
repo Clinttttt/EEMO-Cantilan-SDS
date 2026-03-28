@@ -105,35 +105,15 @@
                 }
             </div>
 
-            <!-- ── Toolbar ── -->
-            <div class="page-toolbar">
-                <div class="toolbar-left">
-                    <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search stall no. or occupant…"
-                               @bind="SearchQuery" @bind:event="oninput" />
-                        @if (!string.IsNullOrEmpty(SearchQuery))
-                        {
-                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
-                        }
-                    </div>
-                    <div class="filter-tabs">
-                        @foreach (var f in StatusFilters)
-                        {
-                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")"
-                                 @onclick="() => ActiveStatus = f">
-                                @f
-                            </div>
-                        }
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <a href="/vendors?facility=npm" class="btn-outline">
-                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        Manage Vendors
-                    </a>
-                </div>
-            </div>
+            <!-- ── Toolbar (Reusable Component) ── -->
+            <Toolbar SearchQuery="@SearchQuery"
+                     OnSearch="OnSearchChanged"
+                     ActiveFilter="@ActiveStatus"
+                     OnFilterChanged="OnFilterStatusChanged"
+                     Filters="@StatusFilters"
+                     MiddleContent="@ActionBarContent"
+                     Actions="@ToolbarActions">
+            </Toolbar>
 
             <!-- ── Section Info Bar ── -->
             @{
@@ -143,12 +123,7 @@
                 <div class="npm-section-info-left">
                     <div class="npm-section-label">@ActiveSection</div>
                     <div class="npm-section-desc">@sec.Description</div>
-                    <div class="fee-chips" style="margin-top:8px;">
-                        @foreach (var fee in sec.FeeTypes)
-                        {
-                            <span class="fee-chip">@fee</span>
-                        }
-                    </div>
+                   
                 </div>
                 <div class="npm-section-mini-stats">
                     <div class="npm-mini-stat">
@@ -494,6 +469,20 @@
     </div>
 }
 
+<!-- ══════════════════════════════════════════════
+     ADD / EDIT VENDOR MODAL (NEW PUBLIC MARKET)
+══════════════════════════════════════════════ -->
+<AddVendorModal Show="ShowAddVendorModal"
+                IsEditing="false"
+                Form="VendorForm"
+                @bind-FormError="VendorErrorMessage"
+                FacilityOptions="NpmFacilityOptions"
+                FacilityLocked="true"
+                OnSave="SubmitAddVendor"
+                OnCancel="CloseAddVendorModal"
+                OnFacilityChanged="() => {}"
+                OnSectionChanged="OnSectionModalChanged"
+                OnToggleFee="ToggleVendorFee" />
 
 @code {
 
@@ -504,9 +493,39 @@
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
+    private List<Toolbar.ToolbarAction> ToolbarActions = new();
+
+    private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
+
     protected override void OnInitialized()
     {
         ResetState();
+        InitializeToolbarActions();
+    }
+
+    private void InitializeToolbarActions()
+    {
+        ToolbarActions = new()
+        {
+            new() 
+            { 
+                Label = "Add New",
+                Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
+                ClassName = "btn-primary",
+                Title = "Add New Vendor",
+                OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
+            }
+        };
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        SearchQuery = value;
+    }
+
+    private async Task OnFilterStatusChanged(string filter)
+    {
+        ActiveStatus = filter;
     }
 
     private void ResetState()
@@ -532,20 +551,20 @@
         ["Vegetable Area"] = new()
         {
             Icon = """<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 00-6.88 17.25C7 21 8.5 22 12 22s5-1 6.88-2.75A10 10 0 0012 2z"/></svg>""",
-            Description = "Fresh vegetable stalls — ₱900/month · ₱30/day",
-            FeeTypes = new() { "Stall ₱900/mo", "Daily ₱30/day", "Electricity", "Water" }
+            Description = "Fresh vegetable stalls — ₱30/day · Water ·  Electricity",
+           
         },
         ["Fish Section"] = new()
         {
             Icon = """<svg viewBox="0 0 24 24"><path d="M18 7s-5.09 0-8 3c-2.4 2.4-2.4 6.6 0 9 2.91 3 8 3 8 3V7z"/><path d="M18 7c0 0 3-1 3-4-3 0-4.5 1.5-4.5 1.5"/><circle cx="6.5" cy="13.5" r="1.5"/></svg>""",
-            Description = "Fish stalls — ₱900/month · ₱30/day + ₱1 per kilo of fish",
-            FeeTypes = new() { "Stall ₱900/mo", "Daily ₱30/day", "Fish ₱1/kg", "Electricity", "Water" }
+            Description = "Fish stalls — ₱30/day · ₱1/kg · Water · Electricity",
+         
         },
         ["Meat Section"] = new()
         {
             Icon = """<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
-            Description = "Meat stalls — ₱900/month · ₱30/day",
-            FeeTypes = new() { "Stall ₱900/mo", "Daily ₱30/day", "Electricity", "Water" }
+            Description = "Meat stalls — ₱30/day · Water ·  Electricity",
+         
         },
     };
 
@@ -684,4 +703,115 @@
         ActiveStatus = "All";
         SearchQuery = string.Empty;
     }
+
+    // Add Vendor Modal
+    private bool ShowAddVendorModal { get; set; }
+    private string VendorErrorMessage { get; set; } = string.Empty;
+    private AddVendorModal.VendorModalForm VendorForm = new();
+    private List<AddVendorModal.VendorFacilityOption> NpmFacilityOptions => new() { new() { Code = "NPM", Name = "New Public Market" } };
+
+    private void OpenAddVendorModal()
+    {
+        VendorForm = new() 
+        { 
+            FacilityCode = "NPM",
+            StallNo = string.Empty,
+            ActualOccupant = string.Empty,
+            ContractName = string.Empty,
+            SelectedSection = "Vegetable",
+            Section = "Vegetable Area",
+            AreaSqm = 0,
+            MonthlyRate = 900,
+            ContractDate = new DateTime(2023, 6, 7),
+            ContractYears = 3,
+            AreaLocation = string.Empty,
+            FeeTypes = new() { "Electricity", "Water" }
+        };
+        VendorErrorMessage = string.Empty;
+        ShowAddVendorModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseAddVendorModal()
+    {
+        ShowAddVendorModal = false;
+        VendorForm = new();
+        VendorErrorMessage = string.Empty;
+    }
+
+    private void OnSectionModalChanged()
+    {
+        // Auto-populate section and fees based on selected section
+        if (VendorForm.SelectedSection == "Vegetable")
+        {
+            VendorForm.Section = "Vegetable Area";
+            VendorForm.MonthlyRate = 900;
+            VendorForm.FeeTypes = new() { "Electricity", "Water" };
+        }
+        else if (VendorForm.SelectedSection == "Fish")
+        {
+            VendorForm.Section = "Fish Section";
+            VendorForm.MonthlyRate = 900;
+            VendorForm.FeeTypes = new() { "Electricity", "Water", "Fish ₱1/kg" };
+        }
+        else if (VendorForm.SelectedSection == "Meat")
+        {
+            VendorForm.Section = "Meat Section";
+            VendorForm.MonthlyRate = 900;
+            VendorForm.FeeTypes = new() { "Electricity", "Water" };
+        }
+    }
+
+    private void ToggleVendorFee(string fee)
+    {
+        if (VendorForm.FeeTypes.Contains(fee))
+            VendorForm.FeeTypes.Remove(fee);
+        else
+            VendorForm.FeeTypes.Add(fee);
+    }
+
+    private async Task SubmitAddVendor()
+    {
+        // Validate form
+        if (string.IsNullOrWhiteSpace(VendorForm.ActualOccupant))
+        {
+            VendorErrorMessage = "Actual occupant name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(VendorForm.StallNo))
+        {
+            VendorErrorMessage = "Stall number is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(VendorForm.SelectedSection))
+        {
+            VendorErrorMessage = "Please select a section for NPM.";
+            return;
+        }
+        if (VendorForm.MonthlyRate <= 0)
+        {
+            VendorErrorMessage = "Monthly rate must be greater than ₱0.";
+            return;
+        }
+
+        // Add new stall to list
+        var newStall = new NpmStall
+        {
+            Id = Stalls.Max(s => s.Id) + 1,
+            StallNo = VendorForm.StallNo.Trim(),
+            Section = VendorForm.Section,
+            ActualOccupant = VendorForm.ActualOccupant.Trim(),
+            ContractName = VendorForm.ContractName.Trim(),
+            AreaSqm = VendorForm.AreaSqm,
+            ContractDate = VendorForm.ContractDate,
+            MonthlyRate = VendorForm.MonthlyRate,
+            HasElectricity = VendorForm.FeeTypes.Contains("Electricity"),
+            HasWater = VendorForm.FeeTypes.Contains("Water"),
+            IsActive = true,
+            PaymentHistory = new()
+        };
+
+            Stalls.Add(newStall);
+            CloseAddVendorModal();
+        }
 }

@@ -1,0 +1,126 @@
+<!-- ══════════════════════════════════════════════
+     REUSABLE TOOLBAR COMPONENT (Unified Design)
+     Used across all facility pages for consistency
+
+     Layout: [Search] [Filters] [Middle] [Actions]
+══════════════════════════════════════════════ -->
+
+<div class="toolbar-unified">
+    <!-- LEFT: Search Box -->
+    @if (ShowSearch)
+    {
+        <div class="search-box">
+            <svg viewBox="0 0 24 24" class="search-icon"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input type="text" 
+                   class="search-input"
+                   placeholder="@SearchPlaceholder"
+                   value="@SearchQuery" 
+                   @oninput="OnSearchInput" />
+            @if (!string.IsNullOrEmpty(SearchQuery))
+            {
+                <span class="search-clear" @onclick="OnSearchClear">×</span>
+            }
+        </div>
+    }
+
+    <!-- CENTER-LEFT: Filter Tabs -->
+    @if (Filters?.Any() == true)
+    {
+        <div class="filter-tabs-inline">
+            @foreach (var filter in Filters)
+            {
+                <div class="filter-tab @(ActiveFilter == filter ? "active" : "")"
+                     @onclick="() => OnFilterChange(filter)">
+                    @filter
+                </div>
+            }
+        </div>
+    }
+
+    <!-- CENTER: Middle Content (flexible) -->
+    @if (MiddleContent is not null)
+    {
+        <div class="toolbar-middle">
+            @MiddleContent
+        </div>
+    }
+
+    <!-- RIGHT: Actions & Buttons -->
+    <div class="toolbar-actions">
+        @foreach (var action in Actions)
+        {
+            if (action.IsChild)
+            {
+                @((MarkupString)action.ChildHtml)
+            }
+            else
+            {
+                <button class="btn @action.ClassName" 
+                        @onclick="async () => await action.OnClickHandler.Invoke()"
+                        title="@action.Title">
+                    @if (!string.IsNullOrEmpty(action.Icon))
+                    {
+                        <span class="btn-icon">@((MarkupString)action.Icon)</span>
+                    }
+                    @action.Label
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string SearchQuery { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> OnSearch { get; set; }
+
+    [Parameter]
+    public string ActiveFilter { get; set; } = "All";
+
+    [Parameter]
+    public EventCallback<string> OnFilterChanged { get; set; }
+
+    [Parameter]
+    public List<string> Filters { get; set; } = new();
+
+    [Parameter]
+    public List<ToolbarAction> Actions { get; set; } = new();
+
+    [Parameter]
+    public bool ShowSearch { get; set; } = true;
+
+    [Parameter]
+    public string SearchPlaceholder { get; set; } = "Search stall no. or occupant…";
+
+    [Parameter]
+    public RenderFragment? MiddleContent { get; set; }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString() ?? string.Empty;
+        await OnSearch.InvokeAsync(value);
+    }
+
+    private async Task OnSearchClear()
+    {
+        await OnSearch.InvokeAsync(string.Empty);
+    }
+
+    private async Task OnFilterChange(string filter)
+    {
+        await OnFilterChanged.InvokeAsync(filter);
+    }
+
+    public class ToolbarAction
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+        public string ClassName { get; set; } = "btn-outline";
+        public string Title { get; set; } = string.Empty;
+        public Func<Task> OnClickHandler { get; set; } = async () => await Task.CompletedTask;
+        public bool IsChild { get; set; } = false;
+        public string ChildHtml { get; set; } = string.Empty;
+    }
+}

@@ -80,43 +80,23 @@
             </div>
 
             <!-- ── Toolbar ── -->
-            <div class="page-toolbar">
-                <div class="toolbar-left">
-                    <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search stall no. or occupant…"
-                               @bind="SearchQuery" @bind:event="oninput" />
-                        @if (!string.IsNullOrEmpty(SearchQuery))
-                        {
-                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
-                        }
-                    </div>
-                    <div class="filter-tabs">
-                        @foreach (var f in StatusFilters)
-                        {
-                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")"
-                                 @onclick="() => ActiveStatus = f">
-                                @f
-                            </div>
-                        }
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <a href="/vendors?facility=iceplant" class="btn-outline">
-                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        Manage Vendors
-                    </a>
-                </div>
-            </div>
+            <Toolbar SearchQuery="@SearchQuery"
+                     OnSearch="OnSearchInput"
+                     ActiveFilter="@ActiveStatus"
+                     OnFilterChanged="OnFilterChange"
+                     Filters="@StatusFilters"
+                     ShowSearch="true"
+                     SearchPlaceholder="Search stall no. or occupant…"
+                     MiddleContent="@ActionBarContent"
+                     Actions="@ToolbarActions">
+            </Toolbar>
 
             <!-- ── Info Bar ── -->
             <div class="ice-section-info">
                 <div class="ice-section-info-left">
                     <div class="ice-section-label">All Stalls</div>
-                    <div class="ice-section-desc">Monthly rental · 3-year contracts (started Jun 7, 2023) · Stall sizes: 10.5, 17.5, 35 sqm</div>
-                    <div class="fee-chips" style="margin-top:8px;">
-                        <span class="fee-chip">Rental ₱900–₱2,800/mo</span>
-                    </div>
+                    <div class="ice-section-desc">Monthly rental · 1,000.00 - 2,000.00 · Space Only</div>
+                 
                 </div>
                 <div class="ice-section-mini-stats">
                     <div class="ice-mini-stat">
@@ -360,12 +340,49 @@
     </div>
 }
 
+<!-- ADD / EDIT VENDOR MODAL (ICEPLANT) -->
+<AddVendorModal Show="ShowAddVendorModal"
+                IsEditing="false"
+                Form="VendorForm"
+                @bind-FormError="VendorErrorMessage"
+                FacilityOptions="IcePlantFacilityOptions"
+                FacilityLocked="true"
+                OnSave="SubmitAddVendor"
+                OnCancel="CloseAddVendorModal"
+                OnFacilityChanged="() => {}"
+                OnSectionChanged="() => {}"
+                OnToggleFee="ToggleVendorFee" />
 
 @code {
 
     string SearchQuery = string.Empty;
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+
+    // Toolbar management
+    private List<Toolbar.ToolbarAction> ToolbarActions => new()
+    {
+        new()
+        {
+            Label = "Add New",
+            Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
+            ClassName = "btn-primary",
+            Title = "Add a new stall",
+            OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
+        }
+    };
+
+    private RenderFragment ActionBarContent => @<ActionBar Facility="ice" />;
+
+    private async Task OnSearchInput(string value)
+    {
+        SearchQuery = value;
+    }
+
+    private async Task OnFilterChange(string filter)
+    {
+        ActiveStatus = filter;
+    }
 
     class IceplantStall
     {
@@ -466,4 +483,71 @@
         if (s.IsPartial) return "row-partial";
         return "row-unpaid";
     }
+
+    // Add Vendor Modal (shared AddVendorModal)
+    private bool ShowAddVendorModal { get; set; }
+    private string VendorErrorMessage { get; set; } = string.Empty;
+    private AddVendorModal.VendorModalForm VendorForm { get; set; } = new();
+    private List<AddVendorModal.VendorFacilityOption> IcePlantFacilityOptions => new() { new() { Code = "ICE", Name = "Iceplant" } };
+
+    private void OpenAddVendorModal()
+    {
+        VendorForm = new()
+        {
+            FacilityCode = "ICE",
+            StallNo = string.Empty,
+            ActualOccupant = string.Empty,
+            ContractName = string.Empty,
+            Section = "Iceplant",
+            SelectedSection = string.Empty,
+            AreaSqm = 0,
+            MonthlyRate = 900,
+            ContractDate = DateTime.Now,
+            ContractYears = 1,
+            AreaLocation = string.Empty,
+            FeeTypes = new()
+        };
+        VendorErrorMessage = string.Empty;
+        ShowAddVendorModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseAddVendorModal()
+    {
+        ShowAddVendorModal = false;
+        VendorForm = new();
+        VendorErrorMessage = string.Empty;
+    }
+
+    private void ToggleVendorFee(string fee)
+    {
+        if (VendorForm.FeeTypes.Contains(fee))
+            VendorForm.FeeTypes.Remove(fee);
+        else
+            VendorForm.FeeTypes.Add(fee);
+    }
+
+    private async Task SubmitAddVendor()
+    {
+        // Validate form
+        if (string.IsNullOrWhiteSpace(VendorForm.ActualOccupant))
+        {
+            VendorErrorMessage = "Actual occupant name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(VendorForm.StallNo))
+        {
+            VendorErrorMessage = "Stall number is required.";
+            return;
+        }
+        if (VendorForm.MonthlyRate <= 0)
+        {
+            VendorErrorMessage = "Monthly rental rate is required.";
+            return;
+        }
+
+            // Here you would typically save to database
+            // For now, just close the modal
+            CloseAddVendorModal();
+        }
 }

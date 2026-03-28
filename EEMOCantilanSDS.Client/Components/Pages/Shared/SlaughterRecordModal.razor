@@ -1,0 +1,118 @@
+<!-- ══════════════════════════════════════════════
+     SLAUGHTERHOUSE RECORD MODAL - SH SPECIFIC
+══════════════════════════════════════════════ -->
+
+@if (ShowModal)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModal">
+        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+
+            <!-- Header -->
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Record Slaughter</div>
+                    <div class="eemo-modal-sub">Enter the slaughter transaction details.</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="CloseModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <!-- Body - Form Content -->
+            <div class="eemo-modal-body">
+                <div class="form-section-divider">
+                    <div class="form-section-label">Transaction Date</div>
+                    <div class="form-row-full">
+                        <div class="form-group">
+                            <label class="form-label">Date <span class="req">*</span></label>
+                            <input type="date" class="form-input" @bind="RecordForm.TransactionDate" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-divider">
+                    <div class="form-section-label">Owner Information</div>
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">Owner Name <span class="req">*</span></label>
+                            <input type="text" class="form-input" placeholder="e.g. Dela Cruz, Ramon" @bind="RecordForm.OwnerName" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">OR Number <span class="req">*</span></label>
+                            <input type="text" class="form-input" placeholder="e.g. OR-2026-SLH-001" @bind="RecordForm.ORNo" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-divider">
+                    <div class="form-section-label">Animal Details</div>
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label class="form-label">Animal Type <span class="req">*</span></label>
+                            <select class="form-input" @bind="RecordForm.AnimalType">
+                                <option value="">-- Select Animal Type --</option>
+                                <option value="Hog">Hog (₱250/head)</option>
+                                <option value="Carabao">Carabao (₱365/head)</option>
+                                <option value="Cow">Cow (₱365/head)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Number of Heads <span class="req">*</span></label>
+                            <input type="number" class="form-input" min="1" placeholder="e.g. 3" @bind="RecordForm.NumberOfHeads" />
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="form-error">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        @ErrorMessage
+                    </div>
+                }
+            </div>
+
+            <!-- Footer -->
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
+                <button class="btn-primary" @onclick="OnSubmitAsync">Add Transaction</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool ShowModal { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<SlaughterRecordForm> OnSubmit { get; set; }
+
+    [Parameter]
+    public string ErrorMessage { get; set; } = string.Empty;
+
+    public SlaughterRecordForm RecordForm { get; set; } = new();
+
+    private async Task CloseModal()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        await OnSubmit.InvokeAsync(RecordForm);
+    }
+
+    public class SlaughterRecordForm
+    {
+        public DateTime TransactionDate { get; set; } = DateTime.Now;
+        public string OwnerName { get; set; } = string.Empty;
+        public string AnimalType { get; set; } = string.Empty;
+        public int NumberOfHeads { get; set; } = 1;
+        public string ORNo { get; set; } = string.Empty;
+    }
+}

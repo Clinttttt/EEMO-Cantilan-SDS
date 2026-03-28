@@ -437,13 +437,14 @@
 
 .btn-ghost,
 .btn-primary {
-    padding: 7px 16px;
-    border-radius: 8px;
+    padding: 8px 16px;
+    border-radius: 6px;
     border: 1px solid var(--border);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all .15s;
+    text-align: center;
 }
 
 .btn-ghost {
@@ -454,6 +455,7 @@
 .btn-ghost:hover {
     background: var(--bg);
     color: var(--text);
+    border-color: var(--text-muted);
 }
 
 .btn-primary {

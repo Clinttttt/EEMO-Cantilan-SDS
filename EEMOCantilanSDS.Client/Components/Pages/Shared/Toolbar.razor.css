@@ -1,0 +1,269 @@
+/* ════════════════════════════════════════════════════════════════
+   Toolbar.razor.css  —  Reusable toolbar component (Unified Design)
+   Single-row layout with search, filters, middle content, and actions
+   ════════════════════════════════════════════════════════════════ */
+
+.toolbar-unified {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: nowrap;
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 12px;
+}
+
+
+/* ── Search Box ──────────────────────────────────────────────── */
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 10px;
+    flex: 1;
+    min-width: 180px;
+    max-width: 350px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+    .search-box:focus-within {
+        border-color: var(--gold);
+        box-shadow: 0 0 0 3px rgba(200,168,75,0.08);
+    }
+
+.search-icon {
+    width: 14px;
+    height: 14px;
+    stroke: var(--text-muted);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    min-width: 0;
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.search-clear {
+    font-size: 16px;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s;
+    user-select: none;
+}
+
+    .search-clear:hover {
+        color: var(--text);
+    }
+
+
+/* ── Filter Tabs (Inline) ────────────────────────────────────── */
+.filter-tabs-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.filter-tab {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+    .filter-tab:hover {
+        background: var(--bg-icon);
+        color: var(--text-subtle);
+    }
+
+    .filter-tab.active {
+        background: var(--navy);
+        color: #fff;
+        font-weight: 600;
+    }
+
+        .filter-tab.active:hover {
+            background: #051219;
+        }
+
+
+/* ── Middle Content (flexible area) ──────────────────────────── */
+.toolbar-middle {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+}
+
+
+/* ── Actions (buttons & content) ────────────────────────────── */
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    height: auto;
+    text-decoration: none;
+}
+
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .btn-icon svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Button Variants */
+.btn-outline {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+    .btn-outline:hover {
+        background: var(--bg);
+        color: var(--text-subtle);
+        border-color: var(--text-muted);
+    }
+
+.btn-primary {
+    background: var(--navy);
+    color: var(--gold);
+    border-color: var(--navy);
+}
+
+    .btn-primary:hover {
+        background: #051219;
+        border-color: #051219;
+        color: #d4af70;
+    }
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+    .btn-secondary:hover {
+        background: var(--bg);
+        border-color: var(--text-muted);
+        color: var(--text);
+    }
+
+
+/* ── Responsive (collapse to vertical on small screens) ──────── */
+@media (max-width: 1024px) {
+    .toolbar-unified {
+        gap: 10px;
+        padding: 8px 10px;
+    }
+
+    .filter-tabs-inline {
+        gap: 2px;
+    }
+
+    .filter-tab {
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+
+    .search-box {
+        min-width: 140px;
+        max-width: 240px;
+    }
+
+    .btn {
+        padding: 5px 12px;
+        font-size: 11px;
+    }
+}
+
+@media (max-width: 768px) {
+    .toolbar-unified {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+
+    .search-box {
+        width: 100%;
+        max-width: 100%;
+        flex: 0;
+    }
+
+    .filter-tabs-inline {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .toolbar-middle {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .toolbar-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .btn {
+        flex: auto;
+        min-width: auto;
+    }
+}

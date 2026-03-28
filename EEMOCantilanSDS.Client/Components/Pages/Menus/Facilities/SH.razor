@@ -41,7 +41,7 @@
 
         <div class="content-area">
 
-            <!-- ── SLH Hero Banner ── -->
+            <!-- -- SLH Hero Banner -- -->
             <div class="slh-hero">
                 <div class="slh-hero-left">
                     <div class="slh-hero-icon">
@@ -55,7 +55,7 @@
                 </div>
                 <div class="slh-hero-stats">
                     <div class="slh-hero-stat">
-                        <div class="slh-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="slh-hero-val">@TotalCollected.ToString("N0")</div>
                         <div class="slh-hero-key">Collected</div>
                     </div>
                     <div class="slh-hero-divider"></div>
@@ -79,35 +79,52 @@
                 </div>
             </div>
 
-            <!-- ── Toolbar ── -->
-            <div class="page-toolbar">
-                <div class="toolbar-left">
-                    <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search owner or OR no..."
-                               @bind-value="SearchTerm" @bind-value:event="oninput" />
-                        @if (!string.IsNullOrEmpty(SearchTerm))
-                        {
-                            <span class="search-clear" @onclick="() => SearchTerm = string.Empty">×</span>
-                        }
-                    </div>
-                    <div class="filter-tabs">
-                        @foreach (var tab in AnimalFilters)
-                        {
-                            <div class="filter-tab @(ActiveAnimalFilter == tab ? "active" : "")"
-                                 @onclick="() => SetAnimalFilter(tab)">
-                                @tab
-                            </div>
-                        }
-                    </div>
+            <!-- -- Toolbar (Unified Design) -- -->
+            <div class="toolbar-unified">
+                <!-- LEFT: Search Box -->
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                    <input type="text" placeholder="Search owner or OR no..."
+                           @bind-value="SearchTerm" @bind-value:event="oninput" />
+                    @if (!string.IsNullOrEmpty(SearchTerm))
+                    {
+                        <span class="search-clear" @onclick="() => SearchTerm = string.Empty">×</span>
+                    }
                 </div>
-                <button class="btn-primary" @onclick="OpenAddModal">
-                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Record Slaughter
-                </button>
+
+                <!-- CENTER-LEFT: Filter Tabs -->
+                <div class="filter-tabs-inline">
+                    @foreach (var tab in AnimalFilters)
+                    {
+                        <div class="filter-tab @(ActiveAnimalFilter == tab ? "active" : "")"
+                             @onclick="() => SetAnimalFilter(tab)">
+                            @tab
+                        </div>
+                    }
+                </div>
+
+                <!-- CENTER: Action Bar -->
+                <div class="toolbar-middle">
+                    <ActionBar Facility="slh" />
+                </div>
+
+                <!-- RIGHT: Record Button -->
+                <div class="toolbar-actions">
+                    <button class="btn btn-primary" @onclick="OpenRecordSlaughterModal">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Record Slaughter
+                    </button>
+                </div>
             </div>
 
-            <!-- ── Facility Info Bar ── -->
+            <!-- SLAUGHTER RECORD MODAL -->
+            <SlaughterRecordModal ShowModal="ShowRecordModal"
+                                  OnClose="CloseRecordModal"
+                                  OnSubmit="SubmitSlaughterRecord"
+                                  ErrorMessage="@ErrorMessage" />
+
+
+            <!-- -- Facility Info Bar -- -->
             <div class="slh-facility-info">
                 <div class="slh-facility-info-left">
                     <div class="slh-facility-label-row">
@@ -128,26 +145,26 @@
                                 <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
 
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">🐷 Hog — ₱250 total</div>
+                                    <div class="slh-tooltip-animal">?? Hog — ?250 total</div>
                                     <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>₱50</span>
-                                        <span>Ante Mortem</span><span>₱20</span>
-                                        <span>Table Charge</span><span>₱30</span>
-                                        <span>Entrance</span><span>₱150</span>
+                                        <span>Slaughter</span><span>?50</span>
+                                        <span>Ante Mortem</span><span>?20</span>
+                                        <span>Table Charge</span><span>?30</span>
+                                        <span>Entrance</span><span>?150</span>
                                     </div>
                                 </div>
 
                                 <div class="slh-tooltip-divider"></div>
 
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">🐄 Carabao / Cow — ₱365 total</div>
+                                    <div class="slh-tooltip-animal">?? Carabao / Cow — ?365 total</div>
                                     <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>₱150</span>
-                                        <span>Permit</span><span>₱100</span>
-                                        <span>Ante Mortem</span><span>₱20</span>
-                                        <span>Post Mortem</span><span>₱25</span>
-                                        <span>Table Charge</span><span>₱30</span>
-                                        <span>Livestock</span><span>₱40</span>
+                                        <span>Slaughter</span><span>?150</span>
+                                        <span>Permit</span><span>?100</span>
+                                        <span>Ante Mortem</span><span>?20</span>
+                                        <span>Post Mortem</span><span>?25</span>
+                                        <span>Table Charge</span><span>?30</span>
+                                        <span>Livestock</span><span>?40</span>
                                     </div>
                                 </div>
                             </div>
@@ -173,13 +190,13 @@
                         <div class="slh-mini-key">Heads</div>
                     </div>
                     <div class="slh-mini-stat">
-                        <div class="slh-mini-val">₱@FilteredEntries.Sum(e => e.TotalAmount).ToString("N0")</div>
+                        <div class="slh-mini-val">?@FilteredEntries.Sum(e => e.TotalAmount).ToString("N0")</div>
                         <div class="slh-mini-key">Collected</div>
                     </div>
                 </div>
             </div>
 
-            <!-- ── Transactions Table ── -->
+            <!-- -- Transactions Table -- -->
             <div class="panel">
                 <table class="data-table">
                     <thead>
@@ -207,8 +224,8 @@
                                 <td>@entry.OwnerName</td>
                                 <td>@entry.AnimalType</td>
                                 <td>@entry.NumberOfHeads</td>
-                                <td>₱@entry.RatePerHead.ToString("N0")</td>
-                                <td>₱@entry.TotalAmount.ToString("N0")</td>
+                                <td>?@entry.RatePerHead.ToString("N0")</td>
+                                <td>?@entry.TotalAmount.ToString("N0")</td>
                                 <td><span class="mono">@entry.ORNo</span></td>
                                 <td>
                                     <div class="action-btns">
@@ -245,14 +262,16 @@
 
 @code {
 
-    // ── STATE ────────────────────────────────────────────────────
+    // -- STATE ----------------------------------------------------
     private string SearchTerm { get; set; } = string.Empty;
     private string ActiveAnimalFilter { get; set; } = "All";
+    private bool ShowRecordModal { get; set; }
+    private string ErrorMessage { get; set; } = string.Empty;
 
-    // Carabao and Cow are now separate (same ₱365 rate)
+    // Carabao and Cow are now separate (same ?365 rate)
     private readonly List<string> AnimalFilters = new() { "All", "Hog", "Carabao", "Cow" };
 
-    // ── COMPUTED ─────────────────────────────────────────────────
+    // -- COMPUTED -------------------------------------------------
     private decimal TotalCollected => Entries.Sum(e => e.TotalAmount);
     private int TotalHeads => Entries.Sum(e => e.NumberOfHeads);
     private int HogCount => Entries.Where(e => e.AnimalType == "Hog").Sum(e => e.NumberOfHeads);
@@ -265,7 +284,7 @@
             || e.OwnerName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
             || e.ORNo.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
 
-    // ── ROW CLASS ────────────────────────────────────────────────
+    // -- ROW CLASS ------------------------------------------------
     private static string GetRowClass(string animalType) => animalType switch
     {
         "Hog" => "row-hog",
@@ -274,14 +293,83 @@
         _ => ""
     };
 
-    // ── ACTIONS ──────────────────────────────────────────────────
+    // -- ACTIONS --------------------------------------------------
     private void SetAnimalFilter(string filter) => ActiveAnimalFilter = filter;
-    private void OpenAddModal() { /* TODO: open record slaughter modal */ }
+
+    private void OpenRecordSlaughterModal()
+    {
+        ErrorMessage = string.Empty;
+        ShowRecordModal = true;
+        StateHasChanged();
+    }
+
+    private async Task CloseRecordModal()
+    {
+        ShowRecordModal = false;
+        ErrorMessage = string.Empty;
+    }
+
+    private async Task SubmitSlaughterRecord(SlaughterRecordModal.SlaughterRecordForm form)
+    {
+        // Validation
+        if (form.TransactionDate == default)
+        {
+            ErrorMessage = "Please select a transaction date.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(form.OwnerName))
+        {
+            ErrorMessage = "Owner name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(form.AnimalType))
+        {
+            ErrorMessage = "Please select an animal type.";
+            return;
+        }
+        if (form.NumberOfHeads <= 0)
+        {
+            ErrorMessage = "Number of heads must be greater than 0.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(form.ORNo))
+        {
+            ErrorMessage = "OR number is required.";
+            return;
+        }
+
+        // Get rate per head based on animal type
+        decimal ratePerHead = form.AnimalType switch
+        {
+            "Hog" => 250,
+            "Carabao" => 365,
+            "Cow" => 365,
+            _ => 0
+        };
+
+        // Create new entry
+        var newEntry = new SlaughterEntry(
+            Entries.Max(e => e.Id) + 1,
+            form.TransactionDate,
+            form.OwnerName.Trim(),
+            form.AnimalType,
+            form.NumberOfHeads,
+            ratePerHead,
+            form.ORNo.Trim()
+        );
+
+        // Add to list
+        Entries.Add(newEntry);
+
+        // Close modal
+        await CloseRecordModal();
+    }
+
     private void ViewEntry(SlaughterEntry e) { /* TODO: view detail modal */ }
     private void ViewReceipt(SlaughterEntry e) { /* TODO: print/view receipt */ }
     private void EditEntry(SlaughterEntry e) { /* TODO: edit modal */ }
 
-    // ── DATA MODEL ───────────────────────────────────────────────
+    // -- DATA MODEL -----------------------------------------------
     public record SlaughterEntry(
         int Id,
         DateTime Date,
@@ -295,7 +383,14 @@
         public decimal TotalAmount => RatePerHead * NumberOfHeads;
     }
 
-    // ── SAMPLE DATA (replace with DB/service call) ─────────────
+    public class SlaughterRecordForm
+    {
+        public DateTime TransactionDate { get; set; } = DateTime.Now;
+        public string OwnerName { get; set; } = string.Empty;
+        public string AnimalType { get; set; } = string.Empty;
+        public int NumberOfHeads { get; set; } = 1;
+        public string ORNo { get; set; } = string.Empty;
+    }
     private readonly List<SlaughterEntry> Entries = new()
     {
         new(1,  new DateTime(2026,3,1),  "Dela Cruz, Ramon A.",   "Hog",     3, 250, "OR-2026-SLH-001"),
