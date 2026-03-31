@@ -120,79 +120,12 @@
             </div>
 
             <!-- ── Stalls Table ── -->
-            <div class="panel">
-                @if (!FilteredStalls.Any())
-                {
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>
-                        <div class="empty-title">No Stalls Found</div>
-                        <div class="empty-sub">Try adjusting the filters or search.</div>
-                    </div>
-                }
-                else
-                {
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Stall No.</th>
-                                    <th>Actual Occupant</th>
-                                    <th>Name on Contract</th>
-                                    <th>Area (sqm)</th>
-                                    <th>Contract Date</th>
-                                    <th>Monthly Rent</th>
-                                    <th>OR No.</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var s in FilteredStalls)
-                                {
-                                    <tr class="@GetRowStatus(s)">
-                                        <td>
-                                            @s.StallNo
-                                            @if (s.IsCorner)
-                                            {
-                                                <span class="corner-badge">Corner</span>
-                                            }
-                                        </td>
-                                        <td>@s.ActualOccupant</td>
-                                        <td>
-                                            @if (string.IsNullOrEmpty(s.ContractName) || s.ContractName.StartsWith("No contract"))
-                                            {
-                                                <span>No contract</span>
-                                            }
-                                            else
-                                            {
-                                                @s.ContractName
-                                            }
-                                        </td>
-                                        <td>@(s.AreaSqm > 0 ? $"{s.AreaSqm}" : "—")</td>
-                                        <td>@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("MMM d, yyyy") : "—")</td>
-                                        <td>₱@s.MonthlyRate.ToString("N0")</td>
-                                        <td>
-                                            <span class="mono">@(string.IsNullOrEmpty(s.ORNumber) ? "—" : s.ORNumber)</span>
-                                        </td>
-                                        <td>
-                                            <div class="action-btns">
-                                                <button class="action-btn" title="View / Record Payment" @onclick="() => OpenPayment(s)">
-                                                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                                                </button>
-                                                <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(s)">
-                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                                </button>
-                                                <button class="action-btn" title="View Profile" @onclick="() => OpenEdit(s)">
-                                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+            <FacilityStallsTable TStall="TccStall"
+                                 Facility="TCC"
+                                 FilteredStalls="FilteredStalls"
+                                 OnPaymentClick="OpenPayment"
+                                 OnHistoryClick="OpenHistory"
+                                 OnEditClick="OpenEdit" />
 
         </div><!-- end content-area -->
     </main>
@@ -294,59 +227,10 @@
 <!-- ══════════════════════════════════════════════
      PAYMENT HISTORY MODAL
 ══════════════════════════════════════════════ -->
-@if (ShowHistory && HistoryStall is not null)
-{
-    <div class="eemo-modal-overlay" @onclick="() => ShowHistory = false">
-        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">@HistoryStall.ActualOccupant</div>
-                    <div class="eemo-modal-sub">Stall @HistoryStall.StallNo · ₱@HistoryStall.MonthlyRate.ToString("N0")/month</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="() => ShowHistory = false">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="eemo-modal-body">
-                <div class="hist-label">12-Month Payment History</div>
-                <div class="hist-grid">
-                    @for (int i = 11; i >= 0; i--)
-                    {
-                        var month = DateTime.Now.AddMonths(-i);
-                        var key = month.ToString("yyyy-MM");
-                        var paid = HistoryStall.PaymentHistory.ContainsKey(key) && HistoryStall.PaymentHistory[key];
-                        <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
-                            <div class="hist-month-name">@month.ToString("MMM")</div>
-                            <div class="hist-month-year">@month.ToString("yy")</div>
-                            <div class="hist-month-icon">@(paid ? "✓" : "✗")</div>
-                        </div>
-                    }
-                </div>
-                <div class="hist-summary">
-                    <div class="act-stat">
-                        <div class="act-stat-val">@HistoryStall.PaymentHistory.Count(p => p.Value)</div>
-                        <div class="act-stat-key">Months Paid</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">@(12 - HistoryStall.PaymentHistory.Count(p => p.Value))</div>
-                        <div class="act-stat-key">Months Unpaid</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">₱@(HistoryStall.MonthlyRate* HistoryStall.PaymentHistory.Count(p => p.Value)).ToString("N0")</div>
-                        <div class="act-stat-key">Total Collected</div>
-                    </div>
-                    <div class="act-stat" style="@(HistoryStall.PaymentHistory.Any(p => !p.Value) ? "background:var(--red-bg);" : "")">
-                        <div class="act-stat-val" style="color:var(--red)">₱@(HistoryStall.MonthlyRate* HistoryStall.PaymentHistory.Count(p => !p.Value)).ToString("N0")</div>
-                        <div class="act-stat-key">Balance Due</div>
-                    </div>
-                </div>
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="() => ShowHistory = false">Close</button>
-            </div>
-        </div>
-    </div>
-}
+<PaymentHistoryModal TStall="TccStall"
+                     Show="ShowHistory"
+                     Stall="HistoryStall"
+                     OnClose="() => ShowHistory = false" />
 
 <!-- ══════════════════════════════════════════════
      ADD / EDIT VENDOR MODAL (TAMPAK COMMERCIAL CENTER)
@@ -491,14 +375,6 @@
             || s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
         return matchStatus && matchSearch;
     }).OrderBy(s => s.StallNo);
-
-    string GetRowStatus(TccStall s)
-    {
-        if (!s.IsActive) return "row-closed";
-        if (s.IsPartial) return "row-partial";
-        if (s.IsPaid) return "row-paid";
-        return "row-unpaid";
-    }
 
     class PaymentForm { public string Status { get; set; } = "Paid"; }
 

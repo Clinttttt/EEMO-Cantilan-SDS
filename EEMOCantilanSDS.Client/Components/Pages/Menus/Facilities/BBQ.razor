@@ -7,9 +7,9 @@
 
 <div class="admin-layout">
 
-    <!-- ═══════════════════════════════════════
+    <!-- ---------------------------------------
          SIDEBAR
-    ═══════════════════════════════════════ -->
+    --------------------------------------- -->
     <Sidebar />
 
     <main class="admin-main">
@@ -46,8 +46,8 @@
 
         <div class="content-area">
 
-            <!-- ── BBQ Hero Banner ── -->
-            <!-- ── BBQ Hero Banner ── -->
+            <!-- -- BBQ Hero Banner -- -->
+            <!-- -- BBQ Hero Banner -- -->
             <div class="bbq-hero">
                 <div class="bbq-hero-left">
                     <div class="bbq-hero-icon">
@@ -61,12 +61,12 @@
                 </div>
                 <div class="bbq-hero-stats">
                     <div class="bbq-hero-stat">
-                        <div class="bbq-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="bbq-hero-val">?@TotalCollected.ToString("N0")</div>
                         <div class="bbq-hero-key">Collected</div>
                     </div>
                     <div class="bbq-hero-divider"></div>
                     <div class="bbq-hero-stat">
-                        <div class="bbq-hero-val">₱@TotalPending.ToString("N0")</div>
+                        <div class="bbq-hero-val">?@TotalPending.ToString("N0")</div>
                         <div class="bbq-hero-key">Pending</div>
                     </div>
                     <div class="bbq-hero-divider"></div>
@@ -85,7 +85,7 @@
                 </div>
             </div>
 
-            <!-- ── Toolbar ── -->
+            <!-- -- Toolbar -- -->
             <Toolbar SearchQuery="@SearchQuery"
                      OnSearch="OnSearchInput"
                      ActiveFilter="@ActiveTab"
@@ -97,12 +97,11 @@
                      Actions="@ToolbarActions">
             </Toolbar>
 
-            <!-- ── Facility Info Bar ── -->
+            <!-- -- Facility Info Bar -- -->
             <div class="bbq-facility-info">
                 <div class="bbq-facility-info-left">
-                    <div class="bbq-facility-label">@(ActiveTab == "All" ? "All Stalls" : ActiveTab + " Stalls")</div>
+                    <div class="bbq-facility-label">All Stalls</div>
                     <div class="bbq-facility-desc">Monthly rental · 1,600.00 - 3,200.00 · Space Only</div>
-                 
                 </div>
                 <div class="bbq-facility-mini-stats">
                     <div class="bbq-mini-stat">
@@ -118,189 +117,42 @@
                         <div class="bbq-mini-key">Partial</div>
                     </div>
                     <div class="bbq-mini-stat">
-                        <div class="bbq-mini-val">₱@PanelCollected.ToString("N0")</div>
+                        <div class="bbq-mini-val">?@PanelCollected.ToString("N0")</div>
                         <div class="bbq-mini-key">Collected</div>
                     </div>
                 </div>
             </div>
 
-            <!-- ── Stalls Table ── -->
-            <div class="panel">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>STALL NO.</th>
-                            <th>ACTUAL OCCUPANT</th>
-                            <th>NAME ON CONTRACT</th>
-                            <th>AREA (SQM)</th>
-                            <th>CONTRACT DATE</th>
-                            <th>MONTHLY RENT</th>
-                            <th>OR NO.</th>
-                            <th>ACTIONS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var stall in FilteredStalls)
-                        {
-                            <tr class="@GetRowClass(stall.Status)">
-                                <td><span class="mono">@stall.StallNo</span></td>
-                                <td>@stall.ActualOccupant</td>
-                                <td>@stall.NameOnContract</td>
-                                <td>@stall.AreaSqm</td>
-                                <td>@stall.ContractDate</td>
-                                <td>₱@stall.MonthlyRent.ToString("N0")</td>
-                                <td>
-                                    @if (!string.IsNullOrEmpty(stall.OrNo))
-                                    {
-                                        <span class="mono text-muted">@stall.OrNo</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-subtle">—</span>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="action-btns">
-                                        <button class="btn-action pay"
-                                                title="Record Payment" 
-                                                @onclick="() => OnPaymentClicked(stall)">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <line x1="12" y1="1" x2="12" y2="23" />
-                                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                                            </svg>
-                                        </button>
-                                        <button class="btn-action receipt" 
-                                                title="View Receipt"
-                                                @onclick="() => OnReceiptClicked(stall)">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                                <polyline points="14 2 14 8 20 8" />
-                                                <line x1="16" y1="13" x2="8" y2="13" />
-                                                <line x1="16" y1="17" x2="8" y2="17" />
-                                            </svg>
-                                        </button>
-                                        <button class="btn-action profile" 
-                                                title="View Profile"
-                                                @onclick="() => OnEditClicked(stall)">
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                                <circle cx="12" cy="7" r="4" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        }
-                        @if (!FilteredStalls.Any())
-                        {
-                            <tr>
-                                <td colspan="8" class="empty-row">No stalls found for "@SearchQuery"</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <!-- -- Stalls Table -- -->
+            <FacilityStallsTable TStall="BbqStall"
+                                 Facility="BBQ"
+                                 FilteredStalls="FilteredStalls"
+                                 OnPaymentClick="OnPaymentClicked"
+                                 OnHistoryClick="OnReceiptClicked"
+                                 OnEditClick="OnEditClicked" />
 
         </div><!-- end content-area -->
 
     </main>
 
 </div><!-- end admin-layout -->
+<!-- ══════════════════════════════════════════════
+     PAYMENT MODAL (Reusable)
+══════════════════════════════════════════════ -->
+<FacilityPaymentModal TStall="BbqStall"
+                      Facility="BBQ"
+                      Stall="PaymentStall"
+                      Show="ShowPayment"
+                      OnClose="ClosePayment" />
+
 
 <!-- ══════════════════════════════════════════════
-     PAYMENT MODAL
+     PAYMENT HISTORY MODAL (Reusable)
 ══════════════════════════════════════════════ -->
-@if (ShowPayment && PaymentStall is not null)
-{
-    <div class="eemo-modal-overlay" @onclick="ClosePayment">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Payment Record</div>
-                    <div class="eemo-modal-sub">Stall @PaymentStall.StallNo · @PaymentStall.ActualOccupant · @DateTime.Now.ToString("MMMM yyyy")</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="ClosePayment">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="eemo-modal-body">
-                <!-- Status Badge -->
-                <div style="padding:12px 16px;border-radius:8px;text-align:center;margin-bottom:16px;
-                            background:@(PaymentStall.Status == "Paid" ? "var(--green-bg)" : PaymentStall.Status == "Partial" ? "rgba(184, 115, 51, 0.08)" : "var(--red-bg)");">
-                    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
-                               color:@(PaymentStall.Status == "Paid" ? "var(--green)" : PaymentStall.Status == "Partial" ? "#b87333" : "var(--red)");">
-                        Status: @(PaymentStall.Status == "Paid" ? "Paid" : PaymentStall.Status == "Partial" ? $"Partial — ₱{PaymentStall.AmountPaid:N0}" : "Unpaid")
-                    </div>
-                </div>
-
-                <!-- Monthly Rental Payment Details -->
-                <div class="pay-fee-block">
-                    <div class="pay-fee-header">
-                        <span class="pay-fee-label">Monthly Rental</span>
-                        <span class="pay-fee-rate">₱@PaymentStall.MonthlyRent.ToString("N0")/mo</span>
-                    </div>
-
-                    @if (PaymentStall.Status == "Paid")
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">✓ ₱@PaymentStall.MonthlyRent.ToString("N0")</span>
-                        </div>
-                    }
-                    else if (PaymentStall.Status == "Partial")
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">₱@PaymentStall.MonthlyRent.ToString("N0")</span>
-                        </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Paid</span>
-                            <span class="pay-record-val">✓ ₱@PaymentStall.AmountPaid.ToString("N0")</span>
-                        </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Balance Remaining</span>
-                            <span class="pay-record-val">⚠ ₱@((PaymentStall.MonthlyRent - PaymentStall.AmountPaid).ToString("N0"))</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">✗ ₱@PaymentStall.MonthlyRent.ToString("N0")</span>
-                        </div>
-                    }
-                </div>
-
-                <!-- Financial Summary/Breakdown -->
-                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
-                    <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px;">
-                        Financial Breakdown
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);">
-                        <span>Monthly Rental:</span>
-                        <span style="font-weight:600;">₱@PaymentStall.MonthlyRent.ToString("N0")</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:14px;font-weight:700;border-bottom:2px solid var(--border);margin:8px 0;">
-                        <span>TOTAL BILL:</span>
-                        <span>₱@PaymentStall.MonthlyRent.ToString("N0")</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
-                        <span>Total Paid:</span>
-                        <span style="font-weight:600;">₱@PaymentStall.AmountPaid.ToString("N0")</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
-                        <span>Balance Due:</span>
-                        <span style="font-weight:600;">₱@((PaymentStall.MonthlyRent - PaymentStall.AmountPaid).ToString("N0"))</span>
-                    </div>
-                </div>
-
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="ClosePayment">Close</button>
-            </div>
-        </div>
-    </div>
-}
+<PaymentHistoryModal TStall="BbqStall"
+                     Show="ShowHistory"
+                     Stall="HistoryStall"
+                     OnClose="() => ShowHistory = false" />
 
 <!-- ADD NEW VENDOR MODAL -->
 <AddVendorModal Show="ShowAddVendorModal"
@@ -316,27 +168,87 @@
                 OnToggleFee="ToggleVendorFee" />
 
 @code {
-    // ── State ────────────────────────────────────────────────
-    private string SearchQuery { get; set; } = string.Empty;
-    private string ActiveTab { get; set; } = "All";
-    private readonly List<string> Tabs = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    string SearchQuery = string.Empty;
+    string ActiveTab = "All";
+    readonly List<string> Tabs = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
-    // ── Modal State ───────────────────────────────────────────
-    private bool ShowPayment = false;
-    private StallRecord? PaymentStall = null;
+    bool ShowPayment = false;
+    BbqStall? PaymentStall = null;
 
-    protected override void OnInitialized()
+    bool ShowHistory = false;
+    BbqStall? HistoryStall = null;
+
+    static Dictionary<string, bool> MakeH(int paid)
     {
-        ResetState();
+        var d = new Dictionary<string, bool>();
+        for (int i = 11; i >= 0; i--)
+            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
+        return d;
     }
 
-    private void ResetState()
+    class BbqStall
     {
-        SearchQuery = string.Empty;
-        ActiveTab = "All";
-        ShowPayment = false;
-        PaymentStall = null;
+        public int Id { get; set; }
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public decimal PartialAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string ORNumber { get; set; } = string.Empty;
+        public string CollectorName { get; set; } = string.Empty;
+        public decimal TotalBill => MonthlyRate;
+        public decimal TotalPaid => IsPaid ? MonthlyRate : IsPartial ? PartialAmount : 0;
+        public decimal BalanceDue => MonthlyRate - TotalPaid;
+        public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
+
+    List<BbqStall> Stalls = new()
+    {
+        new() { Id=1,  StallNo="B-01", ActualOccupant="Reyes, Carlo M.",      ContractName="Carlo M. Reyes",      AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B01",  CollectorName="Clint Reyes", PaymentHistory=MakeH(12) },
+        new() { Id=2,  StallNo="B-02", ActualOccupant="Lim, Josephine T.",    ContractName="Josephine T. Lim",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B02",  CollectorName="Ruel Santos", PaymentHistory=MakeH(11) },
+        new() { Id=3,  StallNo="B-03", ActualOccupant="Tan, Roberto A.",      ContractName="Roberto A. Tan",      AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=1500, ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(6) },
+        new() { Id=4,  StallNo="B-04", ActualOccupant="Flores, Gloria M.",    ContractName="Gloria M. Flores",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B04",  CollectorName="Clint Reyes", PaymentHistory=MakeH(12) },
+        new() { Id=5,  StallNo="B-05", ActualOccupant="Cabrera, Nestor P.",   ContractName="Nestor P. Cabrera",   AreaSqm=35.0, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=1500, MonthlyRate=2800, ORNumber="OR-2026-B05", CollectorName="Ruel Santos", PaymentHistory=MakeH(8) },
+        new() { Id=6,  StallNo="B-06", ActualOccupant="Ramos, Elvira S.",     ContractName="Elvira S. Ramos",     AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=900,  ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(3) },
+        new() { Id=7,  StallNo="B-07", ActualOccupant="Villanueva, Ana L.",   ContractName="Ana L. Villanueva",   AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B07",  CollectorName="Clint Reyes", PaymentHistory=MakeH(10) },
+        new() { Id=8,  StallNo="B-08", ActualOccupant="Closed",                ContractName="Ramon B. Castro",     AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   IsActive=false, MonthlyRate=1500, ORNumber="", CollectorName="", PaymentHistory=MakeH(2) },
+        new() { Id=9,  StallNo="B-09", ActualOccupant="Mendoza, Lourdes G.",  ContractName="Lourdes G. Mendoza",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B09",  CollectorName="Ruel Santos", PaymentHistory=MakeH(12) },
+        new() { Id=10, StallNo="B-10", ActualOccupant="Santos, Eduardo F.",   ContractName="Eduardo F. Santos",   AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=900,  ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(4) },
+    };
+
+    IEnumerable<BbqStall> ActiveStalls => Stalls.Where(s => s.IsActive);
+
+    decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
+    decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
+    int CollectionRate => ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0;
+
+    int TotalStalls => Stalls.Count;
+    int PaidCount => Stalls.Count(s => s.IsPaid && !s.IsPartial && s.IsActive);
+    int UnpaidCount => Stalls.Count(s => !s.IsPaid && !s.IsPartial && s.IsActive);
+    int PartialCount => Stalls.Count(s => s.IsPartial && s.IsActive);
+    decimal PanelCollected => FilteredStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
+
+    IEnumerable<BbqStall> FilteredStalls => Stalls.Where(s =>
+    {
+        bool matchStatus = ActiveTab switch
+        {
+            "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
+            "Partial" => s.IsPartial && s.IsActive,
+            "Unpaid" => !s.IsPaid && !s.IsPartial && s.IsActive,
+            "Closed" => !s.IsActive,
+            _ => true
+        };
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+        return matchStatus && matchSearch;
+    }).OrderBy(s => s.StallNo);
 
     // Toolbar management
     private List<Toolbar.ToolbarAction> ToolbarActions => new()
@@ -363,107 +275,24 @@
         ActiveTab = filter;
     }
 
-    // ── Date helpers
-    private string Today => DateTime.Now.ToString("MMMM d, yyyy");
-    private string CurrentMonth => DateTime.Now.ToString("MMMM yyyy");
-
-    // ── Computed KPIs ─────────────────────────────────────────
-    private int TotalStalls => Stalls.Count;
-    private int PaidCount => Stalls.Count(s => s.Status == "Paid");
-    private int UnpaidCount => Stalls.Count(s => s.Status == "Unpaid");
-    private int PartialCount => Stalls.Count(s => s.Status == "Partial");
-    private int ClosedCount => Stalls.Count(s => s.Status == "Closed");
-    private decimal TotalCollected => Stalls.Where(s => s.AmountPaid > 0).Sum(s => s.AmountPaid);
-    private decimal TotalPending => Stalls.Where(s => s.Status != "Closed").Sum(s => s.MonthlyRent) - TotalCollected;
-    private int CollectionRate => TotalStalls == 0 ? 0 :
-        (int)Math.Round((decimal)PaidCount / Stalls.Count(s => s.Status != "Closed") * 100);
-    private decimal PanelCollected => FilteredStalls.Sum(s => s.AmountPaid);
-
-    // ── Filtered list ─────────────────────────────────────────
-    private List<StallRecord> FilteredStalls => Stalls
-        .Where(s => (ActiveTab == "All" || s.Status == ActiveTab))
-        .Where(s => string.IsNullOrEmpty(SearchQuery) ||
-                    s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
-                    s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
-        .ToList();
-
-    // ── Row CSS ───────────────────────────────────────────────
-    private static string GetRowClass(string status) => status switch
+    private void OnPaymentClicked(BbqStall s)
     {
-        "Paid" => "row-paid",
-        "Unpaid" => "row-unpaid",
-        "Partial" => "row-partial",
-        "Closed" => "row-closed",
-        _ => ""
-    };
-
-    // ── Sample data — replace with DB/service call ─────────────
-    private readonly List<StallRecord> Stalls =
-    [
-        new("B-01", "Reyes, Carlo M.",      "Carlo M. Reyes",      10.5m, "Jun 7, 2023",  900m,  "OR-2026-B01", "Paid",    900m),
-        new("B-02", "Lim, Josephine T.",    "Josephine T. Lim",    10.5m, "Jun 7, 2023",  900m,  "OR-2026-B02", "Paid",    900m),
-        new("B-03", "Tan, Roberto A.",      "Roberto A. Tan",      17.5m, "Jun 7, 2023",  1500m, "",            "Unpaid",    0m),
-        new("B-04", "Flores, Gloria M.",    "Gloria M. Flores",    10.5m, "Jun 7, 2023",  900m,  "OR-2026-B04", "Paid",    900m),
-        new("B-05", "Cabrera, Nestor P.",   "Nestor P. Cabrera",   35m,   "Jun 7, 2023",  2800m, "",            "Partial", 1500m),
-        new("B-06", "Ramos, Elvira S.",     "Elvira S. Ramos",     10.5m, "Jun 7, 2023",  900m,  "",            "Unpaid",    0m),
-        new("B-07", "Villanueva, Ana L.",   "Ana L. Villanueva",   10.5m, "Jun 7, 2023",  900m,  "OR-2026-B07", "Paid",    900m),
-        new("B-08", "Castro, Ramon B.",     "Ramon B. Castro",     17.5m, "Jun 7, 2023",  1500m, "",            "Closed",    0m),
-        new("B-09", "Mendoza, Lourdes G.",  "Lourdes G. Mendoza",  10.5m, "Jun 7, 2023",  900m,  "OR-2026-B09", "Paid",    900m),
-        new("B-10", "Santos, Eduardo F.",   "Eduardo F. Santos",   10.5m, "Jun 7, 2023",  900m,  "",            "Unpaid",    0m),
-    ];
-
-    // ── Record type ───────────────────────────────────────────
-    private record StallRecord(
-        string StallNo,
-        string ActualOccupant,
-        string NameOnContract,
-        decimal AreaSqm,
-        string ContractDate,
-        decimal MonthlyRent,
-        string OrNo,
-        string Status,
-        decimal AmountPaid
-    );
-
-    // ── Event Handlers ─────────────────────────────────────────
-    private void OnPaymentClicked(StallRecord stall)
-    {
-        PaymentStall = stall;
+        PaymentStall = s;
         ShowPayment = true;
     }
 
-    private void OnReceiptClicked(StallRecord stall)
+    private void OnReceiptClicked(BbqStall s)
     {
-        Console.WriteLine($"Receipt clicked for {stall.StallNo}");
+        HistoryStall = s;
+        ShowHistory = true;
     }
 
-    private void OnEditClicked(StallRecord stall)
+    private void OnEditClicked(BbqStall s)
     {
         Navigation.NavigateTo("/profile");
     }
 
-    private void MarkAsPaid()
-    {
-        if (PaymentStall is null) return;
-
-        var stall = Stalls.FirstOrDefault(s => s.StallNo == PaymentStall.StallNo);
-        if (stall != null)
-        {
-            var index = Stalls.IndexOf(stall);
-            if (index >= 0)
-            {
-                var updatedStall = stall with { Status = "Paid", AmountPaid = stall.MonthlyRent };
-                Stalls[index] = updatedStall;
-                PaymentStall = updatedStall;
-            }
-        }
-    }
-
-    private void ClosePayment()
-    {
-        ShowPayment = false;
-        PaymentStall = null;
-    }
+    private void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
     // Add Vendor Modal (shared AddVendorModal)
     private bool ShowAddVendorModal { get; set; }
@@ -527,8 +356,9 @@
             return;
         }
 
-            // Here you would typically save to database
-            // For now, just close the modal
-            CloseAddVendorModal();
-        }
+        // Here you would typically save to database
+        // For now, just close the modal
+        CloseAddVendorModal();
+    }
 }
+

@@ -69,11 +69,11 @@
                     <div class="vs-hero-stat">
                         <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
                         <div class="vs-hero-key">Unpaid</div>
-                        <div class="vs-hero-sub2">₱@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
+                        <div class="vs-hero-sub2">?@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">₱@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
+                        <div class="vs-hero-val">?@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
                         <div class="vs-hero-key">Monthly Target</div>
                         <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy") · All Facilities</div>
                     </div>
@@ -206,9 +206,9 @@
                                             <span>@(string.IsNullOrEmpty(v.OrNo) ? "—" : v.OrNo)</span>
                                         </td>
                                      
-                                         <td><span>@v.Section</span></td>
-                                         <td>
-                                            <span>₱@v.MonthlyRate.ToString("N0")</span>
+                                        <td><span>@v.Section</span></td>
+                                        <td>
+                                            <span>@v.MonthlyRate.ToString("N0")</span>
                                         </td>
                                         <td @onclick:stopPropagation="true">
                                             <span class="status-pill @(v.IsActive ? "pill-active" : "pill-inactive")">
@@ -256,9 +256,9 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════
+<!-- ----------------------------------------------
      VENDOR DETAIL MODAL
-══════════════════════════════════════════════ -->
+---------------------------------------------- -->
 @if (ShowDetail && DetailVendor is not null)
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowDetail = false">
@@ -425,20 +425,6 @@
                             bool hasFishPerKg = DetailVendor.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"));
                         }
 
-                        <!-- Monthly rental -->
-                        <div class="fee-breakdown-item fee-item-rental">
-                            <div class="fee-item-left">
-                                <div class="fee-item-icon">
-                                    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
-                                </div>
-                                <div>
-                                    <div class="fee-item-name">Monthly Rental</div>
-                                    <div class="fee-item-sub">Fixed · Billed monthly</div>
-                                </div>
-                            </div>
-                            <div class="fee-item-amount">₱@DetailVendor.MonthlyRate.ToString("N0")<span class="fee-freq">/mo</span></div>
-                        </div>
-
                         @if (hasVegDaily)
                         {
                             <div class="fee-breakdown-item fee-item-daily">
@@ -539,9 +525,9 @@
                     </div>
                 </div>
 
-                <!-- ══════════════════════════════════
+                <!-- ----------------------------------
                      DAILY COLLECTION CALENDAR
-                ══════════════════════════════════ -->
+                ---------------------------------- -->
                 @{
                     bool showDailyCal = DetailVendor.FacilityCode == "NPM" &&
                         (DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase) ||
@@ -551,7 +537,7 @@
 
                 @if (showDailyCal)
                 {
-                   
+
                     var calFirst = new DateTime(CalendarMonth.Year, CalendarMonth.Month, 1);
                     var calDays = DateTime.DaysInMonth(CalendarMonth.Year, CalendarMonth.Month);
                     var calOffset = (int)calFirst.DayOfWeek;
@@ -569,11 +555,18 @@
                     var calMissed = maxDay - calCollected;
                     var calTotal = calCollected * 30;
                     var canGoNext = CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-                    
-                    <div class="detail-section">
+
+                    // -- Fish section: Calculate total kilos and fee --
+                    var isFishSection = DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
+                    var totalFishKilos = isFishSection ? GetMonthlyFishKilos(DetailVendor, CalendarMonth) : 0;
+                    var totalFishFee = isFishSection ? GetMonthlyFishFee(DetailVendor, CalendarMonth) : 0;
+                    var isVegetableSection = DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase);
+                    var isMeatSection = DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
+
+                    <div class="detail-section @(isVegetableSection ? "vegetables-section" : "") @(isMeatSection ? "meat-section" : "")">
                         <div class="detail-section-title">
                             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                            Daily Collection — ₱30/day
+                            Daily Collection — ?30/day@(isFishSection ? " + Fish Fee (?1/kg)" : "")
                         </div>
 
                         <div class="cal-nav">
@@ -608,13 +601,25 @@
                                 var isToday = day.Date == calToday;
                                 var isMarked = DetailVendor.DailyCollections.ContainsKey(dayKey) && DetailVendor.DailyCollections[dayKey];
                                 var cellClass = isFuture ? "cal-future" : (isMarked ? "cal-paid" : "cal-miss");
+                                var dailyKilo = isFishSection ? GetDailyFishKilo(DetailVendor, day) : 0;
+                                var showExtendedCell = (isFishSection || isVegetableSection || isMeatSection) && !isFuture;
 
-                                <div class="cal-cell @cellClass @(isToday ? "cal-today" : "")"
+                                <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(showExtendedCell ? "cal-cell-fish" : "")"
                                      @onclick="() => { if (!isFuture) ToggleDailyCollection(DetailVendor, day); }">
-                                    <span class="cal-num">@d</span>
-                                    @if (!isFuture)
+                                    <div class="cal-cell-top">
+                                        <span class="cal-num">@d</span>
+                                        @if (!isFuture)
+                                        {
+                                            <span class="cal-checkmark @(isMarked ? "cal-check-yes" : "cal-check-no")">
+                                                @(isMarked ? "✓" : "✕")
+                                            </span>
+                                        }
+                                    </div>
+                                    @if ((isFishSection || isVegetableSection || isMeatSection) && !isFuture && isMarked && dailyKilo > 0)
                                     {
-                                        <span class="cal-mark">@(isMarked ? "✓" : "×")</span>
+                                        <div class="cal-kilo-display">
+                                            <span class="cal-kilo-val">@((int)dailyKilo) kg</span>
+                                        </div>
                                     }
                                 </div>
                             }
@@ -631,117 +636,43 @@
                             </div>
                             <div class="cal-sum-item">
                                 <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
-                                <span class="cal-sum-key">Collected @CalendarMonth.ToString("MMM yyyy")</span>
+                                <span class="cal-sum-key">Daily Collected @CalendarMonth.ToString("MMM yyyy")</span>
                             </div>
-                        </div>
-                    </div>
-                }
-
-                <!-- ══════════════════════════════════
-                     MONTHLY UTILITY PAYMENTS
-                ══════════════════════════════════ -->
-                @{
-                    bool hasElecFee = DetailVendor.FeeTypes.Contains("Electricity");
-                    bool hasWaterFee = DetailVendor.FeeTypes.Contains("Water");
-                }
-
-                @if (hasElecFee || hasWaterFee)
-                {
-                    <div class="detail-section">
-                        <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                            Monthly Utility Payments
-                        </div>
-                        <div class="util-months-list">
-                            @for (int mo = 0; mo >= -5; mo--)
+                            @if (isFishSection)
                             {
-                                var mDate = DateTime.Now.AddMonths(mo);
-                                var mKey = mDate.ToString("yyyy-MM");
-                                var mLabel = mDate.ToString("MMMM yyyy");
-
-                                var elecPaid = DetailVendor.ElectricityPaidMonths.Contains(mKey);
-                                var waterPaid = DetailVendor.WaterPaidMonths.Contains(mKey);
-
-                                <div class="util-month-row">
-                                    <span class="util-month-name">@mLabel</span>
-            
-                                    <div class="util-pills">
-                                        @if (hasElecFee)
-                                        {
-                                            <button class="util-pill @(elecPaid ? "util-pill-paid" : "util-pill-unpaid")"
-                                                    @onclick="@(() => ToggleUtility(DetailVendor, "Electricity", mKey))">
-                                                <svg viewBox="0 0 24 24">
-                                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                                                </svg>
-                                                @(elecPaid ? "Electricity Paid ✓" : "Electricity Unpaid")
-                                            </button>
-                                        }
-
-                                        @if (hasWaterFee)
-                                        {
-                                            <button class="util-pill @(waterPaid ? "util-pill-paid" : "util-pill-unpaid")"
-                                                    @onclick="@(() => ToggleUtility(DetailVendor, "Water", mKey))">
-                                                <svg viewBox="0 0 24 24">
-                                                    <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
-                                                </svg>
-                                                @(waterPaid ? "Water Paid ✓" : "Water Unpaid")
-                                            </button>
-                                        }
-                                    </div>
+                                <div class="cal-sum-item fish-fee-item">
+                                    <span class="cal-sum-val">@((int)totalFishKilos) kg</span>
+                                    <span class="cal-sum-key">Fish Total</span>
+                                </div>
+                                <div class="cal-sum-item fish-fee-item">
+                                    <span class="cal-sum-val">₱@((calTotal + (int)totalFishKilos).ToString("N0"))</span>
+                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
                                 </div>
                             }
-    
+                            @if (isVegetableSection)
+                            {
+                                <div class="cal-sum-item vegetables-fee-item">
+                                    <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
+                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
+                                </div>
+                            }
+                            @if (isMeatSection)
+                            {
+                                <div class="cal-sum-item meat-fee-item">
+                                    <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
+                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
+                                </div>
+                            }
                         </div>
                     </div>
                 }
-
-                <!-- ══════════════════════════════════
-                     12-MONTH RENTAL PAYMENT HISTORY
-                ══════════════════════════════════ -->
-                <div class="detail-section detail-section-no-margin">
-                    <div class="detail-section-title">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        12-Month Rental Payment History
-                    </div>
-                    <div class="hist-grid" style="margin-bottom:14px;">
-                        @for (int i = 11; i >= 0; i--)
-                        {
-                            var month = DateTime.Now.AddMonths(-i);
-                            var paid = DetailVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
-                                        && DetailVendor.PaymentHistory[month.ToString("yyyy-MM")];
-                            <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
-                                <div class="hist-month-name">@month.ToString("MMM")</div>
-                                <div class="hist-month-year">@month.ToString("yy")</div>
-                                <div class="hist-month-icon">@(paid ? "✓" : "✗")</div>
-                            </div>
-                        }
-                    </div>
-                    <div class="hist-summary">
-                        <div class="act-stat">
-                            <div class="act-stat-val">@DetailVendor.PaymentHistory.Count(p => p.Value)</div>
-                            <div class="act-stat-key">Months Paid</div>
-                        </div>
-                        <div class="act-stat">
-                            <div class="act-stat-val">@(12 - DetailVendor.PaymentHistory.Count(p => p.Value))</div>
-                            <div class="act-stat-key">Months Unpaid</div>
-                        </div>
-                        <div class="act-stat">
-                            <div class="act-stat-val">₱@((DetailVendor.MonthlyRate * DetailVendor.PaymentHistory.Count(p => p.Value)).ToString("N0"))</div>
-                            <div class="act-stat-key">Total Collected</div>
-                        </div>
-                        <div class="act-stat @(DetailVendor.PaymentHistory.Count(p => !p.Value) > 0 ? "detail-stat-unpaid" : "")">
-                            <div class="act-stat-val">₱@((DetailVendor.MonthlyRate * DetailVendor.PaymentHistory.Count(p => !p.Value)).ToString("N0"))</div>
-                            <div class="act-stat-key">Balance Due</div>
-                        </div>
-                    </div>
-                </div>
 
             </div>
 
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowDetail = false">Close</button>
                 <button class="btn-outline modal-icon-button"
-                        @onclick="() => { ShowDetail = false; OpenHistory(DetailVendor); }">                   
+                        @onclick="() => { ShowDetail = false; OpenHistory(DetailVendor); }">
                     History
                 </button>
                 <button class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
@@ -754,9 +685,9 @@
 }
 
 
-<!-- ══════════════════════════════════════════════
+<!-- ----------------------------------------------
      ADD / EDIT VENDOR MODAL
-══════════════════════════════════════════════ -->
+---------------------------------------------- -->
 <AddVendorModal Show="ShowModal"
                 IsEditing="IsEditing"
                 Form="Form"
@@ -769,63 +700,15 @@
                 OnSectionChanged="OnSectionChanged"
                 OnToggleFee="ToggleFee" />
 
-
-<!-- ══════════════════════════════════════════════
+<!-- ----------------------------------------------
      PAYMENT HISTORY MODAL
-══════════════════════════════════════════════ -->
-@if (ShowHistory && HistoryVendor is not null)
-{
-    <div class="eemo-modal-overlay" @onclick="() => ShowHistory = false">
-        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">@HistoryVendor.ActualOccupant</div>
-                    <div class="eemo-modal-sub">Stall @HistoryVendor.StallNo · @HistoryVendor.FacilityCode · ₱@HistoryVendor.MonthlyRate.ToString("N0")/month</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="() => ShowHistory = false">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="eemo-modal-body">
-                <div class="hist-label">12-Month Rental Payment History</div>
-                <div class="hist-grid">
-                    @for (int i = 11; i >= 0; i--)
-                    {
-                        var month = DateTime.Now.AddMonths(-i);
-                        var paid = HistoryVendor.PaymentHistory.ContainsKey(month.ToString("yyyy-MM"))
-                                    && HistoryVendor.PaymentHistory[month.ToString("yyyy-MM")];
-                        <div class="hist-month @(paid ? "hist-paid" : "hist-unpaid")">
-                            <div class="hist-month-name">@month.ToString("MMM")</div>
-                            <div class="hist-month-year">@month.ToString("yy")</div>
-                            <div class="hist-month-icon">@(paid ? "✓" : "✗")</div>
-                        </div>
-                    }
-                </div>
-                <div class="hist-summary">
-                    <div class="act-stat">
-                        <div class="act-stat-val">@HistoryVendor.PaymentHistory.Count(p => p.Value)</div>
-                        <div class="act-stat-key">Months Paid (12mo)</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">@(12 - HistoryVendor.PaymentHistory.Count(p => p.Value))</div>
-                        <div class="act-stat-key">Months Unpaid</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">₱@((HistoryVendor.MonthlyRate * HistoryVendor.PaymentHistory.Count(p => p.Value)).ToString("N0"))</div>
-                        <div class="act-stat-key">Total Collected</div>
-                    </div>
-                    <div class="act-stat" style="@(HistoryVendor.PaymentHistory.Count(p => !p.Value) > 0 ? "background:var(--red-bg);" : "")">
-                        <div class="act-stat-val" style="color:var(--red)">₱@((HistoryVendor.MonthlyRate * HistoryVendor.PaymentHistory.Count(p => !p.Value)).ToString("N0"))</div>
-                        <div class="act-stat-key">Balance Due</div>
-                    </div>
-                </div>
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="() => ShowHistory = false">Close</button>
-            </div>
-        </div>
-    </div>
-}
+---------------------------------------------- -->
+<PaymentHistoryModal TStall="VendorEntry"
+                     Show="@ShowHistory"
+                     Stall="@HistoryVendor"
+                     FacilityCode="@(HistoryVendor?.FacilityCode ?? string.Empty)"
+                     FacilityName="@(FacilityTabs.FirstOrDefault(f => f.Code == (HistoryVendor?.FacilityCode ?? string.Empty))?.Name ?? string.Empty)"
+                     OnClose="() => ShowHistory = false" />
 
 
 <!-- Confirm close/reopen stall -->
@@ -861,7 +744,7 @@
 
 @code {
 
-    // ── Calendar state ────────────────────────────────────────────────────────
+    // -- Calendar state --------------------------------------------------------
     DateTime CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
 
     void PrevCalMonth() => CalendarMonth = CalendarMonth.AddMonths(-1);
@@ -880,19 +763,12 @@
             v.DailyCollections[key] = true;
     }
 
-    void ToggleUtility(VendorEntry v, string type, string monthKey)
-    {
-        var set = type == "Electricity" ? v.ElectricityPaidMonths : v.WaterPaidMonths;
-        if (set.Contains(monthKey)) set.Remove(monthKey);
-        else set.Add(monthKey);
-    }
-
-    // ── Dropdown state ────────────────────────────────────────────────────────
+    // -- Dropdown state --------------------------------------------------------
     bool FacDropdownOpen = false;
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
     void CloseFacDropdown() => FacDropdownOpen = false;
 
-    // ── Filters ───────────────────────────────────────────────────────────────
+    // -- Filters ---------------------------------------------------------------
     string SearchQuery = string.Empty;
     string ActiveFacility = "NPM";
     string ActiveStatus = "All";
@@ -901,7 +777,7 @@
 
     FacilityTab ActiveFacilityTab => FacilityTabs.First(f => f.Code == ActiveFacility);
 
-    // ── Facility Tab Model ────────────────────────────────────────────────────
+    // -- Facility Tab Model ----------------------------------------------------
     class FacilityTab
     {
         public string Code { get; set; } = string.Empty;
@@ -927,7 +803,7 @@
             IconSvg="""<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""" },
     };
 
-    // ── Vendor Model ──────────────────────────────────────────────────────────
+    // -- Vendor Model ----------------------------------------------------------
     class VendorEntry
     {
         public int Id { get; set; }
@@ -948,8 +824,10 @@
         public bool IsActive { get; set; } = true;
         public bool IsPaidThisMonth { get; set; }
         public bool IsPartialThisMonth { get; set; }
+        public decimal PartialAmount { get; set; } = 0m;
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
         public Dictionary<string, bool> DailyCollections { get; set; } = new();
+        public Dictionary<string, decimal> DailyFishKilos { get; set; } = new(); // ? NEW: Track daily fish kilo counts
         public HashSet<string> ElectricityPaidMonths { get; set; } = new();
         public HashSet<string> WaterPaidMonths { get; set; } = new();
 
@@ -959,7 +837,7 @@
 
     List<VendorEntry> Vendors = new()
     {
-    // ── NPM Vegetable Area ─────────────────────────
+    // -- NPM Vegetable Area -------------------------
     new() { Id=1, FacilityCode="NPM", StallNo="01", ActualOccupant="Trugillo, Elpedia C.", ContractName="Nila F. Andoy", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-001", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
 
     new() { Id=2, FacilityCode="NPM", StallNo="02", ActualOccupant="Bohol, Marilyn C.", ContractName="Marilyn C. Bohol", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-002", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
@@ -977,9 +855,104 @@
     new() { Id=8, FacilityCode="NPM", StallNo="26", ActualOccupant="Closed", ContractName="Elsie B. Abuso", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-008", FeeTypes=new(), IsPaidThisMonth=false, IsActive=false, PaymentHistory=MakeHistory(3) },
 
     // Fish
-    new() { Id=9, FacilityCode="NPM", StallNo="F01", ActualOccupant="Dela Cruz, Maria S.", ContractName="Dela Cruz, Maria S.", Section="Fish Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-009", FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
+    new() {
+        Id=9, FacilityCode="NPM", StallNo="F01", ActualOccupant="Dela Cruz, Maria S.", ContractName="Dela Cruz, Maria S.", Section="Fish Section",
+        AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-009",
+        FeeTypes=new(){"Fish ?1/kg","Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12),
+  DailyCollections = new()
+{
+    {DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-28).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-26).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-25).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-23).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-22).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-20).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-19).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-17).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-16).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-15).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-13).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-12).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-10).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-9).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-5).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-4).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-2).ToString("yyyy-MM-dd"), true},
+    {DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd"), true},
+},
 
-    new() { Id=10, FacilityCode="NPM", StallNo="F02", ActualOccupant="Santos, Rodrigo T.", ContractName="Santos, Rodrigo T.", Section="Fish Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-010", FeeTypes=new(){"Fish ₱1/kg","Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(6) },
+DailyFishKilos = new()
+{
+    {DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd"), 7.2m},
+    {DateTime.Now.AddDays(-28).ToString("yyyy-MM-dd"), 8.1m},
+    {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), 9.3m},
+    {DateTime.Now.AddDays(-26).ToString("yyyy-MM-dd"), 10.7m},
+    {DateTime.Now.AddDays(-25).ToString("yyyy-MM-dd"), 8.5m},
+    {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), 7.9m},
+    {DateTime.Now.AddDays(-23).ToString("yyyy-MM-dd"), 12.6m},
+    {DateTime.Now.AddDays(-22).ToString("yyyy-MM-dd"), 12m},
+    {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), 7.4m},
+    {DateTime.Now.AddDays(-20).ToString("yyyy-MM-dd"), 8.8m},
+    {DateTime.Now.AddDays(-19).ToString("yyyy-MM-dd"), 7.5m},
+    {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), 9.1m},
+    {DateTime.Now.AddDays(-17).ToString("yyyy-MM-dd"), 14m},
+    {DateTime.Now.AddDays(-16).ToString("yyyy-MM-dd"), 10.2m},
+    {DateTime.Now.AddDays(-15).ToString("yyyy-MM-dd"), 9.5m},
+    {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), 7.8m},
+    {DateTime.Now.AddDays(-13).ToString("yyyy-MM-dd"), 8.7m},
+    {DateTime.Now.AddDays(-12).ToString("yyyy-MM-dd"), 11m},
+    {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), 7.6m},
+    {DateTime.Now.AddDays(-10).ToString("yyyy-MM-dd"), 9.9m},
+    {DateTime.Now.AddDays(-9).ToString("yyyy-MM-dd"), 7m},
+    {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), 8.4m},
+    {DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"), 13m},
+    {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), 12.4m},
+    {DateTime.Now.AddDays(-5).ToString("yyyy-MM-dd"), 10.5m},
+    {DateTime.Now.AddDays(-4).ToString("yyyy-MM-dd"), 7.3m},
+    {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), 9.9m},
+    {DateTime.Now.AddDays(-2).ToString("yyyy-MM-dd"), 15m},
+    {DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd"), 11.8m},
+}
+    },
+
+    new() {
+        Id=10, FacilityCode="NPM", StallNo="F02", ActualOccupant="Santos, Rodrigo T.", ContractName="Santos, Rodrigo T.", Section="Fish Section",
+        AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-010",
+        FeeTypes=new(){"Fish ?1/kg","Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(6),
+        DailyCollections=new() {
+            {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), true},
+            {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), true},
+        },
+        DailyFishKilos=new() {
+            {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), 10m},
+            {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), 9.5m},
+            {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), 11.5m},
+            {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), 8m},
+            {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), 12.5m},
+            {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), 10.5m},
+            {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), 9m},
+            {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), 13.5m},
+            {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), 7.5m},
+        }
+    },
 
     // Meat
     new() { Id=11, FacilityCode="NPM", StallNo="M01", ActualOccupant="Garcia, Lorna B.", ContractName="Lorna B. Garcia", Section="Meat Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-011", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
@@ -1036,7 +1009,7 @@
         return matchStatus && matchSearch;
     }).OrderBy(v => v.StallNo);
 
-    // ── Vendor Detail Modal ───────────────────────────────────────────────────
+    // -- Vendor Detail Modal ---------------------------------------------------
     bool ShowDetail = false;
     VendorEntry? DetailVendor = null;
 
@@ -1047,12 +1020,7 @@
         CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
     }
 
-    // ── Form ──────────────────────────────────────────────────────────────────
-    readonly List<string> AvailableFeeTypes = new()
-        { "Electricity", "Water", "Fish ₱1/kg", "Slaughter Fee", "Ante Mortem", "Post Mortem", "Table Charge", "Entrance Fee", "Livestock Fee" };
-
-  
-
+    // -- Form ------------------------------------------------------------------
     bool ShowModal = false;
     bool IsEditing = false;
     int EditingId = 0;
@@ -1107,14 +1075,14 @@
             Form.FeeTypes.Add("Electricity");
             Form.FeeTypes.Add("Water");
             if (Form.SelectedSection == "Fish")
-                Form.FeeTypes.Add("Fish ₱1/kg");
+                Form.FeeTypes.Add("Fish ?1/kg");
 
             // Pre-fill rate if empty
             if (Form.MonthlyRate <= 0) Form.MonthlyRate = 900;
         }
         else if (Form.FacilityCode == "TCC")
         {
-            if (Form.MonthlyRate <= 0) Form.MonthlyRate = 2400; // default TCC rate (most stalls ₱2,400)
+            if (Form.MonthlyRate <= 0) Form.MonthlyRate = 2400; // default TCC rate (most stalls ?2,400)
         }
         else if (Form.FacilityCode == "NCC" || Form.FacilityCode == "BBQ" || Form.FacilityCode == "ICE")
         {
@@ -1178,7 +1146,7 @@
         if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.ActualOccupant)) { FormError = "Actual occupant name is required."; return; }
         if (Form.FacilityCode == "NPM" && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
-        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than ₱0."; return; }
+        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than ?0."; return; }
 
         // Auto-populate Section from SelectedSection for NPM
         if (Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection))
@@ -1228,7 +1196,66 @@
 
     void CloseModal() { ShowModal = false; FormError = string.Empty; }
 
-    // ── Toggle Active ─────────────────────────────────────────────────────────
+    // -- Fish Kilo Tracking Methods --------------------------------------------
+    /// <summary>
+    /// Calculate total kilos for fish vendors for a specific month
+    /// </summary>
+    decimal GetMonthlyFishKilos(VendorEntry vendor, DateTime month)
+    {
+        if (!vendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase))
+            return 0;
+
+        decimal totalKilos = 0;
+        var monthStr = month.ToString("yyyy-MM");
+        var daysInMonth = DateTime.DaysInMonth(month.Year, month.Month);
+
+        for (int day = 1; day <= daysInMonth; day++)
+        {
+            var dayKey = $"{monthStr}-{day:D2}";
+            var isCollected = vendor.DailyCollections.ContainsKey(dayKey) && vendor.DailyCollections[dayKey];
+            if (isCollected && vendor.DailyFishKilos.ContainsKey(dayKey))
+            {
+                totalKilos += vendor.DailyFishKilos[dayKey];
+            }
+        }
+        return totalKilos;
+    }
+
+    /// <summary>
+    /// Calculate fish fee (?1/kilo) for a specific month
+    /// </summary>
+    decimal GetMonthlyFishFee(VendorEntry vendor, DateTime month)
+    {
+        return GetMonthlyFishKilos(vendor, month) * 1m; // ?1 per kilo
+    }
+
+    /// <summary>
+    /// Update daily fish kilo count
+    /// </summary>
+    void UpdateDailyFishKilo(VendorEntry vendor, DateTime day, decimal kilos)
+    {
+        var dayKey = day.ToString("yyyy-MM-dd");
+        if (kilos > 0)
+        {
+            vendor.DailyFishKilos[dayKey] = kilos;
+        }
+        else if (vendor.DailyFishKilos.ContainsKey(dayKey))
+        {
+            vendor.DailyFishKilos.Remove(dayKey);
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Get daily fish kilo count for a specific day
+    /// </summary>
+    decimal GetDailyFishKilo(VendorEntry vendor, DateTime day)
+    {
+        var dayKey = day.ToString("yyyy-MM-dd");
+        return vendor.DailyFishKilos.ContainsKey(dayKey) ? vendor.DailyFishKilos[dayKey] : 0;
+    }
+
+    // -- Toggle Active ---------------------------------------------------------
     bool ShowConfirm = false;
     VendorEntry? ConfirmTarget = null;
 
@@ -1241,12 +1268,12 @@
         ConfirmTarget = null;
     }
 
-    // ── Payment History Modal ─────────────────────────────────────────────────
+    // -- Payment History Modal -------------------------------------------------
     bool ShowHistory = false;
     VendorEntry? HistoryVendor = null;
     void OpenHistory(VendorEntry v) { HistoryVendor = v; ShowHistory = true; }
 
-    // ── View Profile ──────────────────────────────────────────────────────────
+    // -- View Profile ----------------------------------------------------------
     void ViewProfile(VendorEntry v)
     {
         // Navigate to the profile page with the vendor information
@@ -1255,4 +1282,3 @@
         Nav.NavigateTo("/profile");
     }
 }
-

@@ -1,0 +1,145 @@
+@* ══════════════════════════════════════════════════════════════════════
+   FacilityStallsTable.razor  —  Reusable stalls table for all facilities
+
+   USAGE:
+       <FacilityStallsTable Facility="ICE"
+                            FilteredStalls="FilteredStalls"
+                            OnPaymentClick="OpenPayment"
+                            OnHistoryClick="OpenHistory"
+                            OnEditClick="OpenEdit" />
+
+   PROPERTIES:
+     Facility         – string  – facility code (NPM, ICE, TCC, NCC, BBQ)
+     FilteredStalls   – IEnumerable  – stalls to display
+     OnPaymentClick   – EventCallback – payment record button clicked
+     OnHistoryClick   – EventCallback – history button clicked
+     OnEditClick      – EventCallback – edit/profile button clicked
+══════════════════════════════════════════════════════════════════════ *@
+
+@typeparam TStall
+
+@inject NavigationManager Navigation
+
+<div class="panel">
+    @if (!FilteredStalls.Any())
+    {
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+            <div class="empty-title">No Stalls Found</div>
+            <div class="empty-sub">Try adjusting the filters or search.</div>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Stall No.</th>
+                        <th>Actual Occupant</th>
+                        <th>Name on Contract</th>
+                        <th>Area (sqm)</th>
+                        <th>Contract Date</th>
+                        <th>Monthly Rent</th>
+                        <th>OR No.</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in FilteredStalls)
+                    {
+                        <tr class="@GetRowClass(s) data-row">
+                            <td>@GetStallNo(s)</td>
+                            <td>@GetActualOccupant(s)</td>
+                            <td>
+                                @{
+                                    var contractName = GetContractName(s);
+                                    if (string.IsNullOrEmpty(contractName) || contractName.StartsWith("No contract"))
+                                    {
+                                        <span>No contract</span>
+                                    }
+                                    else
+                                    {
+                                        @contractName
+                                    }
+                                }
+                            </td>
+                            <td>@GetAreaSqm(s)</td>
+                            <td>@GetContractDate(s)</td>
+                            <td>₱@GetMonthlyRate(s).ToString("N0")</td>
+                            <td>
+                                <span class="mono">@GetORNumber(s)</span>
+                            </td>
+                            <td>
+                                <div class="action-btns">
+                                    <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
+                                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                    </button>
+                                    <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
+                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                    </button>
+                                    <button class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">
+                                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+
+    [Parameter] public string Facility { get; set; } = string.Empty;
+    [Parameter] public IEnumerable<TStall> FilteredStalls { get; set; } = new List<TStall>();
+    [Parameter] public EventCallback<TStall> OnPaymentClick { get; set; }
+    [Parameter] public EventCallback<TStall> OnHistoryClick { get; set; }
+    [Parameter] public EventCallback<TStall> OnEditClick { get; set; }
+
+    // Helper methods using reflection to access stall properties generically
+    private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
+    private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
+    private string GetContractName(TStall stall) => GetPropertyValue<string>(stall, "ContractName") ?? "";
+    private double GetAreaSqm(TStall stall) => GetPropertyValue<double?>(stall, "AreaSqm") ?? 0;
+    private string GetORNumber(TStall stall) => GetPropertyValue<string>(stall, "ORNumber") ?? "—";
+    private decimal GetMonthlyRate(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyRate") ?? 0;
+
+    private string GetContractDate(TStall stall)
+    {
+        var date = GetPropertyValue<DateTime?>(stall, "ContractDate");
+        return date.HasValue ? date.Value.ToString("MMM d, yyyy") : "—";
+    }
+
+    private string GetAreaSqmDisplay(double area) => area > 0 ? $"{area}" : "—";
+
+    private T GetPropertyValue<T>(TStall stall, string propertyName)
+    {
+        var property = stall?.GetType().GetProperty(propertyName);
+        return property != null ? (T?)property.GetValue(stall) ?? default! : default!;
+    }
+
+    private string GetRowClass(TStall stall)
+    {
+        var isActive = GetPropertyValue<bool?>(stall, "IsActive") ?? true;
+        var isPaid = GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
+        var isPartial = GetPropertyValue<bool?>(stall, "IsPartial") ?? false;
+
+        if (!isActive) return "row-inactive";
+        if (isPaid) return "row-paid";
+        if (isPartial) return "row-partial";
+        return "row-unpaid";
+    }
+
+    /// <summary>
+    /// Navigates to the profile page with facility and stall parameters
+    /// </summary>
+    private void NavigateToProfile(TStall stall)
+    {
+        var stallNo = GetStallNo(stall);
+        var facilityId = Facility.ToLower();
+        Navigation.NavigateTo($"/profile/{facilityId}/{stallNo}");
+    }
+}

@@ -1,0 +1,127 @@
+/* ══════════════════════════════════════════════════════════════════════
+   FacilityPaymentModal.razor.css — Payment record modal styling
+══════════════════════════════════════════════════════════════════════ */
+
+/* Status Badge Styling */
+::deep .status-badge {
+    padding: 12px 16px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+::deep .status-badge.paid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+::deep .status-badge.partial {
+    background: rgba(184, 115, 51, 0.08);
+    color: #b87333;
+}
+
+::deep .status-badge.unpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+/* Payment Fee Block */
+::deep .pay-fee-block {
+    margin-bottom: 16px;
+    padding: 14px 16px;
+    background: var(--bg);
+    border-radius: 10px;
+    border-left: 3px solid var(--gold);
+}
+
+::deep .pay-fee-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+::deep .pay-fee-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+::deep .pay-fee-rate {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* Payment Record Row */
+::deep .pay-record-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(13, 33, 55, 0.08);
+}
+
+::deep .pay-record-row:last-child {
+    border-bottom: none;
+}
+
+::deep .pay-record-key {
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+::deep .pay-record-val {
+    color: var(--navy);
+    font-weight: 600;
+    font-family: 'EB Garamond', serif;
+    text-align: right;
+}
+
+/* Financial Breakdown Section */
+::deep .financial-breakdown {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+::deep .financial-breakdown-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--navy);
+    margin-bottom: 12px;
+}
+
+::deep .breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+::deep .breakdown-item:last-child {
+    border-bottom: none;
+}
+
+::deep .breakdown-item.total-paid {
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+::deep .breakdown-item.balance-due {
+    color: var(--red);
+    font-weight: 600;
+}

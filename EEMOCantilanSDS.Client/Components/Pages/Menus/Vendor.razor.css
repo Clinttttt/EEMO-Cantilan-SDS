@@ -26,6 +26,22 @@
         pointer-events: none;
     }
 
+.vs-hero.vegetables-hero {
+    background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
+}
+
+    .vs-hero.vegetables-hero::before {
+        background: radial-gradient(circle, rgba(34, 197, 94, 0.2) 0%, transparent 70%);
+    }
+
+.vs-hero.meat-hero {
+    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+}
+
+    .vs-hero.meat-hero::before {
+        background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%);
+    }
+
 .vs-hero-left {
     display: flex;
     align-items: center;
@@ -54,6 +70,22 @@
         stroke-linejoin: round;
     }
 
+.vs-hero.vegetables-hero .vs-hero-icon {
+    background: rgba(34, 197, 94, 0.18);
+}
+
+    .vs-hero.vegetables-hero .vs-hero-icon svg {
+        stroke: #22c55e;
+    }
+
+.vs-hero.meat-hero .vs-hero-icon {
+    background: rgba(239, 68, 68, 0.18);
+}
+
+    .vs-hero.meat-hero .vs-hero-icon svg {
+        stroke: #ef4444;
+    }
+
 .vs-hero-eyebrow {
     font-size: 11px;
     font-weight: 600;
@@ -61,6 +93,14 @@
     text-transform: uppercase;
     color: var(--gold);
     margin-bottom: 4px;
+}
+
+.vs-hero.vegetables-hero .vs-hero-eyebrow {
+    color: #86efac;
+}
+
+.vs-hero.meat-hero .vs-hero-eyebrow {
+    color: #fca5a5;
 }
 
 .vs-hero-title {
@@ -135,6 +175,14 @@
     transition: width .5s ease;
 }
 
+.vs-hero.vegetables-hero .vs-hero-progress-fill {
+    background: linear-gradient(90deg, #22c55e, #86efac);
+}
+
+.vs-hero.meat-hero .vs-hero-progress-fill {
+    background: linear-gradient(90deg, #ef4444, #fca5a5);
+}
+
 /* ══════════════════════════════════════════
    FACILITY DROPDOWN SELECTOR
 ══════════════════════════════════════════ */
@@ -160,6 +208,236 @@ input[type=number]::-webkit-inner-spin-button {
 input[type=number] {
     -moz-appearance: textfield;
 }
+
+/* ══════════════════════════════════════════
+   CALENDAR STYLES
+══════════════════════════════════════════ */
+.cal-grid-wrap {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    margin-bottom: 16px;
+}
+
+.cal-day-hdr {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 5px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cal-cell {
+    position: relative;
+    min-height: 56px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 5px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.cal-cell-fish {
+    height: 72px;
+    min-height: 72px;
+}
+
+.cal-cell-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    width: 100%;
+}
+
+.cal-cell.cal-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.cal-cell.cal-miss {
+    background: var(--red-bg);
+    border-color: var(--red);
+}
+
+.cal-cell.cal-empty {
+    background: transparent;
+    border: none;
+    cursor: default;
+}
+
+.cal-cell.cal-future {
+    background: var(--bg-icon);
+    border-color: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.cal-cell.cal-today {
+    border-color: var(--gold);
+    border-width: 2px;
+}
+
+.vegetables-hero .cal-cell.cal-today {
+    border-color: #22c55e;
+}
+
+.meat-hero .cal-cell.cal-today {
+    border-color: #ef4444;
+}
+
+.cal-cell:hover:not(.cal-future):not(.cal-empty) {
+    box-shadow: 0 2px 8px rgba(13,33,55,0.12);
+    transform: translateY(-1px);
+}
+
+.cal-num {
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1;
+    color: inherit;
+}
+
+/* ✓ / ✕ checkmark */
+.cal-checkmark {
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.cal-check-yes {
+    color: var(--green);
+}
+
+.cal-check-no {
+    color: var(--red);
+    opacity: 0.75;
+}
+
+/* ══════════════════════════════════════════
+   FISH KILO DISPLAY — READ-ONLY (filled from mobile app)
+══════════════════════════════════════════ */
+.cal-kilo-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    margin-top: 2px;
+    width: 100%;
+}
+
+.cal-kilo-val {
+    font-size: 10px;
+    font-weight: 700;
+    color: #7a5500;
+    background: #fffbf0;
+    border: 1px solid rgba(200, 168, 75, 0.45);
+    border-radius: 4px;
+    padding: 2px 6px;
+    text-align: center;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.vegetables-hero .cal-kilo-val {
+    color: #166534;
+    background: #f0fdf4;
+    border: 1px solid rgba(34, 197, 94, 0.45);
+}
+
+.meat-hero .cal-kilo-val {
+    color: #7f1d1d;
+    background: #fef2f2;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+}
+
+/* legacy classes — hidden */
+.cal-mark {
+    display: none;
+}
+
+.cal-kilo-label {
+    display: none;
+}
+
+.cal-kilo-bar {
+    display: none;
+}
+
+.cal-status-dot {
+    display: none;
+}
+
+.cal-kilo-row {
+    display: none;
+}
+
+/* ══════════════════════════════════════════
+   FISH FEE FOOTER CARD
+══════════════════════════════════════════ */
+.fish-fee-item {
+    background: #fdfaf0 !important;
+    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
+    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
+}
+
+    .fish-fee-item .cal-sum-val {
+        color: #a07020;
+        font-weight: 800;
+    }
+
+    .fish-fee-item .cal-sum-key {
+        color: #a07828;
+        font-weight: 700;
+    }
+
+/* ══════════════════════════════════════════
+   VEGETABLES FEE FOOTER CARD
+══════════════════════════════════════════ */
+.vegetables-fee-item {
+    background: #fdfaf0 !important;
+    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
+    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
+}
+
+    .vegetables-fee-item .cal-sum-val {
+        color: #a07020;
+        font-weight: 800;
+    }
+
+    .vegetables-fee-item .cal-sum-key {
+        color: #a07828;
+        font-weight: 700;
+    }
+
+/* ══════════════════════════════════════════
+   MEAT FEE FOOTER CARD
+══════════════════════════════════════════ */
+.meat-fee-item {
+    background: #fdfaf0 !important;
+    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
+    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
+}
+
+    .meat-fee-item .cal-sum-val {
+        color: #a07020;
+        font-weight: 800;
+    }
+
+    .meat-fee-item .cal-sum-key {
+        color: #a07828;
+        font-weight: 700;
+    }
 
 .facility-selector {
     position: relative;
@@ -451,7 +729,7 @@ input[type=number] {
 /* ══════════════════════════════════════════
    TOTAL STALLS KPI
 ══════════════════════════════════════════ */
-   TABLE
+TABLE
 ══════════════════════════════════════════ */
 .vendor-row {
     cursor: pointer;
@@ -562,29 +840,53 @@ input[type=number] {
     max-width: 780px;
 }
 
+/* ── Dark hero header — same style as PaymentHistoryModal ─────── */
 .detail-header {
+    background: var(--navy);
+    padding: 22px 24px 0;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
+    gap: 24px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    flex-wrap: wrap;
+    border-bottom: none;
 }
+
+    /* Radial glow — matches PaymentHistoryModal and facility heroes */
+    .detail-header::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 260px;
+        height: 260px;
+        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+        pointer-events: none;
+        border-radius: 50%;
+    }
 
 .detail-header-left {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 14px;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding-bottom: 22px;
+    position: relative;
+    z-index: 1;
 }
 
 .detail-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--navy);
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: rgba(200,168,75,.18);
+    border: 1px solid rgba(200,168,75,.25);
     color: #fff;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -593,9 +895,10 @@ input[type=number] {
 }
 
 .detail-name {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
-    color: var(--navy);
+    color: #fff;
+    margin-bottom: 5px;
 }
 
 .detail-meta {
@@ -603,14 +906,46 @@ input[type=number] {
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--text-muted);
+    margin-top: 0;
+    font-size: 10px;
+    color: rgba(255,255,255,.65);
+    font-weight: 600;
+    letter-spacing: .5px;
 }
 
 .detail-sep {
-    color: var(--border);
+    color: rgba(255,255,255,.35);
 }
+
+/* Close button on dark header */
+.detail-header .eemo-modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,.75);
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    z-index: 2;
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+    .detail-header .eemo-modal-close:hover {
+        color: #fff;
+        background: rgba(255,255,255,.15);
+        border-color: rgba(255,255,255,.25);
+    }
+
+    .detail-header .eemo-modal-close:active {
+        background: rgba(255,255,255,.2);
+    }
 
 .detail-body {
     padding: 0;
@@ -861,6 +1196,17 @@ input[type=number] {
 }
 
 /* ══════════════════════════════════════════
+   CALENDAR WRAPPER FOR SECTION COLORS
+══════════════════════════════════════════ */
+.detail-section.vegetables-section {
+    background: rgba(34, 197, 94, 0.02);
+}
+
+.detail-section.meat-section {
+    background: rgba(239, 68, 68, 0.02);
+}
+
+/* ══════════════════════════════════════════
    CALENDAR
 ══════════════════════════════════════════ */
 .cal-nav {
@@ -913,7 +1259,7 @@ input[type=number] {
 .cal-grid-wrap {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+    gap: 2px;
     margin-bottom: 12px;
 }
 
@@ -929,7 +1275,7 @@ input[type=number] {
 
 .cal-cell {
     border-radius: 7px;
-    min-height: 34px;
+    min-height: 28px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -938,6 +1284,7 @@ input[type=number] {
     gap: 1px;
     transition: opacity .12s;
     border: 1px solid transparent;
+    position: relative;
 }
 
 .cal-num {
@@ -984,115 +1331,219 @@ input[type=number] {
     outline-offset: 1px;
 }
 
-.cal-footer-stats {
+/* Kilo input styles for fish tracking */
+/* Kilo input styles for fish tracking - SINGLE DEFINITION ONLY */
+.cal-kilo-input-wrap {
     display: flex;
-    gap: 16px;
-    padding: 10px 12px;
-    background: var(--bg);
-    border-radius: 9px;
-    border: 1px solid var(--border);
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-top: 2px;
+}
+
+.cal-kilo-input {
+    width: 40px;
+    height: 20px;
+    border: 1px solid var(--gold);
+    background: #fffbeb;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--navy);
+    text-align: center;
+    padding: 2px 4px;
+    outline: none;
+    box-sizing: border-box;
+    font-family: 'Courier New', monospace;
+    border-radius: 4px;
+}
+
+    .cal-kilo-input::-webkit-outer-spin-button,
+    .cal-kilo-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .cal-kilo-input:focus {
+        outline: none;
+    }
+
+.vegetables-hero .cal-kilo-input {
+    border-color: #22c55e;
+    background: #f0fdf4;
+}
+
+.meat-hero .cal-kilo-input {
+    border-color: #ef4444;
+    background: #fef2f2;
+}
+
+.cal-footer-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    padding: 16px 0 8px;
 }
 
 .cal-sum-item {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 6px;
-    font-size: 12px;
+    padding: 14px 16px 12px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    border-bottom: 3px solid var(--navy);
+    background: var(--bg);
 }
 
 .cal-sum-val {
-    font-weight: 700;
-    font-family: monospace;
+    font-weight: 800;
     color: var(--navy);
+    font-size: 22px;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
 }
 
 .cal-sum-green {
-    color: var(--green);
+    color: #1e7a56;
 }
 
 .cal-sum-red {
-    color: var(--red);
+    color: #b53a3a;
 }
 
 .cal-sum-key {
     color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    line-height: 1.4;
 }
+
 
 /* ══════════════════════════════════════════
    UTILITY PAYMENTS
 ══════════════════════════════════════════ */
-.util-months-list {
+.util-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.util-month {
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    border: 1.5px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 8px;
-}
-
-.util-month-row {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-}
-
-    .util-month-row:last-child {
-        border-bottom: none;
-    }
-
-.util-month-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-    flex-shrink: 0;
-}
-
-.util-pills {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.util-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
+    justify-content: center;
+    gap: 3px;
+    min-height: 64px;
+    transition: all 0.15s;
     cursor: pointer;
-    border: 1.5px solid var(--border);
-    background: var(--bg);
-    color: var(--text-muted);
-    transition: all .15s;
 }
 
-    .util-pill svg {
-        width: 12px;
-        height: 12px;
-        stroke: currentColor;
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+    .util-month:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13,33,55,0.12);
     }
 
-    .util-pill:hover {
-        border-color: var(--navy);
-        color: var(--navy);
-    }
-
-.util-pill-paid {
+.util-both-paid {
     background: var(--green-bg);
     border-color: var(--green);
+}
+
+.util-partial-paid {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+
+.util-unpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.util-month-name {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--navy);
+    line-height: 1;
+}
+
+.util-month-year {
+    font-size: 9px;
+    color: var(--text-subtle);
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.util-month-status {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+}
+
+.util-indicator {
+    display: inline-block;
+}
+
+.util-both-paid .util-indicator {
     color: var(--green);
 }
 
-.util-pill-unpaid {
-    background: var(--red-bg);
-    border-color: rgba(139,58,58,.3);
+.util-partial-paid .util-indicator {
+    color: #d39e00;
+}
+
+.util-unpaid .util-indicator {
     color: var(--red);
+}
+
+.util-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.util-stat {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+    transition: all 0.15s;
+}
+
+    .util-stat:hover {
+        border-color: var(--gold);
+        box-shadow: 0 2px 8px rgba(200,168,75,0.1);
+    }
+
+.util-stat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.util-stat-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
 }
 
 /* ══════════════════════════════════════════
@@ -1107,19 +1558,32 @@ input[type=number] {
     margin-bottom: 12px;
 }
 
+/* 12-Month history — single row layout */
 .hist-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 6px;
     margin-bottom: 16px;
 }
 
 .hist-month {
-    border-radius: 10px;
-    padding: 10px 6px;
+    border-radius: 8px;
+    padding: 8px 4px;
     text-align: center;
     border: 1.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 64px;
+    transition: all 0.15s;
 }
+
+    .hist-month:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13,33,55,0.12);
+    }
 
 .hist-paid {
     background: var(--green-bg);
@@ -1132,21 +1596,24 @@ input[type=number] {
 }
 
 .hist-month-name {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.4px;
     color: var(--navy);
+    line-height: 1;
 }
 
 .hist-month-year {
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-subtle);
-    margin-top: 1px;
+    font-weight: 600;
+    opacity: 0.7;
 }
 
 .hist-month-icon {
-    font-size: 14px;
-    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 700;
     color: var(--green);
 }
 
@@ -1157,7 +1624,9 @@ input[type=number] {
 .hist-summary {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
 }
 
 .act-stat {
@@ -1166,20 +1635,28 @@ input[type=number] {
     background: var(--bg);
     border: 1px solid var(--border);
     text-align: center;
+    transition: all 0.15s;
 }
 
+    .act-stat:hover {
+        border-color: var(--gold);
+        box-shadow: 0 2px 8px rgba(200,168,75,0.1);
+    }
+
 .act-stat-val {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--navy);
+    line-height: 1.2;
 }
 
 .act-stat-key {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-muted);
-    margin-top: 3px;
+    margin-top: 4px;
     text-transform: uppercase;
     letter-spacing: .05em;
+    font-weight: 600;
 }
 
 /* ══════════════════════════════════════════

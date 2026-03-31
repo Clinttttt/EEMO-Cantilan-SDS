@@ -1,0 +1,327 @@
+@* ══════════════════════════════════════════════════════════════════════
+   PaymentHistoryModal.razor  —  Reusable Payment History Modal
+   EEMO Admin Portal · Municipality of Cantilan, Surigao del Sur
+
+   USAGE:
+       <PaymentHistoryModal TStall="MyStallClass"
+                            Show="@ShowHistory"
+                            Stall="@SelectedStall"
+                            FacilityName="Tampak Commercial Center"
+                            FacilityCode="TCC"
+                            OnClose="() => ShowHistory = false" />
+
+   REQUIREMENTS on TStall:
+     - string  StallNo
+     - string  ActualOccupant
+     - string  ContractName  (optional)
+     - decimal MonthlyRate
+     - Dictionary<string, bool> PaymentHistory  (key = "yyyy-MM")
+     - List<PaymentTransaction> Transactions     (optional — for OR/collector detail)
+══════════════════════════════════════════════════════════════════════ *@
+
+@typeparam TStall
+
+@if (Show && Stall is not null)
+{
+    var history = GetPaymentHistory(Stall);
+    var rate = GetMonthlyRate(Stall);
+    var stallNo = GetStallNo(Stall);
+    var occupant = GetActualOccupant(Stall);
+    var contractName = GetContractName(Stall);
+    var transactions = GetTransactions(Stall);
+
+    int monthsPaid = history.Count(p => p.Value);
+    int monthsUnpaid = 12 - monthsPaid;
+    decimal collected = rate * monthsPaid;
+    decimal balance = rate * monthsUnpaid;
+    int compliancePct = (int)((double)monthsPaid / 12 * 100);
+
+    string statusLabel = monthsUnpaid == 0 ? "Consistent Payer"
+                       : monthsUnpaid >= 3 ? "Delinquent"
+                                           : "With Arrears";
+    string statusClass = monthsUnpaid == 0 ? "ph-badge-consistent"
+                       : monthsUnpaid >= 3 ? "ph-badge-delinquent"
+                                           : "ph-badge-arrears";
+
+    <div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
+        <div class="ph-modal" @onclick:stopPropagation="true">
+
+            <!-- ══ HEADER — matches NCC/NPM hero banner ══ -->
+            <div class="ph-header">
+
+                <!-- decorative radial glow -->
+                <div class="ph-header-glow"></div>
+
+                <!-- left: icon + identity -->
+                <div class="ph-header-left">
+                    <div class="ph-header-icon">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                    </div>
+                    <div class="ph-header-text">
+                        <div class="ph-header-eyebrow">
+                            @FacilityCode
+                            <span class="ph-dot">·</span>
+                            Stall @stallNo
+                            <span class="ph-dot">·</span>
+                            12-Month Payment Record
+                        </div>
+                        <div class="ph-header-name">@occupant</div>
+                        @if (!string.IsNullOrEmpty(contractName) && contractName != occupant)
+                        {
+                            <div class="ph-header-contract">Contract: @contractName</div>
+                        }
+                    </div>
+                </div>
+
+                <!-- right: stats + badge + close -->
+                <div class="ph-header-right">
+                    <div class="ph-header-stats">
+                        <div class="ph-hstat">
+                            <div class="ph-hstat-val">₱@rate.ToString("N0")</div>
+                            <div class="ph-hstat-key">Monthly Rate</div>
+                        </div>
+                        <div class="ph-hstat-div"></div>
+                        <div class="ph-hstat">
+                            <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/12</span></div>
+                            <div class="ph-hstat-key">Months Paid</div>
+                        </div>
+                        <div class="ph-hstat-div"></div>
+                        <div class="ph-hstat">
+                            <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/12</span></div>
+                            <div class="ph-hstat-key">Unpaid</div>
+                        </div>
+                        <div class="ph-hstat-div"></div>
+                        <div class="ph-hstat">
+                            <div class="ph-hstat-val">₱@collected.ToString("N0")</div>
+                            <div class="ph-hstat-key">Collected</div>
+                        </div>
+                            <div class="ph-hstat-div"></div>
+                            <div class="ph-hstat">
+                                <div class="ph-hstat-val @(balance > 0 ? "ph-hstat-red" : "")">₱@balance.ToString("N0")</div>
+                                <div class="ph-hstat-key">Balance Due</div>
+                            </div>
+                            <div class="ph-hstat-div"></div>
+                            <div class="ph-hstat">
+                                <div class="ph-hstat-val">₱@GetPartialAmount(Stall).ToString("N0")</div>
+                                <div class="ph-hstat-key">Current Partial</div>
+                            </div>
+                        </div>
+                    <div class="ph-header-right-actions">
+                        <span class="ph-status-badge @statusClass">@statusLabel</span>
+                        <button class="ph-close-btn" @onclick="() => OnClose.InvokeAsync()">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- gold progress bar pinned to bottom -->
+                <div class="ph-header-progress">
+                    <div class="ph-header-progress-fill" style="width:@compliancePct%"></div>
+                </div>
+            </div>
+
+            <!-- ══ COMPLIANCE ROW ══ -->
+            <div class="ph-compliance-row">
+                <div class="ph-compliance-label">
+                    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                    Collection Compliance
+                </div>
+                <div class="ph-compliance-track">
+                    <div class="ph-compliance-fill" style="width:@compliancePct%"></div>
+                </div>
+                <div class="ph-compliance-pct @(compliancePct == 100 ? "pct-full" : compliancePct < 50 ? "pct-low" : "")">
+                    @compliancePct%
+                </div>
+            </div>
+
+            <!-- ══ LEDGER ══ -->
+            <div class="ph-body">
+
+                <div class="ph-ledger-header">
+                    <div>Period</div>
+                    <div>Status</div>
+                    <div>OR Number</div>
+                    <div>Payment Date</div>
+                    <div>Collector</div>
+                    <div>Amount</div>
+                    <div>Balance</div>
+                </div>
+
+                <div class="ph-ledger-body">
+                    @{
+                        decimal runningBalance = 0;
+                    }
+                    @for (int i = 11; i >= 0; i--)
+                    {
+                        var month = DateTime.Now.AddMonths(-i);
+                        var key = month.ToString("yyyy-MM");
+                        var isPaid = history.ContainsKey(key) && history[key];
+                        var tx = transactions.FirstOrDefault(t => t.PeriodKey == key);
+                        var isCurr = month.Month == DateTime.Now.Month && month.Year == DateTime.Now.Year;
+
+                        if (!isPaid) runningBalance += rate;
+
+                        <div class="ph-ledger-row @(isPaid ? "ph-row-paid" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
+
+                            <!-- Period -->
+                            <div class="ph-cell-period">
+                                <div class="ph-period-dot @(isPaid ? "ph-dot-paid" : "ph-dot-unpaid")"></div>
+                                <div>
+                                    <div class="ph-period-month">@month.ToString("MMMM")</div>
+                                    <div class="ph-period-year">@month.Year</div>
+                                </div>
+                                @if (isCurr)
+                                {
+                                    <span class="ph-current-tag">Current</span>
+                                }
+                            </div>
+
+                            <!-- Status -->
+                            <div>
+                                <span class="ph-pay-pill @(isPaid ? "ph-pill-paid" : "ph-pill-unpaid")">
+                                    @if (isPaid)
+                                    {
+                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        @:Paid
+                                    }
+                                    else
+                                    {
+                                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                        @:Unpaid
+                                    }
+                                </span>
+                            </div>
+
+                            <!-- OR Number -->
+                            <div>
+                                @if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.ORNumber))
+                                {
+                                    <span class="ph-or-num">@tx.ORNumber</span>
+                                }
+                                else if (isPaid)
+                                {
+                                    <span class="ph-or-num ph-or-auto">OR-@month.ToString("yyyyMM")-@stallNo</span>
+                                }
+                                else
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                            </div>
+
+                            <!-- Payment Date -->
+                            <div>
+                                @if (isPaid && tx is not null && tx.PaidDate.HasValue)
+                                {
+                                    <span class="ph-pay-date">@tx.PaidDate.Value.ToString("MMM d, yyyy")</span>
+                                }
+                                else if (isPaid)
+                                {
+                                    <span class="ph-pay-date">@month.ToString("MMM yyyy")</span>
+                                }
+                                else
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                            </div>
+
+                            <!-- Collector -->
+                            <div>
+                                @if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.Collector))
+                                {
+                                    <div class="ph-collector-cell">
+                                        <div class="ph-collector-avatar">@(tx.Collector[0].ToString().ToUpper())</div>
+                                        <span class="ph-collector-name">@tx.Collector</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                            </div>
+
+                            <!-- Amount -->
+                            <div>
+                                @if (isPaid)
+                                {
+                                    <span class="ph-amount-paid">₱@rate.ToString("N0")</span>
+                                }
+                                else
+                                {
+                                    <span class="ph-amount-unpaid">₱@rate.ToString("N0")</span>
+                                }
+                            </div>
+
+                            <!-- Running Balance -->
+                            <div>
+                                @if (runningBalance > 0)
+                                {
+                                    <span class="ph-balance-due">₱@runningBalance.ToString("N0")</span>
+                                }
+                                else
+                                {
+                                    <span class="ph-balance-zero">₱0</span>
+                                }
+                            </div>
+
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- ══ FOOTER ══ -->
+            <div class="ph-footer">
+                <div class="ph-footer-meta">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    Records cover the last 12 rolling months &nbsp;·&nbsp;
+                    @DateTime.Now.AddMonths(-11).ToString("MMM yyyy") – @DateTime.Now.ToString("MMM yyyy")
+                </div>
+                <div class="ph-footer-actions">
+                    @if (balance > 0)
+                    {
+                        <div class="ph-balance-alert">
+                            <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                            Outstanding: ₱@balance.ToString("N0") · @monthsUnpaid month@(monthsUnpaid != 1 ? "s" : "") unpaid
+                        </div>
+                    }
+                    <button class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public TStall? Stall { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string FacilityCode { get; set; } = string.Empty;
+    [Parameter] public string FacilityName { get; set; } = string.Empty;
+
+    public class PaymentTransaction
+    {
+        public string PeriodKey { get; set; } = string.Empty;
+        public string ORNumber { get; set; } = string.Empty;
+        public DateTime? PaidDate { get; set; }
+        public string Collector { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+
+    private string GetStallNo(TStall s) => GetProp<string>(s, "StallNo") ?? "—";
+    private string GetActualOccupant(TStall s) => GetProp<string>(s, "ActualOccupant") ?? "—";
+    private string GetContractName(TStall s) => GetProp<string>(s, "ContractName") ?? string.Empty;
+    private decimal GetMonthlyRate(TStall s) => GetProp<decimal?>(s, "MonthlyRate") ?? 0m;
+    private decimal GetPartialAmount(TStall s) => GetProp<decimal?>(s, "PartialAmount") ?? 0m;
+
+    private Dictionary<string, bool> GetPaymentHistory(TStall s)
+        => GetProp<Dictionary<string, bool>>(s, "PaymentHistory") ?? new();
+
+    private List<PaymentTransaction> GetTransactions(TStall s)
+        => GetProp<List<PaymentTransaction>>(s, "Transactions") ?? new();
+
+    private T? GetProp<T>(TStall s, string name)
+    {
+        var prop = s?.GetType().GetProperty(name);
+        return prop is not null ? (T?)prop.GetValue(s) : default;
+    }
+}

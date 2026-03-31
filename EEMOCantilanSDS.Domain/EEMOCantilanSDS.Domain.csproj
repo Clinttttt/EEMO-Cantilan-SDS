@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <Folder Include="Entity\" />
-    <Folder Include="Common\" />
     <Folder Include="Helper\" />
     <Folder Include="Enums\" />
   </ItemGroup>

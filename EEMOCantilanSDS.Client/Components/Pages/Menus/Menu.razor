@@ -165,7 +165,6 @@
                                 <th>Facility</th>
                                 <th>Nature</th>
                                 <th>Amount</th>
-                                <th>Status</th>
                                 <th>Collector</th>
                                 <th>Time</th>
                             </tr>
@@ -174,18 +173,13 @@
                             @foreach (var tx in RecentTransactions)
                             {
                                 <tr>
-                                    <td class="mono">#@tx.ORNumber</td>
-                                    <td class="td-name">@tx.PayorName</td>
-                                    <td><span class="code-badge">@tx.FacilityCode</span></td>
-                                    <td class="td-nature">@tx.Nature</td>
-                                    <td class="td-amount">₱@tx.Amount.ToString("N0")</td>
-                                    <td>
-                                        <span class="status-pill @(tx.IsPaid ? "pill-paid" : tx.IsPartial ? "pill-partial" : "pill-unpaid")">
-                                            @(tx.IsPaid ? "Paid" : tx.IsPartial ? $"₱{tx.PartialAmount:N0} paid" : "Unpaid")
-                                        </span>
-                                    </td>
-                                    <td class="td-collector">@tx.CollectorName</td>
-                                    <td class="td-time">@tx.CollectedAt.ToString("hh:mm tt")</td>
+                                    <td>#@tx.ORNumber</td>
+                                    <td>@tx.PayorName</td>
+                                    <td><span>@tx.FacilityCode</span></td>
+                                    <td>@tx.Nature</td>
+                                    <td>₱@tx.Amount.ToString("N0")</td>
+                                    <td>@tx.CollectorName</td>
+                                    <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
                                 </tr>
                             }
                         </tbody>

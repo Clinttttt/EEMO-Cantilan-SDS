@@ -1,4 +1,4 @@
-﻿@page "/profile"
+﻿@page "/profile/{FacilityId}/{StallNo}"
 @rendermode InteractiveServer
 
 <PageTitle>EEMO Admin — Stall Profile</PageTitle>
@@ -180,39 +180,42 @@
                                 <span class="prof-field-label">Monthly Rental Rate</span>
                                 <span class="prof-field-val bold gold">₱@Stall.MonthlyRate.ToString("N0")/month</span>
                             </div>
-                            <div class="prof-field">
-                                <span class="prof-field-label">Electricity</span>
-                                <span class="prof-util-badge @(Stall.HasElectricity ? "util-yes" : "util-no")">
-                                    @(Stall.HasElectricity ? "Included" : "N/A")
-                                </span>
-                            </div>
-                            @if (Stall.HasElectricity)
+                            @if (Stall.Facility == "New Public Market")
                             {
                                 <div class="prof-field">
-                                    <span class="prof-field-label">Elec. Reading (kWh)</span>
-                                    <span class="prof-field-val mono">@Stall.ElecReading kWh</span>
+                                    <span class="prof-field-label">Electricity</span>
+                                    <span class="prof-util-badge @(Stall.HasElectricity ? "util-yes" : "util-no")">
+                                        @(Stall.HasElectricity ? "Included" : "N/A")
+                                    </span>
                                 </div>
+                                @if (Stall.HasElectricity)
+                                {
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">Elec. Reading (kWh)</span>
+                                        <span class="prof-field-val mono">@Stall.ElecReading kWh</span>
+                                    </div>
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">Elec. Amount</span>
+                                        <span class="prof-field-val mono">₱@Stall.ElecAmount.ToString("N0")</span>
+                                    </div>
+                                }
                                 <div class="prof-field">
-                                    <span class="prof-field-label">Elec. Amount</span>
-                                    <span class="prof-field-val mono">₱@Stall.ElecAmount.ToString("N0")</span>
+                                    <span class="prof-field-label">Water</span>
+                                    <span class="prof-util-badge @(Stall.HasWater ? "util-yes" : "util-no")">
+                                        @(Stall.HasWater ? "Included" : "N/A")
+                                    </span>
                                 </div>
-                            }
-                            <div class="prof-field">
-                                <span class="prof-field-label">Water</span>
-                                <span class="prof-util-badge @(Stall.HasWater ? "util-yes" : "util-no")">
-                                    @(Stall.HasWater ? "Included" : "N/A")
-                                </span>
-                            </div>
-                            @if (Stall.HasWater)
-                            {
-                                <div class="prof-field">
-                                    <span class="prof-field-label">Water Reading (cu.m)</span>
-                                    <span class="prof-field-val mono">@Stall.WaterReading cu.m</span>
-                                </div>
-                                <div class="prof-field">
-                                    <span class="prof-field-label">Water Amount</span>
-                                    <span class="prof-field-val mono">₱@Stall.WaterAmount.ToString("N0")</span>
-                                </div>
+                                @if (Stall.HasWater)
+                                {
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">Water Reading (cu.m)</span>
+                                        <span class="prof-field-val mono">@Stall.WaterReading cu.m</span>
+                                    </div>
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">Water Amount</span>
+                                        <span class="prof-field-val mono">₱@Stall.WaterAmount.ToString("N0")</span>
+                                    </div>
+                                }
                             }
                             @if (Stall.Section == "Fish Section")
                             {
@@ -507,6 +510,12 @@
 
 @code {
 
+    [Parameter]
+    public string FacilityId { get; set; } = string.Empty;
+
+    [Parameter]
+    public string StallNo { get; set; } = string.Empty;
+
     bool ShowEditModal = false;
     bool ShowPayModal = false;
     string PayStatus = "Paid";
@@ -545,31 +554,66 @@
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
 
-    StallProfile Stall = new()
+    StallProfile Stall = new();
+
+    protected override void OnInitialized()
     {
-        Facility = "New Public Market",
-        StallNo = "01",
-        Section = "Vegetable Area",
-        AreaSqm = 4.8,
-        AreaNote = "Near main entrance, left row",
-        ActualOccupant = "Trugillo, Elpedia C.",
-        ContractName = "Nila F. Andoy",
-        ContractDate = new DateTime(2023, 6, 7),
-        ContractDuration = "3 years",
-        ContractExpiry = new DateTime(2026, 6, 7),
-        MonthlyRate = 900,
-        HasElectricity = true,
-        ElecReading = 142,
-        ElecAmount = 285,
-        HasWater = true,
-        WaterReading = 18,
-        WaterAmount = 120,
-        IsPaid = true,
-        ORNumber = "OR-2026-0301",
-        CollectorName = "Clint Reyes",
-        Remarks = "Long-standing tenant since 2019. Contract renewal due June 2026.",
-        PaymentHistory = MakeH(11)
-    };
+        LoadStallData();
+    }
+
+    void LoadStallData()
+    {
+        // TODO: Replace with actual API call to fetch stall data based on FacilityId and StallNo
+        // Example: Stall = await StallService.GetStallByFacilityAndStallNo(FacilityId, StallNo);
+
+        // For now, using hardcoded data for demo purposes
+        // This should be replaced with actual data fetching logic
+        Stall = new()
+        {
+            Facility = GetFacilityName(FacilityId),
+            StallNo = StallNo,
+            Section = "Vegetable Area",
+            AreaSqm = 4.8,
+            AreaNote = "Near main entrance, left row",
+            ActualOccupant = "Trugillo, Elpedia C.",
+            ContractName = "Nila F. Andoy",
+            ContractDate = new DateTime(2023, 6, 7),
+            ContractDuration = "3 years",
+            ContractExpiry = new DateTime(2026, 6, 7),
+            MonthlyRate = 900,
+            HasElectricity = true,
+            ElecReading = 142,
+            ElecAmount = 285,
+            HasWater = true,
+            WaterReading = 18,
+            WaterAmount = 120,
+            IsPaid = true,
+            ORNumber = "OR-2026-0301",
+            CollectorName = "Clint Reyes",
+            Remarks = "Long-standing tenant since 2019. Contract renewal due June 2026.",
+            PaymentHistory = MakeH(11)
+        };
+    }
+
+    string GetFacilityName(string facilityId)
+    {
+        return facilityId.ToLower() switch
+        {
+            // From Report.razor (lowercase)
+            "npm" => "New Public Market",
+            "tcc" => "Tampak Commercial Center",
+            "ncc" => "New Commercial Center",
+            "bbq" => "Barbecue Stand",
+            "ice" => "Iceplant",
+            "slh" => "Slaughterhouse",
+
+            // From facility pages (uppercase/mixed case)
+            "npm-annex" => "New Public Market Annex",
+            "public-market-1" => "Public Market 1",
+            "public-market-2" => "Public Market 2",
+            _ => "Unknown Facility"
+        };
+    }
 
     static Dictionary<string, bool> MakeH(int paid)
     {

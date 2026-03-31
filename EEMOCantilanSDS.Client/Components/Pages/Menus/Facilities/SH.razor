@@ -145,26 +145,26 @@
                                 <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
 
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">?? Hog — ?250 total</div>
+                                    <div class="slh-tooltip-animal">Hog — ₱250 total</div>
                                     <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>?50</span>
-                                        <span>Ante Mortem</span><span>?20</span>
-                                        <span>Table Charge</span><span>?30</span>
-                                        <span>Entrance</span><span>?150</span>
+                                        <span>Slaughter</span><span>₱50</span>
+                                        <span>Ante Mortem</span><span>₱20</span>
+                                        <span>Table Charge</span><span>₱30</span>
+                                        <span>Entrance</span><span>₱150</span>
                                     </div>
                                 </div>
 
                                 <div class="slh-tooltip-divider"></div>
 
                                 <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">?? Carabao / Cow — ?365 total</div>
+                                    <div class="slh-tooltip-animal">Carabao / Cow — ₱365 total</div>
                                     <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>?150</span>
-                                        <span>Permit</span><span>?100</span>
-                                        <span>Ante Mortem</span><span>?20</span>
-                                        <span>Post Mortem</span><span>?25</span>
-                                        <span>Table Charge</span><span>?30</span>
-                                        <span>Livestock</span><span>?40</span>
+                                        <span>Slaughter</span><span>₱150</span>
+                                        <span>Permit</span><span>₱100</span>
+                                        <span>Ante Mortem</span><span>₱20</span>
+                                        <span>Post Mortem</span><span>₱25</span>
+                                        <span>Table Charge</span><span>₱30</span>
+                                        <span>Livestock</span><span>₱40</span>
                                     </div>
                                 </div>
                             </div>
@@ -190,7 +190,7 @@
                         <div class="slh-mini-key">Heads</div>
                     </div>
                     <div class="slh-mini-stat">
-                        <div class="slh-mini-val">?@FilteredEntries.Sum(e => e.TotalAmount).ToString("N0")</div>
+                        <div class="slh-mini-val">@FilteredEntries.Sum(e => e.TotalAmount).ToString("N0")</div>
                         <div class="slh-mini-key">Collected</div>
                     </div>
                 </div>
@@ -224,8 +224,8 @@
                                 <td>@entry.OwnerName</td>
                                 <td>@entry.AnimalType</td>
                                 <td>@entry.NumberOfHeads</td>
-                                <td>?@entry.RatePerHead.ToString("N0")</td>
-                                <td>?@entry.TotalAmount.ToString("N0")</td>
+                                <td>@entry.RatePerHead.ToString("N0")</td>
+                                <td>@entry.TotalAmount.ToString("N0")</td>
                                 <td><span class="mono">@entry.ORNo</span></td>
                                 <td>
                                     <div class="action-btns">

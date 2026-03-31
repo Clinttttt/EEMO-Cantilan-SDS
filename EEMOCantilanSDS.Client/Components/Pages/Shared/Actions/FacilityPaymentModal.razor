@@ -1,0 +1,216 @@
+@* ══════════════════════════════════════════════════════════════════════
+   FacilityPaymentModal.razor  —  Smart payment modal for all facilities
+
+   USAGE:
+       <FacilityPaymentModal Facility="ICE"
+                             Stall="PaymentStall"
+                             Show="ShowPayment"
+                             OnClose="ClosePayment" />
+
+   LOGIC:
+     NPM → displays Water, Electricity, Fish Fee (if Fish section)
+     ICE/TCC/NCC/BBQ → displays only Monthly Rental
+     SLH → displays per-head slaughter charges
+
+   PROPERTIES:
+     Facility  – string  – facility code
+     Stall     – TStall  – stall data with payment info
+     Show      – bool    – controls visibility
+     OnClose   – EventCallback – close button clicked
+══════════════════════════════════════════════════════════════════════ *@
+
+@typeparam TStall
+
+@if (Show && Stall is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="HandleClose">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Payment Record</div>
+                    <div class="eemo-modal-sub">
+                        Stall @GetStallNo(Stall) · @GetActualOccupant(Stall) · @DateTime.Now.ToString("MMMM yyyy")
+                    </div>
+                </div>
+                <button class="eemo-modal-close" @onclick="HandleClose">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="eemo-modal-body">
+
+                <!-- Status Badge -->
+                <div class="status-badge @(GetIsPaid(Stall) ? "paid" : GetIsPartial(Stall) ? "partial" : "unpaid")">
+                    Status: @GetStatusText(Stall)
+                </div>
+
+                <!-- Monthly Rental -->
+                <div class="pay-fee-block">
+                    <div class="pay-fee-header">
+                        <span class="pay-fee-label">Monthly Rental</span>
+                        <span class="pay-fee-rate">₱@GetMonthlyRate(Stall).ToString("N0")/mo</span>
+                    </div>
+                    @RenderMonthlyRentalStatus()
+                </div>
+
+                <!-- NPM: Utility Charges -->
+                @if (Facility == "NPM")
+                {
+                    @RenderNPMUtilityCharges()
+                }
+
+                <!-- Financial Summary/Breakdown -->
+                <div class="financial-breakdown">
+                    <div class="financial-breakdown-title">
+                        Financial Breakdown
+                    </div>
+                    <div class="breakdown-item total-paid">
+                        <span>Monthly Rental:</span>
+                        <span>₱@GetMonthlyRate(Stall).ToString("N0")</span>
+                    </div>
+                    @if (Facility == "NPM")
+                    {
+                        <div class="breakdown-item">
+                            <span>Electricity:</span>
+                            <span>₱@GetElecAmount(Stall).ToString("N0")</span>
+                        </div>
+                        <div class="breakdown-item">
+                            <span>Water:</span>
+                            <span>₱@GetWaterAmount(Stall).ToString("N0")</span>
+                        </div>
+                        @if (GetSelectedSection(Stall) == "Fish")
+                        {
+                            <div class="breakdown-item">
+                                <span>Fish Fee (₱1/kg):</span>
+                                <span>Variable</span>
+                            </div>
+                        }
+                    }
+                    <div class="breakdown-item">
+                        <span>Total Paid:</span>
+                        <span>₱@GetTotalPaid(Stall).ToString("N0")</span>
+                    </div>
+                    <div class="breakdown-item balance-due">
+                        <span>Balance Due:</span>
+                        <span>₱@GetBalanceDue(Stall).ToString("N0")</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="HandleClose">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    [Parameter] public string Facility { get; set; } = string.Empty;
+    [Parameter] public TStall? Stall { get; set; }
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private async Task HandleClose() => await OnClose.InvokeAsync();
+
+    // ── Generic Property Accessors ──
+    private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
+    private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
+    private decimal GetMonthlyRate(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyRate") ?? 0;
+    private decimal GetPartialAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "PartialAmount") ?? 0;
+    private bool GetIsPaid(TStall stall) => GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
+    private bool GetIsPartial(TStall stall) => GetPropertyValue<bool?>(stall, "IsPartial") ?? false;
+    private decimal GetTotalPaid(TStall stall) => GetPropertyValue<decimal?>(stall, "TotalPaid") ?? 0;
+    private decimal GetBalanceDue(TStall stall) => GetPropertyValue<decimal?>(stall, "BalanceDue") ?? 0;
+    private decimal GetElecAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "ElecAmount") ?? 0;
+    private decimal GetWaterAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "WaterAmount") ?? 0;
+    private string GetSelectedSection(TStall stall) => GetPropertyValue<string>(stall, "SelectedSection") ?? "";
+
+    private T GetPropertyValue<T>(TStall stall, string propertyName)
+    {
+        var property = stall?.GetType().GetProperty(propertyName);
+        return property != null ? (T?)property.GetValue(stall) ?? default! : default!;
+    }
+
+    private string GetStatusText(TStall stall)
+    {
+        if (GetIsPaid(stall))
+            return "Paid";
+        if (GetIsPartial(stall))
+            return $"Partial — ₱{GetPartialAmount(stall):N0}";
+        return "Unpaid";
+    }
+
+    // ── Render Fragments ──
+    private RenderFragment RenderMonthlyRentalStatus()
+    {
+        return @<text>
+            @if (GetIsPaid(Stall!))
+            {
+                <div class="pay-record-row">
+                    <span class="pay-record-key">Amount Due</span>
+                    <span class="pay-record-val">✓ ₱@GetMonthlyRate(Stall!).ToString("N0")</span>
+                </div>
+            }
+            else if (GetIsPartial(Stall!))
+            {
+                <div class="pay-record-row">
+                    <span class="pay-record-key">Amount Due</span>
+                    <span class="pay-record-val">₱@GetMonthlyRate(Stall!).ToString("N0")</span>
+                </div>
+                <div class="pay-record-row">
+                    <span class="pay-record-key">Amount Paid</span>
+                    <span class="pay-record-val">✓ ₱@GetPartialAmount(Stall!).ToString("N0")</span>
+                </div>
+                <div class="pay-record-row">
+                    <span class="pay-record-key">Balance Remaining</span>
+                    <span class="pay-record-val">⚠ ₱@((GetMonthlyRate(Stall!) - GetPartialAmount(Stall!)).ToString("N0"))</span>
+                </div>
+            }
+            else
+            {
+                <div class="pay-record-row">
+                    <span class="pay-record-key">Amount Due</span>
+                    <span class="pay-record-val">✗ ₱@GetMonthlyRate(Stall!).ToString("N0")</span>
+                </div>
+            }
+        </text>;
+    }
+
+    private RenderFragment RenderNPMUtilityCharges()
+    {
+        return @<text>
+            @if (GetElecAmount(Stall!) > 0 || GetWaterAmount(Stall!) > 0)
+            {
+                <div class="pay-fee-block" style="margin-top:16px;">
+                    <div class="pay-fee-header">
+                        <span class="pay-fee-label">Utility Charges</span>
+                        <span class="pay-fee-rate">Monthly billing</span>
+                    </div>
+                    @if (GetElecAmount(Stall!) > 0)
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Electricity</span>
+                            <span class="pay-record-val">₱@GetElecAmount(Stall!).ToString("N0")</span>
+                        </div>
+                    }
+                    @if (GetWaterAmount(Stall!) > 0)
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Water</span>
+                            <span class="pay-record-val">₱@GetWaterAmount(Stall!).ToString("N0")</span>
+                        </div>
+                    }
+                    @if (GetSelectedSection(Stall!) == "Fish")
+                    {
+                        <div class="pay-record-row">
+                            <span class="pay-record-key">Fish Fee</span>
+                            <span class="pay-record-val">₱1.00 per kg sold</span>
+                        </div>
+                    }
+                </div>
+            }
+        </text>;
+    }
+}

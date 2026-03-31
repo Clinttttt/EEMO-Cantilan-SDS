@@ -254,17 +254,19 @@
                     <div class="delinq-list">
                         @foreach (var d in TopDelinquents)
                         {
-                            <div class="delinq-item">
-                                <div class="delinq-avatar">@d.Initials</div>
-                                <div class="delinq-info">
-                                    <div class="delinq-name">@d.Name</div>
-                                    <div class="delinq-loc">@d.Location</div>
+                            <a href="@GetProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
+                                <div class="delinq-item">
+                                    <div class="delinq-avatar">@d.Initials</div>
+                                    <div class="delinq-info">
+                                        <div class="delinq-name">@d.Name</div>
+                                        <div class="delinq-loc">@d.Location</div>
+                                    </div>
+                                    <div class="delinq-amount">
+                                        <div class="delinq-amt-val">@d.Amount</div>
+                                        <div class="delinq-months">@d.Duration</div>
+                                    </div>
                                 </div>
-                                <div class="delinq-amount">
-                                    <div class="delinq-amt-val">@d.Amount</div>
-                                    <div class="delinq-months">@d.Duration</div>
-                                </div>
-                            </div>
+                            </a>
                         }
                     </div>
                 </div>
@@ -334,7 +336,9 @@
                         {
                             <tr>
                                 <td class="tx-id">@tx.RefNo</td>
-                                <td>@tx.Vendor</td>
+                                <td>
+                                    <a href="@GetProfileUrl(tx.FacilityCode, tx.StallNo)" class="vendor-link">@tx.Vendor</a>
+                                </td>
                                 <td><span class="fac-code-badge">@tx.FacilityCode</span></td>
                                 <td style="color:var(--text-muted);font-size:12.5px;">@tx.Date</td>
                                 <td style="font-size:12.5px;">@tx.Collector</td>
@@ -444,14 +448,14 @@
         new("Mar", 80, 20, "₱242,170", true),
     };
 
-    private record DelinquentEntry(string Initials, string Name, string Location, string Amount, string Duration);
+    private record DelinquentEntry(string Initials, string Name, string Location, string FacilityCode, string StallNo, string Amount, string Duration);
     private List<DelinquentEntry> TopDelinquents = new()
     {
-        new("RM", "Rosa Magbanua",   "TCC · Stall 04",          "₱4,800", "3 months"),
-        new("JD", "Jose Dalumpines", "NCC · Stall 11-B",        "₱3,600", "2 months"),
-        new("MV", "Maria Velasco",   "NPM · Stall 22 (Fish)",   "₱3,150", "1 month + arrears"),
-        new("EB", "Eduardo Briones", "BBQ Stand · Unit 2",      "₱2,700", "3 months"),
-        new("NL", "Nelly Lumabas",   "TCC · Stall 09 (Corner)", "₱2,400", "2 months"),
+        new("RM", "Rosa Magbanua",   "TCC · Stall 04",          "tcc", "04",      "₱4,800", "3 months"),
+        new("JD", "Jose Dalumpines", "NCC · Stall 11-B",        "ncc", "11-B",    "₱3,600", "2 months"),
+        new("MV", "Maria Velasco",   "NPM · Stall 22 (Fish)",   "npm", "22",      "₱3,150", "1 month + arrears"),
+        new("EB", "Eduardo Briones", "BBQ Stand · Unit 2",      "bbq", "2",       "₱2,700", "3 months"),
+        new("NL", "Nelly Lumabas",   "TCC · Stall 09 (Corner)", "tcc", "09",      "₱2,400", "2 months"),
     };
 
     private record FacilityRow(string Code, string Name, int Vendors, string Collected, string Unpaid, int Rate, string PaidLabel, string StatusClass, string StatusLabel);
@@ -465,15 +469,15 @@
         new("SLH", "Slaughterhouse",             0, "₱28,400", "₱16,540", 63, "Per-head basis", "bad",  "Behind"),
     };
 
-    private record Transaction(string RefNo, string Vendor, string FacilityCode, string Date, string Collector, string Method, string Amount);
+    private record Transaction(string RefNo, string Vendor, string FacilityCode, string StallNo, string Date, string Collector, string Method, string Amount);
     private List<Transaction> RecentTransactions = new()
     {
-        new("#TX-2026-0168", "Luzviminda Cano · Stall 5",   "NPM", "Mar 25, 2026", "Dela Cruz, J.", "Cash", "930"),
-        new("#TX-2026-0167", "Hernando Aguilar · Stall 11", "TCC", "Mar 25, 2026", "Santos, M.",    "Cash", "1,800"),
-        new("#TX-2026-0166", "Perla Macaraeg · Unit 1",     "BBQ", "Mar 24, 2026", "Reyes, A.",     "Cash", "700"),
-        new("#TX-2026-0165", "Carmelita Ebo · Stall 3-B",   "NCC", "Mar 24, 2026", "Dela Cruz, J.", "Cash", "2,400"),
-        new("#TX-2026-0164", "Slaughter · 4 Hogs",          "SLH", "Mar 24, 2026", "Gomez, R.",     "Cash", "1,000"),
-        new("#TX-2026-0163", "Florentina Cruz · Stall 8",   "NPM", "Mar 23, 2026", "Santos, M.",    "Cash", "960"),
+        new("#TX-2026-0168", "Luzviminda Cano · Stall 5",   "npm", "5",   "Mar 25, 2026", "Dela Cruz, J.", "Cash", "930"),
+        new("#TX-2026-0167", "Hernando Aguilar · Stall 11", "tcc", "11",  "Mar 25, 2026", "Santos, M.",    "Cash", "1,800"),
+        new("#TX-2026-0166", "Perla Macaraeg · Unit 1",     "bbq", "1",   "Mar 24, 2026", "Reyes, A.",     "Cash", "700"),
+        new("#TX-2026-0165", "Carmelita Ebo · Stall 3-B",   "ncc", "3-B", "Mar 24, 2026", "Dela Cruz, J.", "Cash", "2,400"),
+        new("#TX-2026-0164", "Slaughter · 4 Hogs",          "slh", "04",  "Mar 24, 2026", "Gomez, R.",     "Cash", "1,000"),
+        new("#TX-2026-0163", "Florentina Cruz · Stall 8",   "npm", "8",   "Mar 23, 2026", "Santos, M.",    "Cash", "960"),
     };
 
     private record YtdItem(string Month, string Amount, string BorderStyle, string LabelStyle, string ValStyle);
@@ -498,4 +502,24 @@
 
     private void ExportPdf()   { /* TODO */ }
     private void ExportExcel() { /* TODO */ }
+
+    /// <summary>
+    /// Generates a profile URL with facility and stall parameters
+    /// </summary>
+    private string GetProfileUrl(string facilityCode, string stallNo)
+    {
+        // Map facility codes to URL-friendly IDs
+        var facilityId = facilityCode.ToLower() switch
+        {
+            "npm" => "npm",
+            "tcc" => "tcc",
+            "ncc" => "ncc",
+            "bbq" => "bbq",
+            "ice" => "ice",
+            "slh" => "slh",
+            _ => facilityCode.ToLower()
+        };
+
+        return $"/profile/{facilityId}/{stallNo}";
+    }
 }

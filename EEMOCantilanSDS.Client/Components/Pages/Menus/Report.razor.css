@@ -832,6 +832,41 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
+   LINKS & INTERACTIVE
+   ══════════════════════════════════════════════════════════════ */
+
+/* Delinquent item as clickable link */
+.delinq-item-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    transition: all .15s;
+}
+
+    .delinq-item-link:hover {
+        text-decoration: none;
+    }
+
+    .delinq-item-link:hover .delinq-item {
+        background-color: rgba(201, 168, 75, 0.05);
+        border-color: var(--gold);
+    }
+
+/* Vendor/stall link in transaction table */
+.vendor-link {
+    color: var(--navy);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all .15s;
+    cursor: pointer;
+}
+
+    .vendor-link:hover {
+        color: var(--gold);
+        text-decoration: underline;
+    }
+
+/* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {

@@ -11,4 +11,8 @@
     <Content Include="Documentation\PROJECT_DOCUMENTATION.md" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Security\" />
+  </ItemGroup>
+
 </Project>
