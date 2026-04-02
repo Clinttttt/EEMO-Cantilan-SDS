@@ -16,6 +16,7 @@
         }
         public static IServiceCollection AddPersistince(this IServiceCollection service)
         {
+
             return service;
         }
         public static IServiceCollection AddCustomAuthentication(this IServiceCollection service)

@@ -126,7 +126,7 @@
                                  OnHistoryClick="OpenHistory"
                                  OnEditClick="OpenEdit" />
 
-        </div><!-- end content-area -->
+        </div>
     </main>
 </div>
 
@@ -138,7 +138,8 @@
                       Facility="ICE"
                       Stall="PaymentStall"
                       Show="ShowPayment"
-                      OnClose="ClosePayment" />
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -280,6 +281,22 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; PayError = string.Empty; }
 
+    private async Task HandleSavePayment(FacilityPaymentModal<IceplantStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            // Update the stall's OR Number
+            PaymentStall.ORNumber = payment.OrNumber;
+
+            // Force re-render to display updated OR Number in table
+            StateHasChanged();
+
+            // Close the modal
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
     bool ShowHistory = false;
     IceplantStall? HistoryStall = null;
     void OpenHistory(IceplantStall s) { HistoryStall = s; ShowHistory = true; }
@@ -299,7 +316,6 @@
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
-            Section = "Iceplant",
             SelectedSection = string.Empty,
             AreaSqm = 0,
             MonthlyRate = 900,

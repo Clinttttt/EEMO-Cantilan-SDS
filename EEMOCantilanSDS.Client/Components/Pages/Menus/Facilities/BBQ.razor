@@ -47,7 +47,6 @@
         <div class="content-area">
 
             <!-- -- BBQ Hero Banner -- -->
-            <!-- -- BBQ Hero Banner -- -->
             <div class="bbq-hero">
                 <div class="bbq-hero-left">
                     <div class="bbq-hero-icon">
@@ -61,12 +60,12 @@
                 </div>
                 <div class="bbq-hero-stats">
                     <div class="bbq-hero-stat">
-                        <div class="bbq-hero-val">?@TotalCollected.ToString("N0")</div>
+                        <div class="bbq-hero-val">₱@TotalCollected.ToString("N0")</div>
                         <div class="bbq-hero-key">Collected</div>
                     </div>
                     <div class="bbq-hero-divider"></div>
                     <div class="bbq-hero-stat">
-                        <div class="bbq-hero-val">?@TotalPending.ToString("N0")</div>
+                        <div class="bbq-hero-val">₱@TotalPending.ToString("N0")</div>
                         <div class="bbq-hero-key">Pending</div>
                     </div>
                     <div class="bbq-hero-divider"></div>
@@ -117,7 +116,7 @@
                         <div class="bbq-mini-key">Partial</div>
                     </div>
                     <div class="bbq-mini-stat">
-                        <div class="bbq-mini-val">?@PanelCollected.ToString("N0")</div>
+                        <div class="bbq-mini-val">₱@PanelCollected.ToString("N0")</div>
                         <div class="bbq-mini-key">Collected</div>
                     </div>
                 </div>
@@ -143,7 +142,8 @@
                       Facility="BBQ"
                       Stall="PaymentStall"
                       Show="ShowPayment"
-                      OnClose="ClosePayment" />
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -214,7 +214,7 @@
         new() { Id=3,  StallNo="B-03", ActualOccupant="Tan, Roberto A.",      ContractName="Roberto A. Tan",      AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=1500, ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(6) },
         new() { Id=4,  StallNo="B-04", ActualOccupant="Flores, Gloria M.",    ContractName="Gloria M. Flores",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B04",  CollectorName="Clint Reyes", PaymentHistory=MakeH(12) },
         new() { Id=5,  StallNo="B-05", ActualOccupant="Cabrera, Nestor P.",   ContractName="Nestor P. Cabrera",   AreaSqm=35.0, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=1500, MonthlyRate=2800, ORNumber="OR-2026-B05", CollectorName="Ruel Santos", PaymentHistory=MakeH(8) },
-        new() { Id=6,  StallNo="B-06", ActualOccupant="Ramos, Elvira S.",     ContractName="Elvira S. Ramos",     AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=900,  ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(3) },
+        new() { Id=6,  StallNo="B-06", ActualOccupant="Ramos, Elvira S.",     ContractName="Elvira S. Ramos",     AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,   MonthlyRate=900,  ORNumber="",             CollectorName="Marco Dizon", PaymentHistory=MakeH(3) },
         new() { Id=7,  StallNo="B-07", ActualOccupant="Villanueva, Ana L.",   ContractName="Ana L. Villanueva",   AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B07",  CollectorName="Clint Reyes", PaymentHistory=MakeH(10) },
         new() { Id=8,  StallNo="B-08", ActualOccupant="Closed",                ContractName="Ramon B. Castro",     AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   IsActive=false, MonthlyRate=1500, ORNumber="", CollectorName="", PaymentHistory=MakeH(2) },
         new() { Id=9,  StallNo="B-09", ActualOccupant="Mendoza, Lourdes G.",  ContractName="Lourdes G. Mendoza",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ORNumber="OR-2026-B09",  CollectorName="Ruel Santos", PaymentHistory=MakeH(12) },
@@ -294,6 +294,22 @@
 
     private void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
+    private async Task HandleSavePayment(FacilityPaymentModal<BbqStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            // Update the stall's OR Number
+            PaymentStall.ORNumber = payment.OrNumber;
+
+            // Force re-render to display updated OR Number in table
+            StateHasChanged();
+
+            // Close the modal
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
     // Add Vendor Modal (shared AddVendorModal)
     private bool ShowAddVendorModal { get; set; }
     private string VendorErrorMessage { get; set; } = string.Empty;
@@ -308,7 +324,6 @@
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
-            Section = "BBQ",
             SelectedSection = string.Empty,
             AreaSqm = 0,
             MonthlyRate = 900,

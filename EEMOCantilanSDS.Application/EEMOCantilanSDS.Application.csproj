@@ -12,6 +12,7 @@
     <PackageReference Include="MediatR" Version="12.1.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,9 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Command\" />
-    <Folder Include="Common\" />
-    <Folder Include="Dtos\" />
     <Folder Include="Queries\" />
   </ItemGroup>
 

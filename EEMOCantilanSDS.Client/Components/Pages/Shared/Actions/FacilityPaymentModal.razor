@@ -1,22 +1,24 @@
 @* ══════════════════════════════════════════════════════════════════════
    FacilityPaymentModal.razor  —  Smart payment modal for all facilities
 
+   FLOW:
+     Collector (Mobile) marks PAID or PARTIAL
+         → Admin (Web) opens modal → sees status auto-updated
+         → Admin encodes OR Number from physical receipt book
+         → Saves OR Number
+
+   OR NUMBER LOGIC:
+     UNPAID   → no OR input        (collector hasn't collected yet)
+     PAID     → show OR input      (admin encodes OR number)
+     PARTIAL  → show OR input      (admin encodes OR number)
+     OR already saved → read-only  (already encoded, no more input)
+
    USAGE:
-       <FacilityPaymentModal Facility="ICE"
+       <FacilityPaymentModal Facility="NPM"
                              Stall="PaymentStall"
                              Show="ShowPayment"
-                             OnClose="ClosePayment" />
-
-   LOGIC:
-     NPM → displays Water, Electricity, Fish Fee (if Fish section)
-     ICE/TCC/NCC/BBQ → displays only Monthly Rental
-     SLH → displays per-head slaughter charges
-
-   PROPERTIES:
-     Facility  – string  – facility code
-     Stall     – TStall  – stall data with payment info
-     Show      – bool    – controls visibility
-     OnClose   – EventCallback – close button clicked
+                             OnClose="ClosePayment"
+                             OnSave="HandleSavePayment" />
 ══════════════════════════════════════════════════════════════════════ *@
 
 @typeparam TStall
@@ -25,6 +27,8 @@
 {
     <div class="eemo-modal-overlay" @onclick="HandleClose">
         <div class="eemo-modal" @onclick:stopPropagation="true">
+
+            <!-- ── Header ── -->
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Payment Record</div>
@@ -39,68 +43,185 @@
 
             <div class="eemo-modal-body">
 
-                <!-- Status Badge -->
+                <!-- ── Status Badge ── -->
                 <div class="status-badge @(GetIsPaid(Stall) ? "paid" : GetIsPartial(Stall) ? "partial" : "unpaid")">
                     Status: @GetStatusText(Stall)
                 </div>
 
-                <!-- Monthly Rental -->
-                <div class="pay-fee-block">
-                    <div class="pay-fee-header">
-                        <span class="pay-fee-label">Monthly Rental</span>
-                        <span class="pay-fee-rate">₱@GetMonthlyRate(Stall).ToString("N0")/mo</span>
-                    </div>
-                    @RenderMonthlyRentalStatus()
-                </div>
-
-                <!-- NPM: Utility Charges -->
-                @if (Facility == "NPM")
+                <!-- ══════════════════════════════════════════
+                     UNPAID notice — collector hasn't collected yet
+                ══════════════════════════════════════════ -->
+                @if (!GetIsPaid(Stall) && !GetIsPartial(Stall))
                 {
-                    @RenderNPMUtilityCharges()
+                    <div class="unpaid-notice">
+                         Waiting for collector to record payment on mobile.
+                        OR Number can be encoded once payment is collected.
+                    </div>
                 }
 
-                <!-- Financial Summary/Breakdown -->
+                <!-- ══════════════════════════════════════════
+                     UNIFIED PAYMENT DETAILS BLOCK
+                     OR Number + Monthly Rental + Utilities + Breakdown — all in one
+                ══════════════════════════════════════════ -->
                 <div class="financial-breakdown">
-                    <div class="financial-breakdown-title">
-                        Financial Breakdown
-                    </div>
-                    <div class="breakdown-item total-paid">
-                        <span>Monthly Rental:</span>
+                    <div class="financial-breakdown-title">Payment Details</div>
+
+                    <!-- OR Number row -->
+                    @if (GetIsPaid(Stall) || GetIsPartial(Stall))
+                    {
+                        @if (!string.IsNullOrWhiteSpace(GetOrNumber(Stall)) && !IsEditingOrNumber)
+                        {
+                            <!-- OR encoded → read-only + Edit -->
+                            <div class="breakdown-item">
+                                <span>OR Number</span>
+                                <div class="or-encoded-row">
+                                    <span class="or-number-display">@GetOrNumber(Stall)</span>
+                                    <button class="btn-edit-or" @onclick="StartEditOrNumber" title="Edit OR Number">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                        </svg>
+                                        Edit
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <!-- OR not yet encoded OR editing → input inline -->
+                            <div class="breakdown-item breakdown-or-input">
+                                <span>
+                                    OR Number <span class="required-star">*</span>
+                                    @if (IsEditingOrNumber)
+                                    {
+                                        <span class="editing-tag">editing</span>
+                                    }
+                                </span>
+                                <div class="or-input-col">
+                                    <input @bind="OrNumber"
+                                           @bind:event="oninput"
+                                           type="text"
+                                           placeholder="e.g. OR-2026-001"
+                                           class="pay-input pay-input-inline @(ShowValidation && string.IsNullOrWhiteSpace(OrNumber) ? "input-error" : "")" />
+                                    @if (ShowValidation && string.IsNullOrWhiteSpace(OrNumber))
+                                    {
+                                        <span class="input-error-msg">OR Number is required</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="breakdown-item breakdown-or-input">
+                                <span style="color:var(--text-muted); font-size:12px;">Remarks <span class="optional-tag">(optional)</span></span>
+                                <input @bind="Remarks"
+                                       type="text"
+                                       placeholder="e.g. Late payment..."
+                                       class="pay-input pay-input-inline" />
+                            </div>
+                        }
+                    }
+
+                    <!-- Monthly Rental -->
+                    <div class="breakdown-item breakdown-section-header">
+                        <span>Monthly Rental</span>
                         <span>₱@GetMonthlyRate(Stall).ToString("N0")</span>
                     </div>
-                    @if (Facility == "NPM")
+
+                    @if (GetIsPartial(Stall))
                     {
                         <div class="breakdown-item">
-                            <span>Electricity:</span>
-                            <span>₱@GetElecAmount(Stall).ToString("N0")</span>
+                            <span>Amount Paid</span>
+                            <span style="color:var(--green);">₱@GetPartialAmount(Stall).ToString("N0")</span>
                         </div>
                         <div class="breakdown-item">
-                            <span>Water:</span>
-                            <span>₱@GetWaterAmount(Stall).ToString("N0")</span>
+                            <span>Balance Remaining</span>
+                            <span style="color:#b87333;">₱@((GetMonthlyRate(Stall) - GetPartialAmount(Stall)).ToString("N0"))</span>
                         </div>
+                    }
+
+                    <!-- NPM: Utilities -->
+                    @if (Facility == "NPM")
+                    {
+                        @if (GetElecAmount(Stall) > 0)
+                        {
+                            <div class="breakdown-item">
+                                <span>Electricity</span>
+                                <span>₱@GetElecAmount(Stall).ToString("N0")</span>
+                            </div>
+                        }
+                        @if (GetWaterAmount(Stall) > 0)
+                        {
+                            <div class="breakdown-item">
+                                <span>Water</span>
+                                <span>₱@GetWaterAmount(Stall).ToString("N0")</span>
+                            </div>
+                        }
                         @if (GetSelectedSection(Stall) == "Fish")
                         {
                             <div class="breakdown-item">
-                                <span>Fish Fee (₱1/kg):</span>
+                                <span>Fish Fee (₱1/kg)</span>
                                 <span>Variable</span>
                             </div>
                         }
                     }
-                    <div class="breakdown-item">
-                        <span>Total Paid:</span>
+
+                    <!-- Totals -->
+                    <div class="breakdown-item breakdown-total">
+                        <span>Total Paid</span>
                         <span>₱@GetTotalPaid(Stall).ToString("N0")</span>
                     </div>
+
                     <div class="breakdown-item balance-due">
-                        <span>Balance Due:</span>
+                        <span>Balance Due</span>
                         <span>₱@GetBalanceDue(Stall).ToString("N0")</span>
                     </div>
                 </div>
 
             </div>
 
+            <!-- ── Footer ── -->
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="HandleClose">Close</button>
+
+                @* Show "Save OR Number" only when:
+                   - PAID or PARTIAL (collector already collected)
+                   - OR Number not yet encoded by admin *@
+                @if ((GetIsPaid(Stall!) || GetIsPartial(Stall!))
+                                                                                      && string.IsNullOrWhiteSpace(GetOrNumber(Stall!)))
+                {
+                    <button class="btn-primary @(IsSaving ? "btn-loading" : "")"
+                            @onclick="HandleSaveOrNumber"
+                            disabled="@IsSaving">
+                        @if (IsSaving)
+                        {
+                            <span class="spinner"></span>
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save OR Number</span>
+                        }
+                    </button>
+                }
+
+                @* Show "Update" + "Cancel" when editing existing OR Number *@
+                @if (IsEditingOrNumber)
+                {
+                    <button class="btn-ghost" @onclick="CancelEditOrNumber">Cancel</button>
+                    <button class="btn-primary @(IsSaving ? "btn-loading" : "")"
+                            @onclick="HandleSaveOrNumber"
+                            disabled="@IsSaving">
+                        @if (IsSaving)
+                        {
+                            <span class="spinner"></span>
+                            <span>Updating...</span>
+                        }
+                        else
+                        {
+                            <span>Update OR Number</span>
+                        }
+                    </button>
+                }
             </div>
+
         </div>
     </div>
 }
@@ -111,12 +232,70 @@
     [Parameter] public TStall? Stall { get; set; }
     [Parameter] public bool Show { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<PaymentSubmitDto> OnSave { get; set; }
+
+    // ── Form Fields (admin only encodes OR Number) ──
+    private string OrNumber { get; set; } = string.Empty;
+    private string Remarks { get; set; } = string.Empty;
+
+    // ── UI State ──
+    private bool ShowValidation { get; set; } = false;
+    private bool IsSaving { get; set; } = false;
+    private bool IsEditingOrNumber { get; set; } = false;
+
+    // ── Reset form when modal closes ──
+    protected override void OnParametersSet()
+    {
+        if (!Show)
+        {
+            OrNumber = string.Empty;
+            Remarks = string.Empty;
+            ShowValidation = false;
+            IsSaving = false;
+            IsEditingOrNumber = false;
+        }
+    }
 
     private async Task HandleClose() => await OnClose.InvokeAsync();
+
+    private void StartEditOrNumber()
+    {
+        OrNumber = GetOrNumber(Stall!);  // pre-fill with existing value
+        IsEditingOrNumber = true;
+        ShowValidation = false;
+    }
+
+    private void CancelEditOrNumber()
+    {
+        OrNumber = string.Empty;
+        IsEditingOrNumber = false;
+        ShowValidation = false;
+    }
+
+    private async Task HandleSaveOrNumber()
+    {
+        ShowValidation = true;
+
+        if (string.IsNullOrWhiteSpace(OrNumber))
+            return;
+
+        IsSaving = true;
+
+        await OnSave.InvokeAsync(new PaymentSubmitDto
+        {
+            StallId = GetStallId(Stall!),
+            OrNumber = OrNumber.Trim(),
+            Remarks = Remarks,
+            SavedAt = DateTime.UtcNow
+        });
+
+        IsSaving = false;
+    }
 
     // ── Generic Property Accessors ──
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
+    private object? GetStallId(TStall stall) => GetPropertyValue<object>(stall, "Id");
     private decimal GetMonthlyRate(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyRate") ?? 0;
     private decimal GetPartialAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "PartialAmount") ?? 0;
     private bool GetIsPaid(TStall stall) => GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
@@ -126,91 +305,31 @@
     private decimal GetElecAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "ElecAmount") ?? 0;
     private decimal GetWaterAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "WaterAmount") ?? 0;
     private string GetSelectedSection(TStall stall) => GetPropertyValue<string>(stall, "SelectedSection") ?? "";
+    private string GetOrNumber(TStall stall) => GetPropertyValue<string>(stall, "OrNumber") ?? "";
 
     private T GetPropertyValue<T>(TStall stall, string propertyName)
     {
-        var property = stall?.GetType().GetProperty(propertyName);
+        var property = stall?.GetType().GetProperty(
+            propertyName,
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.IgnoreCase);  // ← fixes OrNumber vs ORNumber
         return property != null ? (T?)property.GetValue(stall) ?? default! : default!;
     }
 
     private string GetStatusText(TStall stall)
     {
-        if (GetIsPaid(stall))
-            return "Paid";
-        if (GetIsPartial(stall))
-            return $"Partial — ₱{GetPartialAmount(stall):N0}";
+        if (GetIsPaid(stall)) return "Paid";
+        if (GetIsPartial(stall)) return $"Partial — ₱{GetPartialAmount(stall):N0}";
         return "Unpaid";
     }
 
-    // ── Render Fragments ──
-    private RenderFragment RenderMonthlyRentalStatus()
+    // ── DTO ──
+    public class PaymentSubmitDto
     {
-        return @<text>
-            @if (GetIsPaid(Stall!))
-            {
-                <div class="pay-record-row">
-                    <span class="pay-record-key">Amount Due</span>
-                    <span class="pay-record-val">✓ ₱@GetMonthlyRate(Stall!).ToString("N0")</span>
-                </div>
-            }
-            else if (GetIsPartial(Stall!))
-            {
-                <div class="pay-record-row">
-                    <span class="pay-record-key">Amount Due</span>
-                    <span class="pay-record-val">₱@GetMonthlyRate(Stall!).ToString("N0")</span>
-                </div>
-                <div class="pay-record-row">
-                    <span class="pay-record-key">Amount Paid</span>
-                    <span class="pay-record-val">✓ ₱@GetPartialAmount(Stall!).ToString("N0")</span>
-                </div>
-                <div class="pay-record-row">
-                    <span class="pay-record-key">Balance Remaining</span>
-                    <span class="pay-record-val">⚠ ₱@((GetMonthlyRate(Stall!) - GetPartialAmount(Stall!)).ToString("N0"))</span>
-                </div>
-            }
-            else
-            {
-                <div class="pay-record-row">
-                    <span class="pay-record-key">Amount Due</span>
-                    <span class="pay-record-val">✗ ₱@GetMonthlyRate(Stall!).ToString("N0")</span>
-                </div>
-            }
-        </text>;
-    }
-
-    private RenderFragment RenderNPMUtilityCharges()
-    {
-        return @<text>
-            @if (GetElecAmount(Stall!) > 0 || GetWaterAmount(Stall!) > 0)
-            {
-                <div class="pay-fee-block" style="margin-top:16px;">
-                    <div class="pay-fee-header">
-                        <span class="pay-fee-label">Utility Charges</span>
-                        <span class="pay-fee-rate">Monthly billing</span>
-                    </div>
-                    @if (GetElecAmount(Stall!) > 0)
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Electricity</span>
-                            <span class="pay-record-val">₱@GetElecAmount(Stall!).ToString("N0")</span>
-                        </div>
-                    }
-                    @if (GetWaterAmount(Stall!) > 0)
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Water</span>
-                            <span class="pay-record-val">₱@GetWaterAmount(Stall!).ToString("N0")</span>
-                        </div>
-                    }
-                    @if (GetSelectedSection(Stall!) == "Fish")
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Fish Fee</span>
-                            <span class="pay-record-val">₱1.00 per kg sold</span>
-                        </div>
-                    }
-                </div>
-            }
-        </text>;
+        public object? StallId { get; set; }
+        public string OrNumber { get; set; } = string.Empty;
+        public string? Remarks { get; set; }
+        public DateTime SavedAt { get; set; } = DateTime.UtcNow;
     }
 }

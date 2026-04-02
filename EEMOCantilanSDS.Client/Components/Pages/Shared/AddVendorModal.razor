@@ -113,15 +113,6 @@
                         </div>
                     </div>
 
-                    <div class="avm-row-2">
-                        <div class="avm-group">
-                            <label class="avm-label">OR No.</label>
-                            <input class="avm-input" type="text" placeholder="e.g. OR-2024-001"
-                                   @bind="Form.OrNo" @bind:event="oninput" />
-                        </div>
-                        <div class="avm-group" style="visibility:hidden;"></div>
-                    </div>
-
                     <!-- Section dropdown — NPM only -->
                     @if (Form.FacilityCode == "NPM")
                     {
@@ -165,20 +156,11 @@
                     <div class="avm-section-label">Space Information</div>
                     <div class="avm-row-2">
                         <div class="avm-group">
-                            <label class="avm-label">Section / Area</label>
-                            <input class="avm-input" type="text"
-                                   placeholder="e.g. Vegetable Area, Fish Section"
-                                   @bind="Form.Section" @bind:event="oninput" />
-                            @if (Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection))
-                            {
-                                <div class="avm-hint-ok">✓ Auto-filled from section</div>
-                            }
-                        </div>
-                        <div class="avm-group">
                             <label class="avm-label">Area (sq.m)</label>
                             <input class="avm-input" type="number" min="0" placeholder="e.g. 4.8"
                                    @bind="Form.AreaSqm" @bind:event="oninput" />
                         </div>
+                        <div class="avm-group" style="visibility:hidden;"></div>
                     </div>
                 </div>
 
@@ -488,10 +470,8 @@
     {
         public string FacilityCode { get; set; } = string.Empty;
         public string StallNo { get; set; } = string.Empty;
-        public string OrNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
-        public string Section { get; set; } = string.Empty;
         public string SelectedSection { get; set; } = string.Empty;
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }

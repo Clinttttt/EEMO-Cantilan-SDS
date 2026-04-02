@@ -131,97 +131,15 @@
     </main>
 </div>
 
-
 <!-- ══════════════════════════════════════════════
-     RECORD PAYMENT MODAL
+     PAYMENT RECORD MODAL (Reusable Component)
 ══════════════════════════════════════════════ -->
-@if (ShowPayment && PaymentStall is not null)
-{
-    <div class="eemo-modal-overlay" @onclick="ClosePayment">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Payment Record</div>
-                    <div class="eemo-modal-sub">Stall @PaymentStall.StallNo · @PaymentStall.ActualOccupant · @DateTime.Now.ToString("MMMM yyyy")</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="ClosePayment">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="eemo-modal-body">
-
-                <!-- Status Badge -->
-                <div style="padding:12px 16px;border-radius:8px;text-align:center;margin-bottom:16px;
-                            background:@(PaymentStall.IsPaid ? "var(--green-bg)" : PaymentStall.IsPartial ? "rgba(184, 115, 51, 0.08)" : "var(--red-bg)");">
-                    <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
-                               color:@(PaymentStall.IsPaid ? "var(--green)" : PaymentStall.IsPartial ? "#b87333" : "var(--red)");">
-                        Status: @(PaymentStall.IsPaid ? "Paid" : PaymentStall.IsPartial ? $"Partial — ₱{PaymentStall.PartialAmount:N0}" : "Unpaid")
-                    </div>
-                </div>
-
-                <!-- Monthly Rental -->
-                <div class="pay-fee-block">
-                    <div class="pay-fee-header">
-                        <span class="pay-fee-label">Monthly Rental</span>
-                        <span class="pay-fee-rate">₱@PaymentStall.MonthlyRate.ToString("N0")/mo · @PaymentStall.AreaSqm sqm</span>
-                    </div>
-                    @if (PaymentStall.IsPaid)
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">✓ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
-                        </div>
-                    }
-                    else if (PaymentStall.IsPartial)
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
-                        </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Paid</span>
-                            <span class="pay-record-val">✓ ₱@PaymentStall.PartialAmount.ToString("N0")</span>
-                        </div>
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Balance Remaining</span>
-                            <span class="pay-record-val">⚠ ₱@((PaymentStall.MonthlyRate - PaymentStall.PartialAmount).ToString("N0"))</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="pay-record-row">
-                            <span class="pay-record-key">Amount Due</span>
-                            <span class="pay-record-val">✗ ₱@PaymentStall.MonthlyRate.ToString("N0")</span>
-                        </div>
-                    }
-                </div>
-
-                <!-- Financial Summary/Breakdown -->
-                <div style="margin-top:20px;padding:16px;border-radius:8px;background:var(--bg-card);border:1px solid var(--border);">
-                    <div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin-bottom:12px;">
-                        Financial Breakdown
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:2px solid var(--border);margin-bottom:8px;">
-                        <span>Monthly Rental:</span>
-                        <span style="font-weight:600;">₱@PaymentStall.MonthlyRate.ToString("N0")</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
-                        <span>Total Paid:</span>
-                        <span style="font-weight:600;">₱@PaymentStall.TotalPaid.ToString("N0")</span>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;">
-                        <span>Balance Due:</span>
-                        <span style="font-weight:600;">₱@PaymentStall.BalanceDue.ToString("N0")</span>
-                    </div>
-                </div>
-
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="ClosePayment">Close</button>
-            </div>
-        </div>
-    </div>
-}
+<FacilityPaymentModal TStall="TccStall"
+                      Facility="TCC"
+                      Stall="PaymentStall"
+                      Show="ShowPayment"
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -389,6 +307,17 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
+    private async Task HandleSavePayment(FacilityPaymentModal<TccStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            PaymentStall.ORNumber = payment.OrNumber;
+            StateHasChanged();
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
     bool ShowHistory = false;
     TccStall? HistoryStall = null;
     void OpenHistory(TccStall s) { HistoryStall = s; ShowHistory = true; }
@@ -408,7 +337,6 @@
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
-            Section = "TCC",
             SelectedSection = string.Empty,
             AreaSqm = 0,
             MonthlyRate = 2400,

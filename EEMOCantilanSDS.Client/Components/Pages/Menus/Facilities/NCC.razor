@@ -143,7 +143,8 @@
                       Facility="NCC"
                       Stall="PaymentStall"
                       Show="ShowPayment"
-                      OnClose="ClosePayment" />
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
 
 <!-- ══════════════════════════════════════════════
      PAYMENT HISTORY MODAL (Reusable)
@@ -325,6 +326,22 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
+    private async Task HandleSavePayment(FacilityPaymentModal<NccStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            // Update the stall's OR Number
+            PaymentStall.ORNumber = payment.OrNumber;
+
+            // Force re-render to display updated OR Number in table
+            StateHasChanged();
+
+            // Close the modal
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
     bool ShowHistory = false;
     NccStall? HistoryStall = null;
     void OpenHistory(NccStall s) { HistoryStall = s; ShowHistory = true; }
@@ -344,7 +361,6 @@
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
-            Section = "NCC",
             SelectedSection = string.Empty,
             AreaSqm = 0,
             MonthlyRate = 1200,

@@ -837,7 +837,9 @@ TABLE
    DETAIL MODAL
 ══════════════════════════════════════════ */
 .detail-modal {
-    max-width: 780px;
+    width: 90vw;
+    max-width: 820px;
+    width: 820px;
 }
 
 /* ── Dark hero header — same style as PaymentHistoryModal ─────── */
@@ -953,7 +955,7 @@ TABLE
 
 .detail-stats-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
     gap: 12px;
     padding: 16px 24px;
     border-bottom: 1px solid var(--border);
@@ -968,6 +970,8 @@ TABLE
     background: var(--bg);
     border: 1px solid var(--border);
     transition: all 0.15s;
+    min-height: 70px;
+    height: 100%;
 }
 
 .detail-stat-icon {
@@ -1026,11 +1030,18 @@ TABLE
     grid-template-columns: 1fr 1fr;
     gap: 0;
     border-bottom: 1px solid var(--border);
+    background: var(--bg);
 }
+
+    .detail-two-col > * {
+        min-width: 0;
+    }
 
 .detail-section {
     padding: 16px 24px;
     border-bottom: 1px solid var(--border);
+    min-width: 0;
+    box-sizing: border-box;
 }
 
     .detail-section:last-child {
@@ -1067,6 +1078,7 @@ TABLE
     padding: 7px 0;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
+    min-height: 28px;
 }
 
     .detail-info-row:last-child {
@@ -1096,6 +1108,7 @@ TABLE
     border-radius: 9px;
     border: 1px solid var(--border);
     background: var(--bg);
+    min-height: 48px;
 }
 
 .fee-item-left {
@@ -1261,6 +1274,7 @@ TABLE
     grid-template-columns: repeat(7, 1fr);
     gap: 2px;
     margin-bottom: 12px;
+    width: 100%;
 }
 
 .cal-day-hdr {
@@ -1274,17 +1288,20 @@ TABLE
 }
 
 .cal-cell {
-    border-radius: 7px;
-    min-height: 28px;
+    border-radius: 12px;
+    min-height: 90px;
+    height: 90px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    gap: 1px;
+    gap: 4px;
     transition: opacity .12s;
-    border: 1px solid transparent;
+    border: 2px solid transparent;
     position: relative;
+    box-sizing: border-box;
+    padding: 8px;
 }
 
 .cal-num {
@@ -1394,6 +1411,7 @@ TABLE
     border: 1.5px solid var(--border);
     border-bottom: 3px solid var(--navy);
     background: var(--bg);
+    min-height: 80px;
 }
 
 .cal-sum-val {

@@ -69,11 +69,11 @@
                     <div class="vs-hero-stat">
                         <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
                         <div class="vs-hero-key">Unpaid</div>
-                        <div class="vs-hero-sub2">?@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
+                        <div class="vs-hero-sub2">@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">?@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
+                        <div class="vs-hero-val">@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
                         <div class="vs-hero-key">Monthly Target</div>
                         <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy") · All Facilities</div>
                     </div>
@@ -1040,7 +1040,6 @@ DailyFishKilos = new()
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
             SelectedSection = string.Empty,
-            Section = string.Empty,
             FeeTypes = new List<string>()
         };
         FormError = string.Empty;
@@ -1119,7 +1118,6 @@ DailyFishKilos = new()
             ActualOccupant = v.ActualOccupant,
             ContractName = v.ContractName,
             SelectedSection = selectedSection,
-            Section = v.Section,
             AreaSqm = v.AreaSqm,
             ContractDate = v.ContractDate,
             ContractYears = v.ContractYears,
@@ -1146,13 +1144,12 @@ DailyFishKilos = new()
         if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.ActualOccupant)) { FormError = "Actual occupant name is required."; return; }
         if (Form.FacilityCode == "NPM" && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
-        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than ?0."; return; }
+        if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than 0."; return; }
 
         // Auto-populate Section from SelectedSection for NPM
-        if (Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection))
-        {
-            Form.Section = $"{Form.SelectedSection} Area";
-        }
+        string section = Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection)
+            ? $"{Form.SelectedSection} Area"
+            : string.Empty;
 
         if (IsEditing)
         {
@@ -1161,7 +1158,7 @@ DailyFishKilos = new()
             v.StallNo = Form.StallNo.Trim();
             v.ActualOccupant = Form.ActualOccupant.Trim();
             v.ContractName = Form.ContractName.Trim();
-            v.Section = Form.Section.Trim();
+            v.Section = section;
             v.AreaSqm = Form.AreaSqm;
             v.ContractDate = Form.ContractDate;
             v.ContractYears = Form.ContractYears;
@@ -1179,7 +1176,7 @@ DailyFishKilos = new()
                 StallNo = Form.StallNo.Trim(),
                 ActualOccupant = Form.ActualOccupant.Trim(),
                 ContractName = Form.ContractName.Trim(),
-                Section = Form.Section.Trim(),
+                Section = section,
                 AreaSqm = Form.AreaSqm,
                 ContractDate = Form.ContractDate,
                 ContractYears = Form.ContractYears,

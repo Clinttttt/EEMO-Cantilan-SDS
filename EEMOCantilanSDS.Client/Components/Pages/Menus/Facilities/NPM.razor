@@ -165,7 +165,8 @@
                       Facility="NPM"
                       Stall="PaymentStall"
                       Show="ShowPayment"
-                      OnClose="ClosePayment" />
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -392,6 +393,22 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
+    private async Task HandleSavePayment(FacilityPaymentModal<NpmStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            // Update the stall's OR Number
+            PaymentStall.ORNumber = payment.OrNumber;
+
+            // Force re-render to display updated OR Number in table
+            StateHasChanged();
+
+            // Close the modal
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
     bool ShowHistory = false;
     NpmStall? HistoryStall = null;
     void OpenHistory(NpmStall s) { HistoryStall = s; ShowHistory = true; }
@@ -418,7 +435,6 @@
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
             SelectedSection = "Vegetable",
-            Section = "Vegetable Area",
             AreaSqm = 0,
             MonthlyRate = 900,
             ContractDate = new DateTime(2023, 6, 7),
@@ -443,19 +459,16 @@
         // Auto-populate section and fees based on selected section
         if (VendorForm.SelectedSection == "Vegetable")
         {
-            VendorForm.Section = "Vegetable Area";
             VendorForm.MonthlyRate = 900;
             VendorForm.FeeTypes = new() { "Electricity", "Water" };
         }
         else if (VendorForm.SelectedSection == "Fish")
         {
-            VendorForm.Section = "Fish Section";
             VendorForm.MonthlyRate = 900;
             VendorForm.FeeTypes = new() { "Electricity", "Water", "Fish ₱1/kg" };
         }
         else if (VendorForm.SelectedSection == "Meat")
         {
-            VendorForm.Section = "Meat Section";
             VendorForm.MonthlyRate = 900;
             VendorForm.FeeTypes = new() { "Electricity", "Water" };
         }
@@ -498,7 +511,7 @@
         {
             Id = Stalls.Max(s => s.Id) + 1,
             StallNo = VendorForm.StallNo.Trim(),
-            Section = VendorForm.Section,
+            Section = $"{VendorForm.SelectedSection} Area",
             ActualOccupant = VendorForm.ActualOccupant.Trim(),
             ContractName = VendorForm.ContractName.Trim(),
             AreaSqm = VendorForm.AreaSqm,
