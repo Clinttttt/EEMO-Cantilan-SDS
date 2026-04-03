@@ -8,8 +8,6 @@
 
   <ItemGroup>
     <Folder Include="HttpClients\ApiClients\" />
-    <Folder Include="Configuration\" />
-    <Folder Include="Repository\" />
   </ItemGroup>
 
   <ItemGroup>

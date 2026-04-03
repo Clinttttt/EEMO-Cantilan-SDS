@@ -26,21 +26,21 @@
         pointer-events: none;
     }
 
-.vs-hero.vegetables-hero {
-    background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
-}
-
-    .vs-hero.vegetables-hero::before {
-        background: radial-gradient(circle, rgba(34, 197, 94, 0.2) 0%, transparent 70%);
+    .vs-hero.vegetables-hero {
+        background: linear-gradient(135deg, #064e3b 0%, #047857 100%);
     }
 
-.vs-hero.meat-hero {
-    background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
-}
+        .vs-hero.vegetables-hero::before {
+            background: radial-gradient(circle, rgba(34, 197, 94, 0.2) 0%, transparent 70%);
+        }
 
-    .vs-hero.meat-hero::before {
-        background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%);
+    .vs-hero.meat-hero {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
     }
+
+        .vs-hero.meat-hero::before {
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%);
+        }
 
 .vs-hero-left {
     display: flex;
@@ -2200,4 +2200,92 @@ TABLE
     .vs-hero-title {
         font-size: 16px;
     }
+}
+
+/* ══════════════════════════════════════════════════════
+   MONTHLY PAYMENT CALENDAR
+══════════════════════════════════════════════════════ */
+
+.monthly-cal-section {
+    margin-top: 20px;
+}
+
+/* 4 columns x 3 rows grid */
+.mo-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.mo-cal-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 14px 8px;
+    border-radius: 10px;
+    border: 1.5px solid transparent;
+    cursor: default;
+    transition: transform 0.1s ease;
+}
+
+.mo-cell-name {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--navy);
+}
+
+.mo-cell-mark {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Paid */
+.mo-cell-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+    .mo-cell-paid .mo-cell-mark {
+        color: var(--green);
+    }
+
+    .mo-cell-paid .mo-cell-name {
+        color: var(--green);
+    }
+
+/* Missed */
+.mo-cell-miss {
+    background: var(--red-bg);
+    border-color: var(--red);
+}
+
+    .mo-cell-miss .mo-cell-mark {
+        color: var(--red);
+    }
+
+    .mo-cell-miss .mo-cell-name {
+        color: var(--red);
+    }
+
+/* Future */
+.mo-cell-future {
+    background: var(--bg);
+    border-color: var(--border);
+    opacity: 0.45;
+}
+
+    .mo-cell-future .mo-cell-name {
+        color: var(--text-muted);
+    }
+
+/* Current month highlight */
+.mo-cell-today {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
 }

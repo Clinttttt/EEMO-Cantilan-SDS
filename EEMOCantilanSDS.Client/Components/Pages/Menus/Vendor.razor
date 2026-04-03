@@ -667,6 +667,85 @@
                     </div>
                 }
 
+                <!-- ══════════════════════════════════════════
+                     MONTHLY PAYMENT CALENDAR
+                     Only for non-NPM facilities (TCC, NCC, BBQ, ICE, SLH)
+                ══════════════════════════════════════════ -->
+                @if (DetailVendor.FacilityCode != "NPM")
+                {
+              
+                    var moYear        = MonthlyCalYear;
+                    var moToday       = DateTime.Now;
+                    var moMonths      = Enumerable.Range(1, 12).Select(m => new DateTime(moYear, m, 1)).ToList();
+                    var moPaidCount   = moMonths.Count(m => m <= moToday &&
+                                            DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) &&
+                                            DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]);
+                    var moMissed      = moMonths.Count(m => m < new DateTime(moToday.Year, moToday.Month, 1) &&
+                                            (!DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) ||
+                                             !DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]));
+                    var moCollected   = moPaidCount * DetailVendor.MonthlyRate;
+                    var canGoNextYear = moYear < moToday.Year;
+                
+
+                <div class="detail-section monthly-cal-section">
+                    <div class="detail-section-title">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        Monthly Rental — ₱@DetailVendor.MonthlyRate.ToString("N0")/mo
+                    </div>
+
+                    <!-- Year Nav -->
+                    <div class="cal-nav">
+                        <button class="cal-nav-btn" @onclick="PrevMonthlyYear">
+                            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                        <span class="cal-month-label">@moYear</span>
+                        <button class="cal-nav-btn" @onclick="NextMonthlyYear" disabled="@(!canGoNextYear)">
+                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- 12-month grid — 4 cols x 3 rows -->
+                    <div class="mo-cal-grid">
+                        @foreach (var mo in moMonths)
+                        {
+                            var moKey     = mo.ToString("yyyy-MM");
+                            var isFuture  = mo > new DateTime(moToday.Year, moToday.Month, 1);
+                            var isThisMo  = mo.Year == moToday.Year && mo.Month == moToday.Month;
+                            var isPaid    = DetailVendor.PaymentHistory.ContainsKey(moKey) && DetailVendor.PaymentHistory[moKey];
+                            var cellCls   = isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : "mo-cell-miss");
+
+                            <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "")">
+                                <span class="mo-cell-name">@mo.ToString("MMM")</span>
+                                @if (!isFuture)
+                                {
+                                    <span class="mo-cell-mark">@(isPaid ? "✓" : "✕")</span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Summary Stats -->
+                    <div class="cal-footer-stats">
+                        <div class="cal-sum-item">
+                            <span class="cal-sum-val cal-sum-green">@moPaidCount</span>
+                            <span class="cal-sum-key">Months Paid</span>
+                        </div>
+                        <div class="cal-sum-item">
+                            <span class="cal-sum-val cal-sum-red">@moMissed</span>
+                            <span class="cal-sum-key">Months Missed</span>
+                        </div>
+                        <div class="cal-sum-item">
+                            <span class="cal-sum-val">₱@moCollected.ToString("N0")</span>
+                            <span class="cal-sum-key">Collected @moYear</span>
+                        </div>
+                        <div class="cal-sum-item" style="background:rgba(var(--gold-rgb),0.07); border-color:var(--gold);">
+                            <span class="cal-sum-val" style="color:var(--gold);">₱@(moPaidCount * DetailVendor.MonthlyRate == DetailVendor.MonthlyRate * 12 ? (DetailVendor.MonthlyRate * 12).ToString("N0") : moCollected.ToString("N0"))</span>
+                            <span class="cal-sum-key">Total Fee (@moYear)</span>
+                        </div>
+                    </div>
+                </div>
+                } @* end non-NPM monthly calendar *@
+
             </div>
 
             <div class="eemo-modal-footer">
@@ -745,13 +824,21 @@
 @code {
 
     // -- Calendar state --------------------------------------------------------
-    DateTime CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    DateTime CalendarMonth   = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    int      MonthlyCalYear  = DateTime.Now.Year;
 
-    void PrevCalMonth() => CalendarMonth = CalendarMonth.AddMonths(-1);
+    void PrevCalMonth()    => CalendarMonth = CalendarMonth.AddMonths(-1);
     void NextCalMonth()
     {
         if (CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1))
             CalendarMonth = CalendarMonth.AddMonths(1);
+    }
+
+    void PrevMonthlyYear() => MonthlyCalYear--;
+    void NextMonthlyYear()
+    {
+        if (MonthlyCalYear < DateTime.Now.Year)
+            MonthlyCalYear++;
     }
 
     void ToggleDailyCollection(VendorEntry v, DateTime date)

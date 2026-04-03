@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using System;
 using System.Collections.Generic;
@@ -17,7 +18,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
 
         // Navigation
         public CollectorUser? Collector { get; private set; }
-        public Facilities.Facility? Facility { get; private set; }
+        public Facility? Facility { get; private set; }
 
         private CollectorFacilityAssignment() { }
 

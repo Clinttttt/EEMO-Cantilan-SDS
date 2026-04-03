@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public string? Email { get; protected set; }
         public string PasswordHash { get; protected set; } = string.Empty;
         public  bool IsActive { get; protected set; }
-        public  bool MustChangePassword { get; protected set; }
+        public bool MustChangePassword { get; protected set; }
         public int FailedAttempts { get; protected set; }
         public DateTime? LockedUntil { get; protected set; }
         public  DateTime? LastLoginAt { get; protected set; }

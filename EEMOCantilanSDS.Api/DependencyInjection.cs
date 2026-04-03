@@ -8,6 +8,9 @@ namespace EEMOCantilanSDS.Api
     {
         public static IServiceCollection AddApi(this IServiceCollection service, IConfiguration iconfiguration)
         {
+
+            service.AddHttpContextAccessor();
+            service.AddAuthorization();
             service.AddControllers();
             service.AddCors(options =>
             {
