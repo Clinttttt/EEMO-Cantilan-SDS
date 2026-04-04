@@ -2,6 +2,8 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System;
@@ -15,7 +17,7 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Infrastructure.Services
 {
-    public class TokenService(IConfiguration configuration, IUnitOfWork unitOfWork) : ITokenService
+    public class TokenService(IConfiguration configuration, IUnitOfWork unitOfWork, AppDbContext context) : ITokenService
     {
         public string CreateToken(BaseUser user, string role)
         {
@@ -68,6 +70,15 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 CollectorUser collector => "Collector",
                 _ => throw new InvalidOperationException("Unknown user type")
             };
+        }
+        public async Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default)
+        {
+            var user = await context.AdminUsers.FirstOrDefaultAsync(s => s.RefreshToken == RefreshToken, cancellationToken);
+            if (user?.RefreshToken != RefreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            {
+                return null!;
+            }
+            return user;
         }
 
     }

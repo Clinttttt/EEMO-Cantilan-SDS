@@ -1,13 +1,12 @@
 using EEMOCantilanSDS.Client;
 using EEMOCantilanSDS.Client.Components;
+using EEMOCantilanSDS.Client.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddClient(builder.Configuration);
 
-
-builder.Services.AddClient();
 var app = builder.Build();
-
 
 if (!app.Environment.IsDevelopment())
 {
@@ -17,12 +16,15 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseStaticFiles();
+
+app.UseMiddleware<AuthCookieMiddleware>();
 
 app.UseAntiforgery();
 
 app.MapStaticAssets();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+   .AddInteractiveServerRenderMode();
 
 app.Run();

@@ -1,0 +1,419 @@
+﻿/* ══════════════════════════════════════════════════════════════════════
+   Login.razor.css — Admin Login Page
+   Extends app.css shared setup styles.
+   Only Login-specific overrides go here.
+   Government-grade: restrained, professional, trustworthy.
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Step indicator — completed step (Administrator Setup ✓) ── */
+.setup-step.completed .step-dot {
+    background: var(--navy);
+    border-color: var(--navy);
+    position: relative;
+}
+
+    .setup-step.completed .step-dot::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--navy);
+        border-radius: 50%;
+    }
+
+.setup-step.completed .step-label {
+    color: var(--navy);
+    font-weight: 500;
+    opacity: 0.6;
+}
+
+/* Completed step connector line — filled */
+.setup-step-line-done {
+    background: var(--navy) !important;
+    opacity: 0.35;
+}
+
+/* ── Input error state ── */
+.form-input-error {
+    border-color: var(--red) !important;
+    background: var(--red-bg) !important;
+}
+
+    .form-input-error:focus {
+        border-color: var(--red) !important;
+        box-shadow: 0 0 0 3px rgba(139, 58, 58, 0.1) !important;
+    }
+
+/* ── Login-specific security notice ── */
+.login-notice {
+    border-left-color: rgba(13, 33, 55, 0.5);
+    background: rgba(13, 33, 55, 0.03);
+}
+
+/* ── Failed attempts warning ── */
+.login-attempts-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 14px;
+    background: rgba(184, 115, 51, 0.06);
+    border: 1px solid rgba(184, 115, 51, 0.25);
+    border-left: 3px solid #b87333;
+    border-radius: 7px;
+    font-size: 13px;
+    color: #7a4a18;
+    line-height: 1.5;
+}
+
+    .login-attempts-warn svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+        margin-top: 1px;
+        stroke: #b87333;
+    }
+
+    .login-attempts-warn strong {
+        font-weight: 700;
+        color: #5a3010;
+    }
+
+/* ── Account locked banner ── */
+.login-locked-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+    background: var(--red-bg);
+    border: 1.5px solid rgba(139, 58, 58, 0.25);
+    border-left: 4px solid var(--red);
+    border-radius: 8px;
+}
+
+.login-locked-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(139, 58, 58, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .login-locked-icon svg {
+        width: 17px;
+        height: 17px;
+        stroke: var(--red);
+        flex-shrink: 0;
+    }
+
+.login-locked-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--red);
+    margin-bottom: 3px;
+}
+
+.login-locked-sub {
+    font-size: 12.5px;
+    color: rgba(139, 58, 58, 0.8);
+    line-height: 1.5;
+}
+
+    .login-locked-sub strong {
+        font-weight: 700;
+        color: var(--red);
+    }
+
+/* ── Locked submit button variant ── */
+.setup-submit-locked {
+    background: rgba(139, 58, 58, 0.15) !important;
+    color: var(--red) !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+    .setup-submit-locked:hover {
+        background: rgba(139, 58, 58, 0.15) !important;
+        transform: none !important;
+    }
+
+    .setup-submit-locked svg {
+        stroke: var(--red) !important;
+    }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Layout — right panel fills full height, no scroll, top-aligned
+   Matches AccountSetup.razor spacing/sizing exactly
+══════════════════════════════════════════════════════════════════════ */
+
+/* Right panel: full height, no overflow, top-aligned */
+.setup-right {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 44px 72px 32px 72px;
+    box-sizing: border-box;
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Form wrap: same width as AccountSetup, no scroll */
+.setup-form-wrap {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* ── Header — same sizes as AccountSetup header ── */
+.setup-form-header {
+    margin-bottom: 20px;
+}
+
+.setup-form-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+}
+
+/* Title — matches AccountSetup: weight 800, same visual size */
+.setup-form-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.setup-form-desc {
+    font-size: 14px;
+    color: rgba(13, 33, 55, 0.45);
+    line-height: 1.6;
+}
+
+/* ── Notice box — rounded bordered card, same as AccountSetup ── */
+.setup-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(13, 33, 55, 0.025);
+    border: 1px solid rgba(13, 33, 55, 0.1);
+    border-left: 3px solid rgba(13, 33, 55, 0.2);
+    border-radius: 9px;
+    font-size: 13px;
+    color: rgba(13, 33, 55, 0.55);
+    line-height: 1.55;
+    margin-bottom: 22px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+    .setup-notice svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+        margin-top: 1px;
+        stroke: rgba(13, 33, 55, 0.3);
+    }
+
+/* ── Form fields ── */
+.setup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: 100%;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.form-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--navy);
+    opacity: 0.7;
+}
+
+.form-required {
+    color: var(--red);
+    margin-left: 2px;
+}
+
+/* Input wrapper */
+.form-input-wrap {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.form-input-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    stroke: rgba(13, 33, 55, 0.3);
+    pointer-events: none;
+}
+
+/* Inputs — same height/style as AccountSetup */
+.form-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 16px 0 42px;
+    border: 1.5px solid rgba(13, 33, 55, 0.13);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    color: var(--navy);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+    .form-input::placeholder {
+        color: rgba(13, 33, 55, 0.28);
+    }
+
+    .form-input:focus {
+        border-color: rgba(13, 33, 55, 0.4);
+        box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.07);
+    }
+
+    .form-input:disabled {
+        background: rgba(13, 33, 55, 0.04);
+        color: rgba(13, 33, 55, 0.35);
+        cursor: not-allowed;
+    }
+
+/* Password right padding for eye icon */
+.form-input-password {
+    padding-right: 46px;
+}
+
+/* Eye toggle */
+.form-eye-btn {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(13, 33, 55, 0.32);
+    transition: color 0.15s;
+}
+
+    .form-eye-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+    }
+
+    .form-eye-btn:hover {
+        color: var(--navy);
+    }
+
+/* Submit button — same as AccountSetup button */
+.setup-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 13px 24px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    letter-spacing: 0.3px;
+    margin-top: 4px;
+}
+
+    .setup-submit svg {
+        width: 17px;
+        height: 17px;
+        stroke: #fff;
+        flex-shrink: 0;
+    }
+
+    .setup-submit:hover:not(:disabled) {
+        background: #122944;
+        transform: translateY(-1px);
+        box-shadow: 0 5px 18px rgba(13, 33, 55, 0.2);
+    }
+
+    .setup-submit:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+/* Loading spinner */
+.setup-spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Footer */
+.setup-form-footer {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(13, 33, 55, 0.08);
+    text-align: center;
+    font-size: 11.5px;
+    color: rgba(13, 33, 55, 0.3);
+    letter-spacing: 0.01em;
+}
+
+/* Error block */
+.setup-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 13px;
+    background: var(--red-bg);
+    border: 1px solid rgba(139, 58, 58, 0.2);
+    border-radius: 7px;
+    font-size: 13px;
+    color: var(--red);
+}
+
+    .setup-error svg {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        stroke: var(--red);
+    }

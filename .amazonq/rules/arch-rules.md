@@ -16,11 +16,11 @@
 
 ```
 EEMOCantilanSDS.sln
-├── EEMOCantilanSDS.Domain          → Entities, Enums, Constants, Domain Interfaces
-├── EEMOCantilanSDS.Application     → CQRS, MediatR, FluentValidation, DTOs, App Interfaces
-├── EEMOCantilanSDS.Infrastructure  → EF Core, Repositories, UnitOfWork, Migrations
-├── EEMOCantilanSDS.Api             → ASP.NET Core Controllers, Middleware, DI
-├── EEMOCantilanSDS.Client          → Blazor Server (UI only, no business logic)
+├── EEMOCantilanSDS.Domain          → Entities, Enums, Constants, Domain Interfaces etc
+├── EEMOCantilanSDS.Application     → CQRS, MediatR, FluentValidation, DTOs, App Interfaces etc 
+├── EEMOCantilanSDS.Infrastructure  → EF Core, Repositories, UnitOfWork, Migrations etc
+├── EEMOCantilanSDS.Api             → ASP.NET Core Controllers, Middleware, DI etc
+├── EEMOCantilanSDS.Client          → Blazor Server (UI only, no business logic) etc
 ├── EEMOCantilanSDS.Mobile          → .NET MAUI Hybrid (later phase)
 └── EEMOCantilanSDS.UnitTest        → xUnit
 ```
@@ -73,7 +73,8 @@ EEMOCantilanSDS.sln
 
 ### Client (Blazor Server)
 - Razor components only — zero business logic, zero direct DbContext
-- Calls API via `HttpClient` services
+- All API calls use typed API clients — never inject HttpClient directly
+- API clients registered via `AddApiHttpClient<TClient, TImplementation>(configuration)` extension
 - CSS: `app.css` globals + `{Component}.razor.css` isolation per component
 - No Tailwind — custom CSS only, use CSS variables from design tokens
 
@@ -187,10 +188,14 @@ EEMOCantilanSDS.sln
 - Never use `HasDefaultValue(1)` on enum columns
 - Never skip FluentValidation — every command/query must have a validator
 - Never put validation logic in handlers — use `ValidationBehavior` pipeline
+- Never duplicate validation in Blazor components — always rely on handler validation (except UI-only checks like password confirmation)
+- Never check status codes in Blazor components — `HandleResponse` already maps all status codes to `Result<T>`, just use `result.Error`
+- Never display all validation errors per field — only show the first error message for each field using `error.Value.FirstOrDefault()`
 - Never hardcode fee values — always use `FeeRates` constants
 - Never use `FeeRates` Min/Max range constants for billing — use `Stall.MonthlyRate`
 - Never put `PayorId` on `Stall` — use `Contract` for tenant tracking
 - Never put business logic in Blazor components — API calls only
+- Never inject `HttpClient` directly in Blazor components — always use typed API clients
 - Never use `<form>` tags in Blazor — use `@onclick` / `@onchange`
 - Never map computed properties in EF — always `builder.Ignore()`
 - Never create public setters on entity properties — always `private set`

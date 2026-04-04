@@ -1252,3 +1252,531 @@ a {
         align-items: flex-start;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   ACCOUNT SETUP & LOGIN — SHARED STYLES
+   Used by both AccountSetup.razor and Login.razor
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Root Layout ── */
+.setup-root {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── LEFT PANEL — Branding ── */
+.setup-left {
+    width: 360px;
+    height: 100vh;
+    background: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    left: 0;
+    overflow: hidden;
+}
+
+    .setup-left::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 40px);
+    }
+
+.setup-left-inner {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    padding: 48px 32px;
+    text-align: center;
+}
+
+.setup-seal {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.seal-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid rgba(212, 175, 55, 0.4);
+}
+
+    .seal-ring.outer {
+        inset: 0;
+    }
+
+    .seal-ring.inner {
+        inset: 10px;
+        border-color: rgba(212, 175, 55, 0.2);
+    }
+
+.setup-seal img {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+    position: relative;
+    z-index: 1;
+    border-radius: 50%;
+}
+
+.setup-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.setup-brand-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.setup-brand-city {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 400;
+    margin-bottom: 4px;
+}
+
+.setup-brand-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 4px;
+    line-height: 1;
+}
+
+.setup-brand-sub {
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.6;
+    font-weight: 400;
+}
+
+.setup-left-footer {
+    margin-top: 16px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    width: 100%;
+}
+
+.setup-system-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.setup-version {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    margin-top: 4px;
+}
+
+/* ── RIGHT PANEL — Form ── */
+.setup-right {
+    flex: 1;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 32px 32px;
+}
+
+.setup-form-wrap {
+    width: 100%;
+    max-width: 560px;
+}
+
+/* ── Step Indicator ── */
+.setup-step-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 40px;
+}
+
+.setup-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.setup-step.active .step-dot {
+    background: var(--navy);
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.12);
+}
+
+.step-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.setup-step.active .step-label {
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.setup-step-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+    margin: 0 10px;
+    min-width: 24px;
+}
+
+/* ── Form Header ── */
+.setup-form-header {
+    margin-bottom: 24px;
+}
+
+.setup-form-eyebrow {
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--gold);
+    margin-bottom: 8px;
+}
+
+.setup-form-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 8px;
+}
+
+.setup-form-desc {
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+/* ── Notice Banner ── */
+.setup-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(13, 33, 55, 0.04);
+    border: 1px solid rgba(13, 33, 55, 0.12);
+    border-left: 3px solid var(--navy);
+    border-radius: 6px;
+    margin-bottom: 28px;
+    font-size: 12.5px;
+    color: var(--text-subtle);
+    line-height: 1.5;
+}
+
+    .setup-notice svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+        margin-top: 1px;
+        color: var(--navy);
+        opacity: 0.6;
+    }
+
+/* ── Form Fields ── */
+.setup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.form-required {
+    color: var(--red);
+    margin-left: 2px;
+}
+
+.form-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.form-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.form-input-icon {
+    position: absolute;
+    left: 12px;
+    width: 15px;
+    height: 15px;
+    color: var(--text-muted);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+
+.form-input-password {
+    padding-right: 40px;
+}
+
+/* Eye toggle */
+.form-eye-btn {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    transition: color 0.15s;
+    z-index: 10;
+}
+
+    .form-eye-btn:hover {
+        color: var(--navy);
+    }
+
+    .form-eye-btn svg {
+        width: 16px;
+        height: 16px;
+        pointer-events: none;
+    }
+
+    .form-eye-btn span {
+        pointer-events: none;
+        user-select: none;
+    }
+
+/* ── Password Strength ── */
+.pw-strength {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: -6px;
+}
+
+.pw-strength-bars {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.pw-bar {
+    height: 3px;
+    flex: 1;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.2s;
+}
+
+.pw-bar-fill.pw-weak {
+    background: var(--red);
+}
+
+.pw-bar-fill.pw-fair {
+    background: #b87333;
+}
+
+.pw-bar-fill.pw-good {
+    background: #4a7c59;
+}
+
+.pw-bar-fill.pw-strong {
+    background: var(--green);
+}
+
+.pw-strength-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+    .pw-strength-label.pw-weak {
+        color: var(--red);
+    }
+
+    .pw-strength-label.pw-fair {
+        color: #b87333;
+    }
+
+    .pw-strength-label.pw-good {
+        color: #4a7c59;
+    }
+
+    .pw-strength-label.pw-strong {
+        color: var(--green);
+    }
+
+/* ── Error ── */
+.setup-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--red-bg);
+    border: 1px solid var(--red);
+    border-radius: 7px;
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 500;
+}
+
+    .setup-error svg {
+        width: 15px;
+        height: 15px;
+        flex-shrink: 0;
+    }
+
+/* ── Submit Button ── */
+.setup-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 13px 24px;
+    background: var(--navy);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    letter-spacing: 0.3px;
+    margin-top: 4px;
+}
+
+    .setup-submit svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+
+    .setup-submit:hover:not(:disabled) {
+        background: #162840;
+        transform: translateY(-1px);
+    }
+
+    .setup-submit:active:not(:disabled) {
+        transform: translateY(0);
+    }
+
+    .setup-submit:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+.setup-submit-loading {
+    opacity: 0.75;
+}
+
+/* Spinner */
+.setup-spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Form Footer ── */
+.setup-form-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    letter-spacing: 0.3px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .setup-root {
+        flex-direction: column;
+    }
+
+    .setup-left {
+        width: 100%;
+        min-height: auto;
+        padding: 32px;
+    }
+
+    .setup-left-inner {
+        flex-direction: row;
+        text-align: left;
+        gap: 20px;
+        padding: 0;
+    }
+
+    .setup-seal {
+        width: 60px;
+        height: 60px;
+        flex-shrink: 0;
+    }
+
+    .setup-brand-title {
+        font-size: 32px;
+    }
+
+    .setup-left-footer {
+        display: none;
+    }
+
+    .setup-right {
+        padding: 32px 20px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}

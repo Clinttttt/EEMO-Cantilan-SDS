@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Infrastructure.HttpClients.Models;
+using MediatR;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using System;
 using System.Collections.Generic;
@@ -14,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Infrastructure.HttpClients
 {
-    public class HandleResponse
+    public abstract class HandleResponse
     {
         private readonly HttpClient _http;
         public HandleResponse(HttpClient http)
@@ -22,7 +23,14 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
             _http = http;
         }
 
-
+        public async Task PostAsync<TRequest>(string url, TRequest request)
+        {
+             await _http.PostAsJsonAsync(url, request);         
+        }
+        public async Task PostAsync(string url)
+        {
+            await _http.PostAsync(url,null);
+        }
         public async Task<Result<TResponse>> PostAsync<TRequest, TResponse>(string url, TRequest request)
         {
             var reponse = await _http.PostAsJsonAsync(url, request);

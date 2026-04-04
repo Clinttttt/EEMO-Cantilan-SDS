@@ -1,6 +1,38 @@
-﻿<Router AppAssembly="typeof(Program).Assembly">
+﻿@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject NavigationManager Navigation
+@inject ISetupApiClient SetupApi
+@rendermode InteractiveServer
+
+<Router AppAssembly="typeof(Program).Assembly">
     <Found Context="routeData">
         <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    private bool _hasCheckedSetup = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_hasCheckedSetup) return;
+        _hasCheckedSetup = true;
+
+        var currentUri = Navigation.Uri;
+        if (currentUri.Contains("/account-setup-admin") || currentUri.Contains("/login"))
+            return;
+
+        try
+        {
+            var result = await SetupApi.GetSetupStatusAsync();
+            if (result.IsSuccess && result.Value?.IsSetupRequired == true)
+            {
+                Navigation.NavigateTo("/account-setup-admin", true);
+            }
+        }
+        catch
+        {
+            // If API call fails, continue normal flow
+        }
+    }
+}

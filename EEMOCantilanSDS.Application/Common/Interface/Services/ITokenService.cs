@@ -11,5 +11,6 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Services
     public interface ITokenService
     {
         Task<TokenResponseDto> CreateTokenResponse(BaseUser user);
+        Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default);
     }
 }

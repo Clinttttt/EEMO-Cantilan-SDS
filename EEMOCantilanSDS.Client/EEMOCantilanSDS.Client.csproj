@@ -12,7 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Security\" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.17.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -19,7 +19,6 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
     await FacilitySeeder.SeedAsync(context);
-    await SuperAdminSeeder.SeedAsync(context);
 }
 
 if (app.Environment.IsDevelopment())

@@ -5,7 +5,7 @@ using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace EEMOCantilanSDS.Infrastructure.Persistence.Repositories;
+namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 public class CollectorRepository(AppDbContext context) : ICollectorRepository
 {

@@ -31,7 +31,7 @@ namespace EEMOCantilanSDS.Domain.Common
                 isSuccess: false,
                 value: default,
                 statusCode: 400,
-                error: string.Join("; ", errors.Values)
+                error: string.Join("; ", errors.Values.SelectMany(v => v))
             )
             {
                 ValidationErrors = errors

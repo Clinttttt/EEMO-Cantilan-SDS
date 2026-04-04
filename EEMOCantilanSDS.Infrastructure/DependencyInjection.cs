@@ -1,7 +1,7 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Infrastructure.Persistence;
-using EEMOCantilanSDS.Infrastructure.Persistence.Repositories;
+using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +27,12 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITokenService, TokenService>();
             
             // Repositories
+            service.AddScoped<IAuthRepository, AuthRepository>();
+            service.AddScoped<ISetupRepository, SetupRepository>();
             service.AddScoped<ICollectorRepository, CollectorRepository>();
+            service.AddScoped<IStallRepository, StallRepository>();
+            service.AddScoped<IFacilityRepository, FacilityRepository>();
+            service.AddScoped<IPaymentRepository, PaymentRepository>();
             
             return service;
 

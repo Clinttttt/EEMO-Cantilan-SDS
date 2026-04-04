@@ -16,7 +16,7 @@ namespace EEMOCantilanSDS.Api
             {
                 options.AddPolicy("AllowAll", builder =>
                 {
-                    builder.AllowAnyOrigin()
+                    builder.WithOrigins("https://localhost:7167", "http://localhost:5198")
                            .AllowAnyMethod()
                            .AllowAnyHeader();
                 });

@@ -1,0 +1,325 @@
+﻿@page "/login"
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
+@using EEMOCantilanSDS.Client.Securities
+@using Microsoft.AspNetCore.WebUtilities
+@rendermode InteractiveServer
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>EEMO — Administrator Login</PageTitle>
+
+<div class="setup-root">
+
+    <!-- ═══════════════════════════════════════
+         LEFT PANEL — Branding (identical to AccountSetup)
+    ═══════════════════════════════════════ -->
+    <div class="setup-left">
+        <div class="setup-left-inner">
+            <div class="setup-seal">
+                <div class="seal-ring outer"></div>
+                <div class="seal-ring inner"></div>
+                <img src="/images/eemo-logov2.png" alt="EEMO Logo" />
+            </div>
+            <div class="setup-brand">
+                <div class="setup-brand-label">Republic of the Philippines</div>
+                <div class="setup-brand-city">Municipality of Cantilan</div>
+                <div class="setup-brand-title">EEMO</div>
+                <div class="setup-brand-sub">Economic Enterprise &amp;<br />Management Office</div>
+            </div>
+            <div class="setup-left-footer">
+                <div class="setup-system-name">Revenue Collection System</div>
+                <div class="setup-version">Version 1.0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════
+         RIGHT PANEL — Login Form
+    ═══════════════════════════════════════ -->
+    <div class="setup-right">
+        <div class="setup-form-wrap">
+
+            <!-- ── Step Indicator ──
+                 Only visible when redirected from first-time setup
+                 (/login?setup=true)
+                 NEVER shown on normal login
+            ── -->
+            @if (IsFromSetup)
+            {
+                <div class="setup-step-row">
+                    <div class="setup-step completed">
+                        <span class="step-dot"></span>
+                        <span class="step-label">Administrator Setup</span>
+                    </div>
+                    <div class="setup-step-line setup-step-line-done"></div>
+                    <div class="setup-step active">
+                        <span class="step-dot"></span>
+                        <span class="step-label">Login</span>
+                    </div>
+                    <div class="setup-step-line"></div>
+                    <div class="setup-step">
+                        <span class="step-dot"></span>
+                        <span class="step-label">Dashboard</span>
+                    </div>
+                </div>
+            }
+
+            <!-- ── Header ── -->
+            <div class="setup-form-header">
+                <div class="setup-form-eyebrow">
+                    @(IsFromSetup ? "Step 2 of 3" : "Administrator Access")
+                </div>
+                <div class="setup-form-title">
+                    @(IsFromSetup ? "Sign In to Continue" : "Sign In")
+                </div>
+                <div class="setup-form-desc">
+                    @if (IsFromSetup)
+                    {
+                        @("Your administrator account has been created. Sign in to access the EEMO Revenue Collection System.")
+                    }
+                    else
+                    {
+                        @("Enter your credentials to access the EEMO Revenue Collection System. Authorized personnel only.")
+                    }
+                </div>
+            </div>
+
+            <!-- ── Security notice — only on normal login (not first-time setup) ── -->
+            @if (!IsFromSetup)
+            {
+                <div class="setup-notice login-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                    </svg>
+                    <span>This portal is restricted to authorized EEMO personnel only. Unauthorized access is prohibited.</span>
+                </div>
+            }
+
+            <!-- ── Login Form ── -->
+            <div class="setup-form">
+
+                <!-- Username -->
+                <div class="form-group">
+                    <label class="form-label">Username <span class="form-required">*</span></label>
+                    <div class="form-input-wrap @(GetFieldError("Username") != string.Empty ? "form-input-error" : "")">
+                        <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <input @bind="Username"
+                               @bind:event="oninput"
+                               @onkeydown="HandleKeyDown"
+                               type="text"
+                               class="form-input"
+                               placeholder="Enter your username"
+                               autocomplete="username"
+                               disabled="@IsLocked" />
+                    </div>
+                    @if (GetFieldError("Username") != string.Empty)
+                    {
+                        <span class="form-error">@GetFieldError("Username")</span>
+                    }
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                    <label class="form-label">Password <span class="form-required">*</span></label>
+                    <div class="form-input-wrap @(GetFieldError("Password") != string.Empty ? "form-input-error" : "")">
+                        <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                        </svg>
+                        <input @key="@ShowPassword"
+                               value="@Password"
+                               @oninput="@((e) => Password = e.Value?.ToString() ?? string.Empty)"
+                               @onkeydown="HandleKeyDown"
+                               type="@(ShowPassword ? "text" : "password")"
+                               class="form-input form-input-password"
+                               placeholder="Enter your password"
+                               autocomplete="current-password"
+                               disabled="@IsLocked" />
+                        <button type="button"
+                                class="form-eye-btn"
+                                @onclick="TogglePassword"
+                                @onclick:stopPropagation="true"
+                                tabindex="-1">
+                            @if (ShowPassword)
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                                    <line x1="1" y1="1" x2="23" y2="23" />
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                </svg>
+                            }
+                        </button>
+                    </div>
+                    @if (GetFieldError("Password") != string.Empty)
+                    {
+                        <span class="form-error">@GetFieldError("Password")</span>
+                    }
+                </div>
+
+                <!-- Failed attempts warning (shows after 1st fail, before lockout) -->
+                @if (FailedAttempts > 0 && FailedAttempts < 5 && !IsLocked)
+                {
+                    <div class="login-attempts-warn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                        <span>
+                            Incorrect credentials.
+                            <strong>@(5 - FailedAttempts) attempt@(5 - FailedAttempts == 1 ? "" : "s")</strong>
+                            remaining before account is temporarily locked.
+                        </span>
+                    </div>
+                }
+
+                <!-- Locked banner (replaces warning after 5 fails) -->
+                @if (IsLocked)
+                {
+                    <div class="login-locked-banner">
+                        <div class="login-locked-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0110 0v4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="login-locked-title">Account Temporarily Locked</div>
+                            <div class="login-locked-sub">
+                                Too many failed attempts. Please try again in <strong>@LockoutRemaining</strong>.
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- General error -->
+                @if (!string.IsNullOrEmpty(ErrorMessage) && !IsLocked)
+                {
+                    <div class="setup-error">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="15" y1="9" x2="9" y2="15" />
+                            <line x1="9" y1="9" x2="15" y2="15" />
+                        </svg>
+                        @ErrorMessage
+                    </div>
+                }
+
+                <!-- Submit button -->
+                <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "") @(IsLocked ? "setup-submit-locked" : "")"
+                        @onclick="HandleLogin"
+                        disabled="@(IsLoading || IsLocked)">
+                    @if (IsLoading)
+                    {
+                        <span class="setup-spinner"></span>
+                        <span>Verifying credentials...</span>
+                    }
+                    else if (IsLocked)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                        </svg>
+                        <span>Account Locked — @LockoutRemaining</span>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+                            <polyline points="10 17 15 12 10 7" />
+                            <line x1="15" y1="12" x2="3" y2="12" />
+                        </svg>
+                        <span>Sign In to System</span>
+                    }
+                </button>
+
+            </div><!-- end setup-form -->
+            <!-- ── Footer ── -->
+            <div class="setup-form-footer">
+                Republic of the Philippines &middot; Municipality of Cantilan &middot; EEMO
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    // ── Form state ────────────────────────────────────────────────────────────
+    string Username = string.Empty;
+    string Password = string.Empty;
+    Dictionary<string, string> FieldErrors = new();
+    bool ShowPassword = false;
+    bool IsLoading = false;
+    string ErrorMessage = string.Empty;
+    int FailedAttempts = 0;
+    bool IsLocked = false;
+    string LockoutRemaining = "15 minutes";
+
+    // ── Step indicator — only shown when redirected from /account-setup-admin ─
+    // Redirect URL from AccountSetup should be: Navigation.NavigateTo("/login?setup=true")
+    bool IsFromSetup = false;
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        IsFromSetup = query.ContainsKey("setup") && query["setup"] == "true";
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    void TogglePassword(MouseEventArgs _)
+    {
+        ShowPassword = !ShowPassword;
+        StateHasChanged();
+    }
+
+    async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !IsLoading && !IsLocked)
+            await HandleLogin();
+    }
+
+    // ── Login logic ───────────────────────────────────────────────────────────
+    async Task HandleLogin()
+    {
+        ErrorMessage = string.Empty;
+        FieldErrors.Clear();
+
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var success = await AuthService.LoginAsync(Username, Password);
+
+            if (!success)
+            {
+                ErrorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    string GetFieldError(string fieldName) => FieldErrors.ContainsKey(fieldName) ? FieldErrors[fieldName] : string.Empty;
+}

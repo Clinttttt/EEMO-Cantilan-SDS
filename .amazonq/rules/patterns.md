@@ -3,6 +3,57 @@
 
 ---
 
+## API Client Pattern (Blazor → API)
+
+All Blazor HTTP calls use typed API clients — never inject HttpClient directly into components.
+
+Pattern:
+1. Define interface in `Application/Common/Interface/ApiClients/I{Feature}ApiClient.cs`
+2. Implement in `Infrastructure/HttpClients/ApiClients/{Feature}ApiClient.cs` extending `HandleResponse`
+3. Register in `Client/DependencyInjection.cs` using `AddApiHttpClient<TClient, TImplementation>(configuration)` extension
+
+The `AddApiHttpClient` extension automatically:
+- Sets BaseAddress from configuration
+- Adds RefreshTokenDelegatingHandler
+- Adds AuthorizationDelegatingHandler
+
+For public endpoints (no auth needed like login), use raw `AddHttpClient` instead.
+
+Component usage:
+```csharp
+@inject IStallsApiClient StallsApi
+
+var result = await StallsApi.GetStallHoldersList();
+if (result.IsSuccess) { ... }
+```
+
+---
+
+## Cursor Pagination
+
+For scrollable/infinite scroll tables, use cursor-based pagination:
+
+Query Pattern:
+- Add `DateTime? Cursor` and `int PageSize` parameters
+- Return `Result<CursorPagedResult<TDto>>`
+- Example: `GetStallsByFacilityPaginatedQuery(FacilityCode, Section, Cursor, PageSize)`
+
+Repository Pattern:
+- Filter by cursor: `if (cursor.HasValue) query = query.Where(x => x.CreatedAt < cursor.Value);`
+- Order by CreatedAt descending: `query = query.OrderByDescending(x => x.CreatedAt);`
+- Use extension: `await query.ToCursorPagedResultAsync(pageSize, x => x.CreatedAt, ct);`
+- Returns `CursorPagedResult<T>` with `Items`, `NextCursor`, `HasMore`
+
+Validation:
+- PageSize: `GreaterThan(0)` and `LessThanOrEqualTo(100)`
+
+Frontend:
+- Initial load: pass `Cursor = null`
+- Load more: pass `NextCursor` from previous response
+- Stop when `HasMore = false`
+
+---
+
 ## CRITICAL — Never Violate These
 
 - NEVER inject IAppDbContext, AppDbContext, or any DbContext into a handler — not even for read-only queries
@@ -10,6 +61,9 @@
 - NEVER use computed properties in EF/LINQ queries — TotalBill, FishFeeAmount, IsActive, TotalAmount are C# computed, not DB columns. Recalculate from raw stored fields inside the repo when aggregating.
 - NEVER skip the repository — even simple dashboard aggregations go through a dedicated repo method
 - NEVER reference a property on an entity that is not listed in domain.md
+- NEVER check !x.IsDeleted in queries — HasQueryFilter handles soft delete filtering automatically
+- NEVER use IActionResult — always use ActionResult<T> with the generic type matching the Result<T> from the handler
+- NEVER inject HttpClient directly into Blazor components — always use typed API clients
 
 ---
 
@@ -18,51 +72,49 @@
 All Application code is organized by feature, not by type.
 
 Application/
-  Features/
-    Dashboard/
-      Queries/
-        GetDashboardOverview/
-          GetDashboardOverviewQuery.cs
-          GetDashboardOverviewQueryHandler.cs
-          GetDashboardOverviewQueryValidator.cs
-    Payments/
-      Commands/
-        RecordPayment/
-          RecordPaymentCommand.cs
-          RecordPaymentCommandHandler.cs
-          RecordPaymentCommandValidator.cs
-      Queries/
-        GetPaymentHistory/
-          GetPaymentHistoryQuery.cs
-          GetPaymentHistoryQueryHandler.cs
-          GetPaymentHistoryQueryValidator.cs
-    Stalls/
-    Collectors/
-    Vendors/
-    DailyCollections/
-    Slaughterhouse/
+  Command/
     Auth/
-  Interfaces/
-    IUnitOfWork.cs
-    IDashboardRepository.cs
-    IPaymentRepository.cs
-    IStallRepository.cs
-    IDailyCollectionRepository.cs
-    ISlaughterRepository.cs
-    IContractRepository.cs
-    ICollectorRepository.cs
+      AdminAuth/
+        Login/
+        CreateFirstAdmin/
+      RefreshToken/
+    Collectors/
+      CreateCollector/
+    Payments/
+      SaveOrNumber/
+    Stalls/
+      ToggleStallStatus/
+  Queries/
+    Auth/
+      GetSetupStatus/
+    Dashboard/
+      GetDashboardOverview/
+    Payments/
+      GetPaymentHistory/
+    Stalls/
+  Common/
+    Interface/
+      ApiClients/
+        IAuthApiClient.cs
+        ISetupApiClient.cs
+        IStallsApiClient.cs
+      Persistence/
+        IUnitOfWork.cs
+        ISetupRepository.cs
+        IPaymentRepository.cs
+        IStallRepository.cs
   Dtos/
     Dashboard/
     Payments/
     Stalls/
 
-One folder per feature. One subfolder per command/query. Handler + record + validator always co-located.
+One folder per command/query. Handler + record + validator always co-located.
 
 ---
 
 ## Unit of Work
 
-Interface — Application/Interfaces/IUnitOfWork.cs
+Interface — Application/Common/Interface/Persistence/IUnitOfWork.cs
 - Contains ONLY: Task SaveChangesAsync(CancellationToken cancellationToken = default)
 - No repo properties, no DbSet properties, nothing else
 - No CommitAsync, no IDisposable
@@ -79,7 +131,7 @@ Implementation — Infrastructure/Persistence/UnitOfWork.cs
 Rule: every data access goes through a repo — no exceptions.
 Handlers inject repo interfaces + IUnitOfWork. They never touch DbContext directly.
 
-Interface: Application/Interfaces/I{Feature}Repository.cs
+Interface: Application/Common/Interface/Persistence/I{Feature}Repository.cs
 Implementation: Infrastructure/Persistence/Repositories/{Feature}Repository.cs
 
 Implementation rules:
@@ -110,6 +162,7 @@ Each repo registered individually. Not wired inside UnitOfWork.
 - UpdateAsync(TEntity entity, CancellationToken ct)
 - IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
 - ExistsAsync(Guid id, CancellationToken ct)
+- IsSuperAdminExistsAsync(CancellationToken ct)  // Setup check
 
 For complex reads (dashboard, reports, summaries) — repo returns the DTO directly, not a list of entities.
 
@@ -155,7 +208,7 @@ Result<T>.ValidationFailure(err) | 400  | Validation errors dict
 Result<T>.NotFound()             | 404  | Not found
 Result<T>.Unauthorized()         | 401  | Auth failure
 Result<T>.Forbidden()            | 403  | Permission denied
-Result<T>.Conflict()             | 409  | Duplicate / conflict
+Result<T>.Conflict()             | 409  | Duplicate / conflict (e.g. SuperAdmin already exists)
 Result<T>.InternalServerError()  | 500  | Unexpected error
 
 ---
@@ -206,7 +259,27 @@ Computed Properties — always builder.Ignore():
 
 ---
 
+## API Controllers
+
+File: Api/Controllers/{Entity}Controller.cs
+- Inherit from ApiBaseController
+- Primary constructor: ISender sender
+- Return type: ActionResult<T> where T matches the Result<T> generic type from the handler
+- Example: `public async Task<ActionResult<StallDto>> GetStall(Guid id)` for handler returning `Result<StallDto>`
+- Example: `public async Task<ActionResult<IReadOnlyList<StallDto>>> GetStalls()` for handler returning `Result<IReadOnlyList<StallDto>>`
+- Example: `public async Task<ActionResult<bool>> DeleteStall(Guid id)` for handler returning `Result<bool>`
+- Always call HandleResponse(result) to convert Result<T> to ActionResult<T>
+- Controllers are thin — only IMediator.Send() and HandleResponse(), nothing else
+
+---
+
 ## Known Feature Commands and Queries
+
+Auth:
+- LoginCommand (Command/Auth/AdminAuth/Login)
+- RefreshTokenCommand (Command/Auth/RefreshToken)
+- CreateFirstAdminCommand (Command/Auth/AdminAuth/CreateFirstAdmin) — checks IsSuperAdminExistsAsync, returns Conflict if exists
+- GetSetupStatusQuery (Queries/Auth/GetSetupStatus) — returns IsSetupRequired = !IsSuperAdminExistsAsync
 
 Dashboard:
 - GetDashboardOverviewQuery → DashboardOverviewDto (uses IDashboardRepository)
@@ -230,6 +303,3 @@ Slaughterhouse:
 
 Reports:
 - GetFacilitySummaryQuery, GetDelinquentVendorsQuery
-
-Auth:
-- LoginAdminQuery, LoginCollectorQuery
