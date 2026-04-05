@@ -23,10 +23,4 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(request);
         return HandleResponse(result);
     }
-
-    [HttpPost("logout")]
-    public IActionResult Logout()
-    {
-        return Ok();
-    }
 }

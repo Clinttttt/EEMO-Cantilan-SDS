@@ -9,7 +9,7 @@ using EEMOCantilanSDS.Infrastructure.Persistence.Seeders;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApi(builder.Configuration);
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructureService(builder.Configuration);
 builder.Services.AddApplicationService(builder.Configuration);
 builder.ConfigureServices();
 

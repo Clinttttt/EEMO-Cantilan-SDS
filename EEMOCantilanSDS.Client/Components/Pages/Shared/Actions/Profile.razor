@@ -1,4 +1,8 @@
 ﻿@page "/profile/{FacilityId}/{StallNo}"
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi
+@inject NavigationManager Navigation
 @rendermode InteractiveServer
 
 <PageTitle>EEMO Admin — Stall Profile</PageTitle>
@@ -315,31 +319,50 @@
                             {
                                 var month = DateTime.Now.AddMonths(-i);
                                 var key = month.ToString("yyyy-MM");
+                                var isBeforeContract = Stall.ContractDate.HasValue && month < new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1);
                                 var paid = Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key];
                                 var isCurrent = i == 0;
-                                <div class="prof-hist-month @(paid ? "hist-paid" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : paid ? "hist-paid" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
                                     <div class="prof-hist-month-name">@month.ToString("MMM")</div>
                                     <div class="prof-hist-month-year">@month.ToString("yy")</div>
-                                    <div class="prof-hist-icon">@(paid ? "✓" : "✗")</div>
+                                    <div class="prof-hist-icon">@(isBeforeContract ? "—" : paid ? "✓" : "✗")</div>
                                 </div>
                             }
                         </div>
 
                         <div class="prof-hist-summary">
+                            @{
+                                var experiencedMonths = 0;
+                                var paidCount = 0;
+                                for (int i = 11; i >= 0; i--)
+                                {
+                                    var month = DateTime.Now.AddMonths(-i);
+                                    var key = month.ToString("yyyy-MM");
+                                    if (Stall.ContractDate.HasValue && month >= new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1))
+                                    {
+                                        experiencedMonths++;
+                                        if (Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key])
+                                        {
+                                            paidCount++;
+                                        }
+                                    }
+                                }
+                                var unpaidCount = experiencedMonths - paidCount;
+                            }
                             <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val green">@Stall.PaymentHistory.Count(p => p.Value)</div>
+                                <div class="prof-hist-stat-val green">@paidCount</div>
                                 <div class="prof-hist-stat-key">Months Paid</div>
                             </div>
                             <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val red">@(12 - Stall.PaymentHistory.Count(p => p.Value))</div>
+                                <div class="prof-hist-stat-val red">@unpaidCount</div>
                                 <div class="prof-hist-stat-key">Months Unpaid</div>
                             </div>
                             <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val">₱@((Stall.MonthlyRate * Stall.PaymentHistory.Count(p => p.Value)).ToString("N0"))</div>
+                                <div class="prof-hist-stat-val">₱@((Stall.MonthlyRate * paidCount).ToString("N0"))</div>
                                 <div class="prof-hist-stat-key">Total Collected</div>
                             </div>
-                            <div class="prof-hist-stat @(Stall.PaymentHistory.Any(p => !p.Value) ? "stat-warn" : "")">
-                                <div class="prof-hist-stat-val red">₱@((Stall.MonthlyRate * Stall.PaymentHistory.Count(p => !p.Value)).ToString("N0"))</div>
+                            <div class="prof-hist-stat @(unpaidCount > 0 ? "stat-warn" : "")">
+                                <div class="prof-hist-stat-val red">₱@((Stall.MonthlyRate * unpaidCount).ToString("N0"))</div>
                                 <div class="prof-hist-stat-key">Balance Due</div>
                             </div>
                         </div>
@@ -519,6 +542,8 @@
     bool ShowEditModal = false;
     bool ShowPayModal = false;
     string PayStatus = "Paid";
+    bool IsLoading = true;
+    Guid StallGuid = Guid.Empty;
 
     class StallProfile
     {
@@ -556,43 +581,102 @@
 
     StallProfile Stall = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        LoadStallData();
+        await LoadStallData();
     }
 
-    void LoadStallData()
+    async Task LoadStallData()
     {
-        // TODO: Replace with actual API call to fetch stall data based on FacilityId and StallNo
-        // Example: Stall = await StallService.GetStallByFacilityAndStallNo(FacilityId, StallNo);
-
-        // For now, using hardcoded data for demo purposes
-        // This should be replaced with actual data fetching logic
-        Stall = new()
+        IsLoading = true;
+        
+        // Parse facility code from URL parameter
+        var facilityCode = FacilityId.ToUpper() switch
         {
-            Facility = GetFacilityName(FacilityId),
-            StallNo = StallNo,
-            Section = "Vegetable Area",
-            AreaSqm = 4.8,
-            AreaNote = "Near main entrance, left row",
-            ActualOccupant = "Trugillo, Elpedia C.",
-            ContractName = "Nila F. Andoy",
-            ContractDate = new DateTime(2023, 6, 7),
-            ContractDuration = "3 years",
-            ContractExpiry = new DateTime(2026, 6, 7),
-            MonthlyRate = 900,
-            HasElectricity = true,
-            ElecReading = 142,
-            ElecAmount = 285,
-            HasWater = true,
-            WaterReading = 18,
-            WaterAmount = 120,
-            IsPaid = true,
-            ORNumber = "OR-2026-0301",
-            CollectorName = "Clint Reyes",
-            Remarks = "Long-standing tenant since 2019. Contract renewal due June 2026.",
-            PaymentHistory = MakeH(11)
+            "NPM" => Domain.Enums.FacilityCode.NPM,
+            "TCC" => Domain.Enums.FacilityCode.TCC,
+            "NCC" => Domain.Enums.FacilityCode.NCC,
+            "BBQ" => Domain.Enums.FacilityCode.BBQ,
+            "ICE" => Domain.Enums.FacilityCode.ICE,
+            "SLH" => Domain.Enums.FacilityCode.SLH,
+            _ => Domain.Enums.FacilityCode.NPM
         };
+
+        // Load stalls from API
+        var stallsResult = await StallsApi.GetStallsByFacilityPaginatedAsync(facilityCode, null, null, 100);
+        
+        if (stallsResult.IsSuccess && stallsResult.Value != null)
+        {
+            var stallDto = stallsResult.Value.Items.FirstOrDefault(s => s.StallNo == StallNo);
+            
+            if (stallDto != null)
+            {
+                StallGuid = stallDto.Id;
+                
+                // Load payment history
+                var historyResult = await PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
+                var paymentHistory = new Dictionary<string, bool>();
+                
+                if (historyResult.IsSuccess && historyResult.Value != null)
+                {
+                    foreach (var payment in historyResult.Value)
+                    {
+                        paymentHistory[payment.Period] = payment.Status == Domain.Enums.PaymentStatus.Paid;
+                    }
+                }
+                
+                // Load current month payment record
+                var currentPaymentResult = await PaymentsApi.GetPaymentRecordAsync(
+                    stallDto.Id,
+                    DateTime.Now.Year,
+                    DateTime.Now.Month);
+                
+                var section = stallDto.Section switch
+                {
+                    Domain.Enums.MarketSection.VegetableArea => "Vegetable Area",
+                    Domain.Enums.MarketSection.FishSection => "Fish Section",
+                    Domain.Enums.MarketSection.MeatSection => "Meat Section",
+                    _ => "Vegetable Area"
+                };
+                
+                Stall = new()
+                {
+                    Facility = GetFacilityName(FacilityId),
+                    StallNo = stallDto.StallNo,
+                    Section = section,
+                    AreaSqm = stallDto.AreaSqm ?? 0,
+                    AreaNote = string.Empty,
+                    ActualOccupant = stallDto.ActualOccupant ?? "N/A",
+                    ContractName = stallDto.NameOnContract ?? "N/A",
+                    ContractDate = stallDto.ContractDate,
+                    ContractDuration = "3 years",
+                    ContractExpiry = stallDto.ContractDate?.AddYears(3),
+                    MonthlyRate = stallDto.MonthlyRate,
+                    HasElectricity = true,
+                    ElecReading = 0,
+                    ElecAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.ElecAmount ?? 0 : 0,
+                    HasWater = true,
+                    WaterReading = 0,
+                    WaterAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.WaterAmount ?? 0 : 0,
+                    FishKilos = 0,
+                    IsPaid = currentPaymentResult.IsSuccess && currentPaymentResult.Value?.Status == Domain.Enums.PaymentStatus.Paid,
+                    IsPartial = currentPaymentResult.IsSuccess && currentPaymentResult.Value?.Status == Domain.Enums.PaymentStatus.Partial,
+                    PartialAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.TotalPaid ?? 0 : 0,
+                    IsActive = stallDto.Status == Domain.Enums.StallStatus.Active,
+                    ORNumber = stallDto.ORNumber ?? string.Empty,
+                    CollectorName = string.Empty,
+                    Remarks = string.Empty,
+                    PaymentHistory = paymentHistory
+                };
+            }
+            else
+            {
+                // Stall not found, redirect back
+                Navigation.NavigateTo("/facility/" + FacilityId.ToLower());
+            }
+        }
+        
+        IsLoading = false;
     }
 
     string GetFacilityName(string facilityId)

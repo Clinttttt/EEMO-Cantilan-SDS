@@ -2,6 +2,13 @@
 @page "/facility/ice"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject IStallsApiClient StallsApi
+
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
+@using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
+@using EEMOCantilanSDS.Domain.Enums
+
 <PageTitle>EEMO Admin — Iceplant</PageTitle>
 
 <div class="admin-layout">
@@ -155,6 +162,7 @@
                 IsEditing="false"
                 Form="VendorForm"
                 @bind-FormError="VendorErrorMessage"
+                FieldErrors="VendorFieldErrors"
                 FacilityOptions="IcePlantFacilityOptions"
                 FacilityLocked="true"
                 OnSave="SubmitAddVendor"
@@ -168,6 +176,39 @@
     string SearchQuery = string.Empty;
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStallsFromApi();
+    }
+
+    private async Task LoadStallsFromApi()
+    {
+        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.ICE, null, null, 100);
+        if (result.IsSuccess && result.Value != null)
+        {
+            Stalls.Clear();
+            int id = 1;
+            foreach (var dto in result.Value.Items)
+            {
+                Stalls.Add(new IceplantStall
+                {
+                    Id = id++,
+                    StallNo = dto.StallNo,
+                    ActualOccupant = dto.ActualOccupant ?? "N/A",
+                    ContractName = dto.NameOnContract ?? "N/A",
+                    AreaSqm = dto.AreaSqm ?? 0,
+                    ContractDate = dto.ContractDate,
+                    MonthlyRate = dto.MonthlyRate,
+                    IsActive = dto.Status == StallStatus.Active,
+                    ORNumber = dto.ORNumber ?? string.Empty,
+                    IsPaid = false,
+                    IsPartial = false,
+                    PaymentHistory = MakeH(0)
+                });
+            }
+        }
+    }
 
     // Toolbar management
     private List<Toolbar.ToolbarAction> ToolbarActions => new()
@@ -219,21 +260,7 @@
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
 
-    List<IceplantStall> Stalls = new()
-    {
-        new() { Id=1,  StallNo="I-01", ActualOccupant="Villarin, Cresencia B.",    ContractName="Cresencia B. Villarin",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ElecAmount=310, WaterAmount=120, ORNumber="OR-2026-I01",  CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=2,  StallNo="I-02", ActualOccupant="Orbeta, Renante M.",         ContractName="Renante M. Orbeta",         AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ElecAmount=275, WaterAmount=105, ORNumber="OR-2026-I02",  CollectorName="Ruel Santos",  PaymentHistory=MakeH(10) },
-        new() { Id=3,  StallNo="I-03", ActualOccupant="Capuyan, Delia F.",          ContractName="Delia F. Capuyan",          AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=900,  ElecAmount=295, WaterAmount=115, ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(5)  },
-        new() { Id=4,  StallNo="I-04", ActualOccupant="Dumagco, Artemio S.",        ContractName="Artemio S. Dumagco",        AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=1500, ElecAmount=510, WaterAmount=185, ORNumber="OR-2026-I04",  CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=5,  StallNo="I-05", ActualOccupant="Pacquiao, Maribel T.",       ContractName="Maribel T. Pacquiao",       AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=1000, MonthlyRate=1500, ElecAmount=490, WaterAmount=178, ORNumber="OR-2026-I05", CollectorName="Ruel Santos", PaymentHistory=MakeH(8) },
-        new() { Id=6,  StallNo="I-06", ActualOccupant="Torregosa, Loreta C.",       ContractName="Loreta C. Torregosa",       AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=1500, ElecAmount=505, WaterAmount=183, ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(3)  },
-        new() { Id=7,  StallNo="I-07", ActualOccupant="Espinosa, Gilbert A.",       ContractName="Gilbert A. Espinosa",       AreaSqm=35.0, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=2800, ElecAmount=960, WaterAmount=350, ORNumber="OR-2026-I07",  CollectorName="Clint Reyes",  PaymentHistory=MakeH(11) },
-        new() { Id=8,  StallNo="I-08", ActualOccupant="Baluyot, Sonia R.",          ContractName="Sonia R. Baluyot",          AreaSqm=35.0, ContractDate=new DateTime(2023,6,7), IsPaid=false,   MonthlyRate=2800, ElecAmount=935, WaterAmount=342, ORNumber="",             CollectorName="Ruel Santos",  PaymentHistory=MakeH(4)  },
-        new() { Id=9,  StallNo="I-09", ActualOccupant="Closed",                     ContractName="Herminia D. Castillo",      AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   IsActive=false, MonthlyRate=900, ORNumber="", CollectorName="", PaymentHistory=MakeH(1) },
-        new() { Id=10, StallNo="I-10", ActualOccupant="Lazo, Cornelio M.",           ContractName="Cornelio M. Lazo",           AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=900,  ElecAmount=288, WaterAmount=112, ORNumber="OR-2026-I10",  CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        new() { Id=11, StallNo="I-11", ActualOccupant="Pedrosa, Marilou G.",        ContractName="Marilou G. Pedrosa",        AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=true,    MonthlyRate=1500, ElecAmount=475, WaterAmount=172, ORNumber="OR-2026-I11",  CollectorName="Clint Reyes",  PaymentHistory=MakeH(9)  },
-        new() { Id=12, StallNo="I-12", ActualOccupant="Closed",                     ContractName="Domingo A. Soriano",        AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), IsPaid=false,   IsActive=false, MonthlyRate=1500, ORNumber="", CollectorName="", PaymentHistory=MakeH(0) },
-    };
+    List<IceplantStall> Stalls = new();
 
     static Dictionary<string, bool> MakeH(int paid)
     {
@@ -305,6 +332,7 @@
     // Add Vendor Modal (shared AddVendorModal)
     private bool ShowAddVendorModal { get; set; }
     private string VendorErrorMessage { get; set; } = string.Empty;
+    private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm { get; set; } = new();
     private List<AddVendorModal.VendorFacilityOption> IcePlantFacilityOptions => new() { new() { Code = "ICE", Name = "Iceplant" } };
 
@@ -325,6 +353,7 @@
             FeeTypes = new()
         };
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
         ShowAddVendorModal = true;
         StateHasChanged();
     }
@@ -334,6 +363,7 @@
         ShowAddVendorModal = false;
         VendorForm = new();
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
     }
 
     private void ToggleVendorFee(string fee)
@@ -346,25 +376,60 @@
 
     private async Task SubmitAddVendor()
     {
-        // Validate form
-        if (string.IsNullOrWhiteSpace(VendorForm.ActualOccupant))
-        {
-            VendorErrorMessage = "Actual occupant name is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(VendorForm.StallNo))
-        {
-            VendorErrorMessage = "Stall number is required.";
-            return;
-        }
-        if (VendorForm.MonthlyRate <= 0)
-        {
-            VendorErrorMessage = "Monthly rental rate is required.";
-            return;
-        }
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
 
-            // Here you would typically save to database
-            // For now, just close the modal
+        var fees = ApplicableFees.BaseRental;
+
+        var command = new CreateStallCommand(
+            FacilityCode.ICE,
+            VendorForm.StallNo.Trim(),
+            VendorForm.MonthlyRate,
+            fees,
+            null,
+            null,
+            VendorForm.AreaSqm,
+            null,
+            null,
+            VendorForm.ActualOccupant.Trim(),
+            string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
+            VendorForm.ContractDate,
+            VendorForm.ContractYears);
+
+        var result = await StallsApi.CreateStallAsync(command);
+
+        if (result.IsSuccess)
+        {
+            var newStall = new IceplantStall
+            {
+                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
+                StallNo = VendorForm.StallNo.Trim(),
+                ActualOccupant = VendorForm.ActualOccupant.Trim(),
+                ContractName = VendorForm.ContractName.Trim(),
+                AreaSqm = VendorForm.AreaSqm,
+                ContractDate = VendorForm.ContractDate,
+                MonthlyRate = VendorForm.MonthlyRate,
+                IsActive = true,
+                PaymentHistory = new()
+            };
+
+            Stalls.Add(newStall);
             CloseAddVendorModal();
         }
+        else
+        {
+            if (result.ValidationErrors != null && result.ValidationErrors.Any())
+            {
+                foreach (var error in result.ValidationErrors)
+                {
+                    VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+                }
+                StateHasChanged();
+            }
+            else
+            {
+                VendorErrorMessage = result.Error ?? "Failed to create stall.";
+            }
+        }
+    }
 }

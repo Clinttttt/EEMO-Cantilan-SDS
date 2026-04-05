@@ -518,6 +518,12 @@
     border-color: #d9b0b0;
 }
 
+.hist-na {
+    background: #f5f7f9;
+    border-color: #dde4ea;
+    opacity: 0.6;
+}
+
 .hist-current {
     outline: 2px solid var(--gold);
     outline-offset: 1px;
@@ -544,6 +550,10 @@
 
 .hist-unpaid .prof-hist-icon {
     color: var(--red);
+}
+
+.hist-na .prof-hist-icon {
+    color: var(--text-muted);
 }
 
 .prof-hist-summary {

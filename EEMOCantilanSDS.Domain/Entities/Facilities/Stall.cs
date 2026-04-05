@@ -33,8 +33,39 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public Facility? Facility { get; private set; }
         public ICollection<Contract> Contracts { get; private set; } = new List<Contract>();
         public   ICollection<PaymentRecord> PaymentRecords { get; private set; } = new List<PaymentRecord>();
-        public  ICollection<DailyCollection> DailyCollections { get; private set; } = new List<DailyCollection>();
+        public ICollection<DailyCollection> DailyCollections { get; private set; } = new List<DailyCollection>();
+        
         private Stall() { }
+
+        public static Stall Create(
+            Guid facilityId,
+            string stallNo,
+            decimal monthlyRate,
+            ApplicableFees fees,
+            MarketSection? section = null,
+            NccAreaLocation? areaLocation = null,
+            double? areaSqm = null,
+            string? areaNote = null,
+            decimal? dailyRate = null,
+            string createdBy = "System")
+        {
+            return new Stall
+            {
+                Id = Guid.NewGuid(),
+                FacilityId = facilityId,
+                StallNo = stallNo,
+                MonthlyRate = monthlyRate,
+                DailyRate = dailyRate,
+                Fees = fees,
+                Section = section,
+                AreaLocation = areaLocation,
+                AreaSqm = areaSqm,
+                AreaNote = areaNote,
+                Status = StallStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
         public void UpdateRates(decimal monthlyRate, decimal? dailyRate = null, string updatedBy = "System")
         {
             MonthlyRate = monthlyRate;

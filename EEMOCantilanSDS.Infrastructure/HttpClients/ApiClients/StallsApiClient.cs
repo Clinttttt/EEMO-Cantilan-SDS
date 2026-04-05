@@ -1,21 +1,55 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+﻿using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
+using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Domain.Common;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+using EEMOCantilanSDS.Domain.Enums;
 
-namespace EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients
+namespace EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients;
+
+public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApiClient
 {
-    public class StallsApiClient : HandleResponse, IStallsApiClient
+    public async Task<Result<StallHoldersListDto>> GetStallHoldersListAsync(
+        FacilityCode facilityCode, 
+        MarketSection? section = null, 
+        string? searchTerm = null)
     {
-        public StallsApiClient(HttpClient http) : base(http)
-        {
-        }
-
-        public async Task<Result<StallHoldersListDto>> GetStallHoldersList() => await GetAsync<StallHoldersListDto>("api/Stalls/facility/{facilityCode}/holders-list");  
+        var query = $"api/Stalls/facility/{facilityCode}/holders-list";
+        var queryParams = new List<string>();
+        
+        if (section.HasValue)
+            queryParams.Add($"section={section.Value}");
+        
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+            queryParams.Add($"searchTerm={Uri.EscapeDataString(searchTerm)}");
+        
+        if (queryParams.Any())
+            query += "?" + string.Join("&", queryParams);
+        
+        return await GetAsync<StallHoldersListDto>(query);
     }
+
+    public async Task<Result<CursorPagedResult<StallDto>>> GetStallsByFacilityPaginatedAsync(
+        FacilityCode facilityCode,
+        MarketSection? section = null,
+        DateTime? cursor = null,
+        int pageSize = 20)
+    {
+        var query = $"api/Stalls/facility/{facilityCode}/paginated?pageSize={pageSize}";
+        
+        if (section.HasValue)
+            query += $"&section={section.Value}";
+        
+        if (cursor.HasValue)
+            query += $"&cursor={cursor.Value:O}";
+        
+        return await GetAsync<CursorPagedResult<StallDto>>(query);
+    }
+
+    public async Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command) =>
+        await PostAsync<CreateStallCommand, StallDto>("api/Stalls", command);
+
+    public async Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command) =>
+        await UpdateAsync<UpdateStallCommand, StallDto>($"api/Stalls/{stallId}", command);
 }

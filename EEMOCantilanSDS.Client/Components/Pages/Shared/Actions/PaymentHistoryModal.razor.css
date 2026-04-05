@@ -334,6 +334,15 @@
         background: rgba(0,0,0,.02);
     }
 
+.ph-row-before-contract {
+    background: #f5f7f9 !important;
+    opacity: 0.6;
+}
+
+    .ph-row-before-contract:hover {
+        background: #f0f3f6 !important;
+    }
+
 .ph-row-current {
     background: var(--bg-card) !important;
     border-left: none !important;
@@ -357,6 +366,10 @@
 }
 
 .ph-dot-unpaid {
+    display: none;
+}
+
+.ph-dot-gray {
     display: none;
 }
 
@@ -408,6 +421,17 @@
 }
 
     .ph-pill-unpaid svg {
+        display: none;
+    }
+
+.ph-pill-gray {
+    background: none;
+    color: var(--text-muted);
+    border: none;
+    opacity: 0.7;
+}
+
+    .ph-pill-gray svg {
         display: none;
     }
 

@@ -1,5 +1,11 @@
 ﻿@page "/collectors"
-
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector
+@using EEMOCantilanSDS.Application.Dtos
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Authorization
+@inject ICollectorsApiClient CollectorsApi
+@attribute [Authorize(Roles = "SuperAdmin")]
 @rendermode InteractiveServer
 <PageTitle>EEMO Admin — Collectors</PageTitle>
 
@@ -61,32 +67,32 @@
                 </div>
                 <div class="vs-hero-stats">
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@Collectors.Count</div>
+                        <div class="vs-hero-val">@(Collectors?.Count ?? 0)</div>
                         <div class="vs-hero-key">Total Collectors</div>
-                        <div class="vs-hero-sub2">@Collectors.Count(c => c.IsActive) active</div>
+                        <div class="vs-hero-sub2">@(Collectors?.Count(c => c.IsActive) ?? 0) active</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">₱@Collectors.Sum(c => c.CollectedThisMonth).ToString("N0")</div>
+                        <div class="vs-hero-val">₱@((Collectors?.Sum(c => c.CollectedThisMonth) ?? 0).ToString("N0"))</div>
                         <div class="vs-hero-key">Total Collected</div>
                         <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy")</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@Collectors.Sum(c => c.AssignedFacilities.Count)</div>
+                        <div class="vs-hero-val">@(Collectors?.Sum(c => c.AssignedFacilities.Count) ?? 0)</div>
                         <div class="vs-hero-key">Facility Assignments</div>
                         <div class="vs-hero-sub2">Across all collectors</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@Collectors.Count(c => !c.IsActive)</div>
+                        <div class="vs-hero-val">@(Collectors?.Count(c => !c.IsActive) ?? 0)</div>
                         <div class="vs-hero-key">Inactive Accounts</div>
                         <div class="vs-hero-sub2">Deactivated or suspended</div>
                     </div>
                 </div>
                 <div class="vs-hero-progress">
                     @{
-                        var activeRate = Collectors.Count > 0 ? (Collectors.Count(c => c.IsActive) * 100 / Collectors.Count) : 0;
+                        var activeRate = (Collectors?.Count ?? 0) > 0 ? ((Collectors!.Count(c => c.IsActive) * 100) / Collectors.Count) : 0;
                     }
                     <div class="vs-hero-progress-fill" style="width: @activeRate%;"></div>
                 </div>
@@ -177,8 +183,8 @@
                                         <td>
                                             <span>₱@c.CollectedThisMonth.ToString("N0")</span>
                                         </td>
-                                        <td>@c.TransactionsThisMonth</td>
-                                        <td>@c.LastActive.ToString("MMM d, yyyy")</td>
+                                        <td>@c.Transactions</td>
+                                        <td>@(c.LastActiveAt?.ToString("MMM d, yyyy") ?? "Never")</td>
                                         <td>
                                             <div class="action-btns">
                                                 <button class="action-btn" title="Edit" @onclick="() => OpenEdit(c)">
@@ -329,53 +335,56 @@
                 </button>
             </div>
             <div class="eemo-modal-body">
-                <div class="activity-stats">
-                    <div class="act-stat">
-                        <div class="act-stat-val">₱@ActivityCollector.CollectedThisMonth.ToString("N0")</div>
-                        <div class="act-stat-key">Collected This Month</div>
+                @if (ActivityDetails is not null)
+                {
+                    <div class="activity-stats">
+                        <div class="act-stat">
+                            <div class="act-stat-val">₱@ActivityDetails.CollectedThisMonth.ToString("N0")</div>
+                            <div class="act-stat-key">Collected This Month</div>
+                        </div>
+                        <div class="act-stat">
+                            <div class="act-stat-val">@ActivityDetails.Transactions</div>
+                            <div class="act-stat-key">Transactions</div>
+                        </div>
+                        <div class="act-stat">
+                            <div class="act-stat-val">@ActivityDetails.FacilitiesCount</div>
+                            <div class="act-stat-key">Facilities</div>
+                        </div>
+                        <div class="act-stat">
+                            <div class="act-stat-val">@(ActivityDetails.LastActiveAt?.ToString("MMM d") ?? "Never")</div>
+                            <div class="act-stat-key">Last Active</div>
+                        </div>
                     </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">@ActivityCollector.TransactionsThisMonth</div>
-                        <div class="act-stat-key">Transactions</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">@ActivityCollector.AssignedFacilities.Count</div>
-                        <div class="act-stat-key">Facilities</div>
-                    </div>
-                    <div class="act-stat">
-                        <div class="act-stat-val">@ActivityCollector.LastActive.ToString("MMM d")</div>
-                        <div class="act-stat-key">Last Active</div>
-                    </div>
-                </div>
 
-                <div class="act-section-label">Recent Transactions</div>
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>OR #</th>
-                            <th>Payor</th>
-                            <th>Facility</th>
-                            <th>Nature</th>
-                            <th>Amount</th>
-                            <th>Status</th>
-                            <th>Date &amp; Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var tx in GetCollectorActivity(ActivityCollector))
-                        {
+                    <div class="act-section-label">Recent Transactions</div>
+                    <table class="data-table">
+                        <thead>
                             <tr>
-                                <td class="mono">#@tx.OR</td>
-                                <td>@tx.Payor</td>
-                                <td><span class="code-badge">@tx.Facility</span></td>
-                                <td class="td-nature">@tx.Nature</td>
-                                <td class="amount-val">₱@tx.Amount.ToString("N0")</td>
-                                <td><span class="status-pill @(tx.Paid ? "pill-active" : "pill-inactive")">@(tx.Paid ? "Paid" : "Unpaid")</span></td>
-                                <td class="td-date">@tx.At.ToString("MMM d · hh:mm tt")</td>
+                                <th>OR #</th>
+                                <th>Payor</th>
+                                <th>Facility</th>
+                                <th>Nature</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Date &amp; Time</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach (var tx in ActivityDetails.RecentTransactions)
+                            {
+                                <tr>
+                                    <td class="mono">#@tx.ORNumber</td>
+                                    <td>@tx.PayorName</td>
+                                    <td><span class="code-badge">@tx.Facility</span></td>
+                                    <td class="td-nature">@tx.Nature</td>
+                                    <td class="amount-val">₱@tx.Amount.ToString("N0")</td>
+                                    <td><span class="status-pill @(tx.Status == "Paid" ? "pill-active" : "pill-inactive")">@tx.Status</span></td>
+                                    <td class="td-date">@tx.TransactionDate.ToString("MMM d · hh:mm tt")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowActivity = false">Close</button>
@@ -420,41 +429,32 @@
 
 
 @code {
-
-    bool SidebarCollapsed = false;
-
-    // ── Search & Filter ───────────────────────────────────────────────────────
     string SearchQuery = string.Empty;
     string ActiveFilter = "All";
     readonly List<string> StatusFilters = new() { "All", "Active", "Inactive" };
 
-    // ── Collector Model ───────────────────────────────────────────────────────
-    class CollectorAccount
+    List<CollectorListDto>? Collectors = null;
+    string? LoadError = null;
+
+    protected override async Task OnInitializedAsync()
     {
-        public int Id { get; set; }
-        public string FullName { get; set; } = string.Empty;
-        public string EmployeeId { get; set; } = string.Empty;
-        public string ContactNumber { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public bool IsActive { get; set; }
-        public List<string> AssignedFacilities { get; set; } = new();
-        public decimal CollectedThisMonth { get; set; }
-        public int TransactionsThisMonth { get; set; }
-        public DateTime LastActive { get; set; }
+        await LoadCollectors();
     }
 
-    // Replace with: Collectors = await CollectorService.GetAllAsync()
-    List<CollectorAccount> Collectors = new()
+    async Task LoadCollectors()
     {
-        new() { Id=1, FullName="Clint Reyes",  EmployeeId="EEMO-2024-001", ContactNumber="+63 912 345 6789", Email="clint@cantilan.gov.ph", Username="clint.reyes",  IsActive=true,  AssignedFacilities=new(){"NPM","TCC"}, CollectedThisMonth=62400, TransactionsThisMonth=87, LastActive=DateTime.Today },
-        new() { Id=2, FullName="Ruel Santos",  EmployeeId="EEMO-2024-002", ContactNumber="+63 917 234 5678", Email="ruel@cantilan.gov.ph",  Username="ruel.santos",  IsActive=true,  AssignedFacilities=new(){"NCC","ICE"}, CollectedThisMonth=38500, TransactionsThisMonth=54, LastActive=DateTime.Today },
-        new() { Id=3, FullName="Marco Dizon",  EmployeeId="EEMO-2024-003", ContactNumber="+63 921 456 7890", Email="marco@cantilan.gov.ph", Username="marco.dizon",  IsActive=true,  AssignedFacilities=new(){"SLH","BBQ"}, CollectedThisMonth=18350, TransactionsThisMonth=32, LastActive=DateTime.Today.AddDays(-1) },
-        new() { Id=4, FullName="Ana Lim",      EmployeeId="EEMO-2023-004", ContactNumber="+63 918 567 8901", Email="ana@cantilan.gov.ph",   Username="ana.lim",      IsActive=false, AssignedFacilities=new(){"NPM"},       CollectedThisMonth=0,     TransactionsThisMonth=0,  LastActive=DateTime.Today.AddMonths(-2) },
-    };
+        var result = await CollectorsApi.GetAllCollectorsAsync();
+        if (result.IsSuccess)
+        {
+            Collectors = result.Value?.ToList();
+        }
+        else
+        {
+            LoadError = result.Error;
+        }
+    }
 
-    // ── Filtered ──────────────────────────────────────────────────────────────
-    IEnumerable<CollectorAccount> FilteredCollectors => Collectors.Where(c =>
+    IEnumerable<CollectorListDto> FilteredCollectors => (Collectors ?? new()).Where(c =>
     {
         bool matchFilter = ActiveFilter switch
         {
@@ -465,24 +465,19 @@
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || c.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || c.EmployeeId.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || c.AssignedFacilities.Any(f => f.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+            || c.AssignedFacilities.Any(f => f.ToString().Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
         return matchFilter && matchSearch;
     });
 
-    string GetInitials(string name) =>
-        string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                          .Take(2).Select(w => char.ToUpper(w[0])));
-
-    // ── Available Facilities ──────────────────────────────────────────────────
-    class FacilityOption { public string Code { get; set; } = ""; public string Name { get; set; } = ""; }
+    class FacilityOption { public FacilityCode Code { get; set; } public string Name { get; set; } = ""; }
     readonly List<FacilityOption> AvailableFacilities = new()
     {
-        new() { Code="NPM", Name="New Public Market" },
-        new() { Code="TCC", Name="Tampak Commercial Center" },
-        new() { Code="NCC", Name="New Commercial Center" },
-        new() { Code="BBQ", Name="Barbecue Stand" },
-        new() { Code="ICE", Name="Iceplant" },
-        new() { Code="SLH", Name="Slaughterhouse" },
+        new() { Code=FacilityCode.NPM, Name="New Public Market" },
+        new() { Code=FacilityCode.TCC, Name="Tampak Commercial Center" },
+        new() { Code=FacilityCode.NCC, Name="New Commercial Center" },
+        new() { Code=FacilityCode.BBQ, Name="Barbecue Stand" },
+        new() { Code=FacilityCode.ICE, Name="Iceplant" },
+        new() { Code=FacilityCode.SLH, Name="Slaughterhouse" },
     };
 
     // ── Form ──────────────────────────────────────────────────────────────────
@@ -494,14 +489,14 @@
         public string Email { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public List<string> AssignedFacilities { get; set; } = new();
+        public List<FacilityCode> AssignedFacilities { get; set; } = new();
     }
 
     bool ShowModal = false;
     bool IsEditing = false;
     CollectorForm Form = new();
     string FormError = string.Empty;
-    int EditingId = 0;
+    Guid EditingId = Guid.Empty;
 
     void OpenCreate()
     {
@@ -511,7 +506,7 @@
         ShowModal = true;
     }
 
-    void OpenEdit(CollectorAccount c)
+    void OpenEdit(CollectorListDto c)
     {
         IsEditing = true;
         EditingId = c.Id;
@@ -519,9 +514,9 @@
         {
             FullName = c.FullName,
             EmployeeId = c.EmployeeId,
-            ContactNumber = c.ContactNumber,
+            ContactNumber = "",
             Email = c.Email,
-            Username = c.Username,
+            Username = "",
             Password = string.Empty,
             AssignedFacilities = new(c.AssignedFacilities)
         };
@@ -529,7 +524,7 @@
         ShowModal = true;
     }
 
-    void ToggleFacility(string code)
+    void ToggleFacility(FacilityCode code)
     {
         if (Form.AssignedFacilities.Contains(code))
             Form.AssignedFacilities.Remove(code);
@@ -537,7 +532,7 @@
             Form.AssignedFacilities.Add(code);
     }
 
-    void SaveCollector()
+    async Task SaveCollector()
     {
         if (string.IsNullOrWhiteSpace(Form.FullName)) { FormError = "Full name is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.EmployeeId)) { FormError = "Employee ID is required."; return; }
@@ -547,34 +542,31 @@
 
         if (IsEditing)
         {
-            var existing = Collectors.First(c => c.Id == EditingId);
-            existing.FullName = Form.FullName.Trim();
-            existing.EmployeeId = Form.EmployeeId.Trim();
-            existing.ContactNumber = Form.ContactNumber.Trim();
-            existing.Email = Form.Email.Trim();
-            existing.Username = Form.Username.Trim();
-            existing.AssignedFacilities = new(Form.AssignedFacilities);
+            FormError = "Edit functionality not yet implemented.";
+            return;
         }
         else
         {
-            Collectors.Add(new CollectorAccount
-            {
-                Id = Collectors.Count + 1,
-                FullName = Form.FullName.Trim(),
-                EmployeeId = Form.EmployeeId.Trim(),
-                ContactNumber = Form.ContactNumber.Trim(),
-                Email = Form.Email.Trim(),
-                Username = Form.Username.Trim(),
-                IsActive = true,
-                AssignedFacilities = new(Form.AssignedFacilities),
-                CollectedThisMonth = 0,
-                TransactionsThisMonth = 0,
-                LastActive = DateTime.Now
-            });
-        }
+            var command = new CreateCollectorCommand(
+                Form.FullName.Trim(),
+                Form.EmployeeId.Trim(),
+                Form.ContactNumber.Trim(),
+                Form.Email.Trim(),
+                Form.Username.Trim(),
+                Form.Password,
+                Form.AssignedFacilities);
 
-        CloseModal();
-        // TODO: await CollectorService.SaveAsync(...)
+            var result = await CollectorsApi.CreateCollectorAsync(command);
+            if (result.IsSuccess)
+            {
+                await LoadCollectors();
+                CloseModal();
+            }
+            else
+            {
+                FormError = result.Error ?? "Failed to create collector.";
+            }
+        }
     }
 
     void CloseModal()
@@ -583,34 +575,35 @@
         FormError = string.Empty;
     }
 
-    // ── Toggle Status ─────────────────────────────────────────────────────────
     bool ShowConfirm = false;
-    CollectorAccount? ConfirmTarget = null;
+    CollectorListDto? ConfirmTarget = null;
 
-    void ToggleStatus(CollectorAccount c) { ConfirmTarget = c; ShowConfirm = true; }
+    void ToggleStatus(CollectorListDto c) { ConfirmTarget = c; ShowConfirm = true; }
 
-    void ConfirmToggle()
+    async Task ConfirmToggle()
     {
         if (ConfirmTarget is null) return;
-        ConfirmTarget.IsActive = !ConfirmTarget.IsActive;
         ShowConfirm = false;
         ConfirmTarget = null;
-        // TODO: await CollectorService.SetActiveAsync(id, isActive)
+        FormError = "Toggle status not yet implemented.";
     }
 
-    // ── Activity Modal ────────────────────────────────────────────────────────
     bool ShowActivity = false;
-    CollectorAccount? ActivityCollector = null;
+    CollectorListDto? ActivityCollector = null;
+    CollectorActivityDto? ActivityDetails = null;
 
-    void OpenActivity(CollectorAccount c) { ActivityCollector = c; ShowActivity = true; }
-
-    class ActivityTx { public string OR = ""; public string Payor = ""; public string Facility = ""; public string Nature = ""; public decimal Amount; public bool Paid; public DateTime At; }
-
-    IEnumerable<ActivityTx> GetCollectorActivity(CollectorAccount c) => new List<ActivityTx>
+    async Task OpenActivity(CollectorListDto c)
     {
-        new() { OR="2315701", Payor="Dela Cruz, Maria S.", Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(10).AddMinutes(14) },
-        new() { OR="2315702", Payor="Santos, Rodrigo T.",  Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(10).AddMinutes(32) },
-        new() { OR="2315703", Payor="Trugillo, Elpedia",   Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=false, At=DateTime.Today.AddHours(11).AddMinutes(5)  },
-        new() { OR="2315704", Payor="Arnaldo, Elmalyn",    Facility=c.AssignedFacilities.FirstOrDefault()??"NPM", Nature="Stall Rental", Amount=900, Paid=true,  At=DateTime.Today.AddHours(11).AddMinutes(40) },
-    };
+        ActivityCollector = c;
+        var result = await CollectorsApi.GetCollectorByIdAsync(c.Id);
+        if (result.IsSuccess)
+        {
+            ActivityDetails = result.Value;
+            ShowActivity = true;
+        }
+        else
+        {
+            FormError = result.Error ?? "Failed to load activity.";
+        }
+    }
 }

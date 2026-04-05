@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
+[Authorize(Roles = "SuperAdmin")]
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "SuperAdmin")]
@@ -16,7 +17,7 @@ public class CollectorsController : ApiBaseController
     public CollectorsController(ISender sender) : base(sender)
     {
     }
-
+ 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CollectorListDto>>> GetAllCollectorsAsync()
     {

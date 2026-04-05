@@ -89,6 +89,11 @@
         border-color: var(--navy);
     }
 
+    .avm-input.form-input-error {
+        border-color: var(--red);
+        background: var(--red-bg);
+    }
+
 /* Locked facility display (read-only pill) */
 .avm-input-locked {
     background: var(--bg);
@@ -97,6 +102,14 @@
     cursor: default;
     user-select: none;
     border-style: dashed;
+}
+
+/* ── Field error message ────────────────────────────────────── */
+.form-error {
+    font-size: 11px;
+    color: var(--red);
+    margin-top: 4px;
+    display: block;
 }
 
 /* ── Inline hints ───────────────────────────────────────────── */

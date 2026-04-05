@@ -10,8 +10,7 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients.Models
     public class ValidationErrorResponse
     {
         public bool IsSuccess { get; set; }
-        
-        [JsonPropertyName("error")]
+ 
         public Dictionary<string, string[]>? Errors { get; set; }
     }
 }

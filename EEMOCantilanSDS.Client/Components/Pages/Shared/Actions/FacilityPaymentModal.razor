@@ -21,6 +21,9 @@
                              OnSave="HandleSavePayment" />
 ══════════════════════════════════════════════════════════════════════ *@
 
+
+
+
 @typeparam TStall
 
 @if (Show && Stall is not null)
@@ -281,18 +284,41 @@
 
         IsSaving = true;
 
-        await OnSave.InvokeAsync(new PaymentSubmitDto
+        var stallGuid = GetStallGuid(Stall!);
+        if (stallGuid != Guid.Empty)
         {
-            StallId = GetStallId(Stall!),
-            OrNumber = OrNumber.Trim(),
-            Remarks = Remarks,
-            SavedAt = DateTime.UtcNow
-        });
+            // First, get the payment record to obtain its ID
+            var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
+                stallGuid,
+                DateTime.Now.Year,
+                DateTime.Now.Month);
+
+            if (paymentResult.IsSuccess && paymentResult.Value != null)
+            {
+                var command = new SaveOrNumberCommand(
+                    paymentResult.Value.Id,
+                    OrNumber.Trim());
+
+                var result = await PaymentsApi.SaveOrNumberAsync(command);
+                
+                if (result.IsSuccess)
+                {
+                    await OnSave.InvokeAsync(new PaymentSubmitDto
+                    {
+                        StallId = GetStallId(Stall!),
+                        OrNumber = OrNumber.Trim(),
+                        Remarks = Remarks,
+                        SavedAt = DateTime.UtcNow
+                    });
+                }
+            }
+        }
 
         IsSaving = false;
     }
 
     // ── Generic Property Accessors ──
+    private Guid GetStallGuid(TStall stall) => GetPropertyValue<Guid>(stall, "StallGuid");
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
     private object? GetStallId(TStall stall) => GetPropertyValue<object>(stall, "Id");

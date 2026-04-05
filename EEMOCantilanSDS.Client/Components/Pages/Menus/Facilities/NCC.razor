@@ -1,6 +1,10 @@
 ﻿@page "/ncc"
 @page "/facility/ncc"
-
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
+@using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
+@using EEMOCantilanSDS.Domain.Enums
+@inject IStallsApiClient StallsApi
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
@@ -163,6 +167,7 @@
                 IsEditing="false"
                 Form="VendorForm"
                 @bind-FormError="VendorErrorMessage"
+                FieldErrors="VendorFieldErrors"
                 FacilityOptions="NccFacilityOptions"
                 FacilityLocked="true"
                 OnSave="SubmitAddVendor"
@@ -179,9 +184,41 @@
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         ResetState();
+        await LoadStallsFromApi();
+    }
+
+    private async Task LoadStallsFromApi()
+    {
+        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NCC, null, null, 100);
+        if (result.IsSuccess && result.Value != null)
+        {
+            Stalls.Clear();
+            int id = 1;
+            foreach (var dto in result.Value.Items)
+            {
+                Stalls.Add(new NccStall
+                {
+                    Id = id++,
+                    StallGuid = dto.Id,
+                    StallNo = dto.StallNo,
+                    ActualOccupant = dto.ActualOccupant ?? "N/A",
+                    ContractName = dto.NameOnContract ?? "N/A",
+                    AreaSqm = dto.AreaSqm ?? 0,
+                    ContractDate = dto.ContractDate,
+                    MonthlyRate = dto.MonthlyRate,
+                    IsActive = dto.Status == StallStatus.Active,
+                    ORNumber = dto.ORNumber ?? string.Empty,
+                    IsPaid = false,
+                    IsPartial = false,
+                    HasElectricity = true,
+                    HasWater = true,
+                    PaymentHistory = MakeH(0)
+                });
+            }
+        }
     }
 
     private void ResetState()
@@ -222,6 +259,7 @@
     class NccStall
     {
         public int Id { get; set; }
+        public Guid StallGuid { get; set; } = Guid.Empty;
         public string StallNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
@@ -246,24 +284,7 @@
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
 
-    List<NccStall> Stalls = new()
-    {
-        new() { Id=1,  StallNo="N-01", ActualOccupant="Santos, Maria L.",        ContractName="Maria L. Santos",        AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=142, ElecAmount=285, WaterReading=18, WaterAmount=120, ORNumber="OR-2026-N01", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=2,  StallNo="N-02", ActualOccupant="Dela Cruz, Jose R.",      ContractName="Jose R. Dela Cruz",      AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=98,  ElecAmount=196, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-N02", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=3,  StallNo="N-03", ActualOccupant="Reyes, Ana M.",           ContractName="Ana M. Reyes",           AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=true,  ElecReading=115, ElecAmount=230, WaterReading=14, WaterAmount=95,  ORNumber="OR-2026-N03", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        new() { Id=4,  StallNo="N-04", ActualOccupant="Garcia, Luz P.",          ContractName="Luz P. Garcia",          AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPartial=true, PartialAmount=750, ElecReading=130, ElecAmount=260, WaterReading=16, WaterAmount=110, ORNumber="OR-2026-N04", CollectorName="Clint Reyes",  PaymentHistory=MakeH(7) },
-        new() { Id=5,  StallNo="N-05", ActualOccupant="Bautista, Carlo T.",     ContractName="Carlo T. Bautista",     AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=true,  ElecReading=88,  ElecAmount=176, WaterReading=10, WaterAmount=70,  ORNumber="OR-2026-N05", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=6,  StallNo="N-06", ActualOccupant="Torres, Myla S.",        ContractName="Myla S. Torres",        AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPartial=true, PartialAmount=2100, ElecReading=105, ElecAmount=210, WaterReading=13, WaterAmount=88,  ORNumber="OR-2026-N06", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8) },
-        new() { Id=7,  StallNo="N-07", ActualOccupant="Navarro, Ben E.",        ContractName="Ben E. Navarro",        AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=92,  ElecAmount=184, WaterReading=11, WaterAmount=75,  ORNumber="OR-2026-N07", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
-        new() { Id=8,  StallNo="N-08", ActualOccupant="Lim, Patricia D.",       ContractName="Patricia D. Lim",       AreaSqm=70,   ContractDate=new DateTime(2023,6,7), MonthlyRate=4800, IsPaid=true,  ElecReading=120, ElecAmount=240, WaterReading=15, WaterAmount=100, ORNumber="OR-2026-N08", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=9,  StallNo="N-09", ActualOccupant="Cabrera, Roy A.",        ContractName="Roy A. Cabrera",        AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=false, ElecReading=110, ElecAmount=220, WaterReading=14, WaterAmount=93,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(11) },
-        new() { Id=10, StallNo="N-10", ActualOccupant="Villanueva, Carmen O.",  ContractName="Carmen O. Villanueva",  AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=95,  ElecAmount=190, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-N10", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=11, StallNo="N-11", ActualOccupant="Closed",                 ContractName="",                      AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=false, IsActive=false, ORNumber="",             CollectorName="", PaymentHistory=MakeH(2) },
-        new() { Id=12, StallNo="N-12", ActualOccupant="Mendoza, Erlinda V.",    ContractName="Erlinda V. Mendoza",    AreaSqm=17.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=1500, IsPaid=true,  ElecReading=102, ElecAmount=204, WaterReading=13, WaterAmount=86,  ORNumber="OR-2026-N12", CollectorName="Marco Dizon",  PaymentHistory=MakeH(9) },
-        new() { Id=13, StallNo="N-13", ActualOccupant="Aquino, Roberto F.",     ContractName="Roberto F. Aquino",     AreaSqm=70,   ContractDate=new DateTime(2023,6,7), MonthlyRate=4800, IsPartial=true, PartialAmount=3600, ElecReading=135, ElecAmount=270, WaterReading=17, WaterAmount=113, ORNumber="OR-2026-N13", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=14, StallNo="N-14", ActualOccupant="Fernandez, Diana C.",    ContractName="Diana C. Fernandez",    AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), MonthlyRate=900, IsPaid=true,  ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="OR-2026-N14", CollectorName="Ruel Santos",  PaymentHistory=MakeH(4) },
-        new() { Id=15, StallNo="N-15", ActualOccupant="Soriano, Felix G.",      ContractName="Felix G. Soriano",      AreaSqm=35,   ContractDate=new DateTime(2023,6,7), MonthlyRate=2800, IsPaid=false, ElecReading=89,  ElecAmount=178, WaterReading=11, WaterAmount=73,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-    };
+    List<NccStall> Stalls = new();
 
     static Dictionary<string, bool> MakeH(int paid)
     {
@@ -350,6 +371,7 @@
     // Add Vendor Modal
     private bool ShowAddVendorModal { get; set; }
     private string VendorErrorMessage { get; set; } = string.Empty;
+    private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
     private List<AddVendorModal.VendorFacilityOption> NccFacilityOptions => new() { new() { Code = "NCC", Name = "New Commercial Center" } };
 
@@ -370,6 +392,7 @@
             FeeTypes = new()
         };
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
         ShowAddVendorModal = true;
         StateHasChanged();
     }
@@ -379,6 +402,7 @@
         ShowAddVendorModal = false;
         VendorForm = new();
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
     }
 
     private void ToggleVendorFee(string fee)
@@ -391,39 +415,62 @@
 
     private async Task SubmitAddVendor()
     {
-        // Validate form
-        if (string.IsNullOrWhiteSpace(VendorForm.ActualOccupant))
-        {
-            VendorErrorMessage = "Actual occupant name is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(VendorForm.StallNo))
-        {
-            VendorErrorMessage = "Stall number is required.";
-            return;
-        }
-        if (VendorForm.MonthlyRate <= 0)
-        {
-            VendorErrorMessage = "Monthly rate must be greater than ₱0.";
-            return;
-        }
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
 
-        // Add new stall to list
-        var newStall = new NccStall
+        var fees = ApplicableFees.BaseRental;
+
+        var command = new CreateStallCommand(
+            FacilityCode.NCC,
+            VendorForm.StallNo.Trim(),
+            VendorForm.MonthlyRate,
+            fees,
+            null,
+            null,
+            VendorForm.AreaSqm,
+            null,
+            null,
+            VendorForm.ActualOccupant.Trim(),
+            string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
+            VendorForm.ContractDate,
+            VendorForm.ContractYears);
+
+        var result = await StallsApi.CreateStallAsync(command);
+
+        if (result.IsSuccess)
         {
-            Id = Stalls.Max(s => s.Id) + 1,
-            StallNo = VendorForm.StallNo.Trim(),
-            ActualOccupant = VendorForm.ActualOccupant.Trim(),
-            ContractName = VendorForm.ContractName.Trim(),
-            AreaSqm = VendorForm.AreaSqm,
-            ContractDate = VendorForm.ContractDate,
-            MonthlyRate = VendorForm.MonthlyRate,
-            IsActive = true,
-            PaymentHistory = new()
-        };
+            var newStall = new NccStall
+            {
+                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
+                StallGuid = result.Value!.Id,
+                StallNo = VendorForm.StallNo.Trim(),
+                ActualOccupant = VendorForm.ActualOccupant.Trim(),
+                ContractName = VendorForm.ContractName.Trim(),
+                AreaSqm = VendorForm.AreaSqm,
+                ContractDate = VendorForm.ContractDate,
+                MonthlyRate = VendorForm.MonthlyRate,
+                IsActive = true,
+                PaymentHistory = new()
+            };
 
             Stalls.Add(newStall);
             CloseAddVendorModal();
         }
+        else
+        {
+            if (result.ValidationErrors != null && result.ValidationErrors.Any())
+            {
+                foreach (var error in result.ValidationErrors)
+                {
+                    VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+                }
+                StateHasChanged();
+            }
+            else
+            {
+                VendorErrorMessage = result.Error ?? "Failed to create stall.";
+            }
+        }
+    }
 }
 

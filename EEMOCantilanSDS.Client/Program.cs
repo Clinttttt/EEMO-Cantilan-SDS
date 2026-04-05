@@ -1,6 +1,5 @@
 using EEMOCantilanSDS.Client;
 using EEMOCantilanSDS.Client.Components;
-using EEMOCantilanSDS.Client.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,9 +17,12 @@ app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 
-app.UseMiddleware<AuthCookieMiddleware>();
-
 app.UseAntiforgery();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
 
 app.MapStaticAssets();
 

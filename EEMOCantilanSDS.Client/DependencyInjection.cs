@@ -1,8 +1,11 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Client.Extensions;
 using EEMOCantilanSDS.Client.Securities;
 using EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 namespace EEMOCantilanSDS.Client
 {
@@ -16,12 +19,33 @@ namespace EEMOCantilanSDS.Client
             AddPersistence(service, configuration);
 
             service.AddHttpContextAccessor();
+            
+            // Add Cookie Authentication
+            service.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                .AddCookie(options =>
+                {
+                    options.Cookie.Name = ".AspNetCore.Cookies";
+                    options.Cookie.HttpOnly = true;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+                    options.SlidingExpiration = true;
+                    options.LoginPath = "/login";
+                    options.LogoutPath = "/api/authproxy/logout";
+                });
+            
+            service.AddScoped<TokenService>();
+            service.AddScoped<CircuitHandler, TokenCircuitHandler>();
             service.AddScoped<AuthService>();
             service.AddScoped<AuthorizationDelegatingHandler>();
             service.AddScoped<RefreshTokenDelegatingHandler>();
             service.AddScoped<AuthStateProvider>();
+
             service.AddScoped<AuthenticationStateProvider>(provider =>
                 provider.GetRequiredService<AuthStateProvider>());
+
+            service.AddControllers();
+
             return service;
         }
 
@@ -34,7 +58,8 @@ namespace EEMOCantilanSDS.Client
 
             service.AddApiHttpClient<ISetupApiClient, SetupApiClient>(configuration);
             service.AddApiHttpClient<IStallsApiClient, StallsApiClient>(configuration);
-   
+            service.AddApiHttpClient<ICollectorsApiClient, CollectorsApiClient>(configuration);
+            service.AddApiHttpClient<IPaymentsApiClient, PaymentsApiClient>(configuration);
 
             return service;
         }

@@ -1,5 +1,6 @@
 @page "/npm"
 @page "/facility/npm"
+
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
@@ -181,12 +182,13 @@
      ADD / EDIT VENDOR MODAL (NEW PUBLIC MARKET)
 ══════════════════════════════════════════════ -->
 <AddVendorModal Show="ShowAddVendorModal"
-                IsEditing="false"
+                IsEditing="IsEditingVendor"
                 Form="VendorForm"
                 @bind-FormError="VendorErrorMessage"
+                FieldErrors="VendorFieldErrors"
                 FacilityOptions="NpmFacilityOptions"
                 FacilityLocked="true"
-                OnSave="SubmitAddVendor"
+                OnSave="SubmitVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
                 OnSectionChanged="OnSectionModalChanged"
@@ -205,10 +207,52 @@
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         ResetState();
         InitializeToolbarActions();
+        await LoadStallsFromApi();
+    }
+
+    private async Task LoadStallsFromApi()
+    {
+        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NPM, null, null, 100);
+        if (result.IsSuccess && result.Value != null)
+        {
+            Stalls.Clear();
+            int id = 1;
+            foreach (var dto in result.Value.Items)
+            {
+                var section = dto.Section switch
+                {
+                    MarketSection.VegetableArea => "Vegetable Area",
+                    MarketSection.FishSection => "Fish Section",
+                    MarketSection.MeatSection => "Meat Section",
+                    _ => "Vegetable Area"
+                };
+
+                Stalls.Add(new NpmStall
+                {
+                    Id = id++,
+                    StallGuid = dto.Id,
+                    StallNo = dto.StallNo,
+                    Section = section,
+                    ActualOccupant = dto.ActualOccupant ?? "N/A",
+                    ContractName = dto.NameOnContract ?? "N/A",
+                    AreaSqm = dto.AreaSqm ?? 0,
+                    ContractDate = dto.ContractDate,
+                    MonthlyRate = dto.MonthlyRate,
+                    IsActive = dto.Status == StallStatus.Active,
+                    ORNumber = dto.ORNumber ?? string.Empty,
+                    // Payment data will be loaded separately or from a different endpoint
+                    IsPaid = false,
+                    IsPartial = false,
+                    HasElectricity = true,
+                    HasWater = true,
+                    PaymentHistory = MakeH(0)
+                });
+            }
+        }
     }
 
     private void InitializeToolbarActions()
@@ -281,6 +325,7 @@
     class NpmStall
     {
         public int Id { get; set; }
+        public Guid StallGuid { get; set; } = Guid.Empty;
         public string StallNo { get; set; } = string.Empty;
         public string Section { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
@@ -308,40 +353,7 @@
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
 
-    List<NpmStall> Stalls = new()
-    {
-        // VEGETABLE AREA
-        new() { Id=1,  StallNo="01", Section="Vegetable Area", ActualOccupant="Trugillo, Elpedia C.",   ContractName="Nila F. Andoy",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=142, ElecAmount=285, WaterReading=18, WaterAmount=120, ORNumber="OR-2026-0301", CollectorName="Clint Reyes",  PaymentHistory=MakeH(11) },
-        new() { Id=2,  StallNo="02", Section="Vegetable Area", ActualOccupant="Bohol, Marilyn C.",       ContractName="Marilyn C. Bohol",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=98,  ElecAmount=196, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0302", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=3,  StallNo="03", Section="Vegetable Area", ActualOccupant="Arnaldo, Elmalyn P.",     ContractName="Elmalyn P. Arnaldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=115, ElecAmount=230, WaterReading=14, WaterAmount=95,  ORNumber="OR-2026-0303", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        new() { Id=4,  StallNo="04", Section="Vegetable Area", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=420, ElecReading=130, ElecAmount=260, WaterReading=16, WaterAmount=110, ORNumber="OR-2026-0304", CollectorName="Clint Reyes",  PaymentHistory=MakeH(7)  },
-        new() { Id=5,  StallNo="05", Section="Vegetable Area", ActualOccupant="Rodriguez, Jinky L.",     ContractName="Jinky L. Rodriguez",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=88,  ElecAmount=176, WaterReading=10, WaterAmount=70,  ORNumber="OR-2026-0305", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=6,  StallNo="06", Section="Vegetable Area", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=180, ElecReading=105, ElecAmount=210, WaterReading=13, WaterAmount=88,  ORNumber="OR-2026-0306", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
-        new() { Id=7,  StallNo="07", Section="Vegetable Area", ActualOccupant="Aristain, Gina C.",       ContractName="Gina C. Aristain",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=92,  ElecAmount=184, WaterReading=11, WaterAmount=75,  ORNumber="OR-2026-0307", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
-        new() { Id=8,  StallNo="08", Section="Vegetable Area", ActualOccupant="Gonzales, Christine G.",  ContractName="Christine G. Gonzales",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=120, ElecAmount=240, WaterReading=15, WaterAmount=100, ORNumber="OR-2026-0308", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=9,  StallNo="09", Section="Vegetable Area", ActualOccupant="Doloriel, Gloria L.",     ContractName="Gloria L. Doloriel",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=110, ElecAmount=220, WaterReading=14, WaterAmount=93,  ORNumber="OR-2026-0309", CollectorName="Marco Dizon",  PaymentHistory=MakeH(11) },
-        new() { Id=10, StallNo="10", Section="Vegetable Area", ActualOccupant="Dumas, Nora B.",          ContractName="Nora B. Dumas",          AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=300, ElecReading=95,  ElecAmount=190, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0310", CollectorName="Clint Reyes",  PaymentHistory=MakeH(5)  },
-        new() { Id=11, StallNo="11", Section="Vegetable Area", ActualOccupant="Mori, Merlita",           ContractName="Merlita Mori",           AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=128, ElecAmount=256, WaterReading=16, WaterAmount=107, ORNumber="OR-2026-0311", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-        new() { Id=12, StallNo="12", Section="Vegetable Area", ActualOccupant="Orozco, Antonio N.",      ContractName="Antonio N. Orozco",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=102, ElecAmount=204, WaterReading=13, WaterAmount=86,  ORNumber="OR-2026-0312", CollectorName="Marco Dizon",  PaymentHistory=MakeH(9)  },
-        new() { Id=13, StallNo="13", Section="Vegetable Area", ActualOccupant="Mollaneda, Ma. Jeana O.", ContractName="Ma. Jeana O. Mollaneda", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=135, ElecAmount=270, WaterReading=17, WaterAmount=113, ORNumber="OR-2026-0313", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=14, StallNo="14", Section="Vegetable Area", ActualOccupant="Santillan, Vincent D.",   ContractName="Vincent D. Santillan",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=540, ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="OR-2026-0314", CollectorName="Ruel Santos",  PaymentHistory=MakeH(4)  },
-        new() { Id=15, StallNo="15", Section="Vegetable Area", ActualOccupant="Bruzon, Elma E.",         ContractName="Elma E. Bruzon",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=89,  ElecAmount=178, WaterReading=11, WaterAmount=73,  ORNumber="OR-2026-0315", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        new() { Id=19, StallNo="19", Section="Vegetable Area", ActualOccupant="Gonzales, Jonalyn",       ContractName="Retchel R. Estrada",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=107, ElecAmount=214, WaterReading=13, WaterAmount=89,  ORNumber="OR-2026-0319", CollectorName="Clint Reyes",  PaymentHistory=MakeH(10) },
-        new() { Id=24, StallNo="24", Section="Vegetable Area", ActualOccupant="Tesado, Ariel",           ContractName="Judianne C. Cahutay",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=96,  ElecAmount=192, WaterReading=12, WaterAmount=80,  ORNumber="OR-2026-0324", CollectorName="Ruel Santos",  PaymentHistory=MakeH(9)  },
-        new() { Id=26, StallNo="26", Section="Vegetable Area", ActualOccupant="Closed", ContractName="Elsie B. Abuso",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, IsActive=false, ORNumber="", CollectorName="", PaymentHistory=MakeH(2) },
-        new() { Id=27, StallNo="27", Section="Vegetable Area", ActualOccupant="Closed", ContractName="Arlyn B. Guardalupe", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false, IsActive=false, ORNumber="", CollectorName="", PaymentHistory=MakeH(1) },
-        new() { Id=31, StallNo="31", Section="Vegetable Area", ActualOccupant="Geraldo, Jocelyn D.",     ContractName="Jocelyn D. Geraldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=114, ElecAmount=228, WaterReading=14, WaterAmount=96,  ORNumber="OR-2026-0331", CollectorName="Marco Dizon",  PaymentHistory=MakeH(12) },
-        // FISH SECTION
-        new() { Id=40, StallNo="F01", Section="Fish Section", ActualOccupant="Dela Cruz, Maria S.",  ContractName="Dela Cruz, Maria S.",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=140, ElecAmount=280, WaterReading=18, WaterAmount=120, FishKilos=85,  ORNumber="OR-2026-F001", CollectorName="Clint Reyes",  PaymentHistory=MakeH(12) },
-        new() { Id=41, StallNo="F02", Section="Fish Section", ActualOccupant="Santos, Rodrigo T.",   ContractName="Santos, Rodrigo T.",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=360, ElecReading=122, ElecAmount=244, WaterReading=15, WaterAmount=100, FishKilos=60,  ORNumber="OR-2026-F002", CollectorName="Ruel Santos",  PaymentHistory=MakeH(6)  },
-        new() { Id=42, StallNo="F03", Section="Fish Section", ActualOccupant="Bautista, Nena L.",    ContractName="Bautista, Nena L.",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=270, ElecReading=108, ElecAmount=216, WaterReading=13, WaterAmount=88,  FishKilos=45,  ORNumber="OR-2026-F003", CollectorName="Marco Dizon",  PaymentHistory=MakeH(8)  },
-        new() { Id=43, StallNo="F04", Section="Fish Section", ActualOccupant="Reyes, Luzviminda A.", ContractName="Reyes, Luzviminda A.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,  ElecReading=155, ElecAmount=310, WaterReading=20, WaterAmount=133, FishKilos=102, ORNumber="OR-2026-F004", CollectorName="Clint Reyes",  PaymentHistory=MakeH(11) },
-        // MEAT SECTION
-        new() { Id=44, StallNo="M01", Section="Meat Section", ActualOccupant="Garcia, Flordeliza B.", ContractName="Garcia, Flordeliza B.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=600, ElecReading=132, ElecAmount=264, WaterReading=17, WaterAmount=112, ORNumber="OR-2026-M001", CollectorName="Ruel Santos",  PaymentHistory=MakeH(3)  },
-        new() { Id=45, StallNo="M02", Section="Meat Section", ActualOccupant="Mangubat, Jose P.",     ContractName="Mangubat, Jose P.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false,  ElecReading=118, ElecAmount=236, WaterReading=15, WaterAmount=99,  ORNumber="",             CollectorName="Marco Dizon",  PaymentHistory=MakeH(0)  },
-        new() { Id=46, StallNo="M03", Section="Meat Section", ActualOccupant="Cañada, Elvira M.",     ContractName="Cañada, Elvira M.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=750, ElecReading=125, ElecAmount=250, WaterReading=16, WaterAmount=105, ORNumber="OR-2026-M003", CollectorName="Clint Reyes",  PaymentHistory=MakeH(5)  },
-        new() { Id=47, StallNo="M04", Section="Meat Section", ActualOccupant="Villanueva, Ricardo",   ContractName="Villanueva, Ricardo",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   ElecReading=145, ElecAmount=290, WaterReading=18, WaterAmount=122, ORNumber="OR-2026-M004", CollectorName="Ruel Santos",  PaymentHistory=MakeH(12) },
-    };
+    List<NpmStall> Stalls = new();
 
     static Dictionary<string, bool> MakeH(int paid)
     {
@@ -414,7 +426,32 @@
     bool ShowHistory = false;
     NpmStall? HistoryStall = null;
     void OpenHistory(NpmStall s) { HistoryStall = s; ShowHistory = true; }
-    void OpenEdit(NpmStall s) { Navigation.NavigateTo("/profile"); }
+    void OpenEdit(NpmStall s)
+    {
+        IsEditingVendor = true;
+        EditingStallId = s.Id;
+        VendorForm = new()
+        {
+            FacilityCode = "NPM",
+            StallNo = s.StallNo,
+            ActualOccupant = s.ActualOccupant,
+            ContractName = s.ContractName,
+            SelectedSection = s.Section.Replace(" Area", "").Replace(" Section", ""),
+            AreaSqm = s.AreaSqm,
+            MonthlyRate = s.MonthlyRate,
+            ContractDate = s.ContractDate ?? DateTime.Now,
+            ContractYears = 3,
+            AreaLocation = string.Empty,
+            FeeTypes = new()
+        };
+        
+        if (s.HasElectricity) VendorForm.FeeTypes.Add("Electricity");
+        if (s.HasWater) VendorForm.FeeTypes.Add("Water");
+        if (s.Section == "Fish Section") VendorForm.FeeTypes.Add("Fish ₱1/kg");
+        
+        VendorErrorMessage = string.Empty;
+        ShowAddVendorModal = true;
+    }
     void SetSection(string key)
     {
         ActiveSection = key;
@@ -422,14 +459,19 @@
         SearchQuery = string.Empty;
     }
 
-    // Add Vendor Modal
+    // Add/Edit Vendor Modal
     private bool ShowAddVendorModal { get; set; }
+    private bool IsEditingVendor { get; set; }
+    private int EditingStallId { get; set; }
     private string VendorErrorMessage { get; set; } = string.Empty;
+    private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
     private List<AddVendorModal.VendorFacilityOption> NpmFacilityOptions => new() { new() { Code = "NPM", Name = "New Public Market" } };
 
     private void OpenAddVendorModal()
     {
+        IsEditingVendor = false;
+        EditingStallId = 0;
         VendorForm = new()
         {
             FacilityCode = "NPM",
@@ -445,6 +487,7 @@
             FeeTypes = new() { "Electricity", "Water" }
         };
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
         ShowAddVendorModal = true;
         StateHasChanged();
     }
@@ -452,8 +495,11 @@
     private void CloseAddVendorModal()
     {
         ShowAddVendorModal = false;
+        IsEditingVendor = false;
+        EditingStallId = 0;
         VendorForm = new();
         VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
     }
 
     private void OnSectionModalChanged()
@@ -486,46 +532,151 @@
 
     private async Task SubmitAddVendor()
     {
-        // Validate form
-        if (string.IsNullOrWhiteSpace(VendorForm.ActualOccupant))
-        {
-            VendorErrorMessage = "Actual occupant name is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(VendorForm.StallNo))
-        {
-            VendorErrorMessage = "Stall number is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(VendorForm.SelectedSection))
-        {
-            VendorErrorMessage = "Please select a section for NPM.";
-            return;
-        }
-        if (VendorForm.MonthlyRate <= 0)
-        {
-            VendorErrorMessage = "Monthly rate must be greater than ₱0.";
-            return;
-        }
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
+        StateHasChanged();
 
-        // Add new stall to list
-        var newStall = new NpmStall
+        var section = VendorForm.SelectedSection switch
         {
-            Id = Stalls.Max(s => s.Id) + 1,
-            StallNo = VendorForm.StallNo.Trim(),
-            Section = $"{VendorForm.SelectedSection} Area",
-            ActualOccupant = VendorForm.ActualOccupant.Trim(),
-            ContractName = VendorForm.ContractName.Trim(),
-            AreaSqm = VendorForm.AreaSqm,
-            ContractDate = VendorForm.ContractDate,
-            MonthlyRate = VendorForm.MonthlyRate,
-            HasElectricity = VendorForm.FeeTypes.Contains("Electricity"),
-            HasWater = VendorForm.FeeTypes.Contains("Water"),
-            IsActive = true,
-            PaymentHistory = new()
+            "Vegetable" => MarketSection.VegetableArea,
+            "Fish" => MarketSection.FishSection,
+            "Meat" => MarketSection.MeatSection,
+            _ => MarketSection.VegetableArea
         };
 
-        Stalls.Add(newStall);
+        var fees = ApplicableFees.BaseRental;
+        if (VendorForm.FeeTypes.Contains("Electricity"))
+            fees |= ApplicableFees.Electricity;
+        if (VendorForm.FeeTypes.Contains("Water"))
+            fees |= ApplicableFees.Water;
+        if (VendorForm.FeeTypes.Contains("Fish ₱1/kg"))
+            fees |= ApplicableFees.FishFee;
+
+        var command = new CreateStallCommand(
+            FacilityCode.NPM,
+            VendorForm.StallNo.Trim(),
+            VendorForm.MonthlyRate,
+            fees,
+            section,
+            null,
+            VendorForm.AreaSqm,
+            null,
+            30m,
+            VendorForm.ActualOccupant.Trim(),
+            string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
+            VendorForm.ContractDate,
+            VendorForm.ContractYears);
+
+        var result = await StallsApi.CreateStallAsync(command);
+
+        if (result.IsSuccess)
+        {
+            var newStall = new NpmStall
+            {
+                Id = Stalls.Max(s => s.Id) + 1,
+                StallGuid = result.Value!.Id,
+                StallNo = VendorForm.StallNo.Trim(),
+                Section = $"{VendorForm.SelectedSection} Area",
+                ActualOccupant = VendorForm.ActualOccupant.Trim(),
+                ContractName = VendorForm.ContractName.Trim(),
+                AreaSqm = VendorForm.AreaSqm,
+                ContractDate = VendorForm.ContractDate,
+                MonthlyRate = VendorForm.MonthlyRate,
+                HasElectricity = VendorForm.FeeTypes.Contains("Electricity"),
+                HasWater = VendorForm.FeeTypes.Contains("Water"),
+                IsActive = true,
+                PaymentHistory = new()
+            };
+
+            Stalls.Add(newStall);
+            CloseAddVendorModal();
+        }
+        else
+        {
+            if (result.ValidationErrors != null && result.ValidationErrors.Any())
+            {
+                foreach (var error in result.ValidationErrors)
+                {
+                    VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+                }
+            }
+            else
+            {
+                VendorErrorMessage = result.Error ?? "Failed to create stall.";
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task SubmitVendor()
+    {
+        if (IsEditingVendor)
+            await SubmitEditVendor();
+        else
+            await SubmitAddVendor();
+    }
+
+    private async Task SubmitEditVendor()
+    {
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
+        StateHasChanged();
+
+        var existingStall = Stalls.FirstOrDefault(s => s.Id == EditingStallId);
+        if (existingStall == null)
+        {
+            VendorErrorMessage = "Stall not found.";
+            StateHasChanged();
+            return;
+        }
+
+        var fees = ApplicableFees.BaseRental;
+        if (VendorForm.FeeTypes.Contains("Electricity"))
+            fees |= ApplicableFees.Electricity;
+        if (VendorForm.FeeTypes.Contains("Water"))
+            fees |= ApplicableFees.Water;
+        if (VendorForm.FeeTypes.Contains("Fish ₱1/kg"))
+            fees |= ApplicableFees.FishFee;
+
+        if (existingStall.StallGuid != Guid.Empty)
+        {
+            var command = new UpdateStallCommand(
+                existingStall.StallGuid,
+                VendorForm.MonthlyRate,
+                fees,
+                VendorForm.AreaSqm,
+                null,
+                30m,
+                VendorForm.ActualOccupant.Trim(),
+                string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim());
+
+            var result = await StallsApi.UpdateStallAsync(existingStall.StallGuid, command);
+            
+            if (!result.IsSuccess)
+            {
+                if (result.ValidationErrors != null && result.ValidationErrors.Any())
+                {
+                    foreach (var error in result.ValidationErrors)
+                    {
+                        VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+                    }
+                }
+                else
+                {
+                    VendorErrorMessage = result.Error ?? "Failed to update stall.";
+                }
+                StateHasChanged();
+                return;
+            }
+        }
+
+        existingStall.ActualOccupant = VendorForm.ActualOccupant.Trim();
+        existingStall.ContractName = VendorForm.ContractName.Trim();
+        existingStall.MonthlyRate = VendorForm.MonthlyRate;
+        existingStall.AreaSqm = VendorForm.AreaSqm;
+        existingStall.HasElectricity = VendorForm.FeeTypes.Contains("Electricity");
+        existingStall.HasWater = VendorForm.FeeTypes.Contains("Water");
+
         CloseAddVendorModal();
     }
 }

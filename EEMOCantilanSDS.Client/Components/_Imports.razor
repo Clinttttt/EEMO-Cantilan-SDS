@@ -6,9 +6,18 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @using Microsoft.JSInterop
-@using EEMOCantilanSDS.Client
-@using EEMOCantilanSDS.Client.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using global::EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
+@using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Client.Components.Pages.Shared
-@using Microsoft.AspNetCore.Components
-@using EEMOCantilanSDS.Client.Components.Pages.Shared.ButtonGroup
 @using EEMOCantilanSDS.Client.Components.Pages.Shared.Actions
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Components.Pages.Shared.ButtonGroup
+@using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin
+
+
+@inject ISetupApiClient SetupApi
+@inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi

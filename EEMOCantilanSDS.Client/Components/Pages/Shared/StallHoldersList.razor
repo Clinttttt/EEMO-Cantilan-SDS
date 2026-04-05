@@ -1,4 +1,5 @@
 ﻿@page "/list-stall-holders"
+
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
@@ -307,6 +308,7 @@
 
     string SearchQuery = string.Empty;
     string ActiveSection = "All";
+    bool IsLoading = true;
 
     readonly string[] SectionKeys = ["All", "Vegetable Area", "Fish Section", "Meat Section"];
 
@@ -366,75 +368,66 @@
         public decimal FishKilos { get; set; }
     }
 
-    List<NpmStall> Stalls = new()
+    List<NpmStall> Stalls = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        // NPM - VEGETABLE AREA
-        new() { Id=1,  Facility="npm", StallNo="01", Section="Vegetable Area", ActualOccupant="Trugillo, Elpedia C.",   ContractName="Nila F. Andoy",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=2,  Facility="npm", StallNo="02", Section="Vegetable Area", ActualOccupant="Bohol, Marilyn C.",       ContractName="Marilyn C. Bohol",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=3,  Facility="npm", StallNo="03", Section="Vegetable Area", ActualOccupant="Arnaldo, Elmalyn P.",     ContractName="Elmalyn P. Arnaldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=4,  Facility="npm", StallNo="04", Section="Vegetable Area", ActualOccupant="Tecson, Reymart P.",      ContractName="Nicolas S. Cupina",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=420 },
-        new() { Id=5,  Facility="npm", StallNo="05", Section="Vegetable Area", ActualOccupant="Rodriguez, Jinky L.",     ContractName="Jinky L. Rodriguez",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=6,  Facility="npm", StallNo="06", Section="Vegetable Area", ActualOccupant="Cuartero, Elen L.",       ContractName="Berlina A. Cuartero",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=180 },
-        new() { Id=7,  Facility="npm", StallNo="07", Section="Vegetable Area", ActualOccupant="Aristain, Gina C.",       ContractName="Gina C. Aristain",       AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=8,  Facility="npm", StallNo="08", Section="Vegetable Area", ActualOccupant="Gonzales, Christine G.",  ContractName="Christine G. Gonzales",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=9,  Facility="npm", StallNo="09", Section="Vegetable Area", ActualOccupant="Doloriel, Gloria L.",     ContractName="Gloria L. Doloriel",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=10, Facility="npm", StallNo="10", Section="Vegetable Area", ActualOccupant="Dumas, Nora B.",          ContractName="Nora B. Dumas",          AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=300 },
-        new() { Id=11, Facility="npm", StallNo="11", Section="Vegetable Area", ActualOccupant="Mori, Merlita",           ContractName="Merlita Mori",           AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=12, Facility="npm", StallNo="12", Section="Vegetable Area", ActualOccupant="Orozco, Antonio N.",      ContractName="Antonio N. Orozco",      AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=13, Facility="npm", StallNo="13", Section="Vegetable Area", ActualOccupant="Mollaneda, Ma. Jeana O.", ContractName="Ma. Jeana O. Mollaneda", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=14, Facility="npm", StallNo="14", Section="Vegetable Area", ActualOccupant="Santillan, Vincent D.",   ContractName="Vincent D. Santillan",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=540 },
-        new() { Id=15, Facility="npm", StallNo="15", Section="Vegetable Area", ActualOccupant="Bruzon, Elma E.",         ContractName="Elma E. Bruzon",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=19, Facility="npm", StallNo="19", Section="Vegetable Area", ActualOccupant="Gonzales, Jonalyn",       ContractName="Retchel R. Estrada",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=24, Facility="npm", StallNo="24", Section="Vegetable Area", ActualOccupant="Tesado, Ariel",           ContractName="Judianne C. Cahutay",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        new() { Id=26, Facility="npm", StallNo="26", Section="Vegetable Area", ActualOccupant="Closed",                  ContractName="Elsie B. Abuso",         AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsActive=false },
-        new() { Id=27, Facility="npm", StallNo="27", Section="Vegetable Area", ActualOccupant="Closed",                  ContractName="Arlyn B. Guardalupe",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsActive=false },
-        new() { Id=31, Facility="npm", StallNo="31", Section="Vegetable Area", ActualOccupant="Geraldo, Jocelyn D.",     ContractName="Jocelyn D. Geraldo",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
-        // NPM - FISH SECTION
-        new() { Id=40, Facility="npm", StallNo="F01", Section="Fish Section", ActualOccupant="Dela Cruz, Maria S.",  ContractName="Dela Cruz, Maria S.",  AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   FishKilos=85  },
-        new() { Id=41, Facility="npm", StallNo="F02", Section="Fish Section", ActualOccupant="Santos, Rodrigo T.",   ContractName="Santos, Rodrigo T.",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=360, FishKilos=60  },
-        new() { Id=42, Facility="npm", StallNo="F03", Section="Fish Section", ActualOccupant="Bautista, Nena L.",    ContractName="Bautista, Nena L.",    AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=270, FishKilos=45  },
-        new() { Id=43, Facility="npm", StallNo="F04", Section="Fish Section", ActualOccupant="Reyes, Luzviminda A.", ContractName="Reyes, Luzviminda A.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true,   FishKilos=102 },
-        // NPM - MEAT SECTION
-        new() { Id=44, Facility="npm", StallNo="M01", Section="Meat Section", ActualOccupant="Garcia, Flordeliza B.", ContractName="Garcia, Flordeliza B.", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=600 },
-        new() { Id=45, Facility="npm", StallNo="M02", Section="Meat Section", ActualOccupant="Mangubat, Jose P.",     ContractName="Mangubat, Jose P.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=false },
-        new() { Id=46, Facility="npm", StallNo="M03", Section="Meat Section", ActualOccupant="Cañada, Elvira M.",     ContractName="Cañada, Elvira M.",     AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPartial=true, PartialAmount=750 },
-        new() { Id=47, Facility="npm", StallNo="M04", Section="Meat Section", ActualOccupant="Villanueva, Ricardo",   ContractName="Villanueva, Ricardo",   AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), IsPaid=true  },
+        await LoadStallsFromApi();
+    }
 
-        // TCC - TAMPAK COMMERCIAL CENTER
-        new() { Id=50, Facility="tcc", StallNo="A01", Section="", ActualOccupant="Santos, Mariana P.",       ContractName="Mariana P. Santos",       AreaSqm=6.0, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
-        new() { Id=51, Facility="tcc", StallNo="A02", Section="", ActualOccupant="Reyes, Francisco R.",       ContractName="Francisco R. Reyes",      AreaSqm=6.0, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
-        new() { Id=52, Facility="tcc", StallNo="B01", Section="", ActualOccupant="Cruz, Angelina T.",         ContractName="Angelina T. Cruz",        AreaSqm=5.5, ContractDate=new DateTime(2023,3,15), IsPartial=true, PartialAmount=500  },
-        new() { Id=53, Facility="tcc", StallNo="B02", Section="", ActualOccupant="Garcia, Esteban M.",        ContractName="Esteban M. Garcia",       AreaSqm=5.5, ContractDate=new DateTime(2023,3,15), IsPaid=true  },
+    private async Task LoadStallsFromApi()
+    {
+        IsLoading = true;
+        
+        var facilityCode = (Facility?.ToLower() ?? "npm") switch
+        {
+            "npm" => Domain.Enums.FacilityCode.NPM,
+            "tcc" => Domain.Enums.FacilityCode.TCC,
+            "ncc" => Domain.Enums.FacilityCode.NCC,
+            "bbq" => Domain.Enums.FacilityCode.BBQ,
+            "ice" => Domain.Enums.FacilityCode.ICE,
+            "slh" => Domain.Enums.FacilityCode.SLH,
+            _ => Domain.Enums.FacilityCode.NPM
+        };
 
-        // NCC - NEW COMMERCIAL CENTER
-        new() { Id=60, Facility="ncc", StallNo="01", Section="", ActualOccupant="Molina, Rosa L.",            ContractName="Rosa L. Molina",          AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=true  },
-        new() { Id=61, Facility="ncc", StallNo="02", Section="", ActualOccupant="Lopez, Carlos V.",           ContractName="Carlos V. Lopez",         AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=false },
-        new() { Id=62, Facility="ncc", StallNo="03", Section="", ActualOccupant="Fernandez, Petra S.",        ContractName="Petra S. Fernandez",      AreaSqm=7.0, ContractDate=new DateTime(2023,1,20), IsPaid=true  },
-        new() { Id=63, Facility="ncc", StallNo="04", Section="", ActualOccupant="Torres, Manuel R.",          ContractName="Manuel R. Torres",        AreaSqm=7.0, ContractDate=new DateTime(2023,2,10), IsPartial=true, PartialAmount=850 },
-        new() { Id=64, Facility="ncc", StallNo="05", Section="", ActualOccupant="Villanueva, Ana G.",         ContractName="Ana G. Villanueva",       AreaSqm=6.5, ContractDate=new DateTime(2023,2,10), IsPaid=true, MonthlyRate=1100  },
-        new() { Id=65, Facility="ncc", StallNo="06", Section="", ActualOccupant="Sánchez, Eduardo L.",        ContractName="Eduardo L. Sánchez",      AreaSqm=6.5, ContractDate=new DateTime(2023,3,01), IsPartial=true, PartialAmount=550, MonthlyRate=1100 },
-
-        // TCC - TAMPAK COMMERCIAL CENTER (Additional)
-        new() { Id=54, Facility="tcc", StallNo="C01", Section="", ActualOccupant="Diaz, Josephine M.",        ContractName="Josephine M. Diaz",       AreaSqm=5.5, ContractDate=new DateTime(2023,4,12), IsPaid=true  },
-        new() { Id=55, Facility="tcc", StallNo="C02", Section="", ActualOccupant="Mercado, Vicente L.",       ContractName="Vicente L. Mercado",      AreaSqm=5.5, ContractDate=new DateTime(2023,4,12), IsPartial=true, PartialAmount=420  },
-        new() { Id=56, Facility="tcc", StallNo="D01", Section="", ActualOccupant="Robles, Sylvia T.",         ContractName="Sylvia T. Robles",        AreaSqm=6.0, ContractDate=new DateTime(2023,5,08), IsPaid=false },
-        new() { Id=57, Facility="tcc", StallNo="D02", Section="", ActualOccupant="Castillo, Ramon J.",        ContractName="Ramon J. Castillo",       AreaSqm=6.0, ContractDate=new DateTime(2023,5,08), IsPaid=true, MonthlyRate=1050  },
-
-        // BBQ - BARBECUE STAND
-        new() { Id=70, Facility="bbq", StallNo="01", Section="", ActualOccupant="Aquino, Nestor B.",          ContractName="Nestor B. Aquino",        AreaSqm=8.0, ContractDate=new DateTime(2023,3,25), IsPaid=true, MonthlyRate=1200  },
-        new() { Id=71, Facility="bbq", StallNo="02", Section="", ActualOccupant="Ramirez, Luz M.",             ContractName="Luz M. Ramirez",          AreaSqm=8.0, ContractDate=new DateTime(2023,3,25), IsPartial=true, PartialAmount=600, MonthlyRate=1200  },
-        new() { Id=72, Facility="bbq", StallNo="03", Section="", ActualOccupant="Mendoza, Julius P.",          ContractName="Julius P. Mendoza",       AreaSqm=8.0, ContractDate=new DateTime(2023,4,01), IsPaid=true, MonthlyRate=1200  },
-        new() { Id=73, Facility="bbq", StallNo="04", Section="", ActualOccupant="Closed",                      ContractName="Castro, Rosita V.",       AreaSqm=8.0, ContractDate=new DateTime(2023,4,01), IsActive=false },
-
-        // ICEPLANT
-        new() { Id=80, Facility="ice", StallNo="01", Section="", ActualOccupant="Pimentel, Ricardo S.",        ContractName="Ricardo S. Pimentel",     AreaSqm=10.0, ContractDate=new DateTime(2023,2,14), IsPaid=true, MonthlyRate=1500  },
-        new() { Id=81, Facility="ice", StallNo="02", Section="", ActualOccupant="Salazar, Angelica R.",       ContractName="Angelica R. Salazar",     AreaSqm=10.0, ContractDate=new DateTime(2023,2,14), IsPartial=true, PartialAmount=750, MonthlyRate=1500  },
-        new() { Id=82, Facility="ice", StallNo="03", Section="", ActualOccupant="Navarro, Danilo C.",         ContractName="Danilo C. Navarro",       AreaSqm=10.0, ContractDate=new DateTime(2023,3,20), IsPaid=false, MonthlyRate=1500  },
-
-        // SLAUGHTER HOUSE
-        new() { Id=90, Facility="slh", StallNo="01", Section="", ActualOccupant="Gutierrez, Herminia L.",      ContractName="Herminia L. Gutierrez",   AreaSqm=9.5, ContractDate=new DateTime(2023,1,10), IsPaid=true, MonthlyRate=1350  },
-        new() { Id=91, Facility="slh", StallNo="02", Section="", ActualOccupant="Coronel, Mario T.",           ContractName="Mario T. Coronel",        AreaSqm=9.5, ContractDate=new DateTime(2023,1,10), IsPartial=true, PartialAmount=675, MonthlyRate=1350  },
-        new() { Id=92, Facility="slh", StallNo="03", Section="", ActualOccupant="Santos, Elena M.",             ContractName="Elena M. Santos",         AreaSqm=9.5, ContractDate=new DateTime(2023,2,05), IsPaid=true, MonthlyRate=1350  },
-        new() { Id=93, Facility="slh", StallNo="04", Section="", ActualOccupant="Domingo, Francisco J.",       ContractName="Francisco J. Domingo",    AreaSqm=9.5, ContractDate=new DateTime(2023,2,05), IsPaid=false, MonthlyRate=1350  },
-    };
+        var result = await StallsApi.GetStallHoldersListAsync(facilityCode, null, null);
+        
+        if (result.IsSuccess && result.Value != null)
+        {
+            Stalls.Clear();
+            int id = 1;
+            
+            foreach (var section in result.Value.Sections)
+            {
+                foreach (var row in section.Rows)
+                {
+                    // Map enum section names to display names
+                    var sectionName = section.SectionName switch
+                    {
+                        "VegetableArea" => "Vegetable Area",
+                        "FishSection" => "Fish Section",
+                        "MeatSection" => "Meat Section",
+                        _ => section.SectionName
+                    };
+                    
+                    Stalls.Add(new NpmStall
+                    {
+                        Id = id++,
+                        Facility = Facility?.ToLower() ?? "npm",
+                        StallNo = row.StallNo,
+                        Section = sectionName,
+                        ActualOccupant = row.ActualOccupant,
+                        ContractName = row.NameOnContract,
+                        AreaSqm = row.AreaSqm ?? 0,
+                        ContractDate = row.EffectivityDate == default ? null : row.EffectivityDate.ToDateTime(TimeOnly.MinValue),
+                        MonthlyRate = row.MonthlyRentalRate,
+                        IsActive = !row.IsClosed,
+                        FishKilos = row.FishFeeTotal ?? 0
+                    });
+                }
+            }
+        }
+        
+        IsLoading = false;
+    }
 }

@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +9,10 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 public class FacilityRepository(AppDbContext context) : IFacilityRepository
 {
+    public async Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct)
+    {
+        return await context.Facilities.FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
+    }
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var facility = await context.Facilities

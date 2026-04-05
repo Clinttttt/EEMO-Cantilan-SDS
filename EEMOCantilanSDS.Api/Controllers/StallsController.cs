@@ -1,4 +1,6 @@
+using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
+using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
@@ -13,6 +15,23 @@ namespace EEMOCantilanSDS.Api.Controllers;
 
 public class StallsController(ISender sender) : ApiBaseController(sender)
 {
+    [HttpPost]
+    public async Task<ActionResult<StallDto>> CreateStall([FromBody] CreateStallCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPut("{stallId}")]
+    public async Task<ActionResult<StallDto>> UpdateStall(Guid stallId, [FromBody] UpdateStallCommand command)
+    {
+        if (stallId != command.StallId)
+            return BadRequest("Stall ID mismatch");
+
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
     [HttpGet("facility/{facilityCode}/holders-list")]
     public async Task<ActionResult<StallHoldersListDto>> GetStallHoldersList(
         FacilityCode facilityCode,

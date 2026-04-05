@@ -16,7 +16,7 @@ namespace EEMOCantilanSDS.Infrastructure
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddInfrastructure(this IServiceCollection service, IConfiguration configuration)
+        public static IServiceCollection AddInfrastructureService(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddDbContext<AppDbContext>(options =>
             {

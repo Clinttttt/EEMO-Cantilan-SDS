@@ -43,7 +43,11 @@ namespace EEMOCantilanSDS.Api.Middleware
                 status = 400,
                 error
             };
-            return context.Response.WriteAsync(JsonSerializer.Serialize(response));
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
         }
         public static Task HandlingException(HttpContext context, Exception exception)
         {

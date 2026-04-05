@@ -13,5 +13,9 @@ public interface IStallRepository
     Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct);
     Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
+    Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);
+    Task AddAsync(Stall stall, CancellationToken ct);
+    Task AddContractAsync(Contract contract, CancellationToken ct);
     Task UpdateAsync(Stall stall, CancellationToken ct);
+    Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, string stallNo, CancellationToken ct);
 }

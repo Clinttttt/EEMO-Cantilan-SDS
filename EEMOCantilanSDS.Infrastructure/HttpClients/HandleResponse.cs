@@ -65,11 +65,34 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
         {
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var messageError = await response.Content.ReadFromJsonAsync<ValidationErrorResponse>();
-                if (messageError?.Errors != null && messageError.Errors.Any())
+                var content = await response.Content.ReadAsStringAsync();
+                try
                 {
-                    return Result<TResponse>.ValidationFailure(messageError.Errors);
+                    using var doc = JsonDocument.Parse(content);
+                    var root = doc.RootElement;
+                    
+                    if (root.TryGetProperty("error", out var errorProp) && errorProp.ValueKind == JsonValueKind.Object)
+                    {
+                        var errors = new Dictionary<string, string[]>();
+                        foreach (var field in errorProp.EnumerateObject())
+                        {
+                            var messages = field.Value.EnumerateArray()
+                                .Select(x => x.GetString())
+                                .Where(x => !string.IsNullOrEmpty(x))
+                                .ToArray();
+                            if (messages.Any())
+                            {
+                                errors[field.Name] = messages!;
+                            }
+                        }
+                        if (errors.Any())
+                        {
+                            return Result<TResponse>.ValidationFailure(errors);
+                        }
+                    }
                 }
+                catch { }
+                
                 return Result<TResponse>.Failure("Bad Request", 400);
             }
             return response.StatusCode switch
@@ -80,7 +103,7 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
                 HttpStatusCode.Unauthorized => Result<TResponse>.Unauthorized(),
                 HttpStatusCode.Conflict => Result<TResponse>.Conflict(),
                 HttpStatusCode.Forbidden => Result<TResponse>.Forbidden(),
-                HttpStatusCode.InternalServerError => Result<TResponse>.InternalServerError(),
+                HttpStatusCode.InternalServerError => await HandleErrorResponseAsync<TResponse>(response, 500),
                 _ => await HandleErrorResponseAsync<TResponse>(response, (int)response.StatusCode)
             };
         }
@@ -105,7 +128,30 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
             {
                 using var doc = JsonDocument.Parse(jsonContent);
                 var root = doc.RootElement;
-                if (root.TryGetProperty("error", out var errors) && errors.ValueKind == JsonValueKind.Object)
+                
+                // Try to get single error property first (non-validation errors)
+                if (root.TryGetProperty("error", out var errorProp))
+                {
+                    if (errorProp.ValueKind == JsonValueKind.String)
+                    {
+                        return errorProp.GetString() ?? jsonContent;
+                    }
+                    // Handle validation errors (error is an object with field names)
+                    if (errorProp.ValueKind == JsonValueKind.Object)
+                    {
+                        var message = errorProp.EnumerateObject()
+                            .SelectMany(s => s.Value.EnumerateArray().Select(s => s.GetString()))
+                            .Where(m => !string.IsNullOrWhiteSpace(m))
+                            .ToList();
+                        if (message.Any())
+                        {
+                            return string.Join("; ", message);
+                        }
+                    }
+                }
+                
+                // Fallback: Try uppercase Errors property
+                if (root.TryGetProperty("Errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
                 {
                     var message = errors.EnumerateObject()
                         .SelectMany(s => s.Value.EnumerateArray().Select(s => s.GetString()))

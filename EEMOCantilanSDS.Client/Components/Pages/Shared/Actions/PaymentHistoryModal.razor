@@ -19,6 +19,9 @@
      - List<PaymentTransaction> Transactions     (optional — for OR/collector detail)
 ══════════════════════════════════════════════════════════════════════ *@
 
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject IPaymentsApiClient PaymentsApi
+
 @typeparam TStall
 
 @if (Show && Stall is not null)
@@ -29,12 +32,24 @@
     var occupant = GetActualOccupant(Stall);
     var contractName = GetContractName(Stall);
     var transactions = GetTransactions(Stall);
+    var contractDate = GetContractDate(Stall);
 
-    int monthsPaid = history.Count(p => p.Value);
-    int monthsUnpaid = 12 - monthsPaid;
+    // Calculate experienced months only (from contract start to now)
+    var experiencedMonths = new List<DateTime>();
+    for (int i = 11; i >= 0; i--)
+    {
+        var month = DateTime.Now.AddMonths(-i);
+        if (contractDate.HasValue && month >= new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1))
+        {
+            experiencedMonths.Add(month);
+        }
+    }
+
+    int monthsPaid = experiencedMonths.Count(m => history.ContainsKey(m.ToString("yyyy-MM")) && history[m.ToString("yyyy-MM")]);
+    int monthsUnpaid = experiencedMonths.Count - monthsPaid;
     decimal collected = rate * monthsPaid;
     decimal balance = rate * monthsUnpaid;
-    int compliancePct = (int)((double)monthsPaid / 12 * 100);
+    int compliancePct = experiencedMonths.Count > 0 ? (int)((double)monthsPaid / experiencedMonths.Count * 100) : 0;
 
     string statusLabel = monthsUnpaid == 0 ? "Consistent Payer"
                        : monthsUnpaid >= 3 ? "Delinquent"
@@ -82,12 +97,12 @@
                         </div>
                         <div class="ph-hstat-div"></div>
                         <div class="ph-hstat">
-                            <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/12</span></div>
+                            <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
                             <div class="ph-hstat-key">Months Paid</div>
                         </div>
                         <div class="ph-hstat-div"></div>
                         <div class="ph-hstat">
-                            <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/12</span></div>
+                            <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
                             <div class="ph-hstat-key">Unpaid</div>
                         </div>
                         <div class="ph-hstat-div"></div>
@@ -155,17 +170,18 @@
                     {
                         var month = DateTime.Now.AddMonths(-i);
                         var key = month.ToString("yyyy-MM");
+                        var isBeforeContract = contractDate.HasValue && month < new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1);
                         var isPaid = history.ContainsKey(key) && history[key];
                         var tx = transactions.FirstOrDefault(t => t.PeriodKey == key);
                         var isCurr = month.Month == DateTime.Now.Month && month.Year == DateTime.Now.Year;
 
-                        if (!isPaid) runningBalance += rate;
+                        if (!isPaid && !isBeforeContract) runningBalance += rate;
 
-                        <div class="ph-ledger-row @(isPaid ? "ph-row-paid" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
+                        <div class="ph-ledger-row @(isBeforeContract ? "ph-row-before-contract" : isPaid ? "ph-row-paid" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
 
                             <!-- Period -->
                             <div class="ph-cell-period">
-                                <div class="ph-period-dot @(isPaid ? "ph-dot-paid" : "ph-dot-unpaid")"></div>
+                                <div class="ph-period-dot @(isBeforeContract ? "ph-dot-gray" : isPaid ? "ph-dot-paid" : "ph-dot-unpaid")"></div>
                                 <div>
                                     <div class="ph-period-month">@month.ToString("MMMM")</div>
                                     <div class="ph-period-year">@month.Year</div>
@@ -178,23 +194,37 @@
 
                             <!-- Status -->
                             <div>
-                                <span class="ph-pay-pill @(isPaid ? "ph-pill-paid" : "ph-pill-unpaid")">
-                                    @if (isPaid)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        @:Paid
-                                    }
-                                    else
-                                    {
-                                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                        @:Unpaid
-                                    }
-                                </span>
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-pay-pill ph-pill-gray">
+                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                        N/A
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="ph-pay-pill @(isPaid ? "ph-pill-paid" : "ph-pill-unpaid")">
+                                        @if (isPaid)
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                            @:Paid
+                                        }
+                                        else
+                                        {
+                                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                            @:Unpaid
+                                        }
+                                    </span>
+                                }
                             </div>
 
                             <!-- OR Number -->
                             <div>
-                                @if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.ORNumber))
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                                else if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.ORNumber))
                                 {
                                     <span class="ph-or-num">@tx.ORNumber</span>
                                 }
@@ -210,7 +240,11 @@
 
                             <!-- Payment Date -->
                             <div>
-                                @if (isPaid && tx is not null && tx.PaidDate.HasValue)
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                                else if (isPaid && tx is not null && tx.PaidDate.HasValue)
                                 {
                                     <span class="ph-pay-date">@tx.PaidDate.Value.ToString("MMM d, yyyy")</span>
                                 }
@@ -226,7 +260,11 @@
 
                             <!-- Collector -->
                             <div>
-                                @if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.Collector))
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                                else if (isPaid && tx is not null && !string.IsNullOrEmpty(tx.Collector))
                                 {
                                     <div class="ph-collector-cell">
                                         <div class="ph-collector-avatar">@(tx.Collector[0].ToString().ToUpper())</div>
@@ -241,7 +279,11 @@
 
                             <!-- Amount -->
                             <div>
-                                @if (isPaid)
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                                else if (isPaid)
                                 {
                                     <span class="ph-amount-paid">₱@rate.ToString("N0")</span>
                                 }
@@ -253,7 +295,11 @@
 
                             <!-- Running Balance -->
                             <div>
-                                @if (runningBalance > 0)
+                                @if (isBeforeContract)
+                                {
+                                    <span class="ph-cell-empty">—</span>
+                                }
+                                else if (runningBalance > 0)
                                 {
                                     <span class="ph-balance-due">₱@runningBalance.ToString("N0")</span>
                                 }
@@ -298,6 +344,32 @@
     [Parameter] public string FacilityCode { get; set; } = string.Empty;
     [Parameter] public string FacilityName { get; set; } = string.Empty;
 
+    private List<Application.Dtos.Payments.PaymentHistoryDto> PaymentHistory { get; set; } = new();
+    private bool IsLoading { get; set; } = false;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Show && Stall is not null)
+        {
+            await LoadPaymentHistory();
+        }
+    }
+
+    private async Task LoadPaymentHistory()
+    {
+        var stallGuid = GetStallGuid(Stall!);
+        if (stallGuid == Guid.Empty)
+            return;
+
+        IsLoading = true;
+        var result = await PaymentsApi.GetPaymentHistoryAsync(stallGuid);
+        if (result.IsSuccess && result.Value != null)
+        {
+            PaymentHistory = result.Value.ToList();
+        }
+        IsLoading = false;
+    }
+
     public class PaymentTransaction
     {
         public string PeriodKey { get; set; } = string.Empty;
@@ -307,17 +379,37 @@
         public decimal Amount { get; set; }
     }
 
+    private Guid GetStallGuid(TStall s) => GetProp<Guid>(s, "StallGuid");
     private string GetStallNo(TStall s) => GetProp<string>(s, "StallNo") ?? "—";
     private string GetActualOccupant(TStall s) => GetProp<string>(s, "ActualOccupant") ?? "—";
     private string GetContractName(TStall s) => GetProp<string>(s, "ContractName") ?? string.Empty;
     private decimal GetMonthlyRate(TStall s) => GetProp<decimal?>(s, "MonthlyRate") ?? 0m;
     private decimal GetPartialAmount(TStall s) => GetProp<decimal?>(s, "PartialAmount") ?? 0m;
+    private DateTime? GetContractDate(TStall s) => GetProp<DateTime?>(s, "ContractDate");
 
     private Dictionary<string, bool> GetPaymentHistory(TStall s)
-        => GetProp<Dictionary<string, bool>>(s, "PaymentHistory") ?? new();
+    {
+        // Convert API PaymentHistory to Dictionary for backward compatibility
+        var dict = new Dictionary<string, bool>();
+        foreach (var payment in PaymentHistory)
+        {
+            dict[payment.Period] = payment.Status == Domain.Enums.PaymentStatus.Paid;
+        }
+        return dict;
+    }
 
     private List<PaymentTransaction> GetTransactions(TStall s)
-        => GetProp<List<PaymentTransaction>>(s, "Transactions") ?? new();
+    {
+        // Convert API PaymentHistory to PaymentTransaction list
+        return PaymentHistory.Select(p => new PaymentTransaction
+        {
+            PeriodKey = p.Period,
+            ORNumber = p.ORNumber ?? string.Empty,
+            PaidDate = p.PaidAt,
+            Collector = string.Empty, // Not available in current DTO
+            Amount = p.AmountPaid
+        }).ToList();
+    }
 
     private T? GetProp<T>(TStall s, string name)
     {

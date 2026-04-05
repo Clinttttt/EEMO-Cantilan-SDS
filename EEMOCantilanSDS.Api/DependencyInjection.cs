@@ -18,7 +18,8 @@ namespace EEMOCantilanSDS.Api
                 {
                     builder.WithOrigins("https://localhost:7167", "http://localhost:5198")
                            .AllowAnyMethod()
-                           .AllowAnyHeader();
+                           .AllowAnyHeader()
+                           .AllowCredentials();
                 });
             });
             service.AddDbContext<AppDbContext>(options =>

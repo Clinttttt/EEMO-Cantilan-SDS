@@ -1,4 +1,6 @@
-﻿@* ══════════════════════════════════════════════════════════════════════
+﻿@inject IJSRuntime JS
+
+@* ══════════════════════════════════════════════════════════════════════
    AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
 
    USAGE — Vendors page (facility dropdown is open):
@@ -67,13 +69,21 @@
                     <div class="avm-row-2">
                         <div class="avm-group">
                             <label class="avm-label">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
-                            <input class="avm-input" type="text" placeholder="Current stall occupant"
+                            <input class="avm-input @(GetFieldError("ActualOccupant") != string.Empty ? "form-input-error" : "")" type="text" placeholder="Current stall occupant"
                                    @bind="Form.ActualOccupant" @bind:event="oninput" />
+                            @if (GetFieldError("ActualOccupant") != string.Empty)
+                            {
+                                <span class="form-error">@GetFieldError("ActualOccupant")</span>
+                            }
                         </div>
                         <div class="avm-group">
                             <label class="avm-label">Name on Contract (Per Signed Contract)</label>
-                            <input class="avm-input" type="text" placeholder="Leave blank if no contract"
+                            <input class="avm-input @(GetFieldError("NameOnContract") != string.Empty ? "form-input-error" : "")" type="text" placeholder="Leave blank if no contract"
                                    @bind="Form.ContractName" @bind:event="oninput" />
+                            @if (GetFieldError("NameOnContract") != string.Empty)
+                            {
+                                <span class="form-error">@GetFieldError("NameOnContract")</span>
+                            }
                         </div>
                     </div>
                 </div>
@@ -108,8 +118,12 @@
 
                         <div class="avm-group">
                             <label class="avm-label">Stall / Space No. <span class="avm-req">*</span></label>
-                            <input class="avm-input" type="text" placeholder="e.g. 01, T4, B-02"
+                            <input class="avm-input @(GetFieldError("StallNo") != string.Empty ? "form-input-error" : "")" type="text" placeholder="e.g. 01, T4, B-02"
                                    @bind="Form.StallNo" @bind:event="oninput" />
+                            @if (GetFieldError("StallNo") != string.Empty)
+                            {
+                                <span class="form-error">@GetFieldError("StallNo")</span>
+                            }
                         </div>
                     </div>
 
@@ -119,7 +133,7 @@
                         <div class="avm-row-2">
                             <div class="avm-group">
                                 <label class="avm-label">Section / Category <span class="avm-req">*</span></label>
-                                <select class="avm-input"
+                                <select class="avm-input @(GetFieldError("Section") != string.Empty ? "form-input-error" : "")"
                                         @bind="Form.SelectedSection"
                                         @bind:after="HandleSectionChanged">
                                     <option value="">-- Select Section --</option>
@@ -127,6 +141,10 @@
                                     <option value="Fish">Fish Section</option>
                                     <option value="Meat">Meat Section</option>
                                 </select>
+                                @if (GetFieldError("Section") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("Section")</span>
+                                }
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
@@ -422,6 +440,22 @@
 
     /// EventCallback for two-way binding of FormError — enables @bind-FormError in parent
     [Parameter] public EventCallback<string> FormErrorChanged { get; set; }
+
+    /// Field-level validation errors from backend
+    [Parameter] public Dictionary<string, string> FieldErrors { get; set; } = new();
+
+    private ElementReference modalBodyRef;
+
+    /// Helper to get field error
+    private string GetFieldError(string fieldName) => FieldErrors.ContainsKey(fieldName) ? FieldErrors[fieldName] : string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FieldErrors.Any())
+        {
+            await JS.InvokeVoidAsync("eval", "document.querySelector('.eemo-modal-body').scrollTo({ top: 0, behavior: 'smooth' })");
+        }
+    }
 
     /// Facility options for the dropdown.
     /// Vendors page  → pass all facilities.
