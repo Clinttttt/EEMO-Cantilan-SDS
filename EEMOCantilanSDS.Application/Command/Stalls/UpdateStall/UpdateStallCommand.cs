@@ -13,4 +13,5 @@ public record UpdateStallCommand(
     string? AreaNote,
     decimal? DailyRate,
     string ActualOccupant,
-    string? NameOnContract) : IRequest<Result<StallDto>>;
+    string? NameOnContract,
+    string? Remarks) : IRequest<Result<StallDto>>;

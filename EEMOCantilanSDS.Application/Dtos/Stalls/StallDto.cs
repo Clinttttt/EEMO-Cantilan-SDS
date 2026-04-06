@@ -13,5 +13,7 @@ public record StallDto(
     decimal MonthlyRate,
     string? ORNumber,
     MarketSection? Section,
-    NccAreaLocation? AreaLocation
+    NccAreaLocation? AreaLocation,
+    string? AreaNote,
+    string? Remarks
 );

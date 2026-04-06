@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
@@ -12,6 +13,9 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
 
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId) =>
         await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/payment-history");
+
+    public async Task<Result<bool>> RecordPaymentAsync(RecordPaymentCommand command) =>
+        await PostAsync<RecordPaymentCommand, bool>("api/Payments/record", command);
 
     public async Task<Result<bool>> SaveOrNumberAsync(SaveOrNumberCommand command) =>
         await PostAsync<SaveOrNumberCommand, bool>("api/Payments/or-number", command);

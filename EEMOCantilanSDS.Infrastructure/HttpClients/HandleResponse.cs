@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Infrastructure.HttpClients.Helper;
 using EEMOCantilanSDS.Infrastructure.HttpClients.Models;
 using MediatR;
 using Microsoft.EntityFrameworkCore.Query.Internal;
@@ -25,11 +26,11 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
 
         public async Task PostAsync<TRequest>(string url, TRequest request)
         {
-             await _http.PostAsJsonAsync(url, request);         
+            await _http.PostAsJsonAsync(url, request);
         }
         public async Task PostAsync(string url)
         {
-            await _http.PostAsync(url,null);
+            await _http.PostAsync(url, null);
         }
         public async Task<Result<TResponse>> PostAsync<TRequest, TResponse>(string url, TRequest request)
         {
@@ -56,6 +57,11 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
             var response = await _http.PatchAsync(url, null);
             return await MapStatusCodeAsync<TResponse>(response);
         }
+        public async Task<Result<TResponse>> PutAsync<TRequest, TResponse>(string url, TRequest request)
+        {
+            var response = await _http.PutAsJsonAsync(url, request);
+            return await MapStatusCodeAsync<TResponse>(response);
+        }
         public async Task<Result<TResponse>> DeleteAsync<TResponse>(string url)
         {
             var response = await _http.DeleteAsync(url);
@@ -65,37 +71,9 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
         {
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var content = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    using var doc = JsonDocument.Parse(content);
-                    var root = doc.RootElement;
-                    
-                    if (root.TryGetProperty("error", out var errorProp) && errorProp.ValueKind == JsonValueKind.Object)
-                    {
-                        var errors = new Dictionary<string, string[]>();
-                        foreach (var field in errorProp.EnumerateObject())
-                        {
-                            var messages = field.Value.EnumerateArray()
-                                .Select(x => x.GetString())
-                                .Where(x => !string.IsNullOrEmpty(x))
-                                .ToArray();
-                            if (messages.Any())
-                            {
-                                errors[field.Name] = messages!;
-                            }
-                        }
-                        if (errors.Any())
-                        {
-                            return Result<TResponse>.ValidationFailure(errors);
-                        }
-                    }
-                }
-                catch { }
-                
-                return Result<TResponse>.Failure("Bad Request", 400);
+                return await BadRequestHandler<TResponse>(response);
             }
-            return response.StatusCode switch
+                return response.StatusCode switch
             {
                 HttpStatusCode.OK => await HandleOkAsync<TResponse>(response),
                 HttpStatusCode.NoContent => Result<TResponse>.NoContent(),
@@ -128,46 +106,32 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
             {
                 using var doc = JsonDocument.Parse(jsonContent);
                 var root = doc.RootElement;
-                
-                // Try to get single error property first (non-validation errors)
+
                 if (root.TryGetProperty("error", out var errorProp))
                 {
                     if (errorProp.ValueKind == JsonValueKind.String)
-                    {
                         return errorProp.GetString() ?? jsonContent;
-                    }
-                    // Handle validation errors (error is an object with field names)
-                    if (errorProp.ValueKind == JsonValueKind.Object)
-                    {
-                        var message = errorProp.EnumerateObject()
-                            .SelectMany(s => s.Value.EnumerateArray().Select(s => s.GetString()))
-                            .Where(m => !string.IsNullOrWhiteSpace(m))
-                            .ToList();
-                        if (message.Any())
-                        {
-                            return string.Join("; ", message);
-                        }
-                    }
-                }
-                
-                // Fallback: Try uppercase Errors property
-                if (root.TryGetProperty("Errors", out var errors) && errors.ValueKind == JsonValueKind.Object)
-                {
-                    var message = errors.EnumerateObject()
-                        .SelectMany(s => s.Value.EnumerateArray().Select(s => s.GetString()))
-                        .Where(m => !string.IsNullOrWhiteSpace(m))
-                        .ToList();
-                    if (message.Any())
-                    {
-                        return string.Join("; ", message);
-                    }
-                }
-            }
-            catch
-            {
 
+                    if (errorProp.ValueKind == JsonValueKind.Object)
+                        return JsonErrorParser.ExtractMessages(errorProp) ?? jsonContent;
+                }
             }
+            catch { }
+
             return jsonContent;
+        }
+        public  async Task<Result<TResponse>> BadRequestHandler<TResponse>(HttpResponseMessage response)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            try
+            {
+                using var doc = JsonDocument.Parse(content);
+                var errors = JsonErrorParser.ValidationErrorHandler(doc.RootElement);
+                return !errors.ContainsKey("BadRequest") ? Result<TResponse>.ValidationFailure(errors)
+                        : Result<TResponse>.Failure("Bad Request", 400);
+            }
+            catch { }
+            return Result<TResponse>.Failure("Bad Request", 400);
         }
 
     }

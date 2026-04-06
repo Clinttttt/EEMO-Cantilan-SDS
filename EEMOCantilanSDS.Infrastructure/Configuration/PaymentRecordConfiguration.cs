@@ -61,6 +61,9 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
             builder.Property(x => x.FishKilos)
                 .HasPrecision(18, 3);
 
+            builder.Property(x => x.Remarks)
+                .HasColumnType("text");
+
             builder.Ignore(x => x.PeriodKey);
             builder.Ignore(x => x.TotalBill);
             builder.Ignore(x => x.AmountPaid);

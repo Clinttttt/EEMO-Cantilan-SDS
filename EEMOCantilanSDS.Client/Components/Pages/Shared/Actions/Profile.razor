@@ -1,5 +1,6 @@
 ﻿@page "/profile/{FacilityId}/{StallNo}"
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
+@using EEMOCantilanSDS.Application.Dtos.Stalls
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
@@ -46,7 +47,7 @@
 
         <div class="content-area">
 
-            <!-- ── Profile Hero ── -->
+            <!-- -- Profile Hero -- -->
             <div class="prof-hero">
                 <div class="prof-hero-badge">
                     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
@@ -79,7 +80,7 @@
                 </div>
             </div>
 
-            <!-- ── Main 2-col grid ── -->
+            <!-- -- Main 2-col grid -- -->
             <div class="prof-grid">
 
                 <!-- LEFT COL -->
@@ -262,7 +263,7 @@
                                 }
                                 else if (Stall.IsPartial)
                                 {
-                                    <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/></svg>
                                 }
                                 else
                                 {
@@ -320,12 +321,32 @@
                                 var month = DateTime.Now.AddMonths(-i);
                                 var key = month.ToString("yyyy-MM");
                                 var isBeforeContract = Stall.ContractDate.HasValue && month < new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1);
-                                var paid = Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key];
+                                var status = Stall.PaymentHistory.ContainsKey(key) ? Stall.PaymentHistory[key] : "Unpaid";
                                 var isCurrent = i == 0;
-                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : paid ? "hist-paid" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
                                     <div class="prof-hist-month-name">@month.ToString("MMM")</div>
                                     <div class="prof-hist-month-year">@month.ToString("yy")</div>
-                                    <div class="prof-hist-icon">@(isBeforeContract ? "—" : paid ? "✓" : "✗")</div>
+                                    @if (isBeforeContract)
+                                    {
+                                        <div class="prof-hist-icon">—</div>
+                                    }
+                                    else if (status == "Paid")
+                                    {
+                                        <div class="prof-hist-icon">✓</div>
+                                    }
+                                    else if (status == "Partial")
+                                    {
+                                        <div class="prof-hist-icon">
+                                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;">
+                                                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                                <path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/>
+                                            </svg>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="prof-hist-icon">✗</div>
+                                    }
                                 </div>
                             }
                         </div>
@@ -341,7 +362,7 @@
                                     if (Stall.ContractDate.HasValue && month >= new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1))
                                     {
                                         experiencedMonths++;
-                                        if (Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key])
+                                        if (Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key] == "Paid")
                                         {
                                             paidCount++;
                                         }
@@ -396,9 +417,9 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════
+<!-- ----------------------------------------------
      EDIT MODAL (placeholder)
-══════════════════════════════════════════════ -->
+---------------------------------------------- -->
 @if (ShowEditModal)
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowEditModal = false">
@@ -463,17 +484,27 @@
                 </div>
             </div>
             <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="() => ShowEditModal = false">Cancel</button>
-                <button class="btn-primary" @onclick="SaveEdit">Save Changes</button>
+                <button class="btn-ghost" @onclick="() => ShowEditModal = false" disabled="@IsSavingEdit">Cancel</button>
+                <button class="btn-primary @(IsSavingEdit ? "btn-loading" : "")" @onclick="SaveEdit" disabled="@IsSavingEdit">
+                    @if (IsSavingEdit)
+                    {
+                        <span class="spinner"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
             </div>
         </div>
     </div>
 }
 
 
-<!-- ══════════════════════════════════════════════
+<!-- ----------------------------------------------
      RECORD PAYMENT MODAL
-══════════════════════════════════════════════ -->
+---------------------------------------------- -->
 @if (ShowPayModal)
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowPayModal = false">
@@ -495,12 +526,45 @@
                             <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg><span>Paid</span>
                         </div>
                         <div class="pay-option @(PayStatus == "Partial" ? "pay-opt-partial" : "")" @onclick='() => PayStatus = "Partial"'>
-                            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg><span>Partial</span>
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/></svg><span>Partial</span>
                         </div>
                         <div class="pay-option @(PayStatus == "Unpaid" ? "pay-opt-unpaid" : "")" @onclick='() => PayStatus = "Unpaid"'>
                             <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg><span>Unpaid</span>
                         </div>
                     </div>
+                </div>
+                
+                @if (PayStatus == "Partial")
+                {
+                    <div class="partial-amount-section">
+                        <label class="partial-label">Partial Amount Paid <span class="required-star">*</span></label>
+                        <div class="partial-input-wrap">
+                            <span class="currency-symbol">₱</span>
+                            <input @bind="PartialAmountInput"
+                                   @bind:event="oninput"
+                                   type="number"
+                                   min="0"
+                                   max="@Stall.TotalBill"
+                                   step="0.01"
+                                   placeholder="0.00"
+                                   class="partial-input @(ShowValidation && PartialAmountInput <= 0 ? "input-error" : "")" />
+                        </div>
+                        @if (ShowValidation && PartialAmountInput <= 0)
+                        {
+                            <span class="input-error-msg">Partial amount must be greater than ₱0</span>
+                        }
+                        @if (PartialAmountInput > 0 && PartialAmountInput < Stall.TotalBill)
+                        {
+                            <div class="partial-hint">
+                                Balance remaining: ₱@((Stall.TotalBill - PartialAmountInput).ToString("N2"))
+                            </div>
+                        }
+                    </div>
+                }
+                
+                <div class="form-group">
+                    <label class="form-label">Remarks (optional)</label>
+                    <textarea class="form-input form-textarea" @bind="RemarksInput" rows="2" placeholder="e.g. Late payment..."></textarea>
                 </div>
                 <div class="pay-fee-block">
                     <div class="pay-fee-header">
@@ -524,11 +588,25 @@
             </div>
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowPayModal = false">Cancel</button>
-                <button class="btn-primary" @onclick="SavePayment">Save</button>
+                <button class="btn-primary" @onclick="OpenConfirmation">Continue</button>
             </div>
         </div>
     </div>
 }
+
+<!-- ----------------------------------------------
+     PAYMENT CONFIRMATION MODAL
+---------------------------------------------- -->
+<PaymentConfirmationModal Show="ShowConfirmModal"
+                          Status="@PayStatus"
+                          StallNo="@Stall.StallNo"
+                          Occupant="@Stall.ActualOccupant"
+                          BillingPeriod="@DateTime.Now.ToString("MMMM yyyy")"
+                          TotalBill="@Stall.TotalBill"
+                          PartialAmount="@PartialAmountInput"
+                          ORNumber=""
+                          OnConfirm="SavePayment"
+                          OnCancel="() => ShowConfirmModal = false" />
 
 
 @code {
@@ -541,7 +619,12 @@
 
     bool ShowEditModal = false;
     bool ShowPayModal = false;
+    bool ShowConfirmModal = false;
+    bool ShowValidation = false;
+    bool IsSavingEdit = false;
     string PayStatus = "Paid";
+    decimal PartialAmountInput = 0;
+    string RemarksInput = string.Empty;
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
 
@@ -576,7 +659,7 @@
         public string ORNumber { get; set; } = string.Empty;
         public string CollectorName { get; set; } = string.Empty;
         public string Remarks { get; set; } = string.Empty;
-        public Dictionary<string, bool> PaymentHistory { get; set; } = new();
+        public Dictionary<string, string> PaymentHistory { get; set; } = new();
     }
 
     StallProfile Stall = new();
@@ -615,13 +698,15 @@
                 
                 // Load payment history
                 var historyResult = await PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
-                var paymentHistory = new Dictionary<string, bool>();
+                var paymentHistory = new Dictionary<string, string>();
                 
                 if (historyResult.IsSuccess && historyResult.Value != null)
                 {
                     foreach (var payment in historyResult.Value)
                     {
-                        paymentHistory[payment.Period] = payment.Status == Domain.Enums.PaymentStatus.Paid;
+                        paymentHistory[payment.Period] = payment.Status == Domain.Enums.PaymentStatus.Paid ? "Paid" 
+                            : payment.Status == Domain.Enums.PaymentStatus.Partial ? "Partial" 
+                            : "Unpaid";
                     }
                 }
                 
@@ -630,6 +715,24 @@
                     stallDto.Id,
                     DateTime.Now.Year,
                     DateTime.Now.Month);
+                
+                // Handle 404 - no payment record exists yet for current month
+                bool isPaid = false;
+                bool isPartial = false;
+                decimal partialAmount = 0;
+                decimal elecAmount = 0;
+                decimal waterAmount = 0;
+                string orNumber = string.Empty;
+                
+                if (currentPaymentResult.IsSuccess && currentPaymentResult.Value != null)
+                {
+                    isPaid = currentPaymentResult.Value.Status == Domain.Enums.PaymentStatus.Paid;
+                    isPartial = currentPaymentResult.Value.Status == Domain.Enums.PaymentStatus.Partial;
+                    partialAmount = currentPaymentResult.Value.TotalPaid;
+                    elecAmount = currentPaymentResult.Value.ElecAmount ?? 0;
+                    waterAmount = currentPaymentResult.Value.WaterAmount ?? 0;
+                    orNumber = currentPaymentResult.Value.ORNumber ?? string.Empty;
+                }
                 
                 var section = stallDto.Section switch
                 {
@@ -645,7 +748,7 @@
                     StallNo = stallDto.StallNo,
                     Section = section,
                     AreaSqm = stallDto.AreaSqm ?? 0,
-                    AreaNote = string.Empty,
+                    AreaNote = stallDto.AreaNote ?? string.Empty,
                     ActualOccupant = stallDto.ActualOccupant ?? "N/A",
                     ContractName = stallDto.NameOnContract ?? "N/A",
                     ContractDate = stallDto.ContractDate,
@@ -654,18 +757,18 @@
                     MonthlyRate = stallDto.MonthlyRate,
                     HasElectricity = true,
                     ElecReading = 0,
-                    ElecAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.ElecAmount ?? 0 : 0,
+                    ElecAmount = elecAmount,
                     HasWater = true,
                     WaterReading = 0,
-                    WaterAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.WaterAmount ?? 0 : 0,
+                    WaterAmount = waterAmount,
                     FishKilos = 0,
-                    IsPaid = currentPaymentResult.IsSuccess && currentPaymentResult.Value?.Status == Domain.Enums.PaymentStatus.Paid,
-                    IsPartial = currentPaymentResult.IsSuccess && currentPaymentResult.Value?.Status == Domain.Enums.PaymentStatus.Partial,
-                    PartialAmount = currentPaymentResult.IsSuccess ? currentPaymentResult.Value?.TotalPaid ?? 0 : 0,
+                    IsPaid = isPaid,
+                    IsPartial = isPartial,
+                    PartialAmount = partialAmount,
                     IsActive = stallDto.Status == Domain.Enums.StallStatus.Active,
-                    ORNumber = stallDto.ORNumber ?? string.Empty,
+                    ORNumber = orNumber,
                     CollectorName = string.Empty,
-                    Remarks = string.Empty,
+                    Remarks = stallDto.Remarks ?? string.Empty,
                     PaymentHistory = paymentHistory
                 };
             }
@@ -699,22 +802,90 @@
         };
     }
 
-    static Dictionary<string, bool> MakeH(int paid)
+    static Dictionary<string, string> MakeH(int paid)
     {
-        var d = new Dictionary<string, bool>();
+        var d = new Dictionary<string, string>();
         for (int i = 11; i >= 0; i--)
-            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
+            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid ? "Paid" : "Unpaid";
         return d;
     }
 
-    void SaveEdit() => ShowEditModal = false;
-
-    void SavePayment()
+    async Task SaveEdit()
     {
-        Stall.IsPaid = PayStatus == "Paid";
-        Stall.IsPartial = PayStatus == "Partial";
-        var key = DateTime.Now.ToString("yyyy-MM");
-        Stall.PaymentHistory[key] = PayStatus == "Paid";
+        IsSavingEdit = true;
+        
+        var fees = Domain.Enums.ApplicableFees.BaseRental;
+        if (Stall.HasElectricity) fees |= Domain.Enums.ApplicableFees.Electricity;
+        if (Stall.HasWater) fees |= Domain.Enums.ApplicableFees.Water;
+        if (Stall.Section == "Fish Section") fees |= Domain.Enums.ApplicableFees.FishFee;
+        
+        var command = new UpdateStallCommand(
+            StallGuid,
+            Stall.MonthlyRate,
+            fees,
+            Stall.AreaSqm,
+            Stall.AreaNote,
+            null,
+            Stall.ActualOccupant,
+            Stall.ContractName,
+            Stall.Remarks
+        );
+        
+        var result = await StallsApi.UpdateStallAsync(StallGuid, command);
+        
+        if (result.IsSuccess)
+        {
+            ShowEditModal = false;
+            await LoadStallData();
+        }
+        
+        IsSavingEdit = false;
+    }
+
+    void OpenConfirmation()
+    {
+        ShowValidation = true;
+        
+        if (PayStatus == "Partial" && PartialAmountInput <= 0)
+        {
+            return;
+        }
+        
         ShowPayModal = false;
+        ShowConfirmModal = true;
+        ShowValidation = false;
+    }
+
+
+
+    async Task SavePayment()
+    {
+        var status = PayStatus switch
+        {
+            "Paid" => Domain.Enums.PaymentStatus.Paid,
+            "Partial" => Domain.Enums.PaymentStatus.Partial,
+            _ => Domain.Enums.PaymentStatus.Unpaid
+        };
+        
+        var command = new EEMOCantilanSDS.Application.Command.Payments.RecordPayment.RecordPaymentCommand(
+            StallGuid,
+            DateTime.Now.Year,
+            DateTime.Now.Month,
+            status,
+            PayStatus == "Partial" ? PartialAmountInput : null,
+            string.IsNullOrWhiteSpace(RemarksInput) ? null : RemarksInput
+        );
+        
+        var result = await PaymentsApi.RecordPaymentAsync(command);
+        
+        if (result.IsSuccess)
+        {
+            ShowConfirmModal = false;
+            PartialAmountInput = 0;
+            RemarksInput = string.Empty;
+            await LoadStallData();
+        }
     }
 }
+
+

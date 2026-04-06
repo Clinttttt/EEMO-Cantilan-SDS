@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Domain.Enums
 @inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
@@ -192,6 +193,25 @@
             int id = 1;
             foreach (var dto in result.Value.Items)
             {
+                // Load current month payment status
+                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
+                    dto.Id,
+                    DateTime.Now.Year,
+                    DateTime.Now.Month);
+                
+                bool isPaid = false;
+                bool isPartial = false;
+                decimal partialAmount = 0;
+                string orNumber = string.Empty;
+                
+                if (paymentResult.IsSuccess && paymentResult.Value != null)
+                {
+                    isPaid = paymentResult.Value.Status == PaymentStatus.Paid;
+                    isPartial = paymentResult.Value.Status == PaymentStatus.Partial;
+                    partialAmount = paymentResult.Value.TotalPaid;
+                    orNumber = paymentResult.Value.ORNumber ?? string.Empty;
+                }
+                
                 Stalls.Add(new TccStall
                 {
                     Id = id++,
@@ -203,9 +223,10 @@
                     ContractDate = dto.ContractDate,
                     MonthlyRate = dto.MonthlyRate,
                     IsActive = dto.Status == StallStatus.Active,
-                    ORNumber = dto.ORNumber ?? string.Empty,
-                    IsPaid = false,
-                    IsPartial = false,
+                    ORNumber = orNumber,
+                    IsPaid = isPaid,
+                    IsPartial = isPartial,
+                    PartialAmount = partialAmount,
                     HasElectricity = true,
                     HasWater = true,
                     PaymentHistory = MakeH(0)
@@ -415,7 +436,7 @@
         {
             var newStall = new TccStall
             {
-                Id = Stalls.Max(s => s.Id) + 1,
+                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
                 StallGuid = result.Value!.Id,
                 StallNo = VendorForm.StallNo.Trim(),
                 ActualOccupant = VendorForm.ActualOccupant.Trim(),

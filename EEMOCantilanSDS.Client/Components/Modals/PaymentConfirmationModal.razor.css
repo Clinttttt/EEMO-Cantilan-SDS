@@ -1,0 +1,169 @@
+/* Payment Confirmation Modal Styles */
+
+.payment-confirm-modal {
+    max-width: 520px;
+}
+
+.confirm-section {
+    margin-bottom: 20px;
+}
+
+.confirm-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.confirm-info-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.confirm-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.confirm-info-key {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.confirm-info-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.confirm-payment-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.confirm-payment-card.status-paid {
+    border-color: var(--green);
+    background: var(--green-bg);
+}
+
+.confirm-payment-card.status-partial {
+    border-color: var(--gold);
+    background: #fffbeb;
+}
+
+.confirm-payment-card.status-unpaid {
+    border-color: var(--red);
+    background: var(--red-bg);
+}
+
+.confirm-payment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.confirm-payment-row:last-child {
+    border-bottom: none;
+}
+
+.confirm-payment-row.highlight {
+    background: rgba(200, 168, 75, 0.1);
+    margin: 0 -16px;
+    padding: 8px 16px;
+}
+
+.confirm-payment-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.confirm-payment-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.confirm-payment-value.mono {
+    font-family: monospace;
+    font-size: 13px;
+}
+
+.confirm-payment-value.text-red {
+    color: var(--red);
+}
+
+.confirm-payment-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+.confirm-payment-status.status-paid {
+    background: var(--green);
+    color: white;
+}
+
+.confirm-payment-status.status-partial {
+    background: var(--gold);
+    color: white;
+}
+
+.confirm-payment-status.status-unpaid {
+    background: var(--red);
+    color: white;
+}
+
+.confirm-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--red-bg);
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--red);
+    margin-top: 16px;
+}
+
+.confirm-warning svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.btn-success {
+    background: var(--green);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #236b4f;
+}
+
+.btn-warning {
+    background: var(--gold);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #b89840;
+}

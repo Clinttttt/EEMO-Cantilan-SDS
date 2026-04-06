@@ -1,0 +1,140 @@
+@* Payment Confirmation Modal - Clean separation of concerns *@
+
+@if (Show)
+{
+    <div class="eemo-modal-overlay" @onclick="HandleCancel">
+        <div class="eemo-modal payment-confirm-modal" @onclick:stopPropagation="true">
+            
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Confirm Payment</div>
+                    <div class="eemo-modal-sub">Please review the payment details before saving</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="HandleCancel">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="eemo-modal-body">
+                
+                <!-- Stall Info -->
+                <div class="confirm-section">
+                    <div class="confirm-label">Stall Information</div>
+                    <div class="confirm-info-grid">
+                        <div class="confirm-info-item">
+                            <span class="confirm-info-key">Stall No.</span>
+                            <span class="confirm-info-val">@StallNo</span>
+                        </div>
+                        <div class="confirm-info-item">
+                            <span class="confirm-info-key">Occupant</span>
+                            <span class="confirm-info-val">@Occupant</span>
+                        </div>
+                        <div class="confirm-info-item">
+                            <span class="confirm-info-key">Billing Period</span>
+                            <span class="confirm-info-val">@BillingPeriod</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Details -->
+                <div class="confirm-section">
+                    <div class="confirm-label">Payment Details</div>
+                    <div class="confirm-payment-card @GetStatusClass()">
+                        <div class="confirm-payment-row">
+                            <span class="confirm-payment-label">Status</span>
+                            <span class="confirm-payment-status @GetStatusClass()">@GetStatusText()</span>
+                        </div>
+                        <div class="confirm-payment-row">
+                            <span class="confirm-payment-label">Total Bill</span>
+                            <span class="confirm-payment-value">₱@TotalBill.ToString("N2")</span>
+                        </div>
+                        @if (Status == "Partial")
+                        {
+                            <div class="confirm-payment-row highlight">
+                                <span class="confirm-payment-label">Amount Paid</span>
+                                <span class="confirm-payment-value">₱@PartialAmount.ToString("N2")</span>
+                            </div>
+                            <div class="confirm-payment-row">
+                                <span class="confirm-payment-label">Balance Remaining</span>
+                                <span class="confirm-payment-value text-red">₱@((TotalBill - PartialAmount).ToString("N2"))</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(ORNumber))
+                        {
+                            <div class="confirm-payment-row">
+                                <span class="confirm-payment-label">OR Number</span>
+                                <span class="confirm-payment-value mono">@ORNumber</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Warning for Unpaid -->
+                @if (Status == "Unpaid")
+                {
+                    <div class="confirm-warning">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        <span>This will mark the payment as unpaid. No OR number will be recorded.</span>
+                    </div>
+                }
+
+            </div>
+
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="HandleCancel">Cancel</button>
+                <button class="btn-primary @GetButtonClass()" @onclick="HandleConfirm">
+                    @GetButtonText()
+                </button>
+            </div>
+
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public string Status { get; set; } = "Paid";
+    [Parameter] public string StallNo { get; set; } = string.Empty;
+    [Parameter] public string Occupant { get; set; } = string.Empty;
+    [Parameter] public string BillingPeriod { get; set; } = string.Empty;
+    [Parameter] public decimal TotalBill { get; set; }
+    [Parameter] public decimal PartialAmount { get; set; }
+    [Parameter] public string ORNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task HandleConfirm() => await OnConfirm.InvokeAsync();
+    private async Task HandleCancel() => await OnCancel.InvokeAsync();
+
+    private string GetStatusClass() => Status switch
+    {
+        "Paid" => "status-paid",
+        "Partial" => "status-partial",
+        "Unpaid" => "status-unpaid",
+        _ => ""
+    };
+
+    private string GetStatusText() => Status switch
+    {
+        "Paid" => "Paid in Full",
+        "Partial" => "Partial Payment",
+        "Unpaid" => "Unpaid",
+        _ => Status
+    };
+
+    private string GetButtonClass() => Status switch
+    {
+        "Paid" => "btn-success",
+        "Partial" => "btn-warning",
+        "Unpaid" => "btn-danger",
+        _ => ""
+    };
+
+    private string GetButtonText() => Status switch
+    {
+        "Paid" => "Confirm Payment",
+        "Partial" => "Confirm Partial Payment",
+        "Unpaid" => "Mark as Unpaid",
+        _ => "Confirm"
+    };
+}

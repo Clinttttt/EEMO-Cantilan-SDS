@@ -25,6 +25,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         // Physical info
         public double? AreaSqm { get; private set; }
         public string? AreaNote { get; private set; }
+        public string? Remarks { get; private set; }
 
         // Rates
         public decimal MonthlyRate { get; private set; }
@@ -47,6 +48,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             double? areaSqm = null,
             string? areaNote = null,
             decimal? dailyRate = null,
+            string? remarks = null,
             string createdBy = "System")
         {
             return new Stall
@@ -61,6 +63,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 AreaLocation = areaLocation,
                 AreaSqm = areaSqm,
                 AreaNote = areaNote,
+                Remarks = remarks,
                 Status = StallStatus.Active,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = createdBy
@@ -73,10 +76,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
-        public void UpdateAreaInfo(double? areaSqm, string? areaNote, string updatedBy = "System")
+        public void UpdateAreaInfo(double? areaSqm, string? areaNote, string? remarks, string updatedBy = "System")
         {
             AreaSqm = areaSqm;
             AreaNote = areaNote;
+            Remarks = remarks;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        public void UpdateDetails(string actualOccupant, string? nameOnContract, double? areaSqm, string? areaNote, string? remarks, string updatedBy = "System")
+        {
+            AreaSqm = areaSqm;
+            AreaNote = areaNote;
+            Remarks = remarks;
+            
+            var activeContract = Contracts.FirstOrDefault(c => c.IsActive);
+            if (activeContract != null)
+            {
+                activeContract.UpdateOccupant(actualOccupant, nameOnContract, updatedBy);
+            }
+            
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

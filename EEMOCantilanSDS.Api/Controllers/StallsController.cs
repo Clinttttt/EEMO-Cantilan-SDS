@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
@@ -25,9 +26,6 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     [HttpPut("{stallId}")]
     public async Task<ActionResult<StallDto>> UpdateStall(Guid stallId, [FromBody] UpdateStallCommand command)
     {
-        if (stallId != command.StallId)
-            return BadRequest("Stall ID mismatch");
-
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }
@@ -68,6 +66,13 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetPaymentHistoryQuery(stallId);
         var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpPatch("{stallId}/details")]
+    public async Task<ActionResult<bool>> UpdateStallDetails(Guid stallId, [FromBody] UpdateStallDetailsCommand command)
+    {
+        var result = await Sender.Send(command);
         return HandleResponse(result);
     }
 }

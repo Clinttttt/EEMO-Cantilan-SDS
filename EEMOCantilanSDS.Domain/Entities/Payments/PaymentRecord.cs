@@ -33,6 +33,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public decimal? FishKilos { get; private set; }
         public decimal? FishFeeAmount => FishKilos.HasValue ? FishKilos.Value * 1.00m : null;
 
+        // Remarks
+        public string? Remarks { get; private set; }
+
         // Computed
         public string PeriodKey => $"{BillingYear:0000}-{BillingMonth:00}";
         public decimal TotalBill => BaseRentalAmount
@@ -75,6 +78,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         decimal? waterReading = null,
         decimal? waterAmount = null,
         decimal? fishKilos = null,
+        string? remarks = null,
         string updatedBy = "System")
         {
             ORNumber = orNumber;
@@ -86,6 +90,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             WaterReading = waterReading;
             WaterAmount = waterAmount;
             FishKilos = fishKilos;
+            Remarks = remarks;
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
@@ -97,6 +102,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             CollectorId = null;
             PartialAmount = 0;
             PaidAt = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        public void UpdateStatus(
+            PaymentStatus status,
+            decimal partialAmount = 0,
+            string? remarks = null,
+            string updatedBy = "System")
+        {
+            Status = status;
+            PartialAmount = status == PaymentStatus.Partial ? partialAmount : 0;
+            Remarks = remarks;
+            PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

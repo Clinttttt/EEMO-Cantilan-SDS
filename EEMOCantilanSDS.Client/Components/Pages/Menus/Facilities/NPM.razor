@@ -573,7 +573,7 @@
         {
             var newStall = new NpmStall
             {
-                Id = Stalls.Max(s => s.Id) + 1,
+                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
                 StallGuid = result.Value!.Id,
                 StallNo = VendorForm.StallNo.Trim(),
                 Section = $"{VendorForm.SelectedSection} Area",
@@ -648,7 +648,8 @@
                 null,
                 30m,
                 VendorForm.ActualOccupant.Trim(),
-                string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim());
+                string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
+                null);
 
             var result = await StallsApi.UpdateStallAsync(existingStall.StallGuid, command);
             

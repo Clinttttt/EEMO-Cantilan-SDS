@@ -24,6 +24,10 @@
 
 
 
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber
+@inject IPaymentsApiClient PaymentsApi
+
 @typeparam TStall
 
 @if (Show && Stall is not null)
@@ -50,6 +54,39 @@
                 <div class="status-badge @(GetIsPaid(Stall) ? "paid" : GetIsPartial(Stall) ? "partial" : "unpaid")">
                     Status: @GetStatusText(Stall)
                 </div>
+
+                <!-- ══════════════════════════════════════════
+                     PARTIAL AMOUNT INPUT (when status is Partial)
+                ══════════════════════════════════════════ -->
+                @if (GetIsPartial(Stall))
+                {
+                    <div class="partial-amount-section">
+                        <label class="partial-label">
+                            Partial Amount Paid <span class="required-star">*</span>
+                        </label>
+                        <div class="partial-input-wrap">
+                            <span class="currency-symbol">₱</span>
+                            <input @bind="PartialAmountInput"
+                                   @bind:event="oninput"
+                                   type="number"
+                                   min="0"
+                                   max="@GetMonthlyRate(Stall)"
+                                   step="0.01"
+                                   placeholder="0.00"
+                                   class="pay-input partial-input @(ShowValidation && PartialAmountInput <= 0 ? "input-error" : "")" />
+                        </div>
+                        @if (ShowValidation && PartialAmountInput <= 0)
+                        {
+                            <span class="input-error-msg">Partial amount must be greater than ₱0</span>
+                        }
+                        @if (PartialAmountInput > 0 && PartialAmountInput < GetMonthlyRate(Stall))
+                        {
+                            <div class="partial-hint">
+                                Balance remaining: ₱@((GetMonthlyRate(Stall) - PartialAmountInput).ToString("N2"))
+                            </div>
+                        }
+                    </div>
+                }
 
                 <!-- ══════════════════════════════════════════
                      UNPAID notice — collector hasn't collected yet
@@ -191,7 +228,7 @@
                                                                                       && string.IsNullOrWhiteSpace(GetOrNumber(Stall!)))
                 {
                     <button class="btn-primary @(IsSaving ? "btn-loading" : "")"
-                            @onclick="HandleSaveOrNumber"
+                            @onclick="RequestSaveOrNumber"
                             disabled="@IsSaving">
                         @if (IsSaving)
                         {
@@ -210,7 +247,7 @@
                 {
                     <button class="btn-ghost" @onclick="CancelEditOrNumber">Cancel</button>
                     <button class="btn-primary @(IsSaving ? "btn-loading" : "")"
-                            @onclick="HandleSaveOrNumber"
+                            @onclick="RequestSaveOrNumber"
                             disabled="@IsSaving">
                         @if (IsSaving)
                         {
@@ -229,6 +266,35 @@
     </div>
 }
 
+@* ══════════════════════════════════════════════════════════════════════
+   CONFIRMATION MODAL — Appears on top of payment modal
+══════════════════════════════════════════════════════════════════════ *@
+@if (ShowConfirmation)
+{
+    <div class="eemo-modal-overlay confirm-overlay" @onclick="CancelConfirmation">
+        <div class="eemo-modal confirm-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">Confirm OR Number</div>
+            </div>
+            <div class="eemo-modal-body">
+                <p>You are about to save the following OR Number:</p>
+                <div class="confirm-or-display">@OrNumber</div>
+                @if (GetIsPartial(Stall!))
+                {
+                    <p style="margin-top: 1rem;">Partial amount: <strong>₱@PartialAmountInput.ToString("N2")</strong></p>
+                }
+                <p style="margin-top: 1rem; color: var(--text-muted); font-size: 14px;">
+                    This action cannot be undone. Please verify the OR Number is correct.
+                </p>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CancelConfirmation">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmSaveOrNumber">Confirm & Save</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
 
     [Parameter] public string Facility { get; set; } = string.Empty;
@@ -240,11 +306,13 @@
     // ── Form Fields (admin only encodes OR Number) ──
     private string OrNumber { get; set; } = string.Empty;
     private string Remarks { get; set; } = string.Empty;
+    private decimal PartialAmountInput { get; set; } = 0;
 
     // ── UI State ──
     private bool ShowValidation { get; set; } = false;
     private bool IsSaving { get; set; } = false;
     private bool IsEditingOrNumber { get; set; } = false;
+    private bool ShowConfirmation { get; set; } = false;
 
     // ── Reset form when modal closes ──
     protected override void OnParametersSet()
@@ -253,9 +321,16 @@
         {
             OrNumber = string.Empty;
             Remarks = string.Empty;
+            PartialAmountInput = 0;
             ShowValidation = false;
             IsSaving = false;
             IsEditingOrNumber = false;
+            ShowConfirmation = false;
+        }
+        else if (Show && Stall != null)
+        {
+            // Pre-fill partial amount if already set
+            PartialAmountInput = GetPartialAmount(Stall);
         }
     }
 
@@ -275,13 +350,27 @@
         ShowValidation = false;
     }
 
-    private async Task HandleSaveOrNumber()
+    private void RequestSaveOrNumber()
     {
         ShowValidation = true;
 
         if (string.IsNullOrWhiteSpace(OrNumber))
             return;
 
+        if (GetIsPartial(Stall!) && PartialAmountInput <= 0)
+            return;
+
+        ShowConfirmation = true;
+    }
+
+    private void CancelConfirmation()
+    {
+        ShowConfirmation = false;
+    }
+
+    private async Task ConfirmSaveOrNumber()
+    {
+        ShowConfirmation = false;
         IsSaving = true;
 
         var stallGuid = GetStallGuid(Stall!);

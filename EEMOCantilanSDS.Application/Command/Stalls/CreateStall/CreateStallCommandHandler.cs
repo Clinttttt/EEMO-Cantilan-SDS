@@ -28,6 +28,7 @@ public class CreateStallCommandHandler(
             request.AreaSqm,
             request.AreaNote,
             request.DailyRate,
+            null,
             "Admin");
 
         await stallRepo.AddAsync(stall, cancellationToken);
@@ -58,7 +59,10 @@ public class CreateStallCommandHandler(
             request.MonthlyRate,
             null,
             request.Section,
-            request.AreaLocation);
+            request.AreaLocation,
+            request.AreaNote,
+            null
+            );
 
         return Result<StallDto>.Success(dto);
     }

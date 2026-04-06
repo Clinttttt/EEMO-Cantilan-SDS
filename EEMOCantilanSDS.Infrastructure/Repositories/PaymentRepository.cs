@@ -73,6 +73,11 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         return !existsInPayments && !existsInDaily;
     }
 
+    public async Task AddAsync(PaymentRecord payment, CancellationToken ct)
+    {
+        await context.PaymentRecords.AddAsync(payment, ct);
+    }
+
     public async Task UpdateAsync(PaymentRecord payment, CancellationToken ct)
     {
         context.PaymentRecords.Update(payment);

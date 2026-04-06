@@ -41,6 +41,8 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
             builder.Property(s => s.AreaSqm);
             builder.Property(s => s.AreaNote)
                 .HasMaxLength(200);
+            builder.Property(s => s.Remarks)
+                .HasColumnType("text");
 
             builder.Property(s=> s.MonthlyRate)
                 .HasPrecision(18, 2);

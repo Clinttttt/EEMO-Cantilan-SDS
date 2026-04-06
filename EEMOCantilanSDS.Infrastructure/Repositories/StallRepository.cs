@@ -153,7 +153,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 x.Stall.MonthlyRate,
                 x.ActiveContract?.ORNumber,
                 x.Stall.Section,
-                x.Stall.AreaLocation
+                x.Stall.AreaLocation,
+                x.Stall.AreaNote,
+                x.Stall.Remarks
             )).ToList(),
             NextCursor = pagedResult.NextCursor,
             HasMore = pagedResult.HasMore
@@ -186,7 +188,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 s.MonthlyRate,
                 activeContract?.ORNumber,
                 s.Section,
-                s.AreaLocation
+                s.AreaLocation,
+                s.AreaNote,
+                s.Remarks
             );
         }).ToList();
     }

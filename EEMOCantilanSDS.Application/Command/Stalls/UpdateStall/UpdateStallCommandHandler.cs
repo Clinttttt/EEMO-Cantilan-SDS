@@ -18,7 +18,7 @@ public class UpdateStallCommandHandler(
 
         // Update stall rates and area
         stall.UpdateRates(request.MonthlyRate, request.DailyRate, "Admin");
-        stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, "Admin");
+        stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, request.Remarks, "Admin");
 
         // Update active contract occupant
         var activeContract = stall.Contracts.FirstOrDefault(c => c.IsActive);
@@ -41,7 +41,9 @@ public class UpdateStallCommandHandler(
             request.MonthlyRate,
             activeContract?.ORNumber,
             stall.Section,
-            stall.AreaLocation);
+            stall.AreaLocation,
+            request.AreaNote,
+            request.Remarks);
 
         return Result<StallDto>.Success(dto);
     }

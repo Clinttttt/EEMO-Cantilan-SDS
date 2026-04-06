@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentRecord;
@@ -13,6 +14,13 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetPaymentRecordQuery(stallId, year, month);
         var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("record")]
+    public async Task<ActionResult<bool>> RecordPayment([FromBody] RecordPaymentCommand command)
+    {
+        var result = await Sender.Send(command);
         return HandleResponse(result);
     }
 
