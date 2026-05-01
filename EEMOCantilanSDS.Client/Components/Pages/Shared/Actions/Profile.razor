@@ -1,6 +1,7 @@
-﻿@page "/profile/{FacilityId}/{StallNo}"
+@page "/profile/{FacilityId}/{StallNo}"
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Client.Components.Modals
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
@@ -739,7 +740,12 @@
                     Domain.Enums.MarketSection.VegetableArea => "Vegetable Area",
                     Domain.Enums.MarketSection.FishSection => "Fish Section",
                     Domain.Enums.MarketSection.MeatSection => "Meat Section",
-                    _ => "Vegetable Area"
+                    _ => stallDto.AreaLocation switch
+                    {
+                        Domain.Enums.NccAreaLocation.Extension => "Extension",
+                        Domain.Enums.NccAreaLocation.Corner => "Corner",
+                        _ => "No Location"
+                    }
                 };
                 
                 Stall = new()

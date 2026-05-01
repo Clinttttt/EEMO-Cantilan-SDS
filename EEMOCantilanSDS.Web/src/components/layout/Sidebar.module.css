@@ -1,0 +1,184 @@
+/* SIDEBAR styles */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--navy);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 200;
+  transition: width 0.25s ease;
+  overflow: hidden;
+  border-right: 1px solid var(--navy-3);
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-w-col);
+}
+
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 16px 16px;
+  flex-shrink: 0;
+}
+
+.sidebarSeal {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--gold);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sidebarSeal img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebarBrandName {
+  font-family: 'EB Garamond', serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold-light);
+  white-space: nowrap;
+}
+
+.sidebarBrandSub {
+  font-size: 9px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sidebarDivider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.3;
+  margin: 0 16px 12px;
+  flex-shrink: 0;
+}
+
+.sidebarNav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 8px 12px;
+  scrollbar-width: none;
+}
+
+.sidebarNav::-webkit-scrollbar {
+  display: none;
+}
+
+.navGroupLabel {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.25);
+  padding: 0 8px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 2px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  position: relative;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.navItem svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+
+.navItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.navItem.active {
+  background: rgba(200, 168, 75, 0.15);
+  color: var(--gold-light);
+  font-weight: 600;
+}
+
+.navItem.active svg {
+  stroke: var(--gold-light);
+}
+
+.navBadge {
+  margin-left: auto;
+  background: var(--red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.sidebarToggle {
+  margin: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.sidebarToggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebarToggle svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-muted);
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Collapsed state */
+.sidebar.collapsed .sidebarBrandText,
+.sidebar.collapsed .navGroupLabel,
+.sidebar.collapsed .navItem span,
+.sidebar.collapsed .navBadge {
+  display: none;
+}
+
+.sidebar.collapsed .navItem {
+  justify-content: center;
+  padding: 9px 0;
+}

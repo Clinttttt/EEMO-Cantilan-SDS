@@ -1,0 +1,183 @@
+/* RecordPaymentModal.css */
+
+.pay-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pay-option {
+  flex: 1 1 100px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-card);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  user-select: none;
+}
+
+.pay-option svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pay-option:hover {
+  border-color: var(--navy);
+  color: var(--navy);
+}
+
+.pay-opt-paid {
+  border-color: var(--green);
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.pay-opt-partial {
+  border-color: #b07d2b;
+  background: #fffbea;
+  color: #7a5500;
+}
+
+.pay-opt-unpaid {
+  border-color: var(--red);
+  background: var(--red-bg);
+  color: var(--red);
+}
+
+.partial-amount-section {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: rgba(184, 115, 51, 0.05);
+  border-radius: 10px;
+  border-left: 3px solid #b87333;
+}
+
+.partial-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.partial-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.partial-input {
+  width: 100%;
+  padding: 9px 12px 9px 28px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: monospace;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--navy);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.partial-input:focus {
+  border-color: #b87333;
+  box-shadow: 0 0 0 3px rgba(184, 115, 51, 0.08);
+}
+
+.partial-input.input-error {
+  border-color: var(--red);
+  background: var(--red-bg);
+}
+
+.partial-hint {
+  font-size: 11px;
+  color: #b87333;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.input-error-msg {
+  font-size: 11.5px;
+  color: var(--red);
+  font-weight: 500;
+  margin-top: 4px;
+  display: block;
+}
+
+.pay-fee-block {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  margin-top: 12px;
+}
+
+.pay-fee-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.pay-fee-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.pay-fee-rate {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pay-record-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+.pay-record-key {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.pay-record-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.pay-record-val.green {
+  color: var(--green);
+}
+
+.pay-record-val.red {
+  color: var(--red);
+}

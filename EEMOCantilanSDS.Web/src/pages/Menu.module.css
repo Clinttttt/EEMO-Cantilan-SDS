@@ -1,0 +1,468 @@
+/* ══════════════════════════════════════════
+   DASHBOARD / MENU — Facility grid & Bottom row
+══════════════════════════════════════════ */
+.facilityGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+
+.facilityCard {
+    background: var(--bg-card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: box-shadow 0.2s, transform 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+    .facilityCard::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .facilityCard:hover {
+        box-shadow: 0 6px 24px rgba(13,33,55,0.1);
+        transform: translateY(-2px);
+    }
+
+        .facilityCard:hover::before {
+            opacity: 1;
+        }
+
+    .facilityCard.hasAlert {
+        border-color: rgba(139,58,58,0.2);
+    }
+
+.facilityCardHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.facilityCardIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .facilityCardIcon svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.facilityCardCode {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.facilityCardName {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.facilityAlertDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-left: auto;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px var(--red-bg);
+}
+
+.facilityCardStats {
+    display: flex;
+    gap: 0;
+}
+
+.facStat {
+    flex: 1;
+    text-align: center;
+    padding: 10px 4px;
+    background: var(--bg);
+    border-radius: 8px;
+}
+
+    .facStat + .facStat {
+        margin-left: 6px;
+    }
+
+.facStatVal {
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+    .facStatVal.unpaidVal {
+        color: var(--red);
+    }
+
+.facStatKey {
+    font-size: 8.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 2px;
+}
+
+.facilityProgressWrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.facilityProgressBar {
+    flex: 1;
+    height: 5px;
+    background: var(--bg-icon);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.facilityProgressFill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.facilityProgressPct {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    flex-shrink: 0;
+    min-width: 30px;
+    text-align: right;
+}
+
+.feeChips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.feeChip {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(200,168,75,0.1);
+    color: #7a5010;
+    border: 1px solid rgba(200,168,75,0.25);
+    letter-spacing: 0.3px;
+}
+
+.facilityCardBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px;
+    border-radius: 8px;
+    background: var(--navy);
+    color: var(--gold-light);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    margin-top: auto;
+    text-decoration: none;
+}
+
+    .facilityCardBtn:hover {
+        opacity: 0.88;
+    }
+
+    .facilityCardBtn svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--gold-light);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* ══════════════════════════════════════════
+   BOTTOM ROW (Dashboard)
+══════════════════════════════════════════ */
+.bottomRow {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+}
+
+.delinquentList {
+    padding: 8px 0;
+}
+
+.delinquentItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--bg-icon);
+    gap: 12px;
+    transition: background 0.12s;
+    cursor: pointer;
+}
+
+    .delinquentItem:hover {
+        background: var(--bg);
+    }
+
+    .delinquentItem:last-child {
+        border-bottom: none;
+    }
+
+.delinquentName {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--navy);
+}
+
+.delinquentMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.delinquentRight {
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.delinquentAmount {
+    font-family: 'EB Garamond', serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--red);
+}
+
+.delinquentMonths {
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+/* ══════════════════════════════════════════
+   DASHBOARD HERO BANNER (vs-hero)
+   Copied from Vendor_razor.css so Menu page
+   has the same dark hero component
+══════════════════════════════════════════ */
+.vsHero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+    .vsHero::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(circle, rgba(200,168,75,.15) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+.vsHeroLeft {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.vsHeroIcon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .vsHeroIcon svg {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.vsHeroEyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.vsHeroTitle {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.vsHeroSub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.vsHeroStats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.vsHeroStat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+    .vsHeroStat:first-child {
+        padding-left: 0;
+    }
+
+.vsHeroVal {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.vsHeroKey {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.vsHeroSub2 {
+    font-size: 11px;
+    color: rgba(255,255,255,.4);
+    margin-top: 3px;
+}
+
+.vsHeroDivider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.vsHeroProgress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.vsHeroProgressFill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+@media (max-width: 1200px) {
+    .bottomRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1100px) {
+    .vsHeroTitle {
+        font-size: 18px;
+    }
+
+    .vsHeroVal {
+        font-size: 18px;
+    }
+
+    .vsHeroStat {
+        padding: 0 14px;
+    }
+}
+
+@media (max-width: 900px) {
+    .vsHero {
+        padding: 20px;
+        gap: 16px;
+    }
+
+    .facilityGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 600px) {
+    .vsHero {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .vsHeroTitle {
+        font-size: 16px;
+    }
+
+    .vsHeroStats {
+        width: 100%;
+    }
+
+    .vsHeroStat {
+        padding: 0 10px;
+    }
+
+    .vsHeroDivider {
+        display: none;
+    }
+}

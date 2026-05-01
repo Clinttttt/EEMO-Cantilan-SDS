@@ -427,6 +427,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasDefaultValue(0m);
 
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("StallId")
                         .HasColumnType("uuid");
 

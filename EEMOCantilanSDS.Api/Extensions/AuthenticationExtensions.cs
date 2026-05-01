@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -6,6 +6,8 @@ namespace EEMOCantilanSDS.Api.Extensions
 {
     public static class AuthenticationExtensions
     {
+        private const string AccessTokenCookie = "accessToken";
+
         public static void ConfigureServices(this WebApplicationBuilder builder)
         {
             builder.Services.AddAuthentication(options =>
@@ -15,6 +17,7 @@ namespace EEMOCantilanSDS.Api.Extensions
             })
                 .AddJwtBearer(options =>
                 {
+            
                     options.TokenValidationParameters = new()
                     {
                         ValidateIssuer = true,
@@ -23,10 +26,26 @@ namespace EEMOCantilanSDS.Api.Extensions
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = builder.Configuration["Jwt:Issuer"],
                         ValidAudience = builder.Configuration["Jwt:Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+              
                     };
+
+          
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            if (context.Request.Cookies.TryGetValue(AccessTokenCookie, out var token))
+                            {
+                                context.Token = token;
+                            }
+                            return Task.CompletedTask;
+                        }
+                    };
+
+                 
+
                 });
         }
-
     }
 }

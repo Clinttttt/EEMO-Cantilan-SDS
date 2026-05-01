@@ -1,0 +1,25 @@
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+
+@if (_isAuthorized)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool _isAuthorized = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _isAuthorized = authState.User.Identity?.IsAuthenticated == true;
+
+        if (!_isAuthorized)
+        {
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+}

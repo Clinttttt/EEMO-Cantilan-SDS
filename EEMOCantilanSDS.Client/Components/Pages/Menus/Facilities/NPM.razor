@@ -1,8 +1,11 @@
 @page "/npm"
 @page "/facility/npm"
+@attribute [Authorize]
 
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi
 
 <PageTitle>EEMO Admin — New Public Market</PageTitle>
 
@@ -231,6 +234,26 @@
                     _ => "Vegetable Area"
                 };
 
+                // Fetch current month's payment record for this stall
+                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
+                    dto.Id,
+                    DateTime.Now.Year,
+                    DateTime.Now.Month);
+
+                bool isPaid = false;
+                bool isPartial = false;
+                decimal partialAmount = 0;
+                string orNumber = dto.ORNumber ?? string.Empty;
+
+                if (paymentResult.IsSuccess && paymentResult.Value != null)
+                {
+                    var payment = paymentResult.Value;
+                    isPaid = payment.Status == PaymentStatus.Paid;
+                    isPartial = payment.Status == PaymentStatus.Partial;
+                    partialAmount = payment.TotalPaid;
+                    orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
+                }
+
                 Stalls.Add(new NpmStall
                 {
                     Id = id++,
@@ -243,13 +266,11 @@
                     ContractDate = dto.ContractDate,
                     MonthlyRate = dto.MonthlyRate,
                     IsActive = dto.Status == StallStatus.Active,
-                    ORNumber = dto.ORNumber ?? string.Empty,
-                    // Payment data will be loaded separately or from a different endpoint
-                    IsPaid = false,
-                    IsPartial = false,
-                    HasElectricity = true,
-                    HasWater = true,
-                    PaymentHistory = MakeH(0)
+                    ORNumber = orNumber,
+                    IsPaid = isPaid,
+                    IsPartial = isPartial,
+                    PartialAmount = partialAmount,
+                    PaymentHistory = new()
                 });
             }
         }
@@ -332,13 +353,13 @@
         public string ContractName { get; set; } = string.Empty;
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
-        public decimal MonthlyRate { get; set; } = 900;
-        public bool HasElectricity { get; set; } = true;
-        public bool HasWater { get; set; } = true;
+        public decimal MonthlyRate { get; set; }
+        public bool HasElectricity { get; set; }
+        public bool HasWater { get; set; }
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
         public decimal PartialAmount { get; set; }
-        public bool IsActive { get; set; } = true;
+        public bool IsActive { get; set; }
         public string ORNumber { get; set; } = string.Empty;
         public string CollectorName { get; set; } = string.Empty;
         public decimal ElecReading { get; set; }
@@ -414,8 +435,8 @@
             // Update the stall's OR Number
             PaymentStall.ORNumber = payment.OrNumber;
 
-            // Force re-render to display updated OR Number in table
-            StateHasChanged();
+            // Reload the stall data from API to get updated payment status
+            await LoadStallsFromApi();
 
             // Close the modal
             ShowPayment = false;
@@ -439,8 +460,8 @@
             SelectedSection = s.Section.Replace(" Area", "").Replace(" Section", ""),
             AreaSqm = s.AreaSqm,
             MonthlyRate = s.MonthlyRate,
-            ContractDate = s.ContractDate ?? DateTime.Now,
-            ContractYears = 3,
+            ContractDate = s.ContractDate,
+            ContractYears = 0,
             AreaLocation = string.Empty,
             FeeTypes = new()
         };
@@ -480,11 +501,11 @@
             ContractName = string.Empty,
             SelectedSection = "Vegetable",
             AreaSqm = 0,
-            MonthlyRate = 900,
-            ContractDate = new DateTime(2023, 6, 7),
-            ContractYears = 3,
+            MonthlyRate = 0,
+            ContractDate = null,
+            ContractYears = 0,
             AreaLocation = string.Empty,
-            FeeTypes = new() { "Electricity", "Water" }
+            FeeTypes = new()
         };
         VendorErrorMessage = string.Empty;
         VendorFieldErrors.Clear();
@@ -504,22 +525,8 @@
 
     private void OnSectionModalChanged()
     {
-        // Auto-populate section and fees based on selected section
-        if (VendorForm.SelectedSection == "Vegetable")
-        {
-            VendorForm.MonthlyRate = 900;
-            VendorForm.FeeTypes = new() { "Electricity", "Water" };
-        }
-        else if (VendorForm.SelectedSection == "Fish")
-        {
-            VendorForm.MonthlyRate = 900;
-            VendorForm.FeeTypes = new() { "Electricity", "Water", "Fish ₱1/kg" };
-        }
-        else if (VendorForm.SelectedSection == "Meat")
-        {
-            VendorForm.MonthlyRate = 900;
-            VendorForm.FeeTypes = new() { "Electricity", "Water" };
-        }
+        // Reset fees when section changes - user will select what applies
+        VendorForm.FeeTypes = new();
     }
 
     private void ToggleVendorFee(string fee)

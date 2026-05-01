@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using System.Text.Json.Serialization;
 
 namespace EEMOCantilanSDS.Api
 {
@@ -11,12 +12,17 @@ namespace EEMOCantilanSDS.Api
 
             service.AddHttpContextAccessor();
             service.AddAuthorization();
-            service.AddControllers();
+            service.AddControllers()
+                   .AddJsonOptions(o =>
+                   {
+                       o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); 
+                   });
+
             service.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", builder =>
                 {
-                    builder.WithOrigins("https://localhost:7167", "http://localhost:5198")
+                    builder.WithOrigins("http://localhost:5173", "https://localhost:5173")
                            .AllowAnyMethod()
                            .AllowAnyHeader()
                            .AllowCredentials();

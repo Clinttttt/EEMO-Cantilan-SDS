@@ -55,7 +55,8 @@
             }
             else
             {
-                <button class="btn @action.ClassName" 
+                <button type="button"
+                        class="btn @action.ClassName" 
                         @onclick="async () => await action.OnClickHandler.Invoke()"
                         title="@action.Title">
                     @if (!string.IsNullOrEmpty(action.Icon))

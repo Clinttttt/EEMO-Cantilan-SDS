@@ -1,6 +1,6 @@
 ﻿# EEMO Revenue Collection System — Project Documentation
 **Client:** Economic Enterprise and Management Office (EEMO), Municipality of Cantilan  
-**Stack:** Blazor Server (.NET) — Web Admin Dashboard + Mobile App (later phase)
+**Stack:** React + TypeScript (Web Admin Dashboard) + .NET MAUI (Mobile App - later phase)
 
 ---
 
@@ -52,10 +52,12 @@ A system where vendor/lessee records are pre-loaded. Staff just **tick/check** w
 ---
 
 ## Web Admin Dashboard (Current Focus)
-- Built in **Blazor Server** (Razor Pages)
+- Built in **React 19 + TypeScript + Vite**
 - Professional government look
 - Features: Dashboard overview, per-facility collection lists (checkable), payment recording, reports, delinquency tracking
-- Entry point page: `@page "/menu"` — show the main menu/navigation
+- Styling: Tailwind CSS v4
+- Data Fetching: TanStack Query v5
+- Routing: React Router v7
 
 ## Mobile App
 - Planned for later phase

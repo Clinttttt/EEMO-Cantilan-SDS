@@ -19,6 +19,12 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
     public abstract class HandleResponse
     {
         private readonly HttpClient _http;
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        };
+
         public HandleResponse(HttpClient http)
         {
             _http = http;
@@ -87,7 +93,7 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
         }
         public async Task<Result<TResponse>> HandleOkAsync<TResponse>(HttpResponseMessage response)
         {
-            var value = await response.Content.ReadFromJsonAsync<TResponse>();
+            var value = await response.Content.ReadFromJsonAsync<TResponse>(_jsonOptions);
             if (value is null)
                 return Result<TResponse>.Failure("Failed to deserialize response content.", 500);
             return Result<TResponse>.Success(value);

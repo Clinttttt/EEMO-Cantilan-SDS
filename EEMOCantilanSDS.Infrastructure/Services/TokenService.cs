@@ -1,8 +1,10 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -19,14 +21,19 @@ namespace EEMOCantilanSDS.Infrastructure.Services
 {
     public class TokenService(IConfiguration configuration, IUnitOfWork unitOfWork, AppDbContext context) : ITokenService
     {
+     
+
         public string CreateToken(BaseUser user, string role)
         {
             var claim = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty),
-                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
-                new Claim(ClaimTypes.Role, role)
+                new(AppClaimTypes.UserId, user.Id.ToString()),
+                new(AppClaimTypes.FullName, user.FullName ?? string.Empty),
+                new(AppClaimTypes.Username, user.Username ?? string.Empty),
+                new(AppClaimTypes.Email, user.Email  ?? string.Empty),
+                new(AppClaimTypes.Role, role),
+                new(AppClaimTypes.IsActive, user.IsActive.ToString()),
+                new(AppClaimTypes.MustChangePassword, user.MustChangePassword.ToString()),
             };
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
@@ -34,12 +41,13 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             (
                 issuer: configuration["Jwt:Issuer"],
                 audience: configuration["Jwt:Audience"],
-                expires: DateTime.Now.AddDays(7),
+                expires: DateTime.UtcNow.AddDays(7),
                 claims: claim,
                 signingCredentials: creds
             );
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
         public string GenerateRefreshToken()
         {
             var randomNumber = new byte[32];
@@ -47,6 +55,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             rng.GetBytes(randomNumber);
             return Convert.ToBase64String(randomNumber);
         }
+
         public async Task<string> GenerateAndSaveRefreshToken(BaseUser user, CancellationToken cancellationToken = default)
         {
             var refreshToken = GenerateRefreshToken();
@@ -54,6 +63,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return refreshToken;
         }
+
         public async Task<TokenResponseDto> CreateTokenResponse(BaseUser user)
         {
             return new TokenResponseDto
@@ -62,6 +72,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 RefreshToken = await GenerateAndSaveRefreshToken(user)
             };
         }
+
         public string GetRole(BaseUser user)
         {
             return user switch
@@ -71,6 +82,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 _ => throw new InvalidOperationException("Unknown user type")
             };
         }
+
         public async Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default)
         {
             var user = await context.AdminUsers.FirstOrDefaultAsync(s => s.RefreshToken == RefreshToken, cancellationToken);
@@ -80,6 +92,5 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             }
             return user;
         }
-
     }
 }

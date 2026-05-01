@@ -1,0 +1,395 @@
+@typeparam TStall where TStall : class, new()
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi
+@inject NavigationManager Navigation
+
+<div class="admin-layout">
+    <Sidebar />
+
+    <main class="admin-main">
+        <header class="topbar">
+            <div class="topbar-left flex gap-2">
+                <a href="/menu" class="tcc-back-btn">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </a>
+                <div>
+                    <div class="topbar-title">@FacilityName</div>
+                    <div class="topbar-breadcrumb">
+                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                        <span class="breadcrumb-sep">/</span>
+                        <span class="breadcrumb-active">@FacilityShortCode — @DateTime.Now.ToString("MMMM yyyy")</span>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-date">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    @DateTime.Now.ToString("MMMM d, yyyy")
+                </div>
+                <div class="topbar-admin">
+                    <div class="admin-avatar">A</div>
+                    <div class="admin-info">
+                        <div class="admin-name">Administrator</div>
+                        <div class="admin-role">EEMO Office</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <div class="tcc-hero">
+                <div class="tcc-hero-left">
+                    <div class="tcc-hero-icon">
+                        @FacilityIcon
+                    </div>
+                    <div>
+                        <div class="tcc-hero-eyebrow">Facility · @FacilityShortCode</div>
+                        <div class="tcc-hero-title">@FacilityName</div>
+                        <div class="tcc-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
+                    </div>
+                </div>
+                <div class="tcc-hero-stats">
+                    <div class="tcc-hero-stat">
+                        <div class="tcc-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="tcc-hero-key">Collected</div>
+                    </div>
+                    <div class="tcc-hero-divider"></div>
+                    <div class="tcc-hero-stat">
+                        <div class="tcc-hero-val">₱@TotalPending.ToString("N0")</div>
+                        <div class="tcc-hero-key">Pending</div>
+                    </div>
+                    <div class="tcc-hero-divider"></div>
+                    <div class="tcc-hero-stat">
+                        <div class="tcc-hero-val">@CollectionRate%</div>
+                        <div class="tcc-hero-key">Collection Rate</div>
+                    </div>
+                    <div class="tcc-hero-divider"></div>
+                    <div class="tcc-hero-stat">
+                        <div class="tcc-hero-val">@ActiveStallsCount</div>
+                        <div class="tcc-hero-key">Total Stalls</div>
+                    </div>
+                </div>
+                <div class="tcc-hero-progress">
+                    <div class="tcc-hero-progress-fill" style="width:@CollectionRate%"></div>
+                </div>
+            </div>
+
+            <Toolbar SearchQuery="@SearchQuery"
+                     OnSearch="OnSearchInput"
+                     ActiveFilter="@ActiveStatus"
+                     OnFilterChanged="OnFilterChange"
+                     Filters="@StatusFilters"
+                     ShowSearch="true"
+                     SearchPlaceholder="Search stall no. or occupant…"
+                     MiddleContent="@ActionBarContent"
+                     Actions="@ToolbarActions">
+            </Toolbar>
+
+            <div class="tcc-section-info">
+                <div class="tcc-section-info-left">
+                    <div class="tcc-section-label">All Stalls</div>
+                    <div class="tcc-section-desc">@FacilityDescription</div>
+                </div>
+                <div class="tcc-section-mini-stats">
+                    <div class="tcc-mini-stat">
+                        <div class="tcc-mini-val">@PaidCount</div>
+                        <div class="tcc-mini-key">Paid</div>
+                    </div>
+                    <div class="tcc-mini-stat unpaid-stat">
+                        <div class="tcc-mini-val">@UnpaidCount</div>
+                        <div class="tcc-mini-key">Unpaid</div>
+                    </div>
+                    <div class="tcc-mini-stat partial-stat">
+                        <div class="tcc-mini-val">@PartialCount</div>
+                        <div class="tcc-mini-key">Partial</div>
+                    </div>
+                    <div class="tcc-mini-stat">
+                        <div class="tcc-mini-val">₱@CollectedAmount.ToString("N0")</div>
+                        <div class="tcc-mini-key">Collected</div>
+                    </div>
+                </div>
+            </div>
+
+            <FacilityStallsTable TStall="TStall"
+                                 Facility="@FacilityShortCode"
+                                 FilteredStalls="FilteredStalls"
+                                 OnPaymentClick="OpenPayment"
+                                 OnHistoryClick="OpenHistory"
+                                 OnEditClick="OpenEdit" />
+        </div>
+    </main>
+</div>
+
+<FacilityPaymentModal TStall="TStall"
+                      Facility="@FacilityShortCode"
+                      Stall="PaymentStall"
+                      Show="ShowPayment"
+                      OnClose="ClosePayment"
+                      OnSave="HandleSavePayment" />
+
+<PaymentHistoryModal TStall="TStall"
+                     Show="ShowHistory"
+                     Stall="HistoryStall"
+                     OnClose="() => ShowHistory = false" />
+
+<AddVendorModal Show="ShowAddVendorModal"
+                IsEditing="false"
+                Form="VendorForm"
+                @bind-FormError="VendorErrorMessage"
+                FieldErrors="VendorFieldErrors"
+                FacilityOptions="FacilityOptions"
+                FacilityLocked="true"
+                OnSave="SubmitAddVendor"
+                OnCancel="CloseAddVendorModal"
+                OnFacilityChanged="() => {}"
+                OnSectionChanged="() => {}"
+                OnToggleFee="ToggleVendorFee" />
+
+@code {
+    [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
+    [Parameter] public string FacilityName { get; set; } = string.Empty;
+    [Parameter] public string FacilityShortCode { get; set; } = string.Empty;
+    [Parameter] public string FacilityDescription { get; set; } = string.Empty;
+    [Parameter] public RenderFragment FacilityIcon { get; set; } = null!;
+    [Parameter] public decimal DefaultMonthlyRate { get; set; }
+    [Parameter] public List<string> DefaultFeeTypes { get; set; } = new();
+    [Parameter] public Func<Application.Dtos.Stalls.StallDto, bool, bool, decimal, string, TStall> StallMapper { get; set; } = null!;
+    [Parameter] public Func<TStall, bool> IsPaidSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, bool> IsPartialSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, bool> IsActiveSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, decimal> MonthlyRateSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, decimal> PartialAmountSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, string> StallNoSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, string> ActualOccupantSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, string> ContractNameSelector { get; set; } = null!;
+    [Parameter] public Action<TStall, string> ORNumberSetter { get; set; } = null!;
+
+    private string SearchQuery = string.Empty;
+    private string ActiveStatus = "All";
+    private readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    
+    private List<TStall> Stalls = new();
+    private bool ShowPayment = false;
+    private TStall? PaymentStall = null;
+    private bool ShowHistory = false;
+    private TStall? HistoryStall = null;
+    
+    private bool ShowAddVendorModal { get; set; }
+    private string VendorErrorMessage { get; set; } = string.Empty;
+    private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
+    private AddVendorModal.VendorModalForm VendorForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStallsFromApi();
+    }
+
+    private async Task LoadStallsFromApi()
+    {
+        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCodeEnum, null, null, 100);
+        if (result.IsSuccess && result.Value != null)
+        {
+            Stalls.Clear();
+            foreach (var dto in result.Value.Items)
+            {
+                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(dto.Id, DateTime.Now.Year, DateTime.Now.Month);
+                
+                bool isPaid = false;
+                bool isPartial = false;
+                decimal partialAmount = 0;
+                string orNumber = string.Empty;
+                
+                if (paymentResult.IsSuccess && paymentResult.Value != null)
+                {
+                    isPaid = paymentResult.Value.Status == PaymentStatus.Paid;
+                    isPartial = paymentResult.Value.Status == PaymentStatus.Partial;
+                    partialAmount = paymentResult.Value.TotalPaid;
+                    orNumber = paymentResult.Value.ORNumber ?? string.Empty;
+                }
+                
+                Stalls.Add(StallMapper(dto, isPaid, isPartial, partialAmount, orNumber));
+            }
+        }
+    }
+
+    private IEnumerable<TStall> ActiveStalls => Stalls.Where(IsActiveSelector);
+    private int ActiveStallsCount => ActiveStalls.Count();
+    private decimal TotalCollected => ActiveStalls.Where(s => IsPaidSelector(s) || IsPartialSelector(s))
+        .Sum(s => IsPartialSelector(s) ? PartialAmountSelector(s) : MonthlyRateSelector(s));
+    private decimal TotalPending => ActiveStalls.Where(s => !IsPaidSelector(s))
+        .Sum(s => MonthlyRateSelector(s) - (IsPartialSelector(s) ? PartialAmountSelector(s) : 0));
+    private int CollectionRate => ActiveStallsCount > 0 ? (int)((double)ActiveStalls.Count(IsPaidSelector) / ActiveStallsCount * 100) : 0;
+
+    private IEnumerable<TStall> FilteredStalls => Stalls.Where(s =>
+    {
+        bool matchStatus = ActiveStatus switch
+        {
+            "Paid" => IsPaidSelector(s) && !IsPartialSelector(s) && IsActiveSelector(s),
+            "Partial" => IsPartialSelector(s) && IsActiveSelector(s),
+            "Unpaid" => !IsPaidSelector(s) && !IsPartialSelector(s) && IsActiveSelector(s),
+            "Closed" => !IsActiveSelector(s),
+            _ => true
+        };
+        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
+            || ActualOccupantSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || StallNoSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || ContractNameSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
+        return matchStatus && matchSearch;
+    }).OrderBy(StallNoSelector);
+
+    private int PaidCount => FilteredStalls.Count(IsPaidSelector);
+    private int UnpaidCount => FilteredStalls.Count(s => !IsPaidSelector(s) && !IsPartialSelector(s));
+    private int PartialCount => FilteredStalls.Count(IsPartialSelector);
+    private decimal CollectedAmount => FilteredStalls.Where(IsPaidSelector).Sum(MonthlyRateSelector);
+
+    private List<Toolbar.ToolbarAction> ToolbarActions => new()
+    {
+        new()
+        {
+            Label = "Add New",
+            Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
+            ClassName = "btn-primary",
+            Title = "Add a new stall",
+            OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
+        }
+    };
+
+    private RenderFragment ActionBarContent => @<ActionBar Facility="@FacilityShortCode.ToLower()" />;
+
+    private async Task OnSearchInput(string value) => SearchQuery = value;
+    private async Task OnFilterChange(string filter) => ActiveStatus = filter;
+
+    private void OpenPayment(TStall s)
+    {
+        PaymentStall = s;
+        ShowPayment = true;
+    }
+
+    private void ClosePayment()
+    {
+        ShowPayment = false;
+        PaymentStall = null;
+    }
+
+    private async Task HandleSavePayment(FacilityPaymentModal<TStall>.PaymentSubmitDto payment)
+    {
+        if (PaymentStall != null)
+        {
+            ORNumberSetter(PaymentStall, payment.OrNumber);
+            StateHasChanged();
+            ShowPayment = false;
+            PaymentStall = null;
+        }
+    }
+
+    private void OpenHistory(TStall s)
+    {
+        HistoryStall = s;
+        ShowHistory = true;
+    }
+
+    private void OpenEdit(TStall s) => Navigation.NavigateTo("/profile");
+
+    private List<AddVendorModal.VendorFacilityOption> FacilityOptions => new()
+    {
+        new() { Code = FacilityShortCode, Name = FacilityName }
+    };
+
+    private void OpenAddVendorModal()
+    {
+        VendorForm = new()
+        {
+            FacilityCode = FacilityShortCode,
+            StallNo = string.Empty,
+            ActualOccupant = string.Empty,
+            ContractName = string.Empty,
+            SelectedSection = string.Empty,
+            AreaSqm = 0,
+            MonthlyRate = DefaultMonthlyRate,
+            ContractDate = new DateTime(2023, 6, 7),
+            ContractYears = 3,
+            AreaLocation = string.Empty,
+            FeeTypes = new(DefaultFeeTypes)
+        };
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
+        ShowAddVendorModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseAddVendorModal()
+    {
+        ShowAddVendorModal = false;
+        VendorForm = new();
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
+    }
+
+    private void ToggleVendorFee(string fee)
+    {
+        if (VendorForm.FeeTypes.Contains(fee))
+            VendorForm.FeeTypes.Remove(fee);
+        else
+            VendorForm.FeeTypes.Add(fee);
+    }
+
+    private async Task SubmitAddVendor()
+    {
+        VendorErrorMessage = string.Empty;
+        VendorFieldErrors.Clear();
+
+        var fees = ApplicableFees.BaseRental;
+        if (VendorForm.FeeTypes.Contains("Electricity"))
+            fees |= ApplicableFees.Electricity;
+        if (VendorForm.FeeTypes.Contains("Water"))
+            fees |= ApplicableFees.Water;
+
+        NccAreaLocation? nccAreaLocation = null;
+        if (FacilityCodeEnum == FacilityCode.NCC && !string.IsNullOrWhiteSpace(VendorForm.AreaLocation))
+        {
+            nccAreaLocation = VendorForm.AreaLocation.Trim().Equals("Extension", StringComparison.OrdinalIgnoreCase)
+                ? NccAreaLocation.Extension
+                : NccAreaLocation.Corner;
+        }
+
+        var command = new Application.Command.Stalls.CreateStall.CreateStallCommand(
+            FacilityCodeEnum,
+            VendorForm.StallNo.Trim(),
+            VendorForm.MonthlyRate,
+            fees,
+            null,
+            nccAreaLocation,
+            VendorForm.AreaSqm > 0 ? VendorForm.AreaSqm : null,
+            null,
+            null,
+            VendorForm.ActualOccupant.Trim(),
+            string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
+            VendorForm.ContractDate,
+            VendorForm.ContractYears);
+
+        var result = await StallsApi.CreateStallAsync(command);
+
+        if (result.IsSuccess)
+        {
+            await LoadStallsFromApi();
+            CloseAddVendorModal();
+        }
+        else
+        {
+            if (result.ValidationErrors != null && result.ValidationErrors.Any())
+            {
+                foreach (var error in result.ValidationErrors)
+                {
+                    VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+                }
+            }
+            else
+            {
+                VendorErrorMessage = result.Error ?? "Failed to create stall. Please check all required fields.";
+            }
+            StateHasChanged();
+        }
+    }
+}

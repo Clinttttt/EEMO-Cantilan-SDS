@@ -35,10 +35,6 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
             .NotNull().WithMessage("Section is required for NPM")
             .When(x => x.FacilityCode == FacilityCode.NPM);
 
-        RuleFor(x => x.AreaLocation)
-            .NotNull().WithMessage("Area location is required for NCC")
-            .When(x => x.FacilityCode == FacilityCode.NCC);
-
         RuleFor(x => x.DailyRate)
             .NotNull().WithMessage("Daily rate is required for NPM")
             .GreaterThan(0).WithMessage("Daily rate must be greater than ₱0")

@@ -401,14 +401,14 @@
             {
                 foreach (var row in section.Rows)
                 {
-                    // Map enum section names to display names
-                    var sectionName = section.SectionName switch
+                    // Map enum section names to display names (NPM only)
+                    var sectionName = IsFacility("npm") ? section.SectionName switch
                     {
                         "VegetableArea" => "Vegetable Area",
                         "FishSection" => "Fish Section",
                         "MeatSection" => "Meat Section",
                         _ => section.SectionName
-                    };
+                    } : section.SectionName;
                     
                     Stalls.Add(new NpmStall
                     {

@@ -1,5 +1,6 @@
 ﻿@page "/login"
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@attribute [AllowAnonymous]
+
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 @using EEMOCantilanSDS.Client.Securities
 @using Microsoft.AspNetCore.WebUtilities

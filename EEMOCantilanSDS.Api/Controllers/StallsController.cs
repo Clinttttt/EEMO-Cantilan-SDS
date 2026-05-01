@@ -10,10 +10,12 @@ using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
+[Authorize]
 public class StallsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost]

@@ -1,0 +1,908 @@
+/* ============================================================
+   Profile.module.css  —  Stall Profile page-scoped styles
+   CSS Modules: migrated from Profile.razor.css
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.profBackBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+.profBackBtn:hover {
+    background: var(--bg-icon);
+    color: var(--navy);
+    border-color: var(--navy);
+}
+
+.profBackBtn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
+/* ── Content Wrapper ─────────────────────────────────────── */
+.profContent {
+    padding: 24px;
+}
+
+/* ── Hero ────────────────────────────────────────────────── */
+.profHero {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+}
+
+.profHero::before {
+    content: "";
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(200,168,75,.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.profHeroBadge {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    background: rgba(200,168,75,.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(200,168,75,.3);
+}
+
+.profHeroBadge svg {
+    width: 32px;
+    height: 32px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.profHeroIdentity {
+    flex: 1 1 200px;
+}
+
+.profHeroStallNo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.profHeroName {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.profHeroMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.profHeroChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: rgba(255,255,255,.6);
+}
+
+.profHeroChip svg {
+    width: 12px;
+    height: 12px;
+    stroke: rgba(255,255,255,.5);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.profHeroActions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.btnOutline,
+.btnPrimary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+}
+
+.btnOutline {
+    background: #fff;
+    color: var(--navy);
+    border-color: var(--border);
+}
+
+.btnOutline:hover {
+    background: var(--bg-card);
+    border-color: var(--navy);
+}
+
+.btnOutline svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.btnPrimary {
+    background: var(--gold);
+    color: #fff;
+    border-color: var(--gold);
+    font-weight: 700;
+}
+
+.btnPrimary:hover {
+    background: #d4a83c;
+    border-color: #d4a83c;
+}
+
+.btnPrimary svg {
+    width: 16px;
+    height: 16px;
+    stroke: #fff;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+
+/* ── Status Pills ────────────────────────────────────────── */
+.profStatusPill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pillPaid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pillUnpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pillPartial {
+    background: #fff8e1;
+    color: #7a5c00;
+}
+
+.pillActive {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pillInactive {
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+}
+
+
+/* ── 2-Column Grid ───────────────────────────────────────── */
+.profGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.profCol {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+
+/* ── Cards ───────────────────────────────────────────────── */
+.profCard {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.profCardHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.profCardIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.profCardIcon svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--navy);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.profCardTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+
+/* ── Field List ──────────────────────────────────────────── */
+.profFieldList {
+    padding: 6px 0;
+}
+
+.profField {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.profField:last-child {
+    border-bottom: none;
+}
+
+.profFieldLabel {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 160px;
+}
+
+.profFieldVal {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: right;
+}
+
+.profFieldVal.bold {
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.profFieldVal.mono {
+    font-family: monospace;
+}
+
+.profFieldVal.gold {
+    color: var(--gold);
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.profFieldVal.textWarn {
+    color: #a06010;
+}
+
+.profNoContract {
+    font-size: 11px;
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+.profExpiryWarn {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+}
+
+
+/* ── Utility Badges ──────────────────────────────────────── */
+.profUtilBadge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+.utilYes {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.utilNo {
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+}
+
+
+/* ── Total Bill Banner ───────────────────────────────────── */
+.profBillBanner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--navy);
+    margin-top: 0;
+}
+
+.profBillLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,.65);
+}
+
+.profBillSub {
+    font-size: 11px;
+    color: rgba(255,255,255,.4);
+    margin-top: 2px;
+}
+
+.profBillVal {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    font-family: monospace;
+}
+
+
+/* ── This Month Status Block ─────────────────────────────── */
+.profMonthStatus {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.profMonthIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.profMonthIcon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.monthPaid .profMonthIcon {
+    background: var(--green-bg);
+}
+
+.monthPaid .profMonthIcon svg {
+    stroke: var(--green);
+}
+
+.monthPartial .profMonthIcon {
+    background: #fff8e1;
+}
+
+.monthPartial .profMonthIcon svg {
+    stroke: #b07d2b;
+}
+
+.monthUnpaid .profMonthIcon {
+    background: var(--red-bg);
+}
+
+.monthUnpaid .profMonthIcon svg {
+    stroke: var(--red);
+}
+
+.profMonthLabel {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.monthPartial .profMonthLabel {
+    color: #7a5500;
+}
+
+.monthUnpaid .profMonthLabel {
+    color: var(--red);
+}
+
+.profMonthSub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+
+/* ── 12-Month History ────────────────────────────────────── */
+.profHistGrid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 14px 18px 10px;
+}
+
+.profHistMonth {
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+    transition: transform .1s;
+}
+
+.profHistMonth:hover {
+    transform: translateY(-1px);
+}
+
+.histPaid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.histPartial {
+    background: #fff8e1;
+    border-color: #b07d2b;
+}
+
+.histUnpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.histNa {
+    background: #f5f7f9;
+    border-color: #dde4ea;
+    opacity: 0.6;
+}
+
+.histCurrent {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+}
+
+.profHistMonthName {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.profHistMonthYear {
+    font-size: 9px;
+    color: var(--text-subtle);
+    margin-top: 1px;
+}
+
+.profHistIcon {
+    font-size: 13px;
+    margin-top: 5px;
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.histPartial .profHistIcon {
+    color: #b07d2b;
+}
+
+.histUnpaid .profHistIcon {
+    color: var(--red);
+}
+
+.histNa .profHistIcon {
+    color: var(--text-muted);
+}
+
+.profHistSummary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 0 18px 14px;
+}
+
+.profHistStat {
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+.profHistStat.statWarn {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.profHistStatVal {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.profHistStatVal.green {
+    color: var(--green);
+}
+
+.profHistStatVal.red {
+    color: var(--red);
+}
+
+.profHistStatKey {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+
+/* ── Remarks ─────────────────────────────────────────────── */
+.profNotesBody {
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+    min-height: 60px;
+}
+
+.profNotesEmpty {
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+
+/* ── Edit Form Grid ──────────────────────────────────────── */
+.editFormGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.formGroupFull {
+    grid-column: 1 / -1;
+}
+
+.formTextarea {
+    resize: vertical;
+    min-height: 70px;
+    font-family: inherit;
+}
+
+
+/* ── Payment Modal ───────────────────────────────────────── */
+.payOptions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.payOption {
+    flex: 1 1 100px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: var(--bg-card);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: border-color .15s, background .15s, color .15s;
+    user-select: none;
+}
+
+.payOption svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.payOption:hover {
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.payOptPaid {
+    border-color: var(--green);
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.payOptPartial {
+    border-color: #b07d2b;
+    background: #fffbea;
+    color: #7a5500;
+}
+
+.payOptUnpaid {
+    border-color: var(--red);
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.payFeeBlock {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    margin-top: 12px;
+}
+
+.payFeeHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.payFeeLabel {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.payFeeRate {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.payRecordRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+}
+
+.payRecordKey {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.payRecordVal {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.payRecordVal.green {
+    color: var(--green);
+}
+
+.payRecordVal.red {
+    color: var(--red);
+}
+
+
+/* ── Partial Amount Input Section ────────────────────────── */
+.partialAmountSection {
+    margin-top: 12px;
+    padding: 14px 16px;
+    background: rgba(184, 115, 51, 0.05);
+    border-radius: 10px;
+    border-left: 3px solid #b87333;
+}
+
+.partialLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.partialInputWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.currencySymbol {
+    position: absolute;
+    left: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.partialInput {
+    width: 100%;
+    padding: 9px 12px 9px 28px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: monospace;
+    border: 1.5px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-card);
+    color: var(--navy);
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.partialInput:focus {
+    border-color: #b87333;
+    box-shadow: 0 0 0 3px rgba(184, 115, 51, 0.08);
+}
+
+.partialInput.inputError {
+    border-color: var(--red);
+    background: var(--red-bg);
+}
+
+.partialHint {
+    font-size: 11px;
+    color: #b87333;
+    margin-top: 6px;
+    font-weight: 500;
+}
+
+.inputErrorMsg {
+    font-size: 11.5px;
+    color: var(--red);
+    font-weight: 500;
+    margin-top: 4px;
+    display: block;
+}
+
+.requiredStar {
+    color: var(--red);
+    margin-left: 2px;
+}
+
+
+/* ── Loading State ────────────────────────────────────────── */
+.btnLoading {
+    opacity: 0.75;
+    cursor: not-allowed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .profGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .editFormGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .profHistGrid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .profHistSummary {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .profHero {
+        padding: 16px;
+        gap: 14px;
+    }
+
+    .profHeroName {
+        font-size: 18px;
+    }
+
+    .profFieldLabel {
+        min-width: 120px;
+    }
+
+    .profHistGrid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}

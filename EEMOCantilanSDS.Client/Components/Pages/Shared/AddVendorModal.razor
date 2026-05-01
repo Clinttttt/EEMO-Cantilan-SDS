@@ -1,4 +1,4 @@
-﻿@inject IJSRuntime JS
+@inject IJSRuntime JS
 
 @* ══════════════════════════════════════════════════════════════════════
    AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
@@ -252,11 +252,30 @@
                 <div class="avm-section">
                     <div class="avm-section-label">Additional Information</div>
                     <div class="avm-row-2">
-                        <div class="avm-group">
-                            <label class="avm-label">Area Location / Note</label>
-                            <input class="avm-input" type="text" placeholder="e.g. Extension, Corner"
-                                   @bind="Form.AreaLocation" @bind:event="oninput" />
-                        </div>
+                        @if (Form.FacilityCode == "NCC")
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Area Location</label>
+                                <select class="avm-input @(GetFieldError("AreaLocation") != string.Empty ? "form-input-error" : "")"
+                                        @bind="Form.AreaLocation">
+                                    <option value="">-- No specific location --</option>
+                                    <option value="Extension">Extension</option>
+                                    <option value="Corner">Corner</option>
+                                </select>
+                                @if (GetFieldError("AreaLocation") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("AreaLocation")</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Area Location / Note</label>
+                                <input class="avm-input" type="text" placeholder="e.g. Extension, Corner"
+                                       @bind="Form.AreaLocation" @bind:event="oninput" />
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -412,8 +431,8 @@
             </div><!-- /eemo-modal-body -->
             <!-- ── Footer ──────────────────────────────────────────────── -->
             <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="HandleCancel">Cancel</button>
-                <button class="btn-primary" @onclick="() => OnSave.InvokeAsync()">
+                <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
+                <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
                     @(IsEditing ? "Save Changes" : "Add Vendor")
                 </button>
             </div>
@@ -484,6 +503,7 @@
     // ── Private relay handlers ────────────────────────────────────────────────
 
     private async Task HandleCancel() => await OnCancel.InvokeAsync();
+    private async Task HandleSave() => await OnSave.InvokeAsync();
     private async Task HandleFacilityChanged() => await OnFacilityChanged.InvokeAsync();
     private async Task HandleSectionChanged() => await OnSectionChanged.InvokeAsync();
 

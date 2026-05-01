@@ -1,262 +1,35 @@
 ﻿@page "/ncc"
 @page "/facility/ncc"
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
-@using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
-@using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
+@attribute [Authorize]
+@using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
-@inject IStallsApiClient StallsApi
 @rendermode InteractiveServer
-@inject NavigationManager Navigation
 
 <PageTitle>EEMO Admin — New Commercial Center</PageTitle>
 
-<div class="admin-layout">
-
-    <!-- ═══════════════════════════════════════
-         SIDEBAR
-    ═══════════════════════════════════════ -->
-    <Sidebar />
-
-    <main class="admin-main">
-
-        <!-- Topbar -->
-        <header class="topbar">
-            <div class="topbar-left flex gap-2">
-                <a href="/menu" class="ncc-back-btn">
-                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                </a>
-                <div>
-                    <div class="topbar-title">New Commercial Center</div>
-                    <div class="topbar-breadcrumb">
-                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                        <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">NCC — @DateTime.Now.ToString("MMMM yyyy")</span>
-                    </div>
-                </div>
-            </div>
-            <div class="topbar-right">
-                <div class="topbar-date">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
-                </div>
-                <div class="topbar-admin">
-                    <div class="admin-avatar">A</div>
-                    <div class="admin-info">
-                        <div class="admin-name">Administrator</div>
-                        <div class="admin-role">EEMO Office</div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <div class="content-area">
-
-            <!-- ── NCC Hero Banner ── -->
-            <div class="ncc-hero">
-                <div class="ncc-hero-left">
-                    <div class="ncc-hero-icon">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
-                    </div>
-                    <div>
-                        <div class="ncc-hero-eyebrow">Facility · NCC</div>
-                        <div class="ncc-hero-title">New Commercial Center</div>
-                        <div class="ncc-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
-                    </div>
-                </div>
-                <div class="ncc-hero-stats">
-                    <div class="ncc-hero-stat">
-                        <div class="ncc-hero-val">₱@TotalCollected.ToString("N0")</div>
-                        <div class="ncc-hero-key">Collected</div>
-                    </div>
-                    <div class="ncc-hero-divider"></div>
-                    <div class="ncc-hero-stat">
-                        <div class="ncc-hero-val">₱@TotalPending.ToString("N0")</div>
-                        <div class="ncc-hero-key">Pending</div>
-                    </div>
-                    <div class="ncc-hero-divider"></div>
-                    <div class="ncc-hero-stat">
-                        <div class="ncc-hero-val">@CollectionRate%</div>
-                        <div class="ncc-hero-key">Collection Rate</div>
-                    </div>
-                    <div class="ncc-hero-divider"></div>
-                    <div class="ncc-hero-stat">
-                        <div class="ncc-hero-val">@ActiveStalls.Count()</div>
-                        <div class="ncc-hero-key">Total Stalls</div>
-                    </div>
-                </div>
-                <div class="ncc-hero-progress">
-                    <div class="ncc-hero-progress-fill" style="width:@CollectionRate%"></div>
-                </div>
-            </div>
-
-            <!-- ── Toolbar ── -->
-            <Toolbar SearchQuery="@SearchQuery"
-                     OnSearch="OnSearchInput"
-                     ActiveFilter="@ActiveStatus"
-                     OnFilterChanged="OnFilterChange"
-                     Filters="@StatusFilters"
-                     ShowSearch="true"
-                     SearchPlaceholder="Search stall no. or occupant…"
-                     MiddleContent="@ActionBarContent"
-                     Actions="@ToolbarActions">
-            </Toolbar>
-
-            <!-- ── Facility Info Bar ── -->
-            <div class="ncc-facility-info">
-                <div class="ncc-facility-info-left">
-                    <div class="ncc-facility-label">All Stalls</div>
-                    <div class="ncc-facility-desc">Monthly rental · 1,200.00 - 3,840.00 · Stall sizes: 10.5-70+ sqm</div>
-                 
-                </div>
-                <div class="ncc-facility-mini-stats">
-                    <div class="ncc-mini-stat">
-                        <div class="ncc-mini-val">@FilteredStalls.Count(s => s.IsPaid)</div>
-                        <div class="ncc-mini-key">Paid</div>
-                    </div>
-                    <div class="ncc-mini-stat unpaid-stat">
-                        <div class="ncc-mini-val">@FilteredStalls.Count(s => !s.IsPaid && !s.IsPartial)</div>
-                        <div class="ncc-mini-key">Unpaid</div>
-                    </div>
-                    <div class="ncc-mini-stat partial-stat">
-                        <div class="ncc-mini-val">@FilteredStalls.Count(s => s.IsPartial)</div>
-                        <div class="ncc-mini-key">Partial</div>
-                    </div>
-                    <div class="ncc-mini-stat">
-                        <div class="ncc-mini-val">₱@FilteredStalls.Where(s => s.IsPaid).Sum(s => s.MonthlyRate).ToString("N0")</div>
-                        <div class="ncc-mini-key">Collected</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── Stalls Table (Reusable Component) ── -->
-            <FacilityStallsTable TStall="NccStall"
-                                 Facility="NCC"
-                                 FilteredStalls="FilteredStalls"
-                                 OnPaymentClick="OpenPayment"
-                                 OnHistoryClick="OpenHistory"
-                                 OnEditClick="OpenEdit" />
-
-        </div><!-- end content-area -->
-    </main>
-</div>
-
-<!-- ══════════════════════════════════════════════
-     PAYMENT MODAL (Reusable Component)
-══════════════════════════════════════════════ -->
-<FacilityPaymentModal TStall="NccStall"
-                      Facility="NCC"
-                      Stall="PaymentStall"
-                      Show="ShowPayment"
-                      OnClose="ClosePayment"
-                      OnSave="HandleSavePayment" />
-
-<!-- ══════════════════════════════════════════════
-     PAYMENT HISTORY MODAL (Reusable)
-══════════════════════════════════════════════ -->
-<PaymentHistoryModal TStall="NccStall"
-                     Show="@ShowHistory"
-                     Stall="@HistoryStall"
-                     FacilityCode="NCC"
-                     FacilityName="New Commercial Center"
-                     OnClose="() => ShowHistory = false" />
-
-<!-- ══════════════════════════════════════════════
-     ADD / EDIT VENDOR MODAL (NEW COMMERCIAL CENTER)
-══════════════════════════════════════════════ -->
-<AddVendorModal Show="ShowAddVendorModal"
-                IsEditing="false"
-                Form="VendorForm"
-                @bind-FormError="VendorErrorMessage"
-                FieldErrors="VendorFieldErrors"
-                FacilityOptions="NccFacilityOptions"
-                FacilityLocked="true"
-                OnSave="SubmitAddVendor"
-                OnCancel="CloseAddVendorModal"
-                OnFacilityChanged="() => {}"
-                OnSectionChanged="() => {}"
-                OnToggleFee="ToggleVendorFee" />
+<FacilityPage TStall="NccStall"
+              FacilityCodeEnum="FacilityCode.NCC"
+              FacilityName="New Commercial Center"
+              FacilityShortCode="NCC"
+              FacilityDescription="Monthly rental · 1,200.00 - 3,840.00 · Stall sizes: 10.5-70+ sqm"
+              FacilityIcon="@NccIcon"
+              DefaultMonthlyRate="1200"
+              DefaultFeeTypes="@(new List<string>())"
+              StallMapper="@MapStall"
+              IsPaidSelector="@(s => s.IsPaid)"
+              IsPartialSelector="@(s => s.IsPartial)"
+              IsActiveSelector="@(s => s.IsActive)"
+              MonthlyRateSelector="@(s => s.MonthlyRate)"
+              PartialAmountSelector="@(s => s.PartialAmount)"
+              StallNoSelector="@(s => s.StallNo)"
+              ActualOccupantSelector="@(s => s.ActualOccupant)"
+              ContractNameSelector="@(s => s.ContractName)"
+              ORNumberSetter="@((s, or) => s.ORNumber = or)" />
 
 @code {
+    private RenderFragment NccIcon => @<svg viewBox="0 0 24 24" class="npm-icon-svg" style="width: 24px; height: 24px; stroke: var(--gold); fill: none; stroke-width: 2;"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>;
 
-    bool SidebarCollapsed = false;
-
-    string SearchQuery = string.Empty;
-    string ActiveStatus = "All";
-    readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
-
-    protected override async Task OnInitializedAsync()
-    {
-        ResetState();
-        await LoadStallsFromApi();
-    }
-
-    private async Task LoadStallsFromApi()
-    {
-        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NCC, null, null, 100);
-        if (result.IsSuccess && result.Value != null)
-        {
-            Stalls.Clear();
-            int id = 1;
-            foreach (var dto in result.Value.Items)
-            {
-                Stalls.Add(new NccStall
-                {
-                    Id = id++,
-                    StallGuid = dto.Id,
-                    StallNo = dto.StallNo,
-                    ActualOccupant = dto.ActualOccupant ?? "N/A",
-                    ContractName = dto.NameOnContract ?? "N/A",
-                    AreaSqm = dto.AreaSqm ?? 0,
-                    ContractDate = dto.ContractDate,
-                    MonthlyRate = dto.MonthlyRate,
-                    IsActive = dto.Status == StallStatus.Active,
-                    ORNumber = dto.ORNumber ?? string.Empty,
-                    IsPaid = false,
-                    IsPartial = false,
-                    HasElectricity = true,
-                    HasWater = true,
-                    PaymentHistory = MakeH(0)
-                });
-            }
-        }
-    }
-
-    private void ResetState()
-    {
-        SearchQuery = string.Empty;
-        ActiveStatus = "All";
-        ShowPayment = false;
-        PaymentStall = null;
-        ShowHistory = false;
-        HistoryStall = null;
-    }
-
-    // Toolbar management
-    private List<Toolbar.ToolbarAction> ToolbarActions => new()
-    {
-        new()
-        {
-            Label = "Add New",
-            Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
-            ClassName = "btn-primary",
-            Title = "Add a new stall",
-            OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
-        }
-    };
-
-    private RenderFragment ActionBarContent => @<ActionBar Facility="ncc" />;
-
-    private async Task OnSearchInput(string value)
-    {
-        SearchQuery = value;
-    }
-
-    private async Task OnFilterChange(string filter)
-    {
-        ActiveStatus = filter;
-    }
-
-    class NccStall
+    public class NccStall
     {
         public int Id { get; set; }
         public Guid StallGuid { get; set; } = Guid.Empty;
@@ -273,204 +46,29 @@
         public decimal PartialAmount { get; set; }
         public bool IsActive { get; set; } = true;
         public string ORNumber { get; set; } = string.Empty;
-        public string CollectorName { get; set; } = string.Empty;
-        public decimal ElecReading { get; set; }
-        public decimal ElecAmount { get; set; }
-        public decimal WaterReading { get; set; }
-        public decimal WaterAmount { get; set; }
-        public decimal TotalBill => MonthlyRate + ElecAmount + WaterAmount;
-        public decimal TotalPaid => IsPaid ? TotalBill : IsPartial ? PartialAmount : 0;
-        public decimal BalanceDue => TotalBill - TotalPaid;
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
     }
 
-    List<NccStall> Stalls = new();
-
-    static Dictionary<string, bool> MakeH(int paid)
+    private NccStall MapStall(Application.Dtos.Stalls.StallDto dto, bool isPaid, bool isPartial, decimal partialAmount, string orNumber)
     {
-        var d = new Dictionary<string, bool>();
-        for (int i = 11; i >= 0; i--)
-            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
-        return d;
-    }
-
-    IEnumerable<NccStall> ActiveStalls => Stalls.Where(s => s.IsActive);
-
-    decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
-    decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
-    int CollectionRate => ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0;
-
-    IEnumerable<NccStall> FilteredStalls => Stalls.Where(s =>
-    {
-        bool matchStatus = ActiveStatus switch
+        return new NccStall
         {
-            "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
-            "Partial" => s.IsPartial && s.IsActive,
-            "Unpaid" => !s.IsPaid && !s.IsPartial && s.IsActive,
-            "Closed" => !s.IsActive,
-            _ => true
+            StallGuid = dto.Id,
+            StallNo = dto.StallNo,
+            ActualOccupant = dto.ActualOccupant ?? "N/A",
+            ContractName = dto.NameOnContract ?? "N/A",
+            AreaSqm = dto.AreaSqm ?? 0,
+            ContractDate = dto.ContractDate,
+            MonthlyRate = dto.MonthlyRate,
+            IsActive = dto.Status == StallStatus.Active,
+            ORNumber = orNumber,
+            IsPaid = isPaid,
+            IsPartial = isPartial,
+            PartialAmount = partialAmount,
+            HasElectricity = true,
+            HasWater = true,
+            PaymentHistory = new()
         };
-        bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
-            || s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
-        return matchStatus && matchSearch;
-    }).OrderBy(s => s.StallNo);
-
-    string GetPayPillClass(NccStall s) =>
-        s.IsPartial ? "pill-partial" :
-        s.IsPaid ? "pill-paid" : "pill-unpaid";
-
-    string GetPayLabel(NccStall s) =>
-        s.IsPartial ? $"₱{s.PartialAmount:N0} paid" :
-        s.IsPaid ? "Paid" : "Unpaid";
-
-    // Payment modal state
-    bool ShowPayment = false;
-    NccStall? PaymentStall = null;
-
-    void OpenPayment(NccStall s)
-    {
-        PaymentStall = s;
-        ShowPayment = true;
-    }
-
-    void MarkAsPaid()
-    {
-        if (PaymentStall is null) return;
-        PaymentStall.IsPaid = true;
-        PaymentStall.IsPartial = false;
-        var key = DateTime.Now.ToString("yyyy-MM");
-        PaymentStall.PaymentHistory[key] = true;
-        ClosePayment();
-    }
-
-    void ClosePayment() { ShowPayment = false; PaymentStall = null; }
-
-    private async Task HandleSavePayment(FacilityPaymentModal<NccStall>.PaymentSubmitDto payment)
-    {
-        if (PaymentStall != null)
-        {
-            // Update the stall's OR Number
-            PaymentStall.ORNumber = payment.OrNumber;
-
-            // Force re-render to display updated OR Number in table
-            StateHasChanged();
-
-            // Close the modal
-            ShowPayment = false;
-            PaymentStall = null;
-        }
-    }
-
-    bool ShowHistory = false;
-    NccStall? HistoryStall = null;
-    void OpenHistory(NccStall s) { HistoryStall = s; ShowHistory = true; }
-    void OpenEdit(NccStall s) { Navigation.NavigateTo("/profile"); }
-
-    // Add Vendor Modal
-    private bool ShowAddVendorModal { get; set; }
-    private string VendorErrorMessage { get; set; } = string.Empty;
-    private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
-    private AddVendorModal.VendorModalForm VendorForm = new();
-    private List<AddVendorModal.VendorFacilityOption> NccFacilityOptions => new() { new() { Code = "NCC", Name = "New Commercial Center" } };
-
-    private void OpenAddVendorModal()
-    {
-        VendorForm = new() 
-        { 
-            FacilityCode = "NCC",
-            StallNo = string.Empty,
-            ActualOccupant = string.Empty,
-            ContractName = string.Empty,
-            SelectedSection = string.Empty,
-            AreaSqm = 0,
-            MonthlyRate = 1200,
-            ContractDate = new DateTime(2023, 6, 7),
-            ContractYears = 3,
-            AreaLocation = string.Empty,
-            FeeTypes = new()
-        };
-        VendorErrorMessage = string.Empty;
-        VendorFieldErrors.Clear();
-        ShowAddVendorModal = true;
-        StateHasChanged();
-    }
-
-    private void CloseAddVendorModal()
-    {
-        ShowAddVendorModal = false;
-        VendorForm = new();
-        VendorErrorMessage = string.Empty;
-        VendorFieldErrors.Clear();
-    }
-
-    private void ToggleVendorFee(string fee)
-    {
-        if (VendorForm.FeeTypes.Contains(fee))
-            VendorForm.FeeTypes.Remove(fee);
-        else
-            VendorForm.FeeTypes.Add(fee);
-    }
-
-    private async Task SubmitAddVendor()
-    {
-        VendorErrorMessage = string.Empty;
-        VendorFieldErrors.Clear();
-
-        var fees = ApplicableFees.BaseRental;
-
-        var command = new CreateStallCommand(
-            FacilityCode.NCC,
-            VendorForm.StallNo.Trim(),
-            VendorForm.MonthlyRate,
-            fees,
-            null,
-            null,
-            VendorForm.AreaSqm,
-            null,
-            null,
-            VendorForm.ActualOccupant.Trim(),
-            string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
-            VendorForm.ContractDate,
-            VendorForm.ContractYears);
-
-        var result = await StallsApi.CreateStallAsync(command);
-
-        if (result.IsSuccess)
-        {
-            var newStall = new NccStall
-            {
-                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
-                StallGuid = result.Value!.Id,
-                StallNo = VendorForm.StallNo.Trim(),
-                ActualOccupant = VendorForm.ActualOccupant.Trim(),
-                ContractName = VendorForm.ContractName.Trim(),
-                AreaSqm = VendorForm.AreaSqm,
-                ContractDate = VendorForm.ContractDate,
-                MonthlyRate = VendorForm.MonthlyRate,
-                IsActive = true,
-                PaymentHistory = new()
-            };
-
-            Stalls.Add(newStall);
-            CloseAddVendorModal();
-        }
-        else
-        {
-            if (result.ValidationErrors != null && result.ValidationErrors.Any())
-            {
-                foreach (var error in result.ValidationErrors)
-                {
-                    VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
-                }
-                StateHasChanged();
-            }
-            else
-            {
-                VendorErrorMessage = result.Error ?? "Failed to create stall.";
-            }
-        }
     }
 }
 

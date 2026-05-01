@@ -7,8 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Documentation\APP_CSS_DOCUMENTATION.md" />
-    <Content Include="Documentation\PROJECT_DOCUMENTATION.md" />
+    <Compile Remove="Documentation\**" />
+    <Content Remove="Documentation\**" />
+    <EmbeddedResource Remove="Documentation\**" />
+    <None Remove="Documentation\**" />
   </ItemGroup>
 
   <ItemGroup>

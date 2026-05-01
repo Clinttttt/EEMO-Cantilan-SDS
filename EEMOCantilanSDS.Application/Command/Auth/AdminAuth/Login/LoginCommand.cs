@@ -9,6 +9,6 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 {
-    public record LoginCommand(string Username, string Password) : IRequest<Result<TokenResponseDto>>;
+    public record LoginCommand(string? Username, string? Password) : IRequest<Result<TokenResponseDto>>;
     
 }

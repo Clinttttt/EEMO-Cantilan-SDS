@@ -7,15 +7,24 @@
 
 All Blazor HTTP calls use typed API clients — never inject HttpClient directly into components.
 
+**HttpClient Extension Location:** `Client/Extensions/HttpClientExtensions.cs`
+
 Pattern:
 1. Define interface in `Application/Common/Interface/ApiClients/I{Feature}ApiClient.cs`
 2. Implement in `Infrastructure/HttpClients/ApiClients/{Feature}ApiClient.cs` extending `HandleResponse`
 3. Register in `Client/DependencyInjection.cs` using `AddApiHttpClient<TClient, TImplementation>(configuration)` extension
 
-The `AddApiHttpClient` extension automatically:
-- Sets BaseAddress from configuration
+The `AddApiHttpClient` extension (from `HttpClientExtensions.cs`) automatically:
+- Sets BaseAddress from configuration (`ApiBaseUrl`)
 - Adds RefreshTokenDelegatingHandler
 - Adds AuthorizationDelegatingHandler
+
+Extension signature:
+```csharp
+public static IHttpClientBuilder AddApiHttpClient<TClient, TImplementation>
+    (this IServiceCollection services, IConfiguration configuration)
+    where TClient : class where TImplementation : class, TClient
+```
 
 For public endpoints (no auth needed like login), use raw `AddHttpClient` instead.
 
@@ -31,7 +40,9 @@ if (result.IsSuccess) { ... }
 
 ## Cursor Pagination
 
-For scrollable/infinite scroll tables, use cursor-based pagination:
+For scrollable/infinite scroll tables, use cursor-based pagination.
+
+**Extension Method Location:** `Application/Extensions/PaginationExtensions.cs`
 
 Query Pattern:
 - Add `DateTime? Cursor` and `int PageSize` parameters
@@ -43,6 +54,7 @@ Repository Pattern:
 - Order by CreatedAt descending: `query = query.OrderByDescending(x => x.CreatedAt);`
 - Use extension: `await query.ToCursorPagedResultAsync(pageSize, x => x.CreatedAt, ct);`
 - Returns `CursorPagedResult<T>` with `Items`, `NextCursor`, `HasMore`
+- Extension signature: `ToCursorPagedResultAsync<T>(this IQueryable<T> query, int pageSize, Func<T, DateTime?> cursorSelector, CancellationToken ct)`
 
 Validation:
 - PageSize: `GreaterThan(0)` and `LessThanOrEqualTo(100)`
@@ -51,6 +63,16 @@ Frontend:
 - Initial load: pass `Cursor = null`
 - Load more: pass `NextCursor` from previous response
 - Stop when `HasMore = false`
+
+CursorPagedResult Model (Domain/Common/CursorPagedResult.cs):
+```csharp
+public class CursorPagedResult<T>
+{
+    public List<T> Items { get; set; } = new();
+    public DateTime? NextCursor { get; set; }
+    public bool HasMore { get; set; }
+}
+```
 
 ---
 
@@ -132,10 +154,11 @@ Rule: every data access goes through a repo — no exceptions.
 Handlers inject repo interfaces + IUnitOfWork. They never touch DbContext directly.
 
 Interface: Application/Common/Interface/Persistence/I{Feature}Repository.cs
-Implementation: Infrastructure/Persistence/Repositories/{Feature}Repository.cs
+Implementation: Infrastructure/Repositories/{Feature}Repository.cs
 
 Implementation rules:
 - Primary constructor: AppDbContext context
+- Namespace: `EEMOCantilanSDS.Infrastructure.Repositories`
 - Use context.{DbSet} internally — DbContext lives only inside repos
 - Complex aggregations and projections belong inside the repo method, not the handler
 - Computed properties are not DB columns — recalculate from raw stored fields inline in the repo:

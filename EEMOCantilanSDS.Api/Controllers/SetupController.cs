@@ -1,10 +1,12 @@
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin;
 using EEMOCantilanSDS.Application.Queries.Auth.GetSetupStatus;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
+[AllowAnonymous]
 public class SetupController(ISender sender) : ApiBaseController(sender)
 {
     [HttpGet("status")]

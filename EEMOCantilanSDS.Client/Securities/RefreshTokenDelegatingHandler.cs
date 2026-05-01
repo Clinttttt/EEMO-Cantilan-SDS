@@ -2,7 +2,7 @@ using System.Net;
 
 namespace EEMOCantilanSDS.Client.Securities;
 
-public class RefreshTokenDelegatingHandler(TokenService tokenService, IHttpContextAccessor httpContextAccessor) : DelegatingHandler
+public class RefreshTokenDelegatingHandler( IHttpClientFactory httpClientFactory,TokenService tokenService, IHttpContextAccessor httpContextAccessor) : DelegatingHandler
 {
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
 
@@ -19,9 +19,10 @@ public class RefreshTokenDelegatingHandler(TokenService tokenService, IHttpConte
             var ctx = httpContextAccessor.HttpContext;
             if (ctx?.Request.Cookies.TryGetValue("RefreshToken", out var refresh) != true || string.IsNullOrWhiteSpace(refresh))
                 return response;
-
-            var refreshResponse = await ctx.RequestServices.GetRequiredService<HttpClient>()
-                .PostAsJsonAsync("/api/authproxy/refresh", new { RefreshToken = refresh }, cancellationToken);
+                
+                var refreshClient = httpClientFactory.CreateClient("RefreshClient");
+                var refreshResponse = await refreshClient.PostAsJsonAsync("/api/authproxy/refresh", new { RefreshToken = refresh }, cancellationToken);
+    
 
             if (!refreshResponse.IsSuccessStatusCode)
                 return response;

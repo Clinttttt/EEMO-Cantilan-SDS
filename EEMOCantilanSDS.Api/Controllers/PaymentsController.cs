@@ -3,10 +3,12 @@ using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentRecord;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
+[Authorize]
 public class PaymentsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpGet("stall/{stallId}")]

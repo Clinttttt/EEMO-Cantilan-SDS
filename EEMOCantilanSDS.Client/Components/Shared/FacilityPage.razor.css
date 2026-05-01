@@ -1,0 +1,250 @@
+/* ============================================================
+   FacilityPage.razor.css — Shared facility page styles
+   Blazor CSS isolation: applies to FacilityPage.razor
+   Use --* tokens from app.css; do NOT redefine them here.
+   ============================================================ */
+
+
+/* ── Back Button ─────────────────────────────────────────── */
+.tcc-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-right: 10px;
+    flex-shrink: 0;
+    transition: background .15s, border-color .15s, color .15s;
+}
+
+    .tcc-back-btn:hover {
+        background: var(--bg-icon);
+        color: var(--navy);
+        border-color: var(--navy);
+    }
+
+    .tcc-back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+
+/* ── Hero Banner ─────────────────────────────────────────── */
+.tcc-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+    .tcc-hero::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+.tcc-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.tcc-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.npm-icon-svg {
+    color: var(--gold);
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.tcc-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.tcc-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.tcc-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.tcc-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.tcc-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+    .tcc-hero-stat:first-child {
+        padding-left: 0;
+    }
+
+.tcc-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.tcc-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.tcc-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.tcc-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.tcc-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}
+
+
+/* ── Info Bar ────────────────────────────────────────────── */
+.tcc-section-info {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.tcc-section-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.tcc-section-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+.tcc-section-mini-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.tcc-mini-stat {
+    text-align: center;
+    min-width: 60px;
+}
+
+.tcc-mini-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.tcc-mini-key {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.tcc-mini-stat.unpaid-stat .tcc-mini-val {
+    color: var(--red);
+}
+
+.tcc-mini-stat.partial-stat .tcc-mini-val {
+    color: #b07d2b;
+}
+
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .tcc-hero {
+        padding: 20px;
+        gap: 16px;
+    }
+
+    .tcc-hero-title {
+        font-size: 18px;
+    }
+
+    .tcc-hero-val {
+        font-size: 18px;
+    }
+
+    .tcc-hero-stat {
+        padding: 0 12px;
+    }
+}

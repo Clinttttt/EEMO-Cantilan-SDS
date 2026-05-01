@@ -24,7 +24,7 @@ namespace EEMOCantilanSDS.Infrastructure
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
-            service.AddScoped<ITokenService, TokenService>();
+ 
             
             // Repositories
             service.AddScoped<IAuthRepository, AuthRepository>();
@@ -33,7 +33,13 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IStallRepository, StallRepository>();
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();
-            
+            service.AddScoped<IVendorRepository, VendorRepository>();
+
+
+            // Services
+            service.AddScoped<ICurrentUserService, CurrentUserService>();
+            service.AddScoped<ITokenService, TokenService>();
+
             return service;
 
         }

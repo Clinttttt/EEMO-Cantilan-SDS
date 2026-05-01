@@ -1,0 +1,629 @@
+﻿/* ══════════════════════════════════════════════════════════════════════
+   PaymentHistoryModal.razor.css
+   Scoped styles — only apply to PaymentHistoryModal component.
+   Inherits design tokens from app.css (:root variables).
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Modal shell ─────────────────────────────────────────── */
+.ph-modal {
+    background: var(--bg-card);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 960px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 80px rgba(13,33,55,0.3), 0 0 0 1px rgba(13,33,55,0.08);
+    overflow: hidden;
+}
+
+/* ── HEADER — same background/feel as NCC/NPM hero ──────── */
+.ph-header {
+    background: var(--navy); /* exact same token as facility heroes */
+    padding: 22px 24px 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+/* Radial glow — identical approach to NPM/NCC ::before */
+.ph-header-glow {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 260px;
+    height: 260px;
+    background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+}
+
+/* Left: icon + identity */
+.ph-header-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex: 0 1 auto;
+    min-width: 0;
+    padding-bottom: 22px;
+    position: relative;
+    z-index: 1;
+}
+
+.ph-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: rgba(200,168,75,.18);
+    border: 1px solid rgba(200,168,75,.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .ph-header-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.ph-header-eyebrow {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 350px;
+}
+
+.ph-dot {
+    opacity: .45;
+    font-size: 10px;
+}
+
+.ph-header-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.ph-header-contract {
+    font-size: 12px;
+    color: rgba(255,255,255,.45);
+    margin-top: 4px;
+}
+
+/* Right: stats + badge + close */
+.ph-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+    padding-bottom: 22px;
+    position: relative;
+    z-index: 1;
+    flex: 1;
+}
+
+.ph-header-right-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Inline stats inside header (same as hero val/key) */
+.ph-header-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    width: 100%;
+    justify-content: flex-end;
+}
+
+.ph-hstat {
+    padding: 0 14px;
+    text-align: center;
+    flex-shrink: 0;
+    min-width: auto;
+}
+
+    .ph-hstat:first-child {
+        padding-left: 0;
+    }
+
+.ph-hstat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+.ph-hstat-of {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255,255,255,.4);
+    margin-left: 1px;
+}
+
+.ph-hstat-red {
+    color: #e09090;
+}
+
+.ph-hstat-key {
+    font-size: 9px;
+    color: rgba(255,255,255,.45);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.ph-hstat-div {
+    width: 1px;
+    height: 24px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+    margin: 0 4px;
+}
+
+/* Status badges */
+.ph-status-badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: .7px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    border: 1.5px solid transparent;
+}
+
+.ph-badge-consistent {
+    background: rgba(200,168,75,.15);
+    color: var(--gold-light);
+    border-color: rgba(200,168,75,.35);
+}
+
+.ph-badge-arrears {
+    background: rgba(200,168,75,.08);
+    color: rgba(232,204,118,.7);
+    border-color: rgba(200,168,75,.2);
+}
+
+.ph-badge-delinquent {
+    background: rgba(139,58,58,.25);
+    color: #e09090;
+    border-color: rgba(139,58,58,.4);
+}
+
+/* Close button in header */
+.ph-close-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    flex-shrink: 0;
+}
+
+    .ph-close-btn:hover {
+        background: rgba(255,255,255,.14);
+        border-color: rgba(255,255,255,.3);
+    }
+
+    .ph-close-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: rgba(255,255,255,.7);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Gold progress bar — pinned to absolute bottom of header */
+.ph-header-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.08);
+}
+
+.ph-header-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .6s ease;
+}
+
+/* ── COMPLIANCE ROW ──────────────────────────────────────── */
+.ph-compliance-row {
+    display: none;
+}
+
+/* ── LEDGER BODY ─────────────────────────────────────────── */
+.ph-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
+}
+
+/* Sticky column header */
+.ph-ledger-header {
+    display: grid;
+    grid-template-columns: 180px 90px 1fr 140px 150px 100px 100px;
+    padding: 12px 20px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    min-width: 880px;
+}
+
+    .ph-ledger-header > div {
+        font-size: 13px;
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+/* Ledger rows */
+.ph-ledger-body {
+    min-width: 880px;
+}
+
+.ph-ledger-row {
+    display: grid;
+    grid-template-columns: 180px 90px 1fr 140px 150px 100px 100px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background .12s;
+    position: relative;
+    background: var(--bg-card);
+}
+
+    .ph-ledger-row:hover {
+        background: rgba(0,0,0,.02);
+    }
+
+    .ph-ledger-row:last-child {
+        border-bottom: none;
+    }
+
+.ph-row-paid {
+    border-left: none;
+}
+
+.ph-row-unpaid {
+    border-left: none;
+    background: var(--bg-card);
+}
+
+    .ph-row-unpaid:hover {
+        background: rgba(0,0,0,.02);
+    }
+
+.ph-row-before-contract {
+    background: #f5f7f9 !important;
+    opacity: 0.6;
+}
+
+    .ph-row-before-contract:hover {
+        background: #f0f3f6 !important;
+    }
+
+.ph-row-current {
+    background: var(--bg-card) !important;
+    border-left: none !important;
+}
+
+/* Period cell */
+.ph-cell-period {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ph-period-dot {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+.ph-dot-paid {
+    display: none;
+}
+
+.ph-dot-unpaid {
+    display: none;
+}
+
+.ph-dot-gray {
+    display: none;
+}
+
+.ph-period-month {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text);
+}
+
+.ph-period-year {
+    font-size: 13px;
+    color: var(--text);
+    margin-top: 0;
+}
+
+.ph-current-tag {
+    display: none;
+}
+
+/* Status pill */
+.ph-pay-pill {
+    display: inline;
+    align-items: center;
+    gap: 0;
+    font-size: 13px;
+    font-weight: 400;
+    padding: 0;
+    border-radius: 0;
+}
+
+    .ph-pay-pill svg {
+        display: none;
+    }
+
+.ph-pill-paid {
+    background: none;
+    color: var(--text);
+    border: none;
+}
+
+    .ph-pill-paid svg {
+        display: none;
+    }
+
+.ph-pill-unpaid {
+    background: none;
+    color: var(--text);
+    border: none;
+}
+
+    .ph-pill-unpaid svg {
+        display: none;
+    }
+
+.ph-pill-gray {
+    background: none;
+    color: var(--text-muted);
+    border: none;
+    opacity: 0.7;
+}
+
+    .ph-pill-gray svg {
+        display: none;
+    }
+
+/* OR number */
+.ph-or-num {
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+    white-space: nowrap;
+}
+
+.ph-or-auto {
+    opacity: 1;
+    font-style: normal;
+}
+
+/* Misc cells */
+.ph-pay-date {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.ph-cell-empty {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* Collector */
+.ph-collector-cell {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+
+.ph-collector-avatar {
+    display: none;
+}
+
+.ph-collector-name {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 110px;
+}
+
+/* Amounts */
+.ph-amount-paid {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text);
+    font-family: inherit;
+}
+
+.ph-amount-unpaid {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text);
+    text-decoration: none;
+    font-family: inherit;
+}
+
+.ph-balance-due {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text);
+    font-family: inherit;
+}
+
+.ph-balance-zero {
+    font-size: 13px;
+    color: var(--text);
+    font-family: inherit;
+}
+
+/* ── FOOTER ──────────────────────────────────────────────── */
+.ph-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ph-footer-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+    .ph-footer-meta svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+.ph-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ph-balance-alert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--red);
+    background: var(--red-bg);
+    border: 1px solid rgba(139,58,58,.2);
+    padding: 6px 12px;
+    border-radius: 8px;
+}
+
+    .ph-balance-alert svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--red);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+/* ── RESPONSIVE ──────────────────────────────────────────── */
+@media (max-width: 960px) {
+    .ph-modal {
+        max-width: 100%;
+        border-radius: 12px;
+    }
+
+    .ph-header {
+        flex-wrap: wrap;
+        padding-bottom: 4px;
+    }
+
+    .ph-header-right {
+        align-items: flex-start;
+    }
+
+    .ph-header-stats {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .ph-hstat {
+        padding: 0 12px;
+    }
+}
+
+@media (max-width: 640px) {
+    .ph-header {
+        padding: 16px 16px 0;
+        gap: 16px;
+    }
+
+    .ph-compliance-row {
+        padding: 8px 16px;
+    }
+
+    .ph-ledger-header,
+    .ph-ledger-body {
+        min-width: 700px;
+    }
+
+    .ph-ledger-header {
+        grid-template-columns: 150px 80px 1fr 110px 110px 90px 90px;
+    }
+
+    .ph-ledger-row {
+        grid-template-columns: 150px 80px 1fr 110px 110px 90px 90px;
+    }
+
+    .ph-footer {
+        padding: 10px 16px;
+    }
+}

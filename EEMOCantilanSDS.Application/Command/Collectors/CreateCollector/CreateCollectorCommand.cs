@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
+using System.Collections.Generic;
 
 namespace EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
 

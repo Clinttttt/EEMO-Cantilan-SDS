@@ -56,10 +56,18 @@ namespace EEMOCantilanSDS.Client
                 client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
             });
 
+            service.AddHttpClient("RefreshClient", client =>
+            {
+                client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
+            });
+
+
+
             service.AddApiHttpClient<ISetupApiClient, SetupApiClient>(configuration);
             service.AddApiHttpClient<IStallsApiClient, StallsApiClient>(configuration);
             service.AddApiHttpClient<ICollectorsApiClient, CollectorsApiClient>(configuration);
             service.AddApiHttpClient<IPaymentsApiClient, PaymentsApiClient>(configuration);
+            service.AddApiHttpClient<IVendorsApiClient, VendorsApiClient>(configuration);
 
             return service;
         }

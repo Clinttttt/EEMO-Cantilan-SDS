@@ -5,10 +5,12 @@ using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
+[Authorize]
 public class FacilitiesController(ISender sender) : ApiBaseController(sender)
 {
     [HttpGet("{facilityCode}/stalls")]

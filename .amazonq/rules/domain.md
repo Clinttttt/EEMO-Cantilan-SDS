@@ -92,15 +92,17 @@ Discriminator column: `UserType` (`"Admin"` or `"Collector"`)
 
 **Stall : AuditableEntity**
 - Belongs to `Facility`
-- Fields: `StallNo`, `MonthlyRate`, `DailyRate` (NPM only, nullable), `Section` (NPM only, nullable), `AreaLocation` (NCC only, nullable)
-- Computed (ignore in EF): `IsActive`
+- Fields: `StallNo`, `MonthlyRate`, `DailyRate` (NPM only, nullable), `Section` (NPM only, nullable), `AreaLocation` (NCC only, nullable), `AreaSqm`, `AreaNote`, `Remarks`, `Fees` (ApplicableFees enum), `Status` (StallStatus enum)
+- Computed (ignore in EF): `IsActive` (derived from Status == Active)
 - Unique constraint: `(FacilityId, StallNo)`
 - **No `PayorId`** — tenant is tracked via `Contract`
+- Methods: `Create()`, `UpdateRates()`, `UpdateAreaInfo()`, `UpdateDetails()`, `Close()`, `Reopen()`, `IsActive()`
 
 **Contract : AuditableEntity**
 - One stall can have many contracts over time
-- Fields: `ActualOccupant`, `NameOnContract` (can differ), `StartDate`, `EndDate`
+- Fields: `StallId`, `ORNumber`, `ActualOccupant`, `NameOnContract` (can differ), `EffectivityDate` (DateOnly), `DurationYears`, `MonthlyRentalRate`, `ActualMonthlyRental`, `IsActive`, `Remarks`
 - Computed (ignore in EF): `ExpiryDate`, `IsExpired`, `IsExpiringSoon`, `WholeYearRental`
+- Methods: `Create()`, `UpdateOccupant()`, `UpdateRemarks()`, `Terminate()`
 
 ---
 
@@ -108,27 +110,30 @@ Discriminator column: `UserType` (`"Admin"` or `"Collector"`)
 
 **PaymentRecord : AuditableEntity**
 - One per stall per billing month
-- Fields: `StallId`, `BillingYear`, `BillingMonth`, `ORNumber`, `Status` (Unpaid/Partial/Paid), `UtilitiesAmount`, `FishKilos`
+- Fields: `StallId`, `CollectorId`, `BillingYear`, `BillingMonth`, `ORNumber`, `Status` (Unpaid/Partial/Paid), `PaidAt`, `BaseRentalAmount`, `PartialAmount`, `ElecReading`, `ElecAmount`, `WaterReading`, `WaterAmount`, `FishKilos`, `Remarks`
 - Computed (ignore in EF): `TotalBill`, `BalanceDue`, `AmountPaid`, `FishFeeAmount`, `PeriodKey`
 - Unique constraint: `(StallId, BillingYear, BillingMonth)`
 - OR Number: manually entered, globally unique, shown only when Paid or Partial
+- Methods: `Create()`, `RecordPayment()`, `MarkUnpaid()`, `UpdateStatus()`
 
 **DailyCollection : AuditableEntity** — NPM only
 - One per stall per calendar day
-- Fields: `StallId`, `CollectionDate`, `ORNumber`, `FishKilos` (Fish Section only)
+- Fields: `StallId`, `CollectorId`, `CollectionDate` (DateOnly), `DailyFee`, `IsPaid`, `ORNumber`, `FishKilos` (Fish Section only)
 - `FishFeeAmount = FishKilos × FeeRates.NpmFishFeePerKilo` — computed, ignore in EF
 - `TotalCollected` — computed, ignore in EF
 - Unique constraint: `(StallId, CollectionDate)`
+- Methods: `Create()`, `MarkPaid()`, `MarkUnpaid()`
 
 ---
 
 ### Slaughterhouse
 
-**SlaughterTransaction : BaseEntity** (no audit fields — immutable once recorded)
-- `AnimalType` enum: `Hog`, `Carabao`, `Cow`
+**SlaughterTransaction : AuditableEntity** (immutable once recorded)
+- Fields: `FacilityId`, `CollectorId`, `OwnerName`, `AnimalType` (enum: Hog/Carabao/Cow), `NumberOfHeads`, `RatePerHead`, `ORNumber`, `TransactionDate` (DateOnly)
+- Fee breakdown fields (stored for audit): `SlaughterFee`, `SlaughterPermit`, `AntemortemFee`, `PostmortemFee`, `TableCharge`, `EntranceFee`, `LivestockFee`
+- `TotalAmount` — computed, ignore in EF
 - Two factory methods: `CreateHog()` and `CreateLargeAnimal()`
 - Passing `AnimalType.Hog` to `CreateLargeAnimal()` throws `ArgumentException`
-- `TotalAmount` — computed, ignore in EF
 - Billing: use `FeeRates.SlhHogTotalPerHead` or `FeeRates.SlhLargeTotalPerHead` — never sum components at billing time
 
 ---

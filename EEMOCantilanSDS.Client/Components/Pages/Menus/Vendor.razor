@@ -1,7 +1,11 @@
-﻿@page "/vendors"
+@page "/vendors"
+@using EEMOCantilanSDS.Application.Dtos.Vendors
+@attribute [Authorize]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject IVendorsApiClient VendorsApi
+@inject IStallsApiClient StallsApi
 <PageTitle>EEMO Admin — Vendors &amp; Stalls</PageTitle>
 
 <div class="admin-layout">
@@ -36,220 +40,231 @@
 
         <div class="content-area">
 
-            <!-- Vendor Hero Banner — Page-level overview (all facilities) -->
-            <div class="vs-hero">
-                <div class="vs-hero-left">
-                    <div class="vs-hero-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="vs-hero-eyebrow">Vendors &amp; Stalls</div>
-                        <div class="vs-hero-title">Vendor Registry</div>
-                        <div class="vs-hero-sub">Municipality of Cantilan, SDS</div>
-                    </div>
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading vendor registry...</p>
                 </div>
-                <div class="vs-hero-stats">
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@AllVendors.Count</div>
-                        <div class="vs-hero-key">Total Vendors</div>
-                        <div class="vs-hero-sub2">@AllVendors.Count(v => v.IsActive) active · @AllVendors.Count(v => !v.IsActive) closed</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && v.IsPaidThisMonth)</div>
-                        <div class="vs-hero-key">Paid This Month</div>
-                        <div class="vs-hero-sub2">out of @AllVendors.Count(v => v.IsActive) active vendors</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
-                        <div class="vs-hero-key">Unpaid</div>
-                        <div class="vs-hero-sub2">@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
-                    </div>
-                    <div class="vs-hero-divider"></div>
-                    <div class="vs-hero-stat">
-                        <div class="vs-hero-val">@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
-                        <div class="vs-hero-key">Monthly Target</div>
-                        <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy") · All Facilities</div>
-                    </div>
-                </div>
-                <div class="vs-hero-progress">
-                    @{
-                        var allActive = AllVendors.Count(v => v.IsActive);
-                        var allPaid = AllVendors.Count(v => v.IsActive && v.IsPaidThisMonth);
-                        var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
-                    }
-                    <div class="vs-hero-progress-fill" style="@($"width: {overallRate}%;")"></div>
-                </div>
-            </div>
-
-            <!-- Toolbar (Single Row) -->
-            <div class="vs-toolbar-unified">
-                <!-- Left: Facility Selector -->
-                <div class="facility-selector" id="facilitySelectorWrapper">
-                    <div class="fac-trigger @(FacDropdownOpen ? "open" : "")" @onclick="ToggleFacDropdown">
-                        <div class="fac-trigger-body">
-                            <span class="fac-trigger-label">@ActiveFacilityTab.ShortName</span>
-                            <span class="fac-trigger-sub">@ActiveFacilityTab.Name</span>
+            }
+            else
+            {
+                <!-- Vendor Hero Banner — Page-level overview (all facilities) -->
+                <div class="vs-hero">
+                    <div class="vs-hero-left">
+                        <div class="vs-hero-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                <circle cx="9" cy="7" r="4" />
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                            </svg>
                         </div>
-                        @if (ActiveFacilityTab.UnpaidCount > 0)
-                        {
-                            <span class="fac-trigger-badge">@ActiveFacilityTab.UnpaidCount unpaid</span>
+                        <div>
+                            <div class="vs-hero-eyebrow">Vendors &amp; Stalls</div>
+                            <div class="vs-hero-title">Vendor Registry</div>
+                            <div class="vs-hero-sub">Municipality of Cantilan, SDS</div>
+                        </div>
+                    </div>
+                    <div class="vs-hero-stats">
+                        <div class="vs-hero-stat">
+                            <div class="vs-hero-val">@AllVendors.Count</div>
+                            <div class="vs-hero-key">Total Vendors</div>
+                            <div class="vs-hero-sub2">@AllVendors.Count(v => v.IsActive) active · @AllVendors.Count(v => !v.IsActive) closed</div>
+                        </div>
+                        <div class="vs-hero-divider"></div>
+                        <div class="vs-hero-stat">
+                            <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && v.IsPaidThisMonth)</div>
+                            <div class="vs-hero-key">Paid This Month</div>
+                            <div class="vs-hero-sub2">out of @AllVendors.Count(v => v.IsActive) active vendors</div>
+                        </div>
+                        <div class="vs-hero-divider"></div>
+                        <div class="vs-hero-stat">
+                            <div class="vs-hero-val">@AllVendors.Count(v => v.IsActive && !v.IsPaidThisMonth)</div>
+                            <div class="vs-hero-key">Unpaid</div>
+                            <div class="vs-hero-sub2">@(AllVendors.Where(v => v.IsActive && !v.IsPaidThisMonth).Sum(v => v.MonthlyRate).ToString("N0")) outstanding</div>
+                        </div>
+                        <div class="vs-hero-divider"></div>
+                        <div class="vs-hero-stat">
+                            <div class="vs-hero-val">@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
+                            <div class="vs-hero-key">Monthly Target</div>
+                            <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy") · All Facilities</div>
+                        </div>
+                    </div>
+                    <div class="vs-hero-progress">
+                        @{
+                            var allActive = AllVendors.Count(v => v.IsActive);
+                            var allPaid = AllVendors.Count(v => v.IsActive && v.IsPaidThisMonth);
+                            var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
                         }
-                        <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                        <div class="vs-hero-progress-fill" style="@($"width: {overallRate}%;")"></div>
+                    </div>
+                </div>
+
+                <!-- Toolbar (Single Row) -->
+                <div class="vs-toolbar-unified">
+                    <!-- Left: Facility Selector -->
+                    <div class="facility-selector" id="facilitySelectorWrapper">
+                        <div class="fac-trigger @(FacDropdownOpen ? "open" : "")" @onclick="ToggleFacDropdown">
+                            <div class="fac-trigger-body">
+                                <span class="fac-trigger-label">@ActiveFacilityTab.ShortName</span>
+                                <span class="fac-trigger-sub">@ActiveFacilityTab.Name</span>
+                            </div>
+                            @if (ActiveFacilityTab.UnpaidCount > 0)
+                            {
+                                <span class="fac-trigger-badge">@ActiveFacilityTab.UnpaidCount unpaid</span>
+                            }
+                            <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                        </div>
+
+                        @if (FacDropdownOpen)
+                        {
+                            <div class="fac-backdrop" @onclick="CloseFacDropdown"></div>
+                            <div class="fac-dropdown">
+                                <div class="fac-dd-header">Facility</div>
+                                @foreach (var f in FacilityTabs)
+                                {
+                                    <div class="fac-dd-item @(ActiveFacility == f.Code ? "active" : "")" @onclick="() => SelectFacility(f.Code)">
+                                        <div class="fac-dd-body"><span class="fac-dd-name">@f.Name</span></div>
+                                        @if (f.UnpaidCount > 0)
+                                        {
+                                            <span class="fac-dd-badge">@f.UnpaidCount</span>
+                                        }
+                                        @if (ActiveFacility == f.Code)
+                                        {
+                                            <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
                     </div>
 
-                    @if (FacDropdownOpen)
+                    <!-- Center: Filter Tabs -->
+                    <div class="filter-tabs-inline">
+                        @foreach (var f in StatusFilters)
+                        {
+                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")" @onclick="() => ActiveStatus = f">@f</div>
+                        }
+                    </div>
+
+                    <!-- Center-Right: Search -->
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input type="text" placeholder="Search stall no. or name…" @bind="SearchQuery" @bind:event="oninput" />
+                        @if (!string.IsNullOrEmpty(SearchQuery))
+                        {
+                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
+                        }
+                    </div>
+
+                    <!-- Right: Add Vendor + Count -->
+                    <div class="vs-actions-compact">
+                        <span class="vs-count-label">@FilteredVendors.Count() stalls</span>
+                        <button class="btn-primary" @onclick="OpenCreate">
+                            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                            Add Vendor
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vendors Table — "This Month" column removed -->
+                <div class="panel">
+                    @if (!FilteredVendors.Any())
                     {
-                        <div class="fac-backdrop" @onclick="CloseFacDropdown"></div>
-                        <div class="fac-dropdown">
-                            <div class="fac-dd-header">Facility</div>
-                            @foreach (var f in FacilityTabs)
-                            {
-                                <div class="fac-dd-item @(ActiveFacility == f.Code ? "active" : "")" @onclick="() => SelectFacility(f.Code)">
-                                    <div class="fac-dd-body"><span class="fac-dd-name">@f.Name</span></div>
-                                    @if (f.UnpaidCount > 0)
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
+                            <div class="empty-title">No Vendors Found</div>
+                            <div class="empty-sub">Try adjusting the filters or search.</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Stall No.</th>
+                                        <th>Actual Occupant</th>
+                                        <th>OR No.</th>
+                                        <th>Section / Area</th>
+                                        <th>Monthly Rate</th>
+                                        <th>Status</th>
+                                        <th style="width: 280px; text-align: right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var v in FilteredVendors)
                                     {
-                                        <span class="fac-dd-badge">@f.UnpaidCount</span>
+                                        <tr class="@(!v.IsActive ? "row-inactive" : "") vendor-row" @onclick="() => OpenDetail(v)">
+                                            <td>
+                                                <div class="stall-num-cell">
+                                                    <span>@v.StallNo</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="occupant-cell">
+                                      
+                                                    <div>
+                                                        <div>@v.ActualOccupant</div>
+                                                        @if (!string.IsNullOrEmpty(v.ContractName) && v.ContractName != "No contract" && v.ContractName != v.ActualOccupant)
+                                                        {
+                                                            <div class="occupant-contract">Contract: @v.ContractName</div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </td>
+                 
+                                            <td>
+                                                <span>@(string.IsNullOrEmpty(v.OrNo) ? "—" : v.OrNo)</span>
+                                            </td>
+                                     
+                                            <td><span>@v.Section</span></td>
+                                            <td>
+                                                <span>@v.MonthlyRate.ToString("N0")</span>
+                                            </td>
+                                            <td @onclick:stopPropagation="true">
+                                                <span class="status-pill @(v.IsActive ? "pill-active" : "pill-inactive")">
+                                                    @(v.IsActive ? "Active" : "Closed")
+                                                </span>
+                                            </td>
+                                            <td @onclick:stopPropagation="true" style="width: 280px;">
+                                                <div class="action-btns" style="justify-content: flex-end;">
+                                                    <button class="action-btn" title="View Details" @onclick="() => OpenDetail(v)">
+                                                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                    </button>
+                                                    <button class="action-btn" title="View Profile" @onclick="() => ViewProfile(v)">
+                                                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                                    </button>
+                                                    <button class="action-btn" title="Edit" @onclick="() => OpenEdit(v)">
+                                                        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                                    </button>
+                                                    <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(v)">
+                                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                                    </button>
+                                                    <button class="action-btn @(v.IsActive ? "action-danger" : "action-success")"
+                                                            title="@(v.IsActive ? "Close Stall" : "Reopen Stall")"
+                                                            @onclick="() => ToggleVendor(v)">
+                                                        @if (v.IsActive)
+                                                        {
+                                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                                                        }
+                                                        else
+                                                        {
+                                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                                        }
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     }
-                                    @if (ActiveFacility == f.Code)
-                                    {
-                                        <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                </div>
-                            }
+                                </tbody>
+                            </table>
                         </div>
                     }
                 </div>
 
-                <!-- Center: Filter Tabs -->
-                <div class="filter-tabs-inline">
-                    @foreach (var f in StatusFilters)
-                    {
-                        <div class="filter-tab @(ActiveStatus == f ? "active" : "")" @onclick="() => ActiveStatus = f">@f</div>
-                    }
-                </div>
-
-                <!-- Center-Right: Search -->
-                <div class="search-box">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                    <input type="text" placeholder="Search stall no. or name…" @bind="SearchQuery" @bind:event="oninput" />
-                    @if (!string.IsNullOrEmpty(SearchQuery))
-                    {
-                        <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
-                    }
-                </div>
-
-                <!-- Right: Add Vendor + Count -->
-                <div class="vs-actions-compact">
-                    <span class="vs-count-label">@FilteredVendors.Count() stalls</span>
-                    <button class="btn-primary" @onclick="OpenCreate">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Add Vendor
-                    </button>
-                </div>
-            </div>
-
-            <!-- Vendors Table — "This Month" column removed -->
-            <div class="panel">
-                @if (!FilteredVendors.Any())
-                {
-                    <div class="empty-state">
-                        <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
-                        <div class="empty-title">No Vendors Found</div>
-                        <div class="empty-sub">Try adjusting the filters or search.</div>
-                    </div>
-                }
-                else
-                {
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Stall No.</th>
-                                    <th>Actual Occupant</th>
-                                    <th>OR No.</th>
-                                    <th>Section / Area</th>
-                                    <th>Monthly Rate</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var v in FilteredVendors)
-                                {
-                                    <tr class="@(!v.IsActive ? "row-inactive" : "") vendor-row" @onclick="() => OpenDetail(v)">
-                                        <td>
-                                            <div class="stall-num-cell">
-                                                <span>@v.StallNo</span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="occupant-cell">
-                                      
-                                                <div>
-                                                    <div>@v.ActualOccupant</div>
-                                                    @if (!string.IsNullOrEmpty(v.ContractName) && v.ContractName != "No contract" && v.ContractName != v.ActualOccupant)
-                                                    {
-                                                        <div class="occupant-contract">Contract: @v.ContractName</div>
-                                                    }
-                                                </div>
-                                            </div>
-                                        </td>
-                 
-                                        <td>
-                                            <span>@(string.IsNullOrEmpty(v.OrNo) ? "—" : v.OrNo)</span>
-                                        </td>
-                                     
-                                        <td><span>@v.Section</span></td>
-                                        <td>
-                                            <span>@v.MonthlyRate.ToString("N0")</span>
-                                        </td>
-                                        <td @onclick:stopPropagation="true">
-                                            <span class="status-pill @(v.IsActive ? "pill-active" : "pill-inactive")">
-                                                @(v.IsActive ? "Active" : "Closed")
-                                            </span>
-                                        </td>
-                                        <td @onclick:stopPropagation="true">
-                                            <div class="action-btns">
-                                                <button class="action-btn" title="View Details" @onclick="() => OpenDetail(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                                </button>
-                                                <button class="action-btn" title="View Profile" @onclick="() => ViewProfile(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                                </button>
-                                                <button class="action-btn" title="Edit" @onclick="() => OpenEdit(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                                                </button>
-                                                <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(v)">
-                                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                                </button>
-                                                <button class="action-btn @(v.IsActive ? "action-danger" : "action-success")"
-                                                        title="@(v.IsActive ? "Close Stall" : "Reopen Stall")"
-                                                        @onclick="() => ToggleVendor(v)">
-                                                    @if (v.IsActive)
-                                                    {
-                                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                                                    }
-                                                    else
-                                                    {
-                                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                                    }
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
+            }
 
         </div>
     </main>
@@ -606,19 +621,24 @@
 
                                 <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(showExtendedCell ? "cal-cell-fish" : "")"
                                      @onclick="() => { if (!isFuture) ToggleDailyCollection(DetailVendor, day); }">
-                                    <div class="cal-cell-top">
-                                        <span class="cal-num">@d</span>
-                                        @if (!isFuture)
-                                        {
-                                            <span class="cal-checkmark @(isMarked ? "cal-check-yes" : "cal-check-no")">
-                                                @(isMarked ? "✓" : "✕")
-                                            </span>
-                                        }
-                                    </div>
-                                    @if ((isFishSection || isVegetableSection || isMeatSection) && !isFuture && isMarked && dailyKilo > 0)
+                                    <span class="cal-num">@d</span>
+                                    @if (!isFuture)
                                     {
-                                        <div class="cal-kilo-display">
-                                            <span class="cal-kilo-val">@((int)dailyKilo) kg</span>
+                                        <span class="cal-checkmark @(isMarked ? "cal-check-yes" : "cal-check-no")">
+                                            @(isMarked ? "✓" : "✕")
+                                        </span>
+                                    }
+                                    @if (isFishSection && !isFuture && isMarked)
+                                    {
+                                        <div class="cal-kilo-display" @onclick:stopPropagation="true">
+                                            <input type="number"
+                                                   min="0"
+                                                   step="0.5"
+                                                   placeholder="0"
+                                                   value="@dailyKilo"
+                                                   @oninput="@(e => UpdateDailyFishKilo(DetailVendor, day, decimal.TryParse(e.Value?.ToString(), out var k) ? k : 0))"
+                                                   class="cal-kilo-input" />
+                                            <span class="cal-kilo-unit">kg</span>
                                         </div>
                                     }
                                 </div>
@@ -674,77 +694,78 @@
                 @if (DetailVendor.FacilityCode != "NPM")
                 {
               
-                    var moYear        = MonthlyCalYear;
-                    var moToday       = DateTime.Now;
-                    var moMonths      = Enumerable.Range(1, 12).Select(m => new DateTime(moYear, m, 1)).ToList();
-                    var moPaidCount   = moMonths.Count(m => m <= moToday &&
+                    var moYear = MonthlyCalYear;
+                    var moToday = DateTime.Now;
+                    var moMonths = Enumerable.Range(1, 12).Select(m => new DateTime(moYear, m, 1)).ToList();
+                    var moPaidCount = moMonths.Count(m => m <= moToday &&
                                             DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) &&
                                             DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]);
-                    var moMissed      = moMonths.Count(m => m < new DateTime(moToday.Year, moToday.Month, 1) &&
+                    var moMissed = moMonths.Count(m => m < new DateTime(moToday.Year, moToday.Month, 1) &&
                                             (!DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) ||
                                              !DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]));
-                    var moCollected   = moPaidCount * DetailVendor.MonthlyRate;
+                    var moCollected = moPaidCount * DetailVendor.MonthlyRate;
                     var canGoNextYear = moYear < moToday.Year;
                 
 
-                <div class="detail-section monthly-cal-section">
-                    <div class="detail-section-title">
-                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        Monthly Rental — ₱@DetailVendor.MonthlyRate.ToString("N0")/mo
-                    </div>
+                    <div class="detail-section monthly-cal-section">
+                        <div class="detail-section-title">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                            Monthly Rental — ₱@DetailVendor.MonthlyRate.ToString("N0")/mo
+                        </div>
 
-                    <!-- Year Nav -->
-                    <div class="cal-nav">
-                        <button class="cal-nav-btn" @onclick="PrevMonthlyYear">
-                            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-                        </button>
-                        <span class="cal-month-label">@moYear</span>
-                        <button class="cal-nav-btn" @onclick="NextMonthlyYear" disabled="@(!canGoNextYear)">
-                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                    </div>
+                        <!-- Year Nav -->
+                        <div class="cal-nav">
+                            <button class="cal-nav-btn" @onclick="PrevMonthlyYear">
+                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                            </button>
+                            <span class="cal-month-label">@moYear</span>
+                            <button class="cal-nav-btn" @onclick="NextMonthlyYear" disabled="@(!canGoNextYear)">
+                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                            </button>
+                        </div>
 
-                    <!-- 12-month grid — 4 cols x 3 rows -->
-                    <div class="mo-cal-grid">
-                        @foreach (var mo in moMonths)
-                        {
-                            var moKey     = mo.ToString("yyyy-MM");
-                            var isFuture  = mo > new DateTime(moToday.Year, moToday.Month, 1);
-                            var isThisMo  = mo.Year == moToday.Year && mo.Month == moToday.Month;
-                            var isPaid    = DetailVendor.PaymentHistory.ContainsKey(moKey) && DetailVendor.PaymentHistory[moKey];
-                            var cellCls   = isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : "mo-cell-miss");
+                        <!-- 12-month grid — 4 cols x 3 rows -->
+                        <div class="mo-cal-grid">
+                            @foreach (var mo in moMonths)
+                            {
+                                var moKey = mo.ToString("yyyy-MM");
+                                var isFuture = mo > new DateTime(moToday.Year, moToday.Month, 1);
+                                var isThisMo = mo.Year == moToday.Year && mo.Month == moToday.Month;
+                                var isPaid = DetailVendor.PaymentHistory.ContainsKey(moKey) && DetailVendor.PaymentHistory[moKey];
+                                var cellCls = isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : "mo-cell-miss");
 
-                            <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "")">
-                                <span class="mo-cell-name">@mo.ToString("MMM")</span>
-                                @if (!isFuture)
-                                {
-                                    <span class="mo-cell-mark">@(isPaid ? "✓" : "✕")</span>
-                                }
+                                <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "")">
+                                    <span class="mo-cell-name">@mo.ToString("MMM")</span>
+                                    @if (!isFuture)
+                                    {
+                                        <span class="mo-cell-mark">@(isPaid ? "✓" : "✕")</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Summary Stats -->
+                        <div class="cal-footer-stats">
+                            <div class="cal-sum-item">
+                                <span class="cal-sum-val cal-sum-green">@moPaidCount</span>
+                                <span class="cal-sum-key">Months Paid</span>
                             </div>
-                        }
-                    </div>
-
-                    <!-- Summary Stats -->
-                    <div class="cal-footer-stats">
-                        <div class="cal-sum-item">
-                            <span class="cal-sum-val cal-sum-green">@moPaidCount</span>
-                            <span class="cal-sum-key">Months Paid</span>
-                        </div>
-                        <div class="cal-sum-item">
-                            <span class="cal-sum-val cal-sum-red">@moMissed</span>
-                            <span class="cal-sum-key">Months Missed</span>
-                        </div>
-                        <div class="cal-sum-item">
-                            <span class="cal-sum-val">₱@moCollected.ToString("N0")</span>
-                            <span class="cal-sum-key">Collected @moYear</span>
-                        </div>
-                        <div class="cal-sum-item" style="background:rgba(var(--gold-rgb),0.07); border-color:var(--gold);">
-                            <span class="cal-sum-val" style="color:var(--gold);">₱@(moPaidCount * DetailVendor.MonthlyRate == DetailVendor.MonthlyRate * 12 ? (DetailVendor.MonthlyRate * 12).ToString("N0") : moCollected.ToString("N0"))</span>
-                            <span class="cal-sum-key">Total Fee (@moYear)</span>
+                            <div class="cal-sum-item">
+                                <span class="cal-sum-val cal-sum-red">@moMissed</span>
+                                <span class="cal-sum-key">Months Missed</span>
+                            </div>
+                            <div class="cal-sum-item">
+                                <span class="cal-sum-val">₱@moCollected.ToString("N0")</span>
+                                <span class="cal-sum-key">Collected @moYear</span>
+                            </div>
+                            <div class="cal-sum-item" style="background:rgba(var(--gold-rgb),0.07); border-color:var(--gold);">
+                                <span class="cal-sum-val" style="color:var(--gold);">₱@(moPaidCount* DetailVendor.MonthlyRate == DetailVendor.MonthlyRate * 12 ? (DetailVendor.MonthlyRate * 12).ToString("N0") : moCollected.ToString("N0"))</span>
+                                <span class="cal-sum-key">Total Fee (@moYear)</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                } @* end non-NPM monthly calendar *@
+                }
+                @* end non-NPM monthly calendar *@
 
             </div>
 
@@ -823,11 +844,71 @@
 
 @code {
 
-    // -- Calendar state --------------------------------------------------------
-    DateTime CalendarMonth   = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-    int      MonthlyCalYear  = DateTime.Now.Year;
+    // -- Data loading state --------------------------------------------------------
+    bool isLoading = true;
+    VendorRegistryDto? registryData = null;
 
-    void PrevCalMonth()    => CalendarMonth = CalendarMonth.AddMonths(-1);
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVendorRegistry();
+    }
+
+    async Task LoadVendorRegistry()
+    {
+        isLoading = true;
+        var result = await VendorsApi.GetVendorRegistryAsync(DateTime.Now.Year, DateTime.Now.Month);
+        if (result.IsSuccess && result.Value != null)
+        {
+            registryData = result.Value;
+            MapRegistryToVendors();
+        }
+        isLoading = false;
+    }
+
+    void MapRegistryToVendors()
+    {
+        if (registryData == null) return;
+
+        Vendors.Clear();
+        foreach (var item in registryData.Vendors)
+        {
+            Vendors.Add(new VendorEntry
+            {
+                Id = Vendors.Count + 1,
+                FacilityCode = item.FacilityCode.ToString(),
+                StallNo = item.StallNo,
+                ActualOccupant = item.ActualOccupant,
+                ContractName = item.NameOnContract ?? "No contract",
+                Section = item.SectionDisplay ?? item.AreaLocationDisplay ?? item.FacilityName,
+                OrNo = item.ORNumber,
+                AreaSqm = 0,
+                ContractDate = null,
+                ContractYears = 0,
+                MonthlyRate = item.MonthlyRate,
+                ActualMonthlyRental = item.MonthlyRate,
+                AreaLocation = item.AreaLocationDisplay ?? "",
+                FeeTypes = new List<string>(),
+                IsActive = item.Status == Domain.Enums.StallStatus.Active,
+                IsPaidThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
+                IsPartialThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Partial,
+                PaymentHistory = new Dictionary<string, bool>(),
+                DailyCollections = new Dictionary<string, bool>(),
+                DailyFishKilos = new Dictionary<string, decimal>()
+            });
+        }
+
+        // Update facility tabs unpaid counts
+        foreach (var tab in FacilityTabs)
+        {
+            tab.UnpaidCount = Vendors.Count(v => v.FacilityCode == tab.Code && v.IsActive && !v.IsPaidThisMonth);
+        }
+    }
+
+    // -- Calendar state --------------------------------------------------------
+    DateTime CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    int MonthlyCalYear = DateTime.Now.Year;
+
+    void PrevCalMonth() => CalendarMonth = CalendarMonth.AddMonths(-1);
     void NextCalMonth()
     {
         if (CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1))
@@ -914,7 +995,7 @@
         public decimal PartialAmount { get; set; } = 0m;
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
         public Dictionary<string, bool> DailyCollections { get; set; } = new();
-        public Dictionary<string, decimal> DailyFishKilos { get; set; } = new(); // ? NEW: Track daily fish kilo counts
+        public Dictionary<string, decimal> DailyFishKilos { get; set; } = new();
         public HashSet<string> ElectricityPaidMonths { get; set; } = new();
         public HashSet<string> WaterPaidMonths { get; set; } = new();
 
@@ -922,159 +1003,7 @@
         public decimal WholeYearActualRental => ActualMonthlyRental > 0 ? ActualMonthlyRental * 12 : WholeYearRental;
     }
 
-    List<VendorEntry> Vendors = new()
-    {
-    // -- NPM Vegetable Area -------------------------
-    new() { Id=1, FacilityCode="NPM", StallNo="01", ActualOccupant="Trugillo, Elpedia C.", ContractName="Nila F. Andoy", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-001", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
-
-    new() { Id=2, FacilityCode="NPM", StallNo="02", ActualOccupant="Bohol, Marilyn C.", ContractName="Marilyn C. Bohol", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-002", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
-
-    new() { Id=3, FacilityCode="NPM", StallNo="03", ActualOccupant="Arnaldo, Elmalyn P.", ContractName="Elmalyn P. Arnaldo", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-003", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(11) },
-
-    new() { Id=4, FacilityCode="NPM", StallNo="04", ActualOccupant="Tecson, Reymart P.", ContractName="Nicolas S. Cupina", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-004", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(8) },
-
-    new() { Id=5, FacilityCode="NPM", StallNo="05", ActualOccupant="Rodriguez, Jinky L.", ContractName="Jinky L. Rodriguez", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-005", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
-
-    new() { Id=6, FacilityCode="NPM", StallNo="06", ActualOccupant="Cuartero, Elen L.", ContractName="Berlina A. Cuartero", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-006", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(7) },
-
-    new() { Id=7, FacilityCode="NPM", StallNo="24", ActualOccupant="Tesado, Ariel", ContractName="Judianne C. Cahutay", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-007", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(9) },
-
-    new() { Id=8, FacilityCode="NPM", StallNo="26", ActualOccupant="Closed", ContractName="Elsie B. Abuso", Section="Vegetable Area", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-008", FeeTypes=new(), IsPaidThisMonth=false, IsActive=false, PaymentHistory=MakeHistory(3) },
-
-    // Fish
-    new() {
-        Id=9, FacilityCode="NPM", StallNo="F01", ActualOccupant="Dela Cruz, Maria S.", ContractName="Dela Cruz, Maria S.", Section="Fish Section",
-        AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-009",
-        FeeTypes=new(){"Fish ?1/kg","Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(12),
-  DailyCollections = new()
-{
-    {DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-28).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-26).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-25).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-23).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-22).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-20).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-19).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-17).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-16).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-15).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-13).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-12).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-10).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-9).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-5).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-4).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-2).ToString("yyyy-MM-dd"), true},
-    {DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd"), true},
-},
-
-DailyFishKilos = new()
-{
-    {DateTime.Now.AddDays(-29).ToString("yyyy-MM-dd"), 7.2m},
-    {DateTime.Now.AddDays(-28).ToString("yyyy-MM-dd"), 8.1m},
-    {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), 9.3m},
-    {DateTime.Now.AddDays(-26).ToString("yyyy-MM-dd"), 10.7m},
-    {DateTime.Now.AddDays(-25).ToString("yyyy-MM-dd"), 8.5m},
-    {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), 7.9m},
-    {DateTime.Now.AddDays(-23).ToString("yyyy-MM-dd"), 12.6m},
-    {DateTime.Now.AddDays(-22).ToString("yyyy-MM-dd"), 12m},
-    {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), 7.4m},
-    {DateTime.Now.AddDays(-20).ToString("yyyy-MM-dd"), 8.8m},
-    {DateTime.Now.AddDays(-19).ToString("yyyy-MM-dd"), 7.5m},
-    {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), 9.1m},
-    {DateTime.Now.AddDays(-17).ToString("yyyy-MM-dd"), 14m},
-    {DateTime.Now.AddDays(-16).ToString("yyyy-MM-dd"), 10.2m},
-    {DateTime.Now.AddDays(-15).ToString("yyyy-MM-dd"), 9.5m},
-    {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), 7.8m},
-    {DateTime.Now.AddDays(-13).ToString("yyyy-MM-dd"), 8.7m},
-    {DateTime.Now.AddDays(-12).ToString("yyyy-MM-dd"), 11m},
-    {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), 7.6m},
-    {DateTime.Now.AddDays(-10).ToString("yyyy-MM-dd"), 9.9m},
-    {DateTime.Now.AddDays(-9).ToString("yyyy-MM-dd"), 7m},
-    {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), 8.4m},
-    {DateTime.Now.AddDays(-7).ToString("yyyy-MM-dd"), 13m},
-    {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), 12.4m},
-    {DateTime.Now.AddDays(-5).ToString("yyyy-MM-dd"), 10.5m},
-    {DateTime.Now.AddDays(-4).ToString("yyyy-MM-dd"), 7.3m},
-    {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), 9.9m},
-    {DateTime.Now.AddDays(-2).ToString("yyyy-MM-dd"), 15m},
-    {DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd"), 11.8m},
-}
-    },
-
-    new() {
-        Id=10, FacilityCode="NPM", StallNo="F02", ActualOccupant="Santos, Rodrigo T.", ContractName="Santos, Rodrigo T.", Section="Fish Section",
-        AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-010",
-        FeeTypes=new(){"Fish ?1/kg","Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(6),
-        DailyCollections=new() {
-            {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), true},
-            {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), true},
-        },
-        DailyFishKilos=new() {
-            {DateTime.Now.AddDays(-27).ToString("yyyy-MM-dd"), 10m},
-            {DateTime.Now.AddDays(-24).ToString("yyyy-MM-dd"), 9.5m},
-            {DateTime.Now.AddDays(-21).ToString("yyyy-MM-dd"), 11.5m},
-            {DateTime.Now.AddDays(-18).ToString("yyyy-MM-dd"), 8m},
-            {DateTime.Now.AddDays(-14).ToString("yyyy-MM-dd"), 12.5m},
-            {DateTime.Now.AddDays(-11).ToString("yyyy-MM-dd"), 10.5m},
-            {DateTime.Now.AddDays(-8).ToString("yyyy-MM-dd"), 9m},
-            {DateTime.Now.AddDays(-6).ToString("yyyy-MM-dd"), 13.5m},
-            {DateTime.Now.AddDays(-3).ToString("yyyy-MM-dd"), 7.5m},
-        }
-    },
-
-    // Meat
-    new() { Id=11, FacilityCode="NPM", StallNo="M01", ActualOccupant="Garcia, Lorna B.", ContractName="Lorna B. Garcia", Section="Meat Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-011", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
-
-    new() { Id=12, FacilityCode="NPM", StallNo="M02", ActualOccupant="Flores, Danilo R.", ContractName="Danilo R. Flores", Section="Meat Section", AreaSqm=4.8, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=900, OrNo="OR-2024-012", FeeTypes=new(){"Electricity","Water"}, IsPaidThisMonth=false, PaymentHistory=MakeHistory(4) },
-
-    // TCC
-    new() { Id=20, FacilityCode="TCC", StallNo="31", ActualOccupant="Pude, Myra", ContractName="Myra Pude", Section="TCC", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=2400, OrNo="OR-2024-020", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
-
-    new() { Id=21, FacilityCode="TCC", StallNo="32", ActualOccupant="Guerta, Alvin", ContractName="Alvin Guerta", Section="TCC", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3000, OrNo="OR-2024-021", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(11) },
-
-    new() { Id=22, FacilityCode="TCC", StallNo="37", ActualOccupant="Urbiztondo, Ronnie", ContractName="Ronnie Urbiztondo", Section="TCC", AreaSqm=70, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=4800, OrNo="OR-2024-022", FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(4) },
-
-    new() { Id=23, FacilityCode="TCC", StallNo="39", ActualOccupant="Datumanong, Salnoden", ContractName="No contract", Section="TCC", AreaSqm=35, ContractDate=null, ContractYears=0, MonthlyRate=2400, OrNo="OR-2024-023", FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(0) },
-
-    // NCC
-    new() { Id=30, FacilityCode="NCC", StallNo="01", ActualOccupant="Bebero, Lucrecia R.", ContractName="Lucrecia R. Bebero", Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, OrNo="OR-2024-030", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
-
-    new() { Id=31, FacilityCode="NCC", StallNo="02", ActualOccupant="Bebero, Ruel R.", ContractName="Ruel R. Bebero", Section="Extension", AreaSqm=10.5, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=1200, OrNo="OR-2024-031", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(12) },
-
-    new() { Id=32, FacilityCode="NCC", StallNo="13", ActualOccupant="Lago, Florena R.", ContractName="Florena R. Lago", Section="Corner", AreaSqm=35, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3240, OrNo="OR-2024-032", FeeTypes=new(), IsPaidThisMonth=false, PaymentHistory=MakeHistory(7) },
-
-    new() { Id=33, FacilityCode="NCC", StallNo="23", ActualOccupant="Armendarez, Ramil Jose", ContractName="Ramil Jose Armendarez", Section="Corner", AreaSqm=35, ContractDate=new DateTime(2023,6,7), ContractYears=3, MonthlyRate=3840, OrNo="OR-2024-033", FeeTypes=new(), IsPaidThisMonth=true, PaymentHistory=MakeHistory(10) },
-};
-
-    static Dictionary<string, bool> MakeHistory(int paidCount)
-    {
-        var dict = new Dictionary<string, bool>();
-        for (int i = 11; i >= 0; i--)
-        {
-            var key = DateTime.Now.AddMonths(-i).ToString("yyyy-MM");
-            dict[key] = (11 - i) < paidCount;
-        }
-        return dict;
-    }
+    List<VendorEntry> Vendors = new();
 
     // All vendors across every facility — used by the page-level hero
     List<VendorEntry> AllVendors => Vendors;
@@ -1225,7 +1154,7 @@ DailyFishKilos = new()
         else Form.FeeTypes.Add(fee);
     }
 
-    void SaveVendor()
+    async Task SaveVendor()
     {
         if (string.IsNullOrWhiteSpace(Form.FacilityCode)) { FormError = "Please select a facility."; return; }
         if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
@@ -1256,24 +1185,58 @@ DailyFishKilos = new()
         }
         else
         {
-            Vendors.Add(new VendorEntry
+            // Create new stall via API
+            var facilityCode = Enum.Parse<Domain.Enums.FacilityCode>(Form.FacilityCode);
+            
+            // Map UI section names to enum values
+            Domain.Enums.MarketSection? marketSection = null;
+            if (Form.FacilityCode == "NPM" && !string.IsNullOrWhiteSpace(Form.SelectedSection))
             {
-                Id = Vendors.Count + 1,
-                FacilityCode = Form.FacilityCode,
-                StallNo = Form.StallNo.Trim(),
-                ActualOccupant = Form.ActualOccupant.Trim(),
-                ContractName = Form.ContractName.Trim(),
-                Section = section,
-                AreaSqm = Form.AreaSqm,
-                ContractDate = Form.ContractDate,
-                ContractYears = Form.ContractYears,
-                MonthlyRate = Form.MonthlyRate,
-                ActualMonthlyRental = Form.ActualMonthlyRental,
-                AreaLocation = Form.AreaLocation.Trim(),
-                FeeTypes = new(Form.FeeTypes),
-                IsActive = true,
-                PaymentHistory = MakeHistory(0)
-            });
+                marketSection = Form.SelectedSection switch
+                {
+                    "Vegetable" => Domain.Enums.MarketSection.VegetableArea,
+                    "Fish" => Domain.Enums.MarketSection.FishSection,
+                    "Meat" => Domain.Enums.MarketSection.MeatSection,
+                    _ => null
+                };
+            }
+            
+            var nccAreaLocation = Form.FacilityCode == "NCC" && !string.IsNullOrWhiteSpace(Form.AreaLocation)
+                ? Enum.Parse<Domain.Enums.NccAreaLocation>(Form.AreaLocation)
+                : (Domain.Enums.NccAreaLocation?)null;
+            
+            // Calculate ApplicableFees from FeeTypes
+            var fees = Domain.Enums.ApplicableFees.BaseRental;
+            if (Form.FeeTypes.Contains("Electricity")) fees |= Domain.Enums.ApplicableFees.Electricity;
+            if (Form.FeeTypes.Contains("Water")) fees |= Domain.Enums.ApplicableFees.Water;
+            if (Form.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"))) fees |= Domain.Enums.ApplicableFees.FishFee;
+
+            var command = new Application.Command.Stalls.CreateStall.CreateStallCommand(
+                FacilityCode: facilityCode,
+                StallNo: Form.StallNo.Trim(),
+                MonthlyRate: Form.MonthlyRate,
+                Fees: fees,
+                Section: marketSection,
+                AreaLocation: nccAreaLocation,
+                AreaSqm: Form.AreaSqm > 0 ? Form.AreaSqm : null,
+                AreaNote: string.IsNullOrWhiteSpace(Form.AreaLocation) ? null : Form.AreaLocation.Trim(),
+                DailyRate: Form.FacilityCode == "NPM" ? 30.00m : null,
+                ActualOccupant: Form.ActualOccupant.Trim(),
+                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
+                ContractDate: Form.ContractDate,
+                ContractYears: Form.ContractYears
+            );
+
+            var result = await StallsApi.CreateStallAsync(command);
+            
+            if (!result.IsSuccess)
+            {
+                FormError = result.Error ?? "Failed to create stall";
+                return;
+            }
+            
+            // Reload vendor registry to get the new stall
+            await LoadVendorRegistry();
         }
         CloseModal();
     }
@@ -1366,3 +1329,4 @@ DailyFishKilos = new()
         Nav.NavigateTo("/profile");
     }
 }
+

@@ -1,6 +1,9 @@
 ﻿@page "/slh"
 @page "/facility/slh"
+@using EEMOCantilanSDS.Client.Components.Pages.Shared.SH
+@attribute [Authorize]
 @rendermode InteractiveServer
+@inject NavigationManager Navigation
 <PageTitle>EEMO Admin — Slaughterhouse</PageTitle>
 
 <div class="admin-layout">
@@ -365,7 +368,10 @@
         await CloseRecordModal();
     }
 
-    private void ViewEntry(SlaughterEntry e) { /* TODO: view detail modal */ }
+    private void ViewEntry(SlaughterEntry e)
+    {
+        Navigation.NavigateTo($"/facility/slh/transaction/{e.OwnerName}");
+    }
     private void ViewReceipt(SlaughterEntry e) { /* TODO: print/view receipt */ }
     private void EditEntry(SlaughterEntry e) { /* TODO: edit modal */ }
 

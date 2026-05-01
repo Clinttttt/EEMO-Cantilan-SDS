@@ -1,0 +1,233 @@
+﻿@page "/facility/slh/transaction/{OwnerId}"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<div class="admin-layout">
+
+    <!-- ═══════════════════════════════════════
+         SIDEBAR
+    ═══════════════════════════════════════ -->
+    <Sidebar />
+
+    <main class="admin-main">
+
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="back-btn" @onclick="GoBack">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <div class="topbar-info">
+                    <div class="topbar-title">Transaction Details</div>
+                    <div class="topbar-breadcrumb">
+                        <span>Dashboard</span>
+                        <span class="breadcrumb-sep">/</span>
+                        <span>Slaughterhouse</span>
+                        <span class="breadcrumb-sep">/</span>
+                        <span class="breadcrumb-active">@OwnerName</span>
+                    </div>
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="topbar-date">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    @DateTime.Now.ToString("MMMM d, yyyy")
+                </div>
+                <div class="topbar-admin">
+                    <div class="admin-avatar">A</div>
+                    <div>
+                        <div class="admin-name">Administrator</div>
+                        <div class="admin-role">EEMO Office</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-area">
+
+            <!-- Hero Banner -->
+            <div class="slh-hero">
+                <div class="slh-hero-left">
+                    <div class="slh-hero-icon">
+                        <svg viewBox="0 0 24 24" class="slh-icon-svg">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                            <path d="M2 17l10 5 10-5" />
+                            <path d="M2 12l10 5 10-5" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="slh-hero-eyebrow">Facility · SLH</div>
+                        <div class="slh-hero-title">@OwnerName</div>
+                        <div class="slh-hero-sub">Slaughterhouse Client · Municipality of Cantilan</div>
+                    </div>
+                </div>
+                <div class="slh-hero-stats">
+                    <div class="slh-hero-stat">
+                        <div class="slh-hero-val">@TotalTransactions</div>
+                        <div class="slh-hero-key">Transactions</div>
+                    </div>
+                    <div class="slh-hero-divider"></div>
+                    <div class="slh-hero-stat">
+                        <div class="slh-hero-val">@TotalHeads</div>
+                        <div class="slh-hero-key">Total Heads</div>
+                    </div>
+                    <div class="slh-hero-divider"></div>
+                    <div class="slh-hero-stat">
+                        <div class="slh-hero-val">₱@TotalCollected.ToString("N0")</div>
+                        <div class="slh-hero-key">Total Collected</div>
+                    </div>
+                </div>
+                <div class="slh-hero-progress">
+                    <div class="slh-hero-progress-fill" style="width:100%"></div>
+                </div>
+            </div>
+
+            <!-- Transaction History Table -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">All Transactions</div>
+                        <div class="panel-count">@TotalTransactions records · Sorted by latest date</div>
+                    </div>
+                    <div class="panel-header-right">
+                        <div class="animal-counts">
+                            <div class="animal-count-item">
+                                <div class="animal-count-val">@HogCount</div>
+                                <div class="animal-count-label">Hog</div>
+                            </div>
+                            <div class="animal-count-item">
+                                <div class="animal-count-val">@CarabaoCount</div>
+                                <div class="animal-count-label">Carabao</div>
+                            </div>
+                            <div class="animal-count-item">
+                                <div class="animal-count-val">@CowCount</div>
+                                <div class="animal-count-label">Cow</div>
+                            </div>
+                        </div>
+                        <button class="btn-print" @onclick="PrintPage">
+                            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                            Print Record
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="txn-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>DATE</th>
+                                <th>ANIMAL TYPE</th>
+                                <th>NO. OF HEADS</th>
+                                <th>RATE / HEAD</th>
+                                <th>TOTAL AMOUNT</th>
+                                <th>OR NUMBER</th>
+                                <th>COLLECTOR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                int idx = 1;
+                            }
+                            @foreach (var txn in Transactions)
+                            {
+                                <tr class="txn-row">
+                                    <td class="row-num">@idx</td>
+                                    <td>@txn.Date.ToString("MMM d, yyyy")</td>
+                                    <td>@txn.AnimalType</td>
+                                    <td>@txn.NumberOfHeads</td>
+                                    <td>₱@txn.RatePerHead.ToString("N0")</td>
+                                    <td>₱@txn.TotalAmount.ToString("N0")</td>
+                                    <td>@txn.ORNumber</td>
+                                    <td>@txn.CollectorName</td>
+                                </tr>
+                                idx++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Collection Summary Card -->
+            <div class="summary-card">
+                <div class="summary-header">
+                    <div class="summary-title">Collection Summary</div>
+                    <div class="summary-period">All Time</div>
+                </div>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-label">Total Transactions</div>
+                        <div class="summary-value">@TotalTransactions</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Total Heads Processed</div>
+                        <div class="summary-value">@TotalHeads</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Average per Transaction</div>
+                        <div class="summary-value">₱@((TotalTransactions > 0 ? TotalCollected / TotalTransactions : 0).ToString("N2"))</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Total Revenue</div>
+                        <div class="summary-value highlight">₱@TotalCollected.ToString("N2")</div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- end content-area -->
+    </main>
+</div>
+
+@code {
+    [Parameter] public string OwnerId { get; set; } = string.Empty;
+
+    // ── Hardcoded owner info (replace with API call) ──
+    private string OwnerName => "Dela Cruz, Ramon A.";
+
+    // ── Computed summaries ──
+    private int TotalTransactions => Transactions.Count;
+    private int TotalHeads => Transactions.Sum(t => t.NumberOfHeads);
+    private decimal TotalCollected => Transactions.Sum(t => t.TotalAmount);
+    private int HogCount => Transactions.Count(t => t.AnimalType == "Hog");
+    private int CarabaoCount => Transactions.Count(t => t.AnimalType == "Carabao");
+    private int CowCount => Transactions.Count(t => t.AnimalType == "Cow");
+
+    // ── Hardcoded transactions (replace with ISlaughterApiClient call) ──
+    private List<SlaughterTxnRow> Transactions = new()
+    {
+        new("Mar 1, 2026",  "Hog",     3, "Maria Santos",  "OR-2026-SLH-001"),
+        new("Mar 5, 2026",  "Hog",     2, "Maria Santos",  "OR-2026-SLH-004"),
+        new("Mar 12, 2026", "Carabao", 1, "Juan Reyes",    "OR-2026-SLH-009"),
+        new("Apr 2, 2026",  "Hog",     4, "Maria Santos",  "OR-2026-SLH-017"),
+        new("Apr 18, 2026", "Cow",     1, "Juan Reyes",    "OR-2026-SLH-023"),
+        new("May 1, 2026",  "Hog",     3, "Maria Santos",  "OR-2026-SLH-031"),
+    };
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/facility/slh");
+    }
+    
+    private void PrintPage()
+    {
+        // TODO: JS interop: window.print()
+    }
+
+    // ── Row model — fees are fixed per animal type, no need to store breakdown fields ──
+    private record SlaughterTxnRow(
+        string DateRaw,
+        string AnimalType,
+        int NumberOfHeads,
+        string CollectorName,
+        string ORNumber
+    )
+    {
+        public DateTime Date => DateTime.Parse(DateRaw);
+
+        // Fixed rate per animal type — matches FeeRates constants
+        public decimal RatePerHead => AnimalType == "Hog" ? 250m : 365m;
+
+        // Total = heads × fixed rate per head
+        public decimal TotalAmount => NumberOfHeads * RatePerHead;
+    }
+}
