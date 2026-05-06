@@ -2,17 +2,8 @@
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
-<div class="admin-layout">
-
-    <!-- ═══════════════════════════════════════
-         SIDEBAR
-    ═══════════════════════════════════════ -->
-    <Sidebar />
-
-    <main class="admin-main">
-
-        <!-- Topbar -->
-        <header class="topbar">
+<!-- Topbar -->
+<header class="topbar">
             <div class="topbar-left">
                 <button class="back-btn" @onclick="GoBack">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
@@ -175,8 +166,6 @@
             </div>
 
         </div><!-- end content-area -->
-    </main>
-</div>
 
 @code {
     [Parameter] public string OwnerId { get; set; } = string.Empty;

@@ -553,6 +553,231 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("SlaughterTransactions", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmAttendance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CollectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Fee")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("MarketDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ORNumber")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("VendorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VendorId", "MarketDate")
+                        .IsUnique();
+
+                    b.ToTable("TpmAttendances", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContactNumber")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Goods")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("VendorName")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TpmVendors", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTransporter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DefaultRoute")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Organization")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TrmTransporters", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTrip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CollectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DriverName")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Fee")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ORNumber")
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PlateNumber")
+                        .IsRequired()
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Route")
+                        .IsRequired()
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TransporterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TripNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TransporterId");
+
+                    b.ToTable("TrmTrips", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.BaseUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -757,6 +982,28 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Navigation("Facility");
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmAttendance", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor", "Vendor")
+                        .WithMany("Attendances")
+                        .HasForeignKey("VendorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Vendor");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTrip", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTransporter", "Transporter")
+                        .WithMany("Trips")
+                        .HasForeignKey("TransporterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Transporter");
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.CollectorFacilityAssignment", b =>
                 {
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Users.CollectorUser", "Collector")
@@ -788,6 +1035,16 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Navigation("DailyCollections");
 
                     b.Navigation("PaymentRecords");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor", b =>
+                {
+                    b.Navigation("Attendances");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTransporter", b =>
+                {
+                    b.Navigation("Trips");
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.CollectorUser", b =>

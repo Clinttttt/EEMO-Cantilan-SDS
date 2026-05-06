@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Components.Shared
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @rendermode InteractiveServer
@@ -12,13 +13,8 @@
 
 <PageTitle>EEMO Admin — Tampak Commercial Center</PageTitle>
 
-<div class="admin-layout">
-    <Sidebar />
-
-    <main class="admin-main">
-
-        <!-- Topbar -->
-        <header class="topbar">
+<!-- Topbar -->
+<header class="topbar">
             <div class="topbar-left flex gap-2">
                 <a href="/menu" class="tcc-back-btn">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
@@ -50,42 +46,13 @@
         <div class="content-area">
 
             <!-- ── Hero Banner ── -->
-            <div class="tcc-hero">
-                <div class="tcc-hero-left">
-                    <div class="tcc-hero-icon">
-                        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>
-                    </div>
-                    <div>
-                        <div class="tcc-hero-eyebrow">Facility · TCC</div>
-                        <div class="tcc-hero-title">Tampak Commercial Center</div>
-                        <div class="tcc-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
-                    </div>
-                </div>
-                <div class="tcc-hero-stats">
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">₱@TotalCollected.ToString("N0")</div>
-                        <div class="tcc-hero-key">Collected</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">₱@TotalPending.ToString("N0")</div>
-                        <div class="tcc-hero-key">Pending</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@CollectionRate%</div>
-                        <div class="tcc-hero-key">Collection Rate</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@ActiveStalls.Count()</div>
-                        <div class="tcc-hero-key">Total Stalls</div>
-                    </div>
-                </div>
-                <div class="tcc-hero-progress">
-                    <div class="tcc-hero-progress-fill" style="width:@CollectionRate%"></div>
-                </div>
-            </div>
+            <FacilityHero 
+                Eyebrow="FACILITY · TCC"
+                Title="Tampak Commercial Center"
+                Icon="@TccIcon"
+                Stats="@HeroStats"
+                ShowProgress="true"
+                ProgressPercentage="@CollectionRate" />
 
             <!-- ── Toolbar ── -->
             <Toolbar SearchQuery="@SearchQuery"
@@ -135,8 +102,6 @@
                                  OnEditClick="OpenEdit" />
 
         </div><!-- end content-area -->
-    </main>
-</div>
 
 <!-- ══════════════════════════════════════════════
      PAYMENT RECORD MODAL (Reusable Component)
@@ -178,6 +143,16 @@
     string SearchQuery = string.Empty;
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+
+    private RenderFragment TccIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>;
+
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = $"₱{TotalCollected:N0}", Label = "Collected" },
+        new() { Value = $"₱{TotalPending:N0}", Label = "Pending" },
+        new() { Value = $"{CollectionRate}%", Label = "Collection Rate" },
+        new() { Value = $"{ActiveStalls.Count()}", Label = "Total Stalls" }
+    };
 
     protected override async Task OnInitializedAsync()
     {

@@ -1,6 +1,9 @@
 @page "/account-setup-admin"
 @attribute [AllowAnonymous]
 
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin
+@inject ISetupApiClient SetupApi
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 <PageTitle>EEMO — Initial System Setup</PageTitle>
@@ -271,6 +274,16 @@
     bool ShowPassword = false;
     bool IsLoading = false;
     string ErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var setupStatusResult = await SetupApi.GetSetupStatusAsync();
+        
+        if (setupStatusResult.IsSuccess && !setupStatusResult.Value!.IsSetupRequired)
+        {
+            Navigation.NavigateTo("/login", replace: true);
+        }
+    }
 
     string PasswordInputType => ShowPassword ? "text" : "password";
 

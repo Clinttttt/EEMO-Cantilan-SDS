@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
+using EEMOCantilanSDS.Application.Requests.Stalls;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -79,4 +80,3 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     }
 }
 
-public record ToggleStallStatusRequest(bool Close);

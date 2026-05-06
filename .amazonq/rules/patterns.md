@@ -130,7 +130,12 @@ Application/
     Payments/
     Stalls/
 
-One folder per command/query. Handler + record + validator always co-located.
+One folder per command/query. Each folder contains EXACTLY 3 separate files:
+- `{Name}Command.cs` or `{Name}Query.cs` — record definition only
+- `{Name}CommandHandler.cs` or `{Name}QueryHandler.cs` — handler class only
+- `{Name}CommandValidator.cs` or `{Name}QueryValidator.cs` — validator class only
+
+NEVER put record + handler + validator in the same file. Always 3 files, always separate.
 
 ---
 
@@ -193,6 +198,74 @@ For complex reads (dashboard, reports, summaries) — repo returns the DTO direc
 
 ## CQRS / MediatR
 
+### File Structure (STRICT — 3 files per feature folder)
+```
+Command/Payments/RecordPayment/
+  RecordPaymentCommand.cs          ← record only, implements IRequest<Result<T>>
+  RecordPaymentCommandHandler.cs   ← handler class only
+  RecordPaymentCommandValidator.cs ← validator class only
+```
+Same pattern for Queries:
+```
+Queries/Payments/GetPaymentHistory/
+  GetPaymentHistoryQuery.cs
+  GetPaymentHistoryQueryHandler.cs
+  GetPaymentHistoryQueryValidator.cs
+```
+
+### Command Record File (`{Name}Command.cs`)
+```csharp
+using EEMOCantilanSDS.Domain.Common;
+using MediatR;
+
+namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+
+public record RecordPaymentCommand(
+    Guid StallId,
+    int Year,
+    int Month,
+    PaymentStatus Status,
+    decimal? PartialAmount,
+    string? Remarks
+) : IRequest<Result<bool>>;
+```
+
+### Handler File (`{Name}CommandHandler.cs`)
+```csharp
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Domain.Common;
+using MediatR;
+
+namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+
+public class RecordPaymentCommandHandler(
+    IPaymentRepository paymentRepository,
+    IStallRepository stallRepository,
+    IUnitOfWork unitOfWork) : IRequestHandler<RecordPaymentCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(RecordPaymentCommand request, CancellationToken ct)
+    {
+        // fetch via repo → domain method → repo add/update → uow.SaveChangesAsync()
+    }
+}
+```
+
+### Validator File (`{Name}CommandValidator.cs`)
+```csharp
+using FluentValidation;
+
+namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+
+public class RecordPaymentCommandValidator : AbstractValidator<RecordPaymentCommand>
+{
+    public RecordPaymentCommandValidator()
+    {
+        RuleFor(x => x.StallId).NotEmpty();
+        // inject repo interface in constructor only when async uniqueness check needed
+    }
+}
+```
+
 Commands and Queries:
 - Defined as C# records inside their feature folder
 - Commands mutate state: {Action}{Entity}Command returns Result<TDto> or Result<bool>
@@ -212,7 +285,7 @@ Handler Rules:
 Validator Rules:
 - One AbstractValidator<T> per command/query — no exceptions
 - May inject repo interfaces for async checks (e.g. uniqueness)
-- OR Number uniqueness checked here via IPaymentRepository — not in handler
+- OR Number uniqueness checked here via repo.IsORNumberUniqueAsync() — not in handler
 - Partial amount: required and > 0 only when Status == PaymentStatus.Partial
 - Handlers are validation-free
 
@@ -279,6 +352,29 @@ Computed Properties — always builder.Ignore():
 - DailyCollection: TotalCollected, FishFeeAmount
 - Contract: ExpiryDate, IsExpired, IsExpiringSoon, WholeYearRental
 - Stall: IsActive
+
+---
+
+## Request Records (Controller Input Models)
+
+When a controller action needs a request body that doesn't map 1:1 to a Command (e.g. a simple wrapper with 1-2 fields), define it as a record in the Application layer:
+
+**Location:** `Application/Requests/{Feature}/{Feature}Requests.cs`  
+**Namespace:** `EEMOCantilanSDS.Application.Requests.{Feature}`
+
+Example:
+```csharp
+// Application/Requests/Stalls/StallRequests.cs
+namespace EEMOCantilanSDS.Application.Requests.Stalls;
+
+public record ToggleStallStatusRequest(bool Close);
+```
+
+Rules:
+- NEVER define request records inline at the bottom of a controller file
+- Group all requests for a feature in one file: `{Feature}Requests.cs`
+- Controllers reference them via `using EEMOCantilanSDS.Application.Requests.{Feature};`
+- If the request body maps directly to a Command, bind `[FromBody]` to the Command directly — no wrapper needed
 
 ---
 

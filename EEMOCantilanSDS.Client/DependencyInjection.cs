@@ -68,6 +68,8 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<ICollectorsApiClient, CollectorsApiClient>(configuration);
             service.AddApiHttpClient<IPaymentsApiClient, PaymentsApiClient>(configuration);
             service.AddApiHttpClient<IVendorsApiClient, VendorsApiClient>(configuration);
+            service.AddApiHttpClient<ITpmApiClient, TpmApiClient>(configuration);
+            service.AddApiHttpClient<ITrmApiClient, TrmApiClient>(configuration);
 
             return service;
         }

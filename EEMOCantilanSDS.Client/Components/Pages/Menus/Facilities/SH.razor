@@ -1,19 +1,14 @@
 ﻿@page "/slh"
 @page "/facility/slh"
 @using EEMOCantilanSDS.Client.Components.Pages.Shared.SH
+@using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 <PageTitle>EEMO Admin — Slaughterhouse</PageTitle>
 
-<div class="admin-layout">
-
-    <Sidebar />
-
-    <main class="admin-main">
-
-        <!-- Topbar -->
-        <header class="topbar">
+<!-- Topbar -->
+<header class="topbar">
             <div class="topbar-left flex gap-2">
                 <a href="/menu" class="slh-back-btn">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
@@ -45,42 +40,13 @@
         <div class="content-area">
 
             <!-- -- SLH Hero Banner -- -->
-            <div class="slh-hero">
-                <div class="slh-hero-left">
-                    <div class="slh-hero-icon">
-                        <svg viewBox="0 0 24 24"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>
-                    </div>
-                    <div>
-                        <div class="slh-hero-eyebrow">Facility · SLH</div>
-                        <div class="slh-hero-title">Slaughterhouse</div>
-                        <div class="slh-hero-sub">Municipality of Cantilan, Surigao del Sur</div>
-                    </div>
-                </div>
-                <div class="slh-hero-stats">
-                    <div class="slh-hero-stat">
-                        <div class="slh-hero-val">@TotalCollected.ToString("N0")</div>
-                        <div class="slh-hero-key">Collected</div>
-                    </div>
-                    <div class="slh-hero-divider"></div>
-                    <div class="slh-hero-stat">
-                        <div class="slh-hero-val">@TotalHeads</div>
-                        <div class="slh-hero-key">Total Heads</div>
-                    </div>
-                    <div class="slh-hero-divider"></div>
-                    <div class="slh-hero-stat">
-                        <div class="slh-hero-val">@Entries.Count</div>
-                        <div class="slh-hero-key">Transactions</div>
-                    </div>
-                    <div class="slh-hero-divider"></div>
-                    <div class="slh-hero-stat">
-                        <div class="slh-hero-val">@DateTime.Now.ToString("MMM yyyy")</div>
-                        <div class="slh-hero-key">Period</div>
-                    </div>
-                </div>
-                <div class="slh-hero-progress">
-                    <div class="slh-hero-progress-fill" style="width:100%"></div>
-                </div>
-            </div>
+            <FacilityHero 
+                Eyebrow="FACILITY · SLH"
+                Title="Slaughterhouse"
+                Icon="@SlhIcon"
+                Stats="@HeroStats"
+                ShowProgress="true"
+                ProgressPercentage="100" />
 
             <!-- -- Toolbar (Unified Design) -- -->
             <div class="toolbar-unified">
@@ -125,6 +91,13 @@
                                   OnClose="CloseRecordModal"
                                   OnSubmit="SubmitSlaughterRecord"
                                   ErrorMessage="@ErrorMessage" />
+
+            <!-- ADD TRANSACTION MODAL -->
+            <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
+                                          OwnerName="@SelectedOwnerName"
+                                          OnClose="CloseAddTransactionModal"
+                                          OnSubmit="SubmitAddTransaction"
+                                          ErrorMessage="@ErrorMessage" />
 
 
             <!-- -- Facility Info Bar -- -->
@@ -235,8 +208,8 @@
                                         <button class="btn-action" title="View Details" @onclick="() => ViewEntry(entry)">
                                             <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                                         </button>
-                                        <button class="btn-action" title="View Receipt" @onclick="() => ViewReceipt(entry)">
-                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                                        <button class="btn-action" title="Add Transaction" @onclick="() => AddTransactionForOwner(entry)">
+                                            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                                         </button>
                                         <button class="btn-action" title="Edit" @onclick="() => EditEntry(entry)">
                                             <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
@@ -260,15 +233,25 @@
             </div>
 
         </div>
-    </main>
-</div>
 
 @code {
+
+    private RenderFragment SlhIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>;
+
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = $"{TotalCollected:N0}", Label = "Collected" },
+        new() { Value = $"{TotalHeads}", Label = "Total Heads" },
+        new() { Value = $"{Entries.Count}", Label = "Transactions" },
+        new() { Value = DateTime.Now.ToString("MMM yyyy"), Label = "Period" }
+    };
 
     // -- STATE ----------------------------------------------------
     private string SearchTerm { get; set; } = string.Empty;
     private string ActiveAnimalFilter { get; set; } = "All";
     private bool ShowRecordModal { get; set; }
+    private bool ShowAddTransactionModal { get; set; }
+    private string SelectedOwnerName { get; set; } = string.Empty;
     private string ErrorMessage { get; set; } = string.Empty;
 
     // Carabao and Cow are now separate (same ?365 rate)
@@ -309,6 +292,13 @@
     private async Task CloseRecordModal()
     {
         ShowRecordModal = false;
+        ErrorMessage = string.Empty;
+    }
+
+    private async Task CloseAddTransactionModal()
+    {
+        ShowAddTransactionModal = false;
+        SelectedOwnerName = string.Empty;
         ErrorMessage = string.Empty;
     }
 
@@ -368,11 +358,86 @@
         await CloseRecordModal();
     }
 
+    private async Task SubmitAddTransaction(AddSlaughterTransactionModal.AddTransactionForm form)
+    {
+        if (form.TransactionDate == default)
+        {
+            ErrorMessage = "Please select a transaction date.";
+            return;
+        }
+        
+        int totalHeads = form.HogHeads + form.CarabaoHeads + form.CowHeads;
+        if (totalHeads == 0)
+        {
+            ErrorMessage = "Please select at least one animal type.";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(form.ORNo))
+        {
+            ErrorMessage = "OR number is required.";
+            return;
+        }
+
+        // Create entries for each animal type
+        if (form.HogHeads > 0)
+        {
+            var hogEntry = new SlaughterEntry(
+                Entries.Max(e => e.Id) + 1,
+                form.TransactionDate,
+                SelectedOwnerName,
+                "Hog",
+                form.HogHeads,
+                250,
+                form.ORNo.Trim()
+            );
+            Entries.Add(hogEntry);
+        }
+
+        if (form.CarabaoHeads > 0)
+        {
+            var carabaoEntry = new SlaughterEntry(
+                Entries.Max(e => e.Id) + 1,
+                form.TransactionDate,
+                SelectedOwnerName,
+                "Carabao",
+                form.CarabaoHeads,
+                365,
+                form.ORNo.Trim()
+            );
+            Entries.Add(carabaoEntry);
+        }
+
+        if (form.CowHeads > 0)
+        {
+            var cowEntry = new SlaughterEntry(
+                Entries.Max(e => e.Id) + 1,
+                form.TransactionDate,
+                SelectedOwnerName,
+                "Cow",
+                form.CowHeads,
+                365,
+                form.ORNo.Trim()
+            );
+            Entries.Add(cowEntry);
+        }
+
+        await CloseAddTransactionModal();
+    }
+
     private void ViewEntry(SlaughterEntry e)
     {
         Navigation.NavigateTo($"/facility/slh/transaction/{e.OwnerName}");
     }
-    private void ViewReceipt(SlaughterEntry e) { /* TODO: print/view receipt */ }
+
+    private void AddTransactionForOwner(SlaughterEntry e)
+    {
+        SelectedOwnerName = e.OwnerName;
+        ErrorMessage = string.Empty;
+        ShowAddTransactionModal = true;
+        StateHasChanged();
+    }
+
     private void EditEntry(SlaughterEntry e) { /* TODO: edit modal */ }
 
     // -- DATA MODEL -----------------------------------------------

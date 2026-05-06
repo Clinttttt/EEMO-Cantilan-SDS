@@ -1,0 +1,461 @@
+/* ══════════════════════════════════════════
+   ADD SLAUGHTER TRANSACTION MODAL (SH Specific)
+══════════════════════════════════════════ */
+
+.eemo-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.eemo-modal {
+    background: var(--bg-card);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+}
+
+.eemo-modal-slaughter {
+    max-width: 700px;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.eemo-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.eemo-modal-title {
+    font-family: 'EB Garamond', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.eemo-modal-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.eemo-modal-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: var(--bg);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+.eemo-modal-close:hover {
+    background: var(--bg-icon);
+}
+
+.eemo-modal-close svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-muted);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.eemo-modal-body {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.eemo-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.form-section {
+    margin-bottom: 24px;
+}
+
+.form-section:last-child {
+    margin-bottom: 0;
+}
+
+.form-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.form-group-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 300px;
+}
+
+.form-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.req {
+    color: var(--red);
+    font-weight: 700;
+}
+
+.form-input {
+    padding: 10px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg-card);
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Animal Selection Cards */
+.animal-selection-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.animal-card {
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: all 0.2s;
+    overflow: hidden;
+}
+
+.animal-card:hover {
+    border-color: var(--navy-3);
+    box-shadow: 0 2px 8px rgba(13, 33, 55, 0.1);
+}
+
+.animal-card.selected {
+    border-color: var(--navy);
+    background: rgba(13, 33, 55, 0.02);
+}
+
+.animal-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.animal-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.hog-icon {
+    background: rgba(200, 168, 75, 0.1);
+}
+
+.hog-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2;
+}
+
+.carabao-icon {
+    background: rgba(45, 122, 95, 0.1);
+}
+
+.carabao-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--green);
+    fill: none;
+    stroke-width: 2;
+}
+
+.cow-icon {
+    background: rgba(139, 58, 58, 0.1);
+}
+
+.cow-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--red);
+    fill: none;
+    stroke-width: 2;
+}
+
+.animal-info {
+    flex: 1;
+}
+
+.animal-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.animal-rate {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.animal-checkbox {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.animal-card.selected .animal-checkbox {
+    background: var(--navy);
+    border-color: var(--navy);
+}
+
+.animal-checkbox svg {
+    width: 14px;
+    height: 14px;
+    stroke: white;
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.animal-card-body {
+    padding: 0 16px 16px 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.form-label-inline {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--navy);
+    flex-shrink: 0;
+}
+
+.form-input-inline {
+    padding: 8px 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg-card);
+    transition: border-color 0.2s;
+    font-family: inherit;
+    width: 100px;
+}
+
+.form-input-inline:focus {
+    outline: none;
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.1);
+}
+
+/* Transaction Summary */
+.transaction-summary {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 24px;
+}
+
+.summary-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.summary-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text);
+}
+
+.summary-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.form-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--red-bg);
+    border: 1px solid rgba(139, 58, 58, 0.2);
+    border-radius: 8px;
+    color: var(--red);
+    font-size: 12px;
+    margin-top: 16px;
+}
+
+.form-error svg {
+    width: 16px;
+    height: 16px;
+    stroke: var(--red);
+    fill: none;
+    stroke-width: 2;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.btn-ghost,
+.btn-primary {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.btn-ghost {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+    background: var(--bg-icon);
+    border-color: var(--navy);
+}
+
+.btn-primary {
+    background: var(--navy);
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background: #051830;
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+    .eemo-modal {
+        max-width: calc(100% - 32px);
+        width: auto;
+    }
+
+    .eemo-modal-header {
+        padding: 16px;
+    }
+
+    .eemo-modal-body {
+        padding: 16px;
+    }
+
+    .eemo-modal-footer {
+        padding: 12px 16px;
+        flex-direction: column-reverse;
+    }
+
+    .eemo-modal-footer button {
+        width: 100%;
+    }
+
+    .form-group-compact {
+        max-width: 100%;
+    }
+}

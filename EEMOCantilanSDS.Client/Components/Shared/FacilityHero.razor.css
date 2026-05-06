@@ -1,0 +1,131 @@
+/* ═══════════════════════════════════════════════════
+   FacilityHero.razor.css — Reusable hero banner
+   Used across all 8 EEMO facilities
+═══════════════════════════════════════════════════ */
+
+.facility-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 28px 32px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+
+    .facility-hero::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        right: -40px;
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+.facility-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex: 1 1 260px;
+}
+
+.facility-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200,168,75,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .facility-hero-icon :deep(svg) {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.facility-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 4px;
+}
+
+.facility-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.facility-hero-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,.55);
+    margin-top: 3px;
+}
+
+.facility-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.facility-hero-stat {
+    padding: 0 24px;
+    text-align: center;
+}
+
+    .facility-hero-stat:first-child {
+        padding-left: 0;
+    }
+
+.facility-hero-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.facility-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,.5);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.facility-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,.12);
+    flex-shrink: 0;
+}
+
+.facility-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+}
+
+.facility-hero-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 0 2px 2px 0;
+    transition: width .5s ease;
+}

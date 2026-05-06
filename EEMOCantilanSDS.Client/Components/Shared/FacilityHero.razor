@@ -1,0 +1,64 @@
+@* FacilityHero.razor — Reusable hero banner for all facilities *@
+
+<div class="facility-hero">
+    <div class="facility-hero-left">
+        <div class="facility-hero-icon">
+            @Icon
+        </div>
+        <div>
+            <div class="facility-hero-eyebrow">@Eyebrow</div>
+            <h1 class="facility-hero-title">@Title</h1>
+            <div class="facility-hero-sub">@Subtitle</div>
+        </div>
+    </div>
+
+    <div class="facility-hero-stats">
+        @foreach (var stat in Stats)
+        {
+            if (stat != Stats.First())
+            {
+                <div class="facility-hero-divider"></div>
+            }
+            <div class="facility-hero-stat">
+                <div class="facility-hero-val">@stat.Value</div>
+                <div class="facility-hero-key">@stat.Label</div>
+            </div>
+        }
+    </div>
+
+    @if (ShowProgress)
+    {
+        <div class="facility-hero-progress">
+            <div class="facility-hero-progress-fill" style="width: @ProgressPercentage%"></div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment Icon { get; set; } = default!;
+
+    [Parameter]
+    public string Eyebrow { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Subtitle { get; set; } = "Municipality of Cantilan, Surigao del Sur";
+
+    [Parameter]
+    public List<HeroStat> Stats { get; set; } = new();
+
+    [Parameter]
+    public bool ShowProgress { get; set; } = false;
+
+    [Parameter]
+    public double ProgressPercentage { get; set; } = 0;
+
+    public class HeroStat
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
+}

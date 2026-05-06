@@ -486,7 +486,79 @@ public class DailyCollection : AuditableEntity
 
 ---
 
-## 4. Slaughterhouse
+## 4. Transport Terminal
+
+### TrmTransporter : AuditableEntity
+**Namespace:** `EEMOCantilanSDS.Domain.Entities.TransportTerminal`  
+**Table:** `TrmTransporters`  
+**Facility:** TRM only
+
+```csharp
+public class TrmTransporter : AuditableEntity
+{
+    public string Name { get; private set; }
+    public string Organization { get; private set; }
+    public string DefaultRoute { get; private set; }
+    public bool IsActive { get; private set; }
+    public string? Remarks { get; private set; }
+
+    // Navigation
+    public ICollection<TrmTrip> Trips { get; private set; }
+
+    public static TrmTransporter Create(string name, string organization, string defaultRoute, string? remarks = null, string createdBy = "System");
+    public void UpdateDetails(string name, string organization, string defaultRoute, string? remarks, string updatedBy);
+    public void Deactivate(string updatedBy);
+    public void Activate(string updatedBy);
+}
+```
+
+### TrmTrip : AuditableEntity
+**Namespace:** `EEMOCantilanSDS.Domain.Entities.TransportTerminal`  
+**Table:** `TrmTrips`  
+**Facility:** TRM only
+
+```csharp
+public class TrmTrip : AuditableEntity
+{
+    public Guid TransporterId { get; private set; }
+    public Guid? CollectorId { get; private set; }
+    public int TripNumber { get; private set; }
+    public string DriverName { get; private set; }
+    public string PlateNumber { get; private set; }
+    public string Route { get; private set; }
+    public decimal Fee { get; private set; }  // always FeeRates.TrmTripFee = ₱30
+    public string? ORNumber { get; private set; }
+    public DateTime RecordedAt { get; private set; }
+    public string? Remarks { get; private set; }
+
+    // Navigation
+    public TrmTransporter? Transporter { get; private set; }
+
+    public static TrmTrip Create(
+        Guid transporterId,
+        int tripNumber,
+        string driverName,
+        string plateNumber,
+        string route,
+        string orNumber,
+        Guid? collectorId = null,
+        string? remarks = null,
+        string createdBy = "System");
+
+    public void UpdateORNumber(string orNumber, string updatedBy);
+}
+```
+
+**Business Rules:**
+- Fee is always `FeeRates.TrmTripFee` (₱30) — fixed, never variable
+- OR Number is required at the time of recording a trip
+- `TripNumber` is a sequential integer per day, assigned by the handler
+- OR Number must be globally unique (validated in FluentValidation)
+- `PlateNumber` is stored uppercase
+
+---
+
+## 5. Slaughterhouse
 
 ### SlaughterTransaction : AuditableEntity
 **Namespace:** `EEMOCantilanSDS.Domain.Entities.Slaughterhouse`  
@@ -560,7 +632,7 @@ public enum AnimalType
 
 ---
 
-## 5. Audit
+## 6. Audit
 
 ### AuditLog : BaseEntity
 **Namespace:** `EEMOCantilanSDS.Domain.Entities.Audit`  
@@ -611,6 +683,8 @@ CollectorUser (M) >────< (M) Facility
 AdminUser (no relationships)
 
 Facility (1) ──────< (M) SlaughterTransaction
+
+TrmTransporter (1) ──────< (M) TrmTrip
 ```
 
 ---
@@ -627,6 +701,10 @@ Facility (1) ──────< (M) SlaughterTransaction
 | PaymentRecords | PaymentRecord | - | ✅ | ✅ |
 | DailyCollections | DailyCollection | - | ✅ | ✅ |
 | SlaughterTransactions | SlaughterTransaction | - | ✅ | ✅ |
+| TpmVendors | TpmVendor | - | ✅ | ✅ |
+| TpmAttendances | TpmAttendance | - | ✅ | ✅ |
+| TrmTransporters | TrmTransporter | - | ✅ | ✅ |
+| TrmTrips | TrmTrip | - | ✅ | ✅ |
 | AuditLogs | AuditLog | - | ❌ | ❌ |
 
 ---
@@ -682,5 +760,7 @@ These properties are calculated in C# code and must be ignored in EF configurati
 OR Numbers must be unique across:
 - `PaymentRecords.ORNumber`
 - `DailyCollections.ORNumber`
+- `TpmAttendances.ORNumber`
+- `TrmTrips.ORNumber`
 
 Validated in FluentValidation, not database constraint.

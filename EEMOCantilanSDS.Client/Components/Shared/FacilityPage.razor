@@ -5,40 +5,36 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
 
-<div class="admin-layout">
-    <Sidebar />
-
-    <main class="admin-main">
-        <header class="topbar">
-            <div class="topbar-left flex gap-2">
-                <a href="/menu" class="tcc-back-btn">
-                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                </a>
-                <div>
-                    <div class="topbar-title">@FacilityName</div>
-                    <div class="topbar-breadcrumb">
-                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                        <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">@FacilityShortCode — @DateTime.Now.ToString("MMMM yyyy")</span>
-                    </div>
-                </div>
+<header class="topbar">
+    <div class="topbar-left flex gap-2">
+        <a href="/menu" class="tcc-back-btn">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+            <div class="topbar-title">@FacilityName</div>
+            <div class="topbar-breadcrumb">
+                <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-active">@FacilityShortCode — @DateTime.Now.ToString("MMMM yyyy")</span>
             </div>
-            <div class="topbar-right">
-                <div class="topbar-date">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
-                </div>
-                <div class="topbar-admin">
-                    <div class="admin-avatar">A</div>
-                    <div class="admin-info">
-                        <div class="admin-name">Administrator</div>
-                        <div class="admin-role">EEMO Office</div>
-                    </div>
-                </div>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DateTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <div class="topbar-admin">
+            <div class="admin-avatar">A</div>
+            <div class="admin-info">
+                <div class="admin-name">Administrator</div>
+                <div class="admin-role">EEMO Office</div>
             </div>
-        </header>
+        </div>
+    </div>
+</header>
 
-        <div class="content-area">
+<div class="content-area">
             <div class="tcc-hero">
                 <div class="tcc-hero-left">
                     <div class="tcc-hero-icon">
@@ -119,8 +115,6 @@
                                  OnHistoryClick="OpenHistory"
                                  OnEditClick="OpenEdit" />
         </div>
-    </main>
-</div>
 
 <FacilityPaymentModal TStall="TStall"
                       Facility="@FacilityShortCode"

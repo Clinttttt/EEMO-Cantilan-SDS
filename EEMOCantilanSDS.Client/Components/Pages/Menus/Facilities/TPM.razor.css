@@ -1,0 +1,1114 @@
+﻿/* ═══════════════════════════════════════════════════
+   TPM.razor.css — Tabo-an Public Market
+   All classes scoped under tpm- prefix.
+   Uses EEMO CSS variables from app.css.
+═══════════════════════════════════════════════════ */
+
+/* ── Topbar ─────────────────────────────────────── */
+.tpm-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 64px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.tpm-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tpm-back-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--navy);
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+    .tpm-back-btn:hover {
+        background: var(--bg);
+        border-color: var(--navy-2);
+    }
+
+    .tpm-back-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-topbar-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.tpm-topbar-breadcrumb {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tpm-breadcrumb-link {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+    .tpm-breadcrumb-link:hover {
+        color: var(--gold);
+    }
+
+.tpm-breadcrumb-sep {
+    color: var(--border);
+}
+
+.tpm-breadcrumb-active {
+    color: var(--gold);
+    font-weight: 600;
+}
+
+.tpm-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.tpm-topbar-date {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+    .tpm-topbar-date svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-topbar-admin {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.tpm-admin-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tpm-admin-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.tpm-admin-role {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ── Content area ────────────────────────────────── */
+.tpm-content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* ── Hero Banner ─────────────────────────────────── */
+.tpm-hero {
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 1.75rem 2rem 0;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+}
+
+.tpm-hero-left {
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    flex: 1;
+    padding-bottom: 1.75rem;
+}
+
+.tpm-hero-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .tpm-hero-icon svg {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 2px;
+}
+
+.tpm-hero-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.tpm-hero-sub {
+    font-size: 12.5px;
+    color: rgba(255,255,255,0.45);
+    margin-top: 3px;
+}
+
+.tpm-hero-stats {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding-bottom: 1.75rem;
+}
+
+.tpm-hero-stat {
+    padding: 0 1.75rem;
+    text-align: center;
+}
+
+.tpm-hero-val {
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+
+.tpm-hero-key {
+    font-size: 11px;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 5px;
+    white-space: nowrap;
+}
+
+.tpm-hero-divider {
+    width: 1px;
+    height: 36px;
+    background: rgba(255,255,255,0.1);
+    flex-shrink: 0;
+}
+
+/* Gold progress bar at bottom of hero */
+.tpm-hero-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+}
+
+.tpm-hero-progress-fill {
+    height: 100%;
+    background: var(--gold);
+    transition: width 0.4s ease;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ── Two-column layout ──────────────────────────── */
+.tpm-columns {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1.25rem;
+}
+
+/* ── Panel card ──────────────────────────────────── */
+.tpm-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.tpm-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.tpm-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+    .tpm-panel-title svg {
+        width: 15px;
+        height: 15px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-cal-desc {
+    padding: 0.55rem 1.25rem;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+}
+
+/* ── Calendar nav ────────────────────────────────── */
+.tpm-cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tpm-cal-nav-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+    .tpm-cal-nav-btn:hover:not(:disabled) {
+        background: var(--bg);
+        border-color: var(--navy-2);
+    }
+
+    .tpm-cal-nav-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+    .tpm-cal-nav-btn svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-cal-month {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--navy);
+    white-space: nowrap;
+}
+
+/* ── Friday list ─────────────────────────────────── */
+.tpm-friday-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.tpm-friday-item {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.13s;
+}
+
+    .tpm-friday-item:last-child {
+        border-bottom: none;
+    }
+
+    .tpm-friday-item:hover:not(.friday-future) {
+        background: var(--bg);
+    }
+
+    .tpm-friday-item.friday-selected {
+        background: rgba(200, 168, 75, 0.06);
+        border-left: 3px solid var(--gold);
+    }
+
+    .tpm-friday-item.friday-future {
+        opacity: 0.45;
+        cursor: default;
+    }
+
+.tpm-friday-date-block {
+    width: 40px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.tpm-friday-day {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1;
+}
+
+.tpm-friday-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 1px;
+}
+
+.tpm-friday-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tpm-friday-full {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.tpm-friday-meta {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.tpm-meta-none {
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+.tpm-meta-future {
+    color: var(--text-subtle);
+}
+
+/* Friday badge */
+.tpm-friday-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.tpm-badge-done {
+    background: var(--green-bg);
+    color: var(--green);
+    gap: 0.2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11px;
+}
+
+    .tpm-badge-done svg {
+        width: 10px;
+        height: 10px;
+        stroke: var(--green);
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        display: block;
+    }
+
+.tpm-badge-empty {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.tpm-badge-future {
+    background: var(--bg-icon);
+    color: var(--text-muted);
+}
+
+/* ── Calendar footer ─────────────────────────────── */
+.tpm-cal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+}
+
+.tpm-cal-sum-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.tpm-cal-sum-val {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--navy);
+}
+
+.tpm-cal-sum-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.tpm-sum-green {
+    color: var(--green) !important;
+}
+
+.tpm-sum-red {
+    color: var(--red) !important;
+}
+
+.tpm-sum-gold {
+    color: var(--gold) !important;
+}
+
+/* ── Attendance info bar ─────────────────────────── */
+.tpm-attendance-info {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+}
+
+.tpm-attend-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+}
+
+.tpm-attend-val {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--navy);
+}
+
+.tpm-attend-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Selected date chip */
+.tpm-selected-date {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 12px;
+    color: var(--gold);
+    font-weight: 600;
+    background: rgba(200,168,75,0.08);
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid rgba(200,168,75,0.25);
+}
+
+    .tpm-selected-date svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Add vendor button */
+.tpm-add-vendor-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+
+    .tpm-add-vendor-btn:hover {
+        background: var(--navy-3);
+    }
+
+    .tpm-add-vendor-btn svg {
+        width: 13px;
+        height: 13px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+    }
+
+/* ── Search ──────────────────────────────────────── */
+.tpm-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+    .tpm-search-wrap svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        flex-shrink: 0;
+    }
+
+.tpm-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: var(--navy);
+    background: transparent;
+}
+
+    .tpm-search-input::placeholder {
+        color: var(--text-muted);
+    }
+
+/* ── Empty state ─────────────────────────────────── */
+.tpm-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3.5rem 1.5rem;
+    color: var(--text-muted);
+    font-size: 13px;
+    flex: 1;
+}
+
+    .tpm-empty svg {
+        width: 36px;
+        height: 36px;
+        stroke: var(--border);
+        fill: none;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* ── Vendor table ────────────────────────────────── */
+.tpm-vendor-table-wrap {
+    overflow-x: auto;
+    flex: 1;
+    padding-bottom: 0;
+}
+
+.tpm-vendor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+    margin-bottom: 0;
+}
+
+    .tpm-vendor-table thead tr {
+        border-bottom: 1px solid var(--border);
+        background: var(--bg);
+    }
+
+    .tpm-vendor-table th:nth-child(1) { width: 30px; padding-left: 1.1rem; }
+    .tpm-vendor-table th:nth-child(2) { width: 135px; }
+    .tpm-vendor-table th:nth-child(3) { width: 115px; }
+    .tpm-vendor-table th:nth-child(4) { width: 115px; }
+    .tpm-vendor-table th:nth-child(5) { width: 65px; }
+    .tpm-vendor-table th:nth-child(6) { width: 75px; }
+    .tpm-vendor-table th:nth-child(7) { width: 65px; }
+
+    .tpm-vendor-table th {
+        padding: 0.35rem 0.4rem;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--navy);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .tpm-vendor-table tbody tr {
+        border-bottom: 1px solid var(--border);
+        transition: background 0.13s;
+    }
+
+        .tpm-vendor-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .tpm-vendor-table tbody tr:hover {
+            background: var(--bg);
+        }
+
+    .tpm-vendor-table td {
+        padding: 0.45rem 0.4rem;
+        color: var(--navy);
+        vertical-align: middle;
+    }
+
+    .tpm-vendor-table td:nth-child(1) {
+        padding-left: 1.1rem;
+    }
+
+.tpm-row-num {
+    color: var(--navy);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.tpm-vendor-name-cell {
+    font-weight: 400;
+    color: var(--navy);
+    font-size: 12px;
+}
+
+.tpm-goods-cell {
+    font-size: 12px;
+    color: var(--navy);
+}
+
+.tpm-fee-cell {
+    font-weight: 400;
+    color: var(--navy);
+    font-size: 12px;
+}
+
+/* OR badge */
+.tpm-or-badge {
+    display: inline-block;
+    padding: 0;
+    background: transparent;
+    color: var(--navy);
+    border-radius: 0;
+    font-size: 12px;
+    font-weight: 400;
+    white-space: nowrap;
+    border: none;
+}
+
+.tpm-or-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-size: 12px;
+    color: var(--navy);
+    cursor: pointer;
+    transition: none;
+    font-weight: 400;
+}
+
+    .tpm-or-btn:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+    }
+
+    .tpm-or-btn svg {
+        width: 10px;
+        height: 10px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+    }
+
+.tpm-or-none {
+    color: var(--navy);
+    font-size: 12px;
+    font-weight: 400;
+}
+
+/* Status pills */
+.tpm-status-pill {
+    display: inline-block;
+    padding: 0;
+    border-radius: 0;
+    font-size: 12px;
+    font-weight: 400;
+    background: transparent;
+    border: none;
+}
+
+.pill-paid {
+    background: transparent;
+    color: var(--navy);
+    border: none;
+}
+
+.pill-unpaid {
+    background: transparent;
+    color: var(--navy);
+    border: none;
+}
+
+/* Action buttons */
+.tpm-actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.tpm-pay-btn,
+.tpm-unpay-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-icon);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+    .tpm-pay-btn svg,
+    .tpm-unpay-btn svg {
+        width: 13px;
+        height: 13px;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.tpm-pay-btn {
+    border-color: var(--green);
+}
+
+    .tpm-pay-btn svg {
+        stroke: var(--green);
+    }
+
+    .tpm-pay-btn:hover {
+        background: var(--green-bg);
+    }
+
+.tpm-unpay-btn:hover {
+    background: var(--red-bg);
+    border-color: var(--red);
+}
+
+.tpm-unpay-btn svg {
+    stroke: var(--text-muted);
+}
+
+.tpm-unpay-btn:hover svg {
+    stroke: var(--red);
+}
+
+/* ── Modal ───────────────────────────────────────── */
+.tpm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 33, 55, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.tpm-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(13, 33, 55, 0.18);
+    overflow: hidden;
+}
+
+.tpm-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.tpm-modal-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.tpm-modal-close {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+    .tpm-modal-close:hover {
+        background: var(--bg);
+    }
+
+    .tpm-modal-close svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+    }
+
+.tpm-modal-body {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.tpm-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+
+/* ── Form elements ───────────────────────────────── */
+.tpm-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.tpm-form-label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.tpm-form-input {
+    padding: 0.6rem 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--navy);
+    background: var(--bg-card);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+    .tpm-form-input:focus {
+        border-color: var(--navy-2);
+    }
+
+    .tpm-form-input::placeholder {
+        color: var(--text-muted);
+    }
+
+.tpm-form-error {
+    font-size: 11.5px;
+    color: var(--red);
+    font-weight: 500;
+}
+
+.tpm-form-error-banner {
+    padding: 0.6rem 0.875rem;
+    background: var(--red-bg);
+    border: 1px solid rgba(139, 58, 58, 0.2);
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--red);
+    font-weight: 500;
+}
+
+/* ── OR info block (inside modal) ───────────────── */
+.tpm-or-info-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.875rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.tpm-or-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.tpm-or-info-key {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.tpm-or-info-val {
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.tpm-or-fee {
+    color: var(--green);
+    font-size: 14px;
+}
+
+/* ── Buttons ─────────────────────────────────────── */
+.tpm-btn-ghost {
+    padding: 0.5rem 1.1rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+    .tpm-btn-ghost:hover {
+        background: var(--bg);
+    }
+
+.tpm-btn-primary {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s;
+}
+
+    .tpm-btn-primary:hover {
+        background: var(--navy-3);
+    }
+
+    .tpm-btn-primary svg {
+        width: 13px;
+        height: 13px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 1024px) {
+    .tpm-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .tpm-hero {
+        flex-wrap: wrap;
+    }
+
+    .tpm-hero-stats {
+        flex-wrap: wrap;
+    }
+}

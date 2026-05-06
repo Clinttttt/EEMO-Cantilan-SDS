@@ -1,2 +1,45 @@
 ﻿@inherits LayoutComponentBase
-@Body
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@if (showSidebar)
+{
+    <div class="admin-layout">
+        <Sidebar />
+        
+        <main class="admin-main">
+            @Body
+        </main>
+    </div>
+}
+else
+{
+    @Body
+}
+
+@code {
+    private bool showSidebar = true;
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        UpdateSidebarVisibility();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateSidebarVisibility();
+        StateHasChanged();
+    }
+
+    private void UpdateSidebarVisibility()
+    {
+        var path = new Uri(Navigation.Uri).AbsolutePath.ToLower();
+        showSidebar = !path.Contains("/login") && !path.Contains("/setup");
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

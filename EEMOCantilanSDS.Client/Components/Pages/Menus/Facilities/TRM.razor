@@ -1,0 +1,816 @@
+@page "/trm"
+@page "/facility/trm"
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.TransportTerminal
+@using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter
+@using EEMOCantilanSDS.Application.Requests.TransportTerminal
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject ITrmApiClient TrmApi
+
+<PageTitle>EEMO Admin — Transport Terminal</PageTitle>
+
+<!-- ── Topbar ── -->
+<header class="topbar">
+    <div class="topbar-left flex gap-2">
+        <a href="/menu" class="tcc-back-btn">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+            <div class="topbar-title">Transport Terminal</div>
+            <div class="topbar-breadcrumb">
+                <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-active">TRM — @DateTime.Now.ToString("MMMM d, yyyy")</span>
+            </div>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DateTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <div class="topbar-admin">
+            <div class="admin-avatar">A</div>
+            <div class="admin-info">
+                <div class="admin-name">Administrator</div>
+                <div class="admin-role">EEMO Office</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="content-area">
+
+    @if (isLoading)
+    {
+        <div class="spinner">Loading...</div>
+    }
+    else
+    {
+        <!-- ── Hero Banner ── -->
+        <FacilityHero Eyebrow="FACILITY · TRM"
+                      Title="Transport Terminal"
+                      Icon="@TrmIcon"
+                      Stats="@HeroStats"
+                      ShowProgress="false" />
+
+    <!-- ── Two-column layout ── -->
+    <div class="trm-columns">
+
+        <!-- ── LEFT: Registered Transporters ── -->
+        <div class="trm-panel">
+            <div class="trm-panel-header">
+                <div class="trm-panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+                    Registered Transporters
+                </div>
+                <button class="trm-add-btn" @onclick="OpenAddTransporterModal">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add Transporter
+                </button>
+            </div>
+
+            <div class="trm-panel-desc">
+                Click a transporter to view profile · ₱30 terminal fee
+            </div>
+
+            <div class="trm-search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input class="trm-search-input" placeholder="Search name or organization…" @bind="TransporterSearch" @bind:event="oninput" />
+            </div>
+
+            @if (!FilteredTransporters.Any())
+            {
+                <div class="trm-empty">
+                    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
+                    <span>No transporters found</span>
+                </div>
+            }
+            else
+            {
+                <div class="trm-transporter-list">
+                    @foreach (var t in FilteredTransporters)
+                    {
+                        var tripsToday = TodayTrips.Count(x => x.TransporterId == t.Id);
+                        var isSelected = ProfileTransporter?.Id == t.Id;
+                        <div class="trm-transporter-item @(isSelected ? "trm-item-active" : "")"
+                             @onclick="() => OpenProfile(t)">
+                            <div class="trm-transporter-icon">
+                                <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
+                            </div>
+                            <div class="trm-transporter-info">
+                                <div class="trm-transporter-name">@t.Name</div>
+                                <div class="trm-transporter-meta">
+                                    <span class="trm-org-tag">@t.Organization</span>
+                                </div>
+                            </div>
+                            <div class="trm-transporter-right">
+                                @if (tripsToday > 0)
+                                {
+                                    <span class="trm-trips-today-badge">@tripsToday trip@(tripsToday > 1 ? "s" : "")</span>
+                                }
+                                <svg class="trm-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- ── RIGHT: Today's Trip Log ── -->
+        <div class="trm-panel">
+            <div class="trm-panel-header">
+                <div class="trm-panel-title">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                    Today's Trip Log
+                </div>
+                <div class="trm-log-date">@DateTime.Now.ToString("MMMM d, yyyy")</div>
+            </div>
+
+            <div class="trm-panel-desc">
+                @TodayTrips.Count() trip@(TodayTrips.Count() != 1 ? "s" : "") recorded · ₱@TotalCollectedToday.ToString("N0") collected
+            </div>
+
+            <div class="trm-search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input class="trm-search-input" placeholder="Search driver, organization, or plate…" @bind="TripSearch" @bind:event="oninput" />
+            </div>
+
+            @if (!FilteredTodayTrips.Any())
+            {
+                <div class="trm-empty">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /></svg>
+                    <span>No trips found</span>
+                </div>
+            }
+            else
+            {
+                <div class="trm-log-table-wrap">
+                    <table class="trm-log-table">
+                        <thead>
+                            <tr>
+                                <th>TRIP NO.</th>
+                                <th>DRIVER</th>
+                                <th>ORGANIZATION</th>
+                                <th>PLATE</th>
+                                <th>ROUTE</th>
+                                <th>TIME</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var trip in FilteredTodayTrips.OrderByDescending(t => t.RecordedAt))
+                            {
+                                var transporter = Transporters.FirstOrDefault(t => t.Id == trip.TransporterId);
+                                <tr class="trm-log-row" @onclick="() => { if (transporter != null) OpenProfile(transporter); }">
+                                    <td class="trm-trip-no">#@trip.TripNumber</td>
+                                    <td class="trm-driver-cell">@trip.DriverName</td>
+                                    <td class="trm-org-cell">@trip.Organization</td>
+                                    <td class="trm-plate-cell">@trip.PlateNumber</td>
+                                    <td class="trm-route-cell">@trip.Route</td>
+                                    <td class="trm-time-cell">@trip.RecordedAt.ToString("h:mm tt")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+    </div><!-- end trm-columns -->
+    }
+
+</div><!-- end content-area -->
+<!-- ══════════════════════════════════════════════
+     SLIDE-IN PROFILE PANEL + BACKDROP
+══════════════════════════════════════════════ -->
+@if (ShowProfile)
+{
+    <div class="trm-backdrop" @onclick="CloseProfile"></div>
+}
+
+<div class="trm-profile-panel @(ShowProfile ? "trm-profile-open" : "")">
+
+    @if (ProfileTransporter != null && ProfileDetails != null)
+    {
+        var todayCount = ProfileDetails.TripsToday;
+        var totalTrips = ProfileDetails.TotalTrips;
+        var totalFees = ProfileDetails.TotalFees;
+
+        <!-- Panel header -->
+        <div class="trm-profile-header">
+            <div class="trm-profile-header-left">
+                <div class="trm-profile-avatar">
+                    @ProfileTransporter.Name[0]
+                </div>
+                <div>
+                    <div class="trm-profile-name">@ProfileTransporter.Name</div>
+                    <div class="trm-profile-meta">
+                        <span class="trm-org-tag">@ProfileTransporter.Organization</span>
+                    </div>
+                </div>
+            </div>
+            <button class="trm-profile-close" @onclick="CloseProfile">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+        </div>
+
+        <!-- Profile body -->
+        <div class="trm-profile-body">
+
+            <!-- Info block -->
+            <div class="trm-profile-info-block">
+                <div class="trm-profile-info-row">
+                    <span class="trm-profile-info-key">Organization</span>
+                    <span class="trm-profile-info-val">@ProfileDetails.Organization</span>
+                </div>
+                <div class="trm-profile-info-row">
+                    <span class="trm-profile-info-key">Default Route</span>
+                    <span class="trm-profile-info-val">@ProfileDetails.DefaultRoute</span>
+                </div>
+                <div class="trm-profile-info-row">
+                    <span class="trm-profile-info-key">Terminal Fee</span>
+                    <span class="trm-profile-info-val trm-fee-green">₱30.00 / trip</span>
+                </div>
+            </div>
+
+            <!-- Stats row -->
+            <div class="trm-profile-stats">
+                <div class="trm-profile-stat">
+                    <div class="trm-profile-stat-val">@todayCount</div>
+                    <div class="trm-profile-stat-key">Today</div>
+                </div>
+                <div class="trm-profile-stat-div"></div>
+                <div class="trm-profile-stat">
+                    <div class="trm-profile-stat-val">@totalTrips</div>
+                    <div class="trm-profile-stat-key">Total Trips</div>
+                </div>
+                <div class="trm-profile-stat-div"></div>
+                <div class="trm-profile-stat">
+                    <div class="trm-profile-stat-val">₱@totalFees.ToString("N0")</div>
+                    <div class="trm-profile-stat-key">Total Fees</div>
+                </div>
+            </div>
+
+            <!-- Record trip button -->
+            @if (todayCount > 0)
+            {
+                <div class="trm-profile-already-trip">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    This transporter already has @todayCount trip@(todayCount > 1 ? "s" : "") recorded today
+                </div>
+            }
+            else
+            {
+                <button class="trm-profile-record-btn" @onclick="() => OpenRecordTripModal(ProfileTransporter)">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Record Trip
+                </button>
+            }
+
+            <!-- Trip history -->
+            <div class="trm-profile-history-label">Trip History</div>
+
+            @if (!ProfileDetails.TripHistory.Any())
+            {
+                <div class="trm-profile-empty">No trips recorded yet.</div>
+            }
+            else
+            {
+                <div class="trm-profile-trip-list">
+                    @foreach (var trip in ProfileDetails.TripHistory)
+                    {
+                        <div class="trm-profile-trip-item">
+                            <div class="trm-profile-trip-left">
+                                <div class="trm-profile-trip-no">#@trip.TripNumber</div>
+                                <div class="trm-profile-trip-info">
+                                    <div class="trm-profile-trip-plate">@trip.PlateNumber</div>
+                                    <div class="trm-profile-trip-route">@trip.Route</div>
+                                </div>
+                            </div>
+                            <div class="trm-profile-trip-right">
+                                @if (!string.IsNullOrEmpty(trip.ORNumber))
+                                {
+                                    <span class="trm-or-badge">@trip.ORNumber</span>
+                                }
+                                else
+                                {
+                                    <button class="trm-or-btn" @onclick="() => OpenOrModal(trip)">
+                                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                        OR No.
+                                    </button>
+                                }
+                                <span class="trm-profile-trip-time">@trip.RecordedAt.ToString("h:mm tt")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+        </div>
+
+        <!-- end trm-profile-body -->
+    }
+
+</div><!-- end trm-profile-panel -->
+<!-- ══════════════════════════════════════════════
+     TRIP DETAIL MODAL
+══════════════════════════════════════════════ -->
+@if (ShowTripDetail && DetailTrip != null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseTripDetail">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Trip #@DetailTrip.TripNumber</div>
+                    <div class="eemo-modal-sub">@DetailTrip.RecordedAt.ToString("MMMM d, yyyy · h:mm tt")</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="CloseTripDetail">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="trm-record-info-block">
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Driver</span>
+                        <span class="trm-record-info-val">@DetailTrip.DriverName</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Organization</span>
+                        <span class="trm-record-info-val">@DetailTrip.Organization</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Plate Number</span>
+                        <span class="trm-record-info-val">@DetailTrip.PlateNumber</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Route</span>
+                        <span class="trm-record-info-val">@DetailTrip.Route</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Time</span>
+                        <span class="trm-record-info-val">@DetailTrip.RecordedAt.ToString("h:mm tt")</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Terminal Fee</span>
+                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">OR Number</span>
+                        <span class="trm-record-info-val">
+                            @if (!string.IsNullOrEmpty(DetailTrip.ORNumber))
+                            {
+                                <span class="trm-or-badge">@DetailTrip.ORNumber</span>
+                            }
+                            else
+                            {
+                                <span style="color:var(--text-muted);font-size:12px;">Not yet entered</span>
+                            }
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseTripDetail">Close</button>
+                @if (string.IsNullOrEmpty(DetailTrip.ORNumber))
+                {
+                    <button class="btn-primary" @onclick="() => { CloseTripDetail(); OpenOrModal(DetailTrip); }">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Enter OR Number
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ══════════════════════════════════════════════
+     RECORD TRIP MODAL
+══════════════════════════════════════════════ -->
+@if (ShowRecordTripModal && SelectedTransporter != null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseRecordTripModal">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Record Trip</div>
+                    <div class="eemo-modal-sub">@SelectedTransporter.Organization</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="CloseRecordTripModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="trm-record-info-block">
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Transporter</span>
+                        <span class="trm-record-info-val">@SelectedTransporter.Name</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Organization</span>
+                        <span class="trm-record-info-val">@SelectedTransporter.Organization</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Terminal Fee</span>
+                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
+                    </div>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Driver Name <span class="req">*</span></label>
+                        <input class="form-input" placeholder="e.g. Juan Dela Cruz" @bind="RecordDriverName" />
+                        @if (RecordFieldErrors.ContainsKey("DriverName"))
+                        {
+                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["DriverName"]</div>
+                        }
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Plate Number <span class="req">*</span></label>
+                        <input class="form-input" placeholder="e.g. ABC 1234" @bind="RecordPlateNumber" />
+                        @if (RecordFieldErrors.ContainsKey("PlateNumber"))
+                        {
+                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["PlateNumber"]</div>
+                        }
+                    </div>
+                </div>
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label class="form-label">Route <span class="req">*</span></label>
+                        <input class="form-input" placeholder="e.g. Cantilan - Surigao" @bind="RecordRoute" />
+                        @if (RecordFieldErrors.ContainsKey("Route"))
+                        {
+                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["Route"]</div>
+                        }
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">OR Number <span class="req">*</span></label>
+                        <input class="form-input" placeholder="e.g. OR-2026-0501" @bind="RecordOrNumber" />
+                        @if (RecordFieldErrors.ContainsKey("ORNumber"))
+                        {
+                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["ORNumber"]</div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseRecordTripModal">Cancel</button>
+                <button class="btn-primary" @onclick="SubmitRecordTrip">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    Record Trip
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ══════════════════════════════════════════════
+     ADD TRANSPORTER MODAL
+══════════════════════════════════════════════ -->
+@if (ShowAddTransporterModal)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseAddTransporterModal">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">Add Transporter</div>
+                <button class="eemo-modal-close" @onclick="CloseAddTransporterModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="form-group">
+                    <label class="form-label">Full Name <span class="req">*</span></label>
+                    <input class="form-input" placeholder="e.g. Juan Dela Cruz" @bind="NewTransporterName" />
+                    @if (AddTransporterErrors.ContainsKey("Name"))
+                    {
+                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Name"]</div>
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Organization / Group <span class="req">*</span></label>
+                    <input class="form-input" placeholder="e.g. POG Maharlika, Tourist Car" @bind="NewTransporterOrg" />
+                    @if (AddTransporterErrors.ContainsKey("Organization"))
+                    {
+                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Organization"]</div>
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Default Route <span class="req">*</span></label>
+                    <input class="form-input" placeholder="e.g. Cantilan - Surigao" @bind="NewTransporterRoute" />
+                    @if (AddTransporterErrors.ContainsKey("Route"))
+                    {
+                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Route"]</div>
+                    }
+                </div>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseAddTransporterModal">Cancel</button>
+                <button class="btn-primary" @onclick="SubmitAddTransporter">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add Transporter
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ══════════════════════════════════════════════
+     OR NUMBER MODAL
+══════════════════════════════════════════════ -->
+@if (ShowOrModal && OrTrip != null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseOrModal">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">Enter OR Number</div>
+                <button class="eemo-modal-close" @onclick="CloseOrModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="trm-record-info-block">
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Driver</span>
+                        <span class="trm-record-info-val">@OrTrip.DriverName</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Trip No.</span>
+                        <span class="trm-record-info-val">#@OrTrip.TripNumber</span>
+                    </div>
+                    <div class="trm-record-info-row">
+                        <span class="trm-record-info-key">Fee</span>
+                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">OR Number <span class="req">*</span></label>
+                    <input class="form-input" placeholder="e.g. OR-2026-0501" @bind="OrNumberInput" />
+                    @if (!string.IsNullOrEmpty(OrErrorMessage))
+                    {
+                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@OrErrorMessage</div>
+                    }
+                </div>
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseOrModal">Cancel</button>
+                <button class="btn-primary" @onclick="SaveOrNumber">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    Save OR Number
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    private RenderFragment TrmIcon => @<svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>;
+
+    private bool isLoading = true;
+    private TrmOverviewDto? overview;
+    private List<TrmTransporterListDto> Transporters = new();
+    private List<TrmTripDto> AllTrips = new();
+
+    private List<FacilityHero.HeroStat> HeroStats => overview == null ? new() : new()
+    {
+        new() { Value = $"₱{overview.CollectedToday:N0}", Label = "Collected Today" },
+        new() { Value = $"{overview.TripsToday}", Label = "Trips Today" },
+        new() { Value = $"{overview.TotalTransporters}", Label = "Transporters" },
+        new() { Value = $"{overview.PendingORCount}", Label = "Pending OR" }
+    };
+
+    IEnumerable<TrmTripDto> TodayTrips => AllTrips.Where(t => t.RecordedAt.Date == DateTime.Today);
+    decimal TotalCollectedToday => overview?.CollectedToday ?? 0m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        isLoading = true;
+
+        var overviewResult = await TrmApi.GetOverviewAsync();
+        if (overviewResult.IsSuccess) overview = overviewResult.Value;
+
+        var transportersResult = await TrmApi.GetTransportersAsync();
+        if (transportersResult.IsSuccess) Transporters = transportersResult.Value?.ToList() ?? new();
+
+        var tripsResult = await TrmApi.GetTodayTripsAsync();
+        if (tripsResult.IsSuccess) AllTrips = tripsResult.Value?.ToList() ?? new();
+
+        isLoading = false;
+    }
+    string TransporterSearch = string.Empty;
+    string TripSearch = string.Empty;
+
+    IEnumerable<TrmTransporterListDto> FilteredTransporters => Transporters
+        .Where(t => string.IsNullOrWhiteSpace(TransporterSearch)
+                 || t.Name.Contains(TransporterSearch, StringComparison.OrdinalIgnoreCase)
+                 || t.Organization.Contains(TransporterSearch, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(t => t.Organization)
+        .ThenBy(t => t.Name);
+
+    IEnumerable<TrmTripDto> FilteredTodayTrips => TodayTrips
+        .Where(t => string.IsNullOrWhiteSpace(TripSearch)
+                 || t.DriverName.Contains(TripSearch, StringComparison.OrdinalIgnoreCase)
+                 || t.Organization.Contains(TripSearch, StringComparison.OrdinalIgnoreCase)
+                 || t.PlateNumber.Contains(TripSearch, StringComparison.OrdinalIgnoreCase)
+                 || t.Route.Contains(TripSearch, StringComparison.OrdinalIgnoreCase));
+
+    // ── Slide-in profile ──────────────────────────
+    bool ShowProfile = false;
+    TrmTransporterListDto? ProfileTransporter = null;
+    TrmTransporterProfileDto? ProfileDetails = null;
+
+    async Task OpenProfile(TrmTransporterListDto t)
+    {
+        ProfileTransporter = t;
+        var result = await TrmApi.GetTransporterProfileAsync(t.Id);
+        if (result.IsSuccess) ProfileDetails = result.Value;
+        ShowProfile = true;
+        StateHasChanged();
+    }
+
+    void CloseProfile()
+    {
+        ShowProfile = false;
+        ProfileTransporter = null;
+        ProfileDetails = null;
+    }
+
+    // ── Trip detail modal ─────────────────────────
+    bool ShowTripDetail = false;
+    TrmTripDto? DetailTrip = null;
+
+    void OpenTripDetail(TrmTripDto trip) { DetailTrip = trip; ShowTripDetail = true; }
+    void CloseTripDetail() { ShowTripDetail = false; DetailTrip = null; }
+
+    // ── Record Trip Modal ─────────────────────────
+    bool ShowRecordTripModal = false;
+    TrmTransporterListDto? SelectedTransporter = null;
+    string RecordDriverName = string.Empty;
+    string RecordPlateNumber = string.Empty;
+    string RecordRoute = string.Empty;
+    string RecordOrNumber = string.Empty;
+    Dictionary<string, string> RecordFieldErrors = new();
+
+    void OpenRecordTripModal(TrmTransporterListDto transporter)
+    {
+        SelectedTransporter = transporter;
+        RecordDriverName = transporter.Name;
+        RecordPlateNumber = string.Empty;
+        RecordRoute = transporter.DefaultRoute;
+        RecordOrNumber = string.Empty;
+        RecordFieldErrors.Clear();
+        ShowRecordTripModal = true;
+    }
+
+    void CloseRecordTripModal()
+    {
+        ShowRecordTripModal = false;
+        SelectedTransporter = null;
+        RecordFieldErrors.Clear();
+    }
+
+    async Task SubmitRecordTrip()
+    {
+        RecordFieldErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(RecordDriverName)) RecordFieldErrors["DriverName"] = "Driver name is required.";
+        if (string.IsNullOrWhiteSpace(RecordPlateNumber)) RecordFieldErrors["PlateNumber"] = "Plate number is required.";
+        if (string.IsNullOrWhiteSpace(RecordRoute)) RecordFieldErrors["Route"] = "Route is required.";
+        if (string.IsNullOrWhiteSpace(RecordOrNumber)) RecordFieldErrors["ORNumber"] = "OR number is required.";
+
+        if (RecordFieldErrors.Any()) return;
+
+        var request = new RecordTripRequest(
+            RecordDriverName.Trim(),
+            RecordPlateNumber.Trim(),
+            RecordRoute.Trim(),
+            RecordOrNumber.Trim(),
+            null
+        );
+
+        var result = await TrmApi.RecordTripAsync(SelectedTransporter!.Id, request);
+        if (result.IsSuccess)
+        {
+            await LoadData();
+            CloseRecordTripModal();
+        }
+        else if (result.ValidationErrors != null)
+        {
+            foreach (var error in result.ValidationErrors)
+            {
+                RecordFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? "Invalid value";
+            }
+        }
+    }
+
+    // ── Add Transporter Modal ─────────────────────
+    bool ShowAddTransporterModal = false;
+    string NewTransporterName = string.Empty;
+    string NewTransporterOrg = string.Empty;
+    string NewTransporterRoute = string.Empty;
+    Dictionary<string, string> AddTransporterErrors = new();
+
+    void OpenAddTransporterModal()
+    {
+        NewTransporterName = string.Empty;
+        NewTransporterOrg = string.Empty;
+        NewTransporterRoute = string.Empty;
+        AddTransporterErrors.Clear();
+        ShowAddTransporterModal = true;
+    }
+
+    void CloseAddTransporterModal()
+    {
+        ShowAddTransporterModal = false;
+        AddTransporterErrors.Clear();
+    }
+
+    async Task SubmitAddTransporter()
+    {
+        AddTransporterErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(NewTransporterName)) AddTransporterErrors["Name"] = "Full name is required.";
+        if (string.IsNullOrWhiteSpace(NewTransporterOrg)) AddTransporterErrors["Organization"] = "Organization is required.";
+        if (string.IsNullOrWhiteSpace(NewTransporterRoute)) AddTransporterErrors["Route"] = "Route is required.";
+
+        if (AddTransporterErrors.Any()) return;
+
+        var command = new AddTransporterCommand(
+            NewTransporterName.Trim(),
+            NewTransporterOrg.Trim(),
+            NewTransporterRoute.Trim(),
+            null
+        );
+
+        var result = await TrmApi.AddTransporterAsync(command);
+        if (result.IsSuccess)
+        {
+            await LoadData();
+            CloseAddTransporterModal();
+        }
+        else if (result.ValidationErrors != null)
+        {
+            foreach (var error in result.ValidationErrors)
+            {
+                AddTransporterErrors[error.Key] = error.Value.FirstOrDefault() ?? "Invalid value";
+            }
+        }
+    }
+
+    // ── OR Number Modal ───────────────────────────
+    bool ShowOrModal = false;
+    TrmTripDto? OrTrip = null;
+    string OrNumberInput = string.Empty;
+    string OrErrorMessage = string.Empty;
+
+    void OpenOrModal(TrmTripDto trip)
+    {
+        OrTrip = trip;
+        OrNumberInput = string.Empty;
+        OrErrorMessage = string.Empty;
+        ShowOrModal = true;
+    }
+
+    void CloseOrModal()
+    {
+        ShowOrModal = false;
+        OrTrip = null;
+        OrErrorMessage = string.Empty;
+    }
+
+    async Task SaveOrNumber()
+    {
+        OrErrorMessage = string.Empty;
+        if (string.IsNullOrWhiteSpace(OrNumberInput))
+        {
+            OrErrorMessage = "OR number is required.";
+            return;
+        }
+
+        if (OrTrip != null)
+        {
+            var request = new SaveTripOrNumberRequest(OrNumberInput.Trim());
+            var result = await TrmApi.SaveOrNumberAsync(OrTrip.Id, request);
+
+            if (result.IsSuccess)
+            {
+                await LoadData();
+                CloseOrModal();
+            }
+            else if (result.ValidationErrors != null && result.ValidationErrors.ContainsKey("ORNumber"))
+            {
+                OrErrorMessage = result.ValidationErrors["ORNumber"].FirstOrDefault() ?? "Invalid OR number";
+            }
+            else
+            {
+                OrErrorMessage = result.Error ?? "Failed to save OR number";
+            }
+        }
+    }
+}

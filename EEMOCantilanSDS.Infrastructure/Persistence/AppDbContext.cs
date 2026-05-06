@@ -3,6 +3,8 @@ using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
+using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -30,6 +32,14 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<DailyCollection> DailyCollections { get; set; }
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }
+
+        // TPM (Tabo-an Public Market)
+        public DbSet<TpmVendor> TpmVendors { get; set; }
+        public DbSet<TpmAttendance> TpmAttendances { get; set; }
+
+        // TRM (Transport Terminal)
+        public DbSet<TrmTransporter> TrmTransporters { get; set; }
+        public DbSet<TrmTrip> TrmTrips { get; set; }
 
 
         public DbSet<BaseUser> Users { get; set; }

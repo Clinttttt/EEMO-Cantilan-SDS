@@ -43,7 +43,13 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const decimal SlhLargePostmortem = 25.00m;
         public const decimal SlhLargeTableCharge = 30.00m;
         public const decimal SlhLargeLivestockFee = 40.00m;
-        public const decimal SlhLargeTotalPerHead = 365.00m; 
+        public const decimal SlhLargeTotalPerHead = 365.00m;
+
+        // TPM — FIXED
+        public const decimal TpmVendorFee = 100.00m;  // per vendor per Friday
+
+        // TRM — FIXED
+        public const decimal TrmTripFee = 30.00m;  // per trip 
     }
     public static class DomainRules
     {
