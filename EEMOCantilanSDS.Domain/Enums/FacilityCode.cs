@@ -43,6 +43,7 @@ namespace EEMOCantilanSDS.Domain.Enums
         Hog = 1,   // ₱250/head
         Carabao = 2,   // ₱365/head
         Cow = 3,   // ₱365/head
+        Other = 99,   // Custom animal type with custom rate
     }
     [Flags]
     public enum ApplicableFees

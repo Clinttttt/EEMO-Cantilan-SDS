@@ -1,176 +1,213 @@
 <!-- ══════════════════════════════════════════════
-     ADD SLAUGHTER TRANSACTION MODAL - SH SPECIFIC
+     ADD SLAUGHTER TRANSACTION - SLIDE-IN PANEL
 ══════════════════════════════════════════════ -->
 
 @if (ShowModal)
 {
-    <div class="eemo-modal-overlay" @onclick="CloseModal">
-        <div class="eemo-modal eemo-modal-slaughter" @onclick:stopPropagation="true">
-
-            <!-- Header -->
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Add Transaction for @OwnerName</div>
-                    <div class="eemo-modal-sub">Record another slaughter transaction for this owner.</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="CloseModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-
-            <!-- Body - Form Content -->
-            <div class="eemo-modal-body">
-                <div class="form-section">
-                    <div class="form-section-label">Transaction Date</div>
-                    <div class="form-group-compact">
-                        <label class="form-label">Date <span class="req">*</span></label>
-                        <input type="date" class="form-input" @bind="TransactionForm.TransactionDate" />
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <div class="form-section-label">Animal Details</div>
-                    <div class="animal-selection-grid">
-                        <!-- Hog Card -->
-                        <div class="animal-card @(TransactionForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
-                            <div class="animal-card-header">
-                                <div class="animal-icon hog-icon">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
-                                </div>
-                                <div class="animal-info">
-                                    <div class="animal-name">Hog</div>
-                                    <div class="animal-rate">₱250 per head</div>
-                                </div>
-                                <div class="animal-checkbox">
-                                    @if (TransactionForm.HogHeads > 0)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                </div>
-                            </div>
-                            @if (TransactionForm.HogHeads > 0)
-                            {
-                                <div class="animal-card-body" @onclick:stopPropagation="true">
-                                    <label class="form-label-inline">Number of Heads</label>
-                                    <input type="number" class="form-input-inline" min="1" @bind="TransactionForm.HogHeads" />
-                                </div>
-                            }
-                        </div>
-
-                        <!-- Carabao Card -->
-                        <div class="animal-card @(TransactionForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
-                            <div class="animal-card-header">
-                                <div class="animal-icon carabao-icon">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
-                                </div>
-                                <div class="animal-info">
-                                    <div class="animal-name">Carabao</div>
-                                    <div class="animal-rate">₱365 per head</div>
-                                </div>
-                                <div class="animal-checkbox">
-                                    @if (TransactionForm.CarabaoHeads > 0)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                </div>
-                            </div>
-                            @if (TransactionForm.CarabaoHeads > 0)
-                            {
-                                <div class="animal-card-body" @onclick:stopPropagation="true">
-                                    <label class="form-label-inline">Number of Heads</label>
-                                    <input type="number" class="form-input-inline" min="1" @bind="TransactionForm.CarabaoHeads" />
-                                </div>
-                            }
-                        </div>
-
-                        <!-- Cow Card -->
-                        <div class="animal-card @(TransactionForm.CowHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Cow)">
-                            <div class="animal-card-header">
-                                <div class="animal-icon cow-icon">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
-                                </div>
-                                <div class="animal-info">
-                                    <div class="animal-name">Cow</div>
-                                    <div class="animal-rate">₱365 per head</div>
-                                </div>
-                                <div class="animal-checkbox">
-                                    @if (TransactionForm.CowHeads > 0)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                </div>
-                            </div>
-                            @if (TransactionForm.CowHeads > 0)
-                            {
-                                <div class="animal-card-body" @onclick:stopPropagation="true">
-                                    <label class="form-label-inline">Number of Heads</label>
-                                    <input type="number" class="form-input-inline" min="1" @bind="TransactionForm.CowHeads" />
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-section">
-                    <div class="form-section-label">Official Receipt</div>
-                    <div class="form-group-compact">
-                        <label class="form-label">OR Number <span class="req">*</span></label>
-                        <input type="text" class="form-input" placeholder="e.g. OR-2026-SLH-001" @bind="TransactionForm.ORNo" />
-                    </div>
-                </div>
-
-                @if (TotalAmount > 0)
-                {
-                    <div class="transaction-summary">
-                        <div class="summary-label">Transaction Summary</div>
-                        <div class="summary-items">
-                            @if (TransactionForm.HogHeads > 0)
-                            {
-                                <div class="summary-item">
-                                    <span>Hog (@TransactionForm.HogHeads head@(TransactionForm.HogHeads > 1 ? "s" : ""))</span>
-                                    <span>₱@((TransactionForm.HogHeads * 250).ToString("N0"))</span>
-                                </div>
-                            }
-                            @if (TransactionForm.CarabaoHeads > 0)
-                            {
-                                <div class="summary-item">
-                                    <span>Carabao (@TransactionForm.CarabaoHeads head@(TransactionForm.CarabaoHeads > 1 ? "s" : ""))</span>
-                                    <span>₱@((TransactionForm.CarabaoHeads * 365).ToString("N0"))</span>
-                                </div>
-                            }
-                            @if (TransactionForm.CowHeads > 0)
-                            {
-                                <div class="summary-item">
-                                    <span>Cow (@TransactionForm.CowHeads head@(TransactionForm.CowHeads > 1 ? "s" : ""))</span>
-                                    <span>₱@((TransactionForm.CowHeads * 365).ToString("N0"))</span>
-                                </div>
-                            }
-                        </div>
-                        <div class="summary-total">
-                            <span>Total Amount</span>
-                            <span>₱@(TotalAmount.ToString("N0"))</span>
-                        </div>
-                    </div>
-                }
-
-                @if (!string.IsNullOrEmpty(ErrorMessage))
-                {
-                    <div class="form-error">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        @ErrorMessage
-                    </div>
-                }
-            </div>
-
-            <!-- Footer -->
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
-                <button class="btn-primary" @onclick="OnSubmitAsync">Add Transaction</button>
-            </div>
-
-        </div>
-    </div>
+    <div class="slh-backdrop" @onclick="CloseModal"></div>
 }
+
+<div class="slh-transaction-panel @(ShowModal ? "slh-panel-open" : "")">
+
+    <!-- Panel Header -->
+    <div class="slh-panel-header">
+        <div class="slh-panel-header-left">
+            <div class="slh-panel-avatar">
+                @(string.IsNullOrEmpty(OwnerName) ? "?" : OwnerName.Substring(0, 1).ToUpper())
+            </div>
+            <div>
+                <div class="slh-panel-title">@(string.IsNullOrEmpty(OwnerName) ? "Unknown Owner" : OwnerName)</div>
+                <div class="slh-panel-sub">Add slaughter transaction</div>
+            </div>
+        </div>
+        <button class="slh-panel-close" @onclick="CloseModal">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+    </div>
+
+    <!-- Panel Body -->
+    <div class="slh-panel-body">
+
+        <!-- Transaction Date -->
+        <div class="slh-form-group">
+            <label class="slh-form-label">Transaction Date <span class="req">*</span></label>
+            <input type="date" class="slh-form-input" @bind="TransactionForm.TransactionDate" />
+        </div>
+
+        <!-- Animal Selection -->
+        <div class="slh-form-section-label">Select Animal Type</div>
+        
+        <!-- Hog -->
+        <div class="slh-animal-card @(TransactionForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
+            <div class="slh-animal-header">
+                <div class="slh-animal-icon hog-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-animal-info">
+                    <div class="slh-animal-name">Hog</div>
+                    <div class="slh-animal-rate">₱250 per head</div>
+                </div>
+                <div class="slh-animal-check">
+                    @if (TransactionForm.HogHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (TransactionForm.HogHeads > 0)
+            {
+                <div class="slh-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="TransactionForm.HogHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Carabao -->
+        <div class="slh-animal-card @(TransactionForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
+            <div class="slh-animal-header">
+                <div class="slh-animal-icon carabao-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-animal-info">
+                    <div class="slh-animal-name">Carabao</div>
+                    <div class="slh-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-animal-check">
+                    @if (TransactionForm.CarabaoHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (TransactionForm.CarabaoHeads > 0)
+            {
+                <div class="slh-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="TransactionForm.CarabaoHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Cow -->
+        <div class="slh-animal-card @(TransactionForm.CowHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Cow)">
+            <div class="slh-animal-header">
+                <div class="slh-animal-icon cow-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-animal-info">
+                    <div class="slh-animal-name">Cow</div>
+                    <div class="slh-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-animal-check">
+                    @if (TransactionForm.CowHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (TransactionForm.CowHeads > 0)
+            {
+                <div class="slh-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="TransactionForm.CowHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Other Animal Type -->
+        <div class="slh-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
+            <div class="slh-animal-header">
+                <div class="slh-animal-icon other-icon">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </div>
+                <div class="slh-animal-info">
+                    <div class="slh-animal-name">Other Animal Type</div>
+                    <div class="slh-animal-rate">Custom rate</div>
+                </div>
+                <div class="slh-animal-check">
+                    @if (UseCustomAnimal)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (UseCustomAnimal)
+            {
+                <div class="slh-animal-input" @onclick:stopPropagation="true">
+                    <label>Animal Type</label>
+                    <input type="text" placeholder="e.g. Goat, Sheep" @bind="TransactionForm.CustomAnimalType" />
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="TransactionForm.CustomHeads" />
+                    <label>Rate per Head (₱)</label>
+                    <input type="number" min="0" step="0.01" @bind="TransactionForm.CustomRate" />
+                </div>
+            }
+        </div>
+
+        <!-- OR Number -->
+        <div class="slh-form-group">
+            <label class="slh-form-label">OR Number <span class="req">*</span></label>
+            <input type="text" class="slh-form-input" placeholder="e.g. OR-2026-SLH-001" @bind="TransactionForm.ORNo" />
+        </div>
+
+        <!-- Summary -->
+        @if (TotalAmount > 0)
+        {
+            <div class="slh-summary-block">
+                <div class="slh-summary-label">Transaction Summary</div>
+                @if (TransactionForm.HogHeads > 0)
+                {
+                    <div class="slh-summary-row">
+                        <span>Hog (@TransactionForm.HogHeads head@(TransactionForm.HogHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((TransactionForm.HogHeads * 250).ToString("N0"))</span>
+                    </div>
+                }
+                @if (TransactionForm.CarabaoHeads > 0)
+                {
+                    <div class="slh-summary-row">
+                        <span>Carabao (@TransactionForm.CarabaoHeads head@(TransactionForm.CarabaoHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((TransactionForm.CarabaoHeads * 365).ToString("N0"))</span>
+                    </div>
+                }
+                @if (TransactionForm.CowHeads > 0)
+                {
+                    <div class="slh-summary-row">
+                        <span>Cow (@TransactionForm.CowHeads head@(TransactionForm.CowHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((TransactionForm.CowHeads * 365).ToString("N0"))</span>
+                    </div>
+                }
+                @if (UseCustomAnimal && TransactionForm.CustomHeads > 0)
+                {
+                    <div class="slh-summary-row">
+                        <span>@TransactionForm.CustomAnimalType (@TransactionForm.CustomHeads head@(TransactionForm.CustomHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((TransactionForm.CustomHeads * TransactionForm.CustomRate).ToString("N0"))</span>
+                    </div>
+                }
+                <div class="slh-summary-total">
+                    <span>Total Amount</span>
+                    <span>₱@(TotalAmount.ToString("N0"))</span>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="slh-error-banner">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                @ErrorMessage
+            </div>
+        }
+
+        <!-- Submit Button -->
+        <button class="slh-submit-btn" @onclick="OnSubmitAsync">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+            Add Transaction
+        </button>
+
+    </div>
+
+</div>
 
 @code {
     [Parameter]
@@ -178,6 +215,12 @@
 
     [Parameter]
     public string OwnerName { get; set; } = string.Empty;
+
+    [Parameter]
+    public DateTime TransactionDate { get; set; } = DateTime.Now;
+
+    [Parameter]
+    public string ORNumber { get; set; } = string.Empty;
 
     [Parameter]
     public EventCallback OnClose { get; set; }
@@ -192,16 +235,39 @@
 
     private enum AnimalType { Hog, Carabao, Cow }
 
+    private bool UseCustomAnimal { get; set; } = false;
+
     private decimal TotalAmount =>
         (TransactionForm.HogHeads * 250) +
         (TransactionForm.CarabaoHeads * 365) +
-        (TransactionForm.CowHeads * 365);
+        (TransactionForm.CowHeads * 365) +
+        (UseCustomAnimal ? TransactionForm.CustomHeads * TransactionForm.CustomRate : 0);
 
     protected override void OnParametersSet()
     {
         if (ShowModal)
         {
-            TransactionForm = new AddTransactionForm();
+            TransactionForm = new AddTransactionForm
+            {
+                TransactionDate = TransactionDate,
+                ORNo = ""  // Always start with empty OR number for new transactions
+            };
+            UseCustomAnimal = false;
+        }
+    }
+
+    private void ToggleCustomAnimal()
+    {
+        UseCustomAnimal = !UseCustomAnimal;
+        if (!UseCustomAnimal)
+        {
+            TransactionForm.CustomAnimalType = string.Empty;
+            TransactionForm.CustomHeads = 0;
+            TransactionForm.CustomRate = 0;
+        }
+        else
+        {
+            TransactionForm.CustomHeads = 1;
         }
     }
 
@@ -237,6 +303,9 @@
         public int HogHeads { get; set; } = 0;
         public int CarabaoHeads { get; set; } = 0;
         public int CowHeads { get; set; } = 0;
+        public string CustomAnimalType { get; set; } = string.Empty;
+        public int CustomHeads { get; set; } = 0;
+        public decimal CustomRate { get; set; } = 0;
         public string ORNo { get; set; } = string.Empty;
     }
 }

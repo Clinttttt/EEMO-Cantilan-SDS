@@ -1,6 +1,9 @@
-﻿@page "/facility/slh/transaction/{OwnerId}"
+﻿@page "/facility/slh/transaction/{OwnerName}"
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject ISlaughterApiClient SlaughterApi
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 
 <!-- Topbar -->
 <header class="topbar">
@@ -82,6 +85,13 @@
                     </div>
                     <div class="panel-header-right">
                         <div class="animal-counts">
+                            @if (OthersCount > 0)
+                            {
+                                <div class="animal-count-item">
+                                    <div class="animal-count-val">@OthersCount</div>
+                                    <div class="animal-count-label">Others</div>
+                                </div>
+                            }
                             <div class="animal-count-item">
                                 <div class="animal-count-val">@HogCount</div>
                                 <div class="animal-count-label">Hog</div>
@@ -119,19 +129,28 @@
                         <tbody>
                             @{
                                 int idx = 1;
+                                var groupedByOR = Transactions.GroupBy(t => new { t.TransactionDate, t.ORNumber }).ToList();
                             }
-                            @foreach (var txn in Transactions)
+                            @foreach (var orGroup in groupedByOR)
                             {
-                                <tr class="txn-row">
-                                    <td class="row-num">@idx</td>
-                                    <td>@txn.Date.ToString("MMM d, yyyy")</td>
-                                    <td>@txn.AnimalType</td>
-                                    <td>@txn.NumberOfHeads</td>
-                                    <td>₱@txn.RatePerHead.ToString("N0")</td>
-                                    <td>₱@txn.TotalAmount.ToString("N0")</td>
-                                    <td>@txn.ORNumber</td>
-                                    <td>@txn.CollectorName</td>
-                                </tr>
+                                var transactions = orGroup.ToList();
+                                var isFirstInGroup = true;
+                                
+                                @foreach (var txn in transactions)
+                                {
+                                    var isLastInGroup = txn == transactions.Last();
+                                    <tr class="txn-row @(isFirstInGroup ? "group-first" : "") @(isLastInGroup ? "group-last" : "group-middle")">
+                                        <td class="row-num">@(isFirstInGroup ? idx.ToString() : "")</td>
+                                        <td>@(isFirstInGroup ? txn.TransactionDate.ToString("MMM d, yyyy") : "")</td>
+                                        <td>@txn.AnimalTypeDisplay</td>
+                                        <td>@txn.NumberOfHeads</td>
+                                        <td>₱@txn.RatePerHead.ToString("N0")</td>
+                                        <td>₱@txn.TotalAmount.ToString("N0")</td>
+                                        <td>@(isFirstInGroup ? txn.ORNumber : "")</td>
+                                        <td>@(isFirstInGroup ? txn.CollectorName : "")</td>
+                                    </tr>
+                                    isFirstInGroup = false;
+                                }
                                 idx++;
                             }
                         </tbody>
@@ -156,11 +175,11 @@
                     </div>
                     <div class="summary-item">
                         <div class="summary-label">Average per Transaction</div>
-                        <div class="summary-value">₱@((TotalTransactions > 0 ? TotalCollected / TotalTransactions : 0).ToString("N2"))</div>
+                        <div class="summary-value">₱@(Profile?.CollectionSummary.AveragePerTransaction.ToString("N2") ?? "0.00")</div>
                     </div>
                     <div class="summary-item">
                         <div class="summary-label">Total Revenue</div>
-                        <div class="summary-value highlight">₱@TotalCollected.ToString("N2")</div>
+                        <div class="summary-value highlight">₱@(Profile?.CollectionSummary.TotalRevenue.ToString("N2") ?? "0.00")</div>
                     </div>
                 </div>
             </div>
@@ -168,29 +187,35 @@
         </div><!-- end content-area -->
 
 @code {
-    [Parameter] public string OwnerId { get; set; } = string.Empty;
+    [Parameter] public string OwnerName { get; set; } = string.Empty;
 
-    // ── Hardcoded owner info (replace with API call) ──
-    private string OwnerName => "Dela Cruz, Ramon A.";
+    private ClientProfileDto? Profile;
+    private bool isLoading = true;
 
-    // ── Computed summaries ──
-    private int TotalTransactions => Transactions.Count;
-    private int TotalHeads => Transactions.Sum(t => t.NumberOfHeads);
-    private decimal TotalCollected => Transactions.Sum(t => t.TotalAmount);
-    private int HogCount => Transactions.Count(t => t.AnimalType == "Hog");
-    private int CarabaoCount => Transactions.Count(t => t.AnimalType == "Carabao");
-    private int CowCount => Transactions.Count(t => t.AnimalType == "Cow");
+    private List<ClientTransactionDto> Transactions => Profile?.Transactions.ToList() ?? new();
+    private int TotalTransactions => Profile?.TotalTransactions ?? 0;
+    private int TotalHeads => Profile?.TotalHeads ?? 0;
+    private decimal TotalCollected => Profile?.TotalCollected ?? 0;
+    private int HogCount => Transactions.Count(t => t.AnimalTypeDisplay == "Hog");
+    private int CarabaoCount => Transactions.Count(t => t.AnimalTypeDisplay == "Carabao");
+    private int CowCount => Transactions.Count(t => t.AnimalTypeDisplay == "Cow");
+    private int OthersCount => Transactions.Count(t => t.AnimalTypeDisplay != "Hog" && t.AnimalTypeDisplay != "Carabao" && t.AnimalTypeDisplay != "Cow");
 
-    // ── Hardcoded transactions (replace with ISlaughterApiClient call) ──
-    private List<SlaughterTxnRow> Transactions = new()
+    protected override async Task OnInitializedAsync()
     {
-        new("Mar 1, 2026",  "Hog",     3, "Maria Santos",  "OR-2026-SLH-001"),
-        new("Mar 5, 2026",  "Hog",     2, "Maria Santos",  "OR-2026-SLH-004"),
-        new("Mar 12, 2026", "Carabao", 1, "Juan Reyes",    "OR-2026-SLH-009"),
-        new("Apr 2, 2026",  "Hog",     4, "Maria Santos",  "OR-2026-SLH-017"),
-        new("Apr 18, 2026", "Cow",     1, "Juan Reyes",    "OR-2026-SLH-023"),
-        new("May 1, 2026",  "Hog",     3, "Maria Santos",  "OR-2026-SLH-031"),
-    };
+        await LoadClientProfile();
+    }
+
+    private async Task LoadClientProfile()
+    {
+        isLoading = true;
+        var result = await SlaughterApi.GetClientProfileAsync(OwnerName);
+        if (result.IsSuccess)
+        {
+            Profile = result.Value;
+        }
+        isLoading = false;
+    }
 
     private void GoBack()
     {
@@ -200,23 +225,5 @@
     private void PrintPage()
     {
         // TODO: JS interop: window.print()
-    }
-
-    // ── Row model — fees are fixed per animal type, no need to store breakdown fields ──
-    private record SlaughterTxnRow(
-        string DateRaw,
-        string AnimalType,
-        int NumberOfHeads,
-        string CollectorName,
-        string ORNumber
-    )
-    {
-        public DateTime Date => DateTime.Parse(DateRaw);
-
-        // Fixed rate per animal type — matches FeeRates constants
-        public decimal RatePerHead => AnimalType == "Hog" ? 250m : 365m;
-
-        // Total = heads × fixed rate per head
-        public decimal TotalAmount => NumberOfHeads * RatePerHead;
     }
 }

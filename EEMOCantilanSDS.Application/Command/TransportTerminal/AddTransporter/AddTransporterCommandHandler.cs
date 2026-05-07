@@ -16,6 +16,7 @@ public class AddTransporterCommandHandler(
             request.Name,
             request.Organization,
             request.DefaultRoute,
+            request.PlateNumber,
             request.Remarks);
 
         await trmRepo.AddTransporterAsync(transporter, ct);
@@ -27,6 +28,7 @@ public class AddTransporterCommandHandler(
             Name = transporter.Name,
             Organization = transporter.Organization,
             DefaultRoute = transporter.DefaultRoute,
+            PlateNumber = transporter.PlateNumber,
             IsActive = transporter.IsActive
         });
     }

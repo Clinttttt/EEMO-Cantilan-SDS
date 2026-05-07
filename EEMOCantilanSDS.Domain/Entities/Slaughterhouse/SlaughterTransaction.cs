@@ -16,6 +16,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
         public Guid? CollectorId { get; private set; }
         public string OwnerName { get; private set; } = string.Empty;
         public AnimalType AnimalType { get; private set; }
+        public string? CustomAnimalType { get; private set; }  // For custom animals (not Hog/Carabao/Cow)
         public int NumberOfHeads { get; private set; }
         public decimal RatePerHead { get; private set; }
         public decimal TotalAmount => RatePerHead * NumberOfHeads;
@@ -34,6 +35,35 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
         public Facility? Facility { get; private set; }
 
         private SlaughterTransaction() { }
+
+        public static SlaughterTransaction CreateCustomAnimal(
+            Guid facilityId,
+            Guid collectorId,
+            string ownerName,
+            string customAnimalType,
+            int heads,
+            decimal customRate,
+            string orNumber,
+            DateOnly transactionDate,
+            string createdBy = "System")
+        {
+            return new SlaughterTransaction
+            {
+                Id = Guid.NewGuid(),
+                FacilityId = facilityId,
+                CollectorId = collectorId,
+                OwnerName = ownerName,
+                AnimalType = AnimalType.Other,
+                CustomAnimalType = customAnimalType,
+                NumberOfHeads = heads,
+                RatePerHead = customRate,
+                ORNumber = orNumber,
+                TransactionDate = transactionDate,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
+
         public static SlaughterTransaction CreateHog(
          Guid facilityId,
          Guid collectorId,

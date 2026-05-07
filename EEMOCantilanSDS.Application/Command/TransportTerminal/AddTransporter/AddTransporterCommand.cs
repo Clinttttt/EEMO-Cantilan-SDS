@@ -8,5 +8,6 @@ public record AddTransporterCommand(
     string Name,
     string Organization,
     string DefaultRoute,
+    string PlateNumber,
     string? Remarks
 ) : IRequest<Result<TrmTransporterDto>>;

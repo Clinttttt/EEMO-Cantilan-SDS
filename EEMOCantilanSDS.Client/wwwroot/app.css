@@ -1780,3 +1780,35 @@ a {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   RECORD TRIP MODAL - NAVY GRADIENT HEADER OVERRIDE
+══════════════════════════════════════════════════════════════════════ */
+
+.eemo-modal-header.trm-record-header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    border-bottom: 1px solid rgba(200, 168, 75, 0.2);
+}
+
+    .eemo-modal-header.trm-record-header .eemo-modal-title {
+        color: #fff;
+    }
+
+    .eemo-modal-header.trm-record-header .eemo-modal-sub {
+        color: rgba(255, 255, 255, 0.65);
+    }
+
+    .eemo-modal-header.trm-record-header .eemo-modal-close {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.15);
+    }
+
+        .eemo-modal-header.trm-record-header .eemo-modal-close:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .eemo-modal-header.trm-record-header .eemo-modal-close svg {
+            stroke: #fff;
+        }

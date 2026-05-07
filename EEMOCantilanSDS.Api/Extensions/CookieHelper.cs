@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Api.Extensions
                 accessToken,
                 new CookieOptions
                 {
-                    HttpOnly = true,
+                    HttpOnly = true, 
                     Secure = true,
                     SameSite = SameSiteMode.Strict,
                     Expires = DateTimeOffset.UtcNow.AddMinutes(15)

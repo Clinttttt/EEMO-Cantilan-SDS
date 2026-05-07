@@ -481,6 +481,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("CustomAnimalType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -696,6 +700,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<string>("Organization")
                         .IsRequired()
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PlateNumber")
+                        .IsRequired()
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Remarks")
                         .HasColumnType("text");

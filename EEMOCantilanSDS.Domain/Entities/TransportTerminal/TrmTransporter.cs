@@ -11,6 +11,7 @@ public class TrmTransporter : AuditableEntity
     public string Name { get; private set; } = string.Empty;
     public string Organization { get; private set; } = string.Empty;
     public string DefaultRoute { get; private set; } = string.Empty;
+    public string PlateNumber { get; private set; } = string.Empty;
     public bool IsActive { get; private set; } = true;
     public string? Remarks { get; private set; }
 
@@ -23,6 +24,7 @@ public class TrmTransporter : AuditableEntity
         string name,
         string organization,
         string defaultRoute,
+        string plateNumber,
         string? remarks = null,
         string createdBy = "System")
     {
@@ -32,6 +34,8 @@ public class TrmTransporter : AuditableEntity
             throw new ArgumentException("Organization is required.", nameof(organization));
         if (string.IsNullOrWhiteSpace(defaultRoute))
             throw new ArgumentException("Default route is required.", nameof(defaultRoute));
+        if (string.IsNullOrWhiteSpace(plateNumber))
+            throw new ArgumentException("Plate number is required.", nameof(plateNumber));
 
         return new TrmTransporter
         {
@@ -39,6 +43,7 @@ public class TrmTransporter : AuditableEntity
             Name = name.Trim(),
             Organization = organization.Trim(),
             DefaultRoute = defaultRoute.Trim(),
+            PlateNumber = plateNumber.Trim().ToUpperInvariant(),
             Remarks = remarks?.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow,

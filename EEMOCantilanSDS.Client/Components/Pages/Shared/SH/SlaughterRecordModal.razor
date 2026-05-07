@@ -1,86 +1,220 @@
 <!-- ══════════════════════════════════════════════
-     SLAUGHTERHOUSE RECORD MODAL - SH SPECIFIC
+     RECORD SLAUGHTER - SLIDE-IN PANEL
 ══════════════════════════════════════════════ -->
 
 @if (ShowModal)
 {
-    <div class="eemo-modal-overlay" @onclick="CloseModal">
-        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+    <div class="slh-record-backdrop" @onclick="CloseModal"></div>
+}
 
-            <!-- Header -->
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Record Slaughter</div>
-                    <div class="eemo-modal-sub">Enter the slaughter transaction details.</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="CloseModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
+<div class="slh-record-panel @(ShowModal ? "slh-record-panel-open" : "")">
+
+    <!-- Panel Header -->
+    <div class="slh-record-panel-header">
+        <div class="slh-record-panel-header-left">
+            <div class="slh-record-panel-icon">
+                <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
             </div>
+            <div>
+                <div class="slh-record-panel-title">Record Slaughter</div>
+                <div class="slh-record-panel-sub">Enter the slaughter transaction details.</div>
+            </div>
+        </div>
+        <button class="slh-record-panel-close" @onclick="CloseModal">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+    </div>
 
-            <!-- Body - Form Content -->
-            <div class="eemo-modal-body">
-                <div class="form-section-divider">
-                    <div class="form-section-label">Transaction Date</div>
-                    <div class="form-row-full">
-                        <div class="form-group">
-                            <label class="form-label">Date <span class="req">*</span></label>
-                            <input type="date" class="form-input" @bind="RecordForm.TransactionDate" />
-                        </div>
-                    </div>
+    <!-- Panel Body -->
+    <div class="slh-record-panel-body">
+
+        <!-- Transaction Date -->
+        <div class="slh-record-form-group">
+            <label class="slh-record-form-label">Transaction Date <span class="req">*</span></label>
+            <input type="date" class="slh-record-form-input" @bind="RecordForm.TransactionDate" />
+        </div>
+
+        <!-- Owner Information -->
+        <div class="slh-record-form-section-label">Owner Information</div>
+        
+        <div class="slh-record-form-group">
+            <label class="slh-record-form-label">Owner Name <span class="req">*</span></label>
+            <input type="text" class="slh-record-form-input" placeholder="e.g. Dela Cruz, Ramon" @bind="RecordForm.OwnerName" />
+        </div>
+
+        <div class="slh-record-form-group">
+            <label class="slh-record-form-label">OR Number <span class="req">*</span></label>
+            <input type="text" class="slh-record-form-input" placeholder="e.g. OR-2026-SLH-001" @bind="RecordForm.ORNo" />
+        </div>
+
+        <!-- Animal Selection -->
+        <div class="slh-record-form-section-label">Select Animal Type(s)</div>
+        
+        <!-- Hog -->
+        <div class="slh-record-animal-card @(RecordForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
+            <div class="slh-record-animal-header">
+                <div class="slh-record-animal-icon hog-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
                 </div>
-
-                <div class="form-section-divider">
-                    <div class="form-section-label">Owner Information</div>
-                    <div class="form-row-2">
-                        <div class="form-group">
-                            <label class="form-label">Owner Name <span class="req">*</span></label>
-                            <input type="text" class="form-input" placeholder="e.g. Dela Cruz, Ramon" @bind="RecordForm.OwnerName" />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">OR Number <span class="req">*</span></label>
-                            <input type="text" class="form-input" placeholder="e.g. OR-2026-SLH-001" @bind="RecordForm.ORNo" />
-                        </div>
-                    </div>
+                <div class="slh-record-animal-info">
+                    <div class="slh-record-animal-name">Hog</div>
+                    <div class="slh-record-animal-rate">₱250 per head</div>
                 </div>
-
-                <div class="form-section-divider">
-                    <div class="form-section-label">Animal Details</div>
-                    <div class="form-row-2">
-                        <div class="form-group">
-                            <label class="form-label">Animal Type <span class="req">*</span></label>
-                            <select class="form-input" @bind="RecordForm.AnimalType">
-                                <option value="">-- Select Animal Type --</option>
-                                <option value="Hog">Hog (₱250/head)</option>
-                                <option value="Carabao">Carabao (₱365/head)</option>
-                                <option value="Cow">Cow (₱365/head)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Number of Heads <span class="req">*</span></label>
-                            <input type="number" class="form-input" min="1" placeholder="e.g. 3" @bind="RecordForm.NumberOfHeads" />
-                        </div>
-                    </div>
+                <div class="slh-record-animal-check">
+                    @if (RecordForm.HogHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
                 </div>
+            </div>
+            @if (RecordForm.HogHeads > 0)
+            {
+                <div class="slh-record-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="RecordForm.HogHeads" />
+                </div>
+            }
+        </div>
 
-                @if (!string.IsNullOrEmpty(ErrorMessage))
+        <!-- Carabao -->
+        <div class="slh-record-animal-card @(RecordForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
+            <div class="slh-record-animal-header">
+                <div class="slh-record-animal-icon carabao-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-record-animal-info">
+                    <div class="slh-record-animal-name">Carabao</div>
+                    <div class="slh-record-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-record-animal-check">
+                    @if (RecordForm.CarabaoHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (RecordForm.CarabaoHeads > 0)
+            {
+                <div class="slh-record-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="RecordForm.CarabaoHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Cow -->
+        <div class="slh-record-animal-card @(RecordForm.CowHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Cow)">
+            <div class="slh-record-animal-header">
+                <div class="slh-record-animal-icon cow-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-record-animal-info">
+                    <div class="slh-record-animal-name">Cow</div>
+                    <div class="slh-record-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-record-animal-check">
+                    @if (RecordForm.CowHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (RecordForm.CowHeads > 0)
+            {
+                <div class="slh-record-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="RecordForm.CowHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Other Animal Type -->
+        <div class="slh-record-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
+            <div class="slh-record-animal-header">
+                <div class="slh-record-animal-icon other-icon">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </div>
+                <div class="slh-record-animal-info">
+                    <div class="slh-record-animal-name">Other Animal Type</div>
+                    <div class="slh-record-animal-rate">Custom rate</div>
+                </div>
+                <div class="slh-record-animal-check">
+                    @if (UseCustomAnimal)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (UseCustomAnimal)
+            {
+                <div class="slh-record-animal-input" @onclick:stopPropagation="true">
+                    <label>Animal Type</label>
+                    <input type="text" placeholder="e.g. Goat, Sheep" @bind="RecordForm.CustomAnimalType" />
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="RecordForm.CustomHeads" />
+                    <label>Rate per Head (₱)</label>
+                    <input type="number" min="0" step="0.01" @bind="RecordForm.CustomRate" />
+                </div>
+            }
+        </div>
+
+        <!-- Summary -->
+        @if (TotalAmount > 0)
+        {
+            <div class="slh-record-summary-block">
+                <div class="slh-record-summary-label">Transaction Summary</div>
+                @if (RecordForm.HogHeads > 0)
                 {
-                    <div class="form-error">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        @ErrorMessage
+                    <div class="slh-record-summary-row">
+                        <span>Hog (@RecordForm.HogHeads head@(RecordForm.HogHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((RecordForm.HogHeads * 250).ToString("N0"))</span>
                     </div>
                 }
+                @if (RecordForm.CarabaoHeads > 0)
+                {
+                    <div class="slh-record-summary-row">
+                        <span>Carabao (@RecordForm.CarabaoHeads head@(RecordForm.CarabaoHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((RecordForm.CarabaoHeads * 365).ToString("N0"))</span>
+                    </div>
+                }
+                @if (RecordForm.CowHeads > 0)
+                {
+                    <div class="slh-record-summary-row">
+                        <span>Cow (@RecordForm.CowHeads head@(RecordForm.CowHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((RecordForm.CowHeads * 365).ToString("N0"))</span>
+                    </div>
+                }
+                @if (UseCustomAnimal && RecordForm.CustomHeads > 0)
+                {
+                    <div class="slh-record-summary-row">
+                        <span>@RecordForm.CustomAnimalType (@RecordForm.CustomHeads head@(RecordForm.CustomHeads > 1 ? "s" : ""))</span>
+                        <span>₱@((RecordForm.CustomHeads * RecordForm.CustomRate).ToString("N0"))</span>
+                    </div>
+                }
+                <div class="slh-record-summary-total">
+                    <span>Total Amount</span>
+                    <span>₱@(TotalAmount.ToString("N0"))</span>
+                </div>
             </div>
+        }
 
-            <!-- Footer -->
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
-                <button class="btn-primary" @onclick="OnSubmitAsync">Add Transaction</button>
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="slh-record-error-banner">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                @ErrorMessage
             </div>
+        }
 
-        </div>
+        <!-- Submit Button -->
+        <button class="slh-record-submit-btn" @onclick="OnSubmitAsync">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+            Add Transaction
+        </button>
+
     </div>
-}
+
+</div>
 
 @code {
     [Parameter]
@@ -96,6 +230,24 @@
     public string ErrorMessage { get; set; } = string.Empty;
 
     public SlaughterRecordForm RecordForm { get; set; } = new();
+    private bool UseCustomAnimal { get; set; } = false;
+
+    private enum AnimalType { Hog, Carabao, Cow }
+
+    private decimal TotalAmount =>
+        (RecordForm.HogHeads * 250) +
+        (RecordForm.CarabaoHeads * 365) +
+        (RecordForm.CowHeads * 365) +
+        (UseCustomAnimal ? RecordForm.CustomHeads * RecordForm.CustomRate : 0);
+
+    protected override void OnParametersSet()
+    {
+        if (ShowModal)
+        {
+            RecordForm = new SlaughterRecordForm();
+            UseCustomAnimal = false;
+        }
+    }
 
     private async Task CloseModal()
     {
@@ -107,12 +259,47 @@
         await OnSubmit.InvokeAsync(RecordForm);
     }
 
+    private void ToggleAnimal(AnimalType type)
+    {
+        switch (type)
+        {
+            case AnimalType.Hog:
+                RecordForm.HogHeads = RecordForm.HogHeads > 0 ? 0 : 1;
+                break;
+            case AnimalType.Carabao:
+                RecordForm.CarabaoHeads = RecordForm.CarabaoHeads > 0 ? 0 : 1;
+                break;
+            case AnimalType.Cow:
+                RecordForm.CowHeads = RecordForm.CowHeads > 0 ? 0 : 1;
+                break;
+        }
+    }
+
+    private void ToggleCustomAnimal()
+    {
+        UseCustomAnimal = !UseCustomAnimal;
+        if (!UseCustomAnimal)
+        {
+            RecordForm.CustomAnimalType = string.Empty;
+            RecordForm.CustomHeads = 0;
+            RecordForm.CustomRate = 0;
+        }
+        else
+        {
+            RecordForm.CustomHeads = 1;
+        }
+    }
+
     public class SlaughterRecordForm
     {
         public DateTime TransactionDate { get; set; } = DateTime.Now;
         public string OwnerName { get; set; } = string.Empty;
-        public string AnimalType { get; set; } = string.Empty;
-        public int NumberOfHeads { get; set; } = 1;
+        public int HogHeads { get; set; } = 0;
+        public int CarabaoHeads { get; set; } = 0;
+        public int CowHeads { get; set; } = 0;
+        public string CustomAnimalType { get; set; } = string.Empty;
+        public int CustomHeads { get; set; } = 0;
+        public decimal CustomRate { get; set; } = 0;
         public string ORNo { get; set; } = string.Empty;
     }
 }

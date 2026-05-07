@@ -70,6 +70,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IVendorsApiClient, VendorsApiClient>(configuration);
             service.AddApiHttpClient<ITpmApiClient, TpmApiClient>(configuration);
             service.AddApiHttpClient<ITrmApiClient, TrmApiClient>(configuration);
+            service.AddApiHttpClient<ISlaughterApiClient, SlaughterApiClient>(configuration);
 
             return service;
         }

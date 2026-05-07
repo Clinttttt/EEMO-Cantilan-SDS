@@ -1,238 +1,410 @@
-﻿@page "/slh"
+@page "/slh"
 @page "/facility/slh"
 @using EEMOCantilanSDS.Client.Components.Pages.Shared.SH
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter
+@using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter
+@using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
+@inject ISlaughterApiClient SlaughterApi
 <PageTitle>EEMO Admin — Slaughterhouse</PageTitle>
 
 <!-- Topbar -->
 <header class="topbar">
-            <div class="topbar-left flex gap-2">
-                <a href="/menu" class="slh-back-btn">
-                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+    <div class="topbar-left flex gap-2">
+        <a href="/menu" class="slh-back-btn">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+            <div class="topbar-title">Slaughterhouse</div>
+            <div class="topbar-breadcrumb">
+                <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-active">Slaughterhouse — @DateTime.Now.ToString("MMMM yyyy")</span>
+            </div>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DateTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <div class="topbar-admin">
+            <div class="admin-avatar">A</div>
+            <div class="admin-info">
+                <div class="admin-name">Administrator</div>
+                <div class="admin-role">EEMO Office</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="content-area">
+
+    @if (isLoading)
+    {
+        <div class="spinner">Loading...</div>
+    }
+    else
+    {
+        <!-- -- SLH Hero Banner -- -->
+        <FacilityHero Eyebrow="FACILITY · SLH"
+                      Title="Slaughterhouse"
+                      Icon="@SlhIcon"
+                      Stats="@HeroStats"
+                      ShowProgress="true"
+                      ProgressPercentage="100" />
+
+        <!-- -- Toolbar (Unified Design) -- -->
+        <div class="toolbar-unified">
+            <!-- LEFT: Search Box -->
+            <div class="search-box">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search owner or OR no..."
+                       @bind-value="SearchTerm" @bind-value:event="oninput" />
+                @if (!string.IsNullOrEmpty(SearchTerm))
+                {
+                    <span class="search-clear" @onclick="() => SearchTerm = string.Empty">×</span>
+                }
+            </div>
+
+            <!-- CENTER-LEFT: Filter Tabs -->
+            <div class="filter-tabs-inline">
+                @foreach (var tab in AnimalFilters)
+                {
+                    <div class="filter-tab @(ActiveAnimalFilter == tab ? "active" : "")"
+                         @onclick="() => SetAnimalFilter(tab)">
+                        @tab
+                    </div>
+                }
+            </div>
+
+            <!-- Slaughter Report Button -->
+            <div>
+                <a href="/reports/slaughterhouse" class="btn-outline">
+                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    Slaughter Report
                 </a>
-                <div>
-                    <div class="topbar-title">Slaughterhouse</div>
-                    <div class="topbar-breadcrumb">
-                        <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                        <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">Slaughterhouse — @DateTime.Now.ToString("MMMM yyyy")</span>
-                    </div>
-                </div>
-            </div>
-            <div class="topbar-right">
-                <div class="topbar-date">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
-                </div>
-                <div class="topbar-admin">
-                    <div class="admin-avatar">A</div>
-                    <div class="admin-info">
-                        <div class="admin-name">Administrator</div>
-                        <div class="admin-role">EEMO Office</div>
-                    </div>
-                </div>
-            </div>
-        </header>
-
-        <div class="content-area">
-
-            <!-- -- SLH Hero Banner -- -->
-            <FacilityHero 
-                Eyebrow="FACILITY · SLH"
-                Title="Slaughterhouse"
-                Icon="@SlhIcon"
-                Stats="@HeroStats"
-                ShowProgress="true"
-                ProgressPercentage="100" />
-
-            <!-- -- Toolbar (Unified Design) -- -->
-            <div class="toolbar-unified">
-                <!-- LEFT: Search Box -->
-                <div class="search-box">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                    <input type="text" placeholder="Search owner or OR no..."
-                           @bind-value="SearchTerm" @bind-value:event="oninput" />
-                    @if (!string.IsNullOrEmpty(SearchTerm))
-                    {
-                        <span class="search-clear" @onclick="() => SearchTerm = string.Empty">×</span>
-                    }
-                </div>
-
-                <!-- CENTER-LEFT: Filter Tabs -->
-                <div class="filter-tabs-inline">
-                    @foreach (var tab in AnimalFilters)
-                    {
-                        <div class="filter-tab @(ActiveAnimalFilter == tab ? "active" : "")"
-                             @onclick="() => SetAnimalFilter(tab)">
-                            @tab
-                        </div>
-                    }
-                </div>
-
-                <!-- CENTER: Action Bar -->
-                <div class="toolbar-middle">
-                    <ActionBar Facility="slh" />
-                </div>
-
-                <!-- RIGHT: Record Button -->
-                <div class="toolbar-actions">
-                    <button class="btn btn-primary" @onclick="OpenRecordSlaughterModal">
-                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Record Slaughter
-                    </button>
-                </div>
             </div>
 
-            <!-- SLAUGHTER RECORD MODAL -->
-            <SlaughterRecordModal ShowModal="ShowRecordModal"
-                                  OnClose="CloseRecordModal"
-                                  OnSubmit="SubmitSlaughterRecord"
-                                  ErrorMessage="@ErrorMessage" />
+            <!-- Record Button -->
+            <div>
+                <button class="btn btn-primary" @onclick="OpenRecordSlaughterModal">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Record Slaughter
+                </button>
+            </div>
+        </div>
 
-            <!-- ADD TRANSACTION MODAL -->
-            <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
-                                          OwnerName="@SelectedOwnerName"
-                                          OnClose="CloseAddTransactionModal"
-                                          OnSubmit="SubmitAddTransaction"
-                                          ErrorMessage="@ErrorMessage" />
+        <!-- SLAUGHTER RECORD MODAL -->
+        <SlaughterRecordModal ShowModal="ShowRecordModal"
+                              OnClose="CloseRecordModal"
+                              OnSubmit="SubmitSlaughterRecord"
+                              ErrorMessage="@ErrorMessage" />
+
+        <!-- ADD TRANSACTION MODAL -->
+        <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
+                                      OwnerName="@SelectedOwnerName"
+                                      TransactionDate="@SelectedTransactionDate"
+                                      ORNumber="@SelectedORNumber"
+                                      OnClose="CloseAddTransactionModal"
+                                      OnSubmit="SubmitAddTransaction"
+                                      ErrorMessage="@ErrorMessage" />
+
+        <!-- EDIT TRANSACTION MODAL -->
+        <EditSlaughterTransactionModal ShowModal="ShowEditModal"
+                                       OnClose="CloseEditModal"
+                                       OnSave="SubmitEditTransaction"
+                                       ErrorMessage="@ErrorMessage"
+                                       SelectedGroupEntries="@SelectedGroupEntriesAsObjects" />
 
 
-            <!-- -- Facility Info Bar -- -->
-            <div class="slh-facility-info">
-                <div class="slh-facility-info-left">
-                    <div class="slh-facility-label-row">
-                        <span class="slh-facility-label">
-                            @(ActiveAnimalFilter == "All" ? "All Transactions" : ActiveAnimalFilter + " Transactions")
-                            — @DateTime.Now.ToString("MMMM yyyy")
+        <!-- -- Facility Info Bar -- -->
+        <div class="slh-facility-info">
+            <div class="slh-facility-info-left">
+                <div class="slh-facility-label-row">
+                    <span class="slh-facility-label">
+                        @(ActiveAnimalFilter == "All" ? "All Transactions" : ActiveAnimalFilter + " Transactions")
+                        — @DateTime.Now.ToString("MMMM yyyy")
+                    </span>
+                    <!-- Info Icon + Hover Tooltip -->
+                    <div class="slh-info-wrap">
+                        <span class="slh-info-icon">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="8" />
+                                <line x1="12" y1="12" x2="12" y2="16" />
+                            </svg>
                         </span>
-                        <!-- Info Icon + Hover Tooltip -->
-                        <div class="slh-info-wrap">
-                            <span class="slh-info-icon">
-                                <svg viewBox="0 0 24 24">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="12" y1="8" x2="12" y2="8" />
-                                    <line x1="12" y1="12" x2="12" y2="16" />
-                                </svg>
-                            </span>
-                            <div class="slh-tooltip">
-                                <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
+                        <div class="slh-tooltip">
+                            <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
 
-                                <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">Hog — ₱250 total</div>
-                                    <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>₱50</span>
-                                        <span>Ante Mortem</span><span>₱20</span>
-                                        <span>Table Charge</span><span>₱30</span>
-                                        <span>Entrance</span><span>₱150</span>
-                                    </div>
+                            <div class="slh-tooltip-section">
+                                <div class="slh-tooltip-animal">Hog — ₱250 total</div>
+                                <div class="slh-tooltip-breakdown">
+                                    <span>Slaughter</span><span>₱50</span>
+                                    <span>Ante Mortem</span><span>₱20</span>
+                                    <span>Table Charge</span><span>₱30</span>
+                                    <span>Entrance</span><span>₱150</span>
                                 </div>
+                            </div>
 
-                                <div class="slh-tooltip-divider"></div>
+                            <div class="slh-tooltip-divider"></div>
 
-                                <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">Carabao / Cow — ₱365 total</div>
-                                    <div class="slh-tooltip-breakdown">
-                                        <span>Slaughter</span><span>₱150</span>
-                                        <span>Permit</span><span>₱100</span>
-                                        <span>Ante Mortem</span><span>₱20</span>
-                                        <span>Post Mortem</span><span>₱25</span>
-                                        <span>Table Charge</span><span>₱30</span>
-                                        <span>Livestock</span><span>₱40</span>
-                                    </div>
+                            <div class="slh-tooltip-section">
+                                <div class="slh-tooltip-animal">Carabao / Cow — ₱365 total</div>
+                                <div class="slh-tooltip-breakdown">
+                                    <span>Slaughter</span><span>₱150</span>
+                                    <span>Permit</span><span>₱100</span>
+                                    <span>Ante Mortem</span><span>₱20</span>
+                                    <span>Post Mortem</span><span>₱25</span>
+                                    <span>Table Charge</span><span>₱30</span>
+                                    <span>Livestock</span><span>₱40</span>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="slh-facility-desc">Per-head fees · Collected per slaughter transaction</div>
                 </div>
-                <div class="slh-facility-mini-stats">
-                    <div class="slh-mini-stat hog-stat">
-                        <div class="slh-mini-val">@HogCount</div>
-                        <div class="slh-mini-key">Hogs</div>
+                <div class="slh-facility-desc">Per-head fees · Collected per slaughter transaction</div>
+            </div>
+            <div class="slh-facility-mini-stats">
+                @if (OthersCount > 0)
+                {
+                    <div class="slh-mini-stat others-stat">
+                        <div class="slh-mini-val">@OthersCount</div>
+                        <div class="slh-mini-key">Others</div>
                     </div>
-                    <div class="slh-mini-stat carabao-stat">
-                        <div class="slh-mini-val">@CarabaoCount</div>
-                        <div class="slh-mini-key">Carabao</div>
-                    </div>
-                    <div class="slh-mini-stat cow-stat">
-                        <div class="slh-mini-val">@CowCount</div>
-                        <div class="slh-mini-key">Cows</div>
-                    </div>
-                    <div class="slh-mini-stat">
-                        <div class="slh-mini-val">@FilteredEntries.Sum(e => e.NumberOfHeads)</div>
-                        <div class="slh-mini-key">Heads</div>
-                    </div>
-                    <div class="slh-mini-stat">
-                        <div class="slh-mini-val">@FilteredEntries.Sum(e => e.TotalAmount).ToString("N0")</div>
-                        <div class="slh-mini-key">Collected</div>
-                    </div>
+                }
+                <div class="slh-mini-stat hog-stat">
+                    <div class="slh-mini-val">@HogCount</div>
+                    <div class="slh-mini-key">Hogs</div>
+                </div>
+                <div class="slh-mini-stat carabao-stat">
+                    <div class="slh-mini-val">@CarabaoCount</div>
+                    <div class="slh-mini-key">Carabao</div>
+                </div>
+                <div class="slh-mini-stat cow-stat">
+                    <div class="slh-mini-val">@CowCount</div>
+                    <div class="slh-mini-key">Cows</div>
+                </div>
+                <div class="slh-mini-stat">
+                    <div class="slh-mini-val">@FilteredOwnerGroups.Sum(g => g.LatestTransactions.Sum(t => t.NumberOfHeads))</div>
+                    <div class="slh-mini-key">Heads</div>
+                </div>
+                <div class="slh-mini-stat">
+                    <div class="slh-mini-val">@FilteredOwnerGroups.Sum(g => g.LatestTransactions.Sum(t => t.TotalAmount)).ToString("N0")</div>
+                    <div class="slh-mini-key">Collected</div>
                 </div>
             </div>
-
-            <!-- -- Transactions Table -- -->
-            <div class="panel">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Date</th>
-                            <th>Owner / Client</th>
-                            <th>Animal Type</th>
-                            <th>No. of Heads</th>
-                            <th>Rate / Head</th>
-                            <th>Total Amount</th>
-                            <th>OR No.</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @{
-                            int rowNum = 1;
-                        }
-                        @foreach (var entry in FilteredEntries)
-                        {
-                            <tr class="@GetRowClass(entry.AnimalType)">
-                                <td>@rowNum</td>
-                                <td>@entry.Date.ToString("MMM d, yyyy")</td>
-                                <td>@entry.OwnerName</td>
-                                <td>@entry.AnimalType</td>
-                                <td>@entry.NumberOfHeads</td>
-                                <td>@entry.RatePerHead.ToString("N0")</td>
-                                <td>@entry.TotalAmount.ToString("N0")</td>
-                                <td><span class="mono">@entry.ORNo</span></td>
-                                <td>
-                                    <div class="action-btns">
-                                        <button class="btn-action" title="View Details" @onclick="() => ViewEntry(entry)">
-                                            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                        </button>
-                                        <button class="btn-action" title="Add Transaction" @onclick="() => AddTransactionForOwner(entry)">
-                                            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                        </button>
-                                        <button class="btn-action" title="Edit" @onclick="() => EditEntry(entry)">
-                                            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            rowNum++;
-                        }
-                        @if (!FilteredEntries.Any())
-                        {
-                            <tr>
-                                <td colspan="9" class="empty-state">
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                                    <span>No transactions found</span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-
         </div>
+
+        <!-- -- Transactions Table -- -->
+        <div class="panel">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Owner / Client</th>
+                        <th>Animal Type</th>
+                        <th>No. of Heads</th>
+                        <th>Rate / Head</th>
+                        <th>Total Amount</th>
+                        <th>OR No.</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        int rowNum = 1;
+                    }
+                    @foreach (var ownerGroup in FilteredOwnerGroups)
+                    {
+                        var firstTransaction = ownerGroup.LatestTransactions.First();
+                        var hasMultipleAnimals = ownerGroup.LatestTransactions.Count > 1;
+                        var hasHistory = ownerGroup.TotalTransactionDates > 1;
+                        var animalRowKey = $"{ownerGroup.OwnerName}_{ownerGroup.ORNumber}";
+                        var isAnimalExpanded = IsAnimalRowExpanded(animalRowKey);
+                        var isHistoryExpanded = IsHistoryRowExpanded(ownerGroup.OwnerName);
+                        var totalHeads = ownerGroup.LatestTransactions.Sum(t => t.NumberOfHeads);
+                        var totalAmount = ownerGroup.LatestTransactions.Sum(t => t.TotalAmount);
+                            
+                        <!-- Main Row (Latest OR Number Group) -->
+                        <tr class="@GetRowClass(GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)) @(hasMultipleAnimals ? "has-children" : "") @(isAnimalExpanded ? "expanded" : "")">
+                            <td>@rowNum</td>
+                            <td>@ownerGroup.LatestTransactionDate.ToString("MMM d, yyyy")</td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span>@ownerGroup.OwnerName</span>
+                                    @if (hasHistory)
+                                    {
+                                        <button class="btn-history-toggle" @onclick="async () => await ToggleHistoryRow(ownerGroup.OwnerName)" title="@(isHistoryExpanded ? "Hide" : "Show") previous OR numbers">
+                                            <svg class="@(isHistoryExpanded ? "expanded" : "")" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                            <span>@(ownerGroup.TotalTransactionDates - 1) more</span>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                @if (hasMultipleAnimals)
+                                {
+                                    <div class="animal-type-group" @onclick="() => ToggleAnimalRow(animalRowKey)">
+                                        <span>@GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)</span>
+                                        <span class="animal-count-badge">+@(ownerGroup.LatestTransactions.Count - 1)</span>
+                                        <svg class="expand-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span>@GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)</span>
+                                }
+                            </td>
+                            <td>@totalHeads</td>
+                            <td>@(hasMultipleAnimals ? "—" : "₱" + firstTransaction.RatePerHead.ToString("N0"))</td>
+                            <td>₱@totalAmount.ToString("N0")</td>
+                            <td><span class="mono">@ownerGroup.ORNumber</span></td>
+                            <td>
+                                <div class="action-btns">
+                                    <button class="btn-action" title="View Details" @onclick="() => ViewEntry(firstTransaction)">
+                                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    </button>
+                                    <button class="btn-action" title="Add Transaction" @onclick="() => AddTransactionForOwner(firstTransaction)">
+                                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                                    </button>
+                                    <button class="btn-action" title="Edit" @onclick="() => EditEntry(firstTransaction)">
+                                        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                            
+                        <!-- Level 1 Expansion: Multiple Animal Types (Same OR Number) -->
+                        @if (hasMultipleAnimals && isAnimalExpanded)
+                        {
+                            @foreach (var transaction in ownerGroup.LatestTransactions)
+                            {
+                                <tr class="detail-row @GetRowClass(GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType))">
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td>
+                                        <div class="detail-animal-type">
+                                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                            @GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType)
+                                        </div>
+                                    </td>
+                                    <td>@transaction.NumberOfHeads</td>
+                                    <td>₱@transaction.RatePerHead.ToString("N0")</td>
+                                    <td>₱@transaction.TotalAmount.ToString("N0")</td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            }
+                        }
+
+                        <!-- Level 2 Expansion: Previous OR Numbers -->
+                        @if (hasHistory && isHistoryExpanded)
+                        {
+                            var history = GetOwnerHistory(ownerGroup.OwnerName);
+                            if (history != null && history.TransactionGroups != null && history.TransactionGroups.Count > 1)
+                            {
+                                @foreach (var orGroup in history.TransactionGroups.Skip(1))
+                                {
+                                    if (orGroup.Transactions == null || !orGroup.Transactions.Any())
+                                    {
+                                        continue;
+                                    }
+                                            
+                                    var firstHistoryTransaction = orGroup.Transactions.First();
+                                    var historyHasMultiple = orGroup.Transactions.Count > 1;
+                                    var historyKey = $"{ownerGroup.OwnerName}_{orGroup.ORNumber}";
+                                    var isHistoryAnimalExpanded = IsAnimalRowExpanded(historyKey);
+                                    var historyTotalHeads = orGroup.Transactions.Sum(t => t.NumberOfHeads);
+                                    var historyTotalAmount = orGroup.Transactions.Sum(t => t.TotalAmount);
+
+                                    <tr class="history-row @GetRowClass(GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)) @(historyHasMultiple ? "has-children" : "") @(isHistoryAnimalExpanded ? "expanded" : "")">
+                                        <td></td>
+                                        <td>@orGroup.TransactionDate.ToString("MMM d, yyyy")</td>
+                                        <td>
+                                            <div class="history-owner-name">
+                                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                                @ownerGroup.OwnerName
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (historyHasMultiple)
+                                            {
+                                                <div class="animal-type-group" @onclick="() => ToggleAnimalRow(historyKey)">
+                                                    <span>@GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)</span>
+                                                    <span class="animal-count-badge">+@(orGroup.Transactions.Count - 1)</span>
+                                                    <svg class="expand-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span>@GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)</span>
+                                            }
+                                        </td>
+                                        <td>@historyTotalHeads</td>
+                                        <td>@(historyHasMultiple ? "—" : "₱" + firstHistoryTransaction.RatePerHead.ToString("N0"))</td>
+                                        <td>₱@historyTotalAmount.ToString("N0")</td>
+                                        <td><span class="mono">@orGroup.ORNumber</span></td>
+                                        <td>
+                                            <div class="action-btns">
+                                                <button class="btn-action" title="View Details" @onclick="() => ViewEntry(firstHistoryTransaction)">
+                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    @if (historyHasMultiple && isHistoryAnimalExpanded)
+                                    {
+                                        @foreach (var historyTransaction in orGroup.Transactions)
+                                        {
+                                            <tr class="detail-row history-detail-row @GetRowClass(GetAnimalTypeName(historyTransaction.AnimalType, historyTransaction.CustomAnimalType))">
+                                                <td></td>
+                                                <td></td>
+                                                <td></td>
+                                                <td>
+                                                    <div class="detail-animal-type" style="padding-left: 32px;">
+                                                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                                        @GetAnimalTypeName(historyTransaction.AnimalType, historyTransaction.CustomAnimalType)
+                                                    </div>
+                                                </td>
+                                                <td>@historyTransaction.NumberOfHeads</td>
+                                                <td>₱@historyTransaction.RatePerHead.ToString("N0")</td>
+                                                <td>₱@historyTransaction.TotalAmount.ToString("N0")</td>
+                                                <td></td>
+                                                <td></td>
+                                            </tr>
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                            
+                        rowNum++;
+                    }
+                </tbody>
+            </table>
+            @if (!FilteredOwnerGroups.Any())
+            {
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    <span>No transactions found</span>
+                </div>
+            }
+        </div>
+    }
+
+</div>
 
 @code {
 
@@ -242,33 +414,146 @@
     {
         new() { Value = $"{TotalCollected:N0}", Label = "Collected" },
         new() { Value = $"{TotalHeads}", Label = "Total Heads" },
-        new() { Value = $"{Entries.Count}", Label = "Transactions" },
+        new() { Value = $"{GroupedOwnerTransactions.Count}", Label = "Owners" },
         new() { Value = DateTime.Now.ToString("MMM yyyy"), Label = "Period" }
     };
 
     // -- STATE ----------------------------------------------------
+    private bool isLoading = true;
+    private int CurrentYear = DateTime.Now.Year;
+    private int CurrentMonth = DateTime.Now.Month;
+    private List<OwnerTransactionGroupDto> GroupedOwnerTransactions = new();
+    private Dictionary<string, OwnerTransactionHistoryDto> OwnerHistories = new();
+    private SlaughterOverviewDto? Overview;
     private string SearchTerm { get; set; } = string.Empty;
     private string ActiveAnimalFilter { get; set; } = "All";
     private bool ShowRecordModal { get; set; }
     private bool ShowAddTransactionModal { get; set; }
+    private bool ShowEditModal { get; set; }
     private string SelectedOwnerName { get; set; } = string.Empty;
+    private DateTime SelectedTransactionDate { get; set; } = DateTime.Now;
+    private string SelectedORNumber { get; set; } = string.Empty;
+    private SlaughterTransactionDto? SelectedEntry { get; set; }
+    private List<SlaughterTransactionDto> SelectedGroupEntries { get; set; } = new();
+    private List<object> SelectedGroupEntriesAsObjects => SelectedGroupEntries.Cast<object>().ToList();
     private string ErrorMessage { get; set; } = string.Empty;
+    private HashSet<string> ExpandedAnimalRows { get; set; } = new();
+    private HashSet<string> ExpandedHistoryRows { get; set; } = new();
 
-    // Carabao and Cow are now separate (same ?365 rate)
-    private readonly List<string> AnimalFilters = new() { "All", "Hog", "Carabao", "Cow" };
+    private readonly List<string> AnimalFilters = new() { "All", "Hog", "Carabao", "Cow", "Others" };
 
     // -- COMPUTED -------------------------------------------------
-    private decimal TotalCollected => Entries.Sum(e => e.TotalAmount);
-    private int TotalHeads => Entries.Sum(e => e.NumberOfHeads);
-    private int HogCount => Entries.Where(e => e.AnimalType == "Hog").Sum(e => e.NumberOfHeads);
-    private int CarabaoCount => Entries.Where(e => e.AnimalType == "Carabao").Sum(e => e.NumberOfHeads);
-    private int CowCount => Entries.Where(e => e.AnimalType == "Cow").Sum(e => e.NumberOfHeads);
+    private decimal TotalCollected => Overview?.TotalCollected ?? 0;
+    private int TotalHeads => Overview?.TotalHeads ?? 0;
+    private int HogCount => Overview?.HogCount ?? 0;
+    private int CarabaoCount => Overview?.CarabaoCount ?? 0;
+    private int CowCount => Overview?.CowCount ?? 0;
+    private int OthersCount => Overview?.OthersCount ?? 0;
 
-    private IEnumerable<SlaughterEntry> FilteredEntries => Entries
-        .Where(e => ActiveAnimalFilter == "All" || e.AnimalType == ActiveAnimalFilter)
-        .Where(e => string.IsNullOrWhiteSpace(SearchTerm)
-            || e.OwnerName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
-            || e.ORNo.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<OwnerTransactionGroupDto> FilteredOwnerGroups
+    {
+        get
+        {
+            var filtered = GroupedOwnerTransactions.AsEnumerable();
+
+            if (ActiveAnimalFilter != "All")
+            {
+                if (ActiveAnimalFilter == "Others")
+                {
+                    filtered = filtered.Where(g => g.LatestTransactions.Any(t => t.AnimalType == AnimalType.Other));
+                }
+                else
+                {
+                    filtered = filtered.Where(g => g.LatestTransactions.Any(t => GetAnimalTypeName(t.AnimalType, t.CustomAnimalType) == ActiveAnimalFilter));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(SearchTerm))
+            {
+                filtered = filtered.Where(g => g.OwnerName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
+                    || (g.ORNumber != null && g.ORNumber.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return filtered;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        
+        // Small delay to ensure database has committed all transactions
+        await Task.Delay(100);
+        
+        var overviewResult = await SlaughterApi.GetOverviewAsync(CurrentYear, CurrentMonth);
+        if (overviewResult.IsSuccess)
+        {
+            Overview = overviewResult.Value;
+        }
+
+        var groupedResult = await SlaughterApi.GetGroupedTransactionsAsync(CurrentYear, CurrentMonth);
+        if (groupedResult.IsSuccess)
+        {
+            GroupedOwnerTransactions = groupedResult.Value?.ToList() ?? new();
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private string GetAnimalTypeName(AnimalType animalType, string? customAnimalType)
+    {
+        return animalType switch
+        {
+            AnimalType.Hog => "Hog",
+            AnimalType.Carabao => "Carabao",
+            AnimalType.Cow => "Cow",
+            AnimalType.Other => customAnimalType ?? "Other",
+            _ => "Unknown"
+        };
+    }
+
+    private void ToggleAnimalRow(string key)
+    {
+        if (ExpandedAnimalRows.Contains(key))
+            ExpandedAnimalRows.Remove(key);
+        else
+            ExpandedAnimalRows.Add(key);
+    }
+
+    private bool IsAnimalRowExpanded(string key) => ExpandedAnimalRows.Contains(key);
+
+    private async Task ToggleHistoryRow(string ownerName)
+    {
+        if (ExpandedHistoryRows.Contains(ownerName))
+        {
+            ExpandedHistoryRows.Remove(ownerName);
+        }
+        else
+        {
+            if (!OwnerHistories.ContainsKey(ownerName))
+            {
+                var historyResult = await SlaughterApi.GetOwnerHistoryAsync(ownerName, CurrentYear, CurrentMonth);
+                if (historyResult.IsSuccess && historyResult.Value != null)
+                {
+                    OwnerHistories[ownerName] = historyResult.Value;
+                }
+            }
+            ExpandedHistoryRows.Add(ownerName);
+        }
+    }
+
+    private bool IsHistoryRowExpanded(string ownerName) => ExpandedHistoryRows.Contains(ownerName);
+
+    private OwnerTransactionHistoryDto? GetOwnerHistory(string ownerName)
+    {
+        return OwnerHistories.ContainsKey(ownerName) ? OwnerHistories[ownerName] : null;
+    }
 
     // -- ROW CLASS ------------------------------------------------
     private static string GetRowClass(string animalType) => animalType switch
@@ -299,188 +584,272 @@
     {
         ShowAddTransactionModal = false;
         SelectedOwnerName = string.Empty;
+        SelectedTransactionDate = DateTime.Now;
+        SelectedORNumber = string.Empty;
+        ErrorMessage = string.Empty;
+    }
+
+    private async Task CloseEditModal()
+    {
+        ShowEditModal = false;
+        SelectedEntry = null;
         ErrorMessage = string.Empty;
     }
 
     private async Task SubmitSlaughterRecord(SlaughterRecordModal.SlaughterRecordForm form)
     {
-        // Validation
-        if (form.TransactionDate == default)
+        var hasError = false;
+        var errorMsg = "";
+
+        if (form.HogHeads > 0)
         {
-            ErrorMessage = "Please select a transaction date.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(form.OwnerName))
-        {
-            ErrorMessage = "Owner name is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(form.AnimalType))
-        {
-            ErrorMessage = "Please select an animal type.";
-            return;
-        }
-        if (form.NumberOfHeads <= 0)
-        {
-            ErrorMessage = "Number of heads must be greater than 0.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(form.ORNo))
-        {
-            ErrorMessage = "OR number is required.";
-            return;
+            var command = new RecordSlaughterCommand(
+                form.OwnerName,
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Hog,
+                null,
+                form.HogHeads,
+                null
+            );
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to record Hog transaction";
+            }
         }
 
-        // Get rate per head based on animal type
-        decimal ratePerHead = form.AnimalType switch
+        if (!hasError && form.CarabaoHeads > 0)
         {
-            "Hog" => 250,
-            "Carabao" => 365,
-            "Cow" => 365,
-            _ => 0
-        };
+            var command = new RecordSlaughterCommand(
+                form.OwnerName,
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Carabao,
+                null,
+                form.CarabaoHeads,
+                null
+            );
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to record Carabao transaction";
+            }
+        }
 
-        // Create new entry
-        var newEntry = new SlaughterEntry(
-            Entries.Max(e => e.Id) + 1,
-            form.TransactionDate,
-            form.OwnerName.Trim(),
-            form.AnimalType,
-            form.NumberOfHeads,
-            ratePerHead,
-            form.ORNo.Trim()
-        );
+        if (!hasError && form.CowHeads > 0)
+        {
+            var command = new RecordSlaughterCommand(
+                form.OwnerName,
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Cow,
+                null,
+                form.CowHeads,
+                null
+            );
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to record Cow transaction";
+            }
+        }
 
-        // Add to list
-        Entries.Add(newEntry);
+        if (!hasError && form.CustomHeads > 0)
+        {
+            var command = new RecordSlaughterCommand(
+                form.OwnerName,
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Other,
+                form.CustomAnimalType,
+                form.CustomHeads,
+                form.CustomRate
+            );
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to record custom animal transaction";
+            }
+        }
 
-        // Close modal
-        await CloseRecordModal();
+        if (hasError)
+        {
+            ErrorMessage = errorMsg;
+        }
+        else
+        {
+            await LoadData();
+            await CloseRecordModal();
+        }
     }
 
     private async Task SubmitAddTransaction(AddSlaughterTransactionModal.AddTransactionForm form)
     {
-        if (form.TransactionDate == default)
-        {
-            ErrorMessage = "Please select a transaction date.";
-            return;
-        }
-        
-        int totalHeads = form.HogHeads + form.CarabaoHeads + form.CowHeads;
-        if (totalHeads == 0)
-        {
-            ErrorMessage = "Please select at least one animal type.";
-            return;
-        }
-        
-        if (string.IsNullOrWhiteSpace(form.ORNo))
-        {
-            ErrorMessage = "OR number is required.";
-            return;
-        }
+        var hasError = false;
+        var errorMsg = "";
 
-        // Create entries for each animal type
         if (form.HogHeads > 0)
         {
-            var hogEntry = new SlaughterEntry(
-                Entries.Max(e => e.Id) + 1,
-                form.TransactionDate,
+            var command = new RecordSlaughterCommand(
                 SelectedOwnerName,
-                "Hog",
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Hog,
+                null,
                 form.HogHeads,
-                250,
-                form.ORNo.Trim()
+                null
             );
-            Entries.Add(hogEntry);
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to add Hog transaction";
+            }
         }
 
-        if (form.CarabaoHeads > 0)
+        if (!hasError && form.CarabaoHeads > 0)
         {
-            var carabaoEntry = new SlaughterEntry(
-                Entries.Max(e => e.Id) + 1,
-                form.TransactionDate,
+            var command = new RecordSlaughterCommand(
                 SelectedOwnerName,
-                "Carabao",
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Carabao,
+                null,
                 form.CarabaoHeads,
-                365,
-                form.ORNo.Trim()
+                null
             );
-            Entries.Add(carabaoEntry);
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to add Carabao transaction";
+            }
         }
 
-        if (form.CowHeads > 0)
+        if (!hasError && form.CowHeads > 0)
         {
-            var cowEntry = new SlaughterEntry(
-                Entries.Max(e => e.Id) + 1,
-                form.TransactionDate,
+            var command = new RecordSlaughterCommand(
                 SelectedOwnerName,
-                "Cow",
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Cow,
+                null,
                 form.CowHeads,
-                365,
-                form.ORNo.Trim()
+                null
             );
-            Entries.Add(cowEntry);
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to add Cow transaction";
+            }
         }
 
-        await CloseAddTransactionModal();
+        if (!hasError && form.CustomHeads > 0)
+        {
+            var command = new RecordSlaughterCommand(
+                SelectedOwnerName,
+                DateOnly.FromDateTime(form.TransactionDate),
+                form.ORNo,
+                AnimalType.Other,
+                form.CustomAnimalType,
+                form.CustomHeads,
+                form.CustomRate
+            );
+            var result = await SlaughterApi.RecordTransactionAsync(command);
+            if (!result.IsSuccess)
+            {
+                hasError = true;
+                errorMsg = result.Error ?? "Failed to add custom animal transaction";
+            }
+        }
+
+        if (hasError)
+        {
+            ErrorMessage = errorMsg;
+        }
+        else
+        {
+            await LoadData();
+            await CloseAddTransactionModal();
+        }
     }
 
-    private void ViewEntry(SlaughterEntry e)
+    private void ViewEntry(SlaughterTransactionDto e)
     {
         Navigation.NavigateTo($"/facility/slh/transaction/{e.OwnerName}");
     }
 
-    private void AddTransactionForOwner(SlaughterEntry e)
+    private void AddTransactionForOwner(SlaughterTransactionDto e)
     {
         SelectedOwnerName = e.OwnerName;
+        SelectedTransactionDate = e.TransactionDate.ToDateTime(TimeOnly.MinValue);
+        SelectedORNumber = "";  // Don't pre-fill OR number for new transactions
         ErrorMessage = string.Empty;
         ShowAddTransactionModal = true;
         StateHasChanged();
     }
 
-    private void EditEntry(SlaughterEntry e) { /* TODO: edit modal */ }
-
-    // -- DATA MODEL -----------------------------------------------
-    public record SlaughterEntry(
-        int Id,
-        DateTime Date,
-        string OwnerName,
-        string AnimalType,    // "Hog" | "Carabao" | "Cow"
-        int NumberOfHeads,
-        decimal RatePerHead,
-        string ORNo
-    )
+    private void EditEntry(SlaughterTransactionDto e)
     {
-        public decimal TotalAmount => RatePerHead * NumberOfHeads;
+        var ownerGroup = GroupedOwnerTransactions.FirstOrDefault(g => g.OwnerName == e.OwnerName);
+        if (ownerGroup != null)
+        {
+            SelectedGroupEntries = ownerGroup.LatestTransactions.ToList();
+        }
+        
+        SelectedEntry = e;
+        ErrorMessage = string.Empty;
+        ShowEditModal = true;
+        StateHasChanged();
     }
 
-    public class SlaughterRecordForm
+    private async Task SubmitEditTransaction(EditSlaughterTransactionModal.EditTransactionForm form)
     {
-        public DateTime TransactionDate { get; set; } = DateTime.Now;
-        public string OwnerName { get; set; } = string.Empty;
-        public string AnimalType { get; set; } = string.Empty;
-        public int NumberOfHeads { get; set; } = 1;
-        public string ORNo { get; set; } = string.Empty;
+        var animals = new List<AnimalEntry>();
+
+        if (form.HogHeads > 0)
+        {
+            animals.Add(new AnimalEntry(AnimalType.Hog, null, form.HogHeads, null));
+        }
+
+        if (form.CarabaoHeads > 0)
+        {
+            animals.Add(new AnimalEntry(AnimalType.Carabao, null, form.CarabaoHeads, null));
+        }
+
+        if (form.CowHeads > 0)
+        {
+            animals.Add(new AnimalEntry(AnimalType.Cow, null, form.CowHeads, null));
+        }
+
+        if (form.CustomHeads > 0)
+        {
+            animals.Add(new AnimalEntry(AnimalType.Other, form.CustomAnimalType, form.CustomHeads, form.CustomRate));
+        }
+
+        var command = new UpdateSlaughterCommand(
+            form.OwnerName,
+            DateOnly.FromDateTime(form.TransactionDate),
+            form.ORNumber,
+            animals
+        );
+
+        var result = await SlaughterApi.UpdateTransactionAsync(command);
+        
+        if (result.IsSuccess)
+        {
+            await LoadData();
+            await CloseEditModal();
+        }
+        else
+        {
+            ErrorMessage = result.Error ?? "Failed to update transaction";
+        }
     }
-    private readonly List<SlaughterEntry> Entries = new()
-    {
-        new(1,  new DateTime(2026,3,1),  "Dela Cruz, Ramon A.",   "Hog",     3, 250, "OR-2026-SLH-001"),
-        new(2,  new DateTime(2026,3,1),  "Santos, Lito B.",       "Hog",     2, 250, "OR-2026-SLH-002"),
-        new(3,  new DateTime(2026,3,2),  "Reyes, Mario C.",       "Carabao", 1, 365, "OR-2026-SLH-003"),
-        new(4,  new DateTime(2026,3,3),  "Garcia, Noel D.",       "Hog",     5, 250, "OR-2026-SLH-004"),
-        new(5,  new DateTime(2026,3,5),  "Bautista, Jun E.",      "Cow",     2, 365, "OR-2026-SLH-005"),
-        new(6,  new DateTime(2026,3,6),  "Torres, Ronnie F.",     "Hog",     1, 250, "OR-2026-SLH-006"),
-        new(7,  new DateTime(2026,3,8),  "Navarro, Edwin G.",     "Hog",     4, 250, "OR-2026-SLH-007"),
-        new(8,  new DateTime(2026,3,10), "Lim, Domingo H.",       "Carabao", 1, 365, "OR-2026-SLH-008"),
-        new(9,  new DateTime(2026,3,12), "Cabrera, Felix I.",     "Hog",     2, 250, "OR-2026-SLH-009"),
-        new(10, new DateTime(2026,3,14), "Villanueva, Nestor J.", "Hog",     3, 250, "OR-2026-SLH-010"),
-        new(11, new DateTime(2026,3,15), "Mendoza, Cesar K.",     "Cow",     1, 365, "OR-2026-SLH-011"),
-        new(12, new DateTime(2026,3,17), "Aquino, Pedro L.",      "Hog",     2, 250, "OR-2026-SLH-012"),
-        new(13, new DateTime(2026,3,19), "Fernandez, Alex M.",    "Carabao", 2, 365, "OR-2026-SLH-013"),
-        new(14, new DateTime(2026,3,20), "Soriano, Bart N.",      "Hog",     1, 250, "OR-2026-SLH-014"),
-        new(15, new DateTime(2026,3,22), "Cruz, Danny O.",        "Hog",     4, 250, "OR-2026-SLH-015"),
-        new(16, new DateTime(2026,3,24), "Ramos, Joel P.",        "Cow",     1, 365, "OR-2026-SLH-016"),
-        new(17, new DateTime(2026,3,25), "Flores, Rudy Q.",       "Hog",     2, 250, "OR-2026-SLH-017"),
-        new(18, new DateTime(2026,3,26), "Diaz, Arnel R.",        "Hog",     3, 250, "OR-2026-SLH-018"),
-    };
 }

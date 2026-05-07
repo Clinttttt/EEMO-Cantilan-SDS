@@ -30,6 +30,9 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
                 .IsRequired()
                 .HasConversion<int>();
 
+            builder.Property(st => st.CustomAnimalType)
+                .HasMaxLength(100);
+
             builder.Property(st => st.NumberOfHeads)
                 .IsRequired();
 

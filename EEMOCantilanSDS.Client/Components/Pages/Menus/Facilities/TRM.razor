@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter
+
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @attribute [Authorize]
 @rendermode InteractiveServer
@@ -202,14 +203,12 @@
         <!-- Panel header -->
         <div class="trm-profile-header">
             <div class="trm-profile-header-left">
-                <div class="trm-profile-avatar">
-                    @ProfileTransporter.Name[0]
+                <div class="trm-profile-icon">
+                    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
                 </div>
                 <div>
                     <div class="trm-profile-name">@ProfileTransporter.Name</div>
-                    <div class="trm-profile-meta">
-                        <span class="trm-org-tag">@ProfileTransporter.Organization</span>
-                    </div>
+                    <div class="trm-profile-meta">@ProfileTransporter.Organization</div>
                 </div>
             </div>
             <button class="trm-profile-close" @onclick="CloseProfile">
@@ -229,6 +228,10 @@
                 <div class="trm-profile-info-row">
                     <span class="trm-profile-info-key">Default Route</span>
                     <span class="trm-profile-info-val">@ProfileDetails.DefaultRoute</span>
+                </div>
+                <div class="trm-profile-info-row">
+                    <span class="trm-profile-info-key">Plate Number</span>
+                    <span class="trm-profile-info-val">@ProfileDetails.PlateNumber</span>
                 </div>
                 <div class="trm-profile-info-row">
                     <span class="trm-profile-info-key">Terminal Fee</span>
@@ -254,20 +257,34 @@
                 </div>
             </div>
 
-            <!-- Record trip button -->
-            @if (todayCount > 0)
+            @if (!ShowQuickOrInput)
             {
-                <div class="trm-profile-already-trip">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    This transporter already has @todayCount trip@(todayCount > 1 ? "s" : "") recorded today
-                </div>
-            }
-            else
-            {
-                <button class="trm-profile-record-btn" @onclick="() => OpenRecordTripModal(ProfileTransporter)">
+                <!-- Record trip button -->
+                <button class="trm-profile-record-btn" @onclick="ShowRecordTripForm">
                     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Record Trip
                 </button>
+            }
+            else
+            {
+                <div class="trm-quick-or-block">
+                    <label class="trm-quick-or-label">OR Number <span style="color:var(--red);">*</span></label>
+                    <input class="trm-quick-or-input" placeholder="e.g. OR-2026-0501" @bind="QuickOrNumber" @bind:event="oninput" />
+                    @if (!string.IsNullOrEmpty(RecordTripError))
+                    {
+                        <div class="trm-profile-error" style="margin-top:6px;">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            @RecordTripError
+                        </div>
+                    }
+                    <div class="trm-quick-or-actions">
+                        <button class="trm-quick-or-cancel" @onclick="CancelQuickOr">Cancel</button>
+                        <button class="trm-quick-or-save" @onclick="RecordTrip">
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                            Save OR
+                        </button>
+                    </div>
+                </div>
             }
 
             <!-- Trip history -->
@@ -387,133 +404,91 @@
 }
 
 <!-- ══════════════════════════════════════════════
-     RECORD TRIP MODAL
-══════════════════════════════════════════════ -->
-@if (ShowRecordTripModal && SelectedTransporter != null)
-{
-    <div class="eemo-modal-overlay" @onclick="CloseRecordTripModal">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Record Trip</div>
-                    <div class="eemo-modal-sub">@SelectedTransporter.Organization</div>
-                </div>
-                <button class="eemo-modal-close" @onclick="CloseRecordTripModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="eemo-modal-body">
-                <div class="trm-record-info-block">
-                    <div class="trm-record-info-row">
-                        <span class="trm-record-info-key">Transporter</span>
-                        <span class="trm-record-info-val">@SelectedTransporter.Name</span>
-                    </div>
-                    <div class="trm-record-info-row">
-                        <span class="trm-record-info-key">Organization</span>
-                        <span class="trm-record-info-val">@SelectedTransporter.Organization</span>
-                    </div>
-                    <div class="trm-record-info-row">
-                        <span class="trm-record-info-key">Terminal Fee</span>
-                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
-                    </div>
-                </div>
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label class="form-label">Driver Name <span class="req">*</span></label>
-                        <input class="form-input" placeholder="e.g. Juan Dela Cruz" @bind="RecordDriverName" />
-                        @if (RecordFieldErrors.ContainsKey("DriverName"))
-                        {
-                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["DriverName"]</div>
-                        }
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Plate Number <span class="req">*</span></label>
-                        <input class="form-input" placeholder="e.g. ABC 1234" @bind="RecordPlateNumber" />
-                        @if (RecordFieldErrors.ContainsKey("PlateNumber"))
-                        {
-                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["PlateNumber"]</div>
-                        }
-                    </div>
-                </div>
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label class="form-label">Route <span class="req">*</span></label>
-                        <input class="form-input" placeholder="e.g. Cantilan - Surigao" @bind="RecordRoute" />
-                        @if (RecordFieldErrors.ContainsKey("Route"))
-                        {
-                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["Route"]</div>
-                        }
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">OR Number <span class="req">*</span></label>
-                        <input class="form-input" placeholder="e.g. OR-2026-0501" @bind="RecordOrNumber" />
-                        @if (RecordFieldErrors.ContainsKey("ORNumber"))
-                        {
-                            <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@RecordFieldErrors["ORNumber"]</div>
-                        }
-                    </div>
-                </div>
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseRecordTripModal">Cancel</button>
-                <button class="btn-primary" @onclick="SubmitRecordTrip">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                    Record Trip
-                </button>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- ══════════════════════════════════════════════
-     ADD TRANSPORTER MODAL
+     ADD TRANSPORTER - SLIDE-IN PANEL
 ══════════════════════════════════════════════ -->
 @if (ShowAddTransporterModal)
 {
-    <div class="eemo-modal-overlay" @onclick="CloseAddTransporterModal">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div class="eemo-modal-title">Add Transporter</div>
-                <button class="eemo-modal-close" @onclick="CloseAddTransporterModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
+    <div class="trm-add-backdrop" @onclick="CloseAddTransporterModal"></div>
+}
+
+<div class="trm-add-panel @(ShowAddTransporterModal ? "trm-add-panel-open" : "")">
+
+    <!-- Panel Header -->
+    <div class="trm-add-panel-header">
+        <div class="trm-add-panel-header-left">
+            <div class="trm-add-panel-icon">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </div>
-            <div class="eemo-modal-body">
-                <div class="form-group">
-                    <label class="form-label">Full Name <span class="req">*</span></label>
-                    <input class="form-input" placeholder="e.g. Juan Dela Cruz" @bind="NewTransporterName" />
-                    @if (AddTransporterErrors.ContainsKey("Name"))
-                    {
-                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Name"]</div>
-                    }
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Organization / Group <span class="req">*</span></label>
-                    <input class="form-input" placeholder="e.g. POG Maharlika, Tourist Car" @bind="NewTransporterOrg" />
-                    @if (AddTransporterErrors.ContainsKey("Organization"))
-                    {
-                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Organization"]</div>
-                    }
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Default Route <span class="req">*</span></label>
-                    <input class="form-input" placeholder="e.g. Cantilan - Surigao" @bind="NewTransporterRoute" />
-                    @if (AddTransporterErrors.ContainsKey("Route"))
-                    {
-                        <div class="form-error"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>@AddTransporterErrors["Route"]</div>
-                    }
-                </div>
-            </div>
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseAddTransporterModal">Cancel</button>
-                <button class="btn-primary" @onclick="SubmitAddTransporter">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Add Transporter
-                </button>
+            <div>
+                <div class="trm-add-panel-title">Add Transporter</div>
+                <div class="trm-add-panel-sub">Register a new transporter to the system.</div>
             </div>
         </div>
+        <button class="trm-add-panel-close" @onclick="CloseAddTransporterModal">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
     </div>
-}
+
+    <!-- Panel Body -->
+    <div class="trm-add-panel-body">
+
+        <div class="trm-add-form-group">
+            <label class="trm-add-form-label">Full Name <span class="req">*</span></label>
+            <input class="trm-add-form-input" placeholder="e.g. Juan Dela Cruz" @bind="NewTransporterName" />
+            @if (AddTransporterErrors.ContainsKey("Name"))
+            {
+                <div class="trm-add-form-error">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @AddTransporterErrors["Name"]
+                </div>
+            }
+        </div>
+
+        <div class="trm-add-form-group">
+            <label class="trm-add-form-label">Organization / Group <span class="req">*</span></label>
+            <input class="trm-add-form-input" placeholder="e.g. POG Maharlika, Tourist Car" @bind="NewTransporterOrg" />
+            @if (AddTransporterErrors.ContainsKey("Organization"))
+            {
+                <div class="trm-add-form-error">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @AddTransporterErrors["Organization"]
+                </div>
+            }
+        </div>
+
+        <div class="trm-add-form-group">
+            <label class="trm-add-form-label">Default Route <span class="req">*</span></label>
+            <input class="trm-add-form-input" placeholder="e.g. Cantilan - Surigao" @bind="NewTransporterRoute" />
+            @if (AddTransporterErrors.ContainsKey("Route"))
+            {
+                <div class="trm-add-form-error">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @AddTransporterErrors["Route"]
+                </div>
+            }
+        </div>
+
+        <div class="trm-add-form-group">
+            <label class="trm-add-form-label">Plate Number <span class="req">*</span></label>
+            <input class="trm-add-form-input" placeholder="e.g. ABC 1234" @bind="NewTransporterPlate" />
+            @if (AddTransporterErrors.ContainsKey("PlateNumber"))
+            {
+                <div class="trm-add-form-error">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @AddTransporterErrors["PlateNumber"]
+                </div>
+            }
+        </div>
+
+        <!-- Submit Button -->
+        <button class="trm-add-submit-btn" @onclick="SubmitAddTransporter">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add Transporter
+        </button>
+
+    </div>
+
+</div>
 
 <!-- ══════════════════════════════════════════════
      OR NUMBER MODAL
@@ -580,7 +555,7 @@
         new() { Value = $"{overview.PendingORCount}", Label = "Pending OR" }
     };
 
-    IEnumerable<TrmTripDto> TodayTrips => AllTrips.Where(t => t.RecordedAt.Date == DateTime.Today);
+    IEnumerable<TrmTripDto> TodayTrips => AllTrips;
     decimal TotalCollectedToday => overview?.CollectedToday ?? 0m;
 
     protected override async Task OnInitializedAsync()
@@ -590,7 +565,7 @@
 
     async Task LoadData()
     {
-        isLoading = true;
+
 
         var overviewResult = await TrmApi.GetOverviewAsync();
         if (overviewResult.IsSuccess) overview = overviewResult.Value;
@@ -601,7 +576,7 @@
         var tripsResult = await TrmApi.GetTodayTripsAsync();
         if (tripsResult.IsSuccess) AllTrips = tripsResult.Value?.ToList() ?? new();
 
-        isLoading = false;
+        isLoading = false; StateHasChanged();
     }
     string TransporterSearch = string.Empty;
     string TripSearch = string.Empty;
@@ -648,64 +623,68 @@
     void OpenTripDetail(TrmTripDto trip) { DetailTrip = trip; ShowTripDetail = true; }
     void CloseTripDetail() { ShowTripDetail = false; DetailTrip = null; }
 
-    // ── Record Trip Modal ─────────────────────────
-    bool ShowRecordTripModal = false;
-    TrmTransporterListDto? SelectedTransporter = null;
-    string RecordDriverName = string.Empty;
-    string RecordPlateNumber = string.Empty;
-    string RecordRoute = string.Empty;
-    string RecordOrNumber = string.Empty;
-    Dictionary<string, string> RecordFieldErrors = new();
+    // ── Record Trip ───────────────────────────────
+    bool ShowQuickOrInput = false;
+    string QuickOrNumber = string.Empty;
+    string RecordTripError = string.Empty;
+    TrmTripDto? PendingTrip = null;
 
-    void OpenRecordTripModal(TrmTransporterListDto transporter)
+    void ShowRecordTripForm()
     {
-        SelectedTransporter = transporter;
-        RecordDriverName = transporter.Name;
-        RecordPlateNumber = string.Empty;
-        RecordRoute = transporter.DefaultRoute;
-        RecordOrNumber = string.Empty;
-        RecordFieldErrors.Clear();
-        ShowRecordTripModal = true;
+        RecordTripError = string.Empty;
+        QuickOrNumber = string.Empty;
+        ShowQuickOrInput = true;
     }
 
-    void CloseRecordTripModal()
+    void CancelQuickOr()
     {
-        ShowRecordTripModal = false;
-        SelectedTransporter = null;
-        RecordFieldErrors.Clear();
+        ShowQuickOrInput = false;
+        QuickOrNumber = string.Empty;
+        RecordTripError = string.Empty;
+        PendingTrip = null;
     }
 
-    async Task SubmitRecordTrip()
+    async Task RecordTrip()
     {
-        RecordFieldErrors.Clear();
+        if (ProfileTransporter == null || ProfileDetails == null) return;
 
-        if (string.IsNullOrWhiteSpace(RecordDriverName)) RecordFieldErrors["DriverName"] = "Driver name is required.";
-        if (string.IsNullOrWhiteSpace(RecordPlateNumber)) RecordFieldErrors["PlateNumber"] = "Plate number is required.";
-        if (string.IsNullOrWhiteSpace(RecordRoute)) RecordFieldErrors["Route"] = "Route is required.";
-        if (string.IsNullOrWhiteSpace(RecordOrNumber)) RecordFieldErrors["ORNumber"] = "OR number is required.";
+        RecordTripError = string.Empty;
 
-        if (RecordFieldErrors.Any()) return;
+        if (string.IsNullOrWhiteSpace(QuickOrNumber))
+        {
+            RecordTripError = "OR number is required.";
+            return;
+        }
 
         var request = new RecordTripRequest(
-            RecordDriverName.Trim(),
-            RecordPlateNumber.Trim(),
-            RecordRoute.Trim(),
-            RecordOrNumber.Trim(),
+            ProfileTransporter.Name,
+            ProfileDetails.PlateNumber,
+            ProfileDetails.DefaultRoute,
+            QuickOrNumber.Trim(),
             null
         );
 
-        var result = await TrmApi.RecordTripAsync(SelectedTransporter!.Id, request);
+        var result = await TrmApi.RecordTripAsync(ProfileTransporter.Id, request);
         if (result.IsSuccess)
         {
+            ShowQuickOrInput = false;
+            QuickOrNumber = string.Empty;
+            PendingTrip = null;
             await LoadData();
-            CloseRecordTripModal();
-        }
-        else if (result.ValidationErrors != null)
-        {
-            foreach (var error in result.ValidationErrors)
+            if (ProfileTransporter != null)
             {
-                RecordFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? "Invalid value";
+                var pr = await TrmApi.GetTransporterProfileAsync(ProfileTransporter.Id);
+                if (pr.IsSuccess) ProfileDetails = pr.Value;
             }
+            StateHasChanged();
+        }
+        else if (result.ValidationErrors != null && result.ValidationErrors.ContainsKey("ORNumber"))
+        {
+            RecordTripError = result.ValidationErrors["ORNumber"].FirstOrDefault() ?? "Invalid OR number";
+        }
+        else
+        {
+            RecordTripError = result.Error ?? "Failed to record trip";
         }
     }
 
@@ -714,6 +693,7 @@
     string NewTransporterName = string.Empty;
     string NewTransporterOrg = string.Empty;
     string NewTransporterRoute = string.Empty;
+    string NewTransporterPlate = string.Empty;
     Dictionary<string, string> AddTransporterErrors = new();
 
     void OpenAddTransporterModal()
@@ -721,6 +701,7 @@
         NewTransporterName = string.Empty;
         NewTransporterOrg = string.Empty;
         NewTransporterRoute = string.Empty;
+        NewTransporterPlate = string.Empty;
         AddTransporterErrors.Clear();
         ShowAddTransporterModal = true;
     }
@@ -738,6 +719,7 @@
         if (string.IsNullOrWhiteSpace(NewTransporterName)) AddTransporterErrors["Name"] = "Full name is required.";
         if (string.IsNullOrWhiteSpace(NewTransporterOrg)) AddTransporterErrors["Organization"] = "Organization is required.";
         if (string.IsNullOrWhiteSpace(NewTransporterRoute)) AddTransporterErrors["Route"] = "Route is required.";
+        if (string.IsNullOrWhiteSpace(NewTransporterPlate)) AddTransporterErrors["PlateNumber"] = "Plate number is required.";
 
         if (AddTransporterErrors.Any()) return;
 
@@ -745,6 +727,7 @@
             NewTransporterName.Trim(),
             NewTransporterOrg.Trim(),
             NewTransporterRoute.Trim(),
+            NewTransporterPlate.Trim(),
             null
         );
 
@@ -775,6 +758,11 @@
         OrNumberInput = string.Empty;
         OrErrorMessage = string.Empty;
         ShowOrModal = true;
+    }
+
+    void OpenOrModalFromProfile(TrmTripDto trip)
+    {
+        OpenOrModal(trip);
     }
 
     void CloseOrModal()

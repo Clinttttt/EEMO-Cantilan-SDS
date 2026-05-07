@@ -25,6 +25,10 @@ public class TrmTransporterConfiguration : IEntityTypeConfiguration<TrmTransport
             .IsRequired()
             .HasColumnType("character varying(200)");
 
+        builder.Property(t => t.PlateNumber)
+            .IsRequired()
+            .HasColumnType("character varying(50)");
+
         builder.Property(t => t.IsActive)
             .IsRequired()
             .HasColumnType("boolean");

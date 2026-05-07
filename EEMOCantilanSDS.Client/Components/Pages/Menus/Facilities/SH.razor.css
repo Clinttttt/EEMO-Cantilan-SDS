@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    SH.razor.css  —  Slaughterhouse page-scoped styles
    Blazor CSS isolation: only applies to SH.razor
    Use --* tokens from app.css; do NOT redefine them here.
@@ -37,135 +37,6 @@
         stroke-linecap: round;
         stroke-linejoin: round;
     }
-
-
-/* -- Hero Banner ------------------------------------------- */
-.slh-hero {
-    position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 28px 32px 20px;
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    gap: 32px;
-    overflow: hidden;
-    flex-wrap: wrap;
-}
-
-    .slh-hero::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        right: -40px;
-        width: 200px;
-        height: 200px;
-        background: radial-gradient(circle, rgba(200,168,75,.18) 0%, transparent 70%);
-        pointer-events: none;
-    }
-
-.slh-hero-left {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    flex: 1 1 260px;
-}
-
-.slh-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200,168,75,.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-    .slh-hero-icon svg {
-        width: 26px;
-        height: 26px;
-        stroke: var(--gold);
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-.slh-hero-eyebrow {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 4px;
-}
-
-.slh-hero-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-    line-height: 1.2;
-}
-
-.slh-hero-sub {
-    font-size: 13px;
-    color: rgba(255,255,255,.55);
-    margin-top: 3px;
-}
-
-.slh-hero-stats {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    flex-wrap: wrap;
-}
-
-.slh-hero-stat {
-    padding: 0 24px;
-    text-align: center;
-}
-
-    .slh-hero-stat:first-child {
-        padding-left: 0;
-    }
-
-.slh-hero-val {
-    font-size: 22px;
-    font-weight: 700;
-    color: #fff;
-}
-
-.slh-hero-key {
-    font-size: 11px;
-    color: rgba(255,255,255,.5);
-    margin-top: 3px;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-}
-
-.slh-hero-divider {
-    width: 1px;
-    height: 36px;
-    background: rgba(255,255,255,.12);
-    flex-shrink: 0;
-}
-
-.slh-hero-progress {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: rgba(255,255,255,.1);
-}
-
-.slh-hero-progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--gold), var(--gold-light));
-    border-radius: 0 2px 2px 0;
-    transition: width .5s ease;
-}
 
 
 /* -- Toolbar (Unified Design) ------------------------------ */
@@ -348,7 +219,6 @@
     flex: 1 1 300px;
 }
 
-/* Label row: title + info icon side by side */
 .slh-facility-label-row {
     display: flex;
     align-items: center;
@@ -402,7 +272,6 @@
         stroke-linejoin: round;
     }
 
-/* Tooltip panel — hidden by default, shown on hover */
 .slh-tooltip {
     display: none;
     position: absolute;
@@ -419,7 +288,6 @@
     pointer-events: none;
 }
 
-    /* Small arrow pointing up */
     .slh-tooltip::before {
         content: "";
         position: absolute;
@@ -455,7 +323,6 @@
     margin-bottom: 6px;
 }
 
-/* 2-column grid for fee breakdown rows */
 .slh-tooltip-breakdown {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -514,40 +381,181 @@
     color: var(--green);
 }
 
-/* Carabao = teal-ish blue to differentiate from Cow */
 .slh-mini-stat.carabao-stat .slh-mini-val {
     color: #2e7bb5;
 }
 
-/* Cow = warm amber/brown */
 .slh-mini-stat.cow-stat .slh-mini-val {
     color: #b87333;
 }
 
-
-/* -- Data Table Panel -------------------------------------- */
-.panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 20px;
+.slh-mini-stat.others-stat .slh-mini-val {
+    color: #8b5a3c;
 }
 
 
 /* -- Table Row Accents ------------------------------------- */
-.row-hog td:first-child {
+.row-hog {
     border-left: 3px solid var(--green);
 }
 
-.row-carabao td:first-child {
+.row-carabao {
     border-left: 3px solid #2e7bb5;
 }
 
-.row-cow td:first-child {
+.row-cow {
     border-left: 3px solid #b87333;
 }
 
+/* Custom animal types (Others) - brown left border */
+.row-other {
+    border-left: 3px solid #8b5a3c;
+}
+
+/* -- Expandable Rows --------------------------------------- */
+.has-children {
+    cursor: pointer;
+}
+
+.animal-type-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.animal-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 6px;
+    background: var(--gold);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.expand-icon {
+    width: 14px;
+    height: 14px;
+    stroke: var(--text-muted);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.2s;
+}
+
+.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.detail-row {
+    background: var(--bg) !important;
+}
+
+    .detail-row td {
+        border-left: none !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+    }
+
+.detail-animal-type {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 20px;
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+    .detail-animal-type svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* -- History Toggle Button --------------------------------- */
+.btn-history-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+    .btn-history-toggle:hover {
+        background: var(--navy);
+        color: var(--gold-light);
+        border-color: var(--navy);
+    }
+
+    .btn-history-toggle svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transition: transform 0.2s;
+    }
+
+        .btn-history-toggle svg.expanded {
+            transform: rotate(180deg);
+        }
+
+/* -- History Rows ------------------------------------------ */
+.history-row {
+    background: rgba(200,168,75,0.04) !important;
+}
+
+    .history-row td {
+        border-left: none !important;
+    }
+
+    .history-row td:first-child {
+        border-left: 3px solid var(--gold) !important;
+    }
+
+.history-owner-name {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 12px;
+    font-size: 12px;
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+    .history-owner-name svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.history-detail-row {
+    background: rgba(200,168,75,0.02) !important;
+}
 
 /* -- Action Buttons ---------------------------------------- */
 .action-btns {
@@ -589,22 +597,26 @@
 /* -- Utilities --------------------------------------------- */
 .mono {
     font-family: 'Consolas', monospace;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .empty-state {
-    text-align: center;
-    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 48px 32px;
     color: var(--text-muted);
     font-size: 13px;
+    width: 100%;
 }
 
     .empty-state svg {
-        width: 20px;
-        height: 20px;
+        width: 22px;
+        height: 22px;
         stroke: var(--text-subtle);
         fill: none;
-        stroke-width: 2;
-        vertical-align: middle;
-        margin-right: 6px;
+        stroke-width: 1.75;
+        display: block;
     }

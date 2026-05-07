@@ -14,6 +14,7 @@ public record TrmTransporterListDto
     public string Name { get; init; } = string.Empty;
     public string Organization { get; init; } = string.Empty;
     public string DefaultRoute { get; init; } = string.Empty;
+    public string PlateNumber { get; init; } = string.Empty;
     public int TripsToday { get; init; }
 }
 
@@ -23,6 +24,7 @@ public record TrmTransporterProfileDto
     public string Name { get; init; } = string.Empty;
     public string Organization { get; init; } = string.Empty;
     public string DefaultRoute { get; init; } = string.Empty;
+    public string PlateNumber { get; init; } = string.Empty;
     public int TripsToday { get; init; }
     public int TotalTrips { get; init; }
     public decimal TotalFees { get; init; }
@@ -49,5 +51,6 @@ public record TrmTransporterDto
     public string Name { get; init; } = string.Empty;
     public string Organization { get; init; } = string.Empty;
     public string DefaultRoute { get; init; } = string.Empty;
+    public string PlateNumber { get; init; } = string.Empty;
     public bool IsActive { get; init; }
 }

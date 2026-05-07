@@ -429,6 +429,16 @@
         font-size: 13px;
     }
 
+    /* Group styling - remove border between same OR number */
+    .txn-table tbody .txn-row.group-middle td,
+    .txn-table tbody .txn-row.group-first:not(.group-last) td {
+        border-bottom: 1px solid rgba(221, 228, 234, 0.3);
+    }
+
+    .txn-table tbody .txn-row.group-last td {
+        border-bottom: 1px solid var(--border);
+    }
+
     .txn-table tbody .txn-row:last-child td {
         border-bottom: none;
     }
@@ -436,6 +446,7 @@
     .txn-table tbody .txn-row:hover td {
         background: var(--bg);
     }
+
 
 
 

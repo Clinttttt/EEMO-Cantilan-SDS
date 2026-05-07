@@ -119,9 +119,9 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         var existsInDaily = await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct);
         return !existsInDaily;
     }
-
     private static List<DateOnly> GetFridaysInMonth(int year, int month)
     {
+  
         var fridays = new List<DateOnly>();
         var date = new DateOnly(year, month, 1);
         

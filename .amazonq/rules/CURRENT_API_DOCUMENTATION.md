@@ -522,6 +522,164 @@ Get vendor registry with summary statistics and vendor list.
 
 ---
 
+## 8. Slaughterhouse Controller
+**Base Route:** `/api/slaughter`  
+**Authorization:** Required
+
+### GET `/slaughter/overview`
+Get slaughterhouse dashboard statistics for a specific month.
+
+**Query Parameters:**
+- `year` (required): Year (e.g., 2026)
+- `month` (required): Month (1-12)
+
+**Response:** `SlaughterOverviewDto`
+```json
+{
+  "totalTransactions": 21,
+  "totalHeads": 44,
+  "totalCollected": 13011.00,
+  "hogCount": 33,
+  "carabaoCount": 6,
+  "cowCount": 4,
+  "othersCount": 1
+}
+```
+
+**Business Rules:**
+- Returns aggregated statistics for all transactions in the specified month
+- `othersCount` includes all custom animal types (not Hog/Carabao/Cow)
+- `totalCollected` is sum of all transaction amounts
+
+### GET `/slaughter/transactions`
+Get all slaughter transactions for a specific month.
+
+**Query Parameters:**
+- `year` (required): Year (e.g., 2026)
+- `month` (required): Month (1-12)
+
+**Response:** `IReadOnlyList<SlaughterTransactionDto>`
+```json
+[
+  {
+    "id": "guid",
+    "ownerName": "Diaz, Arnel R.",
+    "animalType": 99,
+    "customAnimalType": "Goat",
+    "numberOfHeads": 4,
+    "ratePerHead": 215.25,
+    "totalAmount": 861.00,
+    "orNumber": "OR-2026-SLH-018",
+    "transactionDate": "2026-03-26"
+  },
+  {
+    "id": "guid",
+    "ownerName": "Flores, Rudy Q.",
+    "animalType": 1,
+    "customAnimalType": null,
+    "numberOfHeads": 2,
+    "ratePerHead": 250.00,
+    "totalAmount": 500.00,
+    "orNumber": "OR-2026-SLH-017",
+    "transactionDate": "2026-03-25"
+  }
+]
+```
+
+**Business Rules:**
+- Returns all transactions ordered by date descending
+- `animalType` values: 1=Hog, 2=Carabao, 3=Cow, 99=Other
+- `customAnimalType` is populated only when `animalType` is 99 (Other)
+- `totalAmount` is computed as `ratePerHead × numberOfHeads`
+
+### POST `/slaughter/record`
+Record a new slaughter transaction.
+
+**Request Body:** `RecordSlaughterCommand`
+```json
+{
+  "ownerName": "Diaz, Arnel R.",
+  "transactionDate": "2026-05-07",
+  "orNumber": "OR-2026-SLH-025",
+  "animalType": 99,
+  "customAnimalType": "Goat",
+  "numberOfHeads": 4,
+  "customRate": 215.25
+}
+```
+
+**Response:** `bool` (true on success)
+
+**Business Rules:**
+- `animalType` must be 1 (Hog), 2 (Carabao), 3 (Cow), or 99 (Other)
+- For standard animals (Hog/Carabao/Cow), rate is automatically applied:
+  - Hog: ₱250/head
+  - Carabao: ₱365/head
+  - Cow: ₱365/head
+- For custom animals (`animalType` = 99):
+  - `customAnimalType` is required (e.g., "Goat", "Sheep")
+  - `customRate` is required and must be > 0
+- OR number must be globally unique across all facilities
+- `numberOfHeads` must be > 0
+- `ownerName` is required (max 100 characters)
+
+**Validation Errors:**
+```json
+{
+  "isSuccess": false,
+  "error": "Validation failed",
+  "errors": {
+    "ORNumber": ["OR number already exists."],
+    "CustomAnimalType": ["Custom animal type is required."],
+    "CustomRate": ["Custom rate must be greater than 0."]
+  }
+}
+```
+
+### PUT `/slaughter/update`
+Update grouped slaughter transactions (for editing existing records).
+
+**Request Body:** `UpdateSlaughterCommand`
+```json
+{
+  "ownerName": "Diaz, Arnel R.",
+  "transactionDate": "2026-03-26",
+  "orNumber": "OR-2026-SLH-018",
+  "animals": [
+    {
+      "animalType": 1,
+      "customAnimalType": null,
+      "numberOfHeads": 3,
+      "customRate": null
+    },
+    {
+      "animalType": 99,
+      "customAnimalType": "Goat",
+      "numberOfHeads": 1,
+      "customRate": 215.25
+    }
+  ]
+}
+```
+
+**Response:** `bool` (true on success)
+
+**Business Rules:**
+- Updates all transactions with matching `ownerName`, `transactionDate`, and `orNumber`
+- Removes all existing transactions for the group
+- Creates new transactions based on `animals` array
+- Each animal entry follows same validation rules as record endpoint
+- At least one animal type must have `numberOfHeads` > 0
+- Total heads across all animals must be > 0
+- OR number cannot be changed (part of the group identifier)
+
+**Use Case:**
+- Used when editing grouped transactions from the UI
+- Allows adding/removing animal types from an existing transaction group
+- Maintains transaction grouping by owner/date/OR
+
+---
+
 ## 7. Collectors Controller
 **Base Route:** `/api/collectors`  
 **Authorization:** SuperAdmin only
@@ -695,9 +853,10 @@ Admin = 2
 
 ### AnimalType (Slaughterhouse)
 ```csharp
-Hog = 1,
-Carabao = 2,
-Cow = 3
+Hog = 1,      // ₱250/head
+Carabao = 2,  // ₱365/head
+Cow = 3,      // ₱365/head
+Other = 99    // Custom animal type with custom rate
 ```
 
 ---
@@ -708,7 +867,6 @@ The following endpoints are planned but not yet implemented:
 
 - **Dashboard Controller** - Overall system dashboard statistics
 - **Reports Controller** - Generate PDF/Excel reports
-- **Slaughterhouse Controller** - Record slaughter transactions
 - **Daily Collections Controller** - NPM daily collection tracking
 - **Audit Logs Controller** - View system audit trail
 - **Admin Users Controller** - Manage admin accounts (SuperAdmin only)

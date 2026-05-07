@@ -1,0 +1,297 @@
+<!-- ══════════════════════════════════════════════
+     EDIT SLAUGHTER TRANSACTION - SLIDE-IN PANEL
+══════════════════════════════════════════════ -->
+
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+
+@if (ShowModal)
+{
+    <div class="slh-edit-backdrop" @onclick="CloseModal"></div>
+}
+
+<div class="slh-edit-panel @(ShowModal ? "slh-edit-panel-open" : "")">
+
+    <!-- Panel Header -->
+    <div class="slh-edit-panel-header">
+        <div class="slh-edit-panel-header-left">
+            <div class="slh-edit-panel-icon">
+                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </div>
+            <div>
+                <div class="slh-edit-panel-title">Edit Transaction</div>
+                <div class="slh-edit-panel-sub">Update slaughter transaction details.</div>
+            </div>
+        </div>
+        <button class="slh-edit-panel-close" @onclick="CloseModal">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+    </div>
+
+    <!-- Panel Body -->
+    <div class="slh-edit-panel-body">
+
+        <!-- Transaction Info -->
+        <div class="slh-edit-info-card">
+            <div class="slh-edit-info-row">
+                <span class="slh-edit-info-label">OR Number</span>
+                <span class="slh-edit-info-value">@EditForm.ORNumber</span>
+            </div>
+            <div class="slh-edit-info-row">
+                <span class="slh-edit-info-label">Transaction Date</span>
+                <span class="slh-edit-info-value">@EditForm.TransactionDate.ToString("MMM dd, yyyy")</span>
+            </div>
+        </div>
+
+        <!-- Owner Name -->
+        <div class="slh-edit-form-group">
+            <label class="slh-edit-form-label">Owner Name <span class="req">*</span></label>
+            <input type="text" class="slh-edit-form-input" placeholder="e.g. Dela Cruz, Ramon" @bind="EditForm.OwnerName" />
+        </div>
+
+        <!-- Animal Selection -->
+        <div class="slh-edit-form-section-label">Select Animal Types</div>
+        
+        <!-- Hog -->
+        <div class="slh-edit-animal-card @(EditForm.HogHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Hog)">
+            <div class="slh-edit-animal-header">
+                <div class="slh-edit-animal-icon hog-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-edit-animal-info">
+                    <div class="slh-edit-animal-name">Hog</div>
+                    <div class="slh-edit-animal-rate">₱250 per head</div>
+                </div>
+                <div class="slh-edit-animal-check">
+                    @if (EditForm.HogHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (EditForm.HogHeads > 0)
+            {
+                <div class="slh-edit-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="EditForm.HogHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Carabao -->
+        <div class="slh-edit-animal-card @(EditForm.CarabaoHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Carabao)">
+            <div class="slh-edit-animal-header">
+                <div class="slh-edit-animal-icon carabao-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-edit-animal-info">
+                    <div class="slh-edit-animal-name">Carabao</div>
+                    <div class="slh-edit-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-edit-animal-check">
+                    @if (EditForm.CarabaoHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (EditForm.CarabaoHeads > 0)
+            {
+                <div class="slh-edit-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="EditForm.CarabaoHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Cow -->
+        <div class="slh-edit-animal-card @(EditForm.CowHeads > 0 ? "selected" : "")" @onclick="() => ToggleAnimal(AnimalType.Cow)">
+            <div class="slh-edit-animal-header">
+                <div class="slh-edit-animal-icon cow-icon">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /></svg>
+                </div>
+                <div class="slh-edit-animal-info">
+                    <div class="slh-edit-animal-name">Cow</div>
+                    <div class="slh-edit-animal-rate">₱365 per head</div>
+                </div>
+                <div class="slh-edit-animal-check">
+                    @if (EditForm.CowHeads > 0)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (EditForm.CowHeads > 0)
+            {
+                <div class="slh-edit-animal-input" @onclick:stopPropagation="true">
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="EditForm.CowHeads" />
+                </div>
+            }
+        </div>
+
+        <!-- Other Animal Type -->
+        <div class="slh-edit-animal-card @(UseCustomAnimal ? "selected" : "")" @onclick="ToggleCustomAnimal">
+            <div class="slh-edit-animal-header">
+                <div class="slh-edit-animal-icon other-icon">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </div>
+                <div class="slh-edit-animal-info">
+                    <div class="slh-edit-animal-name">Other Animal Type</div>
+                    <div class="slh-edit-animal-rate">Custom rate</div>
+                </div>
+                <div class="slh-edit-animal-check">
+                    @if (UseCustomAnimal)
+                    {
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            </div>
+            @if (UseCustomAnimal)
+            {
+                <div class="slh-edit-animal-input" @onclick:stopPropagation="true">
+                    <label>Animal Type</label>
+                    <input type="text" placeholder="e.g. Goat, Sheep" @bind="EditForm.CustomAnimalType" />
+                    <label>Number of Heads</label>
+                    <input type="number" min="1" @bind="EditForm.CustomHeads" />
+                    <label>Rate per Head (₱)</label>
+                    <input type="number" min="0" step="0.01" @bind="EditForm.CustomRate" />
+                </div>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="slh-edit-error-banner">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                @ErrorMessage
+            </div>
+        }
+
+        <!-- Action Buttons -->
+        <div class="slh-edit-actions">
+            <button class="slh-edit-btn-cancel" @onclick="CloseModal">Cancel</button>
+            <button class="slh-edit-btn-save" @onclick="OnSaveAsync">
+                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                Save Changes
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public bool ShowModal { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<EditTransactionForm> OnSave { get; set; }
+
+    [Parameter]
+    public string ErrorMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public List<object> SelectedGroupEntries { get; set; } = new();
+
+    public EditTransactionForm EditForm { get; set; } = new();
+    private bool UseCustomAnimal { get; set; } = false;
+
+    private enum AnimalType { Hog, Carabao, Cow }
+
+    protected override void OnParametersSet()
+    {
+        if (ShowModal && SelectedGroupEntries.Any())
+        {
+            // Cast to SlaughterTransactionDto
+            var dtoList = SelectedGroupEntries.Cast<SlaughterTransactionDto>().ToList();
+            var firstEntry = dtoList.First();
+
+            EditForm = new EditTransactionForm
+            {
+                ORNumber = firstEntry.ORNumber ?? "",
+                TransactionDate = firstEntry.TransactionDate.ToDateTime(TimeOnly.MinValue),
+                OwnerName = firstEntry.OwnerName
+            };
+
+            // Populate animal heads from all entries in the group
+            foreach (var entry in dtoList)
+            {
+                switch (entry.AnimalType)
+                {
+                    case Domain.Enums.AnimalType.Hog:
+                        EditForm.HogHeads = entry.NumberOfHeads;
+                        break;
+                    case Domain.Enums.AnimalType.Carabao:
+                        EditForm.CarabaoHeads = entry.NumberOfHeads;
+                        break;
+                    case Domain.Enums.AnimalType.Cow:
+                        EditForm.CowHeads = entry.NumberOfHeads;
+                        break;
+                    case Domain.Enums.AnimalType.Other:
+                        UseCustomAnimal = true;
+                        EditForm.CustomAnimalType = entry.CustomAnimalType ?? "";
+                        EditForm.CustomHeads = entry.NumberOfHeads;
+                        EditForm.CustomRate = entry.RatePerHead;
+                        break;
+                }
+            }
+        }
+    }
+
+    private async Task CloseModal()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task OnSaveAsync()
+    {
+        await OnSave.InvokeAsync(EditForm);
+    }
+
+    private void ToggleAnimal(AnimalType type)
+    {
+        switch (type)
+        {
+            case AnimalType.Hog:
+                EditForm.HogHeads = EditForm.HogHeads > 0 ? 0 : 1;
+                break;
+            case AnimalType.Carabao:
+                EditForm.CarabaoHeads = EditForm.CarabaoHeads > 0 ? 0 : 1;
+                break;
+            case AnimalType.Cow:
+                EditForm.CowHeads = EditForm.CowHeads > 0 ? 0 : 1;
+                break;
+        }
+    }
+
+    private void ToggleCustomAnimal()
+    {
+        UseCustomAnimal = !UseCustomAnimal;
+        if (!UseCustomAnimal)
+        {
+            EditForm.CustomAnimalType = string.Empty;
+            EditForm.CustomHeads = 0;
+            EditForm.CustomRate = 0;
+        }
+        else
+        {
+            EditForm.CustomHeads = 1;
+        }
+    }
+
+    public class EditTransactionForm
+    {
+        public string ORNumber { get; set; } = string.Empty;
+        public DateTime TransactionDate { get; set; } = DateTime.Now;
+        public string OwnerName { get; set; } = string.Empty;
+        public int HogHeads { get; set; } = 0;
+        public int CarabaoHeads { get; set; } = 0;
+        public int CowHeads { get; set; } = 0;
+        public string CustomAnimalType { get; set; } = string.Empty;
+        public int CustomHeads { get; set; } = 0;
+        public decimal CustomRate { get; set; } = 0;
+    }
+}

@@ -34,6 +34,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             Name = t.Name,
             Organization = t.Organization,
             DefaultRoute = t.DefaultRoute,
+            PlateNumber = t.PlateNumber,
             TripsToday = todayTripCounts.FirstOrDefault(x => x.TransporterId == t.Id)?.Count ?? 0
         }).ToList();
     }
@@ -142,6 +143,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             Name = transporter.Name,
             Organization = transporter.Organization,
             DefaultRoute = transporter.DefaultRoute,
+            PlateNumber = transporter.PlateNumber,
             TripsToday = tripsToday,
             TotalTrips = allTrips.Count,
             TotalFees = allTrips.Count * FeeRates.TrmTripFee,
