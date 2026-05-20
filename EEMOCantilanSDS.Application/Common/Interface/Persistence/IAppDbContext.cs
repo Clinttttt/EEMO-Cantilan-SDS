@@ -2,6 +2,8 @@
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
+using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -20,6 +22,10 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PaymentRecord> PaymentRecords { get; }
         DbSet<DailyCollection> DailyCollections { get; }
         DbSet<SlaughterTransaction> SlaughterTransactions { get; }
+        DbSet<TpmVendor> TpmVendors { get; }
+        DbSet<TpmAttendance> TpmAttendances { get; }
+        DbSet<TrmTransporter> TrmTransporters { get; }
+        DbSet<TrmTrip> TrmTrips { get; }
         DbSet<BaseUser> Users { get; }
         DbSet<AdminUser> AdminUsers { get; }
         DbSet<CollectorUser> CollectorUsers { get; }

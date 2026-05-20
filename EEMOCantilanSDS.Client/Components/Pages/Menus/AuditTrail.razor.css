@@ -1,0 +1,301 @@
+/* ══════════════════════════════════════════
+   AUDIT TRAIL PAGE — Section Info Bar
+══════════════════════════════════════════ */
+.audit-section-info {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 20px;
+}
+
+.audit-section-info-left {
+    flex: 1;
+}
+
+.audit-section-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 4px;
+}
+
+.audit-section-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.audit-section-mini-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.audit-mini-stat {
+    text-align: center;
+}
+
+.audit-mini-val {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.audit-mini-key {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* ══════════════════════════════════════════
+   AUDIT TRAIL PAGE — Toolbar
+══════════════════════════════════════════ */
+.page-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.search-box {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    height: 38px;
+    min-width: 280px;
+    transition: border-color 0.15s;
+}
+
+    .search-box:focus-within {
+        border-color: var(--gold);
+    }
+
+    .search-box svg {
+        width: 15px;
+        height: 15px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+    .search-box input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 12.5px;
+        color: var(--text);
+        background: transparent;
+    }
+
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+.search-clear {
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.filter-pills {
+    display: flex;
+    gap: 6px;
+}
+
+.pill {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+    .pill.on {
+        background: var(--navy);
+        color: var(--gold-light);
+        border-color: var(--navy);
+    }
+
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.record-count {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* ══════════════════════════════════════════
+   AUDIT TABLE
+══════════════════════════════════════════ */
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+    .audit-table thead {
+        background: var(--bg-subtle);
+        border-bottom: 2px solid var(--border);
+    }
+
+    .audit-table th {
+        text-align: left;
+        padding: 12px 14px;
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+    }
+
+    .audit-table tbody tr {
+        border-bottom: 1px solid var(--border);
+        transition: background 0.15s;
+    }
+
+        .audit-table tbody tr:hover {
+            background: var(--bg-subtle);
+        }
+
+    .audit-table td {
+        padding: 14px;
+        vertical-align: middle;
+    }
+
+/* Timestamp Cell */
+.timestamp-cell {
+    min-width: 120px;
+}
+
+.timestamp {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.time {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Actor Cell */
+.actor-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 180px;
+}
+
+.actor-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: var(--gold-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.actor-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.actor-role {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Action Badge */
+.action-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+    .action-badge.create {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4caf50;
+    }
+
+    .action-badge.update {
+        background: rgba(255, 193, 7, 0.15);
+        color: #ffa000;
+    }
+
+    .action-badge.delete {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+/* Entity Cell */
+.entity-cell {
+    min-width: 140px;
+}
+
+.entity-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.entity-id {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: 'Courier New', monospace;
+    margin-top: 2px;
+}
+
+/* Details Cell */
+.details-cell {
+    font-size: 12px;
+    color: var(--text-muted);
+    max-width: 300px;
+}

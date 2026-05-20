@@ -59,15 +59,20 @@
                                 <span class="confirm-payment-value text-red">₱@((TotalBill - PartialAmount).ToString("N2"))</span>
                             </div>
                         }
-                        @if (!string.IsNullOrEmpty(ORNumber))
-                        {
-                            <div class="confirm-payment-row">
-                                <span class="confirm-payment-label">OR Number</span>
-                                <span class="confirm-payment-value mono">@ORNumber</span>
-                            </div>
-                        }
                     </div>
                 </div>
+
+                @if (Status != "Unpaid")
+                {
+                    <!-- OR Number Input -->
+                    <div class="confirm-section">
+                        <div class="confirm-label">OR Number <span style="color:var(--text-muted);font-weight:400;">(optional)</span></div>
+                        <input class="confirm-or-input"
+                               placeholder="e.g. OR-2026-0501"
+                               value="@ORNumber"
+                               @oninput="e => ORNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                    </div>
+                }
 
                 <!-- Warning for Unpaid -->
                 @if (Status == "Unpaid")
@@ -100,6 +105,7 @@
     [Parameter] public decimal TotalBill { get; set; }
     [Parameter] public decimal PartialAmount { get; set; }
     [Parameter] public string ORNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ORNumberChanged { get; set; }
     [Parameter] public EventCallback OnConfirm { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
 

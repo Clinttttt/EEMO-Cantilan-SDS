@@ -62,7 +62,8 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                     ? (p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0)) - p.PartialAmount 
                     : 0,
             p.ORNumber,
-            p.PaidAt
+            p.PaidAt,
+            null
         )).ToList();
     }
 

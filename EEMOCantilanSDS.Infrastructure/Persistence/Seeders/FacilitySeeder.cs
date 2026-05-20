@@ -48,7 +48,19 @@ public static class FacilitySeeder
                 FacilityCode.SLH,
                 "Slaughterhouse",
                 "SLH",
-                "Per-head slaughter fees. Hog: ₱250/head, Large animals (Carabao/Cow): ₱365/head.")
+                "Per-head slaughter fees. Hog: ₱250/head, Large animals (Carabao/Cow): ₱365/head."),
+
+            Facility.Create(
+                FacilityCode.TRM,
+                "Transport Terminal",
+                "TRM",
+                "Municipal transport terminal managing driver departures. ₱30 per trip."),
+
+            Facility.Create(
+                FacilityCode.TPM,
+                "Tabo-an Public Market",
+                "TPM",
+                "Weekly public market held every Friday. ₱100 per vendor per market day.")
         };
 
         await context.Facilities.AddRangeAsync(facilities);

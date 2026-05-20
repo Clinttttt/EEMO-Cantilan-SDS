@@ -14,6 +14,8 @@ namespace EEMOCantilanSDS.Domain.Enums
         BBQ = 4,   // Barbecue Stand
         ICE = 5,   // Iceplant
         SLH = 6,   // Slaughterhouse
+        TRM = 7,   // Transport Terminal
+        TPM = 8,   // Tabo-an Public Market
     }
     public enum MarketSection
     {

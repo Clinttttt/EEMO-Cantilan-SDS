@@ -9,4 +9,5 @@ public interface ICollectorsApiClient
     Task<Result<IReadOnlyList<CollectorListDto>>> GetAllCollectorsAsync();
     Task<Result<CollectorActivityDto>> GetCollectorByIdAsync(Guid id);
     Task<Result<CollectorDto>> CreateCollectorAsync(CreateCollectorCommand command);
+    Task<Result<string>> GetNextEmployeeIdAsync();
 }

@@ -239,270 +239,7 @@ input[type=number] {
     -moz-appearance: textfield;
 }
 
-/* ══════════════════════════════════════════
-   CALENDAR STYLES
-══════════════════════════════════════════ */
-.cal-grid-wrap {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-    margin-bottom: 16px;
-}
 
-.cal-day-hdr {
-    text-align: center;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-muted);
-    padding: 5px 2px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.cal-cell {
-    position: relative;
-    min-height: 60px;
-    border-radius: 10px;
-    border: 1.5px solid var(--border);
-    padding: 6px 4px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.cal-cell-fish {
-    min-height: 92px;
-    height: 92px;
-    justify-content: center;
-    gap: 5px;
-}
-
-/* flattened — children render directly in cal-cell flex column */
-.cal-cell-top {
-    display: contents;
-}
-
-.cal-cell.cal-paid {
-    background: var(--green-bg);
-    border-color: var(--green);
-}
-
-.cal-cell.cal-miss {
-    background: var(--red-bg);
-    border-color: var(--red);
-}
-
-.cal-cell.cal-empty {
-    background: transparent;
-    border: none;
-    cursor: default;
-}
-
-.cal-cell.cal-future {
-    background: var(--bg-icon);
-    border-color: var(--border);
-    color: var(--text-muted);
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.cal-cell.cal-today {
-    border-color: var(--gold);
-    border-width: 2px;
-}
-
-.vegetables-hero .cal-cell.cal-today {
-    border-color: #22c55e;
-}
-
-.meat-hero .cal-cell.cal-today {
-    border-color: #ef4444;
-}
-
-.cal-cell:hover:not(.cal-future):not(.cal-empty) {
-    box-shadow: 0 2px 8px rgba(13,33,55,0.12);
-    transform: translateY(-1px);
-}
-
-.cal-num {
-    font-weight: 700;
-    font-size: 13px;
-    line-height: 1;
-    color: inherit;
-}
-
-/* ✓ / ✕ checkmark */
-.cal-checkmark {
-    font-size: 9px;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.cal-check-yes {
-    color: var(--green);
-}
-
-.cal-check-no {
-    color: var(--red);
-    opacity: 0.75;
-}
-
-/* ══════════════════════════════════════════
-   FISH KILO DISPLAY — centered badge style
-══════════════════════════════════════════ */
-.cal-kilo-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 100%;
-    margin-top: 1px;
-}
-
-/* the editable number input */
-.cal-kilo-input {
-    width: 38px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    text-align: center;
-    font-size: 15px;
-    font-weight: 800;
-    color: var(--navy);
-    outline: none;
-    line-height: 1.1;
-    -moz-appearance: textfield;
-}
-
-    .cal-kilo-input::-webkit-outer-spin-button,
-    .cal-kilo-input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-
-/* "KG" label under the number */
-.cal-kilo-unit {
-    font-size: 8px;
-    font-weight: 800;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    color: var(--gold);
-    background: rgba(200, 168, 75, 0.13);
-    border: 1px solid rgba(200, 168, 75, 0.35);
-    border-radius: 3px;
-    padding: 1px 5px;
-    line-height: 1.4;
-}
-
-.cal-kilo-val {
-    font-size: 10px;
-    font-weight: 700;
-    color: #7a5500;
-    background: #fffbf0;
-    border: 1px solid rgba(200, 168, 75, 0.45);
-    border-radius: 4px;
-    padding: 2px 6px;
-    text-align: center;
-    line-height: 1.3;
-    white-space: nowrap;
-}
-
-.vegetables-hero .cal-kilo-val {
-    color: #166534;
-    background: #f0fdf4;
-    border: 1px solid rgba(34, 197, 94, 0.45);
-}
-
-.meat-hero .cal-kilo-val {
-    color: #7f1d1d;
-    background: #fef2f2;
-    border: 1px solid rgba(239, 68, 68, 0.45);
-}
-
-/* legacy classes — hidden */
-.cal-mark {
-    display: none;
-}
-
-.cal-kilo-label {
-    display: none;
-}
-
-.cal-kilo-bar {
-    display: none;
-}
-
-.cal-status-dot {
-    display: none;
-}
-
-.cal-kilo-row {
-    display: none;
-}
-
-/* ══════════════════════════════════════════
-   FISH FEE FOOTER CARD
-══════════════════════════════════════════ */
-.fish-fee-item {
-    background: #fdfaf0 !important;
-    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
-    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
-}
-
-    .fish-fee-item .cal-sum-val {
-        color: #a07020;
-        font-weight: 800;
-    }
-
-    .fish-fee-item .cal-sum-key {
-        color: #a07828;
-        font-weight: 700;
-    }
-
-/* ══════════════════════════════════════════
-   VEGETABLES FEE FOOTER CARD
-══════════════════════════════════════════ */
-.vegetables-fee-item {
-    background: #fdfaf0 !important;
-    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
-    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
-}
-
-    .vegetables-fee-item .cal-sum-val {
-        color: #a07020;
-        font-weight: 800;
-    }
-
-    .vegetables-fee-item .cal-sum-key {
-        color: #a07828;
-        font-weight: 700;
-    }
-
-/* ══════════════════════════════════════════
-   MEAT FEE FOOTER CARD
-══════════════════════════════════════════ */
-.meat-fee-item {
-    background: #fdfaf0 !important;
-    border: 1.5px solid rgba(200, 168, 75, 0.4) !important;
-    border-bottom: 3px solid rgba(200, 168, 75, 0.6) !important;
-}
-
-    .meat-fee-item .cal-sum-val {
-        color: #a07020;
-        font-weight: 800;
-    }
-
-    .meat-fee-item .cal-sum-key {
-        color: #a07828;
-        font-weight: 700;
-    }
 
 .facility-selector {
     position: relative;
@@ -899,12 +636,41 @@ TABLE
 }
 
 /* ══════════════════════════════════════════
-   DETAIL MODAL
+   DETAIL MODAL — RIGHT SIDE SLIDE-IN
 ══════════════════════════════════════════ */
 .detail-modal {
-    width: 90vw;
-    max-width: 820px;
-    width: 820px;
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 520px;
+    max-width: 90vw;
+    margin: 0;
+    border-radius: 0;
+    animation: slideInRight 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    max-height: 100vh;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.detail-modal .detail-body {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.detail-modal .eemo-modal-footer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
 }
 
 /* ── Dark hero header — same style as PaymentHistoryModal ─────── */
@@ -1020,22 +786,22 @@ TABLE
 
 .detail-stats-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(140px, 1fr));
-    gap: 12px;
-    padding: 16px 24px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--border);
 }
 
 .detail-stat-card {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px;
+    gap: 10px;
+    padding: 12px;
     border-radius: 10px;
     background: var(--bg);
     border: 1px solid var(--border);
     transition: all 0.15s;
-    min-height: 70px;
+    min-height: 64px;
     height: 100%;
 }
 
@@ -1091,8 +857,8 @@ TABLE
 }
 
 .detail-two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: 0;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
@@ -1103,7 +869,7 @@ TABLE
     }
 
 .detail-section {
-    padding: 16px 24px;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--border);
     min-width: 0;
     box-sizing: border-box;
@@ -1285,223 +1051,135 @@ TABLE
 }
 
 /* ══════════════════════════════════════════
-   CALENDAR
+   COMPACT CALENDAR IN RIGHT-SIDE MODAL
 ══════════════════════════════════════════ */
-.cal-nav {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.detail-modal ::deep .cal-grid-wrap {
+    grid-auto-rows: 58px;
+    gap: 3px;
+    row-gap: 3px;
+}
+
+.detail-modal ::deep .cal-day-hdr {
+    padding-bottom: 0;
+    margin-bottom: -4px;
+}
+
+.detail-modal ::deep .cal-grid-fish {
+    grid-auto-rows: 68px;
+}
+
+.detail-modal ::deep .cal-cell {
+    padding: 4px;
+    border-width: 1.5px;
+    border-color: #c5d1dc;
+}
+
+.detail-modal ::deep .cal-cell.cal-paid {
+    border-color: var(--navy);
+    border-width: 1.5px;
+}
+
+.detail-modal ::deep .cal-cell.cal-miss {
+    border-color: #c5d1dc;
+}
+
+.detail-modal ::deep .cal-cell.cal-future {
+    border-width: 1.5px;
+    border-color: #c5d1dc;
+    background: rgba(168, 184, 200, 0.08);
+}
+
+.detail-modal ::deep .cal-cell.cal-before-contract {
+    border-width: 1.5px;
+    border-color: #d4a5a5;
+    background: rgba(139, 58, 58, 0.04);
+}
+
+.detail-modal ::deep .cal-overlay-label {
+    font-size: 8px;
+}
+
+.detail-modal ::deep .cal-cell.cal-today {
+    border-color: var(--gold) !important;
+    border-width: 2px;
+}
+
+.detail-modal ::deep .cal-cell.cal-today.cal-paid {
+    border-color: var(--gold) !important;
+    border-width: 2px;
+}
+
+.detail-modal ::deep .cal-num {
+    font-size: 11px;
+}
+
+.detail-modal ::deep .cal-status-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.detail-modal ::deep .cal-status-icon svg {
+    width: 8px;
+    height: 8px;
+}
+
+.detail-modal ::deep .cal-kilo-input-inline {
+    width: 32px;
+    height: 18px;
+    font-size: 11px;
+    border: none;
+    background: transparent;
+}
+
+.detail-modal ::deep .cal-kilo-label-inline {
+    font-size: 7px;
+    padding: 1px 4px;
+    border-width: 1.5px;
+    border-color: #c5d1dc;
+}
+
+.detail-modal ::deep .cal-footer-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 12px 0 4px;
+}
+
+.detail-modal ::deep .cal-sum-item {
+    padding: 10px 12px;
+    min-height: 60px;
+    border-width: 1.5px;
+    border-color: #c5d1dc;
+}
+
+.detail-modal ::deep .cal-sum-val {
+    font-size: 16px;
+}
+
+.detail-modal ::deep .cal-sum-key {
+    font-size: 9px;
+}
+
+.detail-modal ::deep .cal-nav {
     margin-bottom: 10px;
 }
 
-.cal-nav-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background .12s, border-color .12s;
+.detail-modal ::deep .cal-nav-btn {
+    border-width: 1.5px;
+    border-color: #c5d1dc;
 }
 
-    .cal-nav-btn:hover:not(:disabled) {
-        background: var(--bg-icon);
-        border-color: var(--navy);
-    }
-
-    .cal-nav-btn:disabled {
-        opacity: .4;
-        cursor: default;
-    }
-
-    .cal-nav-btn svg {
-        width: 14px;
-        height: 14px;
-        stroke: var(--navy);
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-.cal-month-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--navy);
-    flex: 1;
+.detail-modal ::deep .cal-month-label {
+    font-size: 12px;
 }
 
-.cal-grid-wrap {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
-    margin-bottom: 12px;
-    width: 100%;
-}
-
-.cal-day-hdr {
-    text-align: center;
+.detail-modal ::deep .detail-section-title {
     font-size: 10px;
-    font-weight: 700;
-    color: var(--text-muted);
-    padding: 4px 0;
-    text-transform: uppercase;
-    letter-spacing: .04em;
+    margin-bottom: 10px;
 }
 
-.cal-cell {
-    border-radius: 12px;
-    min-height: 90px;
-    height: 90px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    gap: 4px;
-    transition: opacity .12s;
-    border: 2px solid transparent;
-    position: relative;
-    box-sizing: border-box;
-    padding: 8px;
-}
-
-.cal-num {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--navy);
-}
-
-.cal-mark {
-    font-size: 10px;
-}
-
-.cal-empty {
-    background: transparent;
-    cursor: default;
-}
-
-.cal-future {
-    background: var(--bg);
-    opacity: .45;
-    cursor: default;
-}
-
-.cal-paid {
-    background: var(--green-bg);
-    border-color: rgba(45,122,95,.2);
-}
-
-    .cal-paid .cal-mark {
-        color: var(--green);
-    }
-
-.cal-miss {
-    background: var(--red-bg);
-    border-color: rgba(139,58,58,.15);
-}
-
-    .cal-miss .cal-mark {
-        color: var(--red);
-    }
-
-.cal-today {
-    outline: 2px solid var(--gold);
-    outline-offset: 1px;
-}
-
-/* Kilo input styles for fish tracking */
-/* Kilo input styles for fish tracking - SINGLE DEFINITION ONLY */
-.cal-kilo-input-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    margin-top: 2px;
-}
-
-.cal-kilo-input {
-    width: 40px;
-    height: 20px;
-    border: 1px solid var(--gold);
-    background: #fffbeb;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--navy);
-    text-align: center;
-    padding: 2px 4px;
-    outline: none;
-    box-sizing: border-box;
-    font-family: 'Courier New', monospace;
-    border-radius: 4px;
-}
-
-    .cal-kilo-input::-webkit-outer-spin-button,
-    .cal-kilo-input::-webkit-inner-spin-button {
-        -webkit-appearance: none;
-        margin: 0;
-    }
-
-    .cal-kilo-input:focus {
-        outline: none;
-    }
-
-.vegetables-hero .cal-kilo-input {
-    border-color: #22c55e;
-    background: #f0fdf4;
-}
-
-.meat-hero .cal-kilo-input {
-    border-color: #ef4444;
-    background: #fef2f2;
-}
-
-.cal-footer-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 12px;
-    padding: 16px 0 8px;
-}
-
-.cal-sum-item {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 14px 16px 12px;
-    border-radius: 12px;
-    border: 1.5px solid var(--border);
-    border-bottom: 3px solid var(--navy);
-    background: var(--bg);
-    min-height: 80px;
-}
-
-.cal-sum-val {
-    font-weight: 800;
-    color: var(--navy);
-    font-size: 22px;
-    line-height: 1.1;
-    letter-spacing: -0.5px;
-}
-
-.cal-sum-green {
-    color: #1e7a56;
-}
-
-.cal-sum-red {
-    color: #b53a3a;
-}
-
-.cal-sum-key {
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    line-height: 1.4;
+.detail-modal ::deep .detail-section-title svg {
+    width: 12px;
+    height: 12px;
 }
 
 
@@ -2178,14 +1856,6 @@ TABLE
    RESPONSIVE
 ══════════════════════════════════════════ */
 @media (max-width: 1100px) {
-    .detail-stats-row {
-        grid-template-columns: repeat(2,1fr);
-    }
-
-    .detail-two-col {
-        grid-template-columns: 1fr;
-    }
-
     .vs-hero-title {
         font-size: 18px;
     }
@@ -2245,10 +1915,6 @@ TABLE
         min-width: 100%;
     }
 
-    .detail-stats-row {
-        grid-template-columns: 1fr 1fr;
-    }
-
     .detail-header-left {
         gap: 10px;
     }
@@ -2265,92 +1931,11 @@ TABLE
     .vs-hero-title {
         font-size: 16px;
     }
-}
 
-/* ══════════════════════════════════════════════════════
-   MONTHLY PAYMENT CALENDAR
-══════════════════════════════════════════════════════ */
-
-.monthly-cal-section {
-    margin-top: 20px;
-}
-
-/* 4 columns x 3 rows grid */
-.mo-cal-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin: 16px 0;
-}
-
-.mo-cal-cell {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 14px 8px;
-    border-radius: 10px;
-    border: 1.5px solid transparent;
-    cursor: default;
-    transition: transform 0.1s ease;
-}
-
-.mo-cell-name {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--navy);
-}
-
-.mo-cell-mark {
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1;
-}
-
-/* Paid */
-.mo-cell-paid {
-    background: var(--green-bg);
-    border-color: var(--green);
-}
-
-    .mo-cell-paid .mo-cell-mark {
-        color: var(--green);
+    .detail-modal {
+        width: 100vw;
+        max-width: 100vw;
     }
-
-    .mo-cell-paid .mo-cell-name {
-        color: var(--green);
-    }
-
-/* Missed */
-.mo-cell-miss {
-    background: var(--red-bg);
-    border-color: var(--red);
 }
 
-    .mo-cell-miss .mo-cell-mark {
-        color: var(--red);
-    }
 
-    .mo-cell-miss .mo-cell-name {
-        color: var(--red);
-    }
-
-/* Future */
-.mo-cell-future {
-    background: var(--bg);
-    border-color: var(--border);
-    opacity: 0.45;
-}
-
-    .mo-cell-future .mo-cell-name {
-        color: var(--text-muted);
-    }
-
-/* Current month highlight */
-.mo-cell-today {
-    outline: 2px solid var(--gold);
-    outline-offset: 2px;
-}

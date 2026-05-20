@@ -116,6 +116,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PartialAmount = status == PaymentStatus.Partial ? partialAmount : 0;
             Remarks = remarks;
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
+            if (status == PaymentStatus.Unpaid) ORNumber = null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

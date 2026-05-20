@@ -8,28 +8,13 @@ public class AuthStateProvider(IHttpContextAccessor httpContextAccessor) : Authe
 {
     public override Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        try
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext?.User?.Identity?.IsAuthenticated == true)
         {
-            var httpContext = httpContextAccessor.HttpContext;
-            if (httpContext?.User?.Identity?.IsAuthenticated == true)
-            {
-                var accessToken = httpContext.User.FindFirst("AccessToken")?.Value;
-                if (!string.IsNullOrEmpty(accessToken))
-                {
-                    var user = JwtParser.ParseToken(accessToken);
-                    if (user != null)
-                    {
-                        return Task.FromResult(new AuthenticationState(user));
-                    }
-                }
-            }
-            
-            return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
+            return Task.FromResult(new AuthenticationState(httpContext.User));
         }
-        catch
-        {
-            return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
-        }
+        
+        return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
     }
 
     public async Task<string?> GetUserIdAsync()

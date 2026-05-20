@@ -37,6 +37,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITpmRepository, TpmRepository>();
             service.AddScoped<ITrmRepository, TrmRepository>();
             service.AddScoped<ISlaughterRepository, SlaughterRepository>();
+            service.AddScoped<IDailyCollectionRepository, DailyCollectionRepository>();
 
 
             // Services

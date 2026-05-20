@@ -1,11 +1,14 @@
 @page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
+@using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject IVendorsApiClient VendorsApi
 @inject IStallsApiClient StallsApi
+@inject IPaymentsApiClient PaymentsApi
+@inject IDailyCollectionApiClient DailyCollectionApi
 <PageTitle>EEMO Admin — Vendors &amp; Stalls</PageTitle>
 
 <header class="topbar">
@@ -544,139 +547,16 @@
 
                 @if (showDailyCal)
                 {
-
-                    var calFirst = new DateTime(CalendarMonth.Year, CalendarMonth.Month, 1);
-                    var calDays = DateTime.DaysInMonth(CalendarMonth.Year, CalendarMonth.Month);
-                    var calOffset = (int)calFirst.DayOfWeek;
-                    var calMStr = CalendarMonth.ToString("yyyy-MM");
-                    var calToday = DateTime.Now.Date;
-                    var isCurMo = CalendarMonth.Year == calToday.Year && CalendarMonth.Month == calToday.Month;
-                    var maxDay = isCurMo ? calToday.Day : calDays;
-                    var calCollected = 0;
-                    for (int ci = 1; ci <= maxDay; ci++)
-                    {
-                        var ck = $"{calMStr}-{ci:D2}";
-                        if (DetailVendor.DailyCollections.ContainsKey(ck) && DetailVendor.DailyCollections[ck])
-                            calCollected++;
-                    }
-                    var calMissed = maxDay - calCollected;
-                    var calTotal = calCollected * 30;
-                    var canGoNext = CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-
-                    // -- Fish section: Calculate total kilos and fee --
                     var isFishSection = DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
-                    var totalFishKilos = isFishSection ? GetMonthlyFishKilos(DetailVendor, CalendarMonth) : 0;
-                    var totalFishFee = isFishSection ? GetMonthlyFishFee(DetailVendor, CalendarMonth) : 0;
                     var isVegetableSection = DetailVendor.Section.Contains("Vegetable", StringComparison.OrdinalIgnoreCase);
                     var isMeatSection = DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
+                    var sectionClass = isVegetableSection ? "vegetables-section" : isMeatSection ? "meat-section" : "";
 
-                    <div class="detail-section @(isVegetableSection ? "vegetables-section" : "") @(isMeatSection ? "meat-section" : "")">
-                        <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                            Daily Collection — ?30/day@(isFishSection ? " + Fish Fee (?1/kg)" : "")
-                        </div>
-
-                        <div class="cal-nav">
-                            <button class="cal-nav-btn" @onclick="PrevCalMonth">
-                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                            </button>
-                            <span class="cal-month-label">@CalendarMonth.ToString("MMMM yyyy")</span>
-                            <button class="cal-nav-btn" @onclick="NextCalMonth" disabled="@(!canGoNext)">
-                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                            </button>
-                        </div>
-
-                        <div class="cal-grid-wrap">
-                            <div class="cal-day-hdr">Sun</div>
-                            <div class="cal-day-hdr">Mon</div>
-                            <div class="cal-day-hdr">Tue</div>
-                            <div class="cal-day-hdr">Wed</div>
-                            <div class="cal-day-hdr">Thu</div>
-                            <div class="cal-day-hdr">Fri</div>
-                            <div class="cal-day-hdr">Sat</div>
-
-                            @for (int blank = 0; blank < calOffset; blank++)
-                            {
-                                <div class="cal-cell cal-empty"></div>
-                            }
-
-                            @for (int d = 1; d <= calDays; d++)
-                            {
-                                var day = new DateTime(CalendarMonth.Year, CalendarMonth.Month, d);
-                                var dayKey = day.ToString("yyyy-MM-dd");
-                                var isFuture = day.Date > calToday;
-                                var isToday = day.Date == calToday;
-                                var isMarked = DetailVendor.DailyCollections.ContainsKey(dayKey) && DetailVendor.DailyCollections[dayKey];
-                                var cellClass = isFuture ? "cal-future" : (isMarked ? "cal-paid" : "cal-miss");
-                                var dailyKilo = isFishSection ? GetDailyFishKilo(DetailVendor, day) : 0;
-                                var showExtendedCell = (isFishSection || isVegetableSection || isMeatSection) && !isFuture;
-
-                                <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(showExtendedCell ? "cal-cell-fish" : "")"
-                                     @onclick="() => { if (!isFuture) ToggleDailyCollection(DetailVendor, day); }">
-                                    <span class="cal-num">@d</span>
-                                    @if (!isFuture)
-                                    {
-                                        <span class="cal-checkmark @(isMarked ? "cal-check-yes" : "cal-check-no")">
-                                            @(isMarked ? "✓" : "✕")
-                                        </span>
-                                    }
-                                    @if (isFishSection && !isFuture && isMarked)
-                                    {
-                                        <div class="cal-kilo-display" @onclick:stopPropagation="true">
-                                            <input type="number"
-                                                   min="0"
-                                                   step="0.5"
-                                                   placeholder="0"
-                                                   value="@dailyKilo"
-                                                   @oninput="@(e => UpdateDailyFishKilo(DetailVendor, day, decimal.TryParse(e.Value?.ToString(), out var k) ? k : 0))"
-                                                   class="cal-kilo-input" />
-                                            <span class="cal-kilo-unit">kg</span>
-                                        </div>
-                                    }
-                                </div>
-                            }
-                        </div>
-
-                        <div class="cal-footer-stats">
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val cal-sum-green">@calCollected</span>
-                                <span class="cal-sum-key">Days Collected</span>
-                            </div>
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val cal-sum-red">@calMissed</span>
-                                <span class="cal-sum-key">Days Missed</span>
-                            </div>
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
-                                <span class="cal-sum-key">Daily Collected @CalendarMonth.ToString("MMM yyyy")</span>
-                            </div>
-                            @if (isFishSection)
-                            {
-                                <div class="cal-sum-item fish-fee-item">
-                                    <span class="cal-sum-val">@((int)totalFishKilos) kg</span>
-                                    <span class="cal-sum-key">Fish Total</span>
-                                </div>
-                                <div class="cal-sum-item fish-fee-item">
-                                    <span class="cal-sum-val">₱@((calTotal + (int)totalFishKilos).ToString("N0"))</span>
-                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
-                                </div>
-                            }
-                            @if (isVegetableSection)
-                            {
-                                <div class="cal-sum-item vegetables-fee-item">
-                                    <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
-                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
-                                </div>
-                            }
-                            @if (isMeatSection)
-                            {
-                                <div class="cal-sum-item meat-fee-item">
-                                    <span class="cal-sum-val">₱@calTotal.ToString("N0")</span>
-                                    <span class="cal-sum-key">Total Fee (@CalendarMonth.ToString("MMM yyyy"))</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
+                    <DailyCollectionCalendar 
+                        StallId="@DetailVendor.StallGuid"
+                        ContractDate="@DetailVendor.ContractDate"
+                        IsFishSection="@isFishSection"
+                        SectionClass="@sectionClass" />
                 }
 
                 <!-- ══════════════════════════════════════════
@@ -685,77 +565,12 @@
                 ══════════════════════════════════════════ -->
                 @if (DetailVendor.FacilityCode != "NPM")
                 {
-              
-                    var moYear = MonthlyCalYear;
-                    var moToday = DateTime.Now;
-                    var moMonths = Enumerable.Range(1, 12).Select(m => new DateTime(moYear, m, 1)).ToList();
-                    var moPaidCount = moMonths.Count(m => m <= moToday &&
-                                            DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) &&
-                                            DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]);
-                    var moMissed = moMonths.Count(m => m < new DateTime(moToday.Year, moToday.Month, 1) &&
-                                            (!DetailVendor.PaymentHistory.ContainsKey(m.ToString("yyyy-MM")) ||
-                                             !DetailVendor.PaymentHistory[m.ToString("yyyy-MM")]));
-                    var moCollected = moPaidCount * DetailVendor.MonthlyRate;
-                    var canGoNextYear = moYear < moToday.Year;
-                
-
-                    <div class="detail-section monthly-cal-section">
-                        <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                            Monthly Rental — ₱@DetailVendor.MonthlyRate.ToString("N0")/mo
-                        </div>
-
-                        <!-- Year Nav -->
-                        <div class="cal-nav">
-                            <button class="cal-nav-btn" @onclick="PrevMonthlyYear">
-                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                            </button>
-                            <span class="cal-month-label">@moYear</span>
-                            <button class="cal-nav-btn" @onclick="NextMonthlyYear" disabled="@(!canGoNextYear)">
-                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                            </button>
-                        </div>
-
-                        <!-- 12-month grid — 4 cols x 3 rows -->
-                        <div class="mo-cal-grid">
-                            @foreach (var mo in moMonths)
-                            {
-                                var moKey = mo.ToString("yyyy-MM");
-                                var isFuture = mo > new DateTime(moToday.Year, moToday.Month, 1);
-                                var isThisMo = mo.Year == moToday.Year && mo.Month == moToday.Month;
-                                var isPaid = DetailVendor.PaymentHistory.ContainsKey(moKey) && DetailVendor.PaymentHistory[moKey];
-                                var cellCls = isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : "mo-cell-miss");
-
-                                <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "")">
-                                    <span class="mo-cell-name">@mo.ToString("MMM")</span>
-                                    @if (!isFuture)
-                                    {
-                                        <span class="mo-cell-mark">@(isPaid ? "✓" : "✕")</span>
-                                    }
-                                </div>
-                            }
-                        </div>
-
-                        <!-- Summary Stats -->
-                        <div class="cal-footer-stats">
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val cal-sum-green">@moPaidCount</span>
-                                <span class="cal-sum-key">Months Paid</span>
-                            </div>
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val cal-sum-red">@moMissed</span>
-                                <span class="cal-sum-key">Months Missed</span>
-                            </div>
-                            <div class="cal-sum-item">
-                                <span class="cal-sum-val">₱@moCollected.ToString("N0")</span>
-                                <span class="cal-sum-key">Collected @moYear</span>
-                            </div>
-                            <div class="cal-sum-item" style="background:rgba(var(--gold-rgb),0.07); border-color:var(--gold);">
-                                <span class="cal-sum-val" style="color:var(--gold);">₱@(moPaidCount* DetailVendor.MonthlyRate == DetailVendor.MonthlyRate * 12 ? (DetailVendor.MonthlyRate * 12).ToString("N0") : moCollected.ToString("N0"))</span>
-                                <span class="cal-sum-key">Total Fee (@moYear)</span>
-                            </div>
-                        </div>
-                    </div>
+                    <MonthlyPaymentCalendar 
+                        StallId="@DetailVendor.StallGuid"
+                        ContractDate="@DetailVendor.ContractDate"
+                        MonthlyRate="@DetailVendor.MonthlyRate"
+                        PaymentHistory="@DetailVendor.PaymentHistory"
+                        OnPaymentUpdated="@(async () => await LoadDetailData(DetailVendor))" />
                 }
                 @* end non-NPM monthly calendar *@
 
@@ -864,26 +679,35 @@
         Vendors.Clear();
         foreach (var item in registryData.Vendors)
         {
+            var sectionDisplay = item.SectionDisplay switch
+            {
+                "VegetableArea" => "Vegetable Area",
+                "FishSection" => "Fish Section",
+                "MeatSection" => "Meat Section",
+                _ => item.SectionDisplay ?? item.AreaLocationDisplay ?? item.FacilityName
+            };
+
             Vendors.Add(new VendorEntry
             {
                 Id = Vendors.Count + 1,
+                StallGuid = item.StallId,
                 FacilityCode = item.FacilityCode.ToString(),
                 StallNo = item.StallNo,
                 ActualOccupant = item.ActualOccupant,
                 ContractName = item.NameOnContract ?? "No contract",
-                Section = item.SectionDisplay ?? item.AreaLocationDisplay ?? item.FacilityName,
+                Section = sectionDisplay,
                 OrNo = item.ORNumber,
-                AreaSqm = 0,
-                ContractDate = null,
-                ContractYears = 0,
+                AreaSqm = item.AreaSqm ?? 0,
+                ContractDate = item.ContractDate,
+                ContractYears = item.ContractYears,
                 MonthlyRate = item.MonthlyRate,
                 ActualMonthlyRental = item.MonthlyRate,
-                AreaLocation = item.AreaLocationDisplay ?? "",
+                AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
                 FeeTypes = new List<string>(),
                 IsActive = item.Status == Domain.Enums.StallStatus.Active,
                 IsPaidThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
                 IsPartialThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Partial,
-                PaymentHistory = new Dictionary<string, bool>(),
+                PaymentHistory = new List<Application.Dtos.Payments.PaymentHistoryDto>(),
                 DailyCollections = new Dictionary<string, bool>(),
                 DailyFishKilos = new Dictionary<string, decimal>()
             });
@@ -896,34 +720,7 @@
         }
     }
 
-    // -- Calendar state --------------------------------------------------------
-    DateTime CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-    int MonthlyCalYear = DateTime.Now.Year;
-
-    void PrevCalMonth() => CalendarMonth = CalendarMonth.AddMonths(-1);
-    void NextCalMonth()
-    {
-        if (CalendarMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1))
-            CalendarMonth = CalendarMonth.AddMonths(1);
-    }
-
-    void PrevMonthlyYear() => MonthlyCalYear--;
-    void NextMonthlyYear()
-    {
-        if (MonthlyCalYear < DateTime.Now.Year)
-            MonthlyCalYear++;
-    }
-
-    void ToggleDailyCollection(VendorEntry v, DateTime date)
-    {
-        var key = date.ToString("yyyy-MM-dd");
-        if (v.DailyCollections.ContainsKey(key))
-            v.DailyCollections[key] = !v.DailyCollections[key];
-        else
-            v.DailyCollections[key] = true;
-    }
-
-    // -- Dropdown state --------------------------------------------------------
+    // -- Data loading state --------------------------------------------------------
     bool FacDropdownOpen = false;
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
     void CloseFacDropdown() => FacDropdownOpen = false;
@@ -959,14 +756,13 @@
             IconSvg="""<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""" },
         new() { Code="ICE", Name="Iceplant",                 ShortName="Iceplant",        UnpaidCount=2,
             IconSvg="""<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""" },
-        new() { Code="SLH", Name="Slaughterhouse",           ShortName="Slaughterhouse",  UnpaidCount=6,
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""" },
     };
 
     // -- Vendor Model ----------------------------------------------------------
     class VendorEntry
     {
         public int Id { get; set; }
+        public Guid StallGuid { get; set; } = Guid.Empty;
         public string FacilityCode { get; set; } = string.Empty;
         public string StallNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
@@ -985,7 +781,7 @@
         public bool IsPaidThisMonth { get; set; }
         public bool IsPartialThisMonth { get; set; }
         public decimal PartialAmount { get; set; } = 0m;
-        public Dictionary<string, bool> PaymentHistory { get; set; } = new();
+        public List<Application.Dtos.Payments.PaymentHistoryDto> PaymentHistory { get; set; } = new();
         public Dictionary<string, bool> DailyCollections { get; set; } = new();
         public Dictionary<string, decimal> DailyFishKilos { get; set; } = new();
         public HashSet<string> ElectricityPaidMonths { get; set; } = new();
@@ -1015,7 +811,15 @@
             || v.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || v.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
         return matchStatus && matchSearch;
-    }).OrderBy(v => v.StallNo);
+    })
+    .OrderBy(v => v.Section switch
+    {
+        "Vegetable Area" => 0,
+        "Fish Section" => 1,
+        "Meat Section" => 2,
+        _ => 3
+    })
+    .ThenBy(v => v.StallNo.PadLeft(10, '0'));
 
     // -- Vendor Detail Modal ---------------------------------------------------
     bool ShowDetail = false;
@@ -1025,7 +829,21 @@
     {
         DetailVendor = v;
         ShowDetail = true;
-        CalendarMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        _ = LoadDetailData(v);
+    }
+
+    async Task LoadDetailData(VendorEntry v)
+    {
+        if (v.StallGuid == Guid.Empty) return;
+
+        // Load payment history for monthly calendar
+        var histResult = await PaymentsApi.GetPaymentHistoryAsync(v.StallGuid);
+        if (histResult.IsSuccess && histResult.Value != null)
+        {
+            v.PaymentHistory = histResult.Value.ToList();
+        }
+
+        StateHasChanged();
     }
 
     // -- Form ------------------------------------------------------------------
@@ -1235,65 +1053,6 @@
 
     void CloseModal() { ShowModal = false; FormError = string.Empty; }
 
-    // -- Fish Kilo Tracking Methods --------------------------------------------
-    /// <summary>
-    /// Calculate total kilos for fish vendors for a specific month
-    /// </summary>
-    decimal GetMonthlyFishKilos(VendorEntry vendor, DateTime month)
-    {
-        if (!vendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase))
-            return 0;
-
-        decimal totalKilos = 0;
-        var monthStr = month.ToString("yyyy-MM");
-        var daysInMonth = DateTime.DaysInMonth(month.Year, month.Month);
-
-        for (int day = 1; day <= daysInMonth; day++)
-        {
-            var dayKey = $"{monthStr}-{day:D2}";
-            var isCollected = vendor.DailyCollections.ContainsKey(dayKey) && vendor.DailyCollections[dayKey];
-            if (isCollected && vendor.DailyFishKilos.ContainsKey(dayKey))
-            {
-                totalKilos += vendor.DailyFishKilos[dayKey];
-            }
-        }
-        return totalKilos;
-    }
-
-    /// <summary>
-    /// Calculate fish fee (?1/kilo) for a specific month
-    /// </summary>
-    decimal GetMonthlyFishFee(VendorEntry vendor, DateTime month)
-    {
-        return GetMonthlyFishKilos(vendor, month) * 1m; // ?1 per kilo
-    }
-
-    /// <summary>
-    /// Update daily fish kilo count
-    /// </summary>
-    void UpdateDailyFishKilo(VendorEntry vendor, DateTime day, decimal kilos)
-    {
-        var dayKey = day.ToString("yyyy-MM-dd");
-        if (kilos > 0)
-        {
-            vendor.DailyFishKilos[dayKey] = kilos;
-        }
-        else if (vendor.DailyFishKilos.ContainsKey(dayKey))
-        {
-            vendor.DailyFishKilos.Remove(dayKey);
-        }
-        StateHasChanged();
-    }
-
-    /// <summary>
-    /// Get daily fish kilo count for a specific day
-    /// </summary>
-    decimal GetDailyFishKilo(VendorEntry vendor, DateTime day)
-    {
-        var dayKey = day.ToString("yyyy-MM-dd");
-        return vendor.DailyFishKilos.ContainsKey(dayKey) ? vendor.DailyFishKilos[dayKey] : 0;
-    }
-
     // -- Toggle Active ---------------------------------------------------------
     bool ShowConfirm = false;
     VendorEntry? ConfirmTarget = null;
@@ -1315,10 +1074,7 @@
     // -- View Profile ----------------------------------------------------------
     void ViewProfile(VendorEntry v)
     {
-        // Navigate to the profile page with the vendor information
-        // You can pass the stall number or vendor ID as a query parameter
-        // For now, we'll navigate to /profile
-        Nav.NavigateTo("/profile");
+        Nav.NavigateTo($"/profile/{v.FacilityCode.ToLower()}/{v.StallNo}");
     }
 }
 

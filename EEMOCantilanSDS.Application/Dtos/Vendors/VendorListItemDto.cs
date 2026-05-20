@@ -16,5 +16,9 @@ public sealed record VendorListItemDto(
     string? AreaLocationDisplay,
     decimal MonthlyRate,
     StallStatus Status,
-    PaymentStatus PaymentStatus
+    PaymentStatus PaymentStatus,
+    DateTime? ContractDate,
+    int ContractYears,
+    double? AreaSqm,
+    string? AreaNote
 );

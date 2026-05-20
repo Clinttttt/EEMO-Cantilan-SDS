@@ -565,3 +565,169 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   RIGHT-SIDE DRAWER STYLES
+══════════════════════════════════════════════════════════════════════ */
+
+.eemo-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(13, 33, 55, 0.4);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.eemo-drawer-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.eemo-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 600px;
+    max-width: 90vw;
+    background: var(--bg-card);
+    box-shadow: -4px 0 24px rgba(13, 33, 55, 0.15);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1001;
+}
+
+.eemo-drawer-right {
+    right: 0;
+}
+
+.eemo-drawer.show {
+    transform: translateX(0);
+}
+
+.eemo-drawer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+/* Override modal body to allow scrolling in drawer */
+.eemo-drawer .eemo-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+/* Override modal header for drawer */
+.eemo-drawer .eemo-modal-header {
+    flex-shrink: 0;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+    .eemo-drawer {
+        width: 100vw;
+        max-width: 100vw;
+    }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   DRAWER HEADER STYLES (Navy Gradient - matches SLH)
+══════════════════════════════════════════════════════════════════════ */
+
+.eemo-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 1.25rem;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    border-bottom: 1px solid rgba(200, 168, 75, 0.2);
+    flex-shrink: 0;
+}
+
+.eemo-drawer-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+}
+
+.eemo-drawer-header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: rgba(200, 168, 75, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.eemo-drawer-header-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.eemo-drawer-header-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.eemo-drawer-header-sub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 2px;
+}
+
+.eemo-drawer-header-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.eemo-drawer-header-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.eemo-drawer-header-close svg {
+    width: 14px;
+    height: 14px;
+    stroke: #fff;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* Override modal header for drawer */
+.eemo-drawer .eemo-modal-header {
+    display: none;
+}

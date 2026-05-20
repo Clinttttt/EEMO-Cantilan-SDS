@@ -2,7 +2,7 @@
 
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi

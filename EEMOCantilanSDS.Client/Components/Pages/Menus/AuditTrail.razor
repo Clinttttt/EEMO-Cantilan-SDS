@@ -1,0 +1,165 @@
+@page "/audit-trail"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+<PageTitle>EEMO Admin — Audit Trail</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Audit Trail</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Audit Trail</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DateTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <div class="topbar-admin">
+            <div class="admin-avatar">A</div>
+            <div class="admin-info">
+                <div class="admin-name">Administrator</div>
+                <div class="admin-role">EEMO Office</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- Audit Trail Hero Banner -->
+    <FacilityHero Eyebrow="EEMO Admin · System"
+                  Title="Audit Trail"
+                  Subtitle="System activity log and change history"
+                  Icon="@AuditIcon"
+                  Stats="HeroStats" />
+
+    <!-- Toolbar -->
+    <Toolbar SearchQuery="@SearchQuery"
+             OnSearch="OnSearchInput"
+             ActiveFilter="@ActiveFilter"
+             OnFilterChanged="OnFilterChange"
+             Filters="@FilterOptions"
+             ShowSearch="true"
+             SearchPlaceholder="Search actor, entity, action…"
+             Actions="@ToolbarActions">
+    </Toolbar>
+
+    <!-- Audit Log Table -->
+    <div class="section-card">
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in FilteredLogs)
+                {
+                    <tr>
+                        <td class="timestamp-cell">
+                            <div class="timestamp">@log.Timestamp.ToString("MMM dd, yyyy")</div>
+                            <div class="time">@log.Timestamp.ToString("hh:mm tt")</div>
+                        </td>
+                        <td>
+                            <div class="actor-cell">
+                                <div class="actor-avatar">@log.ActorInitials</div>
+                                <div>
+                                    <div class="actor-name">@log.Actor</div>
+                                    <div class="actor-role">@log.ActorRole</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="action-badge @log.ActionClass">@log.Action</span>
+                        </td>
+                        <td>
+                            <div class="entity-cell">
+                                <div class="entity-name">@log.EntityName</div>
+                                <div class="entity-id">@log.EntityId</div>
+                            </div>
+                        </td>
+                        <td class="details-cell">@log.Details</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+@code {
+    private RenderFragment AuditIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>;
+
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = AuditLogs.Count.ToString(), Label = "Total Events" },
+        new() { Value = AuditLogs.Count(a => a.Action == "Create").ToString(), Label = "Created" },
+        new() { Value = AuditLogs.Count(a => a.Action == "Update").ToString(), Label = "Updated" },
+        new() { Value = AuditLogs.Count(a => a.Action == "Delete").ToString(), Label = "Deleted" },
+    };
+
+    private string SearchQuery { get; set; } = string.Empty;
+    private string ActiveFilter { get; set; } = "All";
+
+    private record AuditLogEntry(
+        DateTime Timestamp,
+        string Actor,
+        string ActorInitials,
+        string ActorRole,
+        string Action,
+        string ActionClass,
+        string EntityName,
+        string EntityId,
+        string Details
+    );
+
+    private List<AuditLogEntry> AuditLogs = new()
+    {
+        new(DateTime.Now.AddHours(-1), "Juan Dela Cruz", "JD", "SuperAdmin", "Create", "create", "PaymentRecord", "PR-2026-0245", "Recorded payment for NPM Stall A-12"),
+        new(DateTime.Now.AddHours(-2), "Maria Santos", "MS", "Admin", "Update", "update", "Stall", "NPM-A-15", "Updated monthly rate from ₱900 to ₱950"),
+        new(DateTime.Now.AddHours(-3), "Juan Dela Cruz", "JD", "SuperAdmin", "Create", "create", "Collector", "COLL-001", "Created new collector account: Pedro Reyes"),
+        new(DateTime.Now.AddHours(-5), "Maria Santos", "MS", "Admin", "Update", "update", "Contract", "CNT-2026-089", "Extended contract duration for TCC Stall 08"),
+        new(DateTime.Now.AddHours(-6), "Juan Dela Cruz", "JD", "SuperAdmin", "Delete", "delete", "Stall", "BBQ-05", "Soft deleted BBQ Stand Unit 5"),
+        new(DateTime.Now.AddDays(-1).AddHours(-2), "Pedro Reyes", "PR", "Collector", "Create", "create", "DailyCollection", "DC-2026-0156", "Recorded daily collection for NPM Fish Section"),
+        new(DateTime.Now.AddDays(-1).AddHours(-4), "Maria Santos", "MS", "Admin", "Update", "update", "Facility", "NCC", "Updated facility description"),
+        new(DateTime.Now.AddDays(-1).AddHours(-6), "Juan Dela Cruz", "JD", "SuperAdmin", "Create", "create", "SlaughterTransaction", "SLH-2026-042", "Recorded slaughter: 3 Hogs for Farmer Jose"),
+        new(DateTime.Now.AddDays(-2).AddHours(-1), "Maria Santos", "MS", "Admin", "Update", "update", "PaymentRecord", "PR-2026-0240", "Updated payment status to Paid"),
+        new(DateTime.Now.AddDays(-2).AddHours(-3), "Juan Dela Cruz", "JD", "SuperAdmin", "Create", "create", "Stall", "NCC-12-C", "Created new stall in NCC Extension"),
+        new(DateTime.Now.AddDays(-2).AddHours(-5), "Pedro Reyes", "PR", "Collector", "Create", "create", "TrmTrip", "TRM-2026-0089", "Recorded transport trip: Route Cantilan-Tandag"),
+        new(DateTime.Now.AddDays(-3).AddHours(-2), "Maria Santos", "MS", "Admin", "Update", "update", "Stall", "TCC-09", "Updated stall occupant information"),
+        new(DateTime.Now.AddDays(-3).AddHours(-4), "Juan Dela Cruz", "JD", "SuperAdmin", "Delete", "delete", "Contract", "CNT-2025-156", "Terminated expired contract"),
+        new(DateTime.Now.AddDays(-4).AddHours(-1), "Pedro Reyes", "PR", "Collector", "Create", "create", "TpmAttendance", "TPM-2026-0034", "Recorded Tabo-an market day attendance"),
+        new(DateTime.Now.AddDays(-4).AddHours(-3), "Maria Santos", "MS", "Admin", "Update", "update", "Collector", "COLL-002", "Updated collector facility assignments"),
+    };
+
+    private readonly List<string> FilterOptions = new() { "All", "Create", "Update", "Delete" };
+    private List<Toolbar.ToolbarAction> ToolbarActions = new();
+
+    private void OnSearchInput(string query)
+    {
+        SearchQuery = query;
+    }
+
+    private void OnFilterChange(string filter)
+    {
+        ActiveFilter = filter;
+    }
+
+    private List<AuditLogEntry> FilteredLogs => AuditLogs
+        .Where(log => ActiveFilter == "All" || log.Action == ActiveFilter)
+        .Where(log => string.IsNullOrEmpty(SearchQuery) ||
+                     log.Actor.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                     log.EntityName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                     log.Details.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(log => log.Timestamp)
+        .ToList();
+}

@@ -1,0 +1,523 @@
+﻿/* ══════════════════════════════════════════
+   CALENDAR NAVIGATION
+══════════════════════════════════════════ */
+.cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.cal-nav-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    flex-shrink: 0;
+}
+
+    .cal-nav-btn:hover:not(:disabled) {
+        background: var(--bg-icon);
+        border-color: var(--navy);
+    }
+
+    .cal-nav-btn:disabled {
+        opacity: .4;
+        cursor: default;
+    }
+
+    .cal-nav-btn svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 2.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.cal-month-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    flex: 1;
+    letter-spacing: 0.01em;
+}
+
+/* ══════════════════════════════════════════
+   CALENDAR GRID
+══════════════════════════════════════════ */
+.cal-grid-wrap {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    /* Fixed row height — every cell in every row is identical, no shifting */
+    grid-auto-rows: 72px;
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+/* Fish mode: taller rows for the kilo input area */
+.cal-grid-fish {
+    grid-auto-rows: 84px;
+}
+
+/* Override — day-header row stays slim regardless of auto-rows */
+.cal-day-hdr {
+    height: auto !important;
+    min-height: 0 !important;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 6px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+/* ── Base cell ── */
+.cal-cell {
+    position: relative;
+    /* Height is driven by grid-auto-rows; min/max keep it locked */
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    padding: 6px 5px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+    cursor: default;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    overflow: hidden;
+    box-sizing: border-box;
+    background: var(--bg-card);
+}
+
+/* Fish cells: same height rule, grid-auto-rows does the heavy lifting */
+.cal-cell-fish {
+    /* No explicit px height — parent grid-auto-rows controls it */
+}
+
+.cal-cell-top {
+    display: contents;
+}
+
+/* Top row: day number left, status icon right */
+.cal-cell-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    flex-shrink: 0;
+    /* Header is the only toggle hit-area; give it a clear pointer */
+    cursor: default;
+    border-radius: 5px;
+    padding: 1px 2px;
+    margin: -1px -2px;
+    transition: background 0.12s;
+}
+
+/* Only actionable (non-future, non-empty) headers get pointer + hover */
+.cal-cell-header-clickable {
+    cursor: pointer;
+}
+
+    .cal-cell-header-clickable:hover {
+        background: rgba(13, 33, 55, 0.05);
+    }
+
+/* ── Kilo block — stacked column, centered at bottom of cell ── */
+.cal-kilo-bottom {
+    display: flex;
+    flex-direction: column; /* input on top, "kg" label below */
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    flex: 1; /* fills remaining vertical space after header */
+}
+
+/* Invisible placeholder keeps cell height identical whether marked or not */
+.cal-kilo-placeholder {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* ── Collected — clean navy border all around ── */
+.cal-cell.cal-paid {
+    background: var(--bg-card);
+    border-color: var(--navy);
+    border-width: 1.5px;
+}
+
+/* ── Missed — just slightly muted, no red bg ── */
+.cal-cell.cal-miss {
+    background: var(--bg);
+    border-color: var(--border);
+}
+
+/* ── Empty (blank offset cells) ── */
+.cal-cell.cal-empty {
+    background: transparent;
+    border: none;
+    cursor: default;
+}
+
+/* ── Future / upcoming days ── */
+.cal-cell.cal-future {
+    background: rgba(168, 184, 200, 0.08);
+    border-color: var(--border);
+    cursor: not-allowed;
+    position: relative;
+}
+
+/* ── Before contract days ── */
+.cal-cell.cal-before-contract {
+    background: rgba(139, 58, 58, 0.04);
+    border-color: #d4a5a5;
+    cursor: not-allowed;
+    position: relative;
+}
+
+/* ── Overlay labels for future and before-contract ── */
+.cal-overlay-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7a8fa5;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.cal-overlay-before {
+    color: #a67676;
+}
+
+/* ── Today highlight ── */
+.cal-cell.cal-today {
+    border-color: var(--gold) !important;
+    border-width: 2px;
+}
+
+/* Hover — only actionable cells */
+.cal-cell:hover:not(.cal-future):not(.cal-empty) {
+    border-color: var(--navy-2);
+    box-shadow: 0 1px 6px rgba(13,33,55,0.09);
+}
+
+/* ── Day number ── */
+.cal-num {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--navy);
+}
+
+.cal-cell.cal-future .cal-num {
+    color: var(--text-muted);
+}
+
+/* ── Status icon — inline in header row ── */
+.cal-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+    .cal-status-icon svg {
+        width: 9px;
+        height: 9px;
+        fill: none;
+        stroke-width: 2.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Collected — navy circle, white check */
+.cal-icon-yes {
+    background: var(--navy);
+}
+
+    .cal-icon-yes svg {
+        stroke: #fff;
+    }
+
+/* Missed — light border circle, muted X */
+.cal-icon-no {
+    background: transparent;
+    border: 1.5px solid var(--border);
+}
+
+    .cal-icon-no svg {
+        stroke: var(--text-muted);
+    }
+
+.cal-checkmark-corner {
+    position: static;
+}
+
+/* ══════════════════════════════════════════
+   FISH KILO DISPLAY
+══════════════════════════════════════════ */
+.cal-kilo-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    margin-top: 1px;
+}
+
+.cal-kilo-input {
+    width: 38px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--navy);
+    outline: none;
+    line-height: 1.1;
+    -moz-appearance: textfield;
+}
+
+    .cal-kilo-input::-webkit-outer-spin-button,
+    .cal-kilo-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+.cal-kilo-unit {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    line-height: 1.4;
+}
+
+.cal-kilo-val {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--navy);
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 5px;
+    text-align: center;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.cal-kilo-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    margin-top: 3px;
+}
+
+/* ── Inline kilo input — number centered, "kg" badge directly below ── */
+.cal-kilo-input-inline {
+    width: 36px;
+    height: 20px;
+    padding: 0 2px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    outline: none;
+    border-radius: 4px;
+    font-family: inherit;
+    -moz-appearance: textfield;
+    transition: border-color 0.12s;
+    display: block;
+}
+
+    .cal-kilo-input-inline:focus {
+        border-color: var(--navy-2);
+        background: var(--bg-card);
+    }
+
+    .cal-kilo-input-inline::-webkit-outer-spin-button,
+    .cal-kilo-input-inline::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+/* "kg" badge — sits directly below the input */
+.cal-kilo-label-inline {
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════
+   FOOTER STATS
+══════════════════════════════════════════ */
+.cal-footer-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    padding: 16px 0 6px;
+}
+
+.cal-sum-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 14px 16px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    min-height: 72px;
+}
+
+.cal-sum-val {
+    font-weight: 800;
+    color: var(--navy);
+    font-size: 20px;
+    line-height: 1.1;
+    letter-spacing: -0.3px;
+}
+
+.cal-sum-green {
+    color: var(--navy);
+}
+
+.cal-sum-red {
+    color: var(--navy);
+}
+
+.cal-sum-key {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    line-height: 1.4;
+}
+
+.fish-fee-item,
+.vegetables-section-fee-item,
+.meat-section-fee-item {
+    background: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    border-top: 3px solid var(--gold) !important;
+}
+
+    .fish-fee-item .cal-sum-val,
+    .vegetables-section-fee-item .cal-sum-val,
+    .meat-section-fee-item .cal-sum-val {
+        color: var(--navy);
+        font-weight: 800;
+    }
+
+    .fish-fee-item .cal-sum-key,
+    .vegetables-section-fee-item .cal-sum-key,
+    .meat-section-fee-item .cal-sum-key {
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+/* ══════════════════════════════════════════
+   DETAIL MODAL STYLES
+══════════════════════════════════════════ */
+.detail-section {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+    .detail-section:last-child {
+        border-bottom: none;
+    }
+
+.detail-section-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+
+    .detail-section-title svg {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.detail-section.vegetables-section,
+.detail-section.meat-section {
+    background: transparent;
+}
+
+.detail-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    min-height: 30px;
+}
+
+    .detail-info-row:last-child {
+        border-bottom: none;
+    }
+
+.detail-info-key {
+    min-width: 140px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.detail-info-val {
+    color: var(--navy);
+    font-weight: 500;
+    flex: 1;
+}

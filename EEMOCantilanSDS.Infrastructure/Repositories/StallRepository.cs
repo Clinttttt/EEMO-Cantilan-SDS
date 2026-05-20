@@ -218,7 +218,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
     public async Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct)
     {
-        return await context.Stalls.FirstOrDefaultAsync(s => s.Id == id, ct);
+        return await context.Stalls
+            .Include(s => s.Contracts)
+            .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
     public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)

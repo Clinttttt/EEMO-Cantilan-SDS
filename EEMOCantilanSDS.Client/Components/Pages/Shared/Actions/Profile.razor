@@ -20,9 +20,9 @@
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <a href="/facility/npm" class="breadcrumb-link">New Public Market</a>
+                        <a href="/facility/@FacilityId.ToLower()" class="breadcrumb-link">@GetFacilityName(FacilityId)</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">Stall @Stall.StallNo</span>
+                        <span class="breadcrumb-active">Stall @StallNo</span>
                     </div>
                 </div>
             </div>
@@ -54,7 +54,7 @@
                     <div class="prof-hero-meta">
                         <span class="prof-hero-chip">
                             <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
-                            @Stall.Facility · @Stall.Section
+                            @Stall.Facility@(Stall.Section != "No Location" ? " · " + Stall.Section : "")
                         </span>
                         <span class="prof-status-pill @(Stall.IsPaid ? "pill-paid" : Stall.IsPartial ? "pill-partial" : "pill-unpaid")">
                             @(Stall.IsPaid ? "Paid" : Stall.IsPartial ? "Partial" : "Unpaid")
@@ -181,7 +181,7 @@
                                 <span class="prof-field-label">Monthly Rental Rate</span>
                                 <span class="prof-field-val bold gold">₱@Stall.MonthlyRate.ToString("N0")/month</span>
                             </div>
-                            @if (Stall.Facility == "New Public Market")
+                            @if (FacilityId.ToUpper() == "NPM")
                             {
                                 <div class="prof-field">
                                     <span class="prof-field-label">Electricity</span>
@@ -217,13 +217,13 @@
                                         <span class="prof-field-val mono">₱@Stall.WaterAmount.ToString("N0")</span>
                                     </div>
                                 }
-                            }
-                            @if (Stall.Section == "Fish Section")
-                            {
-                                <div class="prof-field">
-                                    <span class="prof-field-label">Fish Fee (₱1/kg)</span>
-                                    <span class="prof-field-val mono">@Stall.FishKilos kg · ₱@Stall.FishFee.ToString("N0")</span>
-                                </div>
+                                @if (Stall.Section == "Fish Section")
+                                {
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">Fish Fee (₱1/kg)</span>
+                                        <span class="prof-field-val mono">@Stall.FishKilos kg · ₱@Stall.FishFee.ToString("N0")</span>
+                                    </div>
+                                }
                             }
                         </div>
 
@@ -231,7 +231,16 @@
                         <div class="prof-bill-banner">
                             <div>
                                 <div class="prof-bill-label">Total Monthly Bill</div>
-                                <div class="prof-bill-sub">Rental + Electricity + Water @(Stall.Section == "Fish Section" ? "+ Fish Fee" : "")</div>
+                                <div class="prof-bill-sub">
+                                    @if (FacilityId.ToUpper() == "NPM")
+                                    {
+                                        @("Rental + Electricity + Water" + (Stall.Section == "Fish Section" ? " + Fish Fee" : ""))
+                                    }
+                                    else
+                                    {
+                                        @("Monthly Rental")
+                                    }
+                                </div>
                             </div>
                             <div class="prof-bill-val">₱@Stall.TotalBill.ToString("N0")</div>
                         </div>
@@ -316,8 +325,12 @@
                             {
                                 var month = DateTime.Now.AddMonths(-i);
                                 var key = month.ToString("yyyy-MM");
-                                var isBeforeContract = Stall.ContractDate.HasValue && month < new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1);
-                                var status = Stall.PaymentHistory.ContainsKey(key) ? Stall.PaymentHistory[key] : "Unpaid";
+                                var contractStart = Stall.ContractDate.HasValue
+                                    ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
+                                    : (DateTime?)null;
+                                var hasRecord = Stall.PaymentHistory.TryGetValue(key, out var recordedStatus);
+                                var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
+                                var status = isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
                                 var isCurrent = i == 0;
                                 <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
                                     <div class="prof-hist-month-name">@month.ToString("MMM")</div>
@@ -349,19 +362,21 @@
 
                         <div class="prof-hist-summary">
                             @{
+                                var contractStart2 = Stall.ContractDate.HasValue
+                                    ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
+                                    : (DateTime?)null;
                                 var experiencedMonths = 0;
                                 var paidCount = 0;
                                 for (int i = 11; i >= 0; i--)
                                 {
                                     var month = DateTime.Now.AddMonths(-i);
                                     var key = month.ToString("yyyy-MM");
-                                    if (Stall.ContractDate.HasValue && month >= new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1))
+                                    var hasRec = Stall.PaymentHistory.TryGetValue(key, out var recStatus);
+                                    var beforeContract = !hasRec && contractStart2.HasValue && month < contractStart2.Value;
+                                    if (!beforeContract)
                                     {
                                         experiencedMonths++;
-                                        if (Stall.PaymentHistory.ContainsKey(key) && Stall.PaymentHistory[key] == "Paid")
-                                        {
-                                            paidCount++;
-                                        }
+                                        if (hasRec && recStatus == "Paid") paidCount++;
                                     }
                                 }
                                 var unpaidCount = experiencedMonths - paidCount;
@@ -598,7 +613,7 @@
                           BillingPeriod="@DateTime.Now.ToString("MMMM yyyy")"
                           TotalBill="@Stall.TotalBill"
                           PartialAmount="@PartialAmountInput"
-                          ORNumber=""
+                          @bind-ORNumber="ConfirmOrNumber"
                           OnConfirm="SavePayment"
                           OnCancel="() => ShowConfirmModal = false" />
 
@@ -619,6 +634,7 @@
     string PayStatus = "Paid";
     decimal PartialAmountInput = 0;
     string RemarksInput = string.Empty;
+    string ConfirmOrNumber = string.Empty;
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
 
@@ -741,6 +757,9 @@
                     }
                 };
                 
+                var hasElec = FacilityId.ToUpper() == "NPM";
+                var hasWater = FacilityId.ToUpper() == "NPM";
+                
                 Stall = new()
                 {
                     Facility = GetFacilityName(FacilityId),
@@ -754,10 +773,10 @@
                     ContractDuration = "3 years",
                     ContractExpiry = stallDto.ContractDate?.AddYears(3),
                     MonthlyRate = stallDto.MonthlyRate,
-                    HasElectricity = true,
+                    HasElectricity = hasElec,
                     ElecReading = 0,
                     ElecAmount = elecAmount,
-                    HasWater = true,
+                    HasWater = hasWater,
                     WaterReading = 0,
                     WaterAmount = waterAmount,
                     FishKilos = 0,
@@ -850,6 +869,7 @@
             return;
         }
         
+        ConfirmOrNumber = string.Empty;
         ShowPayModal = false;
         ShowConfirmModal = true;
         ShowValidation = false;
@@ -879,9 +899,22 @@
         
         if (result.IsSuccess)
         {
+            if (!string.IsNullOrWhiteSpace(ConfirmOrNumber) && status != Domain.Enums.PaymentStatus.Unpaid)
+            {
+                var paymentRecord = await PaymentsApi.GetPaymentRecordAsync(StallGuid, DateTime.Now.Year, DateTime.Now.Month);
+                if (paymentRecord.IsSuccess && paymentRecord.Value != null)
+                {
+                    var orCommand = new EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber.SaveOrNumberCommand(
+                        paymentRecord.Value.Id,
+                        ConfirmOrNumber.Trim()
+                    );
+                    await PaymentsApi.SaveOrNumberAsync(orCommand);
+                }
+            }
             ShowConfirmModal = false;
             PartialAmountInput = 0;
             RemarksInput = string.Empty;
+            ConfirmOrNumber = string.Empty;
             await LoadStallData();
         }
     }

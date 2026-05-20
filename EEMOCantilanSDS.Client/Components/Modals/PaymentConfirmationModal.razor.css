@@ -167,3 +167,25 @@
 .btn-warning:hover {
     background: #b89840;
 }
+
+.confirm-or-input {
+    width: 100%;
+    padding: 0.6rem 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--navy);
+    background: var(--bg-card);
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+    .confirm-or-input:focus {
+        border-color: var(--navy-2);
+    }
+
+    .confirm-or-input::placeholder {
+        color: var(--text-muted);
+    }

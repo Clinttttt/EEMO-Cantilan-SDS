@@ -1,0 +1,219 @@
+@using EEMOCantilanSDS.Application.Dtos.DailyCollections
+@inject IDailyCollectionApiClient DailyCollectionApi
+
+<div class="detail-section @SectionClass">
+    <div class="detail-section-title">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+        Daily Collection — ₱30/day@(IsFishSection ? " + Fish Fee (₱1/kg)" : "")
+    </div>
+
+    <div class="cal-nav">
+        <button class="cal-nav-btn" @onclick="PrevMonth">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <span class="cal-month-label">@CurrentMonth.ToString("MMMM yyyy")</span>
+        <button class="cal-nav-btn" @onclick="NextMonth" disabled="@(!CanGoNext)">
+            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+    </div>
+
+    <div class="cal-grid-wrap @(IsFishSection ? "cal-grid-fish" : "")">
+        <div class="cal-day-hdr">Sun</div>
+        <div class="cal-day-hdr">Mon</div>
+        <div class="cal-day-hdr">Tue</div>
+        <div class="cal-day-hdr">Wed</div>
+        <div class="cal-day-hdr">Thu</div>
+        <div class="cal-day-hdr">Fri</div>
+        <div class="cal-day-hdr">Sat</div>
+
+        @for (int blank = 0; blank < CalendarOffset; blank++)
+        {
+            <div class="cal-cell cal-empty @(IsFishSection ? "cal-cell-fish" : "")"></div>
+        }
+
+        @for (int d = 1; d <= DaysInMonth; d++)
+        {
+            var day = new DateTime(CurrentMonth.Year, CurrentMonth.Month, d);
+            var dayKey = day.ToString("yyyy-MM-dd");
+            var isFuture = day.Date > DateTime.Now.Date;
+            var isToday = day.Date == DateTime.Now.Date;
+            var isBeforeContract = ContractDate.HasValue && day.Date < ContractDate.Value;
+            var isOutOfScope = isFuture || isBeforeContract;
+            var isMarked = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
+            var cellClass = isBeforeContract ? "cal-before-contract" : (isFuture ? "cal-future" : (isMarked ? "cal-paid" : "cal-miss"));
+            var dailyKilo = MonthData?.Collections.ContainsKey(dayKey) == true ? MonthData.Collections[dayKey].FishKilos ?? 0 : 0;
+
+            <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(IsFishSection ? "cal-cell-fish" : "")">
+
+                @if (isFuture)
+                {
+                    <div class="cal-overlay-label">Soon</div>
+                }
+                else if (isBeforeContract)
+                {
+                    <div class="cal-overlay-label cal-overlay-before">N/A</div>
+                }
+
+                <div class="cal-cell-header @(isOutOfScope ? "" : "cal-cell-header-clickable")"
+                     @onclick="() => { if (!isOutOfScope) ToggleDay(day); }">
+                    <span class="cal-num">@d</span>
+                    @if (!isOutOfScope)
+                    {
+                        <span class="cal-status-icon @(isMarked ? "cal-icon-yes" : "cal-icon-no")">
+                            @if (isMarked)
+                            {
+                                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            }
+                        </span>
+                    }
+                </div>
+
+                @if (IsFishSection && !isOutOfScope && isMarked)
+                {
+                    <div class="cal-kilo-bottom" @onclick:stopPropagation="true">
+                        <input type="number"
+                               min="0"
+                               step="1"
+                               placeholder="0"
+                               value="@((int)dailyKilo)"
+                               class="cal-kilo-input-inline"
+                               @onclick:stopPropagation="true"
+                               @onchange="@(e => UpdateFishKilo(day, int.TryParse(e.Value?.ToString(), out var k) ? k : 0))" />
+                        <span class="cal-kilo-label-inline">kg</span>
+                    </div>
+                }
+                else if (IsFishSection && !isOutOfScope)
+                {
+                    <div class="cal-kilo-bottom cal-kilo-placeholder"></div>
+                }
+
+            </div>
+        }
+    </div>
+
+    <div class="cal-footer-stats">
+        <div class="cal-sum-item">
+            <span class="cal-sum-val cal-sum-green">@(MonthData?.DaysCollected ?? 0)</span>
+            <span class="cal-sum-key">Days Collected</span>
+        </div>
+        <div class="cal-sum-item">
+            <span class="cal-sum-val">₱@((MonthData?.TotalDailyFee ?? 0).ToString("N0"))</span>
+            <span class="cal-sum-key">Daily Collected @CurrentMonth.ToString("MMM yyyy")</span>
+        </div>
+        @if (IsFishSection)
+        {
+            <div class="cal-sum-item fish-fee-item">
+                <span class="cal-sum-val">@((int)(MonthData?.TotalFishKilos ?? 0)) kg</span>
+                <span class="cal-sum-key">Fish Total</span>
+            </div>
+            <div class="cal-sum-item fish-fee-item">
+                <span class="cal-sum-val">₱@((MonthData?.GrandTotal ?? 0).ToString("N0"))</span>
+                <span class="cal-sum-key">Total Fee (@CurrentMonth.ToString("MMM yyyy"))</span>
+            </div>
+        }
+        @if (!IsFishSection)
+        {
+            <div class="cal-sum-item @(SectionClass)-fee-item">
+                <span class="cal-sum-val">₱@((MonthData?.TotalDailyFee ?? 0).ToString("N0"))</span>
+                <span class="cal-sum-key">Total Fee (@CurrentMonth.ToString("MMM yyyy"))</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public DateTime? ContractDate { get; set; }
+    [Parameter] public bool IsFishSection { get; set; }
+    [Parameter] public string SectionClass { get; set; } = "";
+
+    private DateTime CurrentMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DailyCollectionMonthDto? MonthData;
+
+    private int DaysInMonth => DateTime.DaysInMonth(CurrentMonth.Year, CurrentMonth.Month);
+    private int CalendarOffset => (int)new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1).DayOfWeek;
+    private bool CanGoNext => CurrentMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadMonthData();
+    }
+
+    private async Task LoadMonthData()
+    {
+        var result = await DailyCollectionApi.GetDailyCollectionMonthAsync(
+            StallId,
+            CurrentMonth.Year,
+            CurrentMonth.Month);
+
+        if (result.IsSuccess && result.Value != null)
+        {
+            MonthData = result.Value;
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        CurrentMonth = CurrentMonth.AddMonths(-1);
+        await LoadMonthData();
+    }
+
+    private async Task NextMonth()
+    {
+        if (CanGoNext)
+        {
+            CurrentMonth = CurrentMonth.AddMonths(1);
+            await LoadMonthData();
+        }
+    }
+
+    private async Task ToggleDay(DateTime date)
+    {
+        var dayKey = date.ToString("yyyy-MM-dd");
+        var currentStatus = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
+        var newStatus = !currentStatus;
+
+        var fishKilos = MonthData?.Collections.ContainsKey(dayKey) == true ? MonthData.Collections[dayKey].FishKilos : null;
+
+        var command = new Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand(
+            StallId: StallId,
+            CollectionDate: DateOnly.FromDateTime(date),
+            IsPaid: newStatus,
+            FishKilos: newStatus ? fishKilos : null
+        );
+
+        var result = await DailyCollectionApi.RecordDailyCollectionAsync(command);
+
+        if (result.IsSuccess)
+        {
+            await LoadMonthData();
+        }
+    }
+
+    private async Task UpdateFishKilo(DateTime date, int kilos)
+    {
+        var dayKey = date.ToString("yyyy-MM-dd");
+        var isCollected = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
+
+        if (isCollected)
+        {
+            var command = new Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand(
+                StallId: StallId,
+                CollectionDate: DateOnly.FromDateTime(date),
+                IsPaid: true,
+                FishKilos: kilos > 0 ? (decimal)kilos : null
+            );
+
+            var result = await DailyCollectionApi.RecordDailyCollectionAsync(command);
+
+            if (result.IsSuccess)
+            {
+                await LoadMonthData();
+            }
+        }
+    }
+}

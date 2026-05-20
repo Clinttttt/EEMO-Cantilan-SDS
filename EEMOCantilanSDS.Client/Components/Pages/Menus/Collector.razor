@@ -1,5 +1,5 @@
 ﻿@page "/collectors"
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+
 @using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector
 @using EEMOCantilanSDS.Application.Dtos
 @using EEMOCantilanSDS.Domain.Enums
@@ -207,20 +207,43 @@
 
 
 <!-- ══════════════════════════════════════════════
-     CREATE / EDIT MODAL
+     CREATE / EDIT MODAL (RIGHT-SIDE DRAWER)
 ══════════════════════════════════════════════ -->
-@if (ShowModal)
-{
-    <div class="eemo-modal-overlay" @onclick="CloseModal">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div class="eemo-modal-title">@(IsEditing ? "Edit Collector" : "Add New Collector")</div>
-                <button class="eemo-modal-close" @onclick="CloseModal">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
+<div class="eemo-drawer-overlay @(ShowModal ? "show" : "")" @onclick="CloseModal"></div>
 
-            <div class="eemo-modal-body">
+<div class="eemo-drawer eemo-drawer-right @(ShowModal ? "show" : "")" @onclick:stopPropagation="true">
+
+    <!-- ── Header ──────────────────────────────────────────────── -->
+    <div class="eemo-drawer-header">
+        <div class="eemo-drawer-header-left">
+            <div class="eemo-drawer-header-icon">
+                <svg viewBox="0 0 24 24">
+                    @if (IsEditing)
+                    {
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    }
+                    else
+                    {
+                        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                        <path d="M16 3.13a4 4 0 010 7.75" />
+                    }
+                </svg>
+            </div>
+            <div>
+                <div class="eemo-drawer-header-title">@(IsEditing ? "Edit Collector" : "Add New Collector")</div>
+                <div class="eemo-drawer-header-sub">@(IsEditing ? "Update collector account information." : "Create a new collector account for field collection.")</div>
+            </div>
+        </div>
+        <button class="eemo-drawer-header-close" @onclick="CloseModal">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        </button>
+    </div>
+
+    <!-- ── Body ───────────────────────────────────────────────── -->
+    <div class="eemo-modal-body">
                 <div class="form-row-2">
                     <div class="form-group">
                         <label class="form-label">Full Name <span class="req">*</span></label>
@@ -229,7 +252,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Employee ID <span class="req">*</span></label>
-                        <input class="form-input" type="text" placeholder="e.g. EEMO-2024-001"
+                        <input class="form-input" type="text" placeholder="e.g. EEMO-2025-001"
                                @bind="Form.EmployeeId" @bind:event="oninput" />
                     </div>
                 </div>
@@ -237,8 +260,9 @@
                 <div class="form-row-2">
                     <div class="form-group">
                         <label class="form-label">Contact Number</label>
-                        <input class="form-input" type="tel" placeholder="+63 9xx xxx xxxx"
-                               @bind="Form.ContactNumber" @bind:event="oninput" />
+                        <input class="form-input" type="tel" placeholder="e.g. 09536939296"
+                               @bind="Form.ContactNumber" @bind:event="oninput"
+                               maxlength="16" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email Address</label>
@@ -291,17 +315,17 @@
                         @FormError
                     </div>
                 }
-            </div>
+    </div><!-- /eemo-modal-body -->
 
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
-                <button class="btn-primary" @onclick="SaveCollector">
-                    @(IsEditing ? "Save Changes" : "Create Account")
-                </button>
-            </div>
-        </div>
+    <!-- ── Footer ──────────────────────────────────────────────── -->
+    <div class="eemo-drawer-footer">
+        <button class="btn-ghost" @onclick="CloseModal">Cancel</button>
+        <button class="btn-primary" @onclick="SaveCollector">
+            @(IsEditing ? "Save Changes" : "Create Account")
+        </button>
     </div>
-}
+
+</div>
 
 
 <!-- ══════════════════════════════════════════════
@@ -464,6 +488,8 @@
         new() { Code=FacilityCode.BBQ, Name="Barbecue Stand" },
         new() { Code=FacilityCode.ICE, Name="Iceplant" },
         new() { Code=FacilityCode.SLH, Name="Slaughterhouse" },
+        new() { Code=FacilityCode.TRM, Name="Transport Terminal" },
+        new() { Code=FacilityCode.TPM, Name="Tabo-an Public Market" },
     };
 
     // ── Form ──────────────────────────────────────────────────────────────────
@@ -484,12 +510,25 @@
     string FormError = string.Empty;
     Guid EditingId = Guid.Empty;
 
-    void OpenCreate()
+    async Task OpenCreate()
     {
         IsEditing = false;
         Form = new();
         FormError = string.Empty;
+        
+        await LoadNextEmployeeId();
+        
         ShowModal = true;
+    }
+
+    async Task LoadNextEmployeeId()
+    {
+        var result = await CollectorsApi.GetNextEmployeeIdAsync();
+        if (result.IsSuccess && !string.IsNullOrEmpty(result.Value))
+        {
+            Form.EmployeeId = result.Value;
+            StateHasChanged();
+        }
     }
 
     void OpenEdit(CollectorListDto c)

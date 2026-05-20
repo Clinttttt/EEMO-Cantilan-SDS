@@ -169,4 +169,28 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             await context.CollectorFacilityAssignments.AddAsync(assignment, cancellationToken);
         }
     }
+
+    public async Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default)
+    {
+        var currentYear = DateTime.UtcNow.Year;
+        var prefix = $"EEMO-{currentYear}-";
+
+        var lastEmployeeId = await context.CollectorUsers
+            .Where(c => c.EmployeeId!.StartsWith(prefix))
+            .OrderByDescending(c => c.EmployeeId)
+            .Select(c => c.EmployeeId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        int nextNumber = 1;
+        if (lastEmployeeId != null)
+        {
+            var numberPart = lastEmployeeId.Replace(prefix, "");
+            if (int.TryParse(numberPart, out int lastNumber))
+            {
+                nextNumber = lastNumber + 1;
+            }
+        }
+
+        return $"{prefix}{nextNumber:D3}";
+    }
 }

@@ -407,7 +407,19 @@
     }
 
     // ── Generic Property Accessors ──
-    private Guid GetStallGuid(TStall stall) => GetPropertyValue<Guid>(stall, "StallGuid");
+    private Guid GetStallGuid(TStall stall)
+    {
+        var prop = stall?.GetType().GetProperty("StallGuid",
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.IgnoreCase);
+        if (prop != null)
+        {
+            var val = prop.GetValue(stall);
+            if (val is Guid g && g != Guid.Empty) return g;
+        }
+        return Guid.Empty;
+    }
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
     private object? GetStallId(TStall stall) => GetPropertyValue<object>(stall, "Id");

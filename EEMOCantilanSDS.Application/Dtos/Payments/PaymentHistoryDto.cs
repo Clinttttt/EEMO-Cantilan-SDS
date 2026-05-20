@@ -10,5 +10,6 @@ public record PaymentHistoryDto(
     decimal AmountPaid,
     decimal BalanceDue,
     string? ORNumber,
-    DateTime? PaidAt
+    DateTime? PaidAt,
+    string? CollectorName = null
 );

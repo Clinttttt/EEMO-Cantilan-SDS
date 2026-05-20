@@ -1,0 +1,600 @@
+/* ══════════════════════════════════════════
+   MONTHLY PAYMENT CALENDAR
+══════════════════════════════════════════ */
+
+.monthly-cal-section {
+    margin-top: 0;
+}
+
+.mo-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+    margin: 12px 0;
+}
+
+.mo-cal-cell {
+    position: relative;
+    height: 72px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    padding: 6px 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    cursor: default;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    overflow: hidden;
+    box-sizing: border-box;
+    background: var(--bg-card);
+}
+
+.mo-cell-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    flex: 1;
+}
+
+.mo-cell-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--navy);
+    line-height: 1;
+}
+
+.mo-status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+    .mo-status-icon svg {
+        width: 9px;
+        height: 9px;
+        fill: none;
+        stroke-width: 2.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.mo-icon-yes {
+    background: var(--navy);
+}
+
+    .mo-icon-yes svg {
+        stroke: #fff;
+    }
+
+.mo-icon-partial {
+    background: #f59e0b;
+}
+
+    .mo-icon-partial svg {
+        stroke: #fff;
+    }
+
+.mo-icon-no {
+    background: transparent;
+    border: 1.5px solid var(--border);
+}
+
+    .mo-icon-no svg {
+        stroke: var(--text-muted);
+    }
+
+.mo-overlay-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #7a8fa5;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.mo-overlay-before {
+    color: #a67676;
+}
+
+.mo-cell-paid {
+    background: var(--bg-card);
+    border-color: var(--navy);
+    border-width: 1.5px;
+}
+
+.mo-cell-partial {
+    background: #fff8e1;
+    border-color: #f59e0b;
+    border-width: 1.5px;
+}
+
+.mo-cell-miss {
+    background: var(--bg);
+    border-color: #c5d1dc;
+}
+
+.mo-cell-future {
+    background: rgba(168, 184, 200, 0.08);
+    border-color: #c5d1dc;
+    border-width: 1.5px;
+}
+
+.mo-cell-before-contract {
+    background: rgba(139, 58, 58, 0.04);
+    border-color: #d4a5a5;
+    border-width: 1.5px;
+}
+
+.mo-cell-today {
+    border-color: var(--gold) !important;
+    border-width: 2px;
+}
+
+.mo-cell:hover:not(.mo-cell-future):not(.mo-cell-before-contract) {
+    border-color: var(--navy-2);
+    box-shadow: 0 1px 6px rgba(13,33,55,0.09);
+}
+
+.mo-cell-clickable {
+    cursor: pointer;
+}
+
+    .mo-cell-clickable:hover {
+        transform: translateY(-1px);
+        border-color: var(--navy) !important;
+        box-shadow: 0 2px 8px rgba(13,33,55,0.15) !important;
+    }
+
+/* ══════════════════════════════════════════
+   CALENDAR NAVIGATION
+══════════════════════════════════════════ */
+.cal-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.cal-nav-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+
+    .cal-nav-btn:hover:not(:disabled) {
+        background: var(--bg-icon);
+        border-color: var(--navy);
+    }
+
+    .cal-nav-btn:disabled {
+        opacity: .4;
+        cursor: default;
+    }
+
+    .cal-nav-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.cal-month-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    flex: 1;
+}
+
+/* ══════════════════════════════════════════
+   FOOTER STATS
+══════════════════════════════════════════ */
+.cal-footer-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding-top: 12px;
+}
+
+.cal-sum-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    padding: 14px 16px 12px;
+    border-radius: 10px;
+    border: 1.5px solid #c5d1dc;
+    background: var(--bg);
+    min-height: 72px;
+}
+
+.cal-sum-val {
+    font-weight: 800;
+    color: var(--navy);
+    font-size: 20px;
+    line-height: 1.1;
+    letter-spacing: -0.3px;
+}
+
+.cal-sum-green {
+    color: var(--navy);
+}
+
+.cal-sum-key {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════
+   MONTHLY SUMMARY STATS
+══════════════════════════════════════════ */
+.monthly-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.monthly-stat {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: left;
+    transition: all 0.15s;
+}
+
+    .monthly-stat:hover {
+        border-color: var(--gold);
+        box-shadow: 0 2px 8px rgba(200,168,75,0.1);
+    }
+
+.monthly-stat-val {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.monthly-stat-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.monthly-stat-green .monthly-stat-val {
+    color: var(--green);
+}
+
+.monthly-stat-red .monthly-stat-val {
+    color: var(--red);
+}
+
+.monthly-stat-gold .monthly-stat-val {
+    color: #c8900a;
+}
+
+/* ══════════════════════════════════════════
+   DETAIL MODAL STYLES
+══════════════════════════════════════════ */
+.detail-section {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+    .detail-section:last-child {
+        border-bottom: none;
+    }
+
+.detail-section-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+    .detail-section-title svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.detail-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    min-height: 28px;
+}
+
+    .detail-info-row:last-child {
+        border-bottom: none;
+    }
+
+.detail-info-key {
+    min-width: 140px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.detail-info-val {
+    color: var(--text);
+    font-weight: 500;
+    flex: 1;
+}
+
+.hist-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.hist-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.hist-month {
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 64px;
+    transition: all 0.15s;
+}
+
+    .hist-month:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(13,33,55,0.12);
+    }
+
+.hist-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.hist-unpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.hist-month-name {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--navy);
+    line-height: 1;
+}
+
+.hist-month-year {
+    font-size: 9px;
+    color: var(--text-subtle);
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.hist-month-icon {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green);
+}
+
+.hist-unpaid .hist-month-icon {
+    color: var(--red);
+}
+
+.hist-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.act-stat {
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+    transition: all 0.15s;
+}
+
+    .act-stat:hover {
+        border-color: var(--gold);
+        box-shadow: 0 2px 8px rgba(200,168,75,0.1);
+    }
+
+.act-stat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.act-stat-key {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
+}
+
+
+/* ══════════════════════════════════════════
+   PAYMENT MODAL STYLES
+══════════════════════════════════════════ */
+.payment-modal-info {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.payment-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+    .payment-info-row:last-child {
+        border-bottom: none;
+    }
+
+.payment-info-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.payment-info-value {
+    font-size: 14px;
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.payment-balance {
+    background: #fff8e1;
+    margin: 8px -16px -16px;
+    padding: 12px 16px;
+    border-radius: 0 0 10px 10px;
+}
+
+.payment-balance-amount {
+    color: #f59e0b;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.payment-status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-paid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.status-partial {
+    background: #fff8e1;
+    color: #f59e0b;
+}
+
+.status-unpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.payment-action-section {
+    margin-top: 16px;
+}
+
+.payment-status-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.payment-status-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+    .payment-status-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .payment-status-btn:hover {
+        border-color: var(--navy);
+        background: var(--bg-icon);
+    }
+
+    .payment-status-btn.active {
+        border-color: var(--navy);
+        background: var(--navy);
+        color: #fff;
+    }

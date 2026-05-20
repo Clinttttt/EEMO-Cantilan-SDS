@@ -32,6 +32,7 @@
     public class IceplantStall
     {
         public int Id { get; set; }
+        public Guid StallGuid { get; set; } = Guid.Empty;
         public string StallNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
@@ -50,6 +51,7 @@
     {
         return new IceplantStall
         {
+            StallGuid = dto.Id,
             StallNo = dto.StallNo,
             ActualOccupant = dto.ActualOccupant ?? "N/A",
             ContractName = dto.NameOnContract ?? "N/A",

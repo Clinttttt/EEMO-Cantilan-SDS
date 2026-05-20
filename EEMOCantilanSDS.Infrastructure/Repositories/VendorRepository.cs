@@ -66,7 +66,11 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
                 s.AreaLocation.HasValue ? s.AreaLocation.Value.ToString() : null,
                 s.MonthlyRate,
                 s.Status,
-                payment?.Status ?? PaymentStatus.Unpaid
+                payment?.Status ?? PaymentStatus.Unpaid,
+                activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
+                activeContract?.DurationYears ?? 0,
+                s.AreaSqm,
+                s.AreaNote
             );
         }).ToList();
 

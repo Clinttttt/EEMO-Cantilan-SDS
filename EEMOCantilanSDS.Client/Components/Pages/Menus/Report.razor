@@ -1,5 +1,5 @@
 ﻿@page "/reports"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @rendermode InteractiveServer
 
@@ -430,6 +430,8 @@
         ("BBQ", "BBQ Stand"),
         ("ICE", "Iceplant"),
         ("SLH", "Slaughterhouse"),
+        ("TRM", "Transport Terminal"),
+        ("TPM", "Tabo-an Market"),
     };
 
     private record MonthData(string Label, int CollectedPct, int UnpaidPct, string CollectedFormatted, bool IsCurrent);
@@ -459,6 +461,8 @@
         new("BBQ", "Barbecue Stand",             8, "₱5,600",  "₱1,400",  88, "7 / 8 paid",     "good", "Good"),
         new("ICE", "Iceplant",                   5, "₱40,650", "₱8,130",  60, "3 / 5 paid",     "bad",  "Behind"),
         new("SLH", "Slaughterhouse",             0, "₱28,400", "₱16,540", 63, "Per-head basis", "bad",  "Behind"),
+        new("TRM", "Transport Terminal",         0, "₱12,300", "₱0",      100, "Per-trip basis", "good", "Good"),
+        new("TPM", "Tabo-an Public Market",     35, "₱18,750", "₱3,250",  85, "30 / 35 paid",   "good", "Good"),
     };
 
     private record Transaction(string RefNo, string Vendor, string FacilityCode, string StallNo, string Date, string Collector, string Method, string Amount);

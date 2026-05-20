@@ -21,8 +21,9 @@ public class CreateCollectorCommandValidator : AbstractValidator<CreateCollector
             .MustAsync(BeUniqueEmployeeId).WithMessage("Employee ID already exists");
 
         RuleFor(x => x.ContactNumber)
-            .NotEmpty().WithMessage("Contact number is required")
-            .Matches(@"^\+63\s?\d{3}\s?\d{3}\s?\d{4}$").WithMessage("Contact number must be a valid Philippine number");
+            .MaximumLength(20).WithMessage("Contact number cannot exceed 20 characters")
+            .Matches(@"^(09\d{9}|\+63\s?9\d{2}\s?\d{3}\s?\d{4})$").When(x => !string.IsNullOrWhiteSpace(x.ContactNumber))
+            .WithMessage("Contact number must be in format: 09xxxxxxxxx or +63 9xx xxx xxxx");
 
         RuleFor(x => x.Email)
             .NotEmpty().WithMessage("Email is required")

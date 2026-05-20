@@ -31,6 +31,7 @@ namespace EEMOCantilanSDS.Client
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.LoginPath = "/login";
+                    options.AccessDeniedPath = "/login";
                     options.LogoutPath = "/api/authproxy/logout";
                 });
             
@@ -71,6 +72,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<ITpmApiClient, TpmApiClient>(configuration);
             service.AddApiHttpClient<ITrmApiClient, TrmApiClient>(configuration);
             service.AddApiHttpClient<ISlaughterApiClient, SlaughterApiClient>(configuration);
+            service.AddApiHttpClient<IDailyCollectionApiClient, DailyCollectionApiClient>(configuration);
 
             return service;
         }

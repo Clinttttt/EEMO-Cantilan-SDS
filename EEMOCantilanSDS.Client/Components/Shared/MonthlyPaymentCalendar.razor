@@ -1,0 +1,350 @@
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
+@inject IPaymentsApiClient PaymentsApi
+
+<div class="detail-section monthly-cal-section">
+    <div class="detail-section-title">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+        Monthly Rental — ₱@MonthlyRate.ToString("N0")/mo
+    </div>
+
+    <div class="cal-nav">
+        <button class="cal-nav-btn" @onclick="PrevYear">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <span class="cal-month-label">@CurrentYear</span>
+        <button class="cal-nav-btn" @onclick="NextYear" disabled="@(!CanGoNext)">
+            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+    </div>
+
+    <div class="mo-cal-grid">
+        @foreach (var mo in Months)
+        {
+            var moKey = mo.ToString("yyyy-MM");
+            var isFuture = mo > new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+            var isThisMo = mo.Year == DateTime.Now.Year && mo.Month == DateTime.Now.Month;
+            var paymentRec = GetPaymentRecord(mo);
+            var beforeContract = paymentRec == null && ContractStartMonth.HasValue && mo < ContractStartMonth.Value;
+            var isPaid = paymentRec != null && paymentRec.Status == PaymentStatus.Paid;
+            var isPartial = paymentRec != null && paymentRec.Status == PaymentStatus.Partial;
+            var cellCls = beforeContract ? "mo-cell-before-contract" : isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : isPartial ? "mo-cell-partial" : "mo-cell-miss");
+
+            <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "") @(!isFuture && !beforeContract ? "mo-cell-clickable" : "")"
+                 @onclick="() => OpenPaymentModal(mo, paymentRec)">
+                @if (isFuture)
+                {
+                    <div class="mo-overlay-label">Soon</div>
+                }
+                else if (beforeContract)
+                {
+                    <div class="mo-overlay-label mo-overlay-before">N/A</div>
+                }
+                else
+                {
+                    <div class="mo-cell-header">
+                        <span class="mo-cell-name">@mo.ToString("MMM").ToUpper()</span>
+                        <span class="mo-status-icon @(isPaid ? "mo-icon-yes" : isPartial ? "mo-icon-partial" : "mo-icon-no")">
+                            @if (isPaid)
+                            {
+                                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                            }
+                            else if (isPartial)
+                            {
+                                <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="cal-footer-stats">
+        <div class="cal-sum-item">
+            <span class="cal-sum-val cal-sum-green">@PaidCount</span>
+            <span class="cal-sum-key">Months Paid</span>
+        </div>
+        <div class="cal-sum-item">
+            <span class="cal-sum-val">₱@TotalCollected.ToString("N0")</span>
+            <span class="cal-sum-key">Collected @CurrentYear</span>
+        </div>
+    </div>
+</div>
+
+@if (ShowPaymentModal && SelectedMonth.HasValue)
+{
+    <div class="eemo-modal-overlay" @onclick="ClosePaymentModal">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">@SelectedMonth.Value.ToString("MMMM yyyy") Payment</div>
+                <button class="eemo-modal-close" @onclick="ClosePaymentModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="eemo-modal-body">
+                <div class="payment-modal-info">
+                    <div class="payment-info-row">
+                        <span class="payment-info-label">Monthly Rate:</span>
+                        <span class="payment-info-value">₱@MonthlyRate.ToString("N2")</span>
+                    </div>
+                    <div class="payment-info-row">
+                        <span class="payment-info-label">Current Status:</span>
+                        <span class="payment-status-badge @GetStatusClass(SelectedPayment?.Status ?? PaymentStatus.Unpaid)">
+                            @(SelectedPayment?.Status.ToString() ?? "Unpaid")
+                        </span>
+                    </div>
+                    @if (SelectedPayment?.Status == PaymentStatus.Partial)
+                    {
+                        <div class="payment-info-row">
+                            <span class="payment-info-label">Amount Paid:</span>
+                            <span class="payment-info-value">₱@SelectedPayment.AmountPaid.ToString("N2")</span>
+                        </div>
+                        <div class="payment-info-row payment-balance">
+                            <span class="payment-info-label">Balance Due:</span>
+                            <span class="payment-info-value payment-balance-amount">₱@SelectedPayment.BalanceDue.ToString("N2")</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="payment-action-section">
+                    <label class="form-label">Update Payment Status</label>
+                    <div class="payment-status-options">
+                        <button class="payment-status-btn @(PaymentAction == "Paid" ? "active" : "")"
+                                @onclick="@(() => PaymentAction = "Paid")">
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                            Mark as Paid
+                        </button>
+                        <button class="payment-status-btn @(PaymentAction == "Partial" ? "active" : "")"
+                                @onclick="@(() => PaymentAction = "Partial")">
+                            <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                            Partial Payment
+                        </button>
+                        <button class="payment-status-btn @(PaymentAction == "Unpaid" ? "active" : "")"
+                                @onclick="@(() => PaymentAction = "Unpaid")">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            Mark as Unpaid
+                        </button>
+                    </div>
+
+                    @if (PaymentAction == "Partial")
+                    {
+                        <div class="form-group" style="margin-top: 12px;">
+                            <label class="form-label">
+                                @if (SelectedPayment?.Status == PaymentStatus.Partial)
+                                {
+                                    <text>Additional Payment Amount <span class="req">*</span></text>
+                                }
+                                else
+                                {
+                                    <text>Partial Amount <span class="req">*</span></text>
+                                }
+                            </label>
+                            <input class="form-input" type="number" step="0.01" min="0.01" max="@MonthlyRate"
+                                   placeholder="@(SelectedPayment?.Status == PaymentStatus.Partial ? "Enter additional amount" : "Enter amount paid")"
+                                   @bind="PartialAmount" @bind:event="oninput" />
+                            @if (SelectedPayment?.Status == PaymentStatus.Partial && PartialAmount.HasValue && PartialAmount.Value > 0)
+                            {
+                                var newTotal = SelectedPayment.AmountPaid + PartialAmount.Value;
+                                <div style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                                    New total: ₱@newTotal.ToString("N2") 
+                                    @if (newTotal >= MonthlyRate)
+                                    {
+                                        <span style="color: var(--green); font-weight: 600;">→ Will be marked as Paid</span>
+                                    }
+                                    else
+                                    {
+                                        <span>/ ₱@MonthlyRate.ToString("N2") (Balance: ₱@((MonthlyRate - newTotal).ToString("N2")))</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="form-group" style="margin-top: 12px;">
+                        <label class="form-label">Remarks (Optional)</label>
+                        <textarea class="form-input" rows="2" placeholder="Add notes..."
+                                  @bind="PaymentRemarks" @bind:event="oninput"></textarea>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(PaymentError))
+                {
+                    <div class="form-error">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        @PaymentError
+                    </div>
+                }
+            </div>
+
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="ClosePaymentModal">Cancel</button>
+                <button class="btn-primary" @onclick="SavePayment" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Save Payment")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public DateTime? ContractDate { get; set; }
+    [Parameter] public decimal MonthlyRate { get; set; }
+    [Parameter] public List<PaymentHistoryDto> PaymentHistory { get; set; } = new();
+    [Parameter] public EventCallback OnPaymentUpdated { get; set; }
+
+    private int CurrentYear = DateTime.Now.Year;
+    private List<DateTime> Months => Enumerable.Range(1, 12).Select(m => new DateTime(CurrentYear, m, 1)).ToList();
+    private DateTime? ContractStartMonth => ContractDate.HasValue 
+        ? new DateTime(ContractDate.Value.Year, ContractDate.Value.Month, 1) 
+        : null;
+    private bool CanGoNext => CurrentYear < DateTime.Now.Year;
+
+    private PaymentHistoryDto? GetPaymentRecord(DateTime month)
+    {
+        var moKey = month.ToString("yyyy-MM");
+        return PaymentHistory.FirstOrDefault(p => p.Period == moKey);
+    }
+
+    private int PaidCount => Months.Count(m =>
+    {
+        var rec = GetPaymentRecord(m);
+        return rec != null && rec.Status == PaymentStatus.Paid;
+    });
+
+    private decimal TotalCollected => Months.Sum(m =>
+    {
+        var rec = GetPaymentRecord(m);
+        return rec?.AmountPaid ?? 0;
+    });
+
+    private void PrevYear() => CurrentYear--;
+
+    private void NextYear()
+    {
+        if (CanGoNext)
+            CurrentYear++;
+    }
+
+    // Payment Modal
+    private bool ShowPaymentModal = false;
+    private DateTime? SelectedMonth = null;
+    private PaymentHistoryDto? SelectedPayment = null;
+    private string PaymentAction = "Paid";
+    private decimal? PartialAmount = null;
+    private string PaymentRemarks = string.Empty;
+    private string PaymentError = string.Empty;
+    private bool IsSaving = false;
+
+    private void OpenPaymentModal(DateTime month, PaymentHistoryDto? payment)
+    {
+        if (month > new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1)) return;
+        if (ContractStartMonth.HasValue && month < ContractStartMonth.Value) return;
+
+        SelectedMonth = month;
+        SelectedPayment = payment;
+        PaymentAction = payment?.Status.ToString() ?? "Paid";
+        PartialAmount = payment?.Status == PaymentStatus.Partial ? payment.AmountPaid : null;
+        PaymentRemarks = string.Empty;
+        PaymentError = string.Empty;
+        ShowPaymentModal = true;
+    }
+
+    private void ClosePaymentModal()
+    {
+        ShowPaymentModal = false;
+        SelectedMonth = null;
+        SelectedPayment = null;
+        PaymentAction = "Paid";
+        PartialAmount = null;
+        PaymentRemarks = string.Empty;
+        PaymentError = string.Empty;
+    }
+
+    private async Task SavePayment()
+    {
+        if (!SelectedMonth.HasValue) return;
+
+        PaymentError = string.Empty;
+
+        if (PaymentAction == "Partial")
+        {
+            if (!PartialAmount.HasValue || PartialAmount.Value <= 0)
+            {
+                PaymentError = "Please enter a valid partial amount.";
+                return;
+            }
+            if (PartialAmount.Value >= MonthlyRate)
+            {
+                PaymentError = "Partial amount must be less than the monthly rate.";
+                return;
+            }
+        }
+
+        IsSaving = true;
+
+        var status = PaymentAction switch
+        {
+            "Paid" => PaymentStatus.Paid,
+            "Partial" => PaymentStatus.Partial,
+            _ => PaymentStatus.Unpaid
+        };
+
+        // Calculate cumulative amount for partial payments
+        decimal? partialAmountToSend = null;
+        if (PaymentAction == "Partial" && PartialAmount.HasValue)
+        {
+            // If there's an existing partial payment, add to it
+            var existingAmount = SelectedPayment?.Status == PaymentStatus.Partial ? SelectedPayment.AmountPaid : 0;
+            var newTotalPaid = existingAmount + PartialAmount.Value;
+
+            // If the new total equals or exceeds monthly rate, mark as Paid instead
+            if (newTotalPaid >= MonthlyRate)
+            {
+                status = PaymentStatus.Paid;
+                partialAmountToSend = null;
+            }
+            else
+            {
+                partialAmountToSend = newTotalPaid;
+            }
+        }
+
+        var command = new RecordPaymentCommand(
+            StallId,
+            SelectedMonth.Value.Year,
+            SelectedMonth.Value.Month,
+            status,
+            partialAmountToSend,
+            string.IsNullOrWhiteSpace(PaymentRemarks) ? null : PaymentRemarks.Trim()
+        );
+
+        var result = await PaymentsApi.RecordPaymentAsync(command);
+
+        IsSaving = false;
+
+        if (result.IsSuccess)
+        {
+            ClosePaymentModal();
+            await OnPaymentUpdated.InvokeAsync();
+        }
+        else
+        {
+            PaymentError = result.Error ?? "Failed to save payment.";
+        }
+    }
+
+    private string GetStatusClass(PaymentStatus status) => status switch
+    {
+        PaymentStatus.Paid => "status-paid",
+        PaymentStatus.Partial => "status-partial",
+        _ => "status-unpaid"
+    };
+}

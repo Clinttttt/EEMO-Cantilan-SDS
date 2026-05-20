@@ -627,3 +627,23 @@
         padding: 10px 16px;
     }
 }
+
+/* Partial payment styles */
+.ph-row-partial {
+    border-left: none;
+    background: var(--bg-card);
+}
+
+.ph-pill-partial {
+    background: none;
+    color: var(--text);
+    border: none;
+}
+
+    .ph-pill-partial svg {
+        display: none;
+    }
+
+.ph-dot-partial {
+    display: none;
+}

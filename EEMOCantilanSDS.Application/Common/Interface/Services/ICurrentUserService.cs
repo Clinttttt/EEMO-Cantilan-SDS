@@ -1,16 +1,10 @@
-﻿using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
 
-namespace EEMOCantilanSDS.Application.Common.Interface.Services
+namespace EEMOCantilanSDS.Application.Common.Interface.Services;
+
+public interface ICurrentUserService
 {
-    public interface ICurrentUserService
-    {
-        bool IsAuthenticated { get; }
-        AdminUserDto? GetCurrentUser();
-   
-    }
+    bool IsAuthenticated { get; }
+    AdminUserDto? GetCurrentUser();
+
 }

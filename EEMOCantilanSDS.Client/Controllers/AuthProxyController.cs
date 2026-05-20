@@ -27,11 +27,21 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
 
         logger.LogInformation("Login successful, setting cookies for user: {Username}", request.Username);
         
+        // Parse JWT to extract user claims
+        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwtToken = handler.ReadJwtToken(result.Value.AccessToken);
+        
         var claims = new List<Claim>
         {
             new Claim("AccessToken", result.Value.AccessToken!),
             new Claim("RefreshToken", result.Value.RefreshToken!)
         };
+        
+        // Add all claims from JWT (including role)
+        foreach (var claim in jwtToken.Claims)
+        {
+            claims.Add(claim);
+        }
 
         var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var authProperties = new AuthenticationProperties
@@ -58,11 +68,21 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
         if (!result.IsSuccess || result.Value == null)
             return Unauthorized();
 
+        // Parse JWT to extract user claims
+        var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+        var jwtToken = handler.ReadJwtToken(result.Value.AccessToken);
+        
         var claims = new List<Claim>
         {
             new Claim("AccessToken", result.Value.AccessToken!),
             new Claim("RefreshToken", result.Value.RefreshToken!)
         };
+        
+        // Add all claims from JWT (including role)
+        foreach (var claim in jwtToken.Claims)
+        {
+            claims.Add(claim);
+        }
 
         var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var authProperties = new AuthenticationProperties
