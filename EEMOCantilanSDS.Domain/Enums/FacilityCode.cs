@@ -57,4 +57,10 @@ namespace EEMOCantilanSDS.Domain.Enums
         Water = 1 << 3,
         FishFee = 1 << 4,
     }
+    public enum ReportPeriod
+    {
+        Weekly = 1,
+        Monthly = 2,
+        Yearly = 3,
+    }
 }

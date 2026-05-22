@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Expo: Run on Android",
+      "type": "reactnative",
+      "request": "launch",
+      "platform": "android",
+      "cwd": "${workspaceFolder}/EEMOCantilanSDS.Mobile"
+    },
+    {
+      "name": "Expo: Debug Android",
+      "type": "reactnative",
+      "request": "attach",
+      "platform": "android",
+      "cwd": "${workspaceFolder}/EEMOCantilanSDS.Mobile"
+    }
+  ]
+}

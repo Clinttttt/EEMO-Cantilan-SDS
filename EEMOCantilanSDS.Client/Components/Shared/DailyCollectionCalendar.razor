@@ -154,6 +154,13 @@
         {
             MonthData = result.Value;
         }
+        else
+        {
+            // If no data or error, ensure MonthData is null
+            MonthData = null;
+        }
+        
+        StateHasChanged();
     }
 
     private async Task PrevMonth()
@@ -190,7 +197,11 @@
 
         if (result.IsSuccess)
         {
+            // Force a fresh reload of the data
+            MonthData = null;
+            StateHasChanged();
             await LoadMonthData();
+            StateHasChanged();
         }
     }
 
@@ -212,7 +223,11 @@
 
             if (result.IsSuccess)
             {
+                // Force a fresh reload of the data
+                MonthData = null;
+                StateHasChanged();
                 await LoadMonthData();
+                StateHasChanged();
             }
         }
     }

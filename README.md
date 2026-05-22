@@ -1,6 +1,6 @@
 # EEMO Cantilan SDS — Blazor Server Quick Reference
 
-**Location:** `EEMOCantilanSDS.Client/` (Blazor Server + .NET 9)
+**Location:** `EEMOCantilanSDS.Client/` (Blazor Server + .NET 10)
 
 ## Purpose
 Blazor Server frontend for the EEMO Revenue Collection System. Communicates with ASP.NET Core Web API backend.
@@ -9,7 +9,7 @@ Blazor Server frontend for the EEMO Revenue Collection System. Communicates with
 
 ## Tech Stack
 
-- **Framework:** Blazor Server (.NET 9)
+- **Framework:** Blazor Server (.NET 10)
 - **Language:** C# 13
 - **Rendering:** Server-side with SignalR
 - **HTTP Client:** Typed API Clients (HttpClient wrapper)

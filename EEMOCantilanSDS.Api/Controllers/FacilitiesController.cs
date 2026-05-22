@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
@@ -33,6 +34,19 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<FacilitySummaryDto>> GetSummary(FacilityCode facilityCode, [FromQuery] int year, [FromQuery] int month)
     {
         var query = new GetFacilitySummaryQuery(facilityCode, year, month);
+        var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("{facilityCode}/reports")]
+    public async Task<ActionResult<FacilityReportsDto>> GetFacilityReports(
+        [FromRoute] FacilityCode facilityCode,
+        [FromQuery] ReportPeriod period,
+        [FromQuery] int year,
+        [FromQuery] int? month = null,
+        [FromQuery] int? weekNumber = null)
+    {
+        var query = new GetFacilityReportsQuery(facilityCode, period, year, month, weekNumber);
         var result = await Sender.Send(query);
         return HandleResponse(result);
     }

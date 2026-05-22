@@ -112,6 +112,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string? remarks = null,
             string updatedBy = "System")
         {
+            // Auto-upgrade from Partial to Paid if partial amount equals or exceeds total bill
+            if (status == PaymentStatus.Partial && partialAmount >= TotalBill)
+            {
+                status = PaymentStatus.Paid;
+                partialAmount = 0; // Clear partial amount when fully paid
+            }
+            
             Status = status;
             PartialAmount = status == PaymentStatus.Partial ? partialAmount : 0;
             Remarks = remarks;

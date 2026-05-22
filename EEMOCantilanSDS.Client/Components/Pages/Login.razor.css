@@ -49,6 +49,38 @@
     background: rgba(13, 33, 55, 0.03);
 }
 
+/* ── Government seal pair ── */
+.government-seals {
+    width: 174px;
+    height: 92px;
+    gap: 14px;
+}
+
+.government-logo-card {
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(212, 175, 55, 0.65);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 0 0 9px rgba(212, 175, 55, 0.06);
+}
+
+    .government-logo-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 50%;
+    }
+
+.bagong-pilipinas-logo img {
+    width: 82%;
+    height: 82%;
+}
+
 /* ── Failed attempts warning ── */
 .login-attempts-warn {
     display: flex;

@@ -169,11 +169,11 @@
                     {
                         <div class="breakdown-item">
                             <span>Amount Paid</span>
-                            <span style="color:var(--green);">₱@GetPartialAmount(Stall).ToString("N0")</span>
+                            <span style="color:var(--green);">₱@GetDisplayPartialAmount(Stall).ToString("N0")</span>
                         </div>
                         <div class="breakdown-item">
                             <span>Balance Remaining</span>
-                            <span style="color:#b87333;">₱@((GetMonthlyRate(Stall) - GetPartialAmount(Stall)).ToString("N0"))</span>
+                            <span style="color:#b87333;">₱@GetDisplayBalanceRemaining(Stall).ToString("N0")</span>
                         </div>
                     }
 
@@ -449,6 +449,24 @@
         if (GetIsPaid(stall)) return "Paid";
         if (GetIsPartial(stall)) return $"Partial — ₱{GetPartialAmount(stall):N0}";
         return "Unpaid";
+    }
+
+    // ── Display helpers for partial payment breakdown ──
+    private decimal GetDisplayPartialAmount(TStall stall)
+    {
+        // If user is entering a new partial amount, show the input value
+        // Otherwise, show the existing partial amount from database
+        if (PartialAmountInput > 0)
+            return PartialAmountInput;
+        return GetPartialAmount(stall);
+    }
+
+    private decimal GetDisplayBalanceRemaining(TStall stall)
+    {
+        // Calculate balance based on the displayed partial amount
+        var monthlyRate = GetMonthlyRate(stall);
+        var partialAmount = GetDisplayPartialAmount(stall);
+        return monthlyRate - partialAmount;
     }
 
     // ── DTO ──

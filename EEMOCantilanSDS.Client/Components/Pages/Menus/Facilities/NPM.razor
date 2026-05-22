@@ -158,9 +158,18 @@
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
 
+<!-- ══════════════════════════════════════════════
+     FACILITY REPORTS MODAL
+══════════════════════════════════════════════ -->
+<FacilityReportsModal @bind-IsOpen="ShowReports"
+                      FacilityCode="NPM"
+                      FacilityName="New Public Market"
+                      ShowSectionBreakdown="true" />
+
 @code {
 
     bool SidebarCollapsed = false;
+    private bool ShowReports = false;
 
     string SearchQuery = string.Empty;
     string ActiveSection = "Vegetable Section";
@@ -251,6 +260,19 @@
     {
         ToolbarActions = new()
         {
+            new()
+            {
+                Label = "Reports",
+                Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
+                ClassName = "btn-outline",
+                Title = "View Facility Reports & Analytics",
+                OnClickHandler = async () => 
+                { 
+                    ShowReports = true; 
+                    StateHasChanged();
+                    await Task.CompletedTask; 
+                }
+            },
             new()
             {
                 Label = "Add New",

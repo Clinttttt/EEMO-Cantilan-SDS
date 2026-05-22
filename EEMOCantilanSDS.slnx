@@ -4,8 +4,6 @@
   <Project Path="EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj" />
   <Project Path="EEMOCantilanSDS.Domain/EEMOCantilanSDS.Domain.csproj" />
   <Project Path="EEMOCantilanSDS.Infrastructure/EEMOCantilanSDS.Infrastructure.csproj" />
-  <Project Path="EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj">
-    <Deploy Solution="Debug|*" />
-  </Project>
   <Project Path="EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj" Id="89e1c717-bf1f-418a-aa0f-fd170d412434" />
+  <Project Path="EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj" />
 </Solution>

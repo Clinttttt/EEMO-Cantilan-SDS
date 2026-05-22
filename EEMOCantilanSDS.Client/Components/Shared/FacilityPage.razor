@@ -141,6 +141,11 @@
                 OnSectionChanged="() => {}"
                 OnToggleFee="ToggleVendorFee" />
 
+<FacilityReportsModal @bind-IsOpen="ShowReports"
+                      FacilityCode="@FacilityShortCode"
+                      FacilityName="@FacilityName"
+                      ShowSectionBreakdown="@(FacilityCodeEnum == FacilityCode.NCC)" />
+
 @code {
     [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
     [Parameter] public string FacilityName { get; set; } = string.Empty;
@@ -163,6 +168,7 @@
     private string SearchQuery = string.Empty;
     private string ActiveStatus = "All";
     private readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private bool ShowReports = false;
     
     private List<TStall> Stalls = new();
     private bool ShowPayment = false;
@@ -240,6 +246,19 @@
 
     private List<Toolbar.ToolbarAction> ToolbarActions => new()
     {
+        new()
+        {
+            Label = "Reports",
+            Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
+            ClassName = "btn-outline",
+            Title = "View Facility Reports & Analytics",
+            OnClickHandler = async () => 
+            { 
+                ShowReports = true; 
+                StateHasChanged();
+                await Task.CompletedTask; 
+            }
+        },
         new()
         {
             Label = "Add New",

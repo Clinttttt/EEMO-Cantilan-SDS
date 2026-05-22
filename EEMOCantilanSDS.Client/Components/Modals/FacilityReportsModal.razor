@@ -1,0 +1,964 @@
+@* ══════════════════════════════════════════════════════════════════════════════
+   FACILITY REPORTS MODAL
+   Displays detailed analytics and reports for a specific facility
+   - Weekly/Monthly collection progress
+   - Payment trends with graphs
+   - Occupancy statistics
+   - Revenue breakdown
+   ══════════════════════════════════════════════════════════════════════════════ *@
+
+@if (IsOpen)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-container modal-reports" @onclick:stopPropagation="true">
+
+            <!-- ── Header — NPM Hero style ── -->
+            <div class="modal-header">
+                <div class="modal-title-section">
+                    <div class="facility-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
+                        </svg>
+                    </div>
+                    <div class="modal-title-text">
+                        <div class="modal-eyebrow">FACILITY · @FacilityCode · REPORTS</div>
+                        <h2 class="modal-title">@FacilityName Reports</h2>
+                        <p class="modal-subtitle">@GetReportPeriodText()</p>
+                    </div>
+                </div>
+                <button class="modal-close" @onclick="CloseModal" title="Close">
+                    <svg viewBox="0 0 24 24">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <!-- Gold progress bar at bottom — matches NPM hero -->
+                <div class="modal-header-progress">
+                    <div class="modal-header-progress-fill" style="width: @MockCollectionRate%"></div>
+                </div>
+            </div>
+
+            <!-- ── Period Selector ── -->
+            <div class="report-period-selector">
+                <div class="period-tabs">
+                    <button class="period-tab @(SelectedPeriod == "Weekly" ? "active" : "")"
+                            @onclick='async () => { SelectedPeriod = "Weekly"; await LoadReportDataAsync(); }'>
+                        Weekly
+                    </button>
+                    <button class="period-tab @(SelectedPeriod == "Monthly" ? "active" : "")"
+                            @onclick='async () => { SelectedPeriod = "Monthly"; await LoadReportDataAsync(); }'>
+                        Monthly
+                    </button>
+                    <button class="period-tab @(SelectedPeriod == "Yearly" ? "active" : "")"
+                            @onclick='async () => { SelectedPeriod = "Yearly"; await LoadReportDataAsync(); }'>
+                        Yearly
+                    </button>
+                </div>
+                <div class="period-date-selector">
+                    <button class="date-nav-btn" @onclick="NavigatePrevious">
+                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                    </button>
+                    <span class="current-period">@GetCurrentPeriodLabel()</span>
+                    <button class="date-nav-btn" @onclick="NavigateNext">
+                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- ── Modal Body ── -->
+            <div class="modal-body">
+
+                @if (IsLoading)
+                {
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading report data...</p>
+                    </div>
+                }
+                else if (!string.IsNullOrEmpty(ErrorMessage))
+                {
+                    <div class="error-state">
+                        <svg viewBox="0 0 24 24" class="error-icon">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <p>@ErrorMessage</p>
+                        <button class="btn btn-primary" @onclick="LoadReportDataAsync">Retry</button>
+                    </div>
+                }
+                else
+                {
+                    <!-- ── Summary Cards ── -->
+                <div class="summary-cards">
+                    <div class="summary-card card-revenue">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24">
+                                <line x1="12" y1="1" x2="12" y2="23" />
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Total Revenue</p>
+                            <h3 class="card-value">₱@MockTotalRevenue.ToString("N2")</h3>
+                            <p class="card-change positive">+@MockRevenueGrowth% from last period</p>
+                        </div>
+                    </div>
+
+                    <div class="summary-card card-collection">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Collection Rate</p>
+                            <h3 class="card-value">@MockCollectionRate%</h3>
+                            <p class="card-change positive">+@MockCollectionGrowth% from last period</p>
+                        </div>
+                    </div>
+
+                    <div class="summary-card card-occupancy">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Occupancy</p>
+                            <h3 class="card-value">@MockOccupiedStalls/@MockTotalStalls</h3>
+                            <p class="card-change neutral">@MockOccupancyRate% occupied</p>
+                        </div>
+                    </div>
+
+                    <div class="summary-card card-pending">
+                        <div class="card-icon">
+                            <svg viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                        </div>
+                        <div class="card-content">
+                            <p class="card-label">Pending Payments</p>
+                            <h3 class="card-value">@MockPendingCount</h3>
+                            <p class="card-change negative">₱@MockPendingAmount.ToString("N2") outstanding</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Charts Section ── -->
+                <div class="charts-section">
+
+                    <!-- Revenue Trend Bar Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Revenue Trend</h3>
+                            <div class="chart-legend">
+                                <span class="legend-item">
+                                    <span class="legend-dot revenue"></span>
+                                    Revenue
+                                </span>
+                                <span class="legend-item">
+                                    <span class="legend-dot target"></span>
+                                    Target
+                                </span>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            @RenderRevenueChart()
+                        </div>
+                    </div>
+
+                    <!-- Payment Status Donut Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Payment Status Distribution</h3>
+                        </div>
+                        <div class="chart-container chart-donut">
+                            @RenderPaymentStatusChart()
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Detailed Breakdown ── -->
+                <div class="breakdown-section">
+                    <h3 class="section-title">Detailed Breakdown</h3>
+                    <div class="breakdown-grid">
+
+                        <!-- By Section (NPM only) -->
+                        @if (ShowSectionBreakdown)
+                        {
+                            <div class="breakdown-card">
+                                <h4 class="breakdown-title">Revenue by Section</h4>
+                                <div class="breakdown-list">
+                                    @foreach (var section in MockSectionData)
+                                    {
+                                        <div class="breakdown-item">
+                                            <div class="breakdown-label">
+                                                <span class="section-dot" style="background: @section.Color"></span>
+                                                @section.Name
+                                            </div>
+                                            <div class="breakdown-value">₱@section.Revenue.ToString("N2")</div>
+                                            <div class="breakdown-bar">
+                                                <div class="bar-fill" style="width: @section.Percentage%; background: @section.Color"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Collection Performance -->
+                        <div class="breakdown-card">
+                            <h4 class="breakdown-title">Collection Performance</h4>
+                            <div class="breakdown-list">
+                                <div class="breakdown-item">
+                                    <div class="breakdown-label">
+                                        <span class="status-badge paid">Paid</span>
+                                    </div>
+                                    <div class="breakdown-value">@MockPaidCount stalls</div>
+                                    <div class="breakdown-bar">
+                                        <div class="bar-fill paid" style="width: @(MockOccupiedStalls > 0 ? (MockPaidCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                    </div>
+                                </div>
+                                <div class="breakdown-item">
+                                    <div class="breakdown-label">
+                                        <span class="status-badge partial">Partial</span>
+                                    </div>
+                                    <div class="breakdown-value">@MockPartialCount stalls</div>
+                                    <div class="breakdown-bar">
+                                        <div class="bar-fill partial" style="width: @(MockOccupiedStalls > 0 ? (MockPartialCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                    </div>
+                                </div>
+                                <div class="breakdown-item">
+                                    <div class="breakdown-label">
+                                        <span class="status-badge unpaid">Unpaid</span>
+                                    </div>
+                                    <div class="breakdown-value">@MockUnpaidCount stalls</div>
+                                    <div class="breakdown-bar">
+                                        <div class="bar-fill unpaid" style="width: @(MockOccupiedStalls > 0 ? (MockUnpaidCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Top Revenue Stalls -->
+                        <div class="breakdown-card">
+                            <h4 class="breakdown-title">Top Revenue Stalls</h4>
+                            <div class="breakdown-list">
+                                @{
+                                    int rank = 1;
+                                }
+                                @foreach (var stall in MockTopStalls)
+                                {
+                                    <div class="breakdown-item compact">
+                                        <div class="breakdown-label">
+                                            <span class="stall-rank">@rank</span>
+                                            <span class="stall-badge">@stall.StallNo</span>
+                                            <span class="stall-name">@stall.Occupant</span>
+                                        </div>
+                                        <div class="breakdown-value">₱@stall.Revenue.ToString("N2")</div>
+                                    </div>
+                                    rank++;
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            </div>
+
+            <!-- ── Footer Actions ── -->
+            <div class="modal-footer">
+                <button class="btn btn-outline" @onclick="ExportReport">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Export PDF
+                </button>
+                <button class="btn btn-outline" @onclick="PrintReport">
+                    <svg viewBox="0 0 24 24">
+                        <polyline points="6 9 6 2 18 2 18 9" />
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                        <rect x="6" y="14" width="12" height="8" />
+                    </svg>
+                    Print
+                </button>
+                <button class="btn btn-primary" @onclick="CloseModal">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Enums
+@inject IFacilitiesApiClient FacilitiesApiClient
+
+@code {
+    [Parameter]
+    public bool IsOpen { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsOpenChanged { get; set; }
+
+    [Parameter]
+    public string FacilityCode { get; set; } = string.Empty;
+
+    [Parameter]
+    public string FacilityName { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ShowSectionBreakdown { get; set; } = false;
+
+    private string SelectedPeriod { get; set; } = "Monthly";
+    private DateTime CurrentDate { get; set; } = DateTime.Now;
+    
+    private bool IsLoading { get; set; } = false;
+    private string? ErrorMessage { get; set; }
+    private FacilityReportsDto? ReportData { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && !string.IsNullOrEmpty(FacilityCode))
+        {
+            await LoadReportDataAsync();
+        }
+    }
+
+    private async Task LoadReportDataAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // Parse facility code
+            if (!Enum.TryParse<FacilityCode>(FacilityCode, out var facilityCodeEnum))
+            {
+                ErrorMessage = "Invalid facility code";
+                return;
+            }
+
+            // Parse period
+            var period = SelectedPeriod switch
+            {
+                "Weekly" => ReportPeriod.Weekly,
+                "Monthly" => ReportPeriod.Monthly,
+                "Yearly" => ReportPeriod.Yearly,
+                _ => ReportPeriod.Monthly
+            };
+
+            // Calculate week number for weekly reports
+            int? weekNumber = null;
+            int? month = null;
+
+            if (period == ReportPeriod.Weekly)
+            {
+                month = CurrentDate.Month;
+                weekNumber = GetWeekOfMonth(CurrentDate);
+            }
+            else if (period == ReportPeriod.Monthly)
+            {
+                month = CurrentDate.Month;
+            }
+
+            // Call API
+            var result = await FacilitiesApiClient.GetFacilityReportsAsync(
+                facilityCodeEnum,
+                period,
+                CurrentDate.Year,
+                month,
+                weekNumber
+            );
+
+            if (result.IsSuccess)
+            {
+                ReportData = result.Value;
+            }
+            else
+            {
+                ErrorMessage = result.Error ?? "Failed to load report data";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error loading report: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private int GetWeekOfMonth(DateTime date)
+    {
+        // Calculate week number based on day of month (same as backend)
+        // Week 1 = Days 1-7, Week 2 = Days 8-14, Week 3 = Days 15-21, Week 4 = Days 22-28, Week 5 = Days 29-31
+        var dayOfMonth = date.Day;
+        var weekNumber = ((dayOfMonth - 1) / 7) + 1;
+        return weekNumber;
+    }
+
+    // Properties that use API data or fallback to mock
+    private decimal MockTotalRevenue => ReportData?.TotalRevenue ?? GetMockTotalRevenue();
+    
+    private decimal GetMockTotalRevenue() => FacilityCode switch
+    {
+        "NPM" => 125450.00m,
+        "TCC" => 89600.00m,
+        "NCC" => 67200.00m,
+        "BBQ" => 38400.00m,
+        "ICE" => 24000.00m,
+        _ => 100000.00m
+    };
+
+    private decimal MockRevenueGrowth => ReportData?.RevenueGrowthPercentage ?? GetMockRevenueGrowth();
+    
+    private decimal GetMockRevenueGrowth() => FacilityCode switch
+    {
+        "NPM" => 12.5m,
+        "TCC" => 8.3m,
+        "NCC" => 15.7m,
+        "BBQ" => 6.2m,
+        "ICE" => 4.8m,
+        _ => 10.0m
+    };
+
+    private int MockCollectionRate => ReportData != null ? (int)ReportData.CollectionRate : GetMockCollectionRate();
+    
+    private int GetMockCollectionRate() => FacilityCode switch
+    {
+        "NPM" => 87,
+        "TCC" => 92,
+        "NCC" => 78,
+        "BBQ" => 85,
+        "ICE" => 95,
+        _ => 85
+    };
+
+    private decimal MockCollectionGrowth => ReportData?.CollectionGrowthPercentage ?? GetMockCollectionGrowth();
+    
+    private decimal GetMockCollectionGrowth() => FacilityCode switch
+    {
+        "NPM" => 5.2m,
+        "TCC" => 3.1m,
+        "NCC" => 7.4m,
+        "BBQ" => 2.8m,
+        "ICE" => 1.5m,
+        _ => 5.0m
+    };
+
+    private int MockOccupiedStalls => ReportData?.OccupiedStalls ?? GetMockOccupiedStalls();
+    
+    private int GetMockOccupiedStalls() => FacilityCode switch
+    {
+        "NPM" => 28,
+        "TCC" => 23,
+        "NCC" => 35,
+        "BBQ" => 12,
+        "ICE" => 8,
+        _ => 20
+    };
+
+    private int MockTotalStalls => GetMockTotalStalls();
+    
+    private int GetMockTotalStalls() => FacilityCode switch
+    {
+        "NPM" => 32,
+        "TCC" => 25,
+        "NCC" => 45,
+        "BBQ" => 15,
+        "ICE" => 10,
+        _ => 30
+    };
+
+    private int MockOccupancyRate => MockTotalStalls > 0 ? (int)((MockOccupiedStalls * 100.0) / MockTotalStalls) : 0;
+
+    private int MockPendingCount => ReportData?.PendingPaymentCount ?? GetMockPendingCount();
+    
+    private int GetMockPendingCount() => FacilityCode switch
+    {
+        "NPM" => 4,
+        "TCC" => 2,
+        "NCC" => 7,
+        "BBQ" => 3,
+        "ICE" => 2,
+        _ => 5
+    };
+
+    private decimal MockPendingAmount => ReportData?.PendingPaymentAmount ?? GetMockPendingAmount();
+    
+    private decimal GetMockPendingAmount() => FacilityCode switch
+    {
+        "NPM" => 18200.00m,
+        "TCC" => 7200.00m,
+        "NCC" => 12800.00m,
+        "BBQ" => 6400.00m,
+        "ICE" => 4000.00m,
+        _ => 10000.00m
+    };
+
+    private int MockPaidCount => ReportData?.CollectionPerformance?.FullyPaidCount ?? GetMockPaidCount();
+    
+    private int GetMockPaidCount() => FacilityCode switch
+    {
+        "NPM" => 24,
+        "TCC" => 21,
+        "NCC" => 28,
+        "BBQ" => 10,
+        "ICE" => 7,
+        _ => 20
+    };
+
+    private int MockPartialCount => ReportData?.CollectionPerformance?.PartiallyPaidCount ?? GetMockPartialCount();
+    
+    private int GetMockPartialCount() => FacilityCode switch
+    {
+        "NPM" => 4,
+        "TCC" => 2,
+        "NCC" => 7,
+        "BBQ" => 2,
+        "ICE" => 1,
+        _ => 3
+    };
+
+    private int MockUnpaidCount => ReportData?.CollectionPerformance?.UnpaidCount ?? GetMockUnpaidCount();
+    
+    private int GetMockUnpaidCount() => FacilityCode switch
+    {
+        "NPM" => 4,
+        "TCC" => 2,
+        "NCC" => 10,
+        "BBQ" => 3,
+        "ICE" => 2,
+        _ => 5
+    };
+
+    private List<SectionData> MockSectionData
+    {
+        get
+        {
+            if (ReportData?.SectionBreakdown != null && ReportData.SectionBreakdown.Any())
+            {
+                return ReportData.SectionBreakdown.Select(s => new SectionData
+                {
+                    Name = s.SectionName,
+                    Revenue = s.Revenue,
+                    Percentage = (int)s.Percentage,
+                    Color = GetSectionColor(s.SectionName)
+                }).ToList();
+            }
+
+            return GetMockSectionData();
+        }
+    }
+
+    private string GetSectionColor(string sectionName) => sectionName switch
+    {
+        "Vegetable Area" or "Corner Stalls" => "#2d7a5f",
+        "Fish Section" or "Extension Area" => "#4a9eff",
+        "Meat Section" => "#c8a84b",
+        _ => "#2d7a5f"
+    };
+
+    private List<SectionData> GetMockSectionData() => FacilityCode switch
+    {
+        "NPM" => new()
+        {
+            new() { Name = "Vegetable Area", Revenue = 45200.00m, Percentage = 36, Color = "#2d7a5f" },
+            new() { Name = "Fish Section", Revenue = 52150.00m, Percentage = 42, Color = "#4a9eff" },
+            new() { Name = "Meat Section", Revenue = 28100.00m, Percentage = 22, Color = "#c8a84b" }
+        },
+        "NCC" => new()
+        {
+            new() { Name = "Corner Stalls", Revenue = 38400.00m, Percentage = 57, Color = "#2d7a5f" },
+            new() { Name = "Extension Area", Revenue = 28800.00m, Percentage = 43, Color = "#4a9eff" }
+        },
+        _ => new()
+    };
+
+    private List<TopStall> MockTopStalls
+    {
+        get
+        {
+            if (ReportData?.TopStalls != null && ReportData.TopStalls.Any())
+            {
+                return ReportData.TopStalls.Select(t => new TopStall
+                {
+                    StallNo = t.StallNumber,
+                    Occupant = t.OccupantName,
+                    Revenue = t.Revenue
+                }).ToList();
+            }
+
+            return GetMockTopStalls();
+        }
+    }
+
+    private List<TopStall> GetMockTopStalls() => FacilityCode switch
+    {
+        "NPM" => new()
+        {
+            new() { StallNo = "F-12", Occupant = "Rosa Gutierrez", Revenue = 5200.00m },
+            new() { StallNo = "V-08", Occupant = "Adan Bohemian", Revenue = 4850.00m },
+            new() { StallNo = "M-05", Occupant = "Juan Santos", Revenue = 4200.00m },
+            new() { StallNo = "F-03", Occupant = "Maria Cruz", Revenue = 3950.00m }
+        },
+        "TCC" => new()
+        {
+            new() { StallNo = "TCC-01", Occupant = "Liza's Boutique", Revenue = 4800.00m },
+            new() { StallNo = "TCC-15", Occupant = "Tech Haven Store", Revenue = 4800.00m },
+            new() { StallNo = "TCC-08", Occupant = "Mang Tomas Eatery", Revenue = 3600.00m },
+            new() { StallNo = "TCC-22", Occupant = "Beauty Corner", Revenue = 3600.00m }
+        },
+        "NCC" => new()
+        {
+            new() { StallNo = "NCC-C12", Occupant = "Golden Harvest Store", Revenue = 3840.00m },
+            new() { StallNo = "NCC-C05", Occupant = "Sunrise Bakery", Revenue = 3200.00m },
+            new() { StallNo = "NCC-E18", Occupant = "Fresh Mart", Revenue = 2400.00m },
+            new() { StallNo = "NCC-C08", Occupant = "Variety Shop", Revenue = 2400.00m }
+        },
+        "BBQ" => new()
+        {
+            new() { StallNo = "BBQ-01", Occupant = "Mang Inasal BBQ", Revenue = 3200.00m },
+            new() { StallNo = "BBQ-05", Occupant = "Grill Master", Revenue = 3200.00m },
+            new() { StallNo = "BBQ-03", Occupant = "Smokey's BBQ", Revenue = 2400.00m },
+            new() { StallNo = "BBQ-08", Occupant = "BBQ King", Revenue = 1600.00m }
+        },
+        "ICE" => new()
+        {
+            new() { StallNo = "ICE-01", Occupant = "Frozen Delights", Revenue = 2000.00m },
+            new() { StallNo = "ICE-03", Occupant = "Ice Factory Co.", Revenue = 2000.00m },
+            new() { StallNo = "ICE-02", Occupant = "Cool Breeze Ice", Revenue = 1500.00m },
+            new() { StallNo = "ICE-04", Occupant = "Arctic Ice Supply", Revenue = 1000.00m }
+        },
+        _ => new()
+    };
+
+    private async Task CloseModal()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(IsOpen);
+    }
+
+    private string GetReportPeriodText()
+    {
+        return SelectedPeriod switch
+        {
+            "Weekly" => $"Week of {CurrentDate:MMM dd, yyyy}",
+            "Monthly" => CurrentDate.ToString("MMMM yyyy"),
+            "Yearly" => CurrentDate.ToString("yyyy"),
+            _ => string.Empty
+        };
+    }
+
+    private string GetCurrentPeriodLabel()
+    {
+        return SelectedPeriod switch
+        {
+            "Weekly" => GetWeeklyDateRangeLabel(),
+            "Monthly" => CurrentDate.ToString("MMMM yyyy"),
+            "Yearly" => CurrentDate.ToString("yyyy"),
+            _ => string.Empty
+        };
+    }
+
+    private string GetWeeklyDateRangeLabel()
+    {
+        // Calculate week number based on day of month (same as backend)
+        var dayOfMonth = CurrentDate.Day;
+        var weekNumber = ((dayOfMonth - 1) / 7) + 1;
+        
+        // Calculate start and end dates (same logic as backend)
+        var startDay = (weekNumber - 1) * 7 + 1;
+        var endDay = Math.Min(weekNumber * 7, DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month));
+        
+        var startDate = new DateTime(CurrentDate.Year, CurrentDate.Month, startDay);
+        var endDate = new DateTime(CurrentDate.Year, CurrentDate.Month, endDay);
+        
+        return $"{startDate:MMM dd} – {endDate:MMM dd, yyyy}";
+    }
+
+    private void NavigatePrevious()
+    {
+        if (SelectedPeriod == "Weekly")
+        {
+            // Calculate current week number
+            var dayOfMonth = CurrentDate.Day;
+            var currentWeekNumber = ((dayOfMonth - 1) / 7) + 1;
+            
+            // Move to previous week
+            if (currentWeekNumber > 1)
+            {
+                // Previous week in same month
+                var previousWeekNumber = currentWeekNumber - 1;
+                var startDay = (previousWeekNumber - 1) * 7 + 1;
+                CurrentDate = new DateTime(CurrentDate.Year, CurrentDate.Month, startDay);
+            }
+            else
+            {
+                // Previous week is in previous month - go to last week of previous month
+                var previousMonth = CurrentDate.AddMonths(-1);
+                var daysInPreviousMonth = DateTime.DaysInMonth(previousMonth.Year, previousMonth.Month);
+                var lastWeekNumber = ((daysInPreviousMonth - 1) / 7) + 1;
+                var startDay = (lastWeekNumber - 1) * 7 + 1;
+                CurrentDate = new DateTime(previousMonth.Year, previousMonth.Month, startDay);
+            }
+        }
+        else
+        {
+            CurrentDate = SelectedPeriod switch
+            {
+                "Monthly" => CurrentDate.AddMonths(-1),
+                "Yearly" => CurrentDate.AddYears(-1),
+                _ => CurrentDate
+            };
+        }
+        _ = LoadReportDataAsync();
+    }
+
+    private void NavigateNext()
+    {
+        if (SelectedPeriod == "Weekly")
+        {
+            // Calculate current week number
+            var dayOfMonth = CurrentDate.Day;
+            var currentWeekNumber = ((dayOfMonth - 1) / 7) + 1;
+            var daysInCurrentMonth = DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+            var totalWeeksInMonth = ((daysInCurrentMonth - 1) / 7) + 1;
+            
+            // Move to next week
+            if (currentWeekNumber < totalWeeksInMonth)
+            {
+                // Next week in same month
+                var nextWeekNumber = currentWeekNumber + 1;
+                var startDay = (nextWeekNumber - 1) * 7 + 1;
+                CurrentDate = new DateTime(CurrentDate.Year, CurrentDate.Month, startDay);
+            }
+            else
+            {
+                // Next week is in next month - go to first week of next month
+                var nextMonth = CurrentDate.AddMonths(1);
+                CurrentDate = new DateTime(nextMonth.Year, nextMonth.Month, 1);
+            }
+        }
+        else
+        {
+            CurrentDate = SelectedPeriod switch
+            {
+                "Monthly" => CurrentDate.AddMonths(1),
+                "Yearly" => CurrentDate.AddYears(1),
+                _ => CurrentDate
+            };
+        }
+        _ = LoadReportDataAsync();
+    }
+
+    private RenderFragment RenderRevenueChart() => __builder =>
+    {
+        decimal[] chartData;
+        
+        // Use real data from API if available
+        if (ReportData?.RevenueTrend != null && ReportData.RevenueTrend.Any())
+        {
+            chartData = ReportData.RevenueTrend.Select(t => t.Revenue).ToArray();
+        }
+        else
+        {
+            // Fallback to mock data
+            chartData = (FacilityCode, SelectedPeriod) switch
+            {
+                // NPM - Daily collection facility (higher daily volumes)
+                ("NPM", "Weekly") => new[] { 15200m, 18500m, 17800m, 19200m, 16500m, 20100m, 18150m },
+                ("NPM", "Monthly") => new[] { 95000m, 102000m, 98500m, 105000m, 112000m, 125450m },
+                ("NPM", "Yearly") => new[] { 980000m, 1050000m, 1125000m, 1245000m, 1350000m },
+                
+                // TCC - Monthly rental (stable, higher rates)
+                ("TCC", "Weekly") => new[] { 18200m, 19800m, 21500m, 20100m, 22400m, 23100m, 21800m },
+                ("TCC", "Monthly") => new[] { 72000m, 76800m, 81600m, 84000m, 86400m, 89600m },
+                ("TCC", "Yearly") => new[] { 720000m, 768000m, 816000m, 864000m, 912000m },
+                
+                // NCC - Monthly rental (moderate rates, growing)
+                ("NCC", "Weekly") => new[] { 12800m, 14200m, 13500m, 15800m, 16200m, 17100m, 15600m },
+                ("NCC", "Monthly") => new[] { 48000m, 52800m, 57600m, 60000m, 64800m, 67200m },
+                ("NCC", "Yearly") => new[] { 480000m, 528000m, 576000m, 624000m, 672000m },
+                
+                // BBQ - Monthly space rental (seasonal variations)
+                ("BBQ", "Weekly") => new[] { 7200m, 8400m, 9600m, 8800m, 10200m, 9800m, 9200m },
+                ("BBQ", "Monthly") => new[] { 28800m, 32000m, 33600m, 35200m, 36800m, 38400m },
+                ("BBQ", "Yearly") => new[] { 288000m, 320000m, 336000m, 352000m, 384000m },
+                
+                // ICE - Monthly space rental (stable, lower volume)
+                ("ICE", "Weekly") => new[] { 4800m, 5200m, 5600m, 5400m, 6000m, 5800m, 5600m },
+                ("ICE", "Monthly") => new[] { 18000m, 19000m, 20000m, 21000m, 22500m, 24000m },
+                ("ICE", "Yearly") => new[] { 180000m, 190000m, 200000m, 220000m, 240000m },
+                
+                _ => Array.Empty<decimal>()
+            };
+        }
+
+        // Calculate actual max from data
+        var dataMax = chartData.Any() && chartData.Max() > 0 ? chartData.Max() : 1;
+        
+        // Calculate a "nice" scale value by rounding up to the nearest nice number
+        // This ensures small values like ₱30 show as small bars, not 100% height
+        var maxValue = CalculateNiceScale(dataMax);
+        var labels = GetChartLabels();
+
+        // Wrapper with gridlines + bars overlaid
+        <div class="bar-chart-wrap">
+            <div class="bar-chart-grid">
+                <div class="bar-chart-grid-line"></div>
+                <div class="bar-chart-grid-line"></div>
+                <div class="bar-chart-grid-line"></div>
+                <div class="bar-chart-grid-line"></div>
+            </div>
+            <div class="bar-chart">
+                @for (int i = 0; i < chartData.Length; i++)
+                {
+                    var height = maxValue > 0 ? (chartData[i] / maxValue) * 100 : 0;
+                    var isHighlight = i == chartData.Length - 1;
+                    <div class="bar-group">
+                        <div class="bar-wrapper">
+                            <div class="bar @(isHighlight ? "highlight" : "")" style="height: @(height)%">
+                                <span class="bar-value">₱@(chartData[i] / 1000)k</span>
+                            </div>
+                        </div>
+                        <span class="bar-label">@(i < labels.Length ? labels[i] : "")</span>
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderPaymentStatusChart() => __builder =>
+    {
+        var total = MockPaidCount + MockPartialCount + MockUnpaidCount;
+        var paidPercent = total > 0 ? (MockPaidCount * 100.0 / total) : 0;
+        var partialPercent = total > 0 ? (MockPartialCount * 100.0 / total) : 0;
+        var unpaidPercent = total > 0 ? (MockUnpaidCount * 100.0 / total) : 0;
+
+        <div class="donut-chart">
+            <svg viewBox="0 0 200 200" class="donut-svg">
+                <!-- Track ring -->
+                <circle cx="100" cy="100" r="75" fill="none" stroke="#eef2f6" stroke-width="32" />
+                <!-- Paid segment -->
+                <circle cx="100" cy="100" r="75" fill="none" stroke="#2d7a5f" stroke-width="32"
+                        stroke-dasharray="@(paidPercent * 4.712) 471.2"
+                        stroke-dashoffset="0"
+                        transform="rotate(-90 100 100)" />
+                <!-- Partial segment -->
+                <circle cx="100" cy="100" r="75" fill="none" stroke="#c8a84b" stroke-width="32"
+                        stroke-dasharray="@(partialPercent * 4.712) 471.2"
+                        stroke-dashoffset="@(-paidPercent * 4.712)"
+                        transform="rotate(-90 100 100)" />
+                <!-- Unpaid segment -->
+                <circle cx="100" cy="100" r="75" fill="none" stroke="#8b3a3a" stroke-width="32"
+                        stroke-dasharray="@(unpaidPercent * 4.712) 471.2"
+                        stroke-dashoffset="@(-(paidPercent + partialPercent) * 4.712)"
+                        transform="rotate(-90 100 100)" />
+            </svg>
+            <div class="donut-center">
+                <div class="donut-value">@MockCollectionRate%</div>
+                <div class="donut-label">Collected</div>
+            </div>
+        </div>
+
+        <div class="donut-legend">
+            <div class="legend-item">
+                <span class="legend-dot" style="background: #2d7a5f"></span>
+                <span class="legend-name">Paid</span>
+                <span class="legend-percent">@paidPercent.ToString("F1")%</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: #c8a84b"></span>
+                <span class="legend-name">Partial</span>
+                <span class="legend-percent">@partialPercent.ToString("F1")%</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: #8b3a3a"></span>
+                <span class="legend-name">Unpaid</span>
+                <span class="legend-percent">@unpaidPercent.ToString("F1")%</span>
+            </div>
+        </div>
+    };
+
+    private string[] GetChartLabels()
+    {
+        // Use real labels from API if available
+        if (ReportData?.RevenueTrend != null && ReportData.RevenueTrend.Any())
+        {
+            return ReportData.RevenueTrend.Select(t => t.PeriodLabel).ToArray();
+        }
+
+        // Fallback to default labels
+        return SelectedPeriod switch
+        {
+            "Weekly" => new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" },
+            "Monthly" => new[] { "Jan", "Feb", "Mar", "Apr", "May", "Jun" },
+            "Yearly" => new[] { "2020", "2021", "2022", "2023", "2024" },
+            _ => Array.Empty<string>()
+        };
+    }
+
+    private async Task ExportReport()
+    {
+        // TODO: Implement PDF export via API
+        await Task.CompletedTask;
+    }
+
+    private async Task PrintReport()
+    {
+        // TODO: Implement print functionality
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Calculates a "nice" scale value by rounding up to the nearest nice round number.
+    /// This ensures small values show as small bars, not 100% height.
+    /// Examples: ₱30 → ₱100, ₱150 → ₱200, ₱850 → ₱1,000, ₱5,200 → ₱10,000
+    /// </summary>
+    private decimal CalculateNiceScale(decimal maxValue)
+    {
+        if (maxValue <= 0) return 100m;
+
+        // Find the order of magnitude (power of 10)
+        var magnitude = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)maxValue)));
+
+        // Normalize the value to 1-10 range
+        var normalized = maxValue / magnitude;
+
+        // Round up to nice numbers: 1, 2, 5, or 10
+        decimal niceNormalized;
+        if (normalized <= 1) niceNormalized = 1;
+        else if (normalized <= 2) niceNormalized = 2;
+        else if (normalized <= 5) niceNormalized = 5;
+        else niceNormalized = 10;
+
+        // Scale back to original magnitude
+        return niceNormalized * magnitude;
+    }
+
+    private class SectionData
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+        public int Percentage { get; set; }
+        public string Color { get; set; } = string.Empty;
+    }
+
+    private class TopStall
+    {
+        public string StallNo { get; set; } = string.Empty;
+        public string Occupant { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+    }
+}

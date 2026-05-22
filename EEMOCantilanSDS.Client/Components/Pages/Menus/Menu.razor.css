@@ -73,6 +73,14 @@
         stroke-linejoin: round;
     }
 
+    .facility-card-icon img {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        object-fit: contain;
+        background: #fff;
+    }
+
 .facility-card-code {
     font-size: 8.5px;
     font-weight: 700;
@@ -331,6 +339,14 @@
         stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
+    }
+
+    .vs-hero-icon img {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        object-fit: contain;
+        background: #fff;
     }
 
 .vs-hero-eyebrow {

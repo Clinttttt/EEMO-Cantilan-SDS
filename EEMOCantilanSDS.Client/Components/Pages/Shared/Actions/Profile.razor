@@ -562,10 +562,10 @@
                         {
                             <span class="input-error-msg">Partial amount must be greater than ₱0</span>
                         }
-                        @if (PartialAmountInput > 0 && PartialAmountInput < Stall.TotalBill)
+                        @if (PartialAmountInput > 0 && GetDisplayBalanceRemaining() > 0)
                         {
                             <div class="partial-hint">
-                                Balance remaining: ₱@((Stall.TotalBill - PartialAmountInput).ToString("N2"))
+                                Balance remaining: ₱@(GetDisplayBalanceRemaining().ToString("N2"))
                             </div>
                         }
                     </div>
@@ -586,8 +586,8 @@
                     }
                     else if (PayStatus == "Partial")
                     {
-                        <div class="pay-record-row"><span class="pay-record-key">Partial Amount Paid</span><span class="pay-record-val green">₱@Stall.PartialAmount.ToString("N0")</span></div>
-                        <div class="pay-record-row"><span class="pay-record-key">Balance Remaining</span><span class="pay-record-val red">₱@Stall.BalanceDue.ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Partial Amount Paid</span><span class="pay-record-val green">₱@GetDisplayPartialAmount().ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Balance Remaining</span><span class="pay-record-val red">₱@GetDisplayBalanceRemaining().ToString("N0")</span></div>
                     }
                     else
                     {
@@ -612,7 +612,7 @@
                           Occupant="@Stall.ActualOccupant"
                           BillingPeriod="@DateTime.Now.ToString("MMMM yyyy")"
                           TotalBill="@Stall.TotalBill"
-                          PartialAmount="@PartialAmountInput"
+                          PartialAmount="@GetDisplayPartialAmount()"
                           @bind-ORNumber="ConfirmOrNumber"
                           OnConfirm="SavePayment"
                           OnCancel="() => ShowConfirmModal = false" />
@@ -891,7 +891,7 @@
             DateTime.Now.Year,
             DateTime.Now.Month,
             status,
-            PayStatus == "Partial" ? PartialAmountInput : null,
+            PayStatus == "Partial" ? GetDisplayPartialAmount() : null,
             string.IsNullOrWhiteSpace(RemarksInput) ? null : RemarksInput
         );
         
@@ -917,6 +917,24 @@
             ConfirmOrNumber = string.Empty;
             await LoadStallData();
         }
+    }
+
+    // ── Display helpers for partial payment breakdown ──
+    decimal GetDisplayPartialAmount()
+    {
+        // If user is entering a new partial amount, ADD it to existing partial amount
+        // This allows cumulative payments (e.g., ₱500 already paid + ₱400 new = ₱900 total)
+        if (PartialAmountInput > 0)
+            return Stall.PartialAmount + PartialAmountInput;
+        return Stall.PartialAmount;
+    }
+
+    decimal GetDisplayBalanceRemaining()
+    {
+        // Calculate balance based on the displayed partial amount (cumulative)
+        var totalBill = Stall.TotalBill;
+        var partialAmount = GetDisplayPartialAmount();
+        return totalBill - partialAmount;
     }
 }
 
