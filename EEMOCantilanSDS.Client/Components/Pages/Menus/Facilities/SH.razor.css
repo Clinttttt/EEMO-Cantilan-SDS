@@ -200,6 +200,18 @@
         color: #d4af70;
     }
 
+.btn-outline {
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-color: var(--border);
+}
+
+    .btn-outline:hover {
+        background: var(--bg);
+        color: var(--text-subtle);
+        border-color: var(--text-muted);
+    }
+
 
 /* -- Facility Info Bar ------------------------------------- */
 .slh-facility-info {

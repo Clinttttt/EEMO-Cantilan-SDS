@@ -43,6 +43,6 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
 
     private async Task<bool> BeUniqueStallNo(CreateStallCommand command, string stallNo, CancellationToken cancellationToken)
     {
-        return await _stallRepo.IsStallNoUniqueAsync(command.FacilityCode, stallNo, cancellationToken);
+        return await _stallRepo.IsStallNoUniqueAsync(command.FacilityCode, command.Section, stallNo, cancellationToken);
     }
 }

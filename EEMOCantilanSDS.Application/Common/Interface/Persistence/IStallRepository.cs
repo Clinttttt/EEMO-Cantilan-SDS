@@ -17,5 +17,5 @@ public interface IStallRepository
     Task AddAsync(Stall stall, CancellationToken ct);
     Task AddContractAsync(Contract contract, CancellationToken ct);
     Task UpdateAsync(Stall stall, CancellationToken ct);
-    Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, string stallNo, CancellationToken ct);
+    Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string stallNo, CancellationToken ct);
 }

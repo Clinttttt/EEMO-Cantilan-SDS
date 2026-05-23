@@ -146,6 +146,12 @@
                         @SelectedFriday.Value.ToString("MMMM d, yyyy")
                     </div>
                 }
+                <button class="btn-outline" @onclick="OpenReportsModal" title="View Tabo-an Public Market Reports">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
+                        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
+                    </svg>
+                    Reports
+                </button>
             </div>
 
             @if (!SelectedFriday.HasValue)
@@ -264,6 +270,24 @@
 </div>
 
 <!-- ── Add Vendor Modal ── -->
+<FacilityReportsModal @bind-IsOpen="ShowReports"
+                      FacilityCode="TPM"
+                      FacilityName="Tabo-an Public Market"
+                      TotalRevenueOverride="@TpmCollectedAmount"
+                      CollectionRateOverride="@TpmCollectionRate"
+                      OccupiedCountOverride="@TpmActiveVendorCount"
+                      TotalCountOverride="@TpmVendorEntryCount"
+                      PendingCountOverride="@TpmUnpaidCount"
+                      PendingAmountOverride="@TpmUncollectedAmount"
+                      PaidCountOverride="@TpmPaidCount"
+                      PartialCountOverride="0"
+                      UnpaidCountOverride="@TpmUnpaidCount"
+                      RevenueTrendOverride="@TpmTrendPoints">
+    <AdditionalCharts>
+        <TpmReportCharts MarketDays="MarketDays" />
+    </AdditionalCharts>
+</FacilityReportsModal>
+
 @if (ShowAddVendorModal)
 {
     <div class="tpm-modal-overlay" @onclick="CloseAddVendorModal">
@@ -360,7 +384,7 @@
     {
         new() { Value = $"₱{Overview?.CollectedThisMonth ?? 0:N0}", Label = "Collected This Month" },
         new() { Value = $"{Overview?.FridaysThisMonth ?? 0}", Label = "Fridays This Month" },
-        new() { Value = $"{Overview?.RegisteredVendors ?? 0}", Label = "Registered Vendors" }
+        new() { Value = $"{Overview?.VendorEntriesThisMonth ?? 0}", Label = "Vendor Entries" }
     };
 
     // ── State ─────────────────────────────────────
@@ -374,18 +398,38 @@
     private string VendorSearch = string.Empty;
     private bool isLoadingAttendance;
     private bool isSaving;
+    private bool ShowReports;
 
     // ── Computed ──────────────────────────────────
     private IEnumerable<TpmVendorAttendanceDto> FilteredVendors => Attendance
         .Where(a => string.IsNullOrWhiteSpace(VendorSearch)
                  || a.VendorName.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase))
         .OrderBy(a => a.VendorName);
+    private int TpmPaidCount => Attendance.Count(v => v.IsPaid);
+    private int TpmUnpaidCount => Attendance.Count(v => !v.IsPaid);
+    private int TpmActiveVendorCount => Attendance.Any() ? Attendance.Count : Overview?.VendorEntriesThisMonth ?? 0;
+    private int TpmVendorEntryCount => Math.Max(Overview?.VendorEntriesThisMonth ?? 0, TpmActiveVendorCount);
+    private decimal TpmCollectedAmount => Attendance.Any()
+        ? Attendance.Where(v => v.IsPaid).Sum(v => v.Fee)
+        : Overview?.CollectedThisMonth ?? 0m;
+    private decimal TpmUncollectedAmount => Attendance.Any()
+        ? Attendance.Where(v => !v.IsPaid).Sum(v => v.Fee)
+        : TpmUnpaidCount * 100m;
+    private decimal TpmCollectionRate => Attendance.Any()
+        ? (TpmPaidCount * 100m) / Attendance.Count
+        : Overview?.CollectionRate ?? 0m;
+    private IReadOnlyList<FacilityReportsModal.ReportTrendPoint> TpmTrendPoints => MarketDays
+        .OrderBy(m => m.MarketDate)
+        .Select(m => new FacilityReportsModal.ReportTrendPoint(m.MarketDate.ToString("MMM d"), m.TotalCollected))
+        .ToList();
 
     // ── Lifecycle ─────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         await LoadOverviewAndMarketDaysAsync();
     }
+
+    private void OpenReportsModal() => ShowReports = true;
 
     private async Task LoadOverviewAndMarketDaysAsync()
     {

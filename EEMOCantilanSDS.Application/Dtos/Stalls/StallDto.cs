@@ -12,6 +12,7 @@ public record StallDto(
     double? AreaSqm,
     DateTime? ContractDate,
     decimal MonthlyRate,
+    decimal? DailyRate,
     string? ORNumber,
     MarketSection? Section,
     NccAreaLocation? AreaLocation,

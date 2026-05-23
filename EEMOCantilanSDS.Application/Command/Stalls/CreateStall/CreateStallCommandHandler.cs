@@ -57,6 +57,7 @@ public class CreateStallCommandHandler(
             request.AreaSqm,
             request.ContractDate,
             request.MonthlyRate,
+            request.DailyRate,
             null,
             request.Section,
             request.AreaLocation,

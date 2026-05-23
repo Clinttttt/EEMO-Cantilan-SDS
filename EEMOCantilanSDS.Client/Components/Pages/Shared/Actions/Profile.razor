@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Client.Components.Modals
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
+@inject IDailyCollectionApiClient DailyCollectionApi
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
@@ -651,6 +652,7 @@
         public string ContractDuration { get; set; } = string.Empty;
         public DateTime? ContractExpiry { get; set; }
         public decimal MonthlyRate { get; set; }
+        public decimal? DailyRate { get; set; }
         public bool HasElectricity { get; set; }
         public decimal ElecReading { get; set; }
         public decimal ElecAmount { get; set; }
@@ -773,6 +775,7 @@
                     ContractDuration = "3 years",
                     ContractExpiry = stallDto.ContractDate?.AddYears(3),
                     MonthlyRate = stallDto.MonthlyRate,
+                    DailyRate = stallDto.DailyRate,
                     HasElectricity = hasElec,
                     ElecReading = 0,
                     ElecAmount = elecAmount,
@@ -885,7 +888,7 @@
             "Partial" => Domain.Enums.PaymentStatus.Partial,
             _ => Domain.Enums.PaymentStatus.Unpaid
         };
-        
+
         var command = new EEMOCantilanSDS.Application.Command.Payments.RecordPayment.RecordPaymentCommand(
             StallGuid,
             DateTime.Now.Year,
@@ -894,11 +897,12 @@
             PayStatus == "Partial" ? GetDisplayPartialAmount() : null,
             string.IsNullOrWhiteSpace(RemarksInput) ? null : RemarksInput
         );
-        
+
         var result = await PaymentsApi.RecordPaymentAsync(command);
-        
+
         if (result.IsSuccess)
         {
+            // ── OR Number ──────────────────────────────────────────────
             if (!string.IsNullOrWhiteSpace(ConfirmOrNumber) && status != Domain.Enums.PaymentStatus.Unpaid)
             {
                 var paymentRecord = await PaymentsApi.GetPaymentRecordAsync(StallGuid, DateTime.Now.Year, DateTime.Now.Month);
@@ -911,12 +915,76 @@
                     await PaymentsApi.SaveOrNumberAsync(orCommand);
                 }
             }
+
+            // ── Auto-mark Daily Collection Calendar (NPM only) ─────────
+            // Rule: ₱30/day.  Paid=30 days, Partial=floor(amount/30) days.
+            // Days are filled starting from ContractDate (clamped to current month).
+            // Fish kilos are intentionally left null — collectors enter those on mobile.
+            if (FacilityId.ToUpper() == "NPM" && status != Domain.Enums.PaymentStatus.Unpaid)
+            {
+                await AutoMarkDailyCollections(status);
+            }
+
             ShowConfirmModal = false;
             PartialAmountInput = 0;
             RemarksInput = string.Empty;
             ConfirmOrNumber = string.Empty;
             await LoadStallData();
         }
+    }
+
+    /// <summary>
+    /// After admin records a monthly payment for an NPM stall, automatically
+    /// marks the corresponding number of days as collected in the daily calendar.
+    ///
+    /// Paid    → floor(MonthlyRate / DailyRate) days  (e.g. ₱900 / ₱30 = 30 days)
+    /// Partial → floor(amountPaid / DailyRate) days
+    ///
+    /// Start date = ContractDate clamped to the first day of the current month.
+    /// Days span forward including future dates and across month boundaries
+    /// so the vendor’s full coverage is always reflected on the calendar.
+    /// Fish kilos are left null — collectors enter those on mobile.
+    /// </summary>
+    async Task AutoMarkDailyCollections(Domain.Enums.PaymentStatus status)
+    {
+        // Use the stall’s own DailyRate; fall back to ₱30 for legacy stalls
+        // that pre-date the DailyRate field.
+        var dailyRate = (Stall.DailyRate.HasValue && Stall.DailyRate.Value > 0)
+            ? Stall.DailyRate.Value
+            : 30m;
+
+        // Full monthly rate for Paid; actual amount entered for Partial
+        decimal amountPaid = status == Domain.Enums.PaymentStatus.Paid
+            ? Stall.MonthlyRate
+            : GetDisplayPartialAmount();
+
+        int daysToMark = (int)Math.Floor(amountPaid / dailyRate);
+        if (daysToMark <= 0) return;
+
+        var now       = DateTime.Now;
+        var monthStart = new DateTime(now.Year, now.Month, 1);
+
+        // Start from ContractDate but never before the beginning of this month
+        var startDate = Stall.ContractDate.HasValue && Stall.ContractDate.Value > monthStart
+            ? Stall.ContractDate.Value.Date
+            : monthStart;
+
+        // Build the exact list of dates (may cross into the next month)
+        var datesToMark = Enumerable
+            .Range(0, daysToMark)
+            .Select(i => DateOnly.FromDateTime(startDate.AddDays(i)))
+            .ToList();
+
+        // Fire all requests in parallel — 30 concurrent calls is near-instant
+        await Task.WhenAll(datesToMark.Select(date =>
+            DailyCollectionApi.RecordDailyCollectionAsync(
+                new EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection
+                    .RecordDailyCollectionCommand(
+                        StallId: StallGuid,
+                        CollectionDate: date,
+                        IsPaid: true,
+                        FishKilos: null  // collector enters kilos on mobile
+                    ))));
     }
 
     // ── Display helpers for partial payment breakdown ──

@@ -6,11 +6,15 @@ public record FacilityReportsDto(
     decimal CollectionRate,
     decimal CollectionGrowthPercentage,
     int OccupiedStalls,
+    int TotalStalls,
     int PendingPaymentCount,
     decimal PendingPaymentAmount,
     IReadOnlyList<RevenueTrendDto> RevenueTrend,
     PaymentStatusDistributionDto PaymentDistribution,
     IReadOnlyList<SectionBreakdownDto> SectionBreakdown,
     IReadOnlyList<TopStallDto> TopStalls,
-    CollectionPerformanceDto CollectionPerformance
+    CollectionPerformanceDto CollectionPerformance,
+    DailyCollectionStreakDto? DailyCollectionStreak,
+    FeeTypeBreakdownDto? FeeTypeBreakdown,
+    IReadOnlyList<FishKiloTrendDto> FishKiloTrend
 );

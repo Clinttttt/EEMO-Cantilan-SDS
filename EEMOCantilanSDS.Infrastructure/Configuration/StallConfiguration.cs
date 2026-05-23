@@ -50,7 +50,13 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
             builder.Property(s => s.DailyRate)
                 .HasPrecision(18, 2);
 
-            builder.HasIndex(s=> new {s.FacilityId, s.StallNo}).IsUnique();
+            builder.HasIndex(s => new { s.FacilityId, s.Section, s.StallNo })
+                .IsUnique()
+                .HasFilter("\"Section\" IS NOT NULL");
+
+            builder.HasIndex(s => new { s.FacilityId, s.StallNo })
+                .IsUnique()
+                .HasFilter("\"Section\" IS NULL");
             
             builder.HasOne(s => s.Facility)
                 .WithMany(f => f.Stalls)

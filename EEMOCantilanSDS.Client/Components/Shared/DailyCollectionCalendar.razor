@@ -38,14 +38,18 @@
             var isFuture = day.Date > DateTime.Now.Date;
             var isToday = day.Date == DateTime.Now.Date;
             var isBeforeContract = ContractDate.HasValue && day.Date < ContractDate.Value;
-            var isOutOfScope = isFuture || isBeforeContract;
             var isMarked = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
-            var cellClass = isBeforeContract ? "cal-before-contract" : (isFuture ? "cal-future" : (isMarked ? "cal-paid" : "cal-miss"));
+            // A future day that has already been pre-paid by admin should show as
+            // collected (green), not as "Soon". Only unmark future days are out-of-scope.
+            var isOutOfScope = (isFuture && !isMarked) || isBeforeContract;
+            var cellClass = isBeforeContract ? "cal-before-contract"
+                          : (isFuture && !isMarked) ? "cal-future"
+                          : isMarked ? "cal-paid" : "cal-miss";
             var dailyKilo = MonthData?.Collections.ContainsKey(dayKey) == true ? MonthData.Collections[dayKey].FishKilos ?? 0 : 0;
 
             <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(IsFishSection ? "cal-cell-fish" : "")">
 
-                @if (isFuture)
+                @if (isFuture && !isMarked)
                 {
                     <div class="cal-overlay-label">Soon</div>
                 }
@@ -54,8 +58,8 @@
                     <div class="cal-overlay-label cal-overlay-before">N/A</div>
                 }
 
-                <div class="cal-cell-header @(isOutOfScope ? "" : "cal-cell-header-clickable")"
-                     @onclick="() => { if (!isOutOfScope) ToggleDay(day); }">
+                <div class="cal-cell-header @(isOutOfScope || ReadOnly ? "" : "cal-cell-header-clickable")"
+                     @onclick="() => { if (!isOutOfScope && !ReadOnly) ToggleDay(day); }">
                     <span class="cal-num">@d</span>
                     @if (!isOutOfScope)
                     {
@@ -74,17 +78,27 @@
 
                 @if (IsFishSection && !isOutOfScope && isMarked)
                 {
-                    <div class="cal-kilo-bottom" @onclick:stopPropagation="true">
-                        <input type="number"
-                               min="0"
-                               step="1"
-                               placeholder="0"
-                               value="@((int)dailyKilo)"
-                               class="cal-kilo-input-inline"
-                               @onclick:stopPropagation="true"
-                               @onchange="@(e => UpdateFishKilo(day, int.TryParse(e.Value?.ToString(), out var k) ? k : 0))" />
-                        <span class="cal-kilo-label-inline">kg</span>
-                    </div>
+                    @if (ReadOnly)
+                    {
+                        <div class="cal-kilo-bottom">
+                            <span class="cal-kilo-input-inline" style="cursor:default;">@((int)dailyKilo)</span>
+                            <span class="cal-kilo-label-inline">kg</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="cal-kilo-bottom" @onclick:stopPropagation="true">
+                            <input type="number"
+                                   min="0"
+                                   step="1"
+                                   placeholder="0"
+                                   value="@((int)dailyKilo)"
+                                   class="cal-kilo-input-inline"
+                                   @onclick:stopPropagation="true"
+                                   @onchange="@(e => UpdateFishKilo(day, int.TryParse(e.Value?.ToString(), out var k) ? k : 0))" />
+                            <span class="cal-kilo-label-inline">kg</span>
+                        </div>
+                    }
                 }
                 else if (IsFishSection && !isOutOfScope)
                 {
@@ -130,13 +144,19 @@
     [Parameter] public DateTime? ContractDate { get; set; }
     [Parameter] public bool IsFishSection { get; set; }
     [Parameter] public string SectionClass { get; set; } = "";
+    /// <summary>
+    /// When true, the calendar is display-only. Day cells are not clickable and
+    /// fish-kilo entries are shown as plain text. Set this on the admin/web side;
+    /// leave false on the mobile collector side.
+    /// </summary>
+    [Parameter] public bool ReadOnly { get; set; } = false;
 
     private DateTime CurrentMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
     private DailyCollectionMonthDto? MonthData;
 
     private int DaysInMonth => DateTime.DaysInMonth(CurrentMonth.Year, CurrentMonth.Month);
     private int CalendarOffset => (int)new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1).DayOfWeek;
-    private bool CanGoNext => CurrentMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private bool CanGoNext => CurrentMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1).AddMonths(1);
 
     protected override async Task OnParametersSetAsync()
     {

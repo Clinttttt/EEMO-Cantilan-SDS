@@ -294,8 +294,13 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FacilityId", "Section", "StallNo")
+                        .IsUnique()
+                        .HasFilter("\"Section\" IS NOT NULL");
+
                     b.HasIndex("FacilityId", "StallNo")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Section\" IS NULL");
 
                     b.ToTable("Stalls", (string)null);
                 });

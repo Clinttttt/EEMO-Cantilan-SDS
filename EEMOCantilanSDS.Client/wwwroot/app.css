@@ -606,23 +606,37 @@ a {
 }
 
 .btn-outline {
-    padding: 7px 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
     border-radius: 8px;
     border: 1.5px solid var(--border);
     font-size: 12px;
-    font-weight: 500;
-    color: var(--text-subtle);
+    font-weight: 600;
+    color: var(--text-muted);
     background: var(--bg-card);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
     text-decoration: none;
-    display: inline-block;
 }
 
     .btn-outline:hover {
-        border-color: var(--gold);
-        color: var(--gold);
+        background: var(--bg);
+        color: var(--text-subtle);
+        border-color: var(--text-muted);
+    }
+
+    .btn-outline svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
     }
 
 /* ══════════════════════════════════════════

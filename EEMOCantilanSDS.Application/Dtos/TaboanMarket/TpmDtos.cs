@@ -4,7 +4,7 @@ public record TpmOverviewDto
 {
     public decimal CollectedThisMonth { get; init; }
     public int FridaysThisMonth { get; init; }
-    public int RegisteredVendors { get; init; }
+    public int VendorEntriesThisMonth { get; init; }
     public int CollectionRate { get; init; }
 }
 

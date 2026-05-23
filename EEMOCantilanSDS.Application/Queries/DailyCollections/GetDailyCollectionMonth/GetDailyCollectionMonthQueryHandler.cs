@@ -42,6 +42,7 @@ public class GetDailyCollectionMonthQueryHandler(
 
         var validDays = Math.Max(0, maxDay - contractStartDay + 1);
         var daysCollected = 0;
+        var daysCollectedPast = 0;   // only days up to today, for DaysMissed calculation
         var totalFishKilos = 0m;
 
         var collectionDict = new Dictionary<string, DailyCollectionDayDto>();
@@ -55,19 +56,27 @@ public class GetDailyCollectionMonthQueryHandler(
                 collection.FishKilos
             );
 
-            if (collection.IsPaid && collection.CollectionDate.Day >= contractStartDay && collection.CollectionDate.Day <= maxDay)
+            if (collection.IsPaid && collection.CollectionDate.Day >= contractStartDay)
             {
+                // Count ALL paid days — including future pre-paid days written by admin
                 daysCollected++;
+
+                // Separately track only past-or-today days for DaysMissed
+                if (collection.CollectionDate.Day <= maxDay)
+                    daysCollectedPast++;
+
                 if (collection.FishKilos.HasValue)
                     totalFishKilos += collection.FishKilos.Value;
             }
         }
 
-        var daysMissed = validDays - daysCollected;
+        var daysMissed    = Math.Max(0, validDays - daysCollectedPast);
         var totalDailyFee = daysCollected * FeeRates.NpmDailyFee;
-        var totalFishFee = totalFishKilos * FeeRates.NpmFishFeePerKilo;
-        var grandTotal = totalDailyFee + totalFishFee;
-        var isFullyPaid = validDays > 0 && daysCollected == validDays;
+        var totalFishFee  = totalFishKilos * FeeRates.NpmFishFeePerKilo;
+        var grandTotal    = totalDailyFee + totalFishFee;
+        // Fully paid when the entire month's days (from contract start) are covered
+        var fullMonthDays = Math.Max(0, daysInMonth - contractStartDay + 1);
+        var isFullyPaid   = fullMonthDays > 0 && daysCollected >= fullMonthDays;
 
         return Result<DailyCollectionMonthDto>.Success(new DailyCollectionMonthDto(
             request.Year,

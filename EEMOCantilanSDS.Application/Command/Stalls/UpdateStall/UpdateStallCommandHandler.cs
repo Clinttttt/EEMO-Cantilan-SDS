@@ -39,6 +39,7 @@ public class UpdateStallCommandHandler(
             request.AreaSqm,
             activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
             request.MonthlyRate,
+            request.DailyRate,
             activeContract?.ORNumber,
             stall.Section,
             stall.AreaLocation,

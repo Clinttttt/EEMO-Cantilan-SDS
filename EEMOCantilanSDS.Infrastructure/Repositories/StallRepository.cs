@@ -151,6 +151,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 x.Stall.AreaSqm,
                 x.ActiveContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
                 x.Stall.MonthlyRate,
+                x.Stall.DailyRate,
                 x.ActiveContract?.ORNumber,
                 x.Stall.Section,
                 x.Stall.AreaLocation,
@@ -186,6 +187,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 s.AreaSqm,
                 activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
                 s.MonthlyRate,
+                s.DailyRate,
                 activeContract?.ORNumber,
                 s.Section,
                 s.AreaLocation,
@@ -246,10 +248,16 @@ public class StallRepository(AppDbContext context) : IStallRepository
         await Task.CompletedTask;
     }
 
-    public async Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, string stallNo, CancellationToken ct)
+    public async Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string stallNo, CancellationToken ct)
     {
-        return !await context.Stalls.AnyAsync(s => 
-            s.Facility!.Code == facilityCode && 
-            s.StallNo == stallNo, ct);
+        var query = context.Stalls.Where(s =>
+            s.Facility!.Code == facilityCode &&
+            s.StallNo == stallNo);
+
+        query = facilityCode == FacilityCode.NPM
+            ? query.Where(s => s.Section == section)
+            : query.Where(s => s.Section == null);
+
+        return !await query.AnyAsync(ct);
     }
 }

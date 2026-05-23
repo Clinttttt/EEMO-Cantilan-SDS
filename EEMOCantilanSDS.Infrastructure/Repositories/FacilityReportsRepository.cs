@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var collectionGrowth = CalculateGrowthPercentage(currentCollectionRate, previousCollectionRate);
 
         var occupiedStalls = await CalculateOccupiedStallsAsync(facilityId, ct);
+        var totalStalls = await CalculateTotalStallsAsync(facilityId, ct);
         var (pendingCount, pendingAmount) = await CalculatePendingPaymentsAsync(facilityId, currentStart, currentEnd, ct);
 
         // Task 6.1-6.3: Generate revenue trend
@@ -72,6 +74,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         // Task 8.2: Calculate collection performance
         var collectionPerformance = await CalculateCollectionPerformanceAsync(facilityId, currentStart, currentEnd, ct);
+        var dailyCollectionStreak = await GenerateDailyCollectionStreakAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
+        var feeTypeBreakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
+        var fishKiloTrend = await GenerateFishKiloTrendAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
 
         // Task 9.1: Assemble final DTO
         return new FacilityReportsDto(
@@ -80,13 +85,17 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             CollectionRate: currentCollectionRate,
             CollectionGrowthPercentage: collectionGrowth,
             OccupiedStalls: occupiedStalls,
+            TotalStalls: totalStalls,
             PendingPaymentCount: pendingCount,
             PendingPaymentAmount: pendingAmount,
             RevenueTrend: revenueTrend,
             PaymentDistribution: paymentDistribution,
             SectionBreakdown: sectionBreakdown,
             TopStalls: topStalls,
-            CollectionPerformance: collectionPerformance
+            CollectionPerformance: collectionPerformance,
+            DailyCollectionStreak: dailyCollectionStreak,
+            FeeTypeBreakdown: feeTypeBreakdown,
+            FishKiloTrend: fishKiloTrend
         );
     }
 
@@ -348,9 +357,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     #region Collection Rate Helpers
 
     /// <summary>
-    /// Calculates collection rate as (amount collected / total billed) * 100.
-    /// For NPM: Includes daily collections in the amount collected.
-    /// Uses the stall's MonthlyRate property for expected bill calculation.
+    /// Calculates collection rate as (amount collected / amount assessed) * 100.
+    /// NPM daily collections are assessed by active collection days instead of adding a
+    /// second monthly rental denominator on top of the same daily fee.
     /// </summary>
     private async Task<decimal> CalculateCollectionRateAsync(
         Guid facilityId,
@@ -362,19 +371,50 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .AsNoTracking()
             .FirstOrDefaultAsync(f => f.Id == facilityId, ct);
 
-        // Get all active stalls including their MonthlyRate
-        var activeStalls = await _context.Stalls
+        var occupiedStalls = await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
+            .Where(s => s.FacilityId == facilityId
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
             .Select(s => new { s.Id, s.MonthlyRate })
             .ToListAsync(ct);
 
-        var activeStallIds = activeStalls.Select(s => s.Id).ToList();
+        if (occupiedStalls.Count == 0)
+            return 0m;
 
-        // Get all payment records and filter in memory
+        var occupiedStallIds = occupiedStalls.Select(s => s.Id).ToList();
+
+        if (facility?.Code == FacilityCode.NPM)
+        {
+            var daysInPeriod = endDate.DayNumber - startDate.DayNumber + 1;
+            var expectedDailyFees = occupiedStalls.Count * FeeRates.NpmDailyFee * daysInPeriod;
+
+            var dailyCollections = await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => occupiedStallIds.Contains(dc.StallId)
+                    && !dc.IsDeleted
+                    && dc.IsPaid
+                    && dc.CollectionDate >= startDate
+                    && dc.CollectionDate <= endDate)
+                .ToListAsync(ct);
+
+            var collectedDailyFees = dailyCollections.Sum(dc => dc.DailyFee);
+            var collectedFishFees = dailyCollections.Sum(dc => dc.FishKilos.HasValue
+                ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo
+                : 0m);
+
+            var totalAssessed = expectedDailyFees + collectedFishFees;
+            var npmTotalCollected = collectedDailyFees + collectedFishFees;
+
+            if (totalAssessed == 0)
+                return 0m;
+
+            return Math.Min(100m, (npmTotalCollected / totalAssessed) * 100m);
+        }
+
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => activeStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => occupiedStallIds.Contains(pr.StallId) && !pr.IsDeleted)
             .ToListAsync(ct);
 
         var paymentRecords = allPaymentRecords
@@ -394,51 +434,13 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             })
             .ToList();
 
-        decimal totalBilled = paymentRecords.Sum(pr => pr.TotalBill);
+        var totalBilled = paymentRecords.Sum(pr => pr.TotalBill);
         decimal totalCollected = paymentRecords.Sum(pr => pr.AmountPaid);
-
-        // For NPM: Add daily collections to total collected and calculate expected bills for stalls without payment records
-        if (facility?.Code == FacilityCode.NPM)
-        {
-            var dailyCollections = await _context.DailyCollections
-                .AsNoTracking()
-                .Where(dc => activeStallIds.Contains(dc.StallId)
-                    && !dc.IsDeleted
-                    && dc.IsPaid
-                    && dc.CollectionDate >= startDate
-                    && dc.CollectionDate <= endDate)
-                .GroupBy(dc => dc.StallId)
-                .Select(g => new
-                {
-                    StallId = g.Key,
-                    TotalCollected = g.Sum(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0))
-                })
-                .ToListAsync(ct);
-
-            // Add daily collections to total collected
-            totalCollected += dailyCollections.Sum(dc => dc.TotalCollected);
-
-            // For stalls with daily collections but no payment record, add expected monthly bill using stall's MonthlyRate
-            var stallsWithPaymentRecords = paymentRecords.Select(pr => pr.StallId).ToHashSet();
-            var stallsWithOnlyDailyCollections = dailyCollections
-                .Where(dc => !stallsWithPaymentRecords.Contains(dc.StallId))
-                .Select(dc => dc.StallId)
-                .ToList();
-
-            if (stallsWithOnlyDailyCollections.Any())
-            {
-                var stallMonthlyRates = activeStalls
-                    .Where(s => stallsWithOnlyDailyCollections.Contains(s.Id))
-                    .Sum(s => s.MonthlyRate);
-                
-                totalBilled += stallMonthlyRates;
-            }
-        }
 
         if (totalBilled == 0)
             return 0m;
 
-        return (totalCollected / totalBilled) * 100m;
+        return Math.Min(100m, (totalCollected / totalBilled) * 100m);
     }
 
     #endregion
@@ -457,6 +459,16 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .Where(s => s.FacilityId == facilityId
                 && !s.IsDeleted
                 && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+            .CountAsync(ct);
+    }
+
+    private async Task<int> CalculateTotalStallsAsync(
+        Guid facilityId,
+        CancellationToken ct)
+    {
+        return await _context.Stalls
+            .AsNoTracking()
+            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
             .CountAsync(ct);
     }
 
@@ -849,6 +861,230 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
     #endregion
 
+    #region Fish Kilo Trend Helpers
+
+    private async Task<IReadOnlyList<FishKiloTrendDto>> GenerateFishKiloTrendAsync(
+        FacilityCode facilityCode,
+        Guid facilityId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken ct)
+    {
+        if (facilityCode != FacilityCode.NPM)
+        {
+            return Array.Empty<FishKiloTrendDto>();
+        }
+
+        var dailyKilos = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.Stall!.FacilityId == facilityId
+                && dc.Stall.Section == MarketSection.FishSection
+                && dc.CollectionDate >= startDate
+                && dc.CollectionDate <= endDate
+                && dc.IsPaid
+                && !dc.IsDeleted)
+            .GroupBy(dc => dc.CollectionDate)
+            .Select(g => new
+            {
+                Date = g.Key,
+                Kilos = g.Sum(dc => dc.FishKilos ?? 0m)
+            })
+            .ToListAsync(ct);
+
+        var kiloByDate = dailyKilos.ToDictionary(k => k.Date, k => k.Kilos);
+        var trend = new List<FishKiloTrendDto>();
+
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            trend.Add(new FishKiloTrendDto(
+                PeriodLabel: date.ToString("MMM d"),
+                Kilos: kiloByDate.GetValueOrDefault(date)
+            ));
+        }
+
+        return trend;
+    }
+
+    #endregion
+
+    #region Fee Type Breakdown Helpers
+
+    private async Task<FeeTypeBreakdownDto?> GenerateFeeTypeBreakdownAsync(
+        FacilityCode facilityCode,
+        Guid facilityId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken ct)
+    {
+        if (facilityCode != FacilityCode.NPM)
+        {
+            return null;
+        }
+
+        var dailyCollections = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.Stall!.FacilityId == facilityId
+                && dc.CollectionDate >= startDate
+                && dc.CollectionDate <= endDate
+                && dc.IsPaid
+                && !dc.IsDeleted)
+            .ToListAsync(ct);
+
+        var dailyFeeAmount = dailyCollections.Sum(dc => dc.DailyFee);
+        var fishFeeAmount = dailyCollections.Sum(dc => dc.FishKilos.HasValue
+            ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo
+            : 0m);
+
+        var paymentRecords = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(pr => pr.Stall!.FacilityId == facilityId && !pr.IsDeleted)
+            .ToListAsync(ct);
+
+        var periodPaymentRecords = paymentRecords
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
+            .Where(pr => pr.Status is PaymentStatus.Paid or PaymentStatus.Partial)
+            .ToList();
+
+        var rentalAmount = periodPaymentRecords.Sum(pr => pr.Status == PaymentStatus.Paid
+            ? pr.BaseRentalAmount
+            : Math.Min(pr.PartialAmount, pr.BaseRentalAmount));
+
+        var utilityAmount = periodPaymentRecords.Sum(pr =>
+        {
+            if (pr.Status != PaymentStatus.Paid)
+            {
+                return 0m;
+            }
+
+            return (pr.ElecAmount ?? 0m) + (pr.WaterAmount ?? 0m);
+        });
+
+        return new FeeTypeBreakdownDto(
+            DailyFeeAmount: dailyFeeAmount,
+            FishFeeAmount: fishFeeAmount,
+            RentalAmount: rentalAmount,
+            UtilityAmount: utilityAmount
+        );
+    }
+
+    #endregion
+
+    #region Daily Collection Streak Helpers
+
+    private async Task<DailyCollectionStreakDto?> GenerateDailyCollectionStreakAsync(
+        FacilityCode facilityCode,
+        Guid facilityId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken ct)
+    {
+        if (facilityCode != FacilityCode.NPM)
+        {
+            return null;
+        }
+
+        var monthStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var monthEnd = new DateOnly(startDate.Year, startDate.Month, DateTime.DaysInMonth(startDate.Year, startDate.Month));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var lastAuditableDay = today < monthStart
+            ? monthStart.AddDays(-1)
+            : today < monthEnd && today.Year == monthStart.Year && today.Month == monthStart.Month
+                ? today
+                : monthEnd;
+
+        var collectedDates = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.Stall!.FacilityId == facilityId
+                && dc.CollectionDate >= monthStart
+                && dc.CollectionDate <= monthEnd
+                && dc.IsPaid
+                && !dc.IsDeleted)
+            .Select(dc => dc.CollectionDate)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var collectedSet = collectedDates.ToHashSet();
+        var collectableContractRanges = await _context.Contracts
+            .AsNoTracking()
+            .Where(contract => contract.Stall!.FacilityId == facilityId
+                && contract.Stall.Status == StallStatus.Active
+                && contract.IsActive
+                && !contract.IsDeleted
+                && contract.EffectivityDate <= monthEnd)
+            .Select(contract => new
+            {
+                contract.EffectivityDate,
+                contract.DurationYears
+            })
+            .ToListAsync(ct);
+
+        var days = new List<DailyCollectionDayDto>();
+        var collectedDays = 0;
+        var missedDays = 0;
+        var currentStreak = 0;
+
+        for (var date = monthStart; date <= monthEnd; date = date.AddDays(1))
+        {
+            string status;
+            var hasCollectableContract = collectableContractRanges.Any(contract =>
+                contract.EffectivityDate <= date && date <= contract.EffectivityDate.AddYears(contract.DurationYears));
+
+            if (date < startDate || date > endDate || !hasCollectableContract)
+            {
+                status = "OutOfScope";
+            }
+            else if (date > lastAuditableDay)
+            {
+                status = "Future";
+            }
+            else if (collectedSet.Contains(date))
+            {
+                status = "Collected";
+                collectedDays++;
+            }
+            else
+            {
+                status = "Missed";
+                missedDays++;
+            }
+
+            days.Add(new DailyCollectionDayDto(
+                DayNumber: date.Day,
+                DayOfWeek: (int)date.DayOfWeek,
+                Status: status
+            ));
+        }
+
+        var streakEndDate = lastAuditableDay < endDate ? lastAuditableDay : endDate;
+        for (var date = streakEndDate; date >= startDate && date >= monthStart; date = date.AddDays(-1))
+        {
+            var hasCollectableContract = collectableContractRanges.Any(contract =>
+                contract.EffectivityDate <= date && date <= contract.EffectivityDate.AddYears(contract.DurationYears));
+
+            if (!hasCollectableContract)
+            {
+                continue;
+            }
+
+            if (!collectedSet.Contains(date))
+            {
+                break;
+            }
+
+            currentStreak++;
+        }
+
+        return new DailyCollectionStreakDto(
+            MonthLabel: monthStart.ToString("MMMM yyyy"),
+            CollectedDays: collectedDays,
+            MissedDays: missedDays,
+            CurrentStreakDays: currentStreak,
+            Days: days
+        );
+    }
+
+    #endregion
+
     #region Payment Distribution Helpers
 
     /// <summary>
@@ -867,7 +1103,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var activeStalls = await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
+            .Where(s => s.FacilityId == facilityId
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
             .Select(s => s.Id)
             .ToListAsync(ct);
 
@@ -991,7 +1229,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             if (stalls.Count == 0)
             {
-                breakdown.Add(new SectionBreakdownDto(section.ToString().Replace("Area", " Area"), 0m, 0m));
+                breakdown.Add(new SectionBreakdownDto(section.ToString().Replace("Area", " Area"), 0m, 0m, 0, 0, 0, 0));
                 continue;
             }
 
@@ -1042,8 +1280,19 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             // Calculate percentage as (actual / expected) * 100
             var percentage = expectedRevenue > 0 ? (actualRevenue / expectedRevenue) * 100m : 0m;
             var sectionName = section.ToString().Replace("Area", " Area");
+            var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
+            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
 
-            breakdown.Add(new SectionBreakdownDto(sectionName, actualRevenue, percentage));
+            breakdown.Add(new SectionBreakdownDto(
+                sectionName,
+                actualRevenue,
+                percentage,
+                stalls.Count,
+                activeStalls,
+                closedStalls,
+                noContractStalls
+            ));
         }
 
         return breakdown;
@@ -1069,7 +1318,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             if (stalls.Count == 0)
             {
-                breakdown.Add(new SectionBreakdownDto(area.ToString(), 0m, 0m));
+                breakdown.Add(new SectionBreakdownDto(area.ToString(), 0m, 0m, 0, 0, 0, 0));
                 continue;
             }
 
@@ -1107,8 +1356,19 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             // Calculate percentage as (actual / expected) * 100
             var percentage = expectedRevenue > 0 ? (actualRevenue / expectedRevenue) * 100m : 0m;
+            var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
+            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
 
-            breakdown.Add(new SectionBreakdownDto(area.ToString(), actualRevenue, percentage));
+            breakdown.Add(new SectionBreakdownDto(
+                area.ToString(),
+                actualRevenue,
+                percentage,
+                stalls.Count,
+                activeStalls,
+                closedStalls,
+                noContractStalls
+            ));
         }
 
         return breakdown;
@@ -1242,7 +1502,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var activeStalls = await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
+            .Where(s => s.FacilityId == facilityId
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
             .Select(s => s.Id)
             .ToListAsync(ct);
 

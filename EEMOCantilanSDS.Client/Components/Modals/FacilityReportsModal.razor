@@ -34,7 +34,7 @@
                 </button>
                 <!-- Gold progress bar at bottom — matches NPM hero -->
                 <div class="modal-header-progress">
-                    <div class="modal-header-progress-fill" style="width: @MockCollectionRate%"></div>
+                    <div class="modal-header-progress-fill" style="width: @ClampPercent(MockCollectionRate)%"></div>
                 </div>
             </div>
 
@@ -99,9 +99,9 @@
                             </svg>
                         </div>
                         <div class="card-content">
-                            <p class="card-label">Total Revenue</p>
+                            <p class="card-label">@RevenueCardLabel</p>
                             <h3 class="card-value">₱@MockTotalRevenue.ToString("N2")</h3>
-                            <p class="card-change positive">+@MockRevenueGrowth% from last period</p>
+                            <p class="card-change @GetChangeClass(MockRevenueGrowth)">@FormatSignedPercentage(MockRevenueGrowth) vs previous @SelectedPeriod.ToLower()</p>
                         </div>
                     </div>
 
@@ -112,9 +112,9 @@
                             </svg>
                         </div>
                         <div class="card-content">
-                            <p class="card-label">Collection Rate</p>
-                            <h3 class="card-value">@MockCollectionRate%</h3>
-                            <p class="card-change positive">+@MockCollectionGrowth% from last period</p>
+                            <p class="card-label">@CollectionRateLabel</p>
+                            <h3 class="card-value">@FormatPercentage(MockCollectionRate)</h3>
+                            <p class="card-change @GetChangeClass(MockCollectionGrowth)">@FormatSignedPercentage(MockCollectionGrowth) vs previous @SelectedPeriod.ToLower()</p>
                         </div>
                     </div>
 
@@ -126,9 +126,9 @@
                             </svg>
                         </div>
                         <div class="card-content">
-                            <p class="card-label">Occupancy</p>
+                            <p class="card-label">@OccupancyLabel</p>
                             <h3 class="card-value">@MockOccupiedStalls/@MockTotalStalls</h3>
-                            <p class="card-change neutral">@MockOccupancyRate% occupied</p>
+                            <p class="card-change neutral">@FormatPercentage(MockOccupancyRate) @OccupancySubLabel</p>
                         </div>
                     </div>
 
@@ -140,9 +140,9 @@
                             </svg>
                         </div>
                         <div class="card-content">
-                            <p class="card-label">Pending Payments</p>
+                            <p class="card-label">@PendingLabel</p>
                             <h3 class="card-value">@MockPendingCount</h3>
-                            <p class="card-change negative">₱@MockPendingAmount.ToString("N2") outstanding</p>
+                            <p class="card-change negative">₱@MockPendingAmount.ToString("N2") @PendingAmountLabel</p>
                         </div>
                     </div>
                 </div>
@@ -153,15 +153,15 @@
                     <!-- Revenue Trend Bar Chart -->
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Revenue Trend</h3>
+                            <h3 class="chart-title">Collection Trend</h3>
                             <div class="chart-legend">
                                 <span class="legend-item">
                                     <span class="legend-dot revenue"></span>
-                                    Revenue
+                                    Collected
                                 </span>
                                 <span class="legend-item">
                                     <span class="legend-dot target"></span>
-                                    Target
+                                    Current period
                                 </span>
                             </div>
                         </div>
@@ -173,7 +173,7 @@
                     <!-- Payment Status Donut Chart -->
                     <div class="chart-card">
                         <div class="chart-header">
-                            <h3 class="chart-title">Payment Status Distribution</h3>
+                            <h3 class="chart-title">@StatusDistributionTitle</h3>
                         </div>
                         <div class="chart-container chart-donut">
                             @RenderPaymentStatusChart()
@@ -183,14 +183,14 @@
 
                 <!-- ── Detailed Breakdown ── -->
                 <div class="breakdown-section">
-                    <h3 class="section-title">Detailed Breakdown</h3>
+                    <h3 class="section-title">Audit Breakdown</h3>
                     <div class="breakdown-grid">
 
                         <!-- By Section (NPM only) -->
                         @if (ShowSectionBreakdown)
                         {
                             <div class="breakdown-card">
-                                <h4 class="breakdown-title">Revenue by Section</h4>
+                                <h4 class="breakdown-title">Section Revenue</h4>
                                 <div class="breakdown-list">
                                     @foreach (var section in MockSectionData)
                                     {
@@ -201,8 +201,39 @@
                                             </div>
                                             <div class="breakdown-value">₱@section.Revenue.ToString("N2")</div>
                                             <div class="breakdown-bar">
-                                                <div class="bar-fill" style="width: @section.Percentage%; background: @section.Color"></div>
+                                                <div class="bar-fill" style="width: @ClampPercent(section.Percentage)%; background: @section.Color"></div>
                                             </div>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="section-rate-panel">
+                                    <div class="mini-panel-title">Collection Rate by Section</div>
+                                    @foreach (var section in MockSectionData)
+                                    {
+                                        <div class="mini-metric-row">
+                                            <span>@GetShortSectionName(section.Name)</span>
+                                            <div class="mini-meter">
+                                                <div class="mini-meter-fill" style="width: @ClampPercent(section.Percentage)%; background: @section.Color"></div>
+                                            </div>
+                                            <strong>@FormatPercentage(section.Percentage)</strong>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="section-status-panel">
+                                    <div class="mini-panel-title">Stall Status per Section</div>
+                                    @foreach (var section in MockSectionData)
+                                    {
+                                        <div class="section-status-row">
+                                            <span>@GetShortSectionName(section.Name) - @section.TotalStalls stalls</span>
+                                            <strong>@section.ActiveStalls active</strong>
+                                            @if (section.ClosedStalls > 0)
+                                            {
+                                                <small>@section.ClosedStalls closed</small>
+                                            }
+                                            @if (section.NoContractStalls > 0)
+                                            {
+                                                <small>@section.NoContractStalls no contract</small>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -211,60 +242,149 @@
 
                         <!-- Collection Performance -->
                         <div class="breakdown-card">
-                            <h4 class="breakdown-title">Collection Performance</h4>
+                            <h4 class="breakdown-title">@ComplianceTitle</h4>
                             <div class="breakdown-list">
                                 <div class="breakdown-item">
                                     <div class="breakdown-label">
                                         <span class="status-badge paid">Paid</span>
                                     </div>
-                                    <div class="breakdown-value">@MockPaidCount stalls</div>
+                                    <div class="breakdown-value">@MockPaidCount @EntityPluralLabel</div>
                                     <div class="breakdown-bar">
-                                        <div class="bar-fill paid" style="width: @(MockOccupiedStalls > 0 ? (MockPaidCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                        <div class="bar-fill paid" style="width: @GetStatusWidth(MockPaidCount)%"></div>
                                     </div>
                                 </div>
                                 <div class="breakdown-item">
                                     <div class="breakdown-label">
                                         <span class="status-badge partial">Partial</span>
                                     </div>
-                                    <div class="breakdown-value">@MockPartialCount stalls</div>
+                                    <div class="breakdown-value">@MockPartialCount @EntityPluralLabel</div>
                                     <div class="breakdown-bar">
-                                        <div class="bar-fill partial" style="width: @(MockOccupiedStalls > 0 ? (MockPartialCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                        <div class="bar-fill partial" style="width: @GetStatusWidth(MockPartialCount)%"></div>
                                     </div>
                                 </div>
                                 <div class="breakdown-item">
                                     <div class="breakdown-label">
                                         <span class="status-badge unpaid">Unpaid</span>
                                     </div>
-                                    <div class="breakdown-value">@MockUnpaidCount stalls</div>
+                                    <div class="breakdown-value">@MockUnpaidCount @EntityPluralLabel</div>
                                     <div class="breakdown-bar">
-                                        <div class="bar-fill unpaid" style="width: @(MockOccupiedStalls > 0 ? (MockUnpaidCount * 100.0 / MockOccupiedStalls) : 0)%"></div>
+                                        <div class="bar-fill unpaid" style="width: @GetStatusWidth(MockUnpaidCount)%"></div>
                                     </div>
                                 </div>
                             </div>
+                            @if (FeeTypeBreakdown != null)
+                            {
+                                <div class="fee-breakdown-panel">
+                                    <div class="mini-panel-title">Fee Type Breakdown</div>
+                                    @foreach (var feeType in GetFeeTypeRows())
+                                    {
+                                        <div class="fee-type-row">
+                                            <span>@feeType.Label</span>
+                                            <div class="mini-meter">
+                                                <div class="mini-meter-fill @feeType.ClassName" style="width: @feeType.Width%"></div>
+                                            </div>
+                                            <strong>₱@feeType.Amount.ToString("N0")</strong>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            @if (FishKiloTrend.Any())
+                            {
+                                <div class="fish-trend-panel">
+                                    <div class="mini-panel-title">Fish Kilo Volume Trend</div>
+                                    <div class="fish-sparkline">
+                                        @foreach (var point in GetFishKiloTrendPoints())
+                                        {
+                                            <span style="height: @point.Height%" title="@($"{point.Label}: {point.Kilos:N1} kg")"></span>
+                                        }
+                                    </div>
+                                    <div class="fish-trend-meta">
+                                        <span>@GetFishTrendStartLabel()</span>
+                                        <strong>@FishKiloTrend.Sum(p => p.Kilos).ToString("N1") kg total</strong>
+                                        <span>@GetFishTrendEndLabel()</span>
+                                    </div>
+                                </div>
+                            }
                         </div>
 
-                        <!-- Top Revenue Stalls -->
-                        <div class="breakdown-card">
-                            <h4 class="breakdown-title">Top Revenue Stalls</h4>
-                            <div class="breakdown-list">
-                                @{
-                                    int rank = 1;
-                                }
-                                @foreach (var stall in MockTopStalls)
-                                {
-                                    <div class="breakdown-item compact">
-                                        <div class="breakdown-label">
-                                            <span class="stall-rank">@rank</span>
-                                            <span class="stall-badge">@stall.StallNo</span>
-                                            <span class="stall-name">@stall.Occupant</span>
-                                        </div>
-                                        <div class="breakdown-value">₱@stall.Revenue.ToString("N2")</div>
+                        @if (DailyCollectionStreak != null)
+                        {
+                            <div class="breakdown-card collection-streak-card">
+                                <div class="streak-card-header">
+                                    <div>
+                                        <h4 class="breakdown-title">Daily Collection Streak</h4>
+                                        <p class="streak-subtitle">@DailyCollectionStreak.MonthLabel</p>
                                     </div>
-                                    rank++;
-                                }
+                                    <div class="streak-score">
+                                        <span>@DailyCollectionStreak.CurrentStreakDays</span>
+                                        <small>day streak</small>
+                                    </div>
+                                </div>
+
+                                <div class="streak-calendar">
+                                    <div class="streak-weekdays">
+                                        <span>Su</span>
+                                        <span>Mo</span>
+                                        <span>Tu</span>
+                                        <span>We</span>
+                                        <span>Th</span>
+                                        <span>Fr</span>
+                                        <span>Sa</span>
+                                    </div>
+                                    <div class="streak-grid">
+                                        @{
+                                            var leadingBlankDays = DailyCollectionStreak.Days.FirstOrDefault()?.DayOfWeek ?? 0;
+                                        }
+                                        @for (var i = 0; i < leadingBlankDays; i++)
+                                        {
+                                            <span class="streak-day empty"></span>
+                                        }
+                                        @foreach (var day in DailyCollectionStreak.Days)
+                                        {
+                                            <span class="streak-day @GetCollectionDayClass(day.Status)" title="@($"{day.Status} - day {day.DayNumber}")">
+                                                @GetCollectionDayLabel(day)
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+
+                                <div class="streak-legend">
+                                    <span><i class="legend-swatch collected"></i>Collected (@DailyCollectionStreak.CollectedDays)</span>
+                                    <span><i class="legend-swatch missed"></i>Missed (@DailyCollectionStreak.MissedDays)</span>
+                                    <span><i class="legend-swatch future"></i>Upcoming</span>
+                                    @if (DailyCollectionStreak.Days.Any(day => day.Status.Equals("OutOfScope", StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        <span><i class="legend-swatch out-of-scope"></i>Out of scope</span>
+                                    }
+                                </div>
                             </div>
-                        </div>
+                        }
+                        else
+                        {
+                            <div class="breakdown-card exposure-card">
+                                <h4 class="breakdown-title">Collection Exposure</h4>
+                                <div class="exposure-stat">
+                                    <span class="exposure-value">₱@MockPendingAmount.ToString("N2")</span>
+                                    <span class="exposure-label">@ExposureDescription</span>
+                                </div>
+                                <div class="exposure-grid">
+                                    <div>
+                                        <span>@FormatPercentage(GetStatusWidth(MockPaidCount))</span>
+                                        <small>fully paid</small>
+                                    </div>
+                                    <div>
+                                        <span>@FormatPercentage(GetStatusWidth(MockPartialCount + MockUnpaidCount))</span>
+                                        <small>needs follow-up</small>
+                                    </div>
+                                </div>
+                            </div>
+                        }
                     </div>
+
+                    @if (AdditionalCharts != null)
+                    {
+                        @AdditionalCharts
+                    }
                 </div>
             }
             </div>
@@ -316,12 +436,27 @@
     [Parameter]
     public bool ShowSectionBreakdown { get; set; } = false;
 
+    [Parameter] public decimal? TotalRevenueOverride { get; set; }
+    [Parameter] public decimal? CollectionRateOverride { get; set; }
+    [Parameter] public int? OccupiedCountOverride { get; set; }
+    [Parameter] public int? TotalCountOverride { get; set; }
+    [Parameter] public int? PendingCountOverride { get; set; }
+    [Parameter] public decimal? PendingAmountOverride { get; set; }
+    [Parameter] public int? PaidCountOverride { get; set; }
+    [Parameter] public int? PartialCountOverride { get; set; }
+    [Parameter] public int? UnpaidCountOverride { get; set; }
+    [Parameter] public IReadOnlyList<ReportTrendPoint>? RevenueTrendOverride { get; set; }
+    [Parameter] public IReadOnlyList<ReportVolumeRow>? VolumeRowsOverride { get; set; }
+    [Parameter] public IReadOnlyList<ReportBreakdownRow>? FeeBreakdownRowsOverride { get; set; }
+    [Parameter] public RenderFragment? AdditionalCharts { get; set; }
+
     private string SelectedPeriod { get; set; } = "Monthly";
     private DateTime CurrentDate { get; set; } = DateTime.Now;
     
     private bool IsLoading { get; set; } = false;
     private string? ErrorMessage { get; set; }
     private FacilityReportsDto? ReportData { get; set; }
+    private bool UsesContextOverrides => FacilityCode is "TRM" or "TPM" or "SLH";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -339,6 +474,12 @@
 
         try
         {
+            if (UsesContextOverrides)
+            {
+                ReportData = null;
+                return;
+            }
+
             // Parse facility code
             if (!Enum.TryParse<FacilityCode>(FacilityCode, out var facilityCodeEnum))
             {
@@ -407,8 +548,88 @@
         return weekNumber;
     }
 
-    // Properties that use API data or fallback to mock
-    private decimal MockTotalRevenue => ReportData?.TotalRevenue ?? GetMockTotalRevenue();
+    // Properties that use API data, caller-provided context, or fallback data.
+    private string RevenueCardLabel => FacilityCode switch
+    {
+        "TRM" => "Terminal Fees Collected",
+        "TPM" => "Market Fees Collected",
+        "SLH" => "Slaughter Fees Collected",
+        _ => "Collected Revenue"
+    };
+
+    private string CollectionRateLabel => FacilityCode switch
+    {
+        "TRM" => "OR Completion Rate",
+        "TPM" => "Vendor Collection Rate",
+        "SLH" => "OR Completion Rate",
+        _ => "Amount Collection Rate"
+    };
+
+    private string OccupancyLabel => FacilityCode switch
+    {
+        "TRM" => "Active Transporters",
+        "TPM" => "Vendor Entries",
+        "SLH" => "Owners Served",
+        _ => "Occupied Payors"
+    };
+
+    private string OccupancySubLabel => FacilityCode switch
+    {
+        "TRM" => "of registered transporters",
+        "TPM" => "recorded this period",
+        "SLH" => "with slaughter records",
+        _ => "of active stalls"
+    };
+
+    private string PendingLabel => FacilityCode switch
+    {
+        "TRM" => "Trips Pending OR",
+        "TPM" => "Unpaid Vendors",
+        "SLH" => "Pending OR",
+        _ => "Payors With Balance"
+    };
+
+    private string PendingAmountLabel => FacilityCode switch
+    {
+        "TRM" => "pending OR value",
+        "TPM" => "uncollected",
+        "SLH" => "pending OR value",
+        _ => "outstanding"
+    };
+
+    private string StatusDistributionTitle => FacilityCode switch
+    {
+        "TRM" => "Trip OR Status Distribution",
+        "TPM" => "Vendor Payment Status Distribution",
+        "SLH" => "Animal Volume Distribution",
+        _ => "Payor Status Distribution"
+    };
+
+    private string ComplianceTitle => FacilityCode switch
+    {
+        "TRM" => "Trip OR Compliance",
+        "TPM" => "Vendor Attendance Compliance",
+        "SLH" => "Slaughter Volume",
+        _ => "Payor Compliance"
+    };
+
+    private string EntityPluralLabel => FacilityCode switch
+    {
+        "TRM" => "trips",
+        "TPM" => "vendors",
+        "SLH" => "heads",
+        _ => "payors"
+    };
+
+    private string ExposureDescription => FacilityCode switch
+    {
+        "TRM" => $"OR numbers pending across {MockPendingCount} trips",
+        "TPM" => $"uncollected fees across {MockPendingCount} vendors",
+        "SLH" => $"OR numbers pending across {MockPendingCount} slaughter records",
+        _ => $"outstanding balance across {MockPendingCount} payors"
+    };
+
+    private decimal MockTotalRevenue => TotalRevenueOverride ?? ReportData?.TotalRevenue ?? GetMockTotalRevenue();
     
     private decimal GetMockTotalRevenue() => FacilityCode switch
     {
@@ -417,6 +638,9 @@
         "NCC" => 67200.00m,
         "BBQ" => 38400.00m,
         "ICE" => 24000.00m,
+        "TRM" => 1800.00m,
+        "TPM" => 12500.00m,
+        "SLH" => 6450.00m,
         _ => 100000.00m
     };
 
@@ -429,10 +653,13 @@
         "NCC" => 15.7m,
         "BBQ" => 6.2m,
         "ICE" => 4.8m,
+        "TRM" => 9.4m,
+        "TPM" => 6.8m,
+        "SLH" => 5.9m,
         _ => 10.0m
     };
 
-    private int MockCollectionRate => ReportData != null ? (int)ReportData.CollectionRate : GetMockCollectionRate();
+    private decimal MockCollectionRate => CollectionRateOverride ?? ReportData?.CollectionRate ?? GetMockCollectionRate();
     
     private int GetMockCollectionRate() => FacilityCode switch
     {
@@ -441,6 +668,9 @@
         "NCC" => 78,
         "BBQ" => 85,
         "ICE" => 95,
+        "TRM" => 90,
+        "TPM" => 82,
+        "SLH" => 100,
         _ => 85
     };
 
@@ -453,10 +683,13 @@
         "NCC" => 7.4m,
         "BBQ" => 2.8m,
         "ICE" => 1.5m,
+        "TRM" => 4.1m,
+        "TPM" => 3.7m,
+        "SLH" => 2.5m,
         _ => 5.0m
     };
 
-    private int MockOccupiedStalls => ReportData?.OccupiedStalls ?? GetMockOccupiedStalls();
+    private int MockOccupiedStalls => OccupiedCountOverride ?? ReportData?.OccupiedStalls ?? GetMockOccupiedStalls();
     
     private int GetMockOccupiedStalls() => FacilityCode switch
     {
@@ -465,10 +698,13 @@
         "NCC" => 35,
         "BBQ" => 12,
         "ICE" => 8,
+        "TRM" => 42,
+        "TPM" => 125,
+        "SLH" => 16,
         _ => 20
     };
 
-    private int MockTotalStalls => GetMockTotalStalls();
+    private int MockTotalStalls => TotalCountOverride ?? ReportData?.TotalStalls ?? GetMockTotalStalls();
     
     private int GetMockTotalStalls() => FacilityCode switch
     {
@@ -477,12 +713,15 @@
         "NCC" => 45,
         "BBQ" => 15,
         "ICE" => 10,
+        "TRM" => 42,
+        "TPM" => 125,
+        "SLH" => 16,
         _ => 30
     };
 
-    private int MockOccupancyRate => MockTotalStalls > 0 ? (int)((MockOccupiedStalls * 100.0) / MockTotalStalls) : 0;
+    private decimal MockOccupancyRate => MockTotalStalls > 0 ? (MockOccupiedStalls * 100.0m) / MockTotalStalls : 0m;
 
-    private int MockPendingCount => ReportData?.PendingPaymentCount ?? GetMockPendingCount();
+    private int MockPendingCount => PendingCountOverride ?? ReportData?.PendingPaymentCount ?? GetMockPendingCount();
     
     private int GetMockPendingCount() => FacilityCode switch
     {
@@ -491,10 +730,13 @@
         "NCC" => 7,
         "BBQ" => 3,
         "ICE" => 2,
+        "TRM" => 4,
+        "TPM" => 18,
+        "SLH" => 0,
         _ => 5
     };
 
-    private decimal MockPendingAmount => ReportData?.PendingPaymentAmount ?? GetMockPendingAmount();
+    private decimal MockPendingAmount => PendingAmountOverride ?? ReportData?.PendingPaymentAmount ?? GetMockPendingAmount();
     
     private decimal GetMockPendingAmount() => FacilityCode switch
     {
@@ -503,10 +745,13 @@
         "NCC" => 12800.00m,
         "BBQ" => 6400.00m,
         "ICE" => 4000.00m,
+        "TRM" => 120.00m,
+        "TPM" => 1800.00m,
+        "SLH" => 0.00m,
         _ => 10000.00m
     };
 
-    private int MockPaidCount => ReportData?.CollectionPerformance?.FullyPaidCount ?? GetMockPaidCount();
+    private int MockPaidCount => PaidCountOverride ?? ReportData?.CollectionPerformance?.FullyPaidCount ?? GetMockPaidCount();
     
     private int GetMockPaidCount() => FacilityCode switch
     {
@@ -515,10 +760,13 @@
         "NCC" => 28,
         "BBQ" => 10,
         "ICE" => 7,
+        "TRM" => 56,
+        "TPM" => 102,
+        "SLH" => 22,
         _ => 20
     };
 
-    private int MockPartialCount => ReportData?.CollectionPerformance?.PartiallyPaidCount ?? GetMockPartialCount();
+    private int MockPartialCount => PartialCountOverride ?? ReportData?.CollectionPerformance?.PartiallyPaidCount ?? GetMockPartialCount();
     
     private int GetMockPartialCount() => FacilityCode switch
     {
@@ -527,10 +775,13 @@
         "NCC" => 7,
         "BBQ" => 2,
         "ICE" => 1,
+        "TRM" => 0,
+        "TPM" => 0,
+        "SLH" => 0,
         _ => 3
     };
 
-    private int MockUnpaidCount => ReportData?.CollectionPerformance?.UnpaidCount ?? GetMockUnpaidCount();
+    private int MockUnpaidCount => UnpaidCountOverride ?? ReportData?.CollectionPerformance?.UnpaidCount ?? GetMockUnpaidCount();
     
     private int GetMockUnpaidCount() => FacilityCode switch
     {
@@ -539,6 +790,9 @@
         "NCC" => 10,
         "BBQ" => 3,
         "ICE" => 2,
+        "TRM" => 4,
+        "TPM" => 18,
+        "SLH" => 0,
         _ => 5
     };
 
@@ -553,6 +807,10 @@
                     Name = s.SectionName,
                     Revenue = s.Revenue,
                     Percentage = (int)s.Percentage,
+                    TotalStalls = s.TotalStalls,
+                    ActiveStalls = s.ActiveStalls,
+                    ClosedStalls = s.ClosedStalls,
+                    NoContractStalls = s.NoContractStalls,
                     Color = GetSectionColor(s.SectionName)
                 }).ToList();
             }
@@ -573,16 +831,88 @@
     {
         "NPM" => new()
         {
-            new() { Name = "Vegetable Area", Revenue = 45200.00m, Percentage = 36, Color = "#2d7a5f" },
-            new() { Name = "Fish Section", Revenue = 52150.00m, Percentage = 42, Color = "#4a9eff" },
-            new() { Name = "Meat Section", Revenue = 28100.00m, Percentage = 22, Color = "#c8a84b" }
+            new() { Name = "Vegetable Area", Revenue = 45200.00m, Percentage = 94, TotalStalls = 6, ActiveStalls = 5, ClosedStalls = 0, NoContractStalls = 1, Color = "#2d7a5f" },
+            new() { Name = "Fish Section", Revenue = 52150.00m, Percentage = 88, TotalStalls = 8, ActiveStalls = 7, ClosedStalls = 1, NoContractStalls = 0, Color = "#4a9eff" },
+            new() { Name = "Meat Section", Revenue = 28100.00m, Percentage = 78, TotalStalls = 6, ActiveStalls = 6, ClosedStalls = 0, NoContractStalls = 0, Color = "#c8a84b" }
         },
         "NCC" => new()
         {
-            new() { Name = "Corner Stalls", Revenue = 38400.00m, Percentage = 57, Color = "#2d7a5f" },
-            new() { Name = "Extension Area", Revenue = 28800.00m, Percentage = 43, Color = "#4a9eff" }
+            new() { Name = "Corner Stalls", Revenue = 38400.00m, Percentage = 57, TotalStalls = 18, ActiveStalls = 16, ClosedStalls = 1, NoContractStalls = 1, Color = "#2d7a5f" },
+            new() { Name = "Extension Area", Revenue = 28800.00m, Percentage = 43, TotalStalls = 20, ActiveStalls = 19, ClosedStalls = 0, NoContractStalls = 1, Color = "#4a9eff" }
         },
         _ => new()
+    };
+
+    private DailyCollectionStreakDto? DailyCollectionStreak
+        => ReportData?.DailyCollectionStreak;
+
+    private FeeTypeBreakdownDto? FeeTypeBreakdown
+        => ReportData?.FeeTypeBreakdown;
+
+    private IReadOnlyList<FishKiloTrendDto> FishKiloTrend
+        => ReportData?.FishKiloTrend ?? Array.Empty<FishKiloTrendDto>();
+
+    private IReadOnlyList<FeeTypeRow> GetFeeTypeRows()
+    {
+        if (FeeTypeBreakdown == null)
+        {
+            return Array.Empty<FeeTypeRow>();
+        }
+
+        var rows = new[]
+        {
+            new FeeTypeRow("Daily fee", FeeTypeBreakdown.DailyFeeAmount, "daily"),
+            new FeeTypeRow("Fish fee", FeeTypeBreakdown.FishFeeAmount, "fish"),
+            new FeeTypeRow("Total", FeeTypeBreakdown.DailyFeeAmount + FeeTypeBreakdown.FishFeeAmount + FeeTypeBreakdown.RentalAmount + FeeTypeBreakdown.UtilityAmount, "rental"),
+            new FeeTypeRow("Utilities", FeeTypeBreakdown.UtilityAmount, "utility")
+        }
+        .Where(row => row.Amount > 0)
+        .ToList();
+
+        if (!rows.Any())
+        {
+            rows.Add(new FeeTypeRow("No collected fees", 0m, "daily"));
+        }
+
+        var maxAmount = rows.Max(row => row.Amount);
+        return rows
+            .Select(row => row with { Width = maxAmount > 0 ? ClampPercent((row.Amount / maxAmount) * 100m) : 0m })
+            .ToList();
+    }
+
+    private string GetShortSectionName(string sectionName)
+    {
+        return sectionName
+            .Replace(" Section", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(" Area", string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private IReadOnlyList<FishTrendPoint> GetFishKiloTrendPoints()
+    {
+        var maxKilos = FishKiloTrend.Any() ? FishKiloTrend.Max(point => point.Kilos) : 0m;
+        return FishKiloTrend.Select(point => new FishTrendPoint(
+            point.PeriodLabel,
+            point.Kilos,
+            maxKilos > 0 ? Math.Max(12m, (point.Kilos / maxKilos) * 100m) : 0m
+        )).ToList();
+    }
+
+    private string GetFishTrendStartLabel() => FishKiloTrend.FirstOrDefault()?.PeriodLabel ?? string.Empty;
+
+    private string GetFishTrendEndLabel() => FishKiloTrend.LastOrDefault()?.PeriodLabel ?? string.Empty;
+
+    private string GetCollectionDayLabel(DailyCollectionDayDto day)
+        => day.Status.Equals("OutOfScope", StringComparison.OrdinalIgnoreCase)
+            ? "-"
+            : day.DayNumber.ToString();
+
+    private string GetCollectionDayClass(string status) => status.ToLowerInvariant() switch
+    {
+        "collected" => "collected",
+        "missed" => "missed",
+        "future" => "future",
+        "outofscope" => "out-of-scope",
+        _ => "future"
     };
 
     private List<TopStall> MockTopStalls
@@ -762,12 +1092,39 @@
         _ = LoadReportDataAsync();
     }
 
+    private decimal ClampPercent(decimal value) => Math.Clamp(value, 0m, 100m);
+
+    private decimal GetStatusWidth(int count)
+    {
+        var total = MockPaidCount + MockPartialCount + MockUnpaidCount;
+        return total > 0 ? ClampPercent((count * 100m) / total) : 0m;
+    }
+
+    private string FormatPercentage(decimal value) => $"{ClampPercent(value):0.0}%";
+
+    private string FormatSignedPercentage(decimal value)
+    {
+        var sign = value > 0 ? "+" : string.Empty;
+        return $"{sign}{value:0.0}%";
+    }
+
+    private string GetChangeClass(decimal value) => value switch
+    {
+        > 0 => "positive",
+        < 0 => "negative",
+        _ => "neutral"
+    };
+
     private RenderFragment RenderRevenueChart() => __builder =>
     {
         decimal[] chartData;
         
         // Use real data from API if available
-        if (ReportData?.RevenueTrend != null && ReportData.RevenueTrend.Any())
+        if (RevenueTrendOverride?.Any() == true)
+        {
+            chartData = RevenueTrendOverride.Select(t => t.Revenue).ToArray();
+        }
+        else if (ReportData?.RevenueTrend != null && ReportData.RevenueTrend.Any())
         {
             chartData = ReportData.RevenueTrend.Select(t => t.Revenue).ToArray();
         }
@@ -800,6 +1157,21 @@
                 ("ICE", "Weekly") => new[] { 4800m, 5200m, 5600m, 5400m, 6000m, 5800m, 5600m },
                 ("ICE", "Monthly") => new[] { 18000m, 19000m, 20000m, 21000m, 22500m, 24000m },
                 ("ICE", "Yearly") => new[] { 180000m, 190000m, 200000m, 220000m, 240000m },
+
+                // TRM - Per-trip terminal collections
+                ("TRM", "Weekly") => new[] { 1320m, 1440m, 1260m, 1530m, 1680m, 1740m, 1500m },
+                ("TRM", "Monthly") => new[] { 31200m, 33750m, 34800m, 36300m, 38100m, 39600m },
+                ("TRM", "Yearly") => new[] { 318000m, 342000m, 381000m, 418000m, 452000m },
+
+                // TPM - Friday market-day collections
+                ("TPM", "Weekly") => new[] { 8900m, 9600m, 10100m, 9300m },
+                ("TPM", "Monthly") => new[] { 38200m, 41100m, 39600m, 42500m, 44800m, 46900m },
+                ("TPM", "Yearly") => new[] { 392000m, 418000m, 455000m, 476000m, 508000m },
+
+                // SLH - Per-transaction slaughter collections
+                ("SLH", "Weekly") => new[] { 1250m, 1615m, 1865m, 2230m, 1500m, 1980m, 2115m },
+                ("SLH", "Monthly") => new[] { 4200m, 5450m, 6100m, 5800m, 6450m, 7200m },
+                ("SLH", "Yearly") => new[] { 48000m, 52000m, 58000m, 64000m, 72000m },
                 
                 _ => Array.Empty<decimal>()
             };
@@ -810,7 +1182,6 @@
         
         // Calculate a "nice" scale value by rounding up to the nearest nice number
         // This ensures small values like ₱30 show as small bars, not 100% height
-        var maxValue = CalculateNiceScale(dataMax);
         var labels = GetChartLabels();
 
         // Wrapper with gridlines + bars overlaid
@@ -824,7 +1195,11 @@
             <div class="bar-chart">
                 @for (int i = 0; i < chartData.Length; i++)
                 {
-                    var height = maxValue > 0 ? (chartData[i] / maxValue) * 100 : 0;
+                    var height = dataMax > 0 ? (chartData[i] / dataMax) * 100 : 0;
+                    if (chartData[i] > 0 && height < 5)
+                    {
+                        height = 5;
+                    }
                     var isHighlight = i == chartData.Length - 1;
                     <div class="bar-group">
                         <div class="bar-wrapper">
@@ -842,9 +1217,9 @@
     private RenderFragment RenderPaymentStatusChart() => __builder =>
     {
         var total = MockPaidCount + MockPartialCount + MockUnpaidCount;
-        var paidPercent = total > 0 ? (MockPaidCount * 100.0 / total) : 0;
-        var partialPercent = total > 0 ? (MockPartialCount * 100.0 / total) : 0;
-        var unpaidPercent = total > 0 ? (MockUnpaidCount * 100.0 / total) : 0;
+        var paidPercent = total > 0 ? (MockPaidCount * 100.0m / total) : 0m;
+        var partialPercent = total > 0 ? (MockPartialCount * 100.0m / total) : 0m;
+        var unpaidPercent = total > 0 ? (MockUnpaidCount * 100.0m / total) : 0m;
 
         <div class="donut-chart">
             <svg viewBox="0 0 200 200" class="donut-svg">
@@ -852,23 +1227,23 @@
                 <circle cx="100" cy="100" r="75" fill="none" stroke="#eef2f6" stroke-width="32" />
                 <!-- Paid segment -->
                 <circle cx="100" cy="100" r="75" fill="none" stroke="#2d7a5f" stroke-width="32"
-                        stroke-dasharray="@(paidPercent * 4.712) 471.2"
+                        stroke-dasharray="@(paidPercent * 4.712m) 471.2"
                         stroke-dashoffset="0"
                         transform="rotate(-90 100 100)" />
                 <!-- Partial segment -->
                 <circle cx="100" cy="100" r="75" fill="none" stroke="#c8a84b" stroke-width="32"
-                        stroke-dasharray="@(partialPercent * 4.712) 471.2"
-                        stroke-dashoffset="@(-paidPercent * 4.712)"
+                        stroke-dasharray="@(partialPercent * 4.712m) 471.2"
+                        stroke-dashoffset="@(-paidPercent * 4.712m)"
                         transform="rotate(-90 100 100)" />
                 <!-- Unpaid segment -->
                 <circle cx="100" cy="100" r="75" fill="none" stroke="#8b3a3a" stroke-width="32"
-                        stroke-dasharray="@(unpaidPercent * 4.712) 471.2"
-                        stroke-dashoffset="@(-(paidPercent + partialPercent) * 4.712)"
+                        stroke-dasharray="@(unpaidPercent * 4.712m) 471.2"
+                        stroke-dashoffset="@(-(paidPercent + partialPercent) * 4.712m)"
                         transform="rotate(-90 100 100)" />
             </svg>
             <div class="donut-center">
-                <div class="donut-value">@MockCollectionRate%</div>
-                <div class="donut-label">Collected</div>
+                <div class="donut-value">@paidPercent.ToString("0.0")%</div>
+                <div class="donut-label">Fully Paid</div>
             </div>
         </div>
 
@@ -876,17 +1251,17 @@
             <div class="legend-item">
                 <span class="legend-dot" style="background: #2d7a5f"></span>
                 <span class="legend-name">Paid</span>
-                <span class="legend-percent">@paidPercent.ToString("F1")%</span>
+                <span class="legend-percent">@paidPercent.ToString("0.0")%</span>
             </div>
             <div class="legend-item">
                 <span class="legend-dot" style="background: #c8a84b"></span>
                 <span class="legend-name">Partial</span>
-                <span class="legend-percent">@partialPercent.ToString("F1")%</span>
+                <span class="legend-percent">@partialPercent.ToString("0.0")%</span>
             </div>
             <div class="legend-item">
                 <span class="legend-dot" style="background: #8b3a3a"></span>
                 <span class="legend-name">Unpaid</span>
-                <span class="legend-percent">@unpaidPercent.ToString("F1")%</span>
+                <span class="legend-percent">@unpaidPercent.ToString("0.0")%</span>
             </div>
         </div>
     };
@@ -894,6 +1269,11 @@
     private string[] GetChartLabels()
     {
         // Use real labels from API if available
+        if (RevenueTrendOverride?.Any() == true)
+        {
+            return RevenueTrendOverride.Select(t => t.PeriodLabel).ToArray();
+        }
+
         if (ReportData?.RevenueTrend != null && ReportData.RevenueTrend.Any())
         {
             return ReportData.RevenueTrend.Select(t => t.PeriodLabel).ToArray();
@@ -952,6 +1332,10 @@
         public string Name { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
         public int Percentage { get; set; }
+        public int TotalStalls { get; set; }
+        public int ActiveStalls { get; set; }
+        public int ClosedStalls { get; set; }
+        public int NoContractStalls { get; set; }
         public string Color { get; set; } = string.Empty;
     }
 
@@ -961,4 +1345,17 @@
         public string Occupant { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
     }
+
+    private record FeeTypeRow(string Label, decimal Amount, string ClassName)
+    {
+        public decimal Width { get; init; }
+    }
+
+    private record FishTrendPoint(string Label, decimal Kilos, decimal Height);
+
+    public record ReportTrendPoint(string PeriodLabel, decimal Revenue);
+
+    public record ReportVolumeRow(string Label, int HeadCount, string ClassName);
+
+    public record ReportBreakdownRow(string Label, decimal Amount);
 }

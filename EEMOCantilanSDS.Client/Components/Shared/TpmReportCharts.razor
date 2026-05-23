@@ -1,0 +1,194 @@
+@using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+
+<div class="tpmrc-section-label">
+    <span>TPM – TABO-AN WEEKLY MARKET</span>
+</div>
+
+<div class="tpmrc-row">
+
+    @* ── LEFT: Friday Attendance Trend ── *@
+    <div class="tpmrc-card">
+        <div class="tpmrc-card-header">
+            <div class="tpmrc-tag">TPM – ATTENDANCE</div>
+            <div class="tpmrc-card-title">Friday attendance trend</div>
+        </div>
+
+        @if (!PastDays.Any())
+        {
+            <div class="tpmrc-empty">
+                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                <span>No market days recorded this month</span>
+            </div>
+        }
+        else
+        {
+            <div class="tpmrc-chart-area">
+                @* Y-axis grid lines *@
+                <div class="tpmrc-y-axis">
+                    <span class="tpmrc-y-label">@MaxVendors</span>
+                    <span class="tpmrc-y-label">@(MaxVendors / 2)</span>
+                    <span class="tpmrc-y-label">0</span>
+                </div>
+                <div class="tpmrc-chart-inner">
+                    @* Horizontal grid *@
+                    <div class="tpmrc-grid-line" style="bottom: 100%"></div>
+                    <div class="tpmrc-grid-line" style="bottom: 50%"></div>
+                    <div class="tpmrc-grid-line" style="bottom: 0%"></div>
+
+                    @* Bars *@
+                    <div class="tpmrc-bars">
+                        @foreach (var day in PastDays)
+                        {
+                            var heightPct = MaxVendors > 0
+                                ? (double)day.VendorsPaid / MaxVendors * 100
+                                : 0;
+                            var isBest = day.VendorsPaid == MaxVendors;
+
+                            <div class="tpmrc-bar-col">
+                                <div class="tpmrc-bar-top-label @(isBest ? "tpmrc-bar-top-best" : "")">
+                                    @day.VendorsPaid
+                                </div>
+                                <div class="tpmrc-bar-wrap">
+                                    <div class="tpmrc-bar-fill @(isBest ? "tpmrc-bar-best" : "")"
+                                         style="height: @(heightPct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%">
+                                    </div>
+                                </div>
+                                <div class="tpmrc-bar-x-label">
+                                    @day.MarketDate.ToDateTime(TimeOnly.MinValue).ToString("MMM d")
+                                </div>
+                                <div class="tpmrc-bar-sub-label">
+                                    ₱@day.TotalCollected.ToString("N0")
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* Summary footer *@
+            <div class="tpmrc-chart-footer">
+                <div class="tpmrc-foot-stat">
+                    <span class="tpmrc-foot-val">@PastDays.Count</span>
+                    <span class="tpmrc-foot-key">Market Days</span>
+                </div>
+                <div class="tpmrc-foot-divider"></div>
+                <div class="tpmrc-foot-stat">
+                    <span class="tpmrc-foot-val">@PastDays.Sum(d => d.VendorsPaid)</span>
+                    <span class="tpmrc-foot-key">Total Vendors Paid</span>
+                </div>
+                <div class="tpmrc-foot-divider"></div>
+                <div class="tpmrc-foot-stat">
+                    <span class="tpmrc-foot-val tpmrc-gold">
+                        ₱@PastDays.Sum(d => d.TotalCollected).ToString("N0")
+                    </span>
+                    <span class="tpmrc-foot-key">Total Collected</span>
+                </div>
+                <div class="tpmrc-foot-divider"></div>
+                <div class="tpmrc-foot-stat">
+                    <span class="tpmrc-foot-val">
+                        @(PastDays.Any()
+                            ? Math.Round((double)PastDays.Sum(d => d.VendorsPaid) / PastDays.Count, 1).ToString("F1")
+                            : "—")
+                    </span>
+                    <span class="tpmrc-foot-key">Avg / Friday</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ── RIGHT: Market Day Breakdown ── *@
+    <div class="tpmrc-card">
+        <div class="tpmrc-card-header">
+            <div class="tpmrc-tag">TPM – MARKET DAYS</div>
+            <div class="tpmrc-card-title">Per-Friday breakdown</div>
+        </div>
+
+        @if (!PastDays.Any())
+        {
+            <div class="tpmrc-empty">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                <span>No market days recorded yet</span>
+            </div>
+        }
+        else
+        {
+            <div class="tpmrc-table-wrap">
+                <table class="tpmrc-table">
+                    <thead>
+                        <tr>
+                            <th>Market Day</th>
+                            <th class="tpmrc-th-right">Vendors</th>
+                            <th class="tpmrc-th-right">Collected</th>
+                            <th class="tpmrc-th-right">vs Avg</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var day in PastDays.OrderByDescending(d => d.MarketDate))
+                        {
+                            var vsAvg = day.VendorsPaid - AvgVendors;
+                            var isHigh = day.VendorsPaid == MaxVendors;
+                            var isLow  = day.VendorsPaid == MinVendors && PastDays.Count > 1;
+
+                            <tr class="@(isHigh ? "tpmrc-row-high" : isLow ? "tpmrc-row-low" : "")">
+                                <td>
+                                    <div class="tpmrc-date-main">
+                                        @day.MarketDate.ToDateTime(TimeOnly.MinValue).ToString("MMMM d, yyyy")
+                                    </div>
+                                    @if (isHigh)
+                                    {
+                                        <div class="tpmrc-row-badge tpmrc-badge-high">Best</div>
+                                    }
+                                    else if (isLow)
+                                    {
+                                        <div class="tpmrc-row-badge tpmrc-badge-low">Lowest</div>
+                                    }
+                                </td>
+                                <td class="tpmrc-td-right tpmrc-td-bold">@day.VendorsPaid</td>
+                                <td class="tpmrc-td-right tpmrc-gold">₱@day.TotalCollected.ToString("N0")</td>
+                                <td class="tpmrc-td-right">
+                                    @if (vsAvg > 0)
+                                    {
+                                        <span class="tpmrc-vs-pos">+@vsAvg.ToString("F0")</span>
+                                    }
+                                    else if (vsAvg < 0)
+                                    {
+                                        <span class="tpmrc-vs-neg">@vsAvg.ToString("F0")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tpmrc-vs-neutral">—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* Totals row *@
+            <div class="tpmrc-table-footer">
+                <span class="tpmrc-table-foot-label">Month total</span>
+                <span class="tpmrc-table-foot-val">@PastDays.Sum(d => d.VendorsPaid) vendors</span>
+                <span class="tpmrc-table-foot-val tpmrc-gold">₱@PastDays.Sum(d => d.TotalCollected).ToString("N0")</span>
+            </div>
+        }
+    </div>
+
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<TpmMarketDayDto> MarketDays { get; set; } = new();
+
+    private List<TpmMarketDayDto> PastDays =>
+        MarketDays
+            .Where(m => m.VendorsPaid > 0)
+            .OrderBy(m => m.MarketDate)
+            .ToList();
+
+    private int MaxVendors => PastDays.Any() ? PastDays.Max(d => d.VendorsPaid) : 1;
+    private int MinVendors => PastDays.Any() ? PastDays.Min(d => d.VendorsPaid) : 0;
+    private double AvgVendors => PastDays.Any()
+        ? PastDays.Average(d => d.VendorsPaid)
+        : 0;
+}

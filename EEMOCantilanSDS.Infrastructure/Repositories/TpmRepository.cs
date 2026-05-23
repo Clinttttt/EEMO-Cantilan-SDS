@@ -53,7 +53,6 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
             .Where(a => a.MarketDate >= startDate && a.MarketDate <= endDate)
             .ToListAsync(ct);
 
-        var totalVendors = await context.TpmVendors.CountAsync(v => v.IsActive, ct);
         var paidCount = attendances.Count(a => a.IsPaid);
         var totalAttendances = attendances.Count;
 
@@ -61,7 +60,7 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         {
             CollectedThisMonth = attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
             FridaysThisMonth = GetFridaysInMonth(year, month).Count,
-            RegisteredVendors = totalVendors,
+            VendorEntriesThisMonth = totalAttendances,
             CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0
         };
     }

@@ -82,19 +82,22 @@
                 }
             </div>
 
-            <!-- Slaughter Report Button -->
-            <div>
-                <a href="/reports/slaughterhouse" class="btn-outline">
+            <div class="toolbar-actions">
+                <button class="btn btn-outline" @onclick="OpenReportsModal">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
+                    </svg>
+                    Reports
+                </button>
+
+                <a href="/reports/slaughterhouse" class="btn btn-outline">
                     <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
                     </svg>
-                    Slaughter Report
+                    Slaughter List
                 </a>
-            </div>
 
-            <!-- Record Button -->
-            <div>
                 <button class="btn btn-primary" @onclick="OpenRecordSlaughterModal">
                     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Record Slaughter
@@ -406,6 +409,22 @@
 
 </div>
 
+<FacilityReportsModal @bind-IsOpen="ShowReports"
+                      FacilityCode="SLH"
+                      FacilityName="Slaughterhouse"
+                      TotalRevenueOverride="@TotalCollected"
+                      CollectionRateOverride="100"
+                      OccupiedCountOverride="@GroupedOwnerTransactions.Count"
+                      TotalCountOverride="@GroupedOwnerTransactions.Count"
+                      PendingCountOverride="0"
+                      PendingAmountOverride="0"
+                      PaidCountOverride="@TotalHeads"
+                      PartialCountOverride="0"
+                      UnpaidCountOverride="0"
+                      RevenueTrendOverride="@SlhTrendPoints"
+                      VolumeRowsOverride="@SlhVolumeRows"
+                      FeeBreakdownRowsOverride="@SlhFeeBreakdownRows" />
+
 @code {
 
     private RenderFragment SlhIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>;
@@ -430,6 +449,7 @@
     private bool ShowRecordModal { get; set; }
     private bool ShowAddTransactionModal { get; set; }
     private bool ShowEditModal { get; set; }
+    private bool ShowReports { get; set; }
     private string SelectedOwnerName { get; set; } = string.Empty;
     private DateTime SelectedTransactionDate { get; set; } = DateTime.Now;
     private string SelectedORNumber { get; set; } = string.Empty;
@@ -449,6 +469,43 @@
     private int CarabaoCount => Overview?.CarabaoCount ?? 0;
     private int CowCount => Overview?.CowCount ?? 0;
     private int OthersCount => Overview?.OthersCount ?? 0;
+    private int LargeAnimalCount => CarabaoCount + CowCount;
+
+    private IReadOnlyList<FacilityReportsModal.ReportTrendPoint> SlhTrendPoints => GroupedOwnerTransactions
+        .OrderBy(g => g.LatestTransactionDate)
+        .GroupBy(g => g.LatestTransactionDate)
+        .Select(g => new FacilityReportsModal.ReportTrendPoint(g.Key.ToString("MMM d"), g.Sum(x => x.LatestTransactions.Sum(t => t.TotalAmount))))
+        .ToList();
+
+    private IReadOnlyList<FacilityReportsModal.ReportVolumeRow> SlhVolumeRows
+    {
+        get
+        {
+            var rows = new List<FacilityReportsModal.ReportVolumeRow>
+            {
+                new("Hogs", HogCount, "hog"),
+                new("Carabao/Cattle", LargeAnimalCount, "large-animal")
+            };
+
+            if (OthersCount > 0)
+            {
+                rows.Add(new("Others", OthersCount, "new"));
+            }
+
+            return rows;
+        }
+    }
+
+    private IReadOnlyList<FacilityReportsModal.ReportBreakdownRow> SlhFeeBreakdownRows => new List<FacilityReportsModal.ReportBreakdownRow>
+    {
+        new("Slaughter fee", (HogCount * 50m) + (LargeAnimalCount * 150m)),
+        new("Entrance fee", HogCount * 150m),
+        new("Table charge", (HogCount + LargeAnimalCount) * 30m),
+        new("Ante mortem", (HogCount + LargeAnimalCount) * 20m),
+        new("Permit", LargeAnimalCount * 100m),
+        new("Post mortem", LargeAnimalCount * 25m),
+        new("Livestock fee", LargeAnimalCount * 40m)
+    }.Where(row => row.Amount > 0).ToList();
 
     private IEnumerable<OwnerTransactionGroupDto> FilteredOwnerGroups
     {
@@ -566,6 +623,8 @@
 
     // -- ACTIONS --------------------------------------------------
     private void SetAnimalFilter(string filter) => ActiveAnimalFilter = filter;
+
+    private void OpenReportsModal() => ShowReports = true;
 
     private void OpenRecordSlaughterModal()
     {
