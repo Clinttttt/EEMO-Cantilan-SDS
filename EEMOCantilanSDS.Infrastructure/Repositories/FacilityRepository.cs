@@ -16,8 +16,9 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var facility = await context.Facilities
-            .Include(f => f.Stalls)
-            .ThenInclude(s => s.PaymentRecords)
+            .AsNoTracking()
+            .Include(f => f.Stalls.Where(s => !s.IsDeleted))
+                .ThenInclude(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
             .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
 
         if (facility == null)
@@ -26,29 +27,34 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
         var activeStalls = facility.Stalls.Where(s => s.Status == StallStatus.Active).ToList();
         var totalStalls = activeStalls.Count;
 
-        var payments = activeStalls
-            .SelectMany(s => s.PaymentRecords)
-            .Where(p => p.BillingYear == year && p.BillingMonth == month)
-            .ToList();
+        var payments = activeStalls.SelectMany(s => s.PaymentRecords).ToList();
 
-        var totalCollected = payments
-            .Where(p => p.Status == PaymentStatus.Paid || p.Status == PaymentStatus.Partial)
-            .Sum(p => p.Status == PaymentStatus.Paid 
-                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0)
-                : p.PartialAmount);
-
-        var totalPending = payments
-            .Where(p => p.Status == PaymentStatus.Unpaid || p.Status == PaymentStatus.Partial)
-            .Sum(p =>
-            {
-                var total = p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0);
-                return p.Status == PaymentStatus.Partial ? total - p.PartialAmount : total;
-            });
+        var totalCollected = payments.Sum(p => p.AmountPaid);
+        var totalPending = payments.Sum(p => p.BalanceDue);
 
         var collectionRate = totalStalls > 0 
             ? (decimal)payments.Count(p => p.Status == PaymentStatus.Paid) / totalStalls * 100 
             : 0;
 
         return new FacilitySummaryDto(totalCollected, totalPending, collectionRate, totalStalls);
+    }
+
+    public async Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct)
+    {
+        // One server-side query. Unpaid = active, occupied stalls with no Paid record for the month.
+        // Soft-deleted rows are excluded by the global query filters.
+        return await context.Facilities
+            .AsNoTracking()
+            .OrderBy(f => f.Code)
+            .Select(f => new FacilitySidebarSummaryDto(
+                f.Code,
+                f.Name,
+                f.ShortName,
+                f.Stalls.Count(s => s.Status == StallStatus.Active
+                    && s.Contracts.Any(c => c.IsActive)
+                    && !s.PaymentRecords.Any(p => p.BillingYear == year
+                        && p.BillingMonth == month
+                        && p.Status == PaymentStatus.Paid))))
+            .ToListAsync(ct);
     }
 }

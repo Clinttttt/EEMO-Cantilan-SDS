@@ -102,6 +102,10 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
+        var refreshToken = User.FindFirst("RefreshToken")?.Value;
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+            await apiAuthService.LogoutAsync(refreshToken);
+
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Ok();
     }

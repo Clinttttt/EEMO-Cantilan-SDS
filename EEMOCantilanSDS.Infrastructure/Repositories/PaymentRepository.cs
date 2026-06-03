@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,13 +18,11 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
     public async Task<PaymentRecordDto?> GetPaymentRecordAsync(Guid stallId, int year, int month, CancellationToken ct)
     {
         var payment = await context.PaymentRecords
-            .FirstOrDefaultAsync(p => p.StallId == stallId && p.BillingYear == year && p.BillingMonth == month, ct);
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.StallId == stallId && p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted, ct);
 
         if (payment == null)
             return null;
-
-        var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * 1.0m : 0);
-        var amountPaid = payment.Status == Domain.Enums.PaymentStatus.Paid ? totalBill : payment.Status == Domain.Enums.PaymentStatus.Partial ? payment.PartialAmount : 0;
 
         return new PaymentRecordDto(
             payment.Id,
@@ -31,19 +31,33 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             payment.BaseRentalAmount,
             payment.ElecAmount,
             payment.WaterAmount,
-            payment.FishKilos.HasValue ? payment.FishKilos.Value * 1.0m : null,
-            amountPaid,
-            totalBill - amountPaid
+            payment.FishFeeAmount,
+            payment.AmountPaid,
+            payment.BalanceDue
         );
+    }
+
+    public async Task<IReadOnlyList<FacilityPaymentRecordDto>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
+    {
+        var payments = await context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.Stall!.Facility!.Code == facilityCode && p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted)
+            .ToListAsync(ct);
+
+        // AmountPaid is a C# computed property — map in memory, not in SQL
+        return payments
+            .Select(p => new FacilityPaymentRecordDto(p.StallId, p.Status, p.ORNumber, p.AmountPaid))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct)
     {
-        var now = DateTime.UtcNow;
+        var now = PhilippineTime.Now;
         var startDate = now.AddMonths(-11);
 
         var payments = await context.PaymentRecords
-            .Where(p => p.StallId == stallId)
+            .AsNoTracking()
+            .Where(p => p.StallId == stallId && !p.IsDeleted)
             .Where(p => (p.BillingYear > startDate.Year) || (p.BillingYear == startDate.Year && p.BillingMonth >= startDate.Month))
             .OrderByDescending(p => p.BillingYear)
             .ThenByDescending(p => p.BillingMonth)
@@ -52,15 +66,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         return payments.Select(p => new PaymentHistoryDto(
             $"{p.BillingYear:0000}-{p.BillingMonth:00}",
             p.Status,
-            p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0),
-            p.Status == Domain.Enums.PaymentStatus.Paid 
-                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0)
-                : p.Status == Domain.Enums.PaymentStatus.Partial ? p.PartialAmount : 0,
-            p.Status == Domain.Enums.PaymentStatus.Unpaid 
-                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0)
-                : p.Status == Domain.Enums.PaymentStatus.Partial 
-                    ? (p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos.HasValue ? p.FishKilos.Value * 1.0m : 0)) - p.PartialAmount 
-                    : 0,
+            p.TotalBill,
+            p.AmountPaid,
+            p.BalanceDue,
             p.ORNumber,
             p.PaidAt,
             null
@@ -69,9 +77,12 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
     {
-        var existsInPayments = await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct);
-        var existsInDaily = await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct);
-        return !existsInPayments && !existsInDaily;
+        if (await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
+        if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
+        if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
+        if (await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
+        if (await context.TrmTrips.AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
+        return true;
     }
 
     public async Task AddAsync(PaymentRecord payment, CancellationToken ct)

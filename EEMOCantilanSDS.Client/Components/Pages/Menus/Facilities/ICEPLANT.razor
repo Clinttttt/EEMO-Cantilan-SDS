@@ -24,7 +24,8 @@
               StallNoSelector="@(s => s.StallNo)"
               ActualOccupantSelector="@(s => s.ActualOccupant)"
               ContractNameSelector="@(s => s.ContractName)"
-              ORNumberSetter="@((s, or) => s.ORNumber = or)" />
+              ORNumberSetter="@((s, or) => s.ORNumber = or)"
+              ReportsUrl="/ice/reports" />
 
 @code {
     private RenderFragment IceIcon => @<svg viewBox="0 0 24 24" class="npm-icon-svg" style="width: 24px; height: 24px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M2.7 10.3a2.41 2.41 0 000 3.41l7.59 7.59a2.41 2.41 0 003.41 0l7.59-7.59a2.41 2.41 0 000-3.41L13.7 2.71a2.41 2.41 0 00-3.41 0z"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M6.34 6.34l11.32 11.32"/><path d="M17.66 6.34L6.34 17.66"/></svg>;

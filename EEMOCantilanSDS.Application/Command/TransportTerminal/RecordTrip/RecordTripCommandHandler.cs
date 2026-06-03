@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
@@ -8,6 +9,7 @@ namespace EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 
 public class RecordTripCommandHandler(
     ITrmRepository trmRepo,
+    ICurrentUserService currentUser,
     IUnitOfWork uow) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
 {
     public async Task<Result<TrmTripDto>> Handle(RecordTripCommand request, CancellationToken ct)
@@ -25,7 +27,9 @@ public class RecordTripCommandHandler(
             request.PlateNumber,
             request.Route,
             request.ORNumber,
-            remarks: request.Remarks);
+            collectorId: currentUser.CollectorId,
+            remarks: request.Remarks,
+            createdBy: currentUser.Username ?? "Admin");
 
         await trmRepo.AddTripAsync(trip, ct);
         await uow.SaveChangesAsync(ct);

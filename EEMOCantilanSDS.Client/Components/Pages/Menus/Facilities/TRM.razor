@@ -131,7 +131,7 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;">
                     <div class="trm-log-date">@DateTime.Now.ToString("MMMM d, yyyy")</div>
-                    <button class="btn-outline" @onclick="OpenReportsModal" title="View Transport Terminal Reports">
+                    <button class="btn-outline" @onclick='() => Navigation.NavigateTo("/trm/reports")' title="View Transport Terminal Reports">
                         <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
                             <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
                         </svg>
@@ -174,7 +174,7 @@
                             @foreach (var trip in FilteredTodayTrips.OrderByDescending(t => t.RecordedAt))
                             {
                                 var transporter = Transporters.FirstOrDefault(t => t.Id == trip.TransporterId);
-                                <tr class="trm-log-row" @onclick="() => { if (transporter != null) OpenProfile(transporter); }">
+                                <tr class="trm-log-row" @onclick="async () => { if (transporter != null) await OpenProfile(transporter); }">
                                     <td class="trm-trip-no">#@trip.TripNumber</td>
                                     <td class="trm-driver-cell">@trip.DriverName</td>
                                     <td class="trm-org-cell">@trip.Organization</td>
@@ -194,19 +194,7 @@
 
 </div><!-- end content-area -->
 
-<FacilityReportsModal @bind-IsOpen="ShowReports"
-                      FacilityCode="TRM"
-                      FacilityName="Transport Terminal"
-                      TotalRevenueOverride="@TotalCollectedToday"
-                      CollectionRateOverride="@TrmOrCompletionRate"
-                      OccupiedCountOverride="@ActiveTransportersToday"
-                      TotalCountOverride="@TotalTransportersCount"
-                      PendingCountOverride="@PendingTripsCount"
-                      PendingAmountOverride="@TrmPendingOrAmount"
-                      PaidCountOverride="@TripsWithOrCount"
-                      PartialCountOverride="0"
-                      UnpaidCountOverride="@PendingTripsCount"
-                      RevenueTrendOverride="@TrmTrendPoints" />
+
 <!-- ══════════════════════════════════════════════
      SLIDE-IN PROFILE PANEL + BACKDROP
 ══════════════════════════════════════════════ -->
@@ -566,7 +554,6 @@
     private RenderFragment TrmIcon => @<svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 5v3h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>;
 
     private bool isLoading = true;
-    private bool ShowReports;
     private TrmOverviewDto? overview;
     private List<TrmTransporterListDto> Transporters = new();
     private List<TrmTripDto> AllTrips = new();
@@ -614,7 +601,6 @@
         isLoading = false; StateHasChanged();
     }
 
-    void OpenReportsModal() => ShowReports = true;
     string TransporterSearch = string.Empty;
     string TripSearch = string.Empty;
 
@@ -664,7 +650,6 @@
     bool ShowQuickOrInput = false;
     string QuickOrNumber = string.Empty;
     string RecordTripError = string.Empty;
-    TrmTripDto? PendingTrip = null;
 
     void ShowRecordTripForm()
     {
@@ -678,7 +663,6 @@
         ShowQuickOrInput = false;
         QuickOrNumber = string.Empty;
         RecordTripError = string.Empty;
-        PendingTrip = null;
     }
 
     async Task RecordTrip()
@@ -706,7 +690,6 @@
         {
             ShowQuickOrInput = false;
             QuickOrNumber = string.Empty;
-            PendingTrip = null;
             await LoadData();
             if (ProfileTransporter != null)
             {

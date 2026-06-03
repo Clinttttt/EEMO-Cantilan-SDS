@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
 using EEMOCantilanSDS.Domain.Enums;
@@ -11,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin")]
 public class FacilitiesController(ISender sender) : ApiBaseController(sender)
 {
     [HttpGet("{facilityCode}/stalls")]
@@ -27,6 +28,13 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetSectionSummariesQuery(facilityCode, year, month);
         var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("summaries")]
+    public async Task<ActionResult<IReadOnlyList<FacilitySidebarSummaryDto>>> GetSummaries([FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetFacilitySummariesQuery(year, month));
         return HandleResponse(result);
     }
 

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using MediatR;
@@ -8,6 +9,7 @@ namespace EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollec
 public class RecordDailyCollectionCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IStallRepository stallRepository,
+    ICurrentUserService currentUser,
     IUnitOfWork unitOfWork) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
@@ -15,6 +17,9 @@ public class RecordDailyCollectionCommandHandler(
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null)
             return Result<bool>.NotFound();
+
+        var collectorId = currentUser.CollectorId;
+        var recordedBy = currentUser.Username ?? "System";
 
         var existing = await dailyCollectionRepository.GetByStallAndDateAsync(request.StallId, request.CollectionDate, ct);
 
@@ -24,13 +29,13 @@ public class RecordDailyCollectionCommandHandler(
             {
                 existing.MarkPaid(
                     orNumber: string.Empty,
-                    collectorId: Guid.Empty,
+                    collectorId: collectorId,
                     fishKilos: request.FishKilos,
-                    updatedBy: "System");
+                    updatedBy: recordedBy);
             }
             else
             {
-                existing.MarkUnpaid("System");
+                existing.MarkUnpaid(recordedBy);
             }
         }
         else
@@ -38,15 +43,15 @@ public class RecordDailyCollectionCommandHandler(
             var newCollection = DailyCollection.Create(
                 stallId: request.StallId,
                 collectionDate: request.CollectionDate,
-                createdBy: "System");
+                createdBy: recordedBy);
 
             if (request.IsPaid)
             {
                 newCollection.MarkPaid(
                     orNumber: string.Empty,
-                    collectorId: Guid.Empty,
+                    collectorId: collectorId,
                     fishKilos: request.FishKilos,
-                    updatedBy: "System");
+                    updatedBy: recordedBy);
             }
 
             await dailyCollectionRepository.AddAsync(newCollection, ct);

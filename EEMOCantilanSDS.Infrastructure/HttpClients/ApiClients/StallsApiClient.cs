@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Requests.Stalls;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -53,6 +54,9 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
 
     public async Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command) =>
         await PutAsync<UpdateStallCommand, StallDto>($"api/Stalls/{stallId}", command);
+
+    public async Task<Result<bool>> ToggleStallStatusAsync(Guid stallId, bool close) =>
+        await UpdateAsync<ToggleStallStatusRequest, bool>($"api/Stalls/{stallId}/status", new ToggleStallStatusRequest(close));
 
     public async Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command) =>
         await UpdateAsync<UpdateStallDetailsCommand, bool>($"api/Stalls/{stallId}/details", command);

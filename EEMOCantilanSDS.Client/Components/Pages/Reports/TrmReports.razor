@@ -1,0 +1,342 @@
+@page "/trm/reports"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.TransportTerminal
+@inject ITrmApiClient TrmApi
+
+<PageTitle>EEMO Admin — TRM Reports</PageTitle>
+
+<header class="rpt-topbar">
+    <div class="rpt-topbar-left">
+        <a href="/trm" class="rpt-back-btn" title="Back to TRM">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div class="rpt-topbar-icon">
+            <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+        </div>
+        <div>
+            <div class="rpt-eyebrow">FACILITY · TRM · REPORTS</div>
+            <div class="rpt-title">Transport Terminal Reports</div>
+            <div class="rpt-subtitle">@GetPeriodLabel()</div>
+        </div>
+    </div>
+    <div class="rpt-topbar-right">
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export PDF
+        </button>
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+        </button>
+    </div>
+    <div class="rpt-header-progress">
+        <div class="rpt-header-progress-fill" style="width:@OrCompletionRate%"></div>
+    </div>
+</header>
+
+<div class="rpt-period-bar">
+    <div class="rpt-period-tabs">
+        @foreach (var p in new[]{"Weekly","Monthly","Yearly"})
+        { <button class="rpt-period-tab @(ActivePeriod==p?"active":"")" @onclick="()=>SetPeriod(p)">@p</button> }
+    </div>
+    <div class="rpt-date-nav">
+        <button class="rpt-nav-btn" @onclick="PrevPeriod"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="rpt-current-period">@GetPeriodLabel()</span>
+        <button class="rpt-nav-btn" @onclick="NextPeriod"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+</div>
+
+<div class="rpt-content">
+
+    <div class="rpt-kpi-strip">
+        <div class="rpt-kpi-card kpi-revenue">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Terminal Fees Collected</div>
+                <div class="kpi-value">₱@TotalCollected.ToString("N2")</div>
+                <div class="kpi-change positive">+9.4% vs previous @ActivePeriod.ToLower()</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-rate">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">OR Completion Rate</div>
+                <div class="kpi-value">@OrCompletionRate%</div>
+                <div class="kpi-change positive">+3.1% vs previous @ActivePeriod.ToLower()</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-pending">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Trips Pending OR</div>
+                <div class="kpi-value">@PendingTrips</div>
+                <div class="kpi-change negative">₱@PendingAmount.ToString("N2") pending</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-stalls">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Total Trips</div>
+                <div class="kpi-value">@TotalTrips</div>
+                <div class="kpi-change neutral">@ActiveTransporters active transporters</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-charts-row">
+        <div class="rpt-chart-card rpt-chart-wide">
+            <div class="chart-header">
+                <h3 class="chart-title">Fee Collection Trend</h3>
+                <div class="chart-legend">
+                    <span class="legend-dot" style="background:var(--green)"></span><span>Collected</span>
+                    <span class="legend-dot" style="background:var(--gold);margin-left:12px"></span><span>Current</span>
+                </div>
+            </div>
+            <div class="rpt-bar-chart">
+                @foreach (var pt in TrendPoints)
+                {
+                    <div class="rpt-bar-group @(pt.IsCurrent?"current":"")">
+                        <div class="rpt-bar-wrap">
+                            <div class="rpt-bar-3d">
+                                <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
+                            </div>
+                        </div>
+                        <div class="rpt-bar-label">@pt.Label</div>
+                        <div class="rpt-bar-val">₱@pt.ShortValue</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="rpt-chart-card rpt-chart-narrow">
+            <div class="chart-header"><h3 class="chart-title">OR Status</h3></div>
+            <div class="rpt-donut-wrap">
+                <svg class="rpt-donut-svg" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="46" fill="none" stroke="var(--bg)" stroke-width="16" />
+                    @{ var arcs = BuildDonutArcs(new[]{(TripsWithOr,"#2d7a5f"),(PendingTrips,"#8b3a3a")},46,60,60); }
+                    @foreach (var arc in arcs){ <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="16" stroke-linecap="butt" /> }
+                    <circle cx="60" cy="60" r="37" fill="white" />
+                    <text x="60" y="55" class="donut-center-pct">@OrCompletionRate%</text>
+                    <text x="60" y="68" class="donut-center-lbl">OR ISSUED</text>
+                </svg>
+                <div class="rpt-donut-legend">
+                    <div class="donut-leg-item"><span class="donut-leg-dot paid"></span><span>With OR</span><strong>@TripsWithOr</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot unpaid"></span><span>Pending OR</span><strong>@PendingTrips</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Audit Breakdown</h2></div>
+
+    <div class="rpt-breakdown-grid">
+
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">Top Organizations by Trips</h4>
+            <div class="breakdown-list">
+                @foreach (var org in OrgBreakdown)
+                {
+                    <div class="breakdown-item">
+                        <div class="breakdown-label"><span class="sec-dot" style="background:@org.Color"></span>@org.Name</div>
+                        <div class="breakdown-value">@org.Trips trips</div>
+                        <div class="breakdown-bar"><div class="bar-fill" style="width:@org.Pct%;background:@org.Color"></div></div>
+                    </div>
+                }
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">Fee Rate</div>
+                <div class="fee-row"><span>Per trip (flat)</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:var(--green)"></div></div><strong>₱30</strong></div>
+            </div>
+        </div>
+
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">OR Compliance</h4>
+            <div class="breakdown-list">
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="status-badge paid">With OR</span></div>
+                    <div class="breakdown-value">@TripsWithOr trips</div>
+                    <div class="breakdown-bar"><div class="bar-fill paid" style="width:@OrCompletionRate%"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="status-badge unpaid">Pending OR</span></div>
+                    <div class="breakdown-value">@PendingTrips trips</div>
+                    <div class="breakdown-bar"><div class="bar-fill unpaid" style="width:@PendingPct%"></div></div>
+                </div>
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">Collection Exposure</div>
+                <div class="fee-row"><span>Pending OR value</span><div class="mini-meter"><div class="mini-meter-fill" style="width:@PendingPct%;background:var(--red)"></div></div><strong>₱@PendingAmount.ToString("N0")</strong></div>
+            </div>
+        </div>
+
+        <div class="rpt-breakdown-card rpt-streak-card">
+            <h4 class="breakdown-title">Daily Activity — @GetPeriodLabel()</h4>
+            @if (ActivePeriod == "Yearly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-yearly-grid">
+                        @foreach (var mo in YearlyMonths)
+                        { <div class="streak-month-cell @mo.Css" title="@mo.Label"><span class="streak-month-name">@mo.Name</span><span class="streak-month-rate">@mo.Rate</span></div> }
+                    </div>
+                </div>
+            }
+            else if (ActivePeriod == "Weekly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
+                    <div class="streak-grid streak-grid-week">
+                        @foreach(var day in WeekDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
+                    <div class="streak-grid">
+                        @for(int b=0;b<CalendarLeadBlanks;b++){<span class="streak-day empty"></span>}
+                        @foreach(var day in CalendarDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
+                    </div>
+                </div>
+            }
+            <div class="streak-legend">
+                <span><i class="leg-swatch collected"></i>Active (@ActiveDays)</span>
+                <span><i class="leg-swatch missed"></i>No trips (@NoTripDays)</span>
+                <span><i class="leg-swatch future"></i>Upcoming</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Trip Log — @GetPeriodLabel()</h2></div>
+    <div class="rpt-compliance-table-wrap">
+        <table class="rpt-compliance-table">
+            <thead><tr><th>Date</th><th>Driver</th><th>Organization</th><th>Route</th><th>Plate</th><th>Fee</th><th>OR Status</th><th>OR Number</th></tr></thead>
+            <tbody>
+                @foreach (var t in TripLog)
+                {
+                    <tr class="@(t.HasOr ? "" : "row-unpaid")">
+                        <td class="text-muted">@t.Date</td>
+                        <td>@t.Driver</td>
+                        <td>@t.Organization</td>
+                        <td>@t.Route</td>
+                        <td class="text-muted">@t.Plate</td>
+                        <td style="font-weight:600">₱@t.Fee.ToString("N0")</td>
+                        <td><span class="status-badge @(t.HasOr?"paid":"unpaid")">@(t.HasOr?"Issued":"Pending")</span></td>
+                        <td class="text-muted">@(string.IsNullOrEmpty(t.ORNumber)?"—":t.ORNumber)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+@code {
+    string ActivePeriod = "Monthly";
+    DateTime CurrentDate = DateTime.Now;
+    private List<TrmTripDto> Trips = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    async Task LoadAsync()
+    {
+        var r = await TrmApi.GetTripsAsync(CurrentDate.Year, CurrentDate.Month);
+        Trips = r.IsSuccess && r.Value != null ? r.Value.ToList() : new();
+    }
+    async Task SetPeriod(string p) { ActivePeriod = p; await LoadAsync(); }
+    async Task PrevPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(-7), "Yearly" => CurrentDate.AddYears(-1), _ => CurrentDate.AddMonths(-1) }; await LoadAsync(); }
+    async Task NextPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(7),  "Yearly" => CurrentDate.AddYears(1),  _ => CurrentDate.AddMonths(1)  }; await LoadAsync(); }
+    string GetPeriodLabel() => ActivePeriod switch { "Weekly" => $"Week of {CurrentDate:MMM d, yyyy}", "Yearly" => CurrentDate.ToString("yyyy"), _ => CurrentDate.ToString("MMMM yyyy") };
+
+    decimal TotalCollected     => Trips.Sum(t => t.Fee);
+    int     TotalTrips         => Trips.Count;
+    int     PendingTrips       => Trips.Count(t => string.IsNullOrEmpty(t.ORNumber));
+    int     TripsWithOr        => TotalTrips - PendingTrips;
+    int     OrCompletionRate   => TotalTrips > 0 ? (int)((double)TripsWithOr / TotalTrips * 100) : 0;
+    int     ActiveTransporters => Trips.Select(t => t.TransporterId).Distinct().Count();
+    decimal PendingAmount      => Trips.Where(t => string.IsNullOrEmpty(t.ORNumber)).Sum(t => t.Fee);
+    int     PendingPct         => TotalTrips > 0 ? (int)((double)PendingTrips / TotalTrips * 100) : 0;
+    int     ActiveDays         => Trips.Select(t => t.RecordedAt.Day).Distinct().Count();
+    int     NoTripDays => 0;
+
+    record ArcSegment(string D, string Color);
+    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segs, double r, double cx, double cy)
+    {
+        int total = segs.Sum(s => s.Count); if (total == 0) yield break;
+        double start = -Math.PI / 2;
+        foreach (var (count, color) in segs)
+        {
+            if (count == 0) continue;
+            double sweep = 2 * Math.PI * count / total;
+            double end = start + Math.Min(sweep, 2 * Math.PI - 0.0001);
+            double x1 = cx + r * Math.Cos(start), y1 = cy + r * Math.Sin(start);
+            double x2 = cx + r * Math.Cos(end),   y2 = cy + r * Math.Sin(end);
+            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {(sweep > Math.PI ? 1 : 0)} 1 {x2:F3} {y2:F3}", color);
+            start = end;
+        }
+    }
+
+    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct)
+    {
+        public string ShortValue => $"₱{Amount:N0}";
+    }
+    IEnumerable<TrendPoint> TrendPoints
+    {
+        get
+        {
+            var byDate = Trips.GroupBy(t => t.RecordedAt.Date).OrderBy(g => g.Key)
+                .Select(g => (Label: g.Key.ToString("MMM d"), Amount: g.Sum(t => t.Fee))).ToList();
+            var max = byDate.Any() ? byDate.Max(x => x.Amount) : 0m;
+            return byDate.Select((x, i) => new TrendPoint(x.Label, x.Amount, i == byDate.Count - 1, max > 0 ? (int)(x.Amount / max * 100) : 0));
+        }
+    }
+
+    record OrgRow(string Name, int Trips, int Pct, string Color);
+    IEnumerable<OrgRow> OrgBreakdown
+    {
+        get
+        {
+            var colors = new[] { "#2d7a5f", "#c8a84b", "#4a9eff", "#8b3a3a", "#6a8aa0" };
+            var groups = Trips.GroupBy(t => t.Organization).ToList();
+            var max = groups.Any() ? groups.Max(g => g.Count()) : 0;
+            return groups.OrderByDescending(g => g.Count()).Select((g, i) =>
+                new OrgRow(g.Key, g.Count(), max > 0 ? (int)((double)g.Count() / max * 100) : 0, colors[i % colors.Length]));
+        }
+    }
+
+    record CalDay(string Num, string Css, string Label);
+    HashSet<int> TripDayNums => Trips.Where(t => t.RecordedAt.Year == CurrentDate.Year && t.RecordedAt.Month == CurrentDate.Month)
+        .Select(t => t.RecordedAt.Day).ToHashSet();
+    int CalendarLeadBlanks => (int)new DateTime(CurrentDate.Year, CurrentDate.Month, 1).DayOfWeek;
+    int DaysInMonth => DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+    IEnumerable<CalDay> CalendarDays => Enumerable.Range(1, DaysInMonth).Select(i =>
+    {
+        var dt = new DateTime(CurrentDate.Year, CurrentDate.Month, i);
+        if (TripDayNums.Contains(i)) return new CalDay(i.ToString(), "collected", $"Active — {dt:MMM d}");
+        return new CalDay(i.ToString(), dt.Date > DateTime.Today ? "future" : "missed", dt.Date > DateTime.Today ? "Upcoming" : "No trips");
+    });
+    IEnumerable<CalDay> WeekDays
+    {
+        get
+        {
+            var sun = CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
+            return Enumerable.Range(0, 7).Select(i =>
+            {
+                var d = sun.AddDays(i);
+                var css = d.Month == CurrentDate.Month && TripDayNums.Contains(d.Day) ? "collected"
+                    : d.Date > DateTime.Today ? "future" : "missed";
+                return new CalDay(d.Day.ToString(), css, $"{d:ddd MMM d}");
+            });
+        }
+    }
+    record MonthCell(string Name, int Rate, string Css, string Label);
+    IEnumerable<MonthCell> YearlyMonths => Array.Empty<MonthCell>();
+
+    record TripRow(string Date, string Driver, string Organization, string Route, string Plate, decimal Fee, bool HasOr, string ORNumber);
+    IEnumerable<TripRow> TripLog => Trips
+        .OrderBy(t => t.RecordedAt)
+        .Select(t => new TripRow(t.RecordedAt.ToString("MMM dd"), t.DriverName, t.Organization, t.Route, t.PlateNumber,
+            t.Fee, !string.IsNullOrEmpty(t.ORNumber), t.ORNumber ?? ""));
+}

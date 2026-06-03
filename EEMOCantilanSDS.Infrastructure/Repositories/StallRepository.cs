@@ -15,8 +15,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
     public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
     {
         var query = context.Stalls
-            .Include(s => s.Contracts)
-            .Where(s => s.Facility!.Code == facilityCode);
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -27,8 +28,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
             query = query.Where(s =>
                 s.StallNo.ToLower().Contains(term) ||
                 s.Contracts.Any(c =>
-                    c.ActualOccupant.ToLower().Contains(term) ||
-                    c.NameOnContract.ToLower().Contains(term)));
+                    !c.IsDeleted && (
+                        c.ActualOccupant.ToLower().Contains(term) ||
+                        (c.NameOnContract ?? "").ToLower().Contains(term))));
         }
 
         var stalls = await query
@@ -46,8 +48,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 StallCount = g.Count(),
                 Rows = g.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
-                    var durationYears = contract != null ? DateTime.Now.Year - contract.EffectivityDate.Year : 0;
+                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                    var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
                     return new StallHolderRowDto
                     {
                         RowNumber = idx + 1,
@@ -80,8 +82,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 StallCount = stallsWithoutSection.Count,
                 Rows = stallsWithoutSection.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
-                    var durationYears = contract != null ? DateTime.Now.Year - contract.EffectivityDate.Year : 0;
+                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                    var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
                     return new StallHolderRowDto
                     {
                         RowNumber = idx + 1,
@@ -121,8 +123,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
     public async Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct)
     {
         var query = context.Stalls
-            .Include(s => s.Contracts)
-            .Where(s => s.Facility!.Code == facilityCode);
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -132,42 +135,43 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
         query = query.OrderByDescending(s => s.CreatedAt);
 
+        // Materialise first so FirstOrDefault runs client-side — avoids EF correlated
+        // subquery column-type mismatch (integer vs string) on PostgreSQL.
         var pagedResult = await query
-            .Select(s => new
-            {
-                Stall = s,
-                ActiveContract = s.Contracts.FirstOrDefault(c => c.IsActive)
-            })
-            .ToCursorPagedResultAsync(pageSize, x => x.Stall.CreatedAt, ct);
+            .ToCursorPagedResultAsync(pageSize, s => s.CreatedAt, ct);
 
         return new CursorPagedResult<StallDto>
         {
-            Items = pagedResult.Items.Select(x => new StallDto(
-                x.Stall.Id,
-                x.Stall.StallNo,
-                x.Stall.Status,
-                x.ActiveContract?.ActualOccupant,
-                x.ActiveContract?.NameOnContract,
-                x.Stall.AreaSqm,
-                x.ActiveContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
-                x.Stall.MonthlyRate,
-                x.Stall.DailyRate,
-                x.ActiveContract?.ORNumber,
-                x.Stall.Section,
-                x.Stall.AreaLocation,
-                x.Stall.AreaNote,
-                x.Stall.Remarks
-            )).ToList(),
+            Items = pagedResult.Items.Select(s =>
+            {
+                var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                return new StallDto(
+                    s.Id,
+                    s.StallNo,
+                    s.Status,
+                    activeContract?.ActualOccupant,
+                    activeContract?.NameOnContract,
+                    s.AreaSqm,
+                    activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
+                    s.MonthlyRate,
+                    s.DailyRate,
+                    activeContract?.ORNumber,
+                    s.Section,
+                    s.AreaLocation,
+                    s.AreaNote,
+                    s.Remarks
+                );
+            }).ToList(),
             NextCursor = pagedResult.NextCursor,
             HasMore = pagedResult.HasMore
         };
     }
-
     public async Task<IReadOnlyList<StallDto>> GetStallsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct)
     {
         var query = context.Stalls
-            .Include(s => s.Contracts)
-            .Where(s => s.Facility!.Code == facilityCode);
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -176,7 +180,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
         return stalls.Select(s =>
         {
-            var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
+            var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
 
             return new StallDto(
                 s.Id,
@@ -200,8 +204,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
     public async Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var stalls = await context.Stalls
-            .Include(s => s.PaymentRecords)
-            .Where(s => s.Facility!.Code == facilityCode && s.Section.HasValue)
+            .AsNoTracking()
+            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
+            .Where(s => s.Facility!.Code == facilityCode && s.Section.HasValue && !s.IsDeleted)
             .ToListAsync(ct);
 
         return stalls
@@ -252,7 +257,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var query = context.Stalls.Where(s =>
             s.Facility!.Code == facilityCode &&
-            s.StallNo == stallNo);
+            s.StallNo == stallNo &&
+            !s.IsDeleted);
 
         query = facilityCode == FacilityCode.NPM
             ? query.Where(s => s.Section == section)

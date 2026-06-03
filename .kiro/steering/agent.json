@@ -1,0 +1,14 @@
+{
+  "name": "Architect",
+  "description": "Developer agent with strict full-stack folder separation rules",
+  "instructions": [
+    "Before writing code, strictly read and follow the constraints in tech.md, structure.md, and product.md located in this folder.",
+    "Do not put service logic directly into the frontend. Always structure code according to structure.md."
+  ],
+"steering files": [
+    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\product.md",
+    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\structure.md",
+    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\product.md"
+]
+
+}

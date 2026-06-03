@@ -41,7 +41,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             (
                 issuer: configuration["Jwt:Issuer"],
                 audience: configuration["Jwt:Audience"],
-                expires: DateTime.UtcNow.AddDays(7),
+                expires: DateTime.UtcNow.AddMinutes(15),
                 claims: claim,
                 signingCredentials: creds
             );
@@ -59,7 +59,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         public async Task<string> GenerateAndSaveRefreshToken(BaseUser user, CancellationToken cancellationToken = default)
         {
             var refreshToken = GenerateRefreshToken();
-            user.SetRefreshToken(refreshToken, DateTime.UtcNow.AddDays(7));
+            user.SetRefreshToken(HashRefreshToken(refreshToken), DateTime.UtcNow.AddDays(7));
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return refreshToken;
         }
@@ -83,14 +83,33 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             };
         }
 
+        public string CreateAccessToken(BaseUser user) => CreateToken(user, GetRole(user));
+
         public async Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default)
         {
-            var user = await context.AdminUsers.FirstOrDefaultAsync(s => s.RefreshToken == RefreshToken, cancellationToken);
-            if (user?.RefreshToken != RefreshToken || user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            var hashed = HashRefreshToken(RefreshToken);
+            var user = await context.Users.FirstOrDefaultAsync(
+                s => s.RefreshToken == hashed && !s.IsDeleted && s.IsActive, cancellationToken);
+            if (user is null
+                || user.RefreshTokenExpiryTime <= DateTime.UtcNow
+                || (user.LockedUntil.HasValue && user.LockedUntil > DateTime.UtcNow))
             {
                 return null!;
             }
             return user;
         }
+
+        public async Task RevokeRefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(refreshToken)) return;
+            var hashed = HashRefreshToken(refreshToken);
+            var user = await context.Users.FirstOrDefaultAsync(s => s.RefreshToken == hashed, cancellationToken);
+            if (user is null) return;
+            user.ClearRefreshToken();
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        private static string HashRefreshToken(string token) =>
+            Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     }
 }

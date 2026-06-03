@@ -5,5 +5,7 @@ public record DailyCollectionStreakDto(
     int CollectedDays,
     int MissedDays,
     int CurrentStreakDays,
-    IReadOnlyList<DailyCollectionDayDto> Days
+    IReadOnlyList<DailyCollectionDayDto> Days,
+    int PartialDays = 0,
+    int CoverageRate = 0
 );

@@ -77,7 +77,7 @@
                     var isSelected = SelectedFriday.HasValue && SelectedFriday.Value.Date == friday.Date;
 
                     <div class="tpm-friday-item @(isSelected ? "friday-selected" : "") @(isFuture ? "friday-future" : "")"
-                         @onclick="() => { if (!isFuture) _ = SelectFriday(friday); }">
+                         @onclick="async () => { if (!isFuture) await SelectFriday(friday); }">
                         <div class="tpm-friday-date-block">
                             <div class="tpm-friday-day">@friday.ToString("dd")</div>
                             <div class="tpm-friday-label">Friday</div>
@@ -146,7 +146,7 @@
                         @SelectedFriday.Value.ToString("MMMM d, yyyy")
                     </div>
                 }
-                <button class="btn-outline" @onclick="OpenReportsModal" title="View Tabo-an Public Market Reports">
+                <button class="btn-outline" @onclick='() => Navigation.NavigateTo("/tpm/reports")' title="View Tabo-an Public Market Reports">
                     <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
                         <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
                     </svg>
@@ -270,23 +270,7 @@
 </div>
 
 <!-- ── Add Vendor Modal ── -->
-<FacilityReportsModal @bind-IsOpen="ShowReports"
-                      FacilityCode="TPM"
-                      FacilityName="Tabo-an Public Market"
-                      TotalRevenueOverride="@TpmCollectedAmount"
-                      CollectionRateOverride="@TpmCollectionRate"
-                      OccupiedCountOverride="@TpmActiveVendorCount"
-                      TotalCountOverride="@TpmVendorEntryCount"
-                      PendingCountOverride="@TpmUnpaidCount"
-                      PendingAmountOverride="@TpmUncollectedAmount"
-                      PaidCountOverride="@TpmPaidCount"
-                      PartialCountOverride="0"
-                      UnpaidCountOverride="@TpmUnpaidCount"
-                      RevenueTrendOverride="@TpmTrendPoints">
-    <AdditionalCharts>
-        <TpmReportCharts MarketDays="MarketDays" />
-    </AdditionalCharts>
-</FacilityReportsModal>
+
 
 @if (ShowAddVendorModal)
 {
@@ -398,7 +382,6 @@
     private string VendorSearch = string.Empty;
     private bool isLoadingAttendance;
     private bool isSaving;
-    private bool ShowReports;
 
     // ── Computed ──────────────────────────────────
     private IEnumerable<TpmVendorAttendanceDto> FilteredVendors => Attendance
@@ -429,15 +412,15 @@
         await LoadOverviewAndMarketDaysAsync();
     }
 
-    private void OpenReportsModal() => ShowReports = true;
-
     private async Task LoadOverviewAndMarketDaysAsync()
     {
         var overviewResult = await TpmApi.GetOverviewAsync(CalendarMonth.Year, CalendarMonth.Month);
         if (overviewResult.IsSuccess) Overview = overviewResult.Value;
 
-        var daysResult = await TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
-        if (daysResult.IsSuccess) MarketDays = daysResult.Value?.ToList() ?? new();
+        var marketDaysResult = await TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
+        MarketDays = marketDaysResult.IsSuccess && marketDaysResult.Value != null
+            ? marketDaysResult.Value.ToList()
+            : new();
     }
 
     // ── Navigation ────────────────────────────────
@@ -465,32 +448,23 @@
         isLoadingAttendance = true;
 
         var result = await TpmApi.GetVendorAttendanceAsync(DateOnly.FromDateTime(friday));
-        if (result.IsSuccess) Attendance = result.Value?.ToList() ?? new();
+        Attendance = result.IsSuccess && result.Value != null ? result.Value.ToList() : new();
 
         isLoadingAttendance = false;
     }
 
     // ── Payment Actions ───────────────────────────
-    private async Task MarkPaid(TpmVendorAttendanceDto vendor)
-    {
-        var result = await TpmApi.MarkVendorPaidAsync(vendor.Id, new MarkVendorPaidRequest(true, Guid.Empty));
-        if (result.IsSuccess) await RefreshAttendanceAsync();
-    }
+    private async Task MarkPaid(TpmVendorAttendanceDto vendor) => await SetVendorPaid(vendor, true);
+    private async Task MarkUnpaid(TpmVendorAttendanceDto vendor) => await SetVendorPaid(vendor, false);
 
-    private async Task MarkUnpaid(TpmVendorAttendanceDto vendor)
+    private async Task SetVendorPaid(TpmVendorAttendanceDto vendor, bool isPaid)
     {
-        var result = await TpmApi.MarkVendorPaidAsync(vendor.Id, new MarkVendorPaidRequest(false, Guid.Empty));
-        if (result.IsSuccess) await RefreshAttendanceAsync();
-    }
-
-    private async Task RefreshAttendanceAsync()
-    {
-        if (!SelectedFriday.HasValue) return;
-        var result = await TpmApi.GetVendorAttendanceAsync(DateOnly.FromDateTime(SelectedFriday.Value));
-        if (result.IsSuccess) Attendance = result.Value?.ToList() ?? new();
-
-        var daysResult = await TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
-        if (daysResult.IsSuccess) MarketDays = daysResult.Value?.ToList() ?? new();
+        var result = await TpmApi.MarkVendorPaidAsync(vendor.Id, new MarkVendorPaidRequest(isPaid));
+        if (result.IsSuccess && SelectedFriday.HasValue)
+        {
+            await SelectFriday(SelectedFriday.Value);
+            await LoadOverviewAndMarketDaysAsync();
+        }
     }
 
     // ── Add Vendor Modal ──────────────────────────
@@ -527,20 +501,26 @@
             VendorFieldErrors["Goods"] = "Goods / product is required.";
         if (VendorFieldErrors.Any()) return;
 
+        if (!SelectedFriday.HasValue) return;
         isSaving = true;
-        var command = new AddVendorToMarketDayCommand(NewVendorName.Trim(), NewGoods.Trim(), DateOnly.FromDateTime(SelectedFriday!.Value));
+
+        var command = new AddVendorToMarketDayCommand(
+            NewVendorName.Trim(),
+            NewGoods.Trim(),
+            DateOnly.FromDateTime(SelectedFriday.Value));
         var result = await TpmApi.AddVendorAsync(command);
         isSaving = false;
 
         if (result.IsSuccess)
         {
+            await SelectFriday(SelectedFriday.Value);
+            await LoadOverviewAndMarketDaysAsync();
             CloseAddVendorModal();
-            await RefreshAttendanceAsync();
         }
-        else if (result.ValidationErrors?.Any() == true)
+        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
         {
-            foreach (var e in result.ValidationErrors)
-                VendorFieldErrors[e.Key] = e.Value.FirstOrDefault() ?? string.Empty;
+            foreach (var error in result.ValidationErrors)
+                VendorFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
         }
         else
         {
@@ -577,19 +557,20 @@
             OrErrorMessage = "OR number is required.";
             return;
         }
+        if (OrVendor == null) return;
 
         isSaving = true;
-        var result = await TpmApi.SaveOrNumberAsync(OrVendor!.Id, new SaveOrNumberRequest(OrNumberInput.Trim()));
+        var result = await TpmApi.SaveOrNumberAsync(OrVendor.Id, new SaveOrNumberRequest(OrNumberInput.Trim()));
         isSaving = false;
 
         if (result.IsSuccess)
         {
+            if (SelectedFriday.HasValue) await SelectFriday(SelectedFriday.Value);
             CloseOrModal();
-            await RefreshAttendanceAsync();
         }
-        else if (result.ValidationErrors?.ContainsKey("ORNumber") == true)
+        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
         {
-            OrErrorMessage = result.ValidationErrors["ORNumber"].FirstOrDefault() ?? "Invalid OR number.";
+            OrErrorMessage = result.ValidationErrors.First().Value.FirstOrDefault() ?? "Invalid OR number.";
         }
         else
         {

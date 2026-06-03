@@ -158,21 +158,14 @@
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
 
-<!-- ══════════════════════════════════════════════
-     FACILITY REPORTS MODAL
-══════════════════════════════════════════════ -->
-<FacilityReportsModal @bind-IsOpen="ShowReports"
-                      FacilityCode="NPM"
-                      FacilityName="New Public Market"
-                      ShowSectionBreakdown="true" />
+
 
 @code {
 
     bool SidebarCollapsed = false;
-    private bool ShowReports = false;
 
     string SearchQuery = string.Empty;
-    string ActiveSection = "Vegetable Section";
+    string ActiveSection = "Vegetable Area";
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
@@ -202,6 +195,13 @@
         var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NPM, null, null, 100);
         if (result.IsSuccess && result.Value != null)
         {
+            // Single batch call for all current-month payment records (avoids per-stall N+1)
+            var paymentsResult = await PaymentsApi.GetFacilityPaymentRecordsAsync(
+                FacilityCode.NPM, DateTime.Now.Year, DateTime.Now.Month);
+            var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
+                ? paymentsResult.Value.ToDictionary(p => p.StallId)
+                : new();
+
             Stalls.Clear();
             int id = 1;
             foreach (var dto in result.Value.Items)
@@ -214,20 +214,13 @@
                     _ => "Vegetable Area"
                 };
 
-                // Fetch current month's payment record for this stall
-                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
-                    dto.Id,
-                    DateTime.Now.Year,
-                    DateTime.Now.Month);
-
                 bool isPaid = false;
                 bool isPartial = false;
                 decimal partialAmount = 0;
                 string orNumber = dto.ORNumber ?? string.Empty;
 
-                if (paymentResult.IsSuccess && paymentResult.Value != null)
+                if (payments.TryGetValue(dto.Id, out var payment))
                 {
-                    var payment = paymentResult.Value;
                     isPaid = payment.Status == PaymentStatus.Paid;
                     isPartial = payment.Status == PaymentStatus.Partial;
                     partialAmount = payment.TotalPaid;
@@ -266,11 +259,10 @@
                 Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
                 ClassName = "btn-outline",
                 Title = "View Facility Reports & Analytics",
-                OnClickHandler = async () => 
-                { 
-                    ShowReports = true; 
-                    StateHasChanged();
-                    await Task.CompletedTask; 
+                OnClickHandler = async () =>
+                {
+                    Navigation.NavigateTo("/npm/reports");
+                    await Task.CompletedTask;
                 }
             },
             new()
@@ -571,24 +563,8 @@
 
         if (result.IsSuccess)
         {
-            var newStall = new NpmStall
-            {
-                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
-                StallGuid = result.Value!.Id,
-                StallNo = VendorForm.StallNo.Trim(),
-                Section = $"{VendorForm.SelectedSection} Area",
-                ActualOccupant = VendorForm.ActualOccupant.Trim(),
-                ContractName = VendorForm.ContractName.Trim(),
-                AreaSqm = VendorForm.AreaSqm,
-                ContractDate = VendorForm.ContractDate,
-                MonthlyRate = VendorForm.MonthlyRate,
-                HasElectricity = VendorForm.FeeTypes.Contains("Electricity"),
-                HasWater = VendorForm.FeeTypes.Contains("Water"),
-                IsActive = true,
-                PaymentHistory = new()
-            };
-
-            Stalls.Add(newStall);
+            // Reload from API so section mapping/GUIDs reflect backend truth
+            await LoadStallsFromApi();
             CloseAddVendorModal();
         }
         else
@@ -671,13 +647,8 @@
             }
         }
 
-        existingStall.ActualOccupant = VendorForm.ActualOccupant.Trim();
-        existingStall.ContractName = VendorForm.ContractName.Trim();
-        existingStall.MonthlyRate = VendorForm.MonthlyRate;
-        existingStall.AreaSqm = VendorForm.AreaSqm;
-        existingStall.HasElectricity = VendorForm.FeeTypes.Contains("Electricity");
-        existingStall.HasWater = VendorForm.FeeTypes.Contains("Water");
-
+        // Reload from API so the UI reflects persisted backend state
+        await LoadStallsFromApi();
         CloseAddVendorModal();
     }
 }

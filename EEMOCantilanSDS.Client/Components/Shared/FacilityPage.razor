@@ -164,6 +164,7 @@
     [Parameter] public Func<TStall, string> ActualOccupantSelector { get; set; } = null!;
     [Parameter] public Func<TStall, string> ContractNameSelector { get; set; } = null!;
     [Parameter] public Action<TStall, string> ORNumberSetter { get; set; } = null!;
+    [Parameter] public string? ReportsUrl { get; set; }
 
     private string SearchQuery = string.Empty;
     private string ActiveStatus = "All";
@@ -191,24 +192,28 @@
         var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCodeEnum, null, null, 100);
         if (result.IsSuccess && result.Value != null)
         {
+            // Single batch call for all current-month payment records (avoids per-stall N+1)
+            var paymentsResult = await PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCodeEnum, DateTime.Now.Year, DateTime.Now.Month);
+            var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
+                ? paymentsResult.Value.ToDictionary(p => p.StallId)
+                : new();
+
             Stalls.Clear();
             foreach (var dto in result.Value.Items)
             {
-                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(dto.Id, DateTime.Now.Year, DateTime.Now.Month);
-                
                 bool isPaid = false;
                 bool isPartial = false;
                 decimal partialAmount = 0;
                 string orNumber = string.Empty;
-                
-                if (paymentResult.IsSuccess && paymentResult.Value != null)
+
+                if (payments.TryGetValue(dto.Id, out var payment))
                 {
-                    isPaid = paymentResult.Value.Status == PaymentStatus.Paid;
-                    isPartial = paymentResult.Value.Status == PaymentStatus.Partial;
-                    partialAmount = paymentResult.Value.TotalPaid;
-                    orNumber = paymentResult.Value.ORNumber ?? string.Empty;
+                    isPaid = payment.Status == PaymentStatus.Paid;
+                    isPartial = payment.Status == PaymentStatus.Partial;
+                    partialAmount = payment.TotalPaid;
+                    orNumber = payment.ORNumber ?? string.Empty;
                 }
-                
+
                 Stalls.Add(StallMapper(dto, isPaid, isPartial, partialAmount, orNumber));
             }
         }
@@ -254,8 +259,13 @@
             Title = "View Facility Reports & Analytics",
             OnClickHandler = async () => 
             { 
-                ShowReports = true; 
-                StateHasChanged();
+                if (!string.IsNullOrEmpty(ReportsUrl))
+                    Navigation.NavigateTo(ReportsUrl);
+                else
+                {
+                    ShowReports = true; 
+                    StateHasChanged();
+                }
                 await Task.CompletedTask; 
             }
         },

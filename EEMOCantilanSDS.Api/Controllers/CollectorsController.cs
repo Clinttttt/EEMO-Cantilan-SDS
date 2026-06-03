@@ -1,5 +1,8 @@
 using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
+using EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
+using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Requests.Collectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetAllCollectors;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetCollectorById;
 using EEMOCantilanSDS.Application.Queries.Collectors.GetNextEmployeeId;
@@ -36,6 +39,20 @@ public class CollectorsController : ApiBaseController
     public async Task<ActionResult<CollectorDto>> CreateCollectorAsync([FromBody] CreateCollectorCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<ActionResult<bool>> UpdateCollectorAsync(Guid id, [FromBody] UpdateCollectorCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPatch("{id:guid}/status")]
+    public async Task<ActionResult<bool>> ToggleStatusAsync(Guid id, [FromBody] ToggleCollectorStatusRequest request)
+    {
+        var result = await Sender.Send(new ToggleCollectorStatusCommand(id, request.IsActive));
         return HandleResponse(result);
     }
 

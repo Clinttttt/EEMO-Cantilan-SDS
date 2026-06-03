@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin")]
 public class StallsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost]

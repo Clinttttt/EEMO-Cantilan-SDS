@@ -1,6 +1,7 @@
-﻿@page "/collectors"
+@page "/collectors"
 
 @using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector
+@using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector
 @using EEMOCantilanSDS.Application.Dtos
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
@@ -21,7 +22,7 @@
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @_now.ToString("MMMM d, yyyy")
                 </div>
                 <div class="topbar-admin">
                     <div class="admin-avatar">A</div>
@@ -50,7 +51,7 @@
                     <div>
                         <div class="vs-hero-eyebrow">EEMO Admin · Collectors</div>
                         <div class="vs-hero-title">Revenue Collectors</div>
-                        <div class="vs-hero-sub">Collection Period: @DateTime.Now.ToString("MMMM yyyy")</div>
+                        <div class="vs-hero-sub">Collection Period: @_now.ToString("MMMM yyyy")</div>
                     </div>
                 </div>
                 <div class="vs-hero-stats">
@@ -63,7 +64,7 @@
                     <div class="vs-hero-stat">
                         <div class="vs-hero-val">₱@((Collectors?.Sum(c => c.CollectedThisMonth) ?? 0).ToString("N0"))</div>
                         <div class="vs-hero-key">Total Collected</div>
-                        <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy")</div>
+                        <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy")</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
@@ -338,7 +339,7 @@
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">@ActivityCollector.FullName</div>
-                    <div class="eemo-modal-sub">Activity — @DateTime.Now.ToString("MMMM yyyy")</div>
+                    <div class="eemo-modal-sub">Activity — @_now.ToString("MMMM yyyy")</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowActivity = false">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -439,6 +440,7 @@
 
 
 @code {
+    private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     string SearchQuery = string.Empty;
     string ActiveFilter = "All";
     readonly List<string> StatusFilters = new() { "All", "Active", "Inactive" };
@@ -455,13 +457,9 @@
     {
         var result = await CollectorsApi.GetAllCollectorsAsync();
         if (result.IsSuccess)
-        {
-            Collectors = result.Value?.ToList();
-        }
+            Collectors = result.Value?.ToList() ?? new();
         else
-        {
             LoadError = result.Error;
-        }
     }
 
     IEnumerable<CollectorListDto> FilteredCollectors => (Collectors ?? new()).Where(c =>
@@ -531,7 +529,7 @@
         }
     }
 
-    void OpenEdit(CollectorListDto c)
+    async Task OpenEdit(CollectorListDto c)
     {
         IsEditing = true;
         EditingId = c.Id;
@@ -547,6 +545,13 @@
         };
         FormError = string.Empty;
         ShowModal = true;
+
+        var details = await CollectorsApi.GetCollectorByIdAsync(c.Id);
+        if (details.IsSuccess && details.Value is not null)
+        {
+            Form.ContactNumber = details.Value.ContactNumber ?? string.Empty;
+            StateHasChanged();
+        }
     }
 
     void ToggleFacility(FacilityCode code)
@@ -561,14 +566,29 @@
     {
         if (string.IsNullOrWhiteSpace(Form.FullName)) { FormError = "Full name is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.EmployeeId)) { FormError = "Employee ID is required."; return; }
-        if (string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
+        if (!IsEditing && string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
         if (!IsEditing && string.IsNullOrWhiteSpace(Form.Password)) { FormError = "Password is required for new accounts."; return; }
         if (!Form.AssignedFacilities.Any()) { FormError = "Assign at least one facility."; return; }
 
         if (IsEditing)
         {
-            FormError = "Edit functionality not yet implemented.";
-            return;
+            var command = new UpdateCollectorCommand(
+                EditingId,
+                Form.FullName.Trim(),
+                Form.ContactNumber.Trim(),
+                Form.Email.Trim(),
+                Form.AssignedFacilities);
+
+            var result = await CollectorsApi.UpdateCollectorAsync(command);
+            if (result.IsSuccess)
+            {
+                await LoadCollectors();
+                CloseModal();
+            }
+            else
+            {
+                FormError = result.Error ?? "Failed to update collector.";
+            }
         }
         else
         {
@@ -608,9 +628,15 @@
     async Task ConfirmToggle()
     {
         if (ConfirmTarget is null) return;
+        var target = ConfirmTarget;
         ShowConfirm = false;
         ConfirmTarget = null;
-        FormError = "Toggle status not yet implemented.";
+
+        var result = await CollectorsApi.ToggleCollectorStatusAsync(target.Id, !target.IsActive);
+        if (result.IsSuccess)
+            await LoadCollectors();
+        else
+            FormError = result.Error ?? "Failed to update status.";
     }
 
     bool ShowActivity = false;
@@ -620,15 +646,11 @@
     async Task OpenActivity(CollectorListDto c)
     {
         ActivityCollector = c;
+        ActivityDetails = null;
+        ShowActivity = true;
+
         var result = await CollectorsApi.GetCollectorByIdAsync(c.Id);
         if (result.IsSuccess)
-        {
             ActivityDetails = result.Value;
-            ShowActivity = true;
-        }
-        else
-        {
-            FormError = result.Error ?? "Failed to load activity.";
-        }
     }
 }

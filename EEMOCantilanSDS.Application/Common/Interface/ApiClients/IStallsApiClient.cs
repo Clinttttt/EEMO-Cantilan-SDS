@@ -14,5 +14,6 @@ public interface IStallsApiClient
     Task<Result<CursorPagedResult<StallDto>>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section = null, DateTime? cursor = null, int pageSize = 20);
     Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command);
     Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command);
+    Task<Result<bool>> ToggleStallStatusAsync(Guid stallId, bool close);
     Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command);
 }

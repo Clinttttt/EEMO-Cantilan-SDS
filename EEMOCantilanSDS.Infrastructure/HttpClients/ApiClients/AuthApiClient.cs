@@ -14,6 +14,6 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
     public async Task<Result<TokenResponseDto>> RefreshTokenAsync(RefreshTokenCommand command) => 
         await PostAsync<RefreshTokenCommand, TokenResponseDto>("api/AdminAuth/refresh-token", command);
 
-    public async Task LogoutAsync() => 
-        await PostAsync("api/AdminAuth/logout");
+    public async Task LogoutAsync(string refreshToken) =>
+        await PostAsync("api/AdminAuth/logout", new RefreshTokenCommand { RefreshToken = refreshToken });
 }

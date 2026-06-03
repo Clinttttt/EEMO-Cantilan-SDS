@@ -1,3 +1,6 @@
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@inject IFacilitiesApiClient FacilitiesApi
+
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
@@ -29,14 +32,16 @@
 
         <div class="nav-group-label" style="margin-top:1rem;">Facilities</div>
 
-        @foreach (var fac in Facilities)
+        @foreach (var fc in Enum.GetValues<FacilityCode>())
         {
-            <a href="/facility/@fac.Code.ToLower()" class="nav-item">
-                @((MarkupString)fac.IconSvg)
-                <span>@fac.ShortName</span>
-                @if (fac.UnpaidCount > 0)
+            if (!Display.TryGetValue(fc, out var display)) { continue; }
+            var unpaid = _unpaidByCode.GetValueOrDefault(fc);
+            <a href="/facility/@fc.ToString().ToLower()" class="nav-item">
+                @((MarkupString)display.Icon)
+                <span>@display.Label</span>
+                @if (unpaid > 0)
                 {
-                    <span class="nav-badge">@fac.UnpaidCount</span>
+                    <span class="nav-badge">@unpaid</span>
                 }
             </a>
         }
@@ -68,75 +73,28 @@
         <svg viewBox="0 0 24 24"><polyline points="@(SidebarCollapsed ? "9 6 15 12 9 18" : "15 18 9 12 15 6")" /></svg>
     </button>
 </aside>
-@code{
-    bool SidebarCollapsed = false;
-    
-    class FacilityItem
+@code {
+    private bool SidebarCollapsed;
+    private Dictionary<FacilityCode, int> _unpaidByCode = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string ShortName { get; set; } = string.Empty;
-        public string IconSvg { get; set; } = string.Empty;
-        public decimal Collected { get; set; }
-        public decimal Pending { get; set; }
-        public int TotalVendors { get; set; }
-        public int UnpaidCount { get; set; }
-        public int CollectionRate => TotalVendors == 0 ? 0
-                                        : (int)((double)(TotalVendors - UnpaidCount) / TotalVendors * 100);
-        public bool HasAlert => UnpaidCount > 0;
-        public List<string> FeeTypes { get; set; } = new();
+        var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+        var result = await FacilitiesApi.GetFacilitySummariesAsync(now.Year, now.Month);
+        if (result.IsSuccess && result.Value is not null)
+            _unpaidByCode = result.Value.ToDictionary(f => f.Code, f => f.UnpaidCount);
     }
 
-    
-    List<FacilityItem> Facilities = new()
+    // Presentation only: short nav label + icon per facility code (data comes from the API).
+    private static readonly Dictionary<FacilityCode, (string Label, string Icon)> Display = new()
     {
-        new() {
-            Code="NPM", Name="New Public Market", ShortName="Public Market",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
-            Collected=62400, Pending=18000, TotalVendors=100, UnpaidCount=20,
-            FeeTypes=new() { "Stall ₱30/day", "Fish ₱1/kg", "Electricity", "Water" }
-        },
-        new() {
-            Code="TCC", Name="Tampak Commercial Center", ShortName="Tampak Comm.",
-            IconSvg="""<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
-            Collected=48600, Pending=12000, TotalVendors=43, UnpaidCount=8,
-            FeeTypes=new() { "Monthly Rental", "Electricity", "Water" }
-        },
-        new() {
-            Code="NCC", Name="New Commercial Center", ShortName="New Comm. Center",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
-            Collected=56520, Pending=8400, TotalVendors=28, UnpaidCount=5,
-            FeeTypes=new() { "Monthly Rental", "Corner Premium" }
-        },
-        new() {
-            Code="BBQ", Name="Barbecue Stand", ShortName="BBQ Stand",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""",
-            Collected=38400, Pending=9600, TotalVendors=5, UnpaidCount=1,
-            FeeTypes=new() { "Space Rental" }
-        },
-        new() {
-            Code="ICE", Name="Iceplant", ShortName="Iceplant",
-            IconSvg="""<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""",
-            Collected=24000, Pending=12000, TotalVendors=4, UnpaidCount=2,
-            FeeTypes=new() { "Space Rental" }
-        },
-        new() {
-            Code="SLH", Name="Slaughterhouse", ShortName="Slaughterhouse",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
-            Collected=12250, Pending=3750, TotalVendors=30, UnpaidCount=6,
-            FeeTypes=new() { "Hog ₱250/head", "Carabao/Cow ₱365/head" }
-        },
-        new() {
-            Code="TRM", Name="Transport Terminal", ShortName="Transport Terminal",
-            IconSvg="""<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
-            Collected=0, Pending=0, TotalVendors=0, UnpaidCount=0,
-            FeeTypes=new() { "₱30 per trip" }
-        },
-        new() {
-            Code="TPM", Name="Tabo-an Public Market", ShortName="Tabo-an Market",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
-            Collected=5500, Pending=0, TotalVendors=10, UnpaidCount=0,
-            FeeTypes=new() { "₱100 per vendor (Every Friday)" }
-        },
+        [FacilityCode.NPM] = ("Public Market", """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""),
+        [FacilityCode.TCC] = ("Tampak Comm.", """<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>"""),
+        [FacilityCode.NCC] = ("New Comm. Center", """<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>"""),
+        [FacilityCode.BBQ] = ("BBQ Stand", """<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>"""),
+        [FacilityCode.ICE] = ("Iceplant", """<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>"""),
+        [FacilityCode.SLH] = ("Slaughterhouse", """<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>"""),
+        [FacilityCode.TRM] = ("Transport Terminal", """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>"""),
+        [FacilityCode.TPM] = ("Tabo-an Market", """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""),
     };
 }

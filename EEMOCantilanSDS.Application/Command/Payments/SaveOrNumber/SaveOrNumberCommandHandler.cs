@@ -1,10 +1,11 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 
-public class SaveOrNumberCommandHandler(IPaymentRepository paymentRepository, IUnitOfWork unitOfWork) : IRequestHandler<SaveOrNumberCommand, Result<bool>>
+public class SaveOrNumberCommandHandler(IPaymentRepository paymentRepository, ICurrentUserService currentUser, IUnitOfWork unitOfWork) : IRequestHandler<SaveOrNumberCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SaveOrNumberCommand request, CancellationToken ct)
     {
@@ -12,7 +13,7 @@ public class SaveOrNumberCommandHandler(IPaymentRepository paymentRepository, IU
         if (payment == null)
             return Result<bool>.NotFound();
 
-        payment.RecordPayment(request.ORNumber, Guid.Empty, payment.Status, payment.PartialAmount);
+        payment.SetOrNumber(request.ORNumber, currentUser.Username ?? "Admin");
         await paymentRepository.UpdateAsync(payment, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

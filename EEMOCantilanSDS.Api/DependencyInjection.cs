@@ -56,7 +56,9 @@ namespace EEMOCantilanSDS.Api
                         },
                          new string[] { }
                     }
-                }); 
+                });
+                options.CustomSchemaIds(s => s.FullName);
+                ; 
             });
 
 

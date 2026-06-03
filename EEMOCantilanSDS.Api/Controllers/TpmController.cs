@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin,Collector")]
 [Route("api/tpm")]
 public class TpmController(ISender sender) : ApiBaseController(sender)
 {
@@ -38,7 +38,7 @@ public class TpmController(ISender sender) : ApiBaseController(sender)
 
     [HttpPatch("attendance/{attendanceId}/payment")]
     public async Task<ActionResult<bool>> MarkVendorPaid(Guid attendanceId, [FromBody] MarkVendorPaidRequest request)
-        => HandleResponse(await Sender.Send(new MarkVendorPaidCommand(attendanceId, request.IsPaid, request.CollectorId)));
+        => HandleResponse(await Sender.Send(new MarkVendorPaidCommand(attendanceId, request.IsPaid)));
 
     [HttpPatch("attendance/{attendanceId}/or-number")]
     public async Task<ActionResult<bool>> SaveOrNumber(Guid attendanceId, [FromBody] SaveOrNumberRequest request)

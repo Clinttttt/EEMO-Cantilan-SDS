@@ -952,6 +952,26 @@
     align-items: flex-end;
     gap: 4px;
     padding: 8px 0 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.fish-sparkline::-webkit-scrollbar {
+    height: 4px;
+}
+
+.fish-sparkline::-webkit-scrollbar-track {
+    background: var(--bg-subtle);
+    border-radius: 2px;
+}
+
+.fish-sparkline::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.fish-sparkline::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
 }
 
 .fish-sparkline span {
@@ -960,6 +980,25 @@
     border-radius: 4px 4px 0 0;
     background: linear-gradient(180deg, #8ce8d0 0%, var(--green) 100%);
     opacity: 0.95;
+    position: relative;
+    cursor: pointer;
+}
+
+.fish-sparkline span:hover {
+    opacity: 1;
+    transform: scaleY(1.05);
+    transition: all 0.15s ease;
+}
+
+.fish-sparkline span:hover {
+    opacity: 1;
+    transform: scaleY(1.05);
+    transition: all 0.15s ease;
+}
+
+.fish-sparkline span:nth-child(30n) {
+    border-right: 1px solid var(--border);
+    margin-right: 2px;
 }
 
 .fish-trend-meta {
@@ -1742,3 +1781,214 @@
 .error-state .btn {
     margin-top: 20px;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   SKELETON LOADING  — shimmer placeholders matching real layout
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Shimmer keyframe ── */
+@keyframes skel-shimmer {
+    0%   { background-position: -600px 0; }
+    100% { background-position:  600px 0; }
+}
+
+/* ── Base skeleton element ── */
+.skel {
+    border-radius: 6px;
+    background: linear-gradient(
+        90deg,
+        var(--border)         0%,
+        rgba(13, 33, 55, 0.06) 40%,
+        var(--border)         80%
+    );
+    background-size: 600px 100%;
+    animation: skel-shimmer 1.5s ease-in-out infinite;
+}
+
+/* ── KPI Cards ── */
+.skel-card {
+    pointer-events: none;
+    cursor: default;
+}
+
+.skel-card:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.skel-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.skel-card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skel-label {
+    height: 9px;
+    width: 60%;
+    border-radius: 4px;
+}
+
+.skel-value {
+    height: 26px;
+    width: 75%;
+    border-radius: 5px;
+}
+
+.skel-change {
+    height: 9px;
+    width: 85%;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+/* ── Chart card header ── */
+.skel-chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.skel-chart-title {
+    height: 18px;
+    width: 38%;
+    border-radius: 5px;
+}
+
+.skel-chart-legend {
+    height: 14px;
+    width: 25%;
+    border-radius: 4px;
+}
+
+/* ── Bar chart skeleton ── */
+.skel-bar-chart-wrap {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    gap: 10px;
+    height: 260px;
+    padding-bottom: 28px;
+}
+
+.skel-bar-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    height: 100%;
+    justify-content: flex-end;
+}
+
+.skel-bar {
+    width: 100%;
+    max-width: 44px;
+    border-radius: 4px 4px 0 0;
+    /* height is set inline per bar */
+    animation: skel-shimmer 1.5s ease-in-out infinite;
+    animation-delay: calc(var(--b, 0) * 0.12s);
+}
+
+.skel-bar-group:nth-child(1) .skel-bar { animation-delay: 0s; }
+.skel-bar-group:nth-child(2) .skel-bar { animation-delay: 0.10s; }
+.skel-bar-group:nth-child(3) .skel-bar { animation-delay: 0.20s; }
+.skel-bar-group:nth-child(4) .skel-bar { animation-delay: 0.30s; }
+.skel-bar-group:nth-child(5) .skel-bar { animation-delay: 0.40s; }
+.skel-bar-group:nth-child(6) .skel-bar { animation-delay: 0.50s; }
+
+.skel-bar-label {
+    height: 10px;
+    width: 70%;
+    border-radius: 4px;
+}
+
+/* ── Donut skeleton ── */
+.skel-donut-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+
+.skel-donut {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    /* Ring illusion: transparent center via box-shadow */
+    background: transparent;
+    box-shadow: 0 0 0 22px var(--border);
+    animation: skel-shimmer 1.5s ease-in-out infinite;
+    background: linear-gradient(
+        90deg,
+        var(--border)          0%,
+        rgba(13,33,55,0.06)   40%,
+        var(--border)          80%
+    );
+    background-size: 600px 100%;
+}
+
+.skel-donut-legend-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.skel-legend-row {
+    height: 12px;
+    border-radius: 4px;
+}
+
+.skel-legend-row:nth-child(1) { width: 80%; animation-delay: 0s; }
+.skel-legend-row:nth-child(2) { width: 65%; animation-delay: 0.15s; }
+.skel-legend-row:nth-child(3) { width: 72%; animation-delay: 0.30s; }
+
+/* ── Breakdown section skeleton ── */
+.skel-section-title {
+    height: 20px;
+    width: 28%;
+    margin-bottom: 16px;
+    border-radius: 5px;
+}
+
+.skel-breakdown-title {
+    height: 15px;
+    width: 50%;
+    border-radius: 4px;
+    margin-bottom: 18px;
+}
+
+.skel-breakdown-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.skel-breakdown-badge {
+    height: 22px;
+    width: 60px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.skel-breakdown-bar {
+    flex: 1;
+    height: 10px;
+    border-radius: 5px;
+}
+
+.skel-breakdown-row:nth-child(2) .skel-breakdown-bar { width: 65%; animation-delay: 0.10s; }
+.skel-breakdown-row:nth-child(3) .skel-breakdown-bar { width: 45%; animation-delay: 0.20s; }
+.skel-breakdown-row:nth-child(4) .skel-breakdown-bar { width: 30%; animation-delay: 0.30s; }
+

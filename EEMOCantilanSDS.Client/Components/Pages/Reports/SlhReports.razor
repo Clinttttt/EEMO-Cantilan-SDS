@@ -1,0 +1,400 @@
+@page "/slh/reports"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@inject ISlaughterApiClient SlaughterApi
+
+<PageTitle>EEMO Admin — Slaughterhouse Reports</PageTitle>
+
+<header class="rpt-topbar">
+    <div class="rpt-topbar-left">
+        <a href="/slh" class="rpt-back-btn" title="Back to Slaughterhouse">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div class="rpt-topbar-icon">
+            <svg viewBox="0 0 24 24"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 015 0z"/><path d="M12 7.5V22"/><path d="M5 12h14"/></svg>
+        </div>
+        <div>
+            <div class="rpt-eyebrow">FACILITY · SLH · REPORTS</div>
+            <div class="rpt-title">Slaughterhouse Reports</div>
+            <div class="rpt-subtitle">@GetPeriodLabel()</div>
+        </div>
+    </div>
+    <div class="rpt-topbar-right">
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export PDF
+        </button>
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+        </button>
+    </div>
+    <div class="rpt-header-progress">
+        <div class="rpt-header-progress-fill" style="width:100%"></div>
+    </div>
+</header>
+
+<div class="rpt-period-bar">
+    <div class="rpt-period-tabs">
+        @foreach (var p in new[]{"Weekly","Monthly","Yearly"})
+        { <button class="rpt-period-tab @(ActivePeriod==p?"active":"")" @onclick="()=>SetPeriod(p)">@p</button> }
+    </div>
+    <div class="rpt-date-nav">
+        <button class="rpt-nav-btn" @onclick="PrevPeriod"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="rpt-current-period">@GetPeriodLabel()</span>
+        <button class="rpt-nav-btn" @onclick="NextPeriod"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+    </div>
+</div>
+
+<div class="rpt-content">
+
+    <!-- KPI strip — SLH specific: heads instead of stalls, no pending -->
+    <div class="rpt-kpi-strip">
+        <div class="rpt-kpi-card kpi-revenue">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Fees Collected</div>
+                <div class="kpi-value">₱@TotalCollected.ToString("N2")</div>
+                <div class="kpi-change positive">@RevenueGrowthText</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-rate">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">OR Completion Rate</div>
+                <div class="kpi-value">100%</div>
+                <div class="kpi-change positive">All transactions OR-issued</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-stalls">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Owners Served</div>
+                <div class="kpi-value">@OwnersServed</div>
+                <div class="kpi-change neutral">this @ActivePeriod.ToLower()</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-stalls">
+            <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 015 0z"/><path d="M12 7.5V22"/><path d="M5 12h14"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Total Heads Slaughtered</div>
+                <div class="kpi-value">@TotalHeads</div>
+                <div class="kpi-change neutral">@ActivePeriod.ToLower() total</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="rpt-charts-row">
+        <div class="rpt-chart-card rpt-chart-wide">
+            <div class="chart-header">
+                <h3 class="chart-title">Fee Collection Trend</h3>
+                <div class="chart-legend">
+                    <span class="legend-dot" style="background:var(--green)"></span><span>Collected</span>
+                    <span class="legend-dot" style="background:var(--gold);margin-left:12px"></span><span>Current</span>
+                </div>
+            </div>
+            <div class="rpt-bar-chart">
+                @foreach (var pt in TrendPoints)
+                {
+                    <div class="rpt-bar-group @(pt.IsCurrent?"current":"")">
+                        <div class="rpt-bar-wrap">
+                            <div class="rpt-bar-3d">
+                                <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
+                            </div>
+                        </div>
+                        <div class="rpt-bar-label">@pt.Label</div>
+                        <div class="rpt-bar-val">₱@pt.ShortValue</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Animal volume donut -->
+        <div class="rpt-chart-card rpt-chart-narrow">
+            <div class="chart-header"><h3 class="chart-title">Animal Volume</h3></div>
+            <div class="rpt-donut-wrap">
+                <svg class="rpt-donut-svg" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="46" fill="none" stroke="var(--bg)" stroke-width="16" />
+                    @{ var arcs = BuildDonutArcs(new[]{(HogHeads,"#c8a84b"),(CarabaoHeads,"#2d7a5f"),(CowHeads,"#4a9eff"),(OtherHeads,"#8b3a3a")},46,60,60); }
+                    @foreach (var arc in arcs){ <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="16" stroke-linecap="butt" /> }
+                    <circle cx="60" cy="60" r="37" fill="white" />
+                    <text x="60" y="55" class="donut-center-pct">@TotalHeads</text>
+                    <text x="60" y="68" class="donut-center-lbl">TOTAL HEADS</text>
+                </svg>
+                <div class="rpt-donut-legend">
+                    <div class="donut-leg-item"><span class="donut-leg-dot" style="background:#c8a84b"></span><span>Hog</span><strong>@HogHeads</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot" style="background:#2d7a5f"></span><span>Carabao</span><strong>@CarabaoHeads</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot" style="background:#4a9eff"></span><span>Cow</span><strong>@CowHeads</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot" style="background:#8b3a3a"></span><span>Other</span><strong>@OtherHeads</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Audit Breakdown</h2></div>
+
+    <div class="rpt-breakdown-grid">
+
+        <!-- Fee breakdown by animal type -->
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">Revenue by Animal Type</h4>
+            <div class="breakdown-list">
+                @foreach (var a in AnimalRevenue)
+                {
+                    <div class="breakdown-item">
+                        <div class="breakdown-label"><span class="sec-dot" style="background:@a.Color"></span>@a.Type</div>
+                        <div class="breakdown-value">₱@a.Revenue.ToString("N0")</div>
+                        <div class="breakdown-bar"><div class="bar-fill" style="width:@a.Pct%;background:@a.Color"></div></div>
+                    </div>
+                }
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">Fee Rate per Head</div>
+                <div class="fee-row"><span>Hog</span><div class="mini-meter"><div class="mini-meter-fill" style="width:68%;background:#c8a84b"></div></div><strong>₱250</strong></div>
+                <div class="fee-row"><span>Carabao</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:#2d7a5f"></div></div><strong>₱365</strong></div>
+                <div class="fee-row"><span>Cow</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:#4a9eff"></div></div><strong>₱365</strong></div>
+                <div class="fee-row"><span>Other</span><div class="mini-meter"><div class="mini-meter-fill" style="width:40%;background:#8b3a3a"></div></div><strong>Custom</strong></div>
+            </div>
+        </div>
+
+        <!-- Volume breakdown -->
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">Volume by Animal Type</h4>
+            <div class="breakdown-list">
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="sec-dot" style="background:#c8a84b"></span>Hog</div>
+                    <div class="breakdown-value">@HogHeads heads</div>
+                    <div class="breakdown-bar"><div class="bar-fill" style="width:@HogPct%;background:#c8a84b"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="sec-dot" style="background:#2d7a5f"></span>Carabao</div>
+                    <div class="breakdown-value">@CarabaoHeads heads</div>
+                    <div class="breakdown-bar"><div class="bar-fill" style="width:@CarabaoPct%;background:#2d7a5f"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="sec-dot" style="background:#4a9eff"></span>Cow</div>
+                    <div class="breakdown-value">@CowHeads heads</div>
+                    <div class="breakdown-bar"><div class="bar-fill" style="width:@CowPct%;background:#4a9eff"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="sec-dot" style="background:#8b3a3a"></span>Other</div>
+                    <div class="breakdown-value">@OtherHeads heads</div>
+                    <div class="breakdown-bar"><div class="bar-fill" style="width:@OtherPct%;background:#8b3a3a"></div></div>
+                </div>
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">OR Compliance</div>
+                <div class="fee-row"><span>Transactions with OR</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:var(--green)"></div></div><strong>100%</strong></div>
+            </div>
+        </div>
+
+        <!-- Daily activity calendar -->
+        <div class="rpt-breakdown-card rpt-streak-card">
+            <h4 class="breakdown-title">Daily Activity — @GetPeriodLabel()</h4>
+            @if (ActivePeriod == "Yearly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-yearly-grid">
+                        @foreach (var mo in YearlyMonths)
+                        { <div class="streak-month-cell @mo.Css" title="@mo.Label"><span class="streak-month-name">@mo.Name</span><span class="streak-month-rate">@mo.Rate</span></div> }
+                    </div>
+                </div>
+            }
+            else if (ActivePeriod == "Weekly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
+                    <div class="streak-grid streak-grid-week">
+                        @foreach(var day in WeekDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
+                    <div class="streak-grid">
+                        @for(int b=0;b<CalendarLeadBlanks;b++){<span class="streak-day empty"></span>}
+                        @foreach(var day in CalendarDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
+                    </div>
+                </div>
+            }
+            <div class="streak-legend">
+                <span><i class="leg-swatch collected"></i>Active (@ActiveDays)</span>
+                <span><i class="leg-swatch missed"></i>No activity (@NoActivityDays)</span>
+                <span><i class="leg-swatch future"></i>Upcoming</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transaction log -->
+    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Transaction Log — @GetPeriodLabel()</h2></div>
+    <div class="rpt-compliance-table-wrap">
+        <table class="rpt-compliance-table">
+            <thead><tr><th>Date</th><th>Owner</th><th>Animal Type</th><th>Heads</th><th>Fee per Head</th><th>Total Fee</th><th>OR Number</th></tr></thead>
+            <tbody>
+                @foreach (var t in Transactions)
+                {
+                    <tr>
+                        <td class="text-muted">@t.Date</td>
+                        <td>@t.Owner</td>
+                        <td><span class="animal-badge @t.AnimalCss">@(t.AnimalType == "Other" && !string.IsNullOrEmpty(t.CustomName) ? t.CustomName : t.AnimalType)</span></td>
+                        <td style="font-weight:600">@t.Heads</td>
+                        <td>₱@t.FeePerHead.ToString("N0")</td>
+                        <td style="font-weight:700;color:var(--green)">₱@t.TotalFee.ToString("N2")</td>
+                        <td class="text-muted">@t.ORNumber</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+@code {
+    string ActivePeriod = "Monthly";
+    DateTime CurrentDate = DateTime.Now;
+    private SlaughterOverviewDto? Overview;
+    private SlaughterOverviewDto? PrevOverview;
+    private List<SlaughterTransactionDto> Txns = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    async Task LoadAsync()
+    {
+        var ovr = await SlaughterApi.GetOverviewAsync(CurrentDate.Year, CurrentDate.Month);
+        Overview = ovr.IsSuccess ? ovr.Value : null;
+
+        var prevDate = CurrentDate.AddMonths(-1);
+        var prev = await SlaughterApi.GetOverviewAsync(prevDate.Year, prevDate.Month);
+        PrevOverview = prev.IsSuccess ? prev.Value : null;
+
+        var tx = await SlaughterApi.GetTransactionsAsync(CurrentDate.Year, CurrentDate.Month);
+        Txns = tx.IsSuccess && tx.Value != null ? tx.Value.ToList() : new();
+    }
+    async Task SetPeriod(string p) { ActivePeriod = p; await LoadAsync(); }
+    async Task PrevPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(-7), "Yearly" => CurrentDate.AddYears(-1), _ => CurrentDate.AddMonths(-1) }; await LoadAsync(); }
+    async Task NextPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(7),  "Yearly" => CurrentDate.AddYears(1),  _ => CurrentDate.AddMonths(1)  }; await LoadAsync(); }
+    string GetPeriodLabel() => ActivePeriod switch { "Weekly" => $"Week of {CurrentDate:MMM d, yyyy}", "Yearly" => CurrentDate.ToString("yyyy"), _ => CurrentDate.ToString("MMMM yyyy") };
+
+    decimal TotalCollected => Overview?.TotalCollected ?? 0m;
+    int     OwnersServed   => Txns.Select(t => t.OwnerName).Distinct().Count();
+    int     HogHeads       => Overview?.HogCount ?? 0;
+    int     CarabaoHeads   => Overview?.CarabaoCount ?? 0;
+    int     CowHeads       => Overview?.CowCount ?? 0;
+    int     OtherHeads     => Overview?.OthersCount ?? 0;
+    int     TotalHeads     => Overview?.TotalHeads ?? 0;
+    int     HogPct         => TotalHeads > 0 ? (int)((double)HogHeads     / TotalHeads * 100) : 0;
+    int     CarabaoPct     => TotalHeads > 0 ? (int)((double)CarabaoHeads / TotalHeads * 100) : 0;
+    int     CowPct         => TotalHeads > 0 ? (int)((double)CowHeads     / TotalHeads * 100) : 0;
+    int     OtherPct       => TotalHeads > 0 ? (int)((double)OtherHeads   / TotalHeads * 100) : 0;
+    string  RevenueGrowthText
+    {
+        get
+        {
+            var prev = PrevOverview?.TotalCollected ?? 0m;
+            var growth = prev > 0 ? (TotalCollected - prev) / prev * 100 : 0m;
+            return $"{growth:+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
+        }
+    }
+
+    record ArcSegment(string D, string Color);
+    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segs, double r, double cx, double cy)
+    {
+        int total = segs.Sum(s => s.Count); if (total == 0) yield break;
+        double start = -Math.PI / 2;
+        foreach (var (count, color) in segs)
+        {
+            if (count == 0) continue;
+            double sweep = 2 * Math.PI * count / total;
+            double end = start + Math.Min(sweep, 2 * Math.PI - 0.0001);
+            double x1 = cx + r * Math.Cos(start), y1 = cy + r * Math.Sin(start);
+            double x2 = cx + r * Math.Cos(end),   y2 = cy + r * Math.Sin(end);
+            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {(sweep > Math.PI ? 1 : 0)} 1 {x2:F3} {y2:F3}", color);
+            start = end;
+        }
+    }
+
+    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct)
+    {
+        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N1}k" : Amount.ToString("N0");
+    }
+    IEnumerable<TrendPoint> TrendPoints
+    {
+        get
+        {
+            var byDate = Txns.GroupBy(t => t.TransactionDate).OrderBy(g => g.Key)
+                .Select(g => (Label: g.Key.ToString("MMM d"), Amount: g.Sum(t => t.TotalAmount))).ToList();
+            var max = byDate.Any() ? byDate.Max(x => x.Amount) : 0m;
+            return byDate.Select((x, i) => new TrendPoint(x.Label, x.Amount, i == byDate.Count - 1, max > 0 ? (int)(x.Amount / max * 100) : 0));
+        }
+    }
+
+    static string AnimalName(AnimalType t) => t switch { AnimalType.Hog => "Hog", AnimalType.Carabao => "Carabao", AnimalType.Cow => "Cow", _ => "Other" };
+    static string AnimalColor(string t) => t switch { "Hog" => "#c8a84b", "Carabao" => "#2d7a5f", "Cow" => "#4a9eff", _ => "#8b3a3a" };
+
+    record AnimalRow(string Type, decimal Revenue, int Pct, string Color);
+    IEnumerable<AnimalRow> AnimalRevenue
+    {
+        get
+        {
+            var total = Txns.Sum(t => t.TotalAmount);
+            return Txns.GroupBy(t => AnimalName(t.AnimalType))
+                .Select(g => new AnimalRow(g.Key, g.Sum(t => t.TotalAmount),
+                    total > 0 ? (int)(g.Sum(t => t.TotalAmount) / total * 100) : 0, AnimalColor(g.Key)))
+                .OrderByDescending(a => a.Revenue);
+        }
+    }
+
+    // Calendar (active = day had a slaughter transaction)
+    record CalDay(string Num, string Css, string Label);
+    HashSet<int> ActiveDayNums => Txns.Where(t => t.TransactionDate.Year == CurrentDate.Year && t.TransactionDate.Month == CurrentDate.Month)
+        .Select(t => t.TransactionDate.Day).ToHashSet();
+    int CalendarLeadBlanks => (int)new DateTime(CurrentDate.Year, CurrentDate.Month, 1).DayOfWeek;
+    int DaysInMonth => DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+    string DayStatus(int day)
+    {
+        if (ActiveDayNums.Contains(day)) return "collected";
+        var date = new DateTime(CurrentDate.Year, CurrentDate.Month, day);
+        return date.Date <= DateTime.Today ? "missed" : "future";
+    }
+    int ActiveDays => ActiveDayNums.Count;
+    int NoActivityDays => Enumerable.Range(1, DaysInMonth).Count(d => DayStatus(d) == "missed");
+    IEnumerable<CalDay> CalendarDays => Enumerable.Range(1, DaysInMonth)
+        .Select(d => new CalDay(d.ToString(), DayStatus(d), $"{CurrentDate:MMM} {d}"));
+    IEnumerable<CalDay> WeekDays
+    {
+        get
+        {
+            var sun = CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
+            return Enumerable.Range(0, 7).Select(i =>
+            {
+                var d = sun.AddDays(i);
+                var css = d.Month == CurrentDate.Month ? DayStatus(d.Day) : "future";
+                return new CalDay(d.Day.ToString(), css, $"{d:ddd MMM d}");
+            });
+        }
+    }
+    record MonthCell(string Name, int Rate, string Css, string Label);
+    IEnumerable<MonthCell> YearlyMonths => Array.Empty<MonthCell>();
+
+    // Transaction log
+    record TxRow(string Date, string Owner, string AnimalType, string AnimalCss, int Heads, decimal FeePerHead, string ORNumber, string CustomName = "")
+    {
+        public decimal TotalFee => Heads * FeePerHead;
+    }
+    IEnumerable<TxRow> Transactions => Txns
+        .OrderBy(t => t.TransactionDate)
+        .Select(t => new TxRow(
+            t.TransactionDate.ToString("MMM dd"),
+            t.OwnerName,
+            AnimalName(t.AnimalType),
+            "animal-" + AnimalName(t.AnimalType).ToLowerInvariant(),
+            t.NumberOfHeads,
+            t.RatePerHead,
+            t.ORNumber ?? "",
+            t.CustomAnimalType ?? ""));
+}

@@ -1,4 +1,4 @@
-﻿@page "/list-stall-holders"
+@page "/list-stall-holders"
 
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
@@ -159,10 +159,7 @@
                                         <th class="col-rate">Monthly Rentals<br />per Contract</th>
                                         <th class="col-actual">Actual Mo.<br />Rentals</th>
                                         <th class="col-whole">Whole Year<br />Rental</th>
-                                        @if (sections == "Fish Section")
-                                        {
-                                            <th class="col-fish">Fish Fee<br />(₱1/kg)</th>
-                                        }
+
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -182,26 +179,19 @@
                                             <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
                                             <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
                                             <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
-                                            @if (sections == "Fish Section")
-                                            {
-                                                <td class="r">@(s.FishKilos > 0 ? $"₱{s.FishKilos:N2}" : "—")</td>
-                                            }
+
                                         </tr>
                                         rowNum++;
                                     }
                                 </tbody>
                                 <tfoot>
                                     <tr class="tfoot-row">
-                                        <td colspan="@(sections == "Fish Section" ? 7 : 6)" class="tfoot-label">
+                                        <td colspan="6" class="tfoot-label">
                                             Section Total — @sectionStalls.Count(s => s.IsActive) active stall@(sectionStalls.Count(s => s.IsActive) != 1 ? "s" : "")
                                         </td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
-                                        @if (sections == "Fish Section")
-                                        {
-                                            <td class="r tfoot-val">₱@sectionStalls.Sum(s => s.FishKilos).ToString("N2")</td>
-                                        }
                                     </tr>
                                 </tfoot>
                             </table>

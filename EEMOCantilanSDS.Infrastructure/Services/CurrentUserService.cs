@@ -17,6 +17,21 @@ namespace EEMOCantilanSDS.Infrastructure.Services
     {
         public bool IsAuthenticated =>
       accessor.HttpContext?.User?.Identity?.IsAuthenticated == true;
+
+        public Guid? UserId =>
+            Guid.TryParse(accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.UserId), out var id)
+                ? id
+                : null;
+
+        public string? Username =>
+            accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.Username);
+
+        public string? Role =>
+            accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.Role);
+
+        public Guid? CollectorId =>
+            string.Equals(Role, "Collector", StringComparison.OrdinalIgnoreCase) ? UserId : null;
+
         public AdminUserDto? GetCurrentUser() =>
        IsAuthenticated ? MapToDto(accessor.HttpContext!.User) : null;
         private static AdminUserDto? MapToDto(ClaimsPrincipal principal)

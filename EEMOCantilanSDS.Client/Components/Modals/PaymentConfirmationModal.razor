@@ -56,7 +56,7 @@
                             </div>
                             <div class="confirm-payment-row">
                                 <span class="confirm-payment-label">Balance Remaining</span>
-                                <span class="confirm-payment-value text-red">₱@((TotalBill - PartialAmount).ToString("N2"))</span>
+                                <span class="confirm-payment-value text-red">₱@(Math.Max(0m, TotalBill - PartialAmount).ToString("N2"))</span>
                             </div>
                         }
                     </div>

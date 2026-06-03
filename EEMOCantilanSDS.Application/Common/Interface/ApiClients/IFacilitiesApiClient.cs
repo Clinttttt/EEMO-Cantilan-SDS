@@ -6,6 +6,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IFacilitiesApiClient
 {
+    Task<Result<IReadOnlyList<FacilitySidebarSummaryDto>>> GetFacilitySummariesAsync(int year, int month);
+
     Task<Result<FacilityReportsDto>> GetFacilityReportsAsync(
         FacilityCode facilityCode,
         ReportPeriod period,

@@ -24,10 +24,6 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
                 .IsRequired()
                 .HasMaxLength(20);
 
-            builder.Property(s => s.StallNo)
-                .IsRequired()
-                .HasConversion<int>();
-
             builder.Property(s => s.Fees)
                 .IsRequired()
                 .HasConversion<int>();

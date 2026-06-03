@@ -38,7 +38,7 @@ public class CreateStallCommandHandler(
             stall.Id,
             request.ActualOccupant,
             request.NameOnContract,
-            DateOnly.FromDateTime(request.ContractDate ?? DateTime.Today),
+            DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now),
             request.ContractYears,
             request.MonthlyRate,
             null,

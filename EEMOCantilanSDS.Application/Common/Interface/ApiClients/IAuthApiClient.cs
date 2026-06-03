@@ -9,5 +9,5 @@ public interface IAuthApiClient
 {
     Task<Result<TokenResponseDto>> LoginAsync(LoginCommand command);
     Task<Result<TokenResponseDto>> RefreshTokenAsync(RefreshTokenCommand command);
-    Task LogoutAsync();
+    Task LogoutAsync(string refreshToken);
 }

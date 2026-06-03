@@ -13,12 +13,13 @@
     var contractName = GetContractName(Stall);
     var transactions = GetTransactions(Stall);
     var contractDate = GetContractDate(Stall);
+    var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
 
     // Calculate experienced months only (from contract start to now)
     var experiencedMonths = new List<DateTime>();
     for (int i = 11; i >= 0; i--)
     {
-        var month = DateTime.Now.AddMonths(-i);
+        var month = now.AddMonths(-i);
         var key = month.ToString("yyyy-MM");
         var hasRecord = PaymentHistory.Any(p => p.Period == key);
         var contractStarts = contractDate.HasValue ? new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1) : (DateTime?)null;
@@ -29,11 +30,20 @@
 
     int monthsPaid = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Paid);
     int monthsUnpaid = experiencedMonths.Count - monthsPaid;
-    decimal collected = PaymentHistory.Where(p => p.Status == Domain.Enums.PaymentStatus.Paid).Sum(p => p.AmountPaid);
-    decimal balance = rate * monthsUnpaid;
+    decimal collected = PaymentHistory
+        .Where(p => p.Status == Domain.Enums.PaymentStatus.Paid || p.Status == Domain.Enums.PaymentStatus.Partial)
+        .Sum(p => p.AmountPaid);
+    decimal balance = experiencedMonths.Sum(m =>
+    {
+        var rec = PaymentHistory.FirstOrDefault(p => p.Period == m.ToString("yyyy-MM"));
+        return rec is null ? rate
+             : rec.Status == Domain.Enums.PaymentStatus.Paid ? 0m
+             : rec.Status == Domain.Enums.PaymentStatus.Partial ? rec.BalanceDue
+             : rate;
+    });
     int compliancePct = experiencedMonths.Count > 0 ? (int)((double)monthsPaid / experiencedMonths.Count * 100) : 0;
 
-    var currentMonthKey = DateTime.Now.ToString("yyyy-MM");
+    var currentMonthKey = now.ToString("yyyy-MM");
     var currentRecord = PaymentHistory.FirstOrDefault(p => p.Period == currentMonthKey);
     decimal currentPartial = currentRecord?.Status == Domain.Enums.PaymentStatus.Partial ? currentRecord.AmountPaid : 0;
 
@@ -154,7 +164,7 @@
                     }
                     @for (int i = 11; i >= 0; i--)
                     {
-                        var month = DateTime.Now.AddMonths(-i);
+                        var month = now.AddMonths(-i);
                         var key = month.ToString("yyyy-MM");
                         var contractStart = contractDate.HasValue ? new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1) : (DateTime?)null;
                         var apiRecord = PaymentHistory.FirstOrDefault(p => p.Period == key);
@@ -164,7 +174,7 @@
                         var isPaid = payStatus == Domain.Enums.PaymentStatus.Paid;
                         var isPartial = payStatus == Domain.Enums.PaymentStatus.Partial;
                         var tx = transactions.FirstOrDefault(t => t.PeriodKey == key);
-                        var isCurr = month.Month == DateTime.Now.Month && month.Year == DateTime.Now.Year;
+                        var isCurr = month.Month == now.Month && month.Year == now.Year;
 
                         // Calculate balance for this row
                         decimal rowBalance = 0;
@@ -321,7 +331,7 @@
                 <div class="ph-footer-meta">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                     Records cover the last 12 rolling months &nbsp;·&nbsp;
-                    @DateTime.Now.AddMonths(-11).ToString("MMM yyyy") – @DateTime.Now.ToString("MMM yyyy")
+                    @now.AddMonths(-11).ToString("MMM yyyy") – @now.ToString("MMM yyyy")
                 </div>
                 <div class="ph-footer-actions">
                     @if (balance > 0)

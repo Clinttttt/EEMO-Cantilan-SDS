@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.SaveTripOrNumber;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTodayTrips;
+using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTripsByPeriod;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporterProfile;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporters;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTrmOverview;
@@ -13,7 +14,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin,Collector")]
 [Route("api/trm")]
 public class TrmController(ISender sender) : ApiBaseController(sender)
 {
@@ -36,6 +37,10 @@ public class TrmController(ISender sender) : ApiBaseController(sender)
     [HttpGet("trips/today")]
     public async Task<ActionResult<IReadOnlyList<TrmTripDto>>> GetTodayTrips()
         => HandleResponse(await Sender.Send(new GetTodayTripsQuery()));
+
+    [HttpGet("trips")]
+    public async Task<ActionResult<IReadOnlyList<TrmTripDto>>> GetTrips([FromQuery] int year, [FromQuery] int month)
+        => HandleResponse(await Sender.Send(new GetTripsByPeriodQuery(year, month)));
 
     [HttpPost("trips/{transporterId:guid}")]
     public async Task<ActionResult<TrmTripDto>> RecordTrip(Guid transporterId, [FromBody] RecordTripRequest request)

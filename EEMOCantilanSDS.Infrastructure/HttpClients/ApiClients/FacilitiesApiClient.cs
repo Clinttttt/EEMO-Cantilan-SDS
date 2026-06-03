@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients;
 
 public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacilitiesApiClient
 {
+    public async Task<Result<IReadOnlyList<FacilitySidebarSummaryDto>>> GetFacilitySummariesAsync(int year, int month) =>
+        await GetAsync<IReadOnlyList<FacilitySidebarSummaryDto>>($"api/Facilities/summaries?year={year}&month={month}");
+
     public async Task<Result<FacilityReportsDto>> GetFacilityReportsAsync(
         FacilityCode facilityCode,
         ReportPeriod period,

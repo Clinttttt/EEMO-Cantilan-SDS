@@ -12,7 +12,7 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         => await context.TpmVendors.FirstOrDefaultAsync(v => v.Id == id, ct);
 
     public async Task<IReadOnlyList<TpmVendor>> GetAllVendorsAsync(CancellationToken ct = default)
-        => await context.TpmVendors.Where(v => v.IsActive).OrderBy(v => v.VendorName).ToListAsync(ct);
+        => await context.TpmVendors.AsNoTracking().Where(v => v.IsActive).OrderBy(v => v.VendorName).ToListAsync(ct);
 
     public async Task AddVendorAsync(TpmVendor vendor, CancellationToken ct = default)
         => await context.TpmVendors.AddAsync(vendor, ct);
@@ -26,6 +26,7 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
 
     public async Task<IReadOnlyList<TpmAttendance>> GetAttendancesByDateAsync(DateOnly marketDate, CancellationToken ct = default)
         => await context.TpmAttendances
+            .AsNoTracking()
             .Include(a => a.Vendor)
             .Where(a => a.MarketDate == marketDate)
             .OrderBy(a => a.Vendor!.VendorName)
@@ -37,6 +38,7 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         var endDate = startDate.AddMonths(1).AddDays(-1);
         
         return await context.TpmAttendances
+            .AsNoTracking()
             .Where(a => a.MarketDate >= startDate && a.MarketDate <= endDate)
             .ToListAsync(ct);
     }
@@ -50,6 +52,7 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         var attendances = await context.TpmAttendances
+            .AsNoTracking()
             .Where(a => a.MarketDate >= startDate && a.MarketDate <= endDate)
             .ToListAsync(ct);
 
@@ -87,7 +90,6 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
     public async Task<IReadOnlyList<TpmVendorAttendanceDto>> GetVendorAttendanceAsync(DateOnly marketDate, CancellationToken ct = default)
     {
         return await context.TpmAttendances
-            .Include(a => a.Vendor)
             .Where(a => a.MarketDate == marketDate)
             .Select(a => new TpmVendorAttendanceDto
             {
@@ -109,14 +111,12 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
     {
-        var existsInTpm = await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct);
-        if (existsInTpm) return false;
-
-        var existsInPayments = await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct);
-        if (existsInPayments) return false;
-
-        var existsInDaily = await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct);
-        return !existsInDaily;
+        if (await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
+        if (await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
+        if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
+        if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
+        if (await context.TrmTrips.AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
+        return true;
     }
     private static List<DateOnly> GetFridaysInMonth(int year, int month)
     {

@@ -5,6 +5,5 @@ namespace EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 
 public record MarkVendorPaidCommand(
     Guid AttendanceId,
-    bool IsPaid,
-    Guid CollectorId
+    bool IsPaid
 ) : IRequest<Result<bool>>;

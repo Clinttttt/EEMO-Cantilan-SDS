@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 namespace EEMOCantilanSDS.Client.Securities;
 
 public class AuthorizationDelegatingHandler(
+    TokenService tokenService,
     IHttpContextAccessor httpContextAccessor,
     ILogger<AuthorizationDelegatingHandler> logger) : DelegatingHandler
 {
@@ -10,24 +11,16 @@ public class AuthorizationDelegatingHandler(
     {
         try
         {
-            var httpContext = httpContextAccessor.HttpContext;
-            if (httpContext?.User?.Identity?.IsAuthenticated == true)
-            {
-                var token = httpContext.User.FindFirst("AccessToken")?.Value;
-                if (!string.IsNullOrWhiteSpace(token))
-                {
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                    logger.LogDebug("Attached Bearer token to request");
-                }
-                else
-                {
-                    logger.LogWarning("User authenticated but no AccessToken claim found");
-                }
-            }
+            // Prefer the in-memory token (kept current by the refresh handler);
+            // fall back to the auth-cookie claim when the circuit is first established.
+            var token = tokenService.GetToken();
+            if (string.IsNullOrWhiteSpace(token))
+                token = httpContextAccessor.HttpContext?.User?.FindFirst("AccessToken")?.Value;
+
+            if (!string.IsNullOrWhiteSpace(token))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             else
-            {
-                logger.LogDebug("User not authenticated, skipping token attachment");
-            }
+                logger.LogDebug("No access token available to attach");
         }
         catch (Exception ex)
         {

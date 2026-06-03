@@ -19,7 +19,8 @@ public class DailyCollectionRepository(AppDbContext context) : IDailyCollectionR
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         return await context.DailyCollections
-            .Where(d => d.StallId == stallId && d.CollectionDate >= startDate && d.CollectionDate <= endDate)
+            .AsNoTracking()
+            .Where(d => d.StallId == stallId && d.CollectionDate >= startDate && d.CollectionDate <= endDate && !d.IsDeleted)
             .OrderBy(d => d.CollectionDate)
             .ToListAsync(ct);
     }

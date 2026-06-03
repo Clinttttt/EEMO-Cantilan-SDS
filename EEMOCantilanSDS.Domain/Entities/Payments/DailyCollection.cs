@@ -44,7 +44,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
         public void MarkPaid(
             string orNumber,
-            Guid collectorId,
+            Guid? collectorId,
             decimal? fishKilos = null,
             string updatedBy = "System")
         {

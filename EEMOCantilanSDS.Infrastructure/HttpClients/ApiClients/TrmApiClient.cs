@@ -23,6 +23,9 @@ public class TrmApiClient(HttpClient http) : HandleResponse(http), ITrmApiClient
     public async Task<Result<IReadOnlyList<TrmTripDto>>> GetTodayTripsAsync() =>
         await GetAsync<IReadOnlyList<TrmTripDto>>("api/trm/trips/today");
 
+    public async Task<Result<IReadOnlyList<TrmTripDto>>> GetTripsAsync(int year, int month) =>
+        await GetAsync<IReadOnlyList<TrmTripDto>>($"api/trm/trips?year={year}&month={month}");
+
     public async Task<Result<TrmTripDto>> RecordTripAsync(Guid transporterId, RecordTripRequest request) =>
         await PostAsync<RecordTripRequest, TrmTripDto>($"api/trm/trips/{transporterId}", request);
 

@@ -278,9 +278,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<int?>("Section")
                         .HasColumnType("integer");
 
-                    b.Property<int>("StallNo")
+                    b.Property<string>("StallNo")
+                        .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("integer");
+                        .HasColumnType("character varying(20)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -294,13 +295,13 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FacilityId", "Section", "StallNo")
-                        .IsUnique()
-                        .HasFilter("\"Section\" IS NOT NULL");
-
                     b.HasIndex("FacilityId", "StallNo")
                         .IsUnique()
                         .HasFilter("\"Section\" IS NULL");
+
+                    b.HasIndex("FacilityId", "Section", "StallNo")
+                        .IsUnique()
+                        .HasFilter("\"Section\" IS NOT NULL");
 
                     b.ToTable("Stalls", (string)null);
                 });

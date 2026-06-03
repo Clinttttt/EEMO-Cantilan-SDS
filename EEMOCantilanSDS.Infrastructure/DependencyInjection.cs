@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -18,9 +19,11 @@ namespace EEMOCantilanSDS.Infrastructure
     {
         public static IServiceCollection AddInfrastructureService(this IServiceCollection service, IConfiguration configuration)
         {
-            service.AddDbContext<AppDbContext>(options =>
+            service.AddScoped<AuditSaveChangesInterceptor>();
+            service.AddDbContext<AppDbContext>((sp, options) =>
             {
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
+                options.AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>());
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -39,6 +42,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ISlaughterRepository, SlaughterRepository>();
             service.AddScoped<IDailyCollectionRepository, DailyCollectionRepository>();
             service.AddScoped<IFacilityReportsRepository, FacilityReportsRepository>();
+            service.AddScoped<IDashboardRepository, DashboardRepository>();
 
 
             // Services

@@ -23,7 +23,7 @@
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @_now.ToString("MMMM d, yyyy")
                 </div>
                 <div class="topbar-admin">
                     <div class="admin-avatar">A</div>
@@ -195,7 +195,7 @@
                         <div class="vs-hero-stat">
                             <div class="vs-hero-val">@(AllVendors.Where(v => v.IsActive).Sum(v => v.MonthlyRate).ToString("N0"))</div>
                             <div class="vs-hero-key">Monthly Target</div>
-                            <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy") · All Facilities</div>
+                            <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy") · All Facilities</div>
                         </div>
                     </div>
                     <div class="vs-hero-progress">
@@ -449,7 +449,7 @@
                                     @(DetailVendor.IsPaidThisMonth ? "Rental Paid" : DetailVendor.IsPartialThisMonth ? "Partial" : "Unpaid")
                                 </span>
                             </div>
-                            <div class="detail-stat-key">@DateTime.Now.ToString("MMMM yyyy")</div>
+                            <div class="detail-stat-key">@_now.ToString("MMMM yyyy")</div>
                         </div>
                     </div>
                     <div class="detail-stat-card">
@@ -511,7 +511,7 @@
                                         @if (DetailVendor.ContractDate.HasValue)
                                         {
                                             var expiry = DetailVendor.ContractDate.Value.AddYears(DetailVendor.ContractYears);
-                                            <span class="detail-expiry @(expiry < DateTime.Now ? "expiry-expired" : "expiry-ok")">
+                                            <span class="detail-expiry @(expiry < _now ? "expiry-expired" : "expiry-ok")">
                                                 (expires @expiry.ToString("MMM d, yyyy"))
                                             </span>
                                         }
@@ -764,6 +764,7 @@
 
     // -- Data loading state --------------------------------------------------------
     bool isLoading = true;
+    private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     VendorRegistryDto? registryData = null;
 
     protected override async Task OnInitializedAsync()
@@ -774,7 +775,7 @@
     async Task LoadVendorRegistry()
     {
         isLoading = true;
-        var result = await VendorsApi.GetVendorRegistryAsync(DateTime.Now.Year, DateTime.Now.Month);
+        var result = await VendorsApi.GetVendorRegistryAsync(_now.Year, _now.Month);
         if (result.IsSuccess && result.Value != null)
         {
             registryData = result.Value;
@@ -1083,26 +1084,31 @@
         if (Form.FacilityCode == "NPM" && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
         if (Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than 0."; return; }
 
-        // Auto-populate Section from SelectedSection for NPM
-        string section = Form.FacilityCode == "NPM" && !string.IsNullOrEmpty(Form.SelectedSection)
-            ? $"{Form.SelectedSection} Area"
-            : string.Empty;
-
         if (IsEditing)
         {
             var v = Vendors.First(x => x.Id == EditingId);
-            v.FacilityCode = Form.FacilityCode;
-            v.StallNo = Form.StallNo.Trim();
-            v.ActualOccupant = Form.ActualOccupant.Trim();
-            v.ContractName = Form.ContractName.Trim();
-            v.Section = section;
-            v.AreaSqm = Form.AreaSqm;
-            v.ContractDate = Form.ContractDate;
-            v.ContractYears = Form.ContractYears;
-            v.MonthlyRate = Form.MonthlyRate;
-            v.ActualMonthlyRental = Form.ActualMonthlyRental;
-            v.AreaLocation = Form.AreaLocation.Trim();
-            v.FeeTypes = new(Form.FeeTypes);
+            if (v.StallGuid == Guid.Empty) { FormError = "Cannot update this stall."; return; }
+
+            var editFees = Domain.Enums.ApplicableFees.BaseRental;
+            if (Form.FeeTypes.Contains("Electricity")) editFees |= Domain.Enums.ApplicableFees.Electricity;
+            if (Form.FeeTypes.Contains("Water")) editFees |= Domain.Enums.ApplicableFees.Water;
+            if (Form.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"))) editFees |= Domain.Enums.ApplicableFees.FishFee;
+
+            var updateCommand = new Application.Command.Stalls.UpdateStall.UpdateStallCommand(
+                StallId: v.StallGuid,
+                MonthlyRate: Form.MonthlyRate,
+                Fees: editFees,
+                AreaSqm: Form.AreaSqm > 0 ? Form.AreaSqm : null,
+                AreaNote: string.IsNullOrWhiteSpace(Form.AreaLocation) ? null : Form.AreaLocation.Trim(),
+                DailyRate: Form.FacilityCode == "NPM" ? 30.00m : null,
+                ActualOccupant: Form.ActualOccupant.Trim(),
+                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
+                Remarks: null);
+
+            var updateResult = await StallsApi.UpdateStallAsync(v.StallGuid, updateCommand);
+            if (!updateResult.IsSuccess) { FormError = updateResult.Error ?? "Failed to update stall"; return; }
+
+            await LoadVendorRegistry();
         }
         else
         {
@@ -1169,12 +1175,21 @@
     VendorEntry? ConfirmTarget = null;
 
     void ToggleVendor(VendorEntry v) { ConfirmTarget = v; ShowConfirm = true; }
-    void ConfirmToggle()
+    async Task ConfirmToggle()
     {
         if (ConfirmTarget is null) return;
-        ConfirmTarget.IsActive = !ConfirmTarget.IsActive;
+        var target = ConfirmTarget;
         ShowConfirm = false;
         ConfirmTarget = null;
+
+        if (target.StallGuid == Guid.Empty) return;
+
+        // Currently active -> close it; currently closed -> reopen it.
+        var result = await StallsApi.ToggleStallStatusAsync(target.StallGuid, close: target.IsActive);
+        if (result.IsSuccess)
+            await LoadVendorRegistry();
+        else
+            FormError = result.Error ?? "Failed to update stall status.";
     }
 
     // -- Payment History Modal -------------------------------------------------

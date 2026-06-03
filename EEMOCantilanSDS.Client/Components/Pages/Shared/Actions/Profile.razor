@@ -740,7 +740,7 @@
                 {
                     isPaid = currentPaymentResult.Value.Status == Domain.Enums.PaymentStatus.Paid;
                     isPartial = currentPaymentResult.Value.Status == Domain.Enums.PaymentStatus.Partial;
-                    partialAmount = currentPaymentResult.Value.TotalPaid;
+                    partialAmount = isPartial ? currentPaymentResult.Value.TotalPaid : 0;
                     elecAmount = currentPaymentResult.Value.ElecAmount ?? 0;
                     waterAmount = currentPaymentResult.Value.WaterAmount ?? 0;
                     orNumber = currentPaymentResult.Value.ORNumber ?? string.Empty;
@@ -993,7 +993,7 @@
         // If user is entering a new partial amount, ADD it to existing partial amount
         // This allows cumulative payments (e.g., ₱500 already paid + ₱400 new = ₱900 total)
         if (PartialAmountInput > 0)
-            return Stall.PartialAmount + PartialAmountInput;
+            return Stall.IsPartial ? Stall.PartialAmount + PartialAmountInput : PartialAmountInput;
         return Stall.PartialAmount;
     }
 
@@ -1002,7 +1002,7 @@
         // Calculate balance based on the displayed partial amount (cumulative)
         var totalBill = Stall.TotalBill;
         var partialAmount = GetDisplayPartialAmount();
-        return totalBill - partialAmount;
+        return Math.Max(0m, totalBill - partialAmount);
     }
 }
 

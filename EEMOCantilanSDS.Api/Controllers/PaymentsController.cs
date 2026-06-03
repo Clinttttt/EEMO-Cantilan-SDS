@@ -1,14 +1,16 @@
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Queries.Payments.GetFacilityPaymentRecords;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentRecord;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin,Collector")]
 public class PaymentsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpGet("stall/{stallId}")]
@@ -16,6 +18,13 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetPaymentRecordQuery(stallId, year, month);
         var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("facility/{facilityCode}")]
+    public async Task<ActionResult<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecords(FacilityCode facilityCode, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetFacilityPaymentRecordsQuery(facilityCode, year, month));
         return HandleResponse(result);
     }
 

@@ -70,9 +70,76 @@
 
                 @if (IsLoading)
                 {
-                    <div class="loading-state">
-                        <div class="spinner"></div>
-                        <p>Loading report data...</p>
+                    <!-- ── Skeleton: 4 KPI Summary Cards ── -->
+                    <div class="summary-cards">
+                        @for (int i = 0; i < 4; i++)
+                        {
+                            <div class="summary-card skel-card">
+                                <div class="skel skel-icon"></div>
+                                <div class="skel-card-body">
+                                    <div class="skel skel-label"></div>
+                                    <div class="skel skel-value"></div>
+                                    <div class="skel skel-change"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- ── Skeleton: Charts (bar + donut) ── -->
+                    <div class="charts-section">
+                        <div class="chart-card">
+                            <div class="skel-chart-header">
+                                <div class="skel skel-chart-title"></div>
+                                <div class="skel skel-chart-legend"></div>
+                            </div>
+                            <div class="skel-bar-chart-wrap">
+                                @{
+                                    var barHeights = new[] { 55, 72, 40, 85, 60, 90 };
+                                }
+                                @for (int b = 0; b < 6; b++)
+                                {
+                                    var h = barHeights[b];
+                                    <div class="skel-bar-group">
+                                        <div class="skel skel-bar" style="height:@(h)%"></div>
+                                        <div class="skel skel-bar-label"></div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="skel-chart-header">
+                                <div class="skel skel-chart-title"></div>
+                            </div>
+                            <div class="skel-donut-wrap">
+                                <div class="skel skel-donut"></div>
+                                <div class="skel-donut-legend-rows">
+                                    <div class="skel skel-legend-row"></div>
+                                    <div class="skel skel-legend-row"></div>
+                                    <div class="skel skel-legend-row"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ── Skeleton: Breakdown Section ── -->
+                    <div class="breakdown-section">
+                        <div class="skel skel-section-title"></div>
+                        <div class="breakdown-grid">
+                            @for (int c = 0; c < 2; c++)
+                            {
+                                <div class="breakdown-card">
+                                    <div class="skel skel-breakdown-title"></div>
+                                    @for (int r = 0; r < 3; r++)
+                                    {
+                                        <div class="skel-breakdown-row">
+                                            <div class="skel skel-breakdown-badge"></div>
+                                            <div class="skel skel-breakdown-bar"></div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
                 }
                 else if (!string.IsNullOrEmpty(ErrorMessage))
@@ -302,6 +369,9 @@
                                         <span>@GetFishTrendStartLabel()</span>
                                         <strong>@FishKiloTrend.Sum(p => p.Kilos).ToString("N1") kg total</strong>
                                         <span>@GetFishTrendEndLabel()</span>
+                                    </div>
+                                    <div class="fish-comparison" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb; font-size: 0.875rem; color: #6b7280; text-align: center;">
+                                        @(FeeTypeBreakdown?.FishKiloComparison ?? "No data available")
                                     </div>
                                 </div>
                             }
@@ -862,17 +932,9 @@
         var rows = new[]
         {
             new FeeTypeRow("Daily fee", FeeTypeBreakdown.DailyFeeAmount, "daily"),
-            new FeeTypeRow("Fish fee", FeeTypeBreakdown.FishFeeAmount, "fish"),
-            new FeeTypeRow("Total", FeeTypeBreakdown.DailyFeeAmount + FeeTypeBreakdown.FishFeeAmount + FeeTypeBreakdown.RentalAmount + FeeTypeBreakdown.UtilityAmount, "rental"),
-            new FeeTypeRow("Utilities", FeeTypeBreakdown.UtilityAmount, "utility")
+            new FeeTypeRow("Fish fee", FeeTypeBreakdown.FishFeeAmount, "fish")
         }
-        .Where(row => row.Amount > 0)
         .ToList();
-
-        if (!rows.Any())
-        {
-            rows.Add(new FeeTypeRow("No collected fees", 0m, "daily"));
-        }
 
         var maxAmount = rows.Max(row => row.Amount);
         return rows
@@ -893,7 +955,7 @@
         return FishKiloTrend.Select(point => new FishTrendPoint(
             point.PeriodLabel,
             point.Kilos,
-            maxKilos > 0 ? Math.Max(12m, (point.Kilos / maxKilos) * 100m) : 0m
+            maxKilos > 0 ? Math.Max(12m, (point.Kilos / maxKilos) * 100m) : 12m
         )).ToList();
     }
 

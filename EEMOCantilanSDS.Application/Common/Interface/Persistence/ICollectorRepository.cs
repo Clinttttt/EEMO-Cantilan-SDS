@@ -16,4 +16,5 @@ public interface ICollectorRepository
     Task<bool> IsEmailUniqueAsync(string email, CancellationToken cancellationToken = default);
     Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default);
     Task AddFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
+    Task ReplaceFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
 }

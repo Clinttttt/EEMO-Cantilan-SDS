@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "SuperAdmin,Admin,Collector")]
 public class DailyCollectionsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost("record")]

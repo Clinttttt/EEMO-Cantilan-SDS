@@ -1,5 +1,7 @@
 ﻿@page "/menu"
 @attribute [Authorize]
+@using EEMOCantilanSDS.Application.Dtos.Dashboard
+@inject IDashboardApiClient DashboardApi
 <PageTitle>EEMO Admin — Dashboard</PageTitle>
 
 <header class="topbar">
@@ -14,11 +16,11 @@
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @_now.ToString("MMMM d, yyyy")
                 </div>
                 <div class="topbar-period">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                    Collection Period: <strong>@DateTime.Now.ToString("MMMM yyyy")</strong>
+                    Collection Period: <strong>@_now.ToString("MMMM yyyy")</strong>
                 </div>
                 <div class="topbar-admin">
                     <div class="admin-avatar">A</div>
@@ -46,14 +48,14 @@
                     <div>
                         <div class="vs-hero-eyebrow">EEMO Admin · Overview</div>
                         <div class="vs-hero-title">Dashboard</div>
-                        <div class="vs-hero-sub">Collection Period: @DateTime.Now.ToString("MMMM yyyy")</div>
+                        <div class="vs-hero-sub">Collection Period: @_now.ToString("MMMM yyyy")</div>
                     </div>
                 </div>
                 <div class="vs-hero-stats">
                     <div class="vs-hero-stat">
                         <div class="vs-hero-val">₱@TotalCollected.ToString("N0")</div>
                         <div class="vs-hero-key">Total Collected</div>
-                        <div class="vs-hero-sub2">@DateTime.Now.ToString("MMMM yyyy")</div>
+                        <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy")</div>
                     </div>
                     <div class="vs-hero-divider"></div>
                     <div class="vs-hero-stat">
@@ -83,7 +85,7 @@
             <div class="section-header">
                 <div class="section-title-block">
                     <div class="section-eyebrow">Facilities</div>
-                    <div class="section-heading">Revenue by Facility — @DateTime.Now.ToString("MMMM yyyy")</div>
+                    <div class="section-heading">Revenue by Facility — @_now.ToString("MMMM yyyy")</div>
                 </div>
                 <a href="/reports" class="btn-outline">View Full Report</a>
             </div>
@@ -91,16 +93,16 @@
             <div class="facility-grid">
                 @foreach (var fac in Facilities)
                 {
-                    <div class="facility-card @(fac.HasAlert ? "has-alert" : "")">
+                    <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
                         <div class="facility-card-header">
                             <div class="facility-card-icon">
-                                @((MarkupString)fac.IconSvg)
+                                @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? string.Empty))
                             </div>
                             <div class="facility-card-meta">
                                 <div class="facility-card-code">@fac.Code</div>
                                 <div class="facility-card-name">@fac.Name</div>
                             </div>
-                            @if (fac.HasAlert)
+                            @if (fac.UnpaidCount > 0)
                             {
                                 <div class="facility-alert-dot" title="Has unpaid vendors"></div>
                             }
@@ -130,7 +132,7 @@
 
                        
 
-                        <a href="/facility/@fac.Code.ToLower()" class="facility-card-btn">
+                        <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
                             Manage Stalls
                             <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
                         </a>
@@ -152,7 +154,6 @@
                                 <th>OR #</th>
                                 <th>Payor</th>
                                 <th>Facility</th>
-                                <th>Nature</th>
                                 <th>Amount</th>
                                 <th>Collector</th>
                                 <th>Time</th>
@@ -165,7 +166,6 @@
                                     <td>#@tx.ORNumber</td>
                                     <td>@tx.PayorName</td>
                                     <td><span>@tx.FacilityCode</span></td>
-                                    <td>@tx.Nature</td>
                                     <td>₱@tx.Amount.ToString("N0")</td>
                                     <td>@tx.CollectorName</td>
                                     <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
@@ -207,127 +207,37 @@
 
 
 @code {
+    private DashboardOverviewDto? _data;
+    private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
 
-    bool SidebarCollapsed = false;
-
-    decimal TotalCollected => Facilities.Sum(f => f.Collected);
-    decimal TotalPending => Facilities.Sum(f => f.Pending);
-    int UnpaidCount => Facilities.Sum(f => f.UnpaidCount);
-    int TotalCollectors = 4;
-    int ActiveFacilitiesCount => Facilities.Count(f => f.Collected > 0);
-    int PaidCount => Facilities.Sum(f => f.TotalVendors - f.UnpaidCount);
-    int CollectionRate => Facilities.Sum(f => f.TotalVendors) == 0 ? 0
-                                     : (int)((double)PaidCount / Facilities.Sum(f => f.TotalVendors) * 100);
-
-    class FacilityItem
+    protected override async Task OnInitializedAsync()
     {
-        public string Code { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public string ShortName { get; set; } = string.Empty;
-        public string IconSvg { get; set; } = string.Empty;
-        public decimal Collected { get; set; }
-        public decimal Pending { get; set; }
-        public int TotalVendors { get; set; }
-        public int UnpaidCount { get; set; }
-        public int CollectionRate => TotalVendors == 0 ? 0
-                                        : (int)((double)(TotalVendors - UnpaidCount) / TotalVendors * 100);
-        public bool HasAlert => UnpaidCount > 0;
-    
+        var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
+        if (result.IsSuccess)
+            _data = result.Value;
     }
 
-    List<FacilityItem> Facilities = new()
-    {
-        new() {
-            Code="NPM", Name="New Public Market", ShortName="Public Market",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
-            Collected=62400, Pending=18000, TotalVendors=100, UnpaidCount=20,
-          
-        },
-        new() {
-            Code="TCC", Name="Tampak Commercial Center", ShortName="Tampak Comm.",
-            IconSvg="""<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
-            Collected=48600, Pending=12000, TotalVendors=43, UnpaidCount=8,
-          
-        },
-        new() {
-            Code="NCC", Name="New Commercial Center", ShortName="New Comm. Center",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
-            Collected=56520, Pending=8400, TotalVendors=28, UnpaidCount=5,
-          
-        },
-        new() {
-            Code="BBQ", Name="Barbecue Stand", ShortName="BBQ Stand",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""",
-            Collected=38400, Pending=9600, TotalVendors=5, UnpaidCount=1,
-          
-        },
-        new() {
-            Code="ICE", Name="Iceplant", ShortName="Iceplant",
-            IconSvg="""<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""",
-            Collected=24000, Pending=12000, TotalVendors=4, UnpaidCount=2,
-     
-        },
-        new() {
-            Code="SLH", Name="Slaughterhouse", ShortName="Slaughterhouse",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
-            Collected=12250, Pending=3750, TotalVendors=30, UnpaidCount=6,
-          
-        },
-        new() {
-            Code="TRM", Name="Transport Terminal", ShortName="Transport Terminal",
-            IconSvg="""<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
-            Collected=0, Pending=0, TotalVendors=0, UnpaidCount=0,
-          
-        },
-        new() {
-            Code="TPM", Name="Tabo-an Public Market", ShortName="Tabo-an Market",
-            IconSvg="""<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
-            Collected=5500, Pending=0, TotalVendors=10, UnpaidCount=0,
-          
-        },
-    };
+    private decimal TotalCollected => _data?.TotalCollected ?? 0;
+    private decimal TotalPending => _data?.TotalPending ?? 0;
+    private int UnpaidCount => _data?.UnpaidCount ?? 0;
+    private int PaidCount => _data?.PaidCount ?? 0;
+    private int CollectionRate => _data?.CollectionRate ?? 0;
+    private int ActiveFacilitiesCount => _data?.ActiveFacilitiesCount ?? 0;
+    private int TotalCollectors => _data?.TotalCollectors ?? 0;
+    private IReadOnlyList<DashboardFacilityDto> Facilities => _data?.Facilities ?? [];
+    private IReadOnlyList<DashboardTransactionDto> RecentTransactions => _data?.RecentTransactions ?? [];
+    private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => _data?.DelinquentVendors ?? [];
 
-    class TxRecord
+    // Presentation only: facility icon per code (data comes from the API).
+    private static readonly Dictionary<FacilityCode, string> Icons = new()
     {
-        public string ORNumber { get; set; } = string.Empty;
-        public string PayorName { get; set; } = string.Empty;
-        public string FacilityCode { get; set; } = string.Empty;
-        public string Nature { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
-        public bool IsPaid { get; set; }
-        public bool IsPartial { get; set; }
-        public decimal PartialAmount { get; set; }
-        public string CollectorName { get; set; } = string.Empty;
-        public DateTime CollectedAt { get; set; }
-    }
-
-    List<TxRecord> RecentTransactions = new()
-    {
-        new() { ORNumber="2315701", PayorName="Dela Cruz, Maria S.",   FacilityCode="NPM", Nature="Stall Rental",   Amount=900,  IsPaid=true,  CollectorName="Clint", CollectedAt=DateTime.Today.AddHours(10).AddMinutes(14) },
-        new() { ORNumber="2315702", PayorName="Guerta, Alvin",         FacilityCode="TCC", Nature="Monthly Rental", Amount=2400, IsPaid=true,  CollectorName="Clint", CollectedAt=DateTime.Today.AddHours(10).AddMinutes(32) },
-        new() { ORNumber="2315703", PayorName="Bebero, Lucrecia R.",   FacilityCode="NCC", Nature="Monthly Rental", Amount=1200, IsPaid=true,  CollectorName="Ruel",  CollectedAt=DateTime.Today.AddHours(10).AddMinutes(55) },
-        new() { ORNumber="2315704", PayorName="Mendaña, Recto",        FacilityCode="ICE", Nature="Space Rental",   Amount=1000, IsPaid=false, CollectorName="Ruel",  CollectedAt=DateTime.Today.AddHours(11).AddMinutes(8)  },
-        new() { ORNumber="2315705", PayorName="Ruaza, Joy",            FacilityCode="BBQ", Nature="Space Rental",   Amount=1600, IsPaid=true,  CollectorName="Clint", CollectedAt=DateTime.Today.AddHours(11).AddMinutes(20) },
-        new() { ORNumber="2315706", PayorName="Trugillo, Elpedia C.",  FacilityCode="NPM", Nature="Stall Rental",   Amount=900,  IsPaid=false, IsPartial=true, PartialAmount=450, CollectorName="Clint", CollectedAt=DateTime.Today.AddHours(11).AddMinutes(40) },
-        new() { ORNumber="2315707", PayorName="Hog Slaughter",         FacilityCode="SLH", Nature="Slaughter Fee",  Amount=250,  IsPaid=true,  CollectorName="Marco", CollectedAt=DateTime.Today.AddHours(7).AddMinutes(30)  },
-        new() { ORNumber="2315708", PayorName="Carabao Slaughter",     FacilityCode="SLH", Nature="Slaughter Fee",  Amount=365,  IsPaid=true,  CollectorName="Marco", CollectedAt=DateTime.Today.AddHours(8).AddMinutes(15)  },
-    };
-
-    class DelinquentItem
-    {
-        public string Name { get; set; } = string.Empty;
-        public string StallNo { get; set; } = string.Empty;
-        public string FacilityCode { get; set; } = string.Empty;
-        public int MonthsUnpaid { get; set; }
-        public decimal Balance { get; set; }
-    }
-
-    List<DelinquentItem> DelinquentVendors = new()
-    {
-        new() { Name="Salnoden Datumanong", StallNo="39",    FacilityCode="TCC", MonthsUnpaid=5, Balance=12000 },
-        new() { Name="Mangubat, Jose P.",   StallNo="09",    FacilityCode="NPM", MonthsUnpaid=4, Balance=3600  },
-        new() { Name="Orpina, Rebecca S.",  StallNo="ICE-2", FacilityCode="ICE", MonthsUnpaid=3, Balance=3000  },
-        new() { Name="Datumanong, Jessie",  StallNo="40",    FacilityCode="TCC", MonthsUnpaid=3, Balance=7200  },
-        new() { Name="Garcia, Flordeliza",  StallNo="06",    FacilityCode="NPM", MonthsUnpaid=2, Balance=1800  },
+        [FacilityCode.NPM] = """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
+        [FacilityCode.TCC] = """<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
+        [FacilityCode.NCC] = """<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
+        [FacilityCode.BBQ] = """<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""",
+        [FacilityCode.ICE] = """<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""",
+        [FacilityCode.SLH] = """<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
+        [FacilityCode.TRM] = """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
+        [FacilityCode.TPM] = """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
     };
 }

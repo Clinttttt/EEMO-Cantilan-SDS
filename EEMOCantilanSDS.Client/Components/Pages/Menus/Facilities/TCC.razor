@@ -138,20 +138,13 @@
                 OnSectionChanged="() => {}"
                 OnToggleFee="ToggleVendorFee" />
 
-<!-- ══════════════════════════════════════════════
-     FACILITY REPORTS MODAL
-══════════════════════════════════════════════ -->
-<FacilityReportsModal @bind-IsOpen="ShowReports"
-                      FacilityCode="TCC"
-                      FacilityName="Tampak Commercial Center"
-                      ShowSectionBreakdown="false" />
+
 
 @code {
 
     string SearchQuery = string.Empty;
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
-    private bool ShowReports = false;
 
     private RenderFragment TccIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>;
 
@@ -174,27 +167,27 @@
         var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.TCC, null, null, 100);
         if (result.IsSuccess && result.Value != null)
         {
+            // Single batch call for all current-month payment records (avoids per-stall N+1)
+            var paymentsResult = await PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCode.TCC, DateTime.Now.Year, DateTime.Now.Month);
+            var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
+                ? paymentsResult.Value.ToDictionary(p => p.StallId)
+                : new();
+
             Stalls.Clear();
             int id = 1;
             foreach (var dto in result.Value.Items)
             {
-                // Load current month payment status
-                var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
-                    dto.Id,
-                    DateTime.Now.Year,
-                    DateTime.Now.Month);
-                
                 bool isPaid = false;
                 bool isPartial = false;
                 decimal partialAmount = 0;
                 string orNumber = string.Empty;
-                
-                if (paymentResult.IsSuccess && paymentResult.Value != null)
+
+                if (payments.TryGetValue(dto.Id, out var payment))
                 {
-                    isPaid = paymentResult.Value.Status == PaymentStatus.Paid;
-                    isPartial = paymentResult.Value.Status == PaymentStatus.Partial;
-                    partialAmount = paymentResult.Value.TotalPaid;
-                    orNumber = paymentResult.Value.ORNumber ?? string.Empty;
+                    isPaid = payment.Status == PaymentStatus.Paid;
+                    isPartial = payment.Status == PaymentStatus.Partial;
+                    partialAmount = payment.TotalPaid;
+                    orNumber = payment.ORNumber ?? string.Empty;
                 }
                 
                 Stalls.Add(new TccStall
@@ -239,11 +232,10 @@
             Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
             ClassName = "btn-outline",
             Title = "View Facility Reports & Analytics",
-            OnClickHandler = async () => 
-            { 
-                ShowReports = true; 
-                StateHasChanged();
-                await Task.CompletedTask; 
+            OnClickHandler = async () =>
+            {
+                Navigation.NavigateTo("/tcc/reports");
+                await Task.CompletedTask;
             }
         },
         new()

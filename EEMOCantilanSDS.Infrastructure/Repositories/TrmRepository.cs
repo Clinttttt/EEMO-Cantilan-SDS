@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -14,16 +15,17 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<IReadOnlyList<TrmTransporterListDto>> GetTransportersWithTodayTripsAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 
         var transporters = await context.TrmTransporters
+            .AsNoTracking()
             .Where(t => t.IsActive)
             .OrderBy(t => t.Organization)
             .ThenBy(t => t.Name)
             .ToListAsync(ct);
 
         var todayTripCounts = await context.TrmTrips
-            .Where(t => t.RecordedAt.Date == today)
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .GroupBy(t => t.TransporterId)
             .Select(g => new { TransporterId = g.Key, Count = g.Count() })
             .ToListAsync(ct);
@@ -47,16 +49,16 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<int> GetTodayTripCountForTransporterAsync(Guid transporterId, CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
         return await context.TrmTrips
-            .CountAsync(t => t.TransporterId == transporterId && t.RecordedAt.Date == today, ct);
+            .CountAsync(t => t.TransporterId == transporterId && t.RecordedAt >= startUtc && t.RecordedAt < endUtc, ct);
     }
 
     public async Task<int> GetNextTripNumberForTodayAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
         var maxToday = await context.TrmTrips
-            .Where(t => t.RecordedAt.Date == today)
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .MaxAsync(t => (int?)t.TripNumber, ct);
         return (maxToday ?? 0) + 1;
     }
@@ -66,10 +68,11 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<TrmOverviewDto> GetOverviewAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 
         var todayTrips = await context.TrmTrips
-            .Where(t => t.RecordedAt.Date == today)
+            .AsNoTracking()
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .ToListAsync(ct);
 
         var totalTransporters = await context.TrmTransporters.CountAsync(t => t.IsActive, ct);
@@ -85,12 +88,33 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<IReadOnlyList<TrmTripDto>> GetTodayTripsAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 
         return await context.TrmTrips
-            .Include(t => t.Transporter)
-            .Where(t => t.RecordedAt.Date == today)
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .OrderByDescending(t => t.RecordedAt)
+            .Select(t => new TrmTripDto
+            {
+                Id = t.Id,
+                TransporterId = t.TransporterId,
+                TripNumber = t.TripNumber,
+                DriverName = t.DriverName,
+                Organization = t.Transporter!.Organization,
+                PlateNumber = t.PlateNumber,
+                Route = t.Route,
+                Fee = t.Fee,
+                ORNumber = t.ORNumber,
+                RecordedAt = t.RecordedAt
+            })
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<TrmTripDto>> GetTripsByMonthAsync(int year, int month, CancellationToken ct = default)
+    {
+        return await context.TrmTrips
+            .AsNoTracking()
+            .Where(t => t.RecordedAt.Year == year && t.RecordedAt.Month == month)
+            .OrderBy(t => t.RecordedAt)
             .Select(t => new TrmTripDto
             {
                 Id = t.Id,
@@ -109,7 +133,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
 
         var transporter = await context.TrmTransporters
             .FirstOrDefaultAsync(t => t.Id == transporterId, ct);
@@ -135,7 +159,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             })
             .ToListAsync(ct);
 
-        var tripsToday = allTrips.Count(t => t.RecordedAt.Date == today);
+        var tripsToday = allTrips.Count(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc);
 
         return new TrmTransporterProfileDto
         {
@@ -157,6 +181,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
         if (await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
         if (await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
         if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
+        if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
         return true;
     }
 }

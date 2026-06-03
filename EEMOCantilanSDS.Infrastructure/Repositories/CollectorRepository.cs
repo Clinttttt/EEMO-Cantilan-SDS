@@ -1,5 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -29,32 +31,43 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .Where(c => !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
+        var collectorIds = collectors.Select(c => c.Id).ToList();
+
+        // Aggregate payment stats per collector in ONE query (was N queries in a loop).
+        var paymentStats = await context.PaymentRecords
+            .Where(p => p.CollectorId != null && collectorIds.Contains(p.CollectorId.Value)
+                        && p.BillingYear == year && p.BillingMonth == month)
+            .GroupBy(p => p.CollectorId!.Value)
+            .Select(g => new
+            {
+                CollectorId = g.Key,
+                Total = g.Sum(p => p.Status == PaymentStatus.Paid
+                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo
+                    : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m),
+                Count = g.Count()
+            })
+            .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
+        // Aggregate daily-collection stats per collector in ONE query, keyed by the
+        // CollectorId FK (the previous CreatedBy == Username join could never match).
+        var dailyStats = await context.DailyCollections
+            .Where(d => d.CollectorId != null && collectorIds.Contains(d.CollectorId.Value)
+                        && d.CollectionDate.Year == year && d.CollectionDate.Month == month)
+            .GroupBy(d => d.CollectorId!.Value)
+            .Select(g => new
+            {
+                CollectorId = g.Key,
+                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
+                Count = g.Count()
+            })
+            .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
         var result = new List<CollectorListDto>();
 
         foreach (var collector in collectors)
         {
-            var paymentTotal = await context.PaymentRecords
-                .Where(p => p.CollectorId == collector.Id && 
-                            p.BillingYear == year && 
-                            p.BillingMonth == month)
-                .SumAsync(p => p.BaseRentalAmount + (p.ElecAmount ?? 0) + 
-                              (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * 1.0m), cancellationToken);
-
-            var dailyTotal = await context.DailyCollections
-                .Where(d => d.CreatedBy == collector.Username && 
-                            d.CollectionDate.Year == year && 
-                            d.CollectionDate.Month == month)
-                .SumAsync(d => 30m + ((d.FishKilos ?? 0) * 1.0m), cancellationToken);
-
-            var paymentCount = await context.PaymentRecords
-                .CountAsync(p => p.CollectorId == collector.Id && 
-                                p.BillingYear == year && 
-                                p.BillingMonth == month, cancellationToken);
-
-            var dailyCount = await context.DailyCollections
-                .CountAsync(d => d.CreatedBy == collector.Username && 
-                                d.CollectionDate.Year == year && 
-                                d.CollectionDate.Month == month, cancellationToken);
+            paymentStats.TryGetValue(collector.Id, out var payment);
+            dailyStats.TryGetValue(collector.Id, out var daily);
 
             result.Add(new CollectorListDto(
                 collector.Id,
@@ -62,8 +75,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 collector.Email!,
                 collector.EmployeeId!,
                 collector.FacilityAssignments.Select(fa => fa.FacilityCode).ToList(),
-                paymentTotal + dailyTotal,
-                paymentCount + dailyCount,
+                (payment?.Total ?? 0m) + (daily?.Total ?? 0m),
+                (payment?.Count ?? 0) + (daily?.Count ?? 0),
                 collector.LastActiveAt,
                 collector.IsActive));
         }
@@ -84,37 +97,36 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .Where(p => p.CollectorId == collector.Id && 
                         p.BillingYear == year && 
                         p.BillingMonth == month)
-            .SumAsync(p => p.BaseRentalAmount + (p.ElecAmount ?? 0) + 
-                          (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * 1.0m), cancellationToken) +
+            .SumAsync(p => p.Status == PaymentStatus.Paid
+                          ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                          : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken) +
             await context.DailyCollections
-            .Where(d => d.CreatedBy == collector.Username && 
+            .Where(d => d.CollectorId == collector.Id && 
                         d.CollectionDate.Year == year && 
                         d.CollectionDate.Month == month)
-            .SumAsync(d => 30m + ((d.FishKilos ?? 0) * 1.0m), cancellationToken);
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), cancellationToken);
 
         var transactions = await context.PaymentRecords
             .CountAsync(p => p.CollectorId == collector.Id && 
                             p.BillingYear == year && 
                             p.BillingMonth == month, cancellationToken) +
             await context.DailyCollections
-            .CountAsync(d => d.CreatedBy == collector.Username && 
+            .CountAsync(d => d.CollectorId == collector.Id && 
                             d.CollectionDate.Year == year && 
                             d.CollectionDate.Month == month, cancellationToken);
 
         var recentPayments = await context.PaymentRecords
-            .Include(p => p.Stall)
-                .ThenInclude(s => s!.Facility)
-            .Include(p => p.Stall)
-                .ThenInclude(s => s!.Contracts)
             .Where(p => p.CollectorId == collector.Id)
             .OrderByDescending(p => p.PaidAt)
             .Take(10)
             .Select(p => new RecentTransactionDto(
                 p.ORNumber!,
-                p.Stall!.Contracts.FirstOrDefault(c => c.IsActive)!.ActualOccupant,
+                p.Stall!.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted)!.ActualOccupant,
                 p.Stall.Facility!.Code,
                 "Stall Rental",
-                p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * 1.0m),
+                p.Status == PaymentStatus.Paid
+                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                    : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m,
                 p.Status.ToString(),
                 p.PaidAt ?? p.UpdatedAt!.Value))
             .ToListAsync(cancellationToken);
@@ -170,9 +182,23 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         }
     }
 
+    public async Task ReplaceFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default)
+    {
+        var existing = await context.CollectorFacilityAssignments
+            .Where(a => a.CollectorId == collectorId)
+            .ToListAsync(cancellationToken);
+
+        // Diff so unchanged assignments are left intact (avoids unique-index conflicts on re-add).
+        context.CollectorFacilityAssignments.RemoveRange(existing.Where(a => !facilityCodes.Contains(a.FacilityCode)));
+
+        var existingCodes = existing.Select(a => a.FacilityCode).ToHashSet();
+        var toAdd = facilityCodes.Where(c => !existingCodes.Contains(c)).ToList();
+        await AddFacilityAssignmentsAsync(collectorId, toAdd, cancellationToken);
+    }
+
     public async Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default)
     {
-        var currentYear = DateTime.UtcNow.Year;
+        var currentYear = PhilippineTime.Now.Year;
         var prefix = $"EEMO-{currentYear}-";
 
         var lastEmployeeId = await context.CollectorUsers

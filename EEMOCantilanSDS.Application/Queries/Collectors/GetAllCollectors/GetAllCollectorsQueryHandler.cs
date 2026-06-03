@@ -12,8 +12,8 @@ public class GetAllCollectorsQueryHandler(ICollectorRepository collectorRepo)
         GetAllCollectorsQuery request, 
         CancellationToken cancellationToken)
     {
-        var currentMonth = DateTime.UtcNow.Month;
-        var currentYear = DateTime.UtcNow.Year;
+        var currentMonth = PhilippineTime.Now.Month;
+        var currentYear = PhilippineTime.Now.Year;
 
         var collectors = await collectorRepo.GetAllCollectorsWithStatsAsync(currentYear, currentMonth, cancellationToken);
 

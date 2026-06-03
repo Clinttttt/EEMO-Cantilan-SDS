@@ -38,7 +38,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
 
         public static SlaughterTransaction CreateCustomAnimal(
             Guid facilityId,
-            Guid collectorId,
+            Guid? collectorId,
             string ownerName,
             string customAnimalType,
             int heads,
@@ -66,7 +66,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
 
         public static SlaughterTransaction CreateHog(
          Guid facilityId,
-         Guid collectorId,
+         Guid? collectorId,
          string ownerName,
          int heads,
          string orNumber,
@@ -94,7 +94,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
         }
         public static SlaughterTransaction CreateLargeAnimal(
           Guid facilityId,
-          Guid collectorId,
+          Guid? collectorId,
           string ownerName,
           AnimalType animalType,
           int heads,

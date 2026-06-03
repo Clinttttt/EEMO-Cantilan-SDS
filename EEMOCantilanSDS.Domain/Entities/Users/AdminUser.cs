@@ -57,7 +57,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         {
             FailedAttempts = 0;
             LockedUntil = null;
-            MustChangePassword = false;
         }
 
         public void RecordFailedLogin()

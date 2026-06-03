@@ -17,7 +17,12 @@ namespace EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken
             var user = await tokenService.ValidateRefreshToken(request.RefreshToken, cancellationToken);
             if (user is null) return Result<TokenResponseDto>.Failure("Invalid refresh token");
 
-            return Result<TokenResponseDto>.Success(await tokenService.CreateTokenResponse(user));
+            // No rotation: keep the existing refresh token (only the access token is renewed).
+            return Result<TokenResponseDto>.Success(new TokenResponseDto
+            {
+                AccessToken = tokenService.CreateAccessToken(user),
+                RefreshToken = request.RefreshToken
+            });
         }
     }
 }

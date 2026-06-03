@@ -16,5 +16,6 @@ public record FacilityReportsDto(
     CollectionPerformanceDto CollectionPerformance,
     DailyCollectionStreakDto? DailyCollectionStreak,
     FeeTypeBreakdownDto? FeeTypeBreakdown,
-    IReadOnlyList<FishKiloTrendDto> FishKiloTrend
+    IReadOnlyList<FishKiloTrendDto> FishKiloTrend,
+    IReadOnlyList<StallComplianceDto> StallCompliance
 );

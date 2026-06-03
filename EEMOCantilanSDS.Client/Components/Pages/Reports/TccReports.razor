@@ -1,0 +1,472 @@
+@page "/tcc/reports"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@inject IFacilitiesApiClient FacilitiesApi
+
+<PageTitle>EEMO Admin — TCC Reports</PageTitle>
+
+<header class="rpt-topbar">
+    <div class="rpt-topbar-left">
+        <a href="/tcc" class="rpt-back-btn" title="Back to TCC">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div class="rpt-topbar-icon">
+            <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+        </div>
+        <div>
+            <div class="rpt-eyebrow">FACILITY · TCC · REPORTS</div>
+            <div class="rpt-title">Tampak Commercial Center Reports</div>
+            <div class="rpt-subtitle">@GetPeriodLabel()</div>
+        </div>
+    </div>
+    <div class="rpt-topbar-right">
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export PDF
+        </button>
+        <button class="rpt-action-btn">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+        </button>
+    </div>
+    <div class="rpt-header-progress">
+        <div class="rpt-header-progress-fill" style="width:@CollectionRate%"></div>
+    </div>
+</header>
+
+<div class="rpt-period-bar">
+    <div class="rpt-period-tabs">
+        @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
+        {
+            <button class="rpt-period-tab @(ActivePeriod == p ? "active" : "")"
+                    @onclick="() => SetPeriod(p)">@p</button>
+        }
+    </div>
+    <div class="rpt-date-nav">
+        <button class="rpt-nav-btn" @onclick="PrevPeriod">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="rpt-current-period">@GetPeriodLabel()</span>
+        <button class="rpt-nav-btn" @onclick="NextPeriod">
+            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+    </div>
+</div>
+
+<div class="rpt-content">
+
+    <div class="rpt-kpi-strip">
+        <div class="rpt-kpi-card kpi-revenue">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-label">Collected Revenue</div>
+                <div class="kpi-value">₱@TotalCollected.ToString("N2")</div>
+                <div class="kpi-change positive">@RevenueGrowthText</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-rate">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-label">Collection Rate</div>
+                <div class="kpi-value">@CollectionRate%</div>
+                <div class="kpi-change positive">@CollectionGrowthText</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-pending">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-label">Payors With Balance</div>
+                <div class="kpi-value">@(UnpaidCount + PartialCount)</div>
+                <div class="kpi-change negative">₱@PendingAmount.ToString("N2") outstanding</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card kpi-stalls">
+            <div class="kpi-icon">
+                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-label">Occupied Stalls</div>
+                <div class="kpi-value">@OccupiedStalls/@TotalStalls</div>
+                <div class="kpi-change neutral">@OccupancyRate% of active stalls</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-charts-row">
+        <div class="rpt-chart-card rpt-chart-wide">
+            <div class="chart-header">
+                <h3 class="chart-title">Collection Trend</h3>
+                <div class="chart-legend">
+                    <span class="legend-dot" style="background:var(--green)"></span><span>Collected</span>
+                    <span class="legend-dot" style="background:var(--gold);margin-left:12px"></span><span>Current</span>
+                </div>
+            </div>
+            <div class="rpt-bar-chart">
+                @foreach (var pt in TrendPoints)
+                {
+                    <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "")">
+                        <div class="rpt-bar-wrap">
+                            <div class="rpt-bar-3d">
+                                <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
+                                <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
+                            </div>
+                        </div>
+                        <div class="rpt-bar-label">@pt.Label</div>
+                        <div class="rpt-bar-val">₱@pt.ShortValue</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="rpt-chart-card rpt-chart-narrow">
+            <div class="chart-header">
+                <h3 class="chart-title">Payor Status</h3>
+            </div>
+            <div class="rpt-donut-wrap">
+                <svg class="rpt-donut-svg" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="46" fill="none" stroke="var(--bg)" stroke-width="16" />
+                    @{ var arcs = BuildDonutArcs(new[] {
+                            (PaidCount,    "#2d7a5f"),
+                            (PartialCount, "#c8a84b"),
+                            (UnpaidCount,  "#8b3a3a")
+                        }, 46, 60, 60);
+                    }
+                    @foreach (var arc in arcs)
+                    {
+                        <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="16" stroke-linecap="butt" />
+                    }
+                    <circle cx="60" cy="60" r="37" fill="white" />
+                    <text x="60" y="55" class="donut-center-pct">@CollectionRate%</text>
+                    <text x="60" y="68" class="donut-center-lbl">FULLY PAID</text>
+                </svg>
+                <div class="rpt-donut-legend">
+                    <div class="donut-leg-item"><span class="donut-leg-dot paid"></span><span>Paid</span><strong>@PaidCount</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot partial"></span><span>Partial</span><strong>@PartialCount</strong></div>
+                    <div class="donut-leg-item"><span class="donut-leg-dot unpaid"></span><span>Unpaid</span><strong>@UnpaidCount</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-section-heading">
+        <span class="rpt-section-rule"></span>
+        <h2>Audit Breakdown</h2>
+    </div>
+
+    <div class="rpt-breakdown-grid">
+
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">Revenue by Stall Size</h4>
+            <div class="breakdown-list">
+                @foreach (var tier in SizeTiers)
+                {
+                    <div class="breakdown-item">
+                        <div class="breakdown-label"><span class="sec-dot" style="background:@tier.Color"></span>@tier.Label</div>
+                        <div class="breakdown-value">₱@tier.Revenue.ToString("N0")</div>
+                        <div class="breakdown-bar"><div class="bar-fill" style="width:@tier.Pct%;background:@tier.Color"></div></div>
+                    </div>
+                }
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">Rate Range</div>
+                <div class="fee-row"><span>Small (≤15 sqm)</span><div class="mini-meter"><div class="mini-meter-fill" style="width:40%;background:var(--green)"></div></div><strong>₱2,400</strong></div>
+                <div class="fee-row"><span>Medium (16–40 sqm)</span><div class="mini-meter"><div class="mini-meter-fill" style="width:70%;background:var(--gold)"></div></div><strong>₱2,700</strong></div>
+                <div class="fee-row"><span>Large (41+ sqm)</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:#4a9eff"></div></div><strong>₱3,000</strong></div>
+            </div>
+        </div>
+
+        <div class="rpt-breakdown-card">
+            <h4 class="breakdown-title">Payor Compliance</h4>
+            <div class="breakdown-list">
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="status-badge paid">Paid</span></div>
+                    <div class="breakdown-value">@PaidCount stalls</div>
+                    <div class="breakdown-bar"><div class="bar-fill paid" style="width:@PaidPct%"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="status-badge partial">Partial</span></div>
+                    <div class="breakdown-value">@PartialCount stalls</div>
+                    <div class="breakdown-bar"><div class="bar-fill partial" style="width:@PartialPct%"></div></div>
+                </div>
+                <div class="breakdown-item">
+                    <div class="breakdown-label"><span class="status-badge unpaid">Unpaid</span></div>
+                    <div class="breakdown-value">@UnpaidCount stalls</div>
+                    <div class="breakdown-bar"><div class="bar-fill unpaid" style="width:@UnpaidPct%"></div></div>
+                </div>
+            </div>
+            <div class="mini-panel">
+                <div class="mini-panel-title">Monthly Rental Breakdown</div>
+                <div class="fee-row"><span>Base rental</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:var(--green)"></div></div><strong>₱@RentalTotal.ToString("N0")</strong></div>
+            </div>
+        </div>
+
+        <div class="rpt-breakdown-card rpt-streak-card">
+            <h4 class="breakdown-title">Monthly Collection Streak — @GetPeriodLabel()</h4>
+
+            @if (ActivePeriod == "Yearly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-yearly-grid">
+                        @foreach (var mo in YearlyMonths)
+                        {
+                            <div class="streak-month-cell @mo.Css" title="@mo.Label">
+                                <span class="streak-month-name">@mo.Name</span>
+                                <span class="streak-month-rate">@mo.Rate%</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (ActivePeriod == "Weekly")
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">
+                        @foreach (var d in new[] { "Su","Mo","Tu","We","Th","Fr","Sa" })
+                        { <span>@d</span> }
+                    </div>
+                    <div class="streak-grid streak-grid-week">
+                        @foreach (var day in WeekDays)
+                        {
+                            <span class="streak-day @day.Css" title="@day.Label">@day.Num</span>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="streak-calendar-area">
+                    <div class="streak-dow-row">
+                        @foreach (var d in new[] { "Su","Mo","Tu","We","Th","Fr","Sa" })
+                        { <span>@d</span> }
+                    </div>
+                    <div class="streak-grid">
+                        @for (int b = 0; b < CalendarLeadBlanks; b++)
+                        { <span class="streak-day empty"></span> }
+                        @foreach (var day in CalendarDays)
+                        {
+                            <span class="streak-day @day.Css" title="@day.Label">@day.Num</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="streak-legend">
+                <span><i class="leg-swatch collected"></i>Collected (@CollectedDays)</span>
+                <span><i class="leg-swatch missed"></i>Missed (@MissedDays)</span>
+                <span><i class="leg-swatch future"></i>Upcoming</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="rpt-section-heading">
+        <span class="rpt-section-rule"></span>
+        <h2>Delinquency Analytics</h2>
+    </div>
+
+    <div class="rpt-delinquency-panel">
+        <div class="delinq-exposure">
+            <div class="delinq-exp-val">₱@PendingAmount.ToString("N2")</div>
+            <div class="delinq-exp-lbl">Total Outstanding — @(UnpaidCount + PartialCount) payors need follow-up</div>
+        </div>
+        <table class="delinq-table">
+            <thead>
+                <tr><th>Stall No</th><th>Occupant</th><th>Monthly Rate</th><th>Status</th><th>Missed (mo)</th><th>Balance Due</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var row in DelinquentStalls)
+                {
+                    <tr>
+                        <td class="stall-no">@row.StallNo</td>
+                        <td>@row.Occupant</td>
+                        <td>₱@row.Rate.ToString("N0")</td>
+                        <td><span class="status-badge @row.StatusCss">@row.Status</span></td>
+                        <td><span class="missed-badge @(row.MissedMonths >= 3 ? "critical" : "warn")">@row.MissedMonths mo</span></td>
+                        <td class="balance-due">₱@row.Balance.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="rpt-section-heading">
+        <span class="rpt-section-rule"></span>
+        <h2>All Stalls — @GetPeriodLabel()</h2>
+    </div>
+
+    <div class="rpt-compliance-table-wrap">
+        <table class="rpt-compliance-table">
+            <thead>
+                <tr><th>Stall No</th><th>Occupant</th><th>Contract Name</th><th>Area (sqm)</th><th>Monthly Rate</th><th>Status</th><th>Amount Paid</th><th>Balance</th><th>OR Number</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var s in AllStalls)
+                {
+                    <tr class="@(s.IsPaid ? "" : s.IsPartial ? "row-partial" : "row-unpaid")">
+                        <td class="stall-no">@s.StallNo</td>
+                        <td>@s.Occupant</td>
+                        <td class="text-muted">@s.ContractName</td>
+                        <td>@s.AreaSqm</td>
+                        <td>₱@s.MonthlyRate.ToString("N0")</td>
+                        <td><span class="status-badge @s.StatusCss">@s.StatusLabel</span></td>
+                        <td>@(s.AmountPaid > 0 ? "₱" + s.AmountPaid.ToString("N2") : "—")</td>
+                        <td class="@(s.Balance > 0 ? "balance-due" : "")">@(s.Balance > 0 ? "₱" + s.Balance.ToString("N2") : "—")</td>
+                        <td class="text-muted">@(string.IsNullOrEmpty(s.ORNumber) ? "—" : s.ORNumber)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+
+@code {
+
+    string ActivePeriod = "Monthly";
+    DateTime CurrentDate = DateTime.Now;
+    private FacilityReportsDto? R;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    async Task LoadAsync()
+    {
+        var period = ActivePeriod switch { "Weekly" => ReportPeriod.Weekly, "Yearly" => ReportPeriod.Yearly, _ => ReportPeriod.Monthly };
+        int? month = period == ReportPeriod.Yearly ? null : CurrentDate.Month;
+        int? week = period == ReportPeriod.Weekly ? ((CurrentDate.Day - 1) / 7) + 1 : null;
+        var result = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.TCC, period, CurrentDate.Year, month, week);
+        if (result.IsSuccess) R = result.Value;
+    }
+
+    async Task SetPeriod(string p) { ActivePeriod = p; await LoadAsync(); }
+    async Task PrevPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(-7), "Yearly" => CurrentDate.AddYears(-1), _ => CurrentDate.AddMonths(-1) }; await LoadAsync(); }
+    async Task NextPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(7),  "Yearly" => CurrentDate.AddYears(1),  _ => CurrentDate.AddMonths(1)  }; await LoadAsync(); }
+    string GetPeriodLabel() => ActivePeriod switch { "Weekly" => $"Week of {CurrentDate:MMM d, yyyy}", "Yearly" => CurrentDate.ToString("yyyy"), _ => CurrentDate.ToString("MMMM yyyy") };
+
+    // ── KPIs (from API) ──────────────────────────────────────────
+    decimal TotalCollected => R?.TotalRevenue ?? 0m;
+    int     CollectionRate => (int)Math.Round(R?.CollectionRate ?? 0m);
+    decimal PendingAmount  => R?.PendingPaymentAmount ?? 0m;
+    int     OccupiedStalls => R?.OccupiedStalls ?? 0;
+    int     TotalStalls    => R?.TotalStalls ?? 0;
+    int     OccupancyRate  => TotalStalls > 0 ? (int)Math.Round(OccupiedStalls * 100.0 / TotalStalls) : 0;
+    int     PaidCount      => R?.CollectionPerformance?.FullyPaidCount ?? 0;
+    int     PartialCount   => R?.CollectionPerformance?.PartiallyPaidCount ?? 0;
+    int     UnpaidCount    => R?.CollectionPerformance?.UnpaidCount ?? 0;
+    decimal RentalTotal    => R?.TotalRevenue ?? 0m;
+    string  RevenueGrowthText    => $"{(R?.RevenueGrowthPercentage ?? 0m):+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
+    string  CollectionGrowthText => $"{(R?.CollectionGrowthPercentage ?? 0m):+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
+
+    int Total      => PaidCount + PartialCount + UnpaidCount;
+    int PaidPct    => Total > 0 ? (int)((double)PaidCount    / Total * 100) : 0;
+    int PartialPct => Total > 0 ? (int)((double)PartialCount / Total * 100) : 0;
+    int UnpaidPct  => Total > 0 ? (int)((double)UnpaidCount  / Total * 100) : 0;
+
+    // ── Donut arc builder ─────────────────────────────────────────
+    record ArcSegment(string D, string Color);
+    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
+    {
+        int total = segments.Sum(s => s.Count);
+        if (total == 0) yield break;
+        double start = -Math.PI / 2;
+        foreach (var (count, color) in segments)
+        {
+            if (count == 0) continue;
+            double sweep = 2 * Math.PI * count / total;
+            double end = start + Math.Min(sweep, 2 * Math.PI - 0.0001);
+            double x1 = cx + r * Math.Cos(start), y1 = cy + r * Math.Sin(start);
+            double x2 = cx + r * Math.Cos(end),   y2 = cy + r * Math.Sin(end);
+            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {(sweep > Math.PI ? 1 : 0)} 1 {x2:F3} {y2:F3}", color);
+            start = end;
+        }
+    }
+
+    // ── Trend chart (from API) ────────────────────────────────────
+    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct)
+    {
+        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
+    }
+    IEnumerable<TrendPoint> TrendPoints
+    {
+        get
+        {
+            var t = R?.RevenueTrend ?? new List<RevenueTrendDto>();
+            var max = t.Any() ? t.Max(x => x.Revenue) : 0m;
+            return t.Select((x, i) => new TrendPoint(x.PeriodLabel, x.Revenue, i == t.Count - 1, max > 0 ? (int)(x.Revenue / max * 100) : 0));
+        }
+    }
+
+    // ── Size tier breakdown (derived from per-stall data) ─────────
+    record TierRow(string Label, decimal Revenue, int Pct, string Color);
+    IEnumerable<TierRow> SizeTiers
+    {
+        get
+        {
+            var rows = R?.StallCompliance ?? new List<StallComplianceDto>();
+            TierRow Build(string label, string color, Func<double, bool> inTier)
+            {
+                var tier = rows.Where(s => inTier(s.AreaSqm)).ToList();
+                var paid = tier.Sum(s => s.AmountPaid);
+                var billed = paid + tier.Sum(s => s.Balance);
+                return new TierRow(label, paid, billed > 0 ? (int)(paid / billed * 100) : 0, color);
+            }
+            return new[]
+            {
+                Build("Small (≤15 sqm)", "#2d7a5f", a => a <= 15),
+                Build("Medium (15–40 sqm)", "#c8a84b", a => a > 15 && a <= 40),
+                Build("Large (>40 sqm)", "#4a9eff", a => a > 40)
+            };
+        }
+    }
+
+    // ── Calendar (from API; TCC has no daily collections → empty) ─
+    record CalDay(string Num, string Css, string Label);
+    int CalendarLeadBlanks => R?.DailyCollectionStreak?.Days.FirstOrDefault()?.DayOfWeek ?? 0;
+    int CollectedDays => R?.DailyCollectionStreak?.CollectedDays ?? 0;
+    int MissedDays => R?.DailyCollectionStreak?.MissedDays ?? 0;
+    static string DayCss(string status) => status.ToLowerInvariant() switch { "collected" => "collected", "missed" => "missed", _ => "future" };
+    IEnumerable<CalDay> CalendarDays => (R?.DailyCollectionStreak?.Days ?? new List<DailyCollectionDayDto>())
+        .Where(d => !d.Status.Equals("OutOfScope", StringComparison.OrdinalIgnoreCase))
+        .Select(d => new CalDay(d.DayNumber.ToString(), DayCss(d.Status), $"Day {d.DayNumber} — {d.Status}"));
+
+    IEnumerable<CalDay> WeekDays
+    {
+        get
+        {
+            var days = R?.DailyCollectionStreak?.Days ?? new List<DailyCollectionDayDto>();
+            var sun = CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
+            return Enumerable.Range(0, 7).Select(i =>
+            {
+                var d = sun.AddDays(i);
+                var match = d.Month == CurrentDate.Month ? days.FirstOrDefault(x => x.DayNumber == d.Day) : null;
+                return new CalDay(d.Day.ToString(), match != null ? DayCss(match.Status) : "future", $"{d:ddd MMM d}");
+            });
+        }
+    }
+
+    record MonthCell(string Name, int Rate, string Css, string Label);
+    IEnumerable<MonthCell> YearlyMonths => Array.Empty<MonthCell>();
+
+    // ── Delinquency (from API) ────────────────────────────────────
+    record DelinqRow(string StallNo, string Occupant, decimal Rate, string Status, string StatusCss, int MissedMonths, decimal Balance);
+    IEnumerable<DelinqRow> DelinquentStalls => (R?.StallCompliance ?? new List<StallComplianceDto>())
+        .Where(s => s.Balance > 0)
+        .Select(s => new DelinqRow(s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.Status.ToLowerInvariant(), s.MissedMonths, s.Balance));
+
+    // ── Full stalls compliance table (from API) ───────────────────
+    record StallRow(string StallNo, string Occupant, string ContractName, double AreaSqm,
+                    decimal MonthlyRate, bool IsPaid, bool IsPartial, decimal AmountPaid, decimal Balance, string ORNumber)
+    {
+        public string StatusLabel => IsPaid ? "Paid" : IsPartial ? "Partial" : "Unpaid";
+        public string StatusCss   => IsPaid ? "paid"  : IsPartial ? "partial" : "unpaid";
+    }
+    IEnumerable<StallRow> AllStalls => (R?.StallCompliance ?? new List<StallComplianceDto>())
+        .Select(s => new StallRow(s.StallNo, s.Occupant, s.ContractName, s.AreaSqm, s.MonthlyRate,
+            s.Status == "Paid", s.Status == "Partial", s.AmountPaid, s.Balance, s.ORNumber ?? ""));
+}

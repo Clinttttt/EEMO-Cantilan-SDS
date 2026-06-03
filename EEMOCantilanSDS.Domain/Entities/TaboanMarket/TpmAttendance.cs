@@ -44,7 +44,7 @@ public class TpmAttendance : AuditableEntity
     }
 
     public void MarkPaid(
-        Guid collectorId,
+        Guid? collectorId,
         string? remarks = null,
         string updatedBy = "System")
     {

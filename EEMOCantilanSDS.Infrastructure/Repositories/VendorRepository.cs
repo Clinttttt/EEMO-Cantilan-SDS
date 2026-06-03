@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Vendors;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -14,9 +15,11 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
         CancellationToken cancellationToken = default)
     {
         var stalls = await context.Stalls
+            .AsNoTracking()
+            .Where(s => !s.IsDeleted)
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
-            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
             .ToListAsync(cancellationToken);
 
         var activeStalls = stalls.Where(s => s.Status == StallStatus.Active).ToList();
@@ -40,7 +43,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
             if (payment == null)
                 return s.MonthlyRate;
 
-            var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * 1.0m : 0);
+            var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
             var amountPaid = payment.Status == PaymentStatus.Paid ? totalBill : payment.Status == PaymentStatus.Partial ? payment.PartialAmount : 0;
             return totalBill - amountPaid;
         });

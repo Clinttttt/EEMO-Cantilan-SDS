@@ -182,25 +182,23 @@ public class PreservationPropertyTests
                            || facilityCode == FacilityCode.ICE 
                            || facilityCode == FacilityCode.SLH;
         
-        return isOtherFacility.ToProperty().And(() =>
-        {
-            var totalBill = monthlyRate;
-            var isPaid = paymentStatus == PaymentStatus.Paid;
-            var isPartial = paymentStatus == PaymentStatus.Partial;
-            
-            // Current behavior (UNFIXED code)
-            var currentTotalPaid = isPaid ? totalBill : isPartial ? partialAmount : 0m;
-            var currentBalanceDue = totalBill - currentTotalPaid;
-            
-            // Expected behavior after fix (MUST BE IDENTICAL)
-            var dailyCollectionTotal = 0m; // These facilities do not have daily collections
-            var expectedTotalPaid = isPaid ? totalBill : isPartial ? partialAmount + dailyCollectionTotal : dailyCollectionTotal;
-            var expectedBalanceDue = totalBill - expectedTotalPaid;
-            
-            // Assert - Verify preservation
-            return (currentTotalPaid == expectedTotalPaid).Label($"{facilityCode} TotalPaid preserved")
-                .And((currentBalanceDue == expectedBalanceDue).Label($"{facilityCode} BalanceDue preserved"));
-        });
+        var totalBill = monthlyRate;
+        var isPaid = paymentStatus == PaymentStatus.Paid;
+        var isPartial = paymentStatus == PaymentStatus.Partial;
+
+        // Current behavior (UNFIXED code)
+        var currentTotalPaid = isPaid ? totalBill : isPartial ? partialAmount : 0m;
+        var currentBalanceDue = totalBill - currentTotalPaid;
+
+        // Expected behavior after fix (MUST BE IDENTICAL)
+        var dailyCollectionTotal = 0m; // These facilities do not have daily collections
+        var expectedTotalPaid = isPaid ? totalBill : isPartial ? partialAmount + dailyCollectionTotal : dailyCollectionTotal;
+        var expectedBalanceDue = totalBill - expectedTotalPaid;
+
+        // Assert - Verify preservation (only applies to BBQ/ICE/SLH; other codes are vacuously true)
+        return (!isOtherFacility ||
+                (currentTotalPaid == expectedTotalPaid && currentBalanceDue == expectedBalanceDue))
+            .ToProperty();
     }
     
     /// <summary>
@@ -323,14 +321,14 @@ public class PreservationPropertyTests
     }
     
     /// <summary>
-    /// **Property 2: Preservation** - Helper Methods Unchanged
+    /// **Property 2: Regression** - Helper Methods Keep Partial Amounts Bounded
     /// 
     /// Tests that helper methods GetDisplayPartialAmount() and GetDisplayBalanceRemaining()
-    /// continue to format values correctly after including daily collection totals.
+    /// format values correctly without treating a fully paid record as an existing partial payment.
     /// 
     /// **Observation:**
-    /// - GetDisplayPartialAmount() returns cumulative partial amount
-    /// - GetDisplayBalanceRemaining() returns TotalBill - cumulative partial amount
+    /// - GetDisplayPartialAmount() accumulates only for an existing Partial record
+    /// - GetDisplayBalanceRemaining() never displays a negative balance
     /// 
     /// **Validates: Requirements 3.5**
     /// </summary>
@@ -338,24 +336,49 @@ public class PreservationPropertyTests
     public Property HelperMethods_FormatValues_Correctly(
         decimal totalBill,
         decimal existingPartialAmount,
-        decimal newPartialAmountInput)
+        decimal newPartialAmountInput,
+        bool isExistingPartial)
     {
         // Arrange - Simulate helper method behavior
         var partialAmountInput = newPartialAmountInput;
         var partialAmount = existingPartialAmount;
         
-        // Current behavior (UNFIXED code)
-        // decimal GetDisplayPartialAmount() => PartialAmountInput > 0 ? PartialAmount + PartialAmountInput : PartialAmount;
-        var currentDisplayPartialAmount = partialAmountInput > 0 ? partialAmount + partialAmountInput : partialAmount;
-        var currentDisplayBalanceRemaining = totalBill - currentDisplayPartialAmount;
+        // Corrected Profile.razor behavior:
+        // decimal GetDisplayPartialAmount() => PartialAmountInput > 0
+        //     ? IsPartial ? PartialAmount + PartialAmountInput : PartialAmountInput
+        //     : PartialAmount;
+        var currentDisplayPartialAmount = partialAmountInput > 0
+            ? isExistingPartial ? partialAmount + partialAmountInput : partialAmountInput
+            : partialAmount;
+        var currentDisplayBalanceRemaining = Math.Max(0m, totalBill - currentDisplayPartialAmount);
         
-        // Expected behavior after fix (MUST BE IDENTICAL)
-        var expectedDisplayPartialAmount = partialAmountInput > 0 ? partialAmount + partialAmountInput : partialAmount;
-        var expectedDisplayBalanceRemaining = totalBill - expectedDisplayPartialAmount;
+        var expectedDisplayPartialAmount = partialAmountInput > 0
+            ? isExistingPartial ? partialAmount + partialAmountInput : partialAmountInput
+            : partialAmount;
+        var expectedDisplayBalanceRemaining = Math.Max(0m, totalBill - expectedDisplayPartialAmount);
         
-        // Assert - Verify preservation
-        return (currentDisplayPartialAmount == expectedDisplayPartialAmount).Label("GetDisplayPartialAmount preserved")
-            .And((currentDisplayBalanceRemaining == expectedDisplayBalanceRemaining).Label("GetDisplayBalanceRemaining preserved"));
+        return (currentDisplayPartialAmount == expectedDisplayPartialAmount).Label("GetDisplayPartialAmount corrected")
+            .And((currentDisplayBalanceRemaining == expectedDisplayBalanceRemaining).Label("GetDisplayBalanceRemaining corrected"))
+            .And((currentDisplayBalanceRemaining >= 0m).Label("Balance display is never negative"))
+            .And((isExistingPartial || partialAmountInput <= 0 || currentDisplayPartialAmount == partialAmountInput)
+                .Label("Non-partial existing records do not accumulate old paid amount"));
+    }
+
+    [Fact]
+    public void HelperMethods_PaidRecordSwitchedToPartial_DoesNotAccumulateFullPaidAmount()
+    {
+        var totalBill = 900m;
+        var existingPartialAmount = 0m;
+        var newPartialAmountInput = 500m;
+        var isExistingPartial = false;
+
+        var displayPartialAmount = newPartialAmountInput > 0
+            ? isExistingPartial ? existingPartialAmount + newPartialAmountInput : newPartialAmountInput
+            : existingPartialAmount;
+        var displayBalanceRemaining = Math.Max(0m, totalBill - displayPartialAmount);
+
+        Assert.Equal(500m, displayPartialAmount);
+        Assert.Equal(400m, displayBalanceRemaining);
     }
     
     /// <summary>

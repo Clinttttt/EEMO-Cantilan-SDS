@@ -1,6 +1,9 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -52,32 +55,30 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var revenueGrowth = CalculateGrowthPercentage(currentRevenue, previousRevenue);
 
-        var currentCollectionRate = await CalculateCollectionRateAsync(facilityId, currentStart, currentEnd, ct);
-        var previousCollectionRate = await CalculateCollectionRateAsync(facilityId, previousStart, previousEnd, ct);
+        var currentCollectionRate = await CalculateCollectionRateAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
+        var previousCollectionRate = await CalculateCollectionRateAsync(facilityCode, facilityId, previousStart, previousEnd, ct);
         var collectionGrowth = CalculateGrowthPercentage(currentCollectionRate, previousCollectionRate);
 
         var occupiedStalls = await CalculateOccupiedStallsAsync(facilityId, ct);
         var totalStalls = await CalculateTotalStallsAsync(facilityId, ct);
-        var (pendingCount, pendingAmount) = await CalculatePendingPaymentsAsync(facilityId, currentStart, currentEnd, ct);
+        var stallCompliance = await GenerateStallComplianceAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
+        var pendingCount = stallCompliance.Count(s => s.Balance > 0m);
+        var pendingAmount = stallCompliance.Sum(s => s.Balance);
 
-        // Task 6.1-6.3: Generate revenue trend
+  
         var revenueTrend = await GenerateRevenueTrendAsync(facilityCode, facilityId, period, year, month, weekNumber, ct);
 
-        // Task 7.1: Calculate payment distribution
-        var paymentDistribution = await CalculatePaymentDistributionAsync(facilityId, currentStart, currentEnd, ct);
+        var paymentDistribution = await CalculatePaymentDistributionAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
 
         // Task 7.2-7.4: Generate section breakdown
         var sectionBreakdown = await GenerateSectionBreakdownAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
 
-        // Task 8.1: Identify top stalls
         var topStalls = await IdentifyTopStallsAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
 
-        // Task 8.2: Calculate collection performance
-        var collectionPerformance = await CalculateCollectionPerformanceAsync(facilityId, currentStart, currentEnd, ct);
+        var collectionPerformance = await CalculateCollectionPerformanceAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var dailyCollectionStreak = await GenerateDailyCollectionStreakAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var feeTypeBreakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var fishKiloTrend = await GenerateFishKiloTrendAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
-
         // Task 9.1: Assemble final DTO
         return new FacilityReportsDto(
             TotalRevenue: currentRevenue,
@@ -95,9 +96,135 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             CollectionPerformance: collectionPerformance,
             DailyCollectionStreak: dailyCollectionStreak,
             FeeTypeBreakdown: feeTypeBreakdown,
-            FishKiloTrend: fishKiloTrend
+            FishKiloTrend: fishKiloTrend,
+            StallCompliance: stallCompliance
         );
     }
+
+    #region Stall Compliance Helpers
+
+    /// <summary>
+    /// Per-stall compliance rows for the report page (powers both the delinquency table
+    /// and the full "all stalls" table). Covers occupied stalls (active contract) only.
+    /// Status/balance reflect the selected period; MissedMonths counts months in the
+    /// period year (up to the period month) with no fully-Paid monthly record.
+    /// </summary>
+    private async Task<IReadOnlyList<StallComplianceDto>> GenerateStallComplianceAsync(
+        FacilityCode facilityCode,
+        Guid facilityId,
+        DateOnly startDate,
+        DateOnly endDate,
+        CancellationToken ct)
+    {
+        var stalls = await _context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Where(s => s.FacilityId == facilityId
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+            .ToListAsync(ct);
+
+        if (stalls.Count == 0)
+            return Array.Empty<StallComplianceDto>();
+
+        var stallIds = stalls.Select(s => s.Id).ToList();
+
+        var paymentRecords = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .ToListAsync(ct);
+
+        var periodPayments = paymentRecords
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
+            .GroupBy(pr => pr.StallId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(pr => new DateTime(pr.BillingYear, pr.BillingMonth, 1)).First());
+
+        var includeFish = facilityCode == FacilityCode.NPM;
+
+        var dailyByStall = includeFish
+            ? await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => stallIds.Contains(dc.StallId) && !dc.IsDeleted && dc.IsPaid
+                    && dc.CollectionDate >= startDate && dc.CollectionDate <= endDate)
+                .GroupBy(dc => dc.StallId)
+                .Select(g => new { StallId = g.Key, Total = g.Sum(dc => dc.DailyFee
+                    + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)) })
+                .ToDictionaryAsync(x => x.StallId, x => x.Total, ct)
+            : new Dictionary<Guid, decimal>();
+
+        var rows = new List<StallComplianceDto>();
+
+        foreach (var s in stalls)
+        {
+            var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+
+            decimal totalBill;
+            string? orNumber = null;
+            decimal amountPaid;
+
+            // A monthly payment supersedes daily collections (no double-count, mirrors revenue calc).
+            if (periodPayments.TryGetValue(s.Id, out var pr) && pr.Status != PaymentStatus.Unpaid)
+            {
+                totalBill = pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0)
+                    + (includeFish && pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m);
+                amountPaid = pr.Status == PaymentStatus.Paid ? totalBill : pr.PartialAmount;
+                orNumber = pr.ORNumber;
+            }
+            else
+            {
+                // No monthly payment → use NPM daily collections against the stall's monthly rate.
+                totalBill = s.MonthlyRate;
+                amountPaid = dailyByStall.GetValueOrDefault(s.Id);
+                orNumber = pr?.ORNumber;
+            }
+
+            var balance = Math.Max(0m, totalBill - amountPaid);
+            var status = balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
+
+            var missedMonths = CountMissedMonths(paymentRecords, s.Id, endDate);
+
+            rows.Add(new StallComplianceDto(
+                s.StallNo,
+                contract?.ActualOccupant ?? string.Empty,
+                contract?.NameOnContract ?? string.Empty,
+                s.Section.HasValue ? SectionLabel(s.Section) : s.AreaLocation?.ToString() ?? string.Empty,
+                s.MonthlyRate,
+                s.DailyRate ?? (includeFish ? FeeRates.NpmDailyFee : 0m),
+                status,
+                amountPaid,
+                balance,
+                orNumber,
+                missedMonths,
+                s.AreaSqm ?? 0));
+        }
+
+        return rows.OrderBy(r => r.StallNo).ToList();
+    }
+
+    private static int CountMissedMonths(List<PaymentRecord> paymentRecords, Guid stallId, DateOnly endDate)
+    {
+        var paidMonths = paymentRecords
+            .Where(pr => pr.StallId == stallId && pr.Status == PaymentStatus.Paid && pr.BillingYear == endDate.Year)
+            .Select(pr => pr.BillingMonth)
+            .ToHashSet();
+
+        var missed = 0;
+        for (var m = 1; m <= endDate.Month; m++)
+            if (!paidMonths.Contains(m)) missed++;
+        return missed;
+    }
+
+    private static string SectionLabel(MarketSection? section) => section switch
+    {
+        MarketSection.VegetableArea => "Vegetable Area",
+        MarketSection.FishSection => "Fish Section",
+        MarketSection.MeatSection => "Meat Section",
+        _ => string.Empty
+    };
+
+    #endregion
 
     #region Date Range Calculation Helpers
 
@@ -156,8 +283,17 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         int month,
         int weekNumber)
     {
+        var daysInMonth = DateTime.DaysInMonth(year, month);
         var startDay = (weekNumber - 1) * 7 + 1;
-        var endDay = Math.Min(weekNumber * 7, DateTime.DaysInMonth(year, month));
+        var endDay = Math.Min(weekNumber * 7, daysInMonth);
+
+        // A week beyond the month's days (e.g. week 5 of a 28-day February) has no days.
+        // Return an empty range (start > end) so callers iterate nothing instead of throwing.
+        if (startDay > daysInMonth)
+        {
+            var firstOfMonth = new DateOnly(year, month, 1);
+            return (firstOfMonth, firstOfMonth.AddDays(-1));
+        }
 
         var startDate = new DateOnly(year, month, startDay);
         var endDate = new DateOnly(year, month, endDay);
@@ -243,13 +379,27 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// </summary>
     private static bool IsPaymentInDateRange(int billingYear, int billingMonth, DateOnly startDate, DateOnly endDate)
     {
-        // Create first day of billing month
-        var billingStart = new DateOnly(billingYear, billingMonth, 1);
+        var billingDate = new DateOnly(billingYear, billingMonth, 1);
+        var rangeStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var rangeEnd = new DateOnly(endDate.Year, endDate.Month, 1);
         
-        // Check if billing month overlaps with date range
-        return billingStart.Year >= startDate.Year && billingStart.Year <= endDate.Year &&
-               billingStart.Month >= startDate.Month && billingStart.Month <= endDate.Month;
+        return billingDate >= rangeStart && billingDate <= rangeEnd;
     }
+
+    /// <summary>
+    /// Revenue recognized (actually collected) from a single payment record.
+    /// Paid → base rental + utilities (+ fish fee when <paramref name="includeFish"/>);
+    /// Partial → the partial amount; Unpaid → nothing.
+    /// </summary>
+    private static decimal RecognizedRevenue(PaymentRecord pr, bool includeFish) => pr.Status switch
+    {
+        PaymentStatus.Paid => pr.BaseRentalAmount
+            + (pr.ElecAmount ?? 0)
+            + (pr.WaterAmount ?? 0)
+            + (includeFish && pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+        PaymentStatus.Partial => pr.PartialAmount,
+        _ => 0m
+    };
 
     /// <summary>
     /// Calculates total revenue for NPM facility (daily collections + monthly payments).
@@ -261,16 +411,6 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         DateOnly endDate,
         CancellationToken ct)
     {
-        // Sum daily collections (DailyFee + FishFeeAmount) where IsPaid = true
-        var dailyRevenue = await _context.DailyCollections
-            .AsNoTracking()
-            .Where(dc => dc.Stall!.FacilityId == facilityId
-                && dc.CollectionDate >= startDate
-                && dc.CollectionDate <= endDate
-                && dc.IsPaid
-                && !dc.IsDeleted)
-            .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
-
         // Get all payment records and filter in memory
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
@@ -279,25 +419,25 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var monthlyRevenue = paymentRecords
             .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-            .Sum(pr =>
-            {
-                // Only count revenue from Paid or Partial payments
-                if (pr.Status == PaymentStatus.Paid)
-                {
-                    return pr.BaseRentalAmount
-                        + (pr.ElecAmount ?? 0)
-                        + (pr.WaterAmount ?? 0)
-                        + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-                }
-                else if (pr.Status == PaymentStatus.Partial)
-                {
-                    return pr.PartialAmount;
-                }
-                else
-                {
-                    return 0m; // Unpaid = no revenue
-                }
-            });
+            .Sum(pr => RecognizedRevenue(pr, includeFish: true));
+
+        // Get stalls that have monthly payments in this period (exclude from daily count)
+        var stallsWithMonthlyPayments = paymentRecords
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate)
+                && pr.Status != PaymentStatus.Unpaid)
+            .Select(pr => pr.StallId)
+            .ToHashSet();
+
+        // Sum daily collections ONLY for stalls without monthly payments
+        var dailyRevenue = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.Stall!.FacilityId == facilityId
+                && dc.CollectionDate >= startDate
+                && dc.CollectionDate <= endDate
+                && dc.IsPaid
+                && !dc.IsDeleted
+                && !stallsWithMonthlyPayments.Contains(dc.StallId))
+            .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
         return dailyRevenue + monthlyRevenue;
     }
@@ -320,24 +460,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         return paymentRecords
             .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-            .Sum(pr =>
-            {
-                // Only count revenue from Paid or Partial payments
-                if (pr.Status == PaymentStatus.Paid)
-                {
-                    return pr.BaseRentalAmount
-                        + (pr.ElecAmount ?? 0)
-                        + (pr.WaterAmount ?? 0);
-                }
-                else if (pr.Status == PaymentStatus.Partial)
-                {
-                    return pr.PartialAmount;
-                }
-                else
-                {
-                    return 0m; // Unpaid = no revenue
-                }
-            });
+            .Sum(pr => RecognizedRevenue(pr, includeFish: false));
     }
 
     /// <summary>
@@ -362,15 +485,12 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// second monthly rental denominator on top of the same daily fee.
     /// </summary>
     private async Task<decimal> CalculateCollectionRateAsync(
+        FacilityCode facilityCode,
         Guid facilityId,
         DateOnly startDate,
         DateOnly endDate,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == facilityId, ct);
-
         var occupiedStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
@@ -384,7 +504,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var occupiedStallIds = occupiedStalls.Select(s => s.Id).ToList();
 
-        if (facility?.Code == FacilityCode.NPM)
+        if (facilityCode == FacilityCode.NPM)
         {
             var daysInPeriod = endDate.DayNumber - startDate.DayNumber + 1;
             var expectedDailyFees = occupiedStalls.Count * FeeRates.NpmDailyFee * daysInPeriod;
@@ -483,15 +603,12 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// Uses the stall's MonthlyRate property for expected bill calculation.
     /// </summary>
     private async Task<(int count, decimal amount)> CalculatePendingPaymentsAsync(
+        FacilityCode facilityCode,
         Guid facilityId,
         DateOnly startDate,
         DateOnly endDate,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == facilityId, ct);
-
         // Get all OCCUPIED stalls (with active contracts) including their MonthlyRate
         var occupiedStalls = await _context.Stalls
             .AsNoTracking()
@@ -520,53 +637,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 g => g.OrderByDescending(pr => new DateTime(pr.BillingYear, pr.BillingMonth, 1)).First()
             );
 
-        // Build pending payments list for ALL occupied stalls
-        var pendingPayments = new List<dynamic>();
-
-        foreach (var stall in occupiedStalls)
-        {
-            decimal totalBill = 0m;
-            decimal amountPaid = 0m;
-
-            // Check if stall has a payment record
-            if (paymentsByStall.ContainsKey(stall.Id))
-            {
-                var pr = paymentsByStall[stall.Id];
-                totalBill = pr.BaseRentalAmount
-                    + (pr.ElecAmount ?? 0)
-                    + (pr.WaterAmount ?? 0)
-                    + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-
-                amountPaid = pr.Status == PaymentStatus.Paid
-                    ? totalBill
-                    : pr.Status == PaymentStatus.Partial
-                        ? pr.PartialAmount
-                        : 0;
-            }
-            else if (facility?.Code == FacilityCode.NPM)
-            {
-                // NPM stall with no payment record: use stall's MonthlyRate
-                totalBill = stall.MonthlyRate;
-                amountPaid = 0m;
-            }
-            else
-            {
-                // Non-NPM stall with no payment record: skip (no bill generated)
-                continue;
-            }
-
-            pendingPayments.Add(new
-            {
-                StallId = stall.Id,
-                TotalBill = totalBill,
-                AmountPaid = amountPaid
-            });
-        }
-
-        // For NPM: Add daily collections to AmountPaid
-        if (facility?.Code == FacilityCode.NPM)
-        {
-            var dailyCollections = await _context.DailyCollections
+        // NPM also collects daily fees; aggregate them once, server-side.
+        var dailyCollectionsByStall = facilityCode == FacilityCode.NPM
+            ? await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => occupiedStalls.Select(s => s.Id).Contains(dc.StallId)
                     && !dc.IsDeleted
@@ -577,28 +650,49 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 .Select(g => new
                 {
                     StallId = g.Key,
-                    TotalCollected = g.Sum(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0))
+                    TotalCollected = g.Sum(dc => dc.DailyFee
+                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m))
                 })
-                .ToListAsync(ct);
+                .ToDictionaryAsync(x => x.StallId, x => x.TotalCollected, ct)
+            : new Dictionary<Guid, decimal>();
 
-            var dailyCollectionsByStall = dailyCollections.ToDictionary(dc => dc.StallId, dc => dc.TotalCollected);
+        // Count occupied stalls that still owe money (Unpaid or Partial) and the outstanding total.
+        var count = 0;
+        var amount = 0m;
 
-            // Update pending payments with daily collections
-            pendingPayments = pendingPayments.Select(pp => new
+        foreach (var stall in occupiedStalls)
+        {
+            decimal totalBill;
+            decimal amountPaid;
+
+            if (paymentsByStall.TryGetValue(stall.Id, out var pr))
             {
-                pp.StallId,
-                pp.TotalBill,
-                AmountPaid = pp.AmountPaid + (dailyCollectionsByStall.ContainsKey(pp.StallId) ? dailyCollectionsByStall[pp.StallId] : 0m)
-            }).ToList<dynamic>();
+                totalBill = pr.BaseRentalAmount
+                    + (pr.ElecAmount ?? 0)
+                    + (pr.WaterAmount ?? 0)
+                    + (pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
+
+                amountPaid = pr.Status == PaymentStatus.Paid
+                    ? totalBill
+                    : pr.Status == PaymentStatus.Partial
+                        ? pr.PartialAmount
+                        : 0;
+            }
+            else
+            {
+                // No payment record: use the stall's MonthlyRate as the expected bill
+                totalBill = stall.MonthlyRate;
+                amountPaid = 0m;
+            }
+
+            amountPaid += dailyCollectionsByStall.GetValueOrDefault(stall.Id);
+
+            if (amountPaid < totalBill)
+            {
+                count++;
+                amount += totalBill - amountPaid;
+            }
         }
-
-        // Filter only Unpaid and Partial (exclude fully paid)
-        var actualPending = pendingPayments
-            .Where(pp => pp.AmountPaid < pp.TotalBill)
-            .ToList();
-
-        var count = actualPending.Count;
-        var amount = actualPending.Sum(pp => (decimal)(pp.TotalBill - pp.AmountPaid));
 
         return (count, amount);
     }
@@ -640,10 +734,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var (startDate, endDate) = CalculateWeeklyDateRange(year, month, weekNumber);
         var trends = new List<RevenueTrendDto>();
 
-        // Generate 7 data points (Mon-Sun)
+        // One data point per calendar day in this week's fixed day bucket
+        // (week 1 = days 1-7, week 2 = 8-14, ...; a trailing week may be shorter).
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            var dayLabel = date.DayOfWeek.ToString().Substring(0, 3); // Mon, Tue, Wed, etc.
+            var dayLabel = date.ToString("ddd d"); // e.g. "Mon 8" — weekday + day-of-month (unambiguous across weeks)
             decimal revenue = 0m;
 
             if (facilityCode == FacilityCode.NPM)
@@ -687,15 +782,6 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             {
                 // NPM: Include daily collections + monthly payments (only Paid/Partial)
                 var (monthStart, monthEnd) = CalculateMonthlyDateRange(targetYear, targetMonth);
-                
-                var dailyRevenue = await _context.DailyCollections
-                    .AsNoTracking()
-                    .Where(dc => dc.Stall!.FacilityId == facilityId
-                        && dc.CollectionDate >= monthStart
-                        && dc.CollectionDate <= monthEnd
-                        && dc.IsPaid
-                        && !dc.IsDeleted)
-                    .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
                 var paymentRecords = await _context.PaymentRecords
                     .AsNoTracking()
@@ -705,25 +791,23 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && !pr.IsDeleted)
                     .ToListAsync(ct);
 
-                var monthlyRevenue = paymentRecords.Sum(pr =>
-                {
-                    // Only count revenue from Paid or Partial payments
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0)
-                            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m; // Unpaid = no revenue
-                    }
-                });
+                var monthlyRevenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: true));
+
+                // Exclude stalls already counted via a monthly payment from the daily sum (no double-count).
+                var stallsWithMonthlyPayments = paymentRecords
+                    .Where(pr => pr.Status != PaymentStatus.Unpaid)
+                    .Select(pr => pr.StallId)
+                    .ToHashSet();
+
+                var dailyRevenue = await _context.DailyCollections
+                    .AsNoTracking()
+                    .Where(dc => dc.Stall!.FacilityId == facilityId
+                        && dc.CollectionDate >= monthStart
+                        && dc.CollectionDate <= monthEnd
+                        && dc.IsPaid
+                        && !dc.IsDeleted
+                        && !stallsWithMonthlyPayments.Contains(dc.StallId))
+                    .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
                 revenue = dailyRevenue + monthlyRevenue;
             }
@@ -738,24 +822,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && !pr.IsDeleted)
                     .ToListAsync(ct);
 
-                revenue = paymentRecords.Sum(pr =>
-                {
-                    // Only count revenue from Paid or Partial payments
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m; // Unpaid = no revenue
-                    }
-                });
+                revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
             }
 
             trends.Add(new RevenueTrendDto(monthLabel, revenue));
@@ -784,15 +851,6 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             {
                 // NPM: Include daily collections + monthly payments (only Paid/Partial)
                 var (yearStart, yearEnd) = CalculateYearlyDateRange(targetYear);
-                
-                var dailyRevenue = await _context.DailyCollections
-                    .AsNoTracking()
-                    .Where(dc => dc.Stall!.FacilityId == facilityId
-                        && dc.CollectionDate >= yearStart
-                        && dc.CollectionDate <= yearEnd
-                        && dc.IsPaid
-                        && !dc.IsDeleted)
-                    .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
                 var paymentRecords = await _context.PaymentRecords
                     .AsNoTracking()
@@ -801,25 +859,23 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && !pr.IsDeleted)
                     .ToListAsync(ct);
 
-                var monthlyRevenue = paymentRecords.Sum(pr =>
-                {
-                    // Only count revenue from Paid or Partial payments
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0)
-                            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m; // Unpaid = no revenue
-                    }
-                });
+                var monthlyRevenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: true));
+
+                // Exclude stalls already counted via a monthly payment from the daily sum (no double-count).
+                var stallsWithMonthlyPayments = paymentRecords
+                    .Where(pr => pr.Status != PaymentStatus.Unpaid)
+                    .Select(pr => pr.StallId)
+                    .ToHashSet();
+
+                var dailyRevenue = await _context.DailyCollections
+                    .AsNoTracking()
+                    .Where(dc => dc.Stall!.FacilityId == facilityId
+                        && dc.CollectionDate >= yearStart
+                        && dc.CollectionDate <= yearEnd
+                        && dc.IsPaid
+                        && !dc.IsDeleted
+                        && !stallsWithMonthlyPayments.Contains(dc.StallId))
+                    .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
                 revenue = dailyRevenue + monthlyRevenue;
             }
@@ -833,24 +889,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && !pr.IsDeleted)
                     .ToListAsync(ct);
 
-                revenue = paymentRecords.Sum(pr =>
-                {
-                    // Only count revenue from Paid or Partial payments
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m; // Unpaid = no revenue
-                    }
-                });
+                revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
             }
 
             trends.Add(new RevenueTrendDto(yearLabel, revenue));
@@ -894,12 +933,21 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var kiloByDate = dailyKilos.ToDictionary(k => k.Date, k => k.Kilos);
         var trend = new List<FishKiloTrendDto>();
 
-        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        // Long spans (Yearly) aggregate by month to stay readable; shorter spans stay per-day.
+        if (endDate.DayNumber - startDate.DayNumber > 45)
         {
-            trend.Add(new FishKiloTrendDto(
-                PeriodLabel: date.ToString("MMM d"),
-                Kilos: kiloByDate.GetValueOrDefault(date)
-            ));
+            for (var m = new DateOnly(startDate.Year, startDate.Month, 1); m <= endDate; m = m.AddMonths(1))
+            {
+                var monthKilos = kiloByDate.Where(k => k.Key.Year == m.Year && k.Key.Month == m.Month).Sum(k => k.Value);
+                trend.Add(new FishKiloTrendDto(m.ToString("MMM"), monthKilos));
+            }
+        }
+        else
+        {
+            for (var date = startDate; date <= endDate; date = date.AddDays(1))
+            {
+                trend.Add(new FishKiloTrendDto(date.ToString("MMM d"), kiloByDate.GetValueOrDefault(date)));
+            }
         }
 
         return trend;
@@ -921,20 +969,6 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             return null;
         }
 
-        var dailyCollections = await _context.DailyCollections
-            .AsNoTracking()
-            .Where(dc => dc.Stall!.FacilityId == facilityId
-                && dc.CollectionDate >= startDate
-                && dc.CollectionDate <= endDate
-                && dc.IsPaid
-                && !dc.IsDeleted)
-            .ToListAsync(ct);
-
-        var dailyFeeAmount = dailyCollections.Sum(dc => dc.DailyFee);
-        var fishFeeAmount = dailyCollections.Sum(dc => dc.FishKilos.HasValue
-            ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo
-            : 0m);
-
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
             .Where(pr => pr.Stall!.FacilityId == facilityId && !pr.IsDeleted)
@@ -945,26 +979,87 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .Where(pr => pr.Status is PaymentStatus.Paid or PaymentStatus.Partial)
             .ToList();
 
-        var rentalAmount = periodPaymentRecords.Sum(pr => pr.Status == PaymentStatus.Paid
+        // Get stalls with monthly payments (exclude from daily count)
+        var stallsWithMonthlyPayments = periodPaymentRecords
+            .Select(pr => pr.StallId)
+            .ToHashSet();
+
+        // Daily fee from actual daily collections (for stalls without monthly payments)
+        var dailyCollections = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.Stall!.FacilityId == facilityId
+                && dc.CollectionDate >= startDate
+                && dc.CollectionDate <= endDate
+                && dc.IsPaid
+                && !dc.IsDeleted
+                && !stallsWithMonthlyPayments.Contains(dc.StallId))
+            .ToListAsync(ct);
+
+        var dailyFeeFromCollections = dailyCollections.Sum(dc => dc.DailyFee);
+        var fishFeeFromCollections = dailyCollections.Sum(dc => dc.FishKilos.HasValue
+            ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo
+            : 0m);
+
+        // Daily fee from monthly payments (BaseRentalAmount = daily fee equivalent)
+        var dailyFeeFromMonthly = periodPaymentRecords.Sum(pr => pr.Status == PaymentStatus.Paid
             ? pr.BaseRentalAmount
             : Math.Min(pr.PartialAmount, pr.BaseRentalAmount));
 
-        var utilityAmount = periodPaymentRecords.Sum(pr =>
-        {
-            if (pr.Status != PaymentStatus.Paid)
-            {
-                return 0m;
-            }
+        // Fish fee from monthly payments
+        var fishFeeFromMonthly = periodPaymentRecords
+            .Where(pr => pr.Status == PaymentStatus.Paid)
+            .Sum(pr => pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m);
 
-            return (pr.ElecAmount ?? 0m) + (pr.WaterAmount ?? 0m);
-        });
+        // Calculate fish kilo comparison (first half vs second half of period)
+        var totalFishKilos = dailyCollections.Sum(dc => dc.FishKilos ?? 0m)
+            + periodPaymentRecords.Where(pr => pr.Status == PaymentStatus.Paid).Sum(pr => pr.FishKilos ?? 0m);
+        
+        var fishComparison = CalculateFishKiloComparison(dailyCollections, totalFishKilos, startDate, endDate);
 
         return new FeeTypeBreakdownDto(
-            DailyFeeAmount: dailyFeeAmount,
-            FishFeeAmount: fishFeeAmount,
-            RentalAmount: rentalAmount,
-            UtilityAmount: utilityAmount
+            DailyFeeAmount: dailyFeeFromCollections + dailyFeeFromMonthly,
+            FishFeeAmount: fishFeeFromCollections + fishFeeFromMonthly,
+            FishKiloComparison: fishComparison
         );
+    }
+
+    private static string CalculateFishKiloComparison(
+        List<DailyCollection> dailyCollections,
+        decimal totalFishKilos,
+        DateOnly startDate,
+        DateOnly endDate)
+    {
+        var daysDiff = endDate.DayNumber - startDate.DayNumber + 1;
+        var periodName = daysDiff > 60 ? "year" : daysDiff > 10 ? "month" : "week";
+        
+        if (totalFishKilos == 0)
+        {
+            return $"No fish activity this {periodName}";
+        }
+
+        var midPoint = startDate.AddDays((endDate.DayNumber - startDate.DayNumber) / 2);
+        var firstHalf = dailyCollections
+            .Where(dc => dc.CollectionDate < midPoint)
+            .Sum(dc => dc.FishKilos ?? 0m);
+        var secondHalf = dailyCollections
+            .Where(dc => dc.CollectionDate >= midPoint)
+            .Sum(dc => dc.FishKilos ?? 0m);
+
+        if (firstHalf == 0 && secondHalf > 0)
+        {
+            return $"Activity started mid-{periodName} • {secondHalf:N1} kg in second half";
+        }
+
+        if (firstHalf == 0)
+        {
+            return $"No fish activity this {periodName}";
+        }
+
+        var growth = ((secondHalf - firstHalf) / firstHalf) * 100;
+        var trend = growth > 0 ? "↑" : growth < 0 ? "↓" : "→";
+        var sign = growth > 0 ? "+" : "";
+
+        return $"{trend} {sign}{growth:N0}% vs first half • {secondHalf - firstHalf:+0;-0;0} kg change";
     }
 
     #endregion
@@ -985,101 +1080,109 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var monthStart = new DateOnly(startDate.Year, startDate.Month, 1);
         var monthEnd = new DateOnly(startDate.Year, startDate.Month, DateTime.DaysInMonth(startDate.Year, startDate.Month));
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = PhilippineTime.Today;
         var lastAuditableDay = today < monthStart
             ? monthStart.AddDays(-1)
             : today < monthEnd && today.Year == monthStart.Year && today.Month == monthStart.Month
                 ? today
                 : monthEnd;
 
-        var collectedDates = await _context.DailyCollections
+        // Occupied stalls (active contract) — coverage is computed per stall.
+        var stalls = await _context.Stalls
             .AsNoTracking()
-            .Where(dc => dc.Stall!.FacilityId == facilityId
-                && dc.CollectionDate >= monthStart
-                && dc.CollectionDate <= monthEnd
-                && dc.IsPaid
-                && !dc.IsDeleted)
-            .Select(dc => dc.CollectionDate)
-            .Distinct()
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Where(s => s.FacilityId == facilityId
+                && s.Status == StallStatus.Active
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
             .ToListAsync(ct);
 
-        var collectedSet = collectedDates.ToHashSet();
-        var collectableContractRanges = await _context.Contracts
+        var stallIds = stalls.Select(s => s.Id).ToList();
+
+        // Amount paid per stall for this month (monthly record). ₱30 (daily fee) == 1 covered day.
+        var monthlyPayments = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(contract => contract.Stall!.FacilityId == facilityId
-                && contract.Stall.Status == StallStatus.Active
-                && contract.IsActive
-                && !contract.IsDeleted
-                && contract.EffectivityDate <= monthEnd)
-            .Select(contract => new
-            {
-                contract.EffectivityDate,
-                contract.DurationYears
-            })
+            .Where(p => stallIds.Contains(p.StallId) && p.BillingYear == monthStart.Year && p.BillingMonth == monthStart.Month && !p.IsDeleted)
             .ToListAsync(ct);
+        // Per-stall coverage: rent paid ÷ ₱30 = covered days for that stall (whole month when fully paid),
+        // plus explicit daily-collection dates. A monthly payment supersedes daily collections.
+        var rentPaidByStall = monthlyPayments
+            .Where(p => p.Status != PaymentStatus.Unpaid)
+            .GroupBy(p => p.StallId)
+            .ToDictionary(g => g.Key, g => g.Sum(p => p.Status == PaymentStatus.Paid ? p.BaseRentalAmount : p.PartialAmount));
+
+        var dailyDatesByStall = (await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => stallIds.Contains(dc.StallId) && dc.CollectionDate >= monthStart && dc.CollectionDate <= monthEnd && dc.IsPaid && !dc.IsDeleted)
+                .Select(dc => new { dc.StallId, dc.CollectionDate })
+                .ToListAsync(ct))
+            .GroupBy(x => x.StallId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
+
+        bool CollectableOn(Stall s, DateOnly d) => s.Contracts.Any(c =>
+            c.IsActive && !c.IsDeleted && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));
+
+        var collectableDaysByStall = stalls.ToDictionary(
+            s => s.Id,
+            s => Enumerable.Range(0, monthEnd.Day).Select(i => monthStart.AddDays(i)).Where(d => CollectableOn(s, d)).ToList());
+        var prepaidDaysByStall = stalls.ToDictionary(
+            s => s.Id,
+            s => FeeRates.NpmDailyFee > 0 ? (int)Math.Floor(rentPaidByStall.GetValueOrDefault(s.Id) / FeeRates.NpmDailyFee) : 0);
+
+        bool CoveredOn(Stall s, DateOnly d)
+        {
+            if (dailyDatesByStall.TryGetValue(s.Id, out var dts) && dts.Contains(d)) return true;
+            var idx = collectableDaysByStall[s.Id].IndexOf(d);
+            return idx >= 0 && idx < prepaidDaysByStall[s.Id];
+        }
 
         var days = new List<DailyCollectionDayDto>();
+        var statusByDate = new Dictionary<DateOnly, string>();
         var collectedDays = 0;
         var missedDays = 0;
-        var currentStreak = 0;
+        var inScopeDays = 0;
 
         for (var date = monthStart; date <= monthEnd; date = date.AddDays(1))
         {
+            var collectable = stalls.Where(s => CollectableOn(s, date)).ToList();
             string status;
-            var hasCollectableContract = collectableContractRanges.Any(contract =>
-                contract.EffectivityDate <= date && date <= contract.EffectivityDate.AddYears(contract.DurationYears));
-
-            if (date < startDate || date > endDate || !hasCollectableContract)
+            if (date < startDate || date > endDate || collectable.Count == 0)
             {
                 status = "OutOfScope";
             }
-            else if (date > lastAuditableDay)
-            {
-                status = "Future";
-            }
-            else if (collectedSet.Contains(date))
-            {
-                status = "Collected";
-                collectedDays++;
-            }
             else
             {
-                status = "Missed";
-                missedDays++;
+                inScopeDays++;
+                // A day is collected once it is covered (a payor paid/prepaid that day). Unpaid payors are
+                // surfaced via Payor Compliance + Delinquency Analytics, not by blanking the calendar.
+                if (collectable.Any(s => CoveredOn(s, date))) { status = "Collected"; collectedDays++; }
+                else if (date > lastAuditableDay) status = "Future";
+                else { status = "Missed"; missedDays++; }
             }
 
-            days.Add(new DailyCollectionDayDto(
-                DayNumber: date.Day,
-                DayOfWeek: (int)date.DayOfWeek,
-                Status: status
-            ));
+            statusByDate[date] = status;
+            days.Add(new DailyCollectionDayDto(date.Day, (int)date.DayOfWeek, status));
         }
 
         var streakEndDate = lastAuditableDay < endDate ? lastAuditableDay : endDate;
+        var currentStreak = 0;
         for (var date = streakEndDate; date >= startDate && date >= monthStart; date = date.AddDays(-1))
         {
-            var hasCollectableContract = collectableContractRanges.Any(contract =>
-                contract.EffectivityDate <= date && date <= contract.EffectivityDate.AddYears(contract.DurationYears));
-
-            if (!hasCollectableContract)
-            {
-                continue;
-            }
-
-            if (!collectedSet.Contains(date))
-            {
-                break;
-            }
-
-            currentStreak++;
+            if (!statusByDate.TryGetValue(date, out var st) || st == "OutOfScope") continue;
+            if (st == "Collected") currentStreak++;
+            else break;
         }
+
+        var coverageRate = inScopeDays > 0 ? (int)Math.Round(collectedDays * 100.0 / inScopeDays) : 0;
 
         return new DailyCollectionStreakDto(
             MonthLabel: monthStart.ToString("MMMM yyyy"),
             CollectedDays: collectedDays,
             MissedDays: missedDays,
             CurrentStreakDays: currentStreak,
-            Days: days
+            Days: days,
+            PartialDays: 0,
+            CoverageRate: coverageRate
         );
     }
 
@@ -1092,15 +1195,12 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// For NPM: Checks both PaymentRecords AND DailyCollections to determine if status should be Partial.
     /// </summary>
     private async Task<PaymentStatusDistributionDto> CalculatePaymentDistributionAsync(
+        FacilityCode facilityCode,
         Guid facilityId,
         DateOnly startDate,
         DateOnly endDate,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == facilityId, ct);
-
         var activeStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
@@ -1129,7 +1229,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .ToDictionary(pr => pr.StallId, pr => pr.Status);
 
         // For NPM: Check daily collections to determine if Unpaid should be Partial
-        if (facility?.Code == FacilityCode.NPM)
+        if (facilityCode == FacilityCode.NPM)
         {
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
@@ -1229,22 +1329,13 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             if (stalls.Count == 0)
             {
-                breakdown.Add(new SectionBreakdownDto(section.ToString().Replace("Area", " Area"), 0m, 0m, 0, 0, 0, 0));
+                breakdown.Add(new SectionBreakdownDto(SectionLabel(section), 0m, 0m, 0, 0, 0, 0));
                 continue;
             }
 
             var stallIds = stalls.Select(s => s.Id).ToList();
 
-            // Calculate actual revenue collected
-            var dailyRevenue = await _context.DailyCollections
-                .AsNoTracking()
-                .Where(dc => stallIds.Contains(dc.StallId)
-                    && dc.CollectionDate >= startDate
-                    && dc.CollectionDate <= endDate
-                    && dc.IsPaid
-                    && !dc.IsDeleted)
-                .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
-
+            // Get payment records for this section
             var allPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
                 .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
@@ -1252,24 +1343,25 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             var monthlyRevenue = allPaymentRecords
                 .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-                .Sum(pr =>
-                {
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0)
-                            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m;
-                    }
-                });
+                .Sum(pr => RecognizedRevenue(pr, includeFish: true));
+
+            // Get stalls with monthly payments (exclude from daily count)
+            var stallsWithMonthlyPayments = allPaymentRecords
+                .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate)
+                    && pr.Status != PaymentStatus.Unpaid)
+                .Select(pr => pr.StallId)
+                .ToHashSet();
+
+            // Calculate daily revenue ONLY for stalls without monthly payments
+            var dailyRevenue = await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => stallIds.Contains(dc.StallId)
+                    && dc.CollectionDate >= startDate
+                    && dc.CollectionDate <= endDate
+                    && dc.IsPaid
+                    && !dc.IsDeleted
+                    && !stallsWithMonthlyPayments.Contains(dc.StallId))
+                .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
 
             var actualRevenue = dailyRevenue + monthlyRevenue;
 
@@ -1279,7 +1371,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             // Calculate percentage as (actual / expected) * 100
             var percentage = expectedRevenue > 0 ? (actualRevenue / expectedRevenue) * 100m : 0m;
-            var sectionName = section.ToString().Replace("Area", " Area");
+            var sectionName = SectionLabel(section);
             var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
             var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
@@ -1332,23 +1424,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             var actualRevenue = allPaymentRecords
                 .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-                .Sum(pr =>
-                {
-                    if (pr.Status == PaymentStatus.Paid)
-                    {
-                        return pr.BaseRentalAmount
-                            + (pr.ElecAmount ?? 0)
-                            + (pr.WaterAmount ?? 0);
-                    }
-                    else if (pr.Status == PaymentStatus.Partial)
-                    {
-                        return pr.PartialAmount;
-                    }
-                    else
-                    {
-                        return 0m;
-                    }
-                });
+                .Sum(pr => RecognizedRevenue(pr, includeFish: false));
 
             // Calculate expected revenue for this area (occupied stalls only)
             var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive && !c.IsDeleted)).ToList();
@@ -1394,91 +1470,61 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
             .ToListAsync(ct);
 
-        var stallRevenues = new List<(string StallNumber, string OccupantName, decimal Revenue)>();
-
-        foreach (var stall in stalls)
+        if (stalls.Count == 0)
         {
-            decimal revenue = 0m;
-
-            if (facilityCode == FacilityCode.NPM)
-            {
-                // NPM: Include daily collections + monthly payments (only Paid/Partial)
-                var dailyRevenue = await _context.DailyCollections
-                    .AsNoTracking()
-                    .Where(dc => dc.StallId == stall.Id
-                        && dc.CollectionDate >= startDate
-                        && dc.CollectionDate <= endDate
-                        && dc.IsPaid
-                        && !dc.IsDeleted)
-                    .SumAsync(dc => dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * 1.00m : 0), ct);
-
-                var allPaymentRecords = await _context.PaymentRecords
-                    .AsNoTracking()
-                    .Where(pr => pr.StallId == stall.Id && !pr.IsDeleted)
-                    .ToListAsync(ct);
-
-                var monthlyRevenue = allPaymentRecords
-                    .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-                    .Sum(pr =>
-                    {
-                        // Only count revenue from Paid or Partial payments
-                        if (pr.Status == PaymentStatus.Paid)
-                        {
-                            return pr.BaseRentalAmount
-                                + (pr.ElecAmount ?? 0)
-                                + (pr.WaterAmount ?? 0)
-                                + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0);
-                        }
-                        else if (pr.Status == PaymentStatus.Partial)
-                        {
-                            return pr.PartialAmount;
-                        }
-                        else
-                        {
-                            return 0m; // Unpaid = no revenue
-                        }
-                    });
-
-                revenue = dailyRevenue + monthlyRevenue;
-            }
-            else
-            {
-                // Other facilities: Monthly payments only (only Paid/Partial)
-                var allPaymentRecords = await _context.PaymentRecords
-                    .AsNoTracking()
-                    .Where(pr => pr.StallId == stall.Id && !pr.IsDeleted)
-                    .ToListAsync(ct);
-
-                revenue = allPaymentRecords
-                    .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-                    .Sum(pr =>
-                    {
-                        // Only count revenue from Paid or Partial payments
-                        if (pr.Status == PaymentStatus.Paid)
-                        {
-                            return pr.BaseRentalAmount
-                                + (pr.ElecAmount ?? 0)
-                                + (pr.WaterAmount ?? 0);
-                        }
-                        else if (pr.Status == PaymentStatus.Partial)
-                        {
-                            return pr.PartialAmount;
-                        }
-                        else
-                        {
-                            return 0m; // Unpaid = no revenue
-                        }
-                    });
-            }
-
-            var occupantName = stall.Contracts.FirstOrDefault()?.ActualOccupant ?? "Vacant";
-            stallRevenues.Add((stall.StallNo, occupantName, revenue));
+            return Array.Empty<TopStallDto>();
         }
 
-        return stallRevenues
-            .OrderByDescending(sr => sr.Revenue)
+        var stallIds = stalls.Select(s => s.Id).ToList();
+
+        // Batch-load every relevant payment record in ONE query, then group in memory
+        // (IsPaymentInDateRange builds DateOnly values and cannot be translated to SQL).
+        var paymentRecords = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .ToListAsync(ct);
+
+        var monthlyRevenueByStall = paymentRecords
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
+            .GroupBy(pr => pr.StallId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Sum(pr => RecognizedRevenue(pr, includeFish: facilityCode == FacilityCode.NPM)));
+
+        // Stalls already counted via a monthly payment must not also count daily collections (no double-count).
+        var stallsWithMonthlyPayments = paymentRecords
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate)
+                && pr.Status != PaymentStatus.Unpaid)
+            .Select(pr => pr.StallId)
+            .ToHashSet();
+
+        // NPM also earns daily-collection revenue; aggregate it server-side in ONE query.
+        var dailyRevenueByStall = facilityCode == FacilityCode.NPM
+            ? await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => stallIds.Contains(dc.StallId)
+                    && dc.CollectionDate >= startDate
+                    && dc.CollectionDate <= endDate
+                    && dc.IsPaid
+                    && !dc.IsDeleted
+                    && !stallsWithMonthlyPayments.Contains(dc.StallId))
+                .GroupBy(dc => dc.StallId)
+                .Select(g => new
+                {
+                    StallId = g.Key,
+                    Revenue = g.Sum(dc => dc.DailyFee
+                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m))
+                })
+                .ToDictionaryAsync(x => x.StallId, x => x.Revenue, ct)
+            : new Dictionary<Guid, decimal>();
+
+        return stalls
+            .Select(stall => new TopStallDto(
+                stall.StallNo,
+                stall.Contracts.FirstOrDefault()?.ActualOccupant ?? "Vacant",
+                monthlyRevenueByStall.GetValueOrDefault(stall.Id) + dailyRevenueByStall.GetValueOrDefault(stall.Id)))
+            .OrderByDescending(t => t.Revenue)
             .Take(4)
-            .Select(sr => new TopStallDto(sr.StallNumber, sr.OccupantName, sr.Revenue))
             .ToList();
     }
 
@@ -1491,15 +1537,12 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// For NPM: Checks both PaymentRecords AND DailyCollections to determine if status should be Partial.
     /// </summary>
     private async Task<CollectionPerformanceDto> CalculateCollectionPerformanceAsync(
+        FacilityCode facilityCode,
         Guid facilityId,
         DateOnly startDate,
         DateOnly endDate,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Id == facilityId, ct);
-
         var activeStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
@@ -1526,7 +1569,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .ToDictionary(pr => pr.StallId, pr => pr.Status);
 
         // For NPM: Check daily collections to determine if Unpaid should be Partial
-        if (facility?.Code == FacilityCode.NPM)
+        if (facilityCode == FacilityCode.NPM)
         {
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()

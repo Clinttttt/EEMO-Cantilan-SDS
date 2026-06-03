@@ -19,7 +19,7 @@ public class GetDailyCollectionMonthQueryHandler(
         var collections = await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct);
 
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
-        var today = DateTime.Now.Date;
+        var today = PhilippineTime.Today;
         var isCurrentMonth = request.Year == today.Year && request.Month == today.Month;
         var maxDay = isCurrentMonth ? today.Day : daysInMonth;
 

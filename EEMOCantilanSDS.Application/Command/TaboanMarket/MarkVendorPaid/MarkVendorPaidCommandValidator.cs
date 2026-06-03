@@ -7,6 +7,5 @@ public class MarkVendorPaidCommandValidator : AbstractValidator<MarkVendorPaidCo
     public MarkVendorPaidCommandValidator()
     {
         RuleFor(x => x.AttendanceId).NotEmpty();
-        RuleFor(x => x.CollectorId).NotEmpty();
     }
 }

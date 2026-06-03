@@ -19,6 +19,7 @@ public interface ITrmRepository
     // Dashboard queries — repo returns DTOs directly
     Task<TrmOverviewDto> GetOverviewAsync(CancellationToken ct = default);
     Task<IReadOnlyList<TrmTripDto>> GetTodayTripsAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<TrmTripDto>> GetTripsByMonthAsync(int year, int month, CancellationToken ct = default);
     Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default);
 
     // Validation

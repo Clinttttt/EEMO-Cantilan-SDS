@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Api.Extensions;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
+using EEMOCantilanSDS.Application.Command.Auth.Logout;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
 using EEMOCantilanSDS.Domain.Common;
@@ -28,12 +29,13 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     [HttpPost("refresh-token")]
-    public async Task<ActionResult<TokenResponseDto>> RefreshAsync()
+    public async Task<ActionResult<TokenResponseDto>> RefreshAsync([FromBody] RefreshTokenCommand request)
     {
-        var refreshToken = CookieHelper.GetRefreshTokenFromCookie(Request);
+        var refreshToken = string.IsNullOrWhiteSpace(request?.RefreshToken)
+            ? CookieHelper.GetRefreshTokenFromCookie(Request)?.Value
+            : request.RefreshToken;
 
-        var command = new RefreshTokenCommand { RefreshToken = refreshToken?.Value! };
-        var result = await Sender.Send(command);
+        var result = await Sender.Send(new RefreshTokenCommand { RefreshToken = refreshToken! });
 
         if (result.IsSuccess)
             CookieHelper.SetAuthCookies(Response, result.Value!.AccessToken, result.Value.RefreshToken);
@@ -51,9 +53,15 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
    
 
     [HttpPost("logout")]
-    [Authorize]
-    public ActionResult Logout()
+    public async Task<ActionResult> Logout([FromBody] RefreshTokenCommand request)
     {
+        var refreshToken = string.IsNullOrWhiteSpace(request?.RefreshToken)
+            ? CookieHelper.GetRefreshTokenFromCookie(Request)?.Value
+            : request.RefreshToken;
+
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+            await Sender.Send(new LogoutCommand { RefreshToken = refreshToken });
+
         CookieHelper.ClearAuthCookies(Response);
         return Ok(new { message = "Logged out successfully" });
     }

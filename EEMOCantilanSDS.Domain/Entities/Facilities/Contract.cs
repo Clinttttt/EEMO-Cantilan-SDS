@@ -24,9 +24,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
         public DateOnly ExpiryDate => EffectivityDate.AddYears(DurationYears);
         public decimal WholeYearRental => MonthlyRentalRate * 12;
-        public bool IsExpired => DateOnly.FromDateTime(DateTime.UtcNow) > ExpiryDate;
+        public bool IsExpired => PhilippineTime.Today > ExpiryDate;
         public bool IsExpiringSoon => !IsExpired &&
-                                         ExpiryDate <= DateOnly.FromDateTime(DateTime.Today.AddMonths(3));
+                                         ExpiryDate <= PhilippineTime.Today.AddMonths(3);
         public static Contract Create(Guid stallId,string actualOccupant,
             string? nameOnContract,
             DateOnly effectivityDate,

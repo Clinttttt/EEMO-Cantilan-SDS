@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
+using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Requests.Collectors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Infrastructure.HttpClients.Helper;
 using System.Net.Http;
@@ -19,6 +21,12 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
 
     public async Task<Result<CollectorDto>> CreateCollectorAsync(CreateCollectorCommand command) =>
         await PostAsync<CreateCollectorCommand, CollectorDto>("api/Collectors", command);
+
+    public async Task<Result<bool>> UpdateCollectorAsync(UpdateCollectorCommand command) =>
+        await PutAsync<UpdateCollectorCommand, bool>($"api/Collectors/{command.CollectorId}", command);
+
+    public async Task<Result<bool>> ToggleCollectorStatusAsync(Guid id, bool isActive) =>
+        await UpdateAsync<ToggleCollectorStatusRequest, bool>($"api/Collectors/{id}/status", new ToggleCollectorStatusRequest(isActive));
 
     public async Task<Result<string>> GetNextEmployeeIdAsync() =>
         await _http.GetPlainStringAsync("api/Collectors/next-employee-id");

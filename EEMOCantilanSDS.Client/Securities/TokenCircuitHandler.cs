@@ -14,6 +14,12 @@ public class TokenCircuitHandler(IHttpContextAccessor httpContextAccessor, Token
             {
                 tokenService.SetToken(accessToken);
             }
+
+            var refreshToken = httpContext.User.FindFirst("RefreshToken")?.Value;
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                tokenService.SetRefreshToken(refreshToken);
+            }
         }
         return base.OnConnectionUpAsync(circuit, cancellationToken);
     }

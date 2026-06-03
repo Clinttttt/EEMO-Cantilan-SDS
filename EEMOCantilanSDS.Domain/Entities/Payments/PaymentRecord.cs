@@ -95,6 +95,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
+        /// <summary>
+        /// Attaches a manually-entered OR number to an already-recorded payment without
+        /// altering the fee breakdown, status, or original collector attribution.
+        /// </summary>
+        public void SetOrNumber(string orNumber, string updatedBy = "System")
+        {
+            ORNumber = orNumber;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void MarkUnpaid(string updatedBy = "System")
         {
             Status = PaymentStatus.Unpaid;
@@ -110,7 +121,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaymentStatus status,
             decimal partialAmount = 0,
             string? remarks = null,
-            string updatedBy = "System")
+            string updatedBy = "System",
+            Guid? collectorId = null)
         {
             // Auto-upgrade from Partial to Paid if partial amount equals or exceeds total bill
             if (status == PaymentStatus.Partial && partialAmount >= TotalBill)
@@ -123,7 +135,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PartialAmount = status == PaymentStatus.Partial ? partialAmount : 0;
             Remarks = remarks;
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
-            if (status == PaymentStatus.Unpaid) ORNumber = null;
+            if (status == PaymentStatus.Unpaid)
+                ORNumber = null;
+            else if (collectorId.HasValue)
+                CollectorId = collectorId.Value;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

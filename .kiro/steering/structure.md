@@ -25,6 +25,7 @@ EEMOCantilanSDS.Domain/
 │   ├── BaseEntity.cs              → Base with Id: Guid
 │   ├── AuditableEntity.cs         → Adds audit fields + soft delete
 │   ├── Result.cs                  → Result<T> pattern for error handling
+│   ├── PhilippineTime.cs          → UTC+8 business-day clock (today, current month, UTC ranges)
 │   └── CursorPagedResult.cs       → Pagination model
 ├── Constants/
 │   ├── FeeRates.cs                → All fee constants (NPM, TCC, NCC, etc.)
@@ -44,14 +45,20 @@ EEMOCantilanSDS.Domain/
 │   │   └── DailyCollection.cs
 │   ├── Slaughterhouse/
 │   │   └── SlaughterTransaction.cs
+│   ├── TaboanMarket/
+│   │   ├── TpmVendor.cs
+│   │   └── TpmAttendance.cs
+│   ├── TransportTerminal/
+│   │   ├── TrmTransporter.cs
+│   │   └── TrmTrip.cs
 │   └── Audit/
 │       └── AuditLog.cs
 └── Enums/
-    ├── FacilityCode.cs            → NPM=1, TCC=2, NCC=3, BBQ=4, ICE=5, SLH=6
-    ├── StallStatus.cs
-    ├── PaymentStatus.cs
-    ├── AdminRole.cs
-    └── AnimalType.cs
+    └── FacilityCode.cs            → Consolidated enums: FacilityCode (NPM=1, TCC=2,
+                                      NCC=3, BBQ=4, ICE=5, SLH=6, TRM=7, TPM=8),
+                                      MarketSection, NccAreaLocation, StallStatus,
+                                      PaymentStatus, AnimalType, ApplicableFees, ReportPeriod
+                                      (AdminRole lives in Entities/Users/AdminUser.cs)
 ```
 
 ## Application Layer (Feature Folders)
@@ -125,6 +132,8 @@ EEMOCantilanSDS.Infrastructure/
 ├── Persistence/
 │   ├── AppDbContext.cs
 │   ├── UnitOfWork.cs
+│   ├── Interceptors/
+│   │   └── AuditSaveChangesInterceptor.cs   → writes AuditLog on financial mutations
 │   └── Seeders/
 │       └── FacilitySeeder.cs
 ├── Configuration/                → EF entity configurations
@@ -164,8 +173,8 @@ EEMOCantilanSDS.Api/
 │   ├── CollectorsController.cs
 │   ├── DailyCollectionsController.cs
 │   ├── SlaughterController.cs
-│   ├── TpmController.cs          → Tampak Commercial Center
-│   ├── TrmController.cs
+│   ├── TpmController.cs          → Tabo-an Public Market (Friday market)
+│   ├── TrmController.cs          → Transport Terminal (trips)
 │   └── SetupController.cs
 ├── Middleware/
 │   └── ExceptionHandlingMiddleware.cs
@@ -261,5 +270,5 @@ EEMOCantilanSDS.Client/
 ### Important Paths
 - **Migrations:** Run from solution root, target Infrastructure project
 - **Steering rules:** `.kiro/steering/` (this folder)
-- **Documentation:** `.amazonq/rules/` (architecture, patterns, domain reference)
-- **Docs:** `docs/` (component status, implementation notes)
+- **Knowledge base:** `.amazonq/context/knowledge/` (architecture, patterns, complete documentation)
+- **Active review / pending:** `.amazonq/context/pending/` (review context, findings breakdown)

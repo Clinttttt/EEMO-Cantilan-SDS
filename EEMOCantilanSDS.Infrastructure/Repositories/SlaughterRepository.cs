@@ -34,6 +34,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
     {
         var allTransactions = await context.SlaughterTransactions
+            .AsNoTracking()
             .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
@@ -94,6 +95,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default)
     {
         var transactions = await context.SlaughterTransactions
+            .AsNoTracking()
             .Where(x => x.OwnerName == ownerName && x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
@@ -134,6 +136,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task<SlaughterOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct = default)
     {
         var transactions = await context.SlaughterTransactions
+            .AsNoTracking()
             .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .ToListAsync(ct);
 
@@ -183,6 +186,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task<ClientProfileDto?> GetClientProfileAsync(string ownerName, CancellationToken ct = default)
     {
         var transactions = await context.SlaughterTransactions
+            .AsNoTracking()
             .Where(x => x.OwnerName == ownerName)
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
