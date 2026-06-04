@@ -1,5 +1,6 @@
 ﻿@page "/login"
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 
 <style>
     /* ─────────────────────────────────────────────
@@ -411,9 +412,9 @@
         </div>
 
         <!-- Login Button -->
-        <div class="login-btn @(IsLoading ? "loading" : "")" @onclick="HandleLogin">
+        <button type="button" class="login-btn @(IsLoading ? "loading" : "")" disabled="@IsLoading" @onclick="HandleLogin">
             @(IsLoading ? "Signing in…" : "Sign In")
-        </div>
+        </button>
 
         <!-- Notice -->
         <div class="login-notice">
@@ -436,24 +437,42 @@
 <!-- end .login-shell -->
 @code {
 
-    // ── Form State ────────────────────────────────────────────────────────────
     string Username = string.Empty;
     string Password = string.Empty;
     bool ShowPassword = false;
     bool IsLoading = false;
     string ErrorMessage = string.Empty;
 
-    // ── Enter Key Support ─────────────────────────────────────────────────────
-    void HandleKeyDown(KeyboardEventArgs e)
+    protected override async Task OnInitializedAsync()
     {
-        if (e.Key == "Enter") HandleLogin();
+        try
+        {
+            if (await Session.RestoreSessionAsync())
+            {
+                Navigation.NavigateTo("/menu", forceLoad: false);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            // Stay on the login page when the server is unreachable.
+        }
     }
 
-    // ── Login Handler ─────────────────────────────────────────────────────────
-    // Kept synchronous — any Task.Delay / await triggers MAUI's native
-    // WebView loading indicator which shows a large system spinner on screen
-    void HandleLogin()
+    async Task HandleKeyDown(KeyboardEventArgs e)
     {
+        if (e.Key == "Enter")
+        {
+            await HandleLogin();
+        }
+    }
+
+    async Task HandleLogin()
+    {
+        if (IsLoading)
+        {
+            return;
+        }
+
         ErrorMessage = string.Empty;
 
         if (string.IsNullOrWhiteSpace(Username))
@@ -470,22 +489,28 @@
 
         IsLoading = true;
 
-        // ── TODO: Replace with real sync/auth check ───────────────────────────
-        // For async API calls, use a service that handles its own threading
-        // and call NavigateTo only after the result is confirmed:
-        //   var ok = AuthService.ValidateCredentials(Username, Password);
-        //   if (ok) Navigation.NavigateTo("/menu", forceLoad: false);
-        //   else    ErrorMessage = "Invalid credentials.";
-        // ─────────────────────────────────────────────────────────────────────
+        try
+        {
+            var error = await Session.LoginAsync(Username, Password);
 
-        // Demo check — replace with real auth
-        if (Username.Trim().Length > 0 && Password.Length >= 4)
-        {
-            Navigation.NavigateTo("/menu", forceLoad: false);
+            if (string.IsNullOrWhiteSpace(error))
+            {
+                Navigation.NavigateTo("/menu", forceLoad: false);
+                return;
+            }
+
+            ErrorMessage = error;
         }
-        else
+        catch (HttpRequestException)
         {
-            ErrorMessage = "Invalid credentials. Please check your username and password.";
+            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+        }
+        catch (TaskCanceledException)
+        {
+            ErrorMessage = "The EEMO server did not respond in time. Please try again.";
+        }
+        finally
+        {
             IsLoading = false;
         }
     }

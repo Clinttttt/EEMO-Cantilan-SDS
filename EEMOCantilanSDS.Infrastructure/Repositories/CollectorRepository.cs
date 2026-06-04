@@ -24,6 +24,17 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .FirstOrDefaultAsync(c => c.Username == username && !c.IsDeleted, cancellationToken);
     }
 
+    public async Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, CancellationToken cancellationToken = default)
+    {
+        var normalized = usernameOrEmployeeId.Trim();
+        return await context.CollectorUsers
+            .Include(c => c.FacilityAssignments)
+            .FirstOrDefaultAsync(c =>
+                !c.IsDeleted &&
+                (c.Username == normalized || c.EmployeeId == normalized),
+                cancellationToken);
+    }
+
     public async Task<List<CollectorListDto>> GetAllCollectorsWithStatsAsync(int year, int month, CancellationToken cancellationToken = default)
     {
         var collectors = await context.CollectorUsers

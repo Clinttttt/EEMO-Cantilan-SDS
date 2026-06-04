@@ -1,5 +1,6 @@
 ﻿@page "/"
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @implements IDisposable
 
 <style>
@@ -257,8 +258,8 @@
                 await Task.Delay(delay, _cts.Token);
             }
 
-            // Navigate to menu — forceLoad: false = no flicker
-            Navigation.NavigateTo("/login", forceLoad: false);
+            var restored = await Session.RestoreSessionAsync();
+            Navigation.NavigateTo(restored ? "/menu" : "/login", forceLoad: false);
         }
         catch (TaskCanceledException)
         {
