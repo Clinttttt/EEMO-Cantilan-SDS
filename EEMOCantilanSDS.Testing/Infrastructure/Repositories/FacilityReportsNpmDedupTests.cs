@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -16,6 +17,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
 
         var facility = Facility.Create(FacilityCode.NPM, "Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Daily Payor", "Daily Payor", new DateOnly(2026, 1, 1), 3, 900m);
 
         var payment = PaymentRecord.Create(stall.Id, 2026, 1, 900m);
         payment.UpdateStatus(PaymentStatus.Paid);
@@ -23,7 +25,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var daily = DailyCollection.Create(stall.Id, new DateOnly(2026, 1, 15));
         daily.MarkPaid("OR-1", Guid.NewGuid());
 
-        context.AddRange(facility, stall, payment, daily);
+        context.AddRange(facility, stall, contract, payment, daily);
         await context.SaveChangesAsync();
 
         var repo = new FacilityReportsRepository(context);
@@ -55,6 +57,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         Assert.Equal(210m, report.TotalRevenue);
         Assert.Equal(100m, report.CollectionRate);
         Assert.All(report.RevenueTrend, p => Assert.Equal(30m, p.Revenue));
+        Assert.All(report.RevenueTrend, p => Assert.Equal(30m, p.ExpectedRevenue));
 
         var compliance = Assert.Single(report.StallCompliance);
         Assert.Equal("Paid", compliance.Status);
@@ -64,6 +67,122 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var vegetable = report.SectionBreakdown.Single(s => s.SectionName == "Vegetable Area");
         Assert.Equal(210m, vegetable.Revenue);
         Assert.Equal(100m, vegetable.Percentage);
+    }
+
+    [Fact]
+    public async Task WeeklyTrend_NpmBarsExposeExpectedDailyCapacity_WhenOnlyOneOfThreePayorsPays()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var paidStall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var unpaidA = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var unpaidB = Stall.Create(facility.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+
+        var paidContract = Contract.Create(paidStall.Id, "Pantom Dant", "Pantom Dant", new DateOnly(2026, 1, 1), 3, 900m);
+        var unpaidAContract = Contract.Create(unpaidA.Id, "Ana Reyes", "Ana Reyes", new DateOnly(2026, 1, 1), 3, 900m);
+        var unpaidBContract = Contract.Create(unpaidB.Id, "Lorna Buenades", "Lorna Buenades", new DateOnly(2026, 1, 1), 3, 900m);
+
+        var partialPayment = PaymentRecord.Create(paidStall.Id, 2026, 6, 900m);
+        partialPayment.UpdateStatus(PaymentStatus.Partial, 210m);
+
+        context.AddRange(facility, paidStall, unpaidA, unpaidB, paidContract, unpaidAContract, unpaidBContract, partialPayment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
+
+        Assert.All(report.RevenueTrend, p => Assert.Equal(30m, p.Revenue));
+        Assert.All(report.RevenueTrend, p => Assert.Equal(90m, p.ExpectedRevenue));
+    }
+
+    [Fact]
+    public async Task MonthlyReport_NpmRentalReportExcludesUtilitiesButKeepsFishFees()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Fish Payor", "Fish Payor", new DateOnly(2026, 1, 1), 3, 900m);
+        var payment = PaymentRecord.Create(stall.Id, 2026, 6, 900m);
+        payment.RecordPayment(
+            "OR-UTIL",
+            Guid.NewGuid(),
+            PaymentStatus.Paid,
+            elecAmount: 125m,
+            waterAmount: 75m,
+            fishKilos: 10m);
+
+        context.AddRange(facility, stall, contract, payment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 6, null, CancellationToken.None);
+
+        Assert.Equal(910m, report.TotalRevenue);
+        Assert.Equal(0m, report.PendingPaymentAmount);
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Paid", compliance.Status);
+        Assert.Equal(910m, compliance.AmountPaid);
+        Assert.Equal(0m, compliance.Balance);
+
+        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Section");
+        Assert.Equal(910m, fishSection.Revenue);
+
+        Assert.NotNull(report.FeeTypeBreakdown);
+        Assert.Equal(900m, report.FeeTypeBreakdown!.DailyFeeAmount);
+        Assert.Equal(10m, report.FeeTypeBreakdown.FishFeeAmount);
+    }
+
+    [Fact]
+    public async Task WeeklyReport_NpmContractStartingMidWeek_AssessesOnlyCollectableDays()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Midweek Payor", "Midweek Payor", new DateOnly(2026, 6, 5), 3, 900m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
+
+        Assert.Equal(new[] { 0m, 0m, 0m, 0m, 30m, 30m, 30m }, report.RevenueTrend.Select(p => p.ExpectedRevenue));
+        Assert.Equal(90m, report.PendingPaymentAmount);
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Unpaid", compliance.Status);
+        Assert.Equal(90m, compliance.Balance);
+    }
+
+    [Fact]
+    public async Task RevenueTrend_MarksActualPhilippineCurrentPeriod_NotLastBucket()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        context.Add(facility);
+        await context.SaveChangesAsync();
+
+        var today = PhilippineTime.Today;
+        var weekNumber = ((today.Day - 1) / 7) + 1;
+
+        var repo = new FacilityReportsRepository(context);
+        var weekly = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, today.Year, today.Month, weekNumber, CancellationToken.None);
+        var monthly = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, today.Year, today.Month, null, CancellationToken.None);
+        var yearly = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, today.Year, null, null, CancellationToken.None);
+
+        var currentDay = Assert.Single(weekly.RevenueTrend, p => p.IsCurrentPeriod);
+        Assert.Equal(today.ToString("ddd d"), currentDay.PeriodLabel);
+
+        var currentMonth = Assert.Single(monthly.RevenueTrend, p => p.IsCurrentPeriod);
+        Assert.Equal(today.ToString("MMM yyyy"), currentMonth.PeriodLabel);
+
+        var currentYear = Assert.Single(yearly.RevenueTrend, p => p.IsCurrentPeriod);
+        Assert.Equal(today.Year.ToString(), currentYear.PeriodLabel);
     }
 
     [Fact]
