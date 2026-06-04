@@ -35,9 +35,10 @@
         {
             var day = new DateTime(CurrentMonth.Year, CurrentMonth.Month, d);
             var dayKey = day.ToString("yyyy-MM-dd");
-            var isFuture = day.Date > DateTime.Now.Date;
-            var isToday = day.Date == DateTime.Now.Date;
-            var isBeforeContract = ContractDate.HasValue && day.Date < ContractDate.Value;
+            var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+            var isFuture = DateOnly.FromDateTime(day) > today;
+            var isToday = DateOnly.FromDateTime(day) == today;
+            var isBeforeContract = ContractDate.HasValue && day.Date < ContractDate.Value.Date;
             var isMarked = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
             // A future day that has already been pre-paid by admin should show as
             // collected (green), not as "Soon". Only unmark future days are out-of-scope.
@@ -59,7 +60,7 @@
                 }
 
                 <div class="cal-cell-header @(isOutOfScope || ReadOnly ? "" : "cal-cell-header-clickable")"
-                     @onclick="() => { if (!isOutOfScope && !ReadOnly) ToggleDay(day); }">
+                     @onclick="async () => { if (!isOutOfScope && !ReadOnly) await ToggleDay(day); }">
                     <span class="cal-num">@d</span>
                     @if (!isOutOfScope)
                     {
@@ -151,12 +152,18 @@
     /// </summary>
     [Parameter] public bool ReadOnly { get; set; } = false;
 
-    private DateTime CurrentMonth = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DateTime CurrentMonth = new DateTime(
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year,
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month,
+        1);
     private DailyCollectionMonthDto? MonthData;
 
     private int DaysInMonth => DateTime.DaysInMonth(CurrentMonth.Year, CurrentMonth.Month);
     private int CalendarOffset => (int)new DateTime(CurrentMonth.Year, CurrentMonth.Month, 1).DayOfWeek;
-    private bool CanGoNext => CurrentMonth < new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1).AddMonths(1);
+    private bool CanGoNext => CurrentMonth < new DateTime(
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year,
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month,
+        1);
 
     protected override async Task OnParametersSetAsync()
     {

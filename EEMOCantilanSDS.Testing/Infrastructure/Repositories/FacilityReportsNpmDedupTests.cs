@@ -36,6 +36,97 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task WeeklyReport_NpmMonthlyEquivalentPayment_IsAllocatedAsThirtyPesosPerDay()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Daily Payor", "Daily Payor", new DateOnly(2026, 1, 1), 3, 900m);
+        var payment = PaymentRecord.Create(stall.Id, 2026, 6, 900m);
+        payment.UpdateStatus(PaymentStatus.Paid);
+
+        context.AddRange(facility, stall, contract, payment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
+
+        Assert.Equal(210m, report.TotalRevenue);
+        Assert.Equal(100m, report.CollectionRate);
+        Assert.All(report.RevenueTrend, p => Assert.Equal(30m, p.Revenue));
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Paid", compliance.Status);
+        Assert.Equal(210m, compliance.AmountPaid);
+        Assert.Equal(0m, compliance.Balance);
+
+        var vegetable = report.SectionBreakdown.Single(s => s.SectionName == "Vegetable Area");
+        Assert.Equal(210m, vegetable.Revenue);
+        Assert.Equal(100m, vegetable.Percentage);
+    }
+
+    [Fact]
+    public async Task WeeklyReport_UnpaidNpmStall_OwesOnlySelectedDailyObligation()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Unpaid Payor", "Unpaid Payor", new DateOnly(2026, 1, 1), 3, 900m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Unpaid", compliance.Status);
+        Assert.Equal(0m, compliance.AmountPaid);
+        Assert.Equal(210m, compliance.Balance);
+        Assert.Equal(210m, report.PendingPaymentAmount);
+    }
+
+    [Fact]
+    public async Task YearlyReport_NpmComplianceUsesSelectedYearForEveryStall()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var ana = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var lorna = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var riki = Stall.Create(facility.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var pantom = Stall.Create(facility.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+
+        var anaContract = Contract.Create(ana.Id, "Ana Villanueva", "Ana Villanueva", new DateOnly(2026, 1, 1), 3, 900m);
+        var lornaContract = Contract.Create(lorna.Id, "Lorna Guevarra", "Lorna Guevarra", new DateOnly(2026, 1, 1), 3, 900m);
+        var rikiContract = Contract.Create(riki.Id, "Riki Buenades", "Riki Buenades", new DateOnly(2026, 1, 1), 3, 900m);
+        var pantomContract = Contract.Create(pantom.Id, "Pantom Goth", "Pantom Goth", new DateOnly(2026, 1, 1), 3, 900m);
+
+        var anaPayment = PaymentRecord.Create(ana.Id, 2026, 6, 900m);
+        anaPayment.UpdateStatus(PaymentStatus.Partial, 500m);
+        var lornaPayment = PaymentRecord.Create(lorna.Id, 2026, 6, 900m);
+        lornaPayment.UpdateStatus(PaymentStatus.Partial, 600m);
+        var pantomPayment = PaymentRecord.Create(pantom.Id, 2026, 6, 900m);
+        pantomPayment.UpdateStatus(PaymentStatus.Paid);
+
+        context.AddRange(facility, ana, lorna, riki, pantom,
+            anaContract, lornaContract, rikiContract, pantomContract,
+            anaPayment, lornaPayment, pantomPayment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
+
+        Assert.Equal(41800m, report.PendingPaymentAmount);
+        Assert.Equal(10450m, report.StallCompliance.Single(s => s.StallNo == "1").Balance);
+        Assert.Equal(10350m, report.StallCompliance.Single(s => s.StallNo == "2").Balance);
+        Assert.Equal(10950m, report.StallCompliance.Single(s => s.StallNo == "3").Balance);
+        Assert.Equal(10050m, report.StallCompliance.Single(s => s.StallNo == "4").Balance);
+    }
+
+    [Fact]
     public async Task StallCompliance_ReportsPaidAndUnpaidRowsWithBalances()
     {
         var context = NewContext();

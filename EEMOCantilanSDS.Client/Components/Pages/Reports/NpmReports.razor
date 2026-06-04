@@ -326,17 +326,20 @@
                     <div class="audit-group">
                         <div class="audit-group-bars">
                             <div class="audit-vbar-wrapper">
-                                <span class="audit-vbar revenue @(sec.RevenueSharePct == 0 ? "is-zero" : "")" style="height:@sec.RevenueSharePct%; background:@sec.Color" title="@sec.Name revenue share @sec.RevenueSharePct%">
+                                <small class="audit-vbar-value">@sec.RevenueSharePct%</small>
+                                <span class="audit-vbar revenue @(sec.RevenueSharePct == 0 ? "is-zero" : "")" style="height:@sec.RevenueHeightPct%; background:@sec.Color" title="@sec.Name revenue share @sec.RevenueSharePct%">
                                     <span class="audit-vbar-shine"></span>
                                 </span>
                             </div>
                             <div class="audit-vbar-wrapper">
-                                <span class="audit-vbar occupancy @(sec.ActiveSharePct == 0 ? "is-zero" : "")" style="height:@sec.ActiveSharePct%" title="@sec.Name active stall share @sec.ActiveSharePct%">
+                                <small class="audit-vbar-value">@sec.ActiveSharePct%</small>
+                                <span class="audit-vbar occupancy @(sec.ActiveSharePct == 0 ? "is-zero" : "")" style="height:@sec.ActiveHeightPct%" title="@sec.Name active stall share @sec.ActiveSharePct%">
                                     <span class="audit-vbar-shine"></span>
                                 </span>
                             </div>
                             <div class="audit-vbar-wrapper">
-                                <span class="audit-vbar coverage @(sec.CoveragePct == 0 ? "is-zero" : "")" style="height:@sec.CoveragePct%" title="@sec.Name collection coverage @sec.CoveragePct%">
+                                <small class="audit-vbar-value">@sec.CoveragePct%</small>
+                                <span class="audit-vbar coverage @(sec.CoveragePct == 0 ? "is-zero" : "")" style="height:@sec.CoverageHeightPct%" title="@sec.Name collection coverage @sec.CoveragePct%">
                                     <span class="audit-vbar-shine"></span>
                                 </span>
                             </div>
@@ -371,17 +374,26 @@
             <div class="audit-compare-row">
                 <span>Daily stall fee</span>
                 <div><i style="width:@DailyFeeMixPct%; background:var(--green)"></i></div>
-                <strong>&#8369;@DailyFeeTotal.ToString("N0")</strong>
+                <strong class="audit-compare-value">
+                    <span>&#8369;@DailyFeeTotal.ToString("N0")</span>
+                    <small>@DailyFeeMixPct%</small>
+                </strong>
             </div>
             <div class="audit-compare-row">
                 <span>Fish kilo fee</span>
                 <div><i style="width:@FishFeeMixPct%; background:#4a9eff"></i></div>
-                <strong>&#8369;@FishFeeTotal.ToString("N0")</strong>
+                <strong class="audit-compare-value">
+                    <span>&#8369;@FishFeeTotal.ToString("N0")</span>
+                    <small>@FishFeeMixPct%</small>
+                </strong>
             </div>
             <div class="audit-compare-row">
                 <span>Open balance</span>
                 <div><i style="width:@OutstandingMixPct%; background:var(--red)"></i></div>
-                <strong>&#8369;@PendingAmount.ToString("N0")</strong>
+                <strong class="audit-compare-value is-risk">
+                    <span>&#8369;@PendingAmount.ToString("N0")</span>
+                    <small>@OutstandingMixPct%</small>
+                </strong>
             </div>
             <div class="audit-section-palette audit-risk-key">
                 <span><i style="background:var(--green)"></i>Daily stall fee collected</span>
@@ -899,7 +911,7 @@
         {
             var t = R?.RevenueTrend ?? new List<RevenueTrendDto>();
             var max = t.Any() ? t.Max(x => x.Revenue) : 0m;
-            return t.Select((x, i) => new TrendPoint(x.PeriodLabel, x.Revenue, i == t.Count - 1, max > 0 ? (int)(x.Revenue / max * 100) : 0));
+            return t.Select((x, i) => new TrendPoint(x.PeriodLabel, x.Revenue, i == t.Count - 1, NormalizeBarHeightPct(x.Revenue, max)));
         }
     }
 
@@ -912,6 +924,9 @@
             return new SectionRow(name, GetShort(name), s.Revenue, ClampPct(s.Percentage), SectionColor(name));
         });
     decimal SectionRevenueTotal => SectionData.Sum(s => s.Revenue);
+
+    static int NormalizeBarHeightPct(decimal value, decimal maxValue, decimal maxVisualPct = 92m)
+        => value <= 0 || maxValue <= 0 ? 0 : ClampPct(value / maxValue * maxVisualPct);
 
     static int ClampPct(decimal value) => (int)Math.Clamp(Math.Round(value), 0m, 100m);
     static string NormalizeSectionName(string n) => n switch
@@ -954,12 +969,22 @@
                 s.Section,
                 s.AmountPaid,
                 total > 0 ? ClampPct(s.AmountPaid / total * 100m) : 0,
-                max > 0 ? Math.Max(8, (int)Math.Round(s.AmountPaid / max * 100m)) : 0,
+                max > 0 ? Math.Max(8, NormalizeBarHeightPct(s.AmountPaid, max)) : 0,
                 SectionColor(s.Section)));
         }
     }
 
-    record AuditSectionMetric(string Name, string ShortName, int RevenueSharePct, int ActiveSharePct, int CoveragePct, string Color);
+    record AuditSectionMetric(
+        string Name,
+        string ShortName,
+        int RevenueSharePct,
+        int ActiveSharePct,
+        int CoveragePct,
+        int RevenueHeightPct,
+        int ActiveHeightPct,
+        int CoverageHeightPct,
+        string Color);
+
     IEnumerable<AuditSectionMetric> AuditSectionMetrics
     {
         get
@@ -967,17 +992,34 @@
             var sections = R?.SectionBreakdown ?? new List<SectionBreakdownDto>();
             var revenueTotal = sections.Sum(s => s.Revenue);
             var activeTotal = sections.Sum(s => s.ActiveStalls);
-            return sections.Select(s =>
+            var rows = sections.Select(s =>
             {
                 var name = NormalizeSectionName(s.SectionName);
-                return new AuditSectionMetric(
-                    name,
-                    GetShort(name),
-                    revenueTotal > 0 ? ClampPct(s.Revenue / revenueTotal * 100m) : 0,
-                    activeTotal > 0 ? ClampPct(s.ActiveStalls * 100m / activeTotal) : 0,
-                    ClampPct(s.Percentage),
-                    SectionColor(name));
-            });
+                return new
+                {
+                    Name = name,
+                    ShortName = GetShort(name),
+                    RevenueSharePct = revenueTotal > 0 ? ClampPct(s.Revenue / revenueTotal * 100m) : 0,
+                    ActiveSharePct = activeTotal > 0 ? ClampPct(s.ActiveStalls * 100m / activeTotal) : 0,
+                    CoveragePct = ClampPct(s.Percentage),
+                    Color = SectionColor(name)
+                };
+            }).ToList();
+
+            var maxRevenueShare = rows.Any() ? rows.Max(r => r.RevenueSharePct) : 0;
+            var maxActiveShare = rows.Any() ? rows.Max(r => r.ActiveSharePct) : 0;
+            var maxCoverage = rows.Any() ? rows.Max(r => r.CoveragePct) : 0;
+
+            return rows.Select(r => new AuditSectionMetric(
+                r.Name,
+                r.ShortName,
+                r.RevenueSharePct,
+                r.ActiveSharePct,
+                r.CoveragePct,
+                NormalizeBarHeightPct(r.RevenueSharePct, maxRevenueShare),
+                NormalizeBarHeightPct(r.ActiveSharePct, maxActiveShare),
+                NormalizeBarHeightPct(r.CoveragePct, maxCoverage),
+                r.Color));
         }
     }
 

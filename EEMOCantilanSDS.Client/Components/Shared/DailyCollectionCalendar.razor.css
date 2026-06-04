@@ -259,14 +259,14 @@
         stroke: #fff;
     }
 
-/* Missed — light border circle, muted X */
+/* Missed — visible X for days with no recorded collection */
 .cal-icon-no {
-    background: transparent;
-    border: 1.5px solid var(--border);
+    background: rgba(139, 58, 58, 0.08);
+    border: 1.5px solid rgba(139, 58, 58, 0.4);
 }
 
     .cal-icon-no svg {
-        stroke: var(--text-muted);
+        stroke: #8b3a3a;
     }
 
 .cal-checkmark-corner {
