@@ -82,4 +82,8 @@
       <Folder Include="wwwroot\images\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
+    </ItemGroup>
+
 </Project>

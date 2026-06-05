@@ -41,16 +41,19 @@
     <div class="rpt-period-tabs">
         @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
         {
-            <button type="button" class="rpt-period-tab @(ActivePeriod == p ? "active" : "")"
-                    aria-pressed="@(ActivePeriod == p)"
+            <button type="button" class="rpt-period-tab @(!ShowUtilityBilling && ActivePeriod == p ? "active" : "")"
+                    aria-pressed="@(!ShowUtilityBilling && ActivePeriod == p)"
                     @onclick="() => SetPeriod(p)">@p</button>
         }
+        <button type="button" class="rpt-period-tab rpt-utility-tab @(ShowUtilityBilling ? "active" : "")"
+                aria-pressed="@ShowUtilityBilling"
+                @onclick="ShowUtilityBillingView">Utility Billing</button>
     </div>
-    <div class="rpt-date-nav">
+    <div class="rpt-date-nav @(ShowUtilityBilling ? "utility-mode" : "")">
         <button type="button" class="rpt-nav-btn" @onclick="PrevPeriod" aria-label="Previous period">
             <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span class="rpt-current-period">@GetPeriodLabel()</span>
+        <span class="rpt-current-period">@(ShowUtilityBilling ? UtilityBillingPeriodLabel : GetPeriodLabel())</span>
         <button type="button" class="rpt-nav-btn" @onclick="NextPeriod" aria-label="Next period">
             <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -58,6 +61,106 @@
 </div>
 
 <!-- ══ KPI Cards ══ -->
+@if (ShowUtilityBilling)
+{
+    <div class="rpt-content">
+        <div class="utility-billing-board">
+            <section class="utility-hero">
+                <div>
+                    <div class="utility-eyebrow">END-OF-MONTH CONSUMPTION BILLING</div>
+                    <h2>Electricity &amp; Water Billing Register</h2>
+                    <p>Separate workspace for NPM utility charges. Daily stall fees and fish kilo fees remain in the collection report.</p>
+                </div>
+                <div class="utility-preview-pill">Frontend preview only</div>
+            </section>
+
+            <div class="utility-summary-grid">
+                <div class="utility-summary-card">
+                    <span>Total Utility Due</span>
+                    <strong>&#8369;@UtilityTotalDue.ToString("N2")</strong>
+                    <small>Electricity and water charges only</small>
+                </div>
+                <div class="utility-summary-card">
+                    <span>Unpaid Utilities</span>
+                    <strong>&#8369;@UtilityUnpaidTotal.ToString("N2")</strong>
+                    <small>@UtilityRows.Count(r => r.Status == "Unpaid") accounts for follow-up</small>
+                </div>
+                <div class="utility-summary-card">
+                    <span>Paid Utilities</span>
+                    <strong>&#8369;@UtilityPaidTotal.ToString("N2")</strong>
+                    <small>@UtilityRows.Count(r => r.Status == "Paid") accounts settled</small>
+                </div>
+                <div class="utility-summary-card">
+                    <span>Billing Period</span>
+                    <strong>@CurrentDate.ToString("MMM yyyy")</strong>
+                    <small>Due at month end</small>
+                </div>
+            </div>
+
+            <section class="utility-panel">
+                <div class="utility-panel-head">
+                    <div>
+                        <h3>Payor Utility Ledger</h3>
+                        <p>Designed layout for future backend data: readings, consumption, computed charges, and payment status.</p>
+                    </div>
+                    <button type="button" class="utility-secondary-btn" disabled>Generate Billing Statement</button>
+                </div>
+
+                <div class="utility-table-wrap">
+                    <table class="utility-table">
+                        <thead>
+                            <tr>
+                                <th>Stall</th>
+                                <th>Payor</th>
+                                <th>Section</th>
+                                <th>Electricity Reading</th>
+                                <th>Water Reading</th>
+                                <th>Utility Due</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in UtilityRows)
+                            {
+                                <tr>
+                                    <td class="stall-no">@row.StallNo</td>
+                                    <td>
+                                        <strong class="utility-payor-name">@row.Payor</strong>
+                                        <span class="utility-payor-note">@row.Note</span>
+                                    </td>
+                                    <td>@row.Section</td>
+                                    <td>
+                                        <span class="utility-reading">@row.ElectricPrevious.ToString("N0") to @row.ElectricCurrent.ToString("N0") kWh</span>
+                                        <small>&#8369;@row.ElectricAmount.ToString("N2") due</small>
+                                    </td>
+                                    <td>
+                                        <span class="utility-reading">@row.WaterPrevious.ToString("N0") to @row.WaterCurrent.ToString("N0") cu.m</span>
+                                        <small>&#8369;@row.WaterAmount.ToString("N2") due</small>
+                                    </td>
+                                    <td class="utility-due">&#8369;@row.TotalDue.ToString("N2")</td>
+                                    <td><span class="utility-status @row.StatusCss">@row.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="utility-notes">
+                <div>
+                    <strong>Recommended backend fields</strong>
+                    <span>Billing month, previous/current reading, consumption, rate, amount due, OR number, status, paid date, and remarks.</span>
+                </div>
+                <div>
+                    <strong>Financial separation</strong>
+                    <span>This page should not alter NPM collection reports. Utility billing can be posted and reconciled independently.</span>
+                </div>
+            </section>
+        </div>
+    </div>
+}
+else
+{
 <div class="rpt-content">
     <div class="rpt-kpi-strip">
 
@@ -783,12 +886,14 @@
     </div>
 
 </div><!-- end rpt-content -->
+}
 
 
 @code {
 
     // ── Period state ──────────────────────────────────────────────
     string ActivePeriod = "Monthly";
+    bool ShowUtilityBilling = false;
     DateTime CurrentDate = DateTime.Now;
     private FacilityReportsDto? R;
 
@@ -809,9 +914,16 @@
         if (result.IsSuccess) R = result.Value;
     }
 
-    async Task SetPeriod(string p) { ActivePeriod = p; await LoadAsync(); }
+    async Task SetPeriod(string p) { ShowUtilityBilling = false; ActivePeriod = p; await LoadAsync(); }
+    void ShowUtilityBillingView() => ShowUtilityBilling = true;
     async Task PrevPeriod()
     {
+        if (ShowUtilityBilling)
+        {
+            CurrentDate = CurrentDate.AddMonths(-1);
+            return;
+        }
+
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(-7),
@@ -822,6 +934,12 @@
     }
     async Task NextPeriod()
     {
+        if (ShowUtilityBilling)
+        {
+            CurrentDate = CurrentDate.AddMonths(1);
+            return;
+        }
+
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(7),
@@ -838,6 +956,39 @@
     };
 
     // ── KPI values (from API) ─────────────────────────────────────
+    string UtilityBillingPeriodLabel => $"Utilities - {CurrentDate:MMMM yyyy}";
+
+    record UtilityBillingRow(
+        string StallNo,
+        string Payor,
+        string Section,
+        decimal ElectricPrevious,
+        decimal ElectricCurrent,
+        decimal ElectricAmount,
+        decimal WaterPrevious,
+        decimal WaterCurrent,
+        decimal WaterAmount,
+        string Status,
+        string Note)
+    {
+        public decimal TotalDue => ElectricAmount + WaterAmount;
+        public string StatusCss => Status.Equals("Paid", StringComparison.OrdinalIgnoreCase) ? "paid"
+            : Status.Equals("Partial", StringComparison.OrdinalIgnoreCase) ? "partial"
+            : "unpaid";
+    }
+
+    IReadOnlyList<UtilityBillingRow> UtilityRows => new List<UtilityBillingRow>
+    {
+        new("1", "Ana Villanueva", "Vegetable Area", 1200m, 1248m, 384m, 320m, 328m, 96m, "Unpaid", "End-of-month billing pending"),
+        new("2", "Lorna Guevarra", "Fish Section", 880m, 936m, 448m, 210m, 223m, 156m, "Partial", "Water paid, electricity pending"),
+        new("3", "Riki Buenades", "Vegetable Area", 1440m, 1502m, 496m, 415m, 426m, 132m, "Unpaid", "Requires follow-up"),
+        new("4", "Pantom Goth", "Meat Section", 690m, 724m, 272m, 188m, 195m, 84m, "Paid", "Settled for the period")
+    };
+
+    decimal UtilityTotalDue => UtilityRows.Sum(r => r.TotalDue);
+    decimal UtilityPaidTotal => UtilityRows.Where(r => r.Status == "Paid").Sum(r => r.TotalDue);
+    decimal UtilityUnpaidTotal => UtilityRows.Where(r => r.Status != "Paid").Sum(r => r.TotalDue);
+
     decimal TotalCollected => R?.TotalRevenue ?? 0m;
     int     CollectionRate => (int)Math.Round(R?.CollectionRate ?? 0m);
     decimal PendingAmount  => R?.PendingPaymentAmount ?? 0m;

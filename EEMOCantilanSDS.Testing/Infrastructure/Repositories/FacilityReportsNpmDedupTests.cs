@@ -208,6 +208,45 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task MonthlyReport_NpmPaymentRecord_ExcludesElectricityAndWaterFromReportTotals()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "F-1", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Fish Vendor", "Fish Vendor", new DateOnly(2026, 1, 1), 3, 900m);
+        var payment = PaymentRecord.Create(stall.Id, 2026, 6, 900m);
+        payment.RecordPayment(
+            "OR-UTIL",
+            Guid.NewGuid(),
+            PaymentStatus.Paid,
+            elecReading: 100m,
+            elecAmount: 500m,
+            waterReading: 20m,
+            waterAmount: 200m,
+            fishKilos: 25m);
+
+        context.AddRange(facility, stall, contract, payment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 6, null, CancellationToken.None);
+
+        Assert.Equal(925m, report.TotalRevenue);
+        Assert.Equal(0m, report.PendingPaymentAmount);
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Paid", compliance.Status);
+        Assert.Equal(925m, compliance.AmountPaid);
+        Assert.Equal(0m, compliance.Balance);
+
+        Assert.NotNull(report.FeeTypeBreakdown);
+        var feeBreakdown = report.FeeTypeBreakdown!;
+        Assert.Equal(900m, feeBreakdown.DailyFeeAmount);
+        Assert.Equal(25m, feeBreakdown.FishFeeAmount);
+    }
+
+    [Fact]
     public async Task YearlyReport_NpmComplianceUsesSelectedYearForEveryStall()
     {
         var context = NewContext();
