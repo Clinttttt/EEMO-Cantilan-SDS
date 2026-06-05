@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IJSRuntime JS
 
 <PageTitle>EEMO Admin — NPM Reports</PageTitle>
 
@@ -26,7 +27,7 @@
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export PDF
         </button>
-        <button type="button" class="rpt-action-btn" title="Print" aria-label="Print report">
+        <button type="button" class="rpt-action-btn" title="Print" aria-label="Print report" @onclick="PrintPage">
             <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Print
         </button>
@@ -41,19 +42,35 @@
     <div class="rpt-period-tabs">
         @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
         {
-            <button type="button" class="rpt-period-tab @(!ShowUtilityBilling && ActivePeriod == p ? "active" : "")"
-                    aria-pressed="@(!ShowUtilityBilling && ActivePeriod == p)"
+            <button type="button" class="rpt-period-tab @(!ShowUtilityBilling && !ShowPrintReport && ActivePeriod == p ? "active" : "")"
+                    aria-pressed="@(!ShowUtilityBilling && !ShowPrintReport && ActivePeriod == p)"
                     @onclick="() => SetPeriod(p)">@p</button>
         }
+        <button type="button" class="rpt-period-tab rpt-document-tab @(ShowPrintReport ? "active" : "")"
+                aria-pressed="@ShowPrintReport"
+                @onclick="ShowPrintReportView">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="16" y2="17" />
+            </svg>
+            <span>Status Report</span>
+        </button>
         <button type="button" class="rpt-period-tab rpt-utility-tab @(ShowUtilityBilling ? "active" : "")"
                 aria-pressed="@ShowUtilityBilling"
-                @onclick="ShowUtilityBillingView">Utility Billing</button>
+                @onclick="ShowUtilityBillingView">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M13 2L6 14h6l-1 8 7-12h-6l1-8z" />
+            </svg>
+            <span>Utility Billing</span>
+        </button>
     </div>
-    <div class="rpt-date-nav @(ShowUtilityBilling ? "utility-mode" : "")">
+    <div class="rpt-date-nav @(ShowUtilityBilling || ShowPrintReport ? "utility-mode" : "")">
         <button type="button" class="rpt-nav-btn" @onclick="PrevPeriod" aria-label="Previous period">
             <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <span class="rpt-current-period">@(ShowUtilityBilling ? UtilityBillingPeriodLabel : GetPeriodLabel())</span>
+        <span class="rpt-current-period">@(ShowUtilityBilling ? UtilityBillingPeriodLabel : ShowPrintReport ? PrintReportPeriodLabel : GetPeriodLabel())</span>
         <button type="button" class="rpt-nav-btn" @onclick="NextPeriod" aria-label="Next period">
             <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
@@ -61,7 +78,109 @@
 </div>
 
 <!-- ══ KPI Cards ══ -->
-@if (ShowUtilityBilling)
+@if (ShowPrintReport)
+{
+    <div class="rpt-content print-document-content">
+        <section class="print-report-sheet">
+            <div class="print-report-actions">
+                <button type="button" class="print-report-btn" @onclick="PrintPage">
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Print Document
+                </button>
+            </div>
+
+            <header class="print-report-header">
+                <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <div class="print-republic">Republic of the Philippines</div>
+                <h2>Economic Enterprise &amp; Management Office</h2>
+                <p>Municipality of Cantilan, Surigao del Sur</p>
+                <div class="print-report-title">New Public Market Current Status Report</div>
+            </header>
+
+            <div class="print-report-meta">
+                <div><span>Facility</span><strong>New Public Market</strong></div>
+                <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
+                <div><span>Prepared By</span><strong>EEMO Office</strong></div>
+                <div><span>Date Prepared</span><strong>@DateTime.Now.ToString("MMM d, yyyy")</strong></div>
+            </div>
+
+            <div class="print-report-summary">
+                <div><span>Total Stalls</span><strong>4</strong></div>
+                <div><span>Collected</span><strong>&#8369;2,000.00</strong></div>
+                <div><span>Outstanding</span><strong>&#8369;1,600.00</strong></div>
+                <div><span>For Follow-up</span><strong>3 payors</strong></div>
+            </div>
+
+            <div class="print-table-wrap">
+                <table class="print-status-table">
+                    <thead>
+                        <tr>
+                            <th>Stall No.</th>
+                            <th>Payor / Occupant</th>
+                            <th>Section</th>
+                            <th>Stall Type</th>
+                            <th>Monthly Due</th>
+                            <th>Status</th>
+                            <th>Amount Paid</th>
+                            <th>Balance</th>
+                            <th>OR No.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in PrintStatusRows.OrderBy(r => r.Section).ThenBy(r => r.StallNo).ThenBy(r => r.Payor))
+                        {
+                            <tr>
+                                <td>@row.StallNo</td>
+                                <td>@row.Payor</td>
+                                <td>@row.Section</td>
+                                <td>@row.Classification</td>
+                                <td>&#8369;@row.ContractRate.ToString("N2")</td>
+                                <td>@row.Status</td>
+                                <td>
+                                    @if (row.AmountPaid > 0)
+                                    {
+                                        <text>&#8369;@row.AmountPaid.ToString("N2")</text>
+                                    }
+                                    else
+                                    {
+                                        <text>-</text>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.Balance > 0)
+                                    {
+                                        <text>&#8369;@row.Balance.ToString("N2")</text>
+                                    }
+                                    else
+                                    {
+                                        <text>-</text>
+                                    }
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(row.ORNumber) ? "-" : row.ORNumber)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="print-report-signatures">
+                <div>
+                    <span>Prepared by</span>
+                    <strong>Administrative Staff</strong>
+                </div>
+                <div>
+                    <span>Reviewed by</span>
+                    <strong>Head, EEMO Office</strong>
+                </div>
+                <div>
+                    <span>Received by</span>
+                    <strong>Authorized Representative</strong>
+                </div>
+            </div>
+        </section>
+    </div>
+}
+else if (ShowUtilityBilling)
 {
     <div class="rpt-content">
         <div class="utility-billing-board">
@@ -380,29 +499,29 @@ else
         <div class="audit-card audit-card-wide audit-card-payor">
             <div class="audit-card-head">
                 <div class="audit-head-metric">
-                    <span>Payor Revenue Share</span>
+                    <span>Revenue Share by Section</span>
                 </div>
-                <small class="audit-subtitle">Top collected stalls and their share of paid revenue</small>
+                <small class="audit-subtitle">Recorded collection share by market section</small>
             </div>
             @if (AuditPayorBars.Any())
             {
                 <div class="audit-insight-strip">
                     <span><strong>&#8369;@AuditPayorCollectedTotal.ToString("N0")</strong> total recorded</span>
-                    <span><strong>@AuditPayorCollectedCount</strong> with collection</span>
-                    <span><strong>@AuditPayorShownCount</strong> payors shown</span>
+                    <span><strong>@AuditPayorCollectedCount</strong> sections with collection</span>
+                    <span><strong>@AuditPayorShownCount</strong> sections shown</span>
                 </div>
                 <div class="audit-bar-plot">
                     @foreach (var b in AuditPayorBars)
                     {
-                        <div class="audit-payor-bar" title="Stall @b.StallNo - @b.Occupant - &#8369;@b.Amount.ToString("N2")">
+                        <div class="audit-payor-bar" title="@b.Section - &#8369;@b.Amount.ToString("N2")">
                             <strong class="audit-payor-value">&#8369;@b.ShortValue</strong>
                             <div class="audit-payor-track">
                                 <div class="audit-payor-fill @(b.IsZero ? "is-zero" : "")" style="height:@b.HeightPct%; background:@b.Color">
                                     <div class="audit-payor-shine"></div>
                                 </div>
                             </div>
-                            <span class="audit-payor-label">Stall @b.StallNo</span>
-                            <small class="audit-payor-meta">@GetShort(NormalizeSectionName(b.Section)) &middot; @b.SharePct%</small>
+                            <span class="audit-payor-label">@GetShort(NormalizeSectionName(b.Section))</span>
+                            <small class="audit-payor-meta">@b.SharePct% collected vs assessed</small>
                         </div>
                     }
                 </div>
@@ -411,10 +530,10 @@ else
             {
                 <div class="audit-empty">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                    No paid or partial payors in this period.
+                    No section collections recorded for this period.
                 </div>
             }
-            <div class="audit-axis-note">Bar height is amount paid. Percent below each stall is share of recorded collections.</div>
+            <div class="audit-axis-note">Bar height is amount collected. Percent below each section is collection rate against assessed receivables.</div>
         </div>
 
         <div class="audit-card audit-card-wide audit-card-mix">
@@ -511,9 +630,9 @@ else
                 <div class="audit-head-metric">
                     <span>Receivable Risk Profile</span>
                 </div>
-                <small class="audit-subtitle">Open balances requiring follow-up</small>
+                <small class="audit-subtitle">Paid, partial, and unpaid mix by section</small>
             </div>
-            @if (RiskProfileBars.Any())
+            @if (RiskProfileGroups.Any())
             {
                 <div class="audit-risk-totals">
                     <div class="risk-total unpaid">
@@ -530,17 +649,31 @@ else
                     </div>
                 </div>
                 <div class="audit-risk-ledger">
-                    @foreach (var bar in RiskProfileBars)
+                    @foreach (var group in RiskProfileGroups)
                     {
-                        <div class="audit-risk-row @bar.Status.ToLowerInvariant()" title="Stall @bar.StallNo - @bar.Status - &#8369;@bar.Amount.ToString("N2")">
+                        <div class="audit-risk-row @group.RiskClass" title="@group.Section - paid &#8369;@group.PaidAmount.ToString("N2"), partial balance &#8369;@group.PartialAmount.ToString("N2"), unpaid balance &#8369;@group.UnpaidAmount.ToString("N2")">
                             <div class="audit-risk-row-main">
-                                <strong>Stall @bar.StallNo</strong>
-                                <span>@bar.Status balance</span>
+                                <strong>@group.Section</strong>
+                                <span>@group.OpenItems open item@(group.OpenItems == 1 ? "" : "s")</span>
                             </div>
-                            <div class="audit-risk-meter">
-                                <i style="width:@bar.ScalePct%; background:@bar.Color"></i>
+                            <div class="audit-risk-meter stacked">
+                                @if (group.PaidPct > 0)
+                                {
+                                    <span class="paid" style="width:@group.PaidPct%"></span>
+                                }
+                                @if (group.PartialPct > 0)
+                                {
+                                    <span class="partial" style="width:@group.PartialPct%"></span>
+                                }
+                                @if (group.UnpaidPct > 0)
+                                {
+                                    <span class="unpaid" style="width:@group.UnpaidPct%"></span>
+                                }
                             </div>
-                            <strong class="audit-risk-row-value">&#8369;@bar.Amount.ToString("N0")</strong>
+                            <div class="audit-risk-row-value">
+                                <strong>&#8369;@group.OpenAmount.ToString("N0")</strong>
+                                <small>@group.PaidPct% paid &middot; @group.UnpaidItems unpaid / @group.PartialItems partial</small>
+                            </div>
                         </div>
                     }
                 </div>
@@ -894,6 +1027,7 @@ else
     // ── Period state ──────────────────────────────────────────────
     string ActivePeriod = "Monthly";
     bool ShowUtilityBilling = false;
+    bool ShowPrintReport = false;
     DateTime CurrentDate = DateTime.Now;
     private FacilityReportsDto? R;
 
@@ -914,11 +1048,27 @@ else
         if (result.IsSuccess) R = result.Value;
     }
 
-    async Task SetPeriod(string p) { ShowUtilityBilling = false; ActivePeriod = p; await LoadAsync(); }
-    void ShowUtilityBillingView() => ShowUtilityBilling = true;
+    async Task SetPeriod(string p)
+    {
+        ShowUtilityBilling = false;
+        ShowPrintReport = false;
+        ActivePeriod = p;
+        await LoadAsync();
+    }
+    void ShowUtilityBillingView()
+    {
+        ShowUtilityBilling = true;
+        ShowPrintReport = false;
+    }
+    void ShowPrintReportView()
+    {
+        ShowPrintReport = true;
+        ShowUtilityBilling = false;
+    }
+    async Task PrintPage() => await JS.InvokeVoidAsync("print");
     async Task PrevPeriod()
     {
-        if (ShowUtilityBilling)
+        if (ShowUtilityBilling || ShowPrintReport)
         {
             CurrentDate = CurrentDate.AddMonths(-1);
             return;
@@ -934,7 +1084,7 @@ else
     }
     async Task NextPeriod()
     {
-        if (ShowUtilityBilling)
+        if (ShowUtilityBilling || ShowPrintReport)
         {
             CurrentDate = CurrentDate.AddMonths(1);
             return;
@@ -957,6 +1107,26 @@ else
 
     // ── KPI values (from API) ─────────────────────────────────────
     string UtilityBillingPeriodLabel => $"Utilities - {CurrentDate:MMMM yyyy}";
+    string PrintReportPeriodLabel => $"Status Report - {CurrentDate:MMMM yyyy}";
+
+    record PrintStatusRow(
+        string StallNo,
+        string Payor,
+        string Section,
+        string Classification,
+        decimal ContractRate,
+        string Status,
+        decimal AmountPaid,
+        decimal Balance,
+        string ORNumber);
+
+    IReadOnlyList<PrintStatusRow> PrintStatusRows => new List<PrintStatusRow>
+    {
+        new("1", "Pantom Dant", "Meat Section", "Permanent", 900m, "Partial", 500m, 400m, "3121212"),
+        new("1", "Ana Reyes", "Vegetable Area", "Permanent", 900m, "Unpaid", 0m, 900m, ""),
+        new("1", "Lorna Buenades", "Fish Section", "Permanent", 900m, "Unpaid", 0m, 900m, ""),
+        new("2", "Sample Settled Payor", "Meat Section", "Permanent", 900m, "Paid", 900m, 0m, "4242242")
+    };
 
     record UtilityBillingRow(
         string StallNo,
@@ -1111,9 +1281,8 @@ else
     decimal AuditPayorCollectedTotal => (R?.StallCompliance ?? new List<StallComplianceDto>())
         .Where(s => s.AmountPaid > 0)
         .Sum(s => s.AmountPaid);
-    int AuditPayorCollectedCount => (R?.StallCompliance ?? new List<StallComplianceDto>())
-        .Count(s => s.AmountPaid > 0);
-    int AuditPayorShownCount => Math.Min(8, R?.StallCompliance?.Count ?? 0);
+    int AuditPayorCollectedCount => SectionData.Count(s => s.Revenue > 0m);
+    int AuditPayorShownCount => SectionData.Count();
 
     record AuditPayorBar(string StallNo, string Occupant, string Section, decimal Amount, int SharePct, int HeightPct, string Color, bool IsZero)
     {
@@ -1123,24 +1292,19 @@ else
     {
         get
         {
-            var rows = R?.StallCompliance?
-                .OrderByDescending(s => s.AmountPaid)
-                .ThenBy(s => NormalizeSectionName(s.Section))
-                .ThenBy(s => s.StallNo)
-                .Take(8)
-                .ToList()
-                ?? new List<StallComplianceDto>();
-            var max = rows.Any() ? rows.Max(s => s.AmountPaid) : 0m;
-            var total = AuditPayorCollectedTotal;
+            var rows = SectionData
+                .OrderByDescending(s => s.Revenue)
+                .ThenBy(s => s.Name)
+                .ToList();
             return rows.Select(s => new AuditPayorBar(
-                s.StallNo,
-                string.IsNullOrWhiteSpace(s.Occupant) ? s.ContractName : s.Occupant,
-                s.Section,
-                s.AmountPaid,
-                total > 0 ? ClampPct(s.AmountPaid / total * 100m) : 0,
-                s.AmountPaid > 0m && max > 0m ? Math.Max(8, NormalizeBarHeightPct(s.AmountPaid, max)) : 8,
-                SectionColor(s.Section),
-                s.AmountPaid <= 0m));
+                s.ShortName,
+                s.Name,
+                s.Name,
+                s.Revenue,
+                s.Pct,
+                PercentBarHeightPct(s.Pct),
+                s.Color,
+                s.Pct <= 0));
         }
     }
 
@@ -1206,28 +1370,65 @@ else
     int OpenReceivableCount => (R?.StallCompliance ?? new List<StallComplianceDto>())
         .Count(s => s.Balance > 0m);
 
-    record RiskProfileBar(string StallNo, string Occupant, decimal Amount, string Status, int ScalePct, string Color)
+    record RiskProfileGroup(
+        string Section,
+        decimal PaidAmount,
+        decimal PartialAmount,
+        decimal UnpaidAmount,
+        decimal OpenAmount,
+        int OpenItems,
+        int UnpaidItems,
+        int PartialItems,
+        int PaidPct,
+        int PartialPct,
+        int UnpaidPct,
+        string RiskClass)
     {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N1}k" : Amount.ToString("N0");
+        public string ShortValue => OpenAmount >= 1000 ? $"{OpenAmount / 1000:N1}k" : OpenAmount.ToString("N0");
     }
-    IEnumerable<RiskProfileBar> RiskProfileBars
+    IEnumerable<RiskProfileGroup> RiskProfileGroups
     {
         get
         {
             var rows = (R?.StallCompliance ?? new List<StallComplianceDto>())
-                .Where(s => s.Balance > 0m)
-                .OrderByDescending(s => s.Balance)
-                .Take(5)
+                .GroupBy(s => NormalizeSectionName(s.Section))
+                .Select(g => new
+                {
+                    Section = g.Key,
+                    PaidAmount = g.Sum(s => s.AmountPaid),
+                    PartialAmount = g.Where(s => s.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)).Sum(s => s.Balance),
+                    UnpaidAmount = g.Where(s => s.Status.Equals("Unpaid", StringComparison.OrdinalIgnoreCase)).Sum(s => s.Balance),
+                    OpenItems = g.Count(s => s.Balance > 0m),
+                    UnpaidItems = g.Count(s => s.Status.Equals("Unpaid", StringComparison.OrdinalIgnoreCase)),
+                    PartialItems = g.Count(s => s.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase))
+                })
+                .Where(g => g.PaidAmount + g.PartialAmount + g.UnpaidAmount > 0m)
+                .OrderByDescending(g => g.PartialAmount + g.UnpaidAmount)
+                .ThenBy(g => g.Section)
                 .ToList();
-            var max = rows.Any() ? rows.Max(s => s.Balance) : 0m;
 
-            return rows.Select(s => new RiskProfileBar(
-                s.StallNo,
-                string.IsNullOrWhiteSpace(s.Occupant) ? s.ContractName : s.Occupant,
-                s.Balance,
-                s.Status,
-                max > 0 ? Math.Max(10, (int)Math.Round(s.Balance / max * 100m)) : 0,
-                s.Status.Equals("Unpaid", StringComparison.OrdinalIgnoreCase) ? "var(--red)" : "var(--gold)"));
+            return rows.Select(g =>
+            {
+                var openAmount = g.PartialAmount + g.UnpaidAmount;
+                var assessedAmount = g.PaidAmount + openAmount;
+                var paidPct = assessedAmount > 0m ? ClampPct(g.PaidAmount / assessedAmount * 100m) : 0;
+                var partialPct = assessedAmount > 0m ? ClampPct(g.PartialAmount / assessedAmount * 100m) : 0;
+                var unpaidPct = Math.Max(0, 100 - paidPct - partialPct);
+                var riskClass = g.UnpaidAmount > 0m ? "unpaid" : g.PartialAmount > 0m ? "partial" : "paid";
+                return new RiskProfileGroup(
+                    g.Section,
+                    g.PaidAmount,
+                    g.PartialAmount,
+                    g.UnpaidAmount,
+                    openAmount,
+                    g.OpenItems,
+                    g.UnpaidItems,
+                    g.PartialItems,
+                    paidPct,
+                    partialPct,
+                    unpaidPct,
+                    riskClass);
+            });
         }
     }
 

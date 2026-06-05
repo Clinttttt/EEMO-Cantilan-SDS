@@ -203,101 +203,131 @@
 
 /* ── Document Panel ──────────────────────────────────────── */
 .lsh-doc-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px 20px;
+    background: #fff;
+    border: 1px solid #d5dde5;
+    border-radius: 0;
+    padding: 30px 28px 40px;
     margin-bottom: 24px;
+    width: 100%;
+    min-height: 900px;
+    box-sizing: border-box;
+    box-shadow: 0 18px 38px rgba(9, 31, 52, .08);
+    color: #111827;
 }
 
 /* ── Document Header ─────────────────────────────────────── */
 .lsh-doc-header {
     text-align: center;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 2px solid var(--navy);
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 2px solid #111827;
+}
+
+.lsh-doc-logo {
+    display: block;
+    width: 58px;
+    height: 58px;
+    object-fit: contain;
+    margin: 0 auto 10px;
+}
+
+.lsh-doc-republic {
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: 10px;
+    color: #374151;
+}
+
+.lsh-doc-office {
+    margin: 7px 0 3px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 22px;
+    line-height: 1.15;
+    color: #111827;
 }
 
 .lsh-doc-gov {
     font-size: 12px;
-    color: var(--text-muted);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: .06em;
+    color: #4b5563;
+    font-weight: 400;
 }
 
 .lsh-doc-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--navy);
-    margin: 4px 0 2px;
+    margin-top: 18px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #111827;
+    text-transform: uppercase;
+    letter-spacing: .08em;
 }
 
 .lsh-doc-facility {
-    font-size: 12px;
+    margin-top: 5px;
+    font-size: 11px;
     font-weight: 700;
-    color: var(--gold);
+    color: #b98f27;
     text-transform: uppercase;
     letter-spacing: .1em;
 }
 
 /* ── Section Block ───────────────────────────────────────── */
 .lsh-section-block {
-    margin-bottom: 28px;
+    margin-bottom: 22px;
 }
 
 .lsh-section-label-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--navy);
-    border-radius: 8px 8px 0 0;
-    padding: 9px 14px;
+    background: #f3f6f9;
+    border: 1px solid #cfd6de;
+    border-bottom: none;
+    border-radius: 0;
+    padding: 9px 12px;
 }
 
 .lsh-section-label {
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .08em;
-    color: var(--gold);
+    font-weight: 800;
+    letter-spacing: .07em;
+    color: #111827;
     text-transform: uppercase;
 }
 
 .lsh-section-count {
-    font-size: 10px;
-    color: rgba(255,255,255,.5);
+    font-size: 9px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .05em;
 }
 
 /* ── Table — compact, no x-scroll ───────────────────────── */
 .lsh-table {
     width: 100%;
     border-collapse: collapse;
-    /* KEY: smaller base font so all columns fit without scrolling */
-    font-size: 11.5px;
-    color: var(--text);
-    border: 1px solid var(--border);
+    font-size: 10.5px;
+    color: #111827;
+    border: 1px solid #cfd6de;
     border-top: none;
-    border-radius: 0 0 8px 8px;
-    /* NO overflow-x — table must fit in the panel */
     table-layout: fixed;
 }
 
     .lsh-table thead tr {
-        background: #f7f9fb;
+        background: #f3f6f9;
     }
 
     .lsh-table th {
         padding: 7px 6px;
-        font-size: 10px;
+        font-size: 8.5px;
         font-weight: 700;
-        color: var(--navy);
+        color: #374151;
         text-transform: uppercase;
-        letter-spacing: .03em;
-        border-bottom: 1px solid var(--border);
-        border-right: 1px solid var(--border);
+        letter-spacing: .04em;
+        border-bottom: 1px solid #cfd6de;
+        border-right: 1px solid #cfd6de;
         text-align: center;
         line-height: 1.35;
-        word-break: break-word;
+        overflow-wrap: anywhere;
     }
 
         .lsh-table th:last-child {
@@ -305,9 +335,9 @@
         }
 
 .th-sub {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 500;
-    color: var(--text-muted);
+    color: #6b7280;
     text-transform: none;
     letter-spacing: 0;
     display: block;
@@ -315,13 +345,15 @@
 
 .lsh-table td {
     padding: 7px 6px;
-    border-bottom: 1px solid var(--border);
-    border-right: 1px solid #edf1f5;
+    border-bottom: 1px solid #cfd6de;
+    border-right: 1px solid #cfd6de;
     vertical-align: middle;
     line-height: 1.35;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-family: inherit;
+    font-weight: 400;
+    color: #111827;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
     .lsh-table td:last-child {
@@ -333,7 +365,7 @@
 }
 
 .lsh-table tbody tr:hover {
-    background: #f7f9fb;
+    background: #f8fafc;
 }
 
 /* Column fixed widths — tuned to fit sidebar layout */
@@ -396,12 +428,12 @@
 
 .r {
     text-align: right;
-    font-family: 'Consolas',monospace;
+    font-family: inherit;
 }
 
 .fw {
-    font-weight: 500;
-    color: var(--navy);
+    font-weight: 400;
+    color: #111827;
 }
 
 /* Muted contract name */
@@ -426,40 +458,40 @@
 
 /* ── Table Footer (section totals) ──────────────────────── */
 .tfoot-row {
-    background: #f0f4f8;
+    background: #f8fafc;
 }
 
 .tfoot-label {
     padding: 8px 8px;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    color: var(--navy);
+    color: #111827;
     text-transform: uppercase;
     letter-spacing: .04em;
     text-align: right;
-    border-top: 2px solid var(--border);
+    border-top: 1px solid #cfd6de;
 }
 
 .tfoot-val {
     font-weight: 700;
-    color: var(--navy);
-    border-top: 2px solid var(--border);
-    font-family: 'Consolas',monospace;
+    color: #111827;
+    border-top: 1px solid #cfd6de;
+    font-family: inherit;
 }
 
 /* ── Grand Total ─────────────────────────────────────────── */
 .lsh-grand-total {
     margin-top: 8px;
-    border: 2px solid var(--navy);
-    border-radius: 10px;
-    padding: 16px 20px;
-    background: #f7f9fb;
+    border: 1px solid #cfd6de;
+    border-radius: 0;
+    padding: 14px 16px;
+    background: #f8fafc;
 }
 
 .lsh-grand-label {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
-    color: var(--navy);
+    color: #111827;
     text-transform: uppercase;
     letter-spacing: .06em;
     margin-bottom: 12px;
@@ -472,15 +504,15 @@
 }
 
 .lsh-grand-val {
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 700;
-    color: var(--navy);
-    font-family: 'Consolas',monospace;
+    color: #111827;
+    font-family: inherit;
 }
 
 .lsh-grand-key {
-    font-size: 10px;
-    color: var(--text-muted);
+    font-size: 9px;
+    color: #6b7280;
     text-transform: uppercase;
     letter-spacing: .05em;
     margin-top: 2px;
@@ -508,10 +540,11 @@
         border: none !important;
         border-radius: 0 !important;
         padding: 0 !important;
+        box-shadow: none !important;
     }
 
     .lsh-section-label-row {
-        background: #0d2137 !important;
+        background: #f3f6f9 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }

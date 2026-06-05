@@ -128,7 +128,10 @@
 
                 <!-- Document Header -->
                 <div class="lsh-doc-header">
-                    <div class="lsh-doc-gov">Municipality of Cantilan</div>
+                    <img class="lsh-doc-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                    <div class="lsh-doc-republic">Republic of the Philippines</div>
+                    <div class="lsh-doc-office">Economic Enterprise &amp; Management Office</div>
+                    <div class="lsh-doc-gov">Municipality of Cantilan, Surigao del Sur</div>
                     <div class="lsh-doc-title">List of Stallholders</div>
                     <div class="lsh-doc-facility">@FacilityName.ToUpper()</div>
                 </div>
@@ -186,7 +189,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="tfoot-row">
-                                        <td colspan="6" class="tfoot-label">
+                                        <td colspan="7" class="tfoot-label">
                                             Section Total — @sectionStalls.Count(s => s.IsActive) active stall@(sectionStalls.Count(s => s.IsActive) != 1 ? "s" : "")
                                         </td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
@@ -245,7 +248,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="tfoot-row">
-                                    <td colspan="6" class="tfoot-label">
+                                    <td colspan="7" class="tfoot-label">
                                         Total — @FilteredNonNpmStalls.Count(s => s.IsActive) active stall@(FilteredNonNpmStalls.Count(s => s.IsActive) != 1 ? "s" : "")
                                     </td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>

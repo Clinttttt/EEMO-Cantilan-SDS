@@ -261,6 +261,14 @@
             var restored = await Session.RestoreSessionAsync();
             Navigation.NavigateTo(restored ? "/menu" : "/login", forceLoad: false);
         }
+        catch (HttpRequestException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+        }
+        catch (TaskCanceledException) when (!_cts.IsCancellationRequested)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+        }
         catch (TaskCanceledException)
         {
             // Component disposed before navigation — safe to ignore

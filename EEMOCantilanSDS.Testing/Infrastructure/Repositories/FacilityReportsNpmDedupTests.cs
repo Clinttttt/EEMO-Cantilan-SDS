@@ -159,6 +159,35 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task WeeklyReport_DailyFishKilos_CountAsRevenueButNotRentCompliance()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Fish Payor", "Fish Payor", new DateOnly(2026, 1, 1), 3, 900m);
+        var daily = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, 5));
+        daily.MarkPaid("OR-FISH", Guid.NewGuid(), fishKilos: 50m);
+
+        context.AddRange(facility, stall, contract, daily);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
+
+        Assert.Equal(80m, report.TotalRevenue);
+
+        var compliance = Assert.Single(report.StallCompliance);
+        Assert.Equal("Partial", compliance.Status);
+        Assert.Equal(30m, compliance.AmountPaid);
+        Assert.Equal(180m, compliance.Balance);
+
+        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Section");
+        Assert.Equal(80m, fishSection.Revenue);
+        Assert.Equal(Math.Round(30m / 210m * 100m, 2), Math.Round(fishSection.Percentage, 2));
+    }
+
+    [Fact]
     public async Task RevenueTrend_MarksActualPhilippineCurrentPeriod_NotLastBucket()
     {
         var context = NewContext();

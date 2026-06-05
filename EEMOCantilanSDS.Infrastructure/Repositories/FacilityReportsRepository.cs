@@ -158,8 +158,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     && !stallsWithNpmPeriodPayments.Contains(dc.StallId)
                     && dc.CollectionDate >= complianceStart && dc.CollectionDate <= complianceEnd)
                 .GroupBy(dc => dc.StallId)
-                .Select(g => new { StallId = g.Key, Total = g.Sum(dc => dc.DailyFee
-                    + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)) })
+                .Select(g => new { StallId = g.Key, Total = g.Sum(dc => dc.DailyFee) })
                 .ToDictionaryAsync(x => x.StallId, x => x.Total, ct)
             : new Dictionary<Guid, decimal>();
 
@@ -1719,14 +1718,25 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                     : 0m);
 
+            var dailyFeeRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
+                && IsStallCollectableOn(stall, dc.CollectionDate)
+                    ? dc.DailyFee
+                    : 0m);
+
+            var monthlyDailyFeeRevenue = allPaymentRecords.Sum(pr => stallsById.TryGetValue(pr.StallId, out var stall)
+                ? RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall)
+                : 0m);
+
             var actualRevenue = dailyRevenue + monthlyRevenue;
 
             // Calculate expected revenue for this section (occupied stalls only)
             var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive && !c.IsDeleted)).ToList();
             var expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(occupiedStalls, startDate, endDate);
 
-            // Calculate percentage as (actual / expected) * 100
-            var percentage = expectedRevenue > 0 ? (actualRevenue / expectedRevenue) * 100m : 0m;
+            // Collection rate is for the daily stall-rent obligation only. Fish kilo fees are
+            // revenue, but they must not inflate rent compliance or receivable-risk charts.
+            var rentCollected = dailyFeeRevenue + monthlyDailyFeeRevenue;
+            var percentage = expectedRevenue > 0 ? (rentCollected / expectedRevenue) * 100m : 0m;
             var sectionName = SectionLabel(section);
             var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);

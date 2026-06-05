@@ -1,8 +1,10 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Extensions;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -12,6 +14,82 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 public class StallRepository(AppDbContext context) : IStallRepository
 {
+    public async Task<MobileNpmCollectionDto> GetMobileNpmCollectionAsync(int year, int month, DateOnly collectionDate, CancellationToken ct)
+    {
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var effectiveEnd = GetEffectiveCollectionEnd(monthStart, monthEnd, collectionDate);
+
+        var stalls = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Include(s => s.DailyCollections.Where(d =>
+                d.CollectionDate >= monthStart &&
+                d.CollectionDate <= monthEnd &&
+                !d.IsDeleted))
+            .Where(s =>
+                s.Facility!.Code == FacilityCode.NPM &&
+                s.Status == StallStatus.Active &&
+                s.Section.HasValue &&
+                !s.IsDeleted)
+            .OrderBy(s => s.Section)
+            .ThenBy(s => s.StallNo)
+            .ToListAsync(ct);
+
+        var rows = stalls.Select(s =>
+        {
+            var contract = s.Contracts
+                .Where(c => c.IsActive && !c.IsDeleted)
+                .OrderByDescending(c => c.EffectivityDate)
+                .FirstOrDefault();
+
+            var dailyRate = s.DailyRate ?? FeeRates.NpmDailyFee;
+            var todayCollection = s.DailyCollections.FirstOrDefault(d => d.CollectionDate == collectionDate);
+            var paidCollections = s.DailyCollections
+                .Where(d => d.IsPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd)
+                .ToList();
+
+            var collectableDays = CountCollectableDays(contract?.EffectivityDate, monthStart, effectiveEnd);
+            var daysCollected = paidCollections.Count;
+            var daysMissed = Math.Max(0, collectableDays - daysCollected);
+            var monthCollectedAmount = paidCollections.Sum(d =>
+                d.DailyFee + (d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo));
+
+            return new MobileNpmStallCollectionDto(
+                s.Id,
+                s.StallNo,
+                string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
+                contract?.NameOnContract ?? contract?.ActualOccupant ?? string.Empty,
+                s.Section,
+                GetSectionName(s.Section),
+                s.Status,
+                dailyRate,
+                todayCollection is not null,
+                todayCollection?.IsPaid == true,
+                todayCollection?.FishKilos,
+                daysCollected,
+                daysMissed,
+                collectableDays,
+                monthCollectedAmount);
+        }).ToList();
+
+        var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
+        var pendingToday = rows.Where(r => r.CollectableDays > 0).ToList();
+
+        return new MobileNpmCollectionDto(
+            year,
+            month,
+            collectionDate,
+            rows.Count,
+            collectedToday.Count,
+            pendingToday.Count(r => !r.IsCollectedToday),
+            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo)),
+            pendingToday.Where(r => !r.IsCollectedToday).Sum(r => r.DailyRate),
+            rows.Sum(r => r.DaysCollected),
+            rows.Sum(r => r.DaysMissed),
+            rows);
+    }
+
     public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
     {
         var query = context.Stalls
@@ -120,6 +198,40 @@ public class StallRepository(AppDbContext context) : IStallRepository
         };
     }
 
+    private static DateOnly GetEffectiveCollectionEnd(DateOnly monthStart, DateOnly monthEnd, DateOnly collectionDate)
+    {
+        if (collectionDate < monthStart)
+            return monthStart.AddDays(-1);
+
+        if (collectionDate > monthEnd)
+            return monthEnd;
+
+        return collectionDate;
+    }
+
+    private static int CountCollectableDays(DateOnly? contractStart, DateOnly monthStart, DateOnly effectiveEnd)
+    {
+        if (effectiveEnd < monthStart)
+            return 0;
+
+        var start = contractStart.HasValue && contractStart.Value > monthStart
+            ? contractStart.Value
+            : monthStart;
+
+        if (start > effectiveEnd)
+            return 0;
+
+        return effectiveEnd.DayNumber - start.DayNumber + 1;
+    }
+
+    private static string GetSectionName(MarketSection? section) => section switch
+    {
+        MarketSection.VegetableArea => "Vegetable Area",
+        MarketSection.FishSection => "Fish Section",
+        MarketSection.MeatSection => "Meat Section",
+        _ => "Unassigned Section"
+    };
+
     public async Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct)
     {
         var query = context.Stalls
@@ -226,6 +338,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
     public async Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct)
     {
         return await context.Stalls
+            .Include(s => s.Facility)
             .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }

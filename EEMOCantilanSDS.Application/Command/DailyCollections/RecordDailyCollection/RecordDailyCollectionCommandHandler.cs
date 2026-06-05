@@ -9,6 +9,7 @@ namespace EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollec
 public class RecordDailyCollectionCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IStallRepository stallRepository,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
@@ -17,6 +18,19 @@ public class RecordDailyCollectionCommandHandler(
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null)
             return Result<bool>.NotFound();
+
+        if (currentUser.Role == "Collector")
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId || stall.Facility is null)
+                return Result<bool>.Forbidden();
+
+            var collector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
+            if (collector is null ||
+                !collector.FacilityAssignments.Any(a => a.FacilityCode == stall.Facility.Code))
+            {
+                return Result<bool>.Forbidden();
+            }
+        }
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "System";

@@ -20,6 +20,7 @@ public class RecordDailyCollectionCommandHandlerTests
 
         var dailyRepo = new Mock<IDailyCollectionRepository>();
         var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
 
@@ -37,7 +38,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, stallRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, DateOnly.FromDateTime(DateTime.UtcNow), IsPaid: true),

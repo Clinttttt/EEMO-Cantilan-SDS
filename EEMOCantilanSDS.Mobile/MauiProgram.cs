@@ -21,19 +21,22 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<MobileTokenStore>();
             builder.Services.AddSingleton<MobileSessionService>();
+            builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
             builder.Services.AddTransient<MobileAuthorizationDelegatingHandler>();
 
             builder.Services.AddHttpClient<ICollectorAuthApiClient, CollectorAuthApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
-            });
+            }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
             builder.Services.AddHttpClient<IMobileApiClient, MobileApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
-            }).AddHttpMessageHandler<MobileAuthorizationDelegatingHandler>();
+            })
+            .AddHttpMessageHandler<MobileLoopbackFallbackHandler>()
+            .AddHttpMessageHandler<MobileAuthorizationDelegatingHandler>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -46,7 +49,7 @@ namespace EEMOCantilanSDS.Mobile
         private static string GetApiBaseUrl()
         {
             // Connected phone development URL. Run: adb reverse tcp:5117 tcp:5117
-            return "http://127.0.0.1:5117/";
+            return "http://localhost:5117/";
         }
     }
 }
