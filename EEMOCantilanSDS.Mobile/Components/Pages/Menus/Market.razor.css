@@ -183,10 +183,7 @@
 }
 
 .section-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin: 17px 4px 9px;
+    margin: 17px 4px 8px;
     color: var(--text-muted);
     font-size: 10px;
     font-weight: 800;
@@ -194,28 +191,21 @@
     text-transform: uppercase;
 }
 
-.section-count {
-    letter-spacing: 0;
-    text-transform: none;
-    font-size: 11px;
-    color: var(--text-subtle);
-}
-
 .stall-row {
     width: 100%;
-    min-height: 86px;
+    min-height: 76px;
     display: grid;
-    grid-template-columns: 56px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     position: relative;
-    padding: 13px 14px 13px 16px;
-    margin-bottom: 10px;
+    padding: 13px 14px 13px 17px;
+    margin-bottom: 8px;
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 12px;
     text-align: left;
-    box-shadow: 0 10px 24px rgba(13, 33, 55, 0.05);
+    box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
 }
 
 .stall-row::before {
@@ -237,38 +227,20 @@
     background: var(--error-red);
 }
 
-.stall-num {
-    width: 52px;
-    min-height: 52px;
-    border-radius: 13px;
-    background: #f3f6f9;
-    border: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.stall-num-label {
-    color: var(--text-muted);
-    font-size: 8px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-.stall-num-val {
-    color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 1;
-}
-
 .stall-info {
     min-width: 0;
 }
 
+.stall-main-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
 .stall-name {
+    flex: 1;
+    min-width: 0;
     color: var(--navy-primary);
     font-size: 15px;
     font-weight: 800;
@@ -282,27 +254,27 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 7px;
+    margin-top: 8px;
     color: var(--text-subtle);
-    font-size: 10.5px;
+    font-size: 10px;
 }
 
 .stall-meta span {
     background: #f3f6f9;
     border: 1px solid #e8eef3;
-    border-radius: 999px;
-    padding: 3px 7px;
+    border-radius: 7px;
+    padding: 3px 6px;
 }
 
 .stall-amount-col {
-    min-width: 68px;
+    min-width: 56px;
     text-align: right;
 }
 
 .stall-amount {
     color: var(--navy-primary);
     font-family: "EB Garamond", serif;
-    font-size: 19px;
+    font-size: 20px;
     font-weight: 800;
     line-height: 1;
 }
@@ -311,10 +283,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-top: 8px;
     min-height: 22px;
     padding: 0 8px;
-    border-radius: 999px;
+    border-radius: 7px;
     font-size: 9.5px;
     font-weight: 800;
     white-space: nowrap;
@@ -424,6 +395,14 @@
     margin: -2px 0 12px;
 }
 
+.or-number-wrap {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px;
+    margin: -2px 0 12px;
+}
+
 .fish-input-row {
     display: flex;
     align-items: center;
@@ -445,6 +424,14 @@
     margin-bottom: 7px;
 }
 
+.form-label span {
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-subtle);
+}
+
 .form-input {
     width: 100%;
     min-height: 44px;
@@ -455,6 +442,18 @@
     color: var(--navy-primary);
     font-size: 14px;
     font-weight: 700;
+}
+
+.mono-input {
+    font-family: "Cascadia Mono", "Consolas", monospace;
+    letter-spacing: 0.8px;
+}
+
+.form-hint {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    line-height: 1.35;
+    margin-top: 7px;
 }
 
 .form-error {
@@ -500,15 +499,13 @@
 
 @media (max-width: 390px) {
     .stall-row {
-        grid-template-columns: 48px minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .stall-amount-col {
-        grid-column: 2;
-        text-align: left;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: -4px;
+        grid-column: auto;
+        text-align: right;
+        display: block;
+        margin-top: 0;
     }
 }

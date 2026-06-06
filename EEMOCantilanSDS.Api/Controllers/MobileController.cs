@@ -36,7 +36,8 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             request.StallId,
             PhilippineTime.Today,
             request.IsPaid,
-            request.FishKilos);
+            request.FishKilos,
+            request.ORNumber);
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

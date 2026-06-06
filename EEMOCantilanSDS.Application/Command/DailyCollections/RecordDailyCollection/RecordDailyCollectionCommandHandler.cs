@@ -42,7 +42,7 @@ public class RecordDailyCollectionCommandHandler(
             if (request.IsPaid)
             {
                 existing.MarkPaid(
-                    orNumber: string.Empty,
+                    orNumber: request.ORNumber?.Trim() ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
                     updatedBy: recordedBy);
@@ -62,7 +62,7 @@ public class RecordDailyCollectionCommandHandler(
             if (request.IsPaid)
             {
                 newCollection.MarkPaid(
-                    orNumber: string.Empty,
+                    orNumber: request.ORNumber?.Trim() ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
                     updatedBy: recordedBy);

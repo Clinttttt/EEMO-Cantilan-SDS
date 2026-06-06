@@ -66,6 +66,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 dailyRate,
                 todayCollection is not null,
                 todayCollection?.IsPaid == true,
+                todayCollection?.ORNumber,
                 todayCollection?.FishKilos,
                 daysCollected,
                 daysMissed,

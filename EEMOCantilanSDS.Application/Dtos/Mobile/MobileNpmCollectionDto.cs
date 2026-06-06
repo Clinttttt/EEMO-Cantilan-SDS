@@ -26,6 +26,7 @@ public sealed record MobileNpmStallCollectionDto(
     decimal DailyRate,
     bool IsMarkedToday,
     bool IsCollectedToday,
+    string? ORNumberToday,
     decimal? FishKilosToday,
     int DaysCollected,
     int DaysMissed,

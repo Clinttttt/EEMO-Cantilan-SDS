@@ -7,5 +7,6 @@ public record RecordDailyCollectionCommand(
     Guid StallId,
     DateOnly CollectionDate,
     bool IsPaid,
-    decimal? FishKilos = null
+    decimal? FishKilos = null,
+    string? ORNumber = null
 ) : IRequest<Result<bool>>;

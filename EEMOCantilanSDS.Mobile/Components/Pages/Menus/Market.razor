@@ -105,31 +105,30 @@
             {
                 @foreach (var sectionGroup in FilteredStalls.GroupBy(s => s.Section))
                 {
-                    <div class="section-label">
-                        @GetSectionHeading(sectionGroup.Key)
-                        <span class="section-count">@sectionGroup.Count() stalls</span>
-                    </div>
+                    <div class="section-label">@GetSectionHeading(sectionGroup.Key)</div>
 
                     @foreach (var stall in sectionGroup)
                     {
                         <button class="stall-row @GetRowClass(stall)" type="button" @onclick="() => OpenCollectionSheet(stall)">
-                            <div class="stall-num">
-                                <span class="stall-num-label">Stall</span>
-                                <span class="stall-num-val">@stall.StallNo</span>
-                            </div>
                             <div class="stall-info">
-                                <div class="stall-name">@stall.PayorName</div>
+                                <div class="stall-main-row">
+                                    <div class="stall-name">@stall.PayorName</div>
+                                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                                </div>
                                 <div class="stall-meta">
-                                    <span>@GetSectionShortName(stall.Section)</span>
+                                    <span>No. @stall.StallNo</span>
                                     @if (!string.IsNullOrWhiteSpace(stall.ContractName) && stall.ContractName != stall.PayorName)
                                     {
                                         <span>Contract: @stall.ContractName</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(stall.ORNumberToday))
+                                    {
+                                        <span>OR @stall.ORNumberToday</span>
                                     }
                                 </div>
                             </div>
                             <div class="stall-amount-col">
                                 <div class="stall-amount">@FormatCurrency(stall.DailyRate)</div>
-                                <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
                             </div>
                         </button>
                     }
@@ -182,6 +181,21 @@
                 </div>
             }
 
+            @if (SelectedIsPaid)
+            {
+                <div class="or-number-wrap">
+                    <div class="form-label">Official receipt no. <span>optional</span></div>
+                    <input class="form-input mono-input"
+                           type="text"
+                           inputmode="numeric"
+                           maxlength="30"
+                           placeholder="000001"
+                           @bind="ORNumber"
+                           @bind:event="oninput" />
+                    <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
+                </div>
+            }
+
             <button class="status-option @(!SelectedIsPaid ? "status-option-active unpaid" : "")" type="button" @onclick="() => SelectedIsPaid = false">
                 <div class="status-option-icon unpaid-icon-sm">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
@@ -225,6 +239,7 @@
     private MobileNpmStallCollectionDto? SelectedStall;
     private bool SelectedIsPaid;
     private decimal? FishKilos;
+    private string ORNumber = string.Empty;
 
     private readonly string[] FilterOptions = ["All", "Vegetable", "Fish", "Meat", "Collected", "Pending"];
 
@@ -268,6 +283,15 @@
         }
 
         Collection = result.Value;
+        if (Collection.CollectionDate.Year != SelectedYear || Collection.CollectionDate.Month != SelectedMonth)
+        {
+            SelectedYear = Collection.CollectionDate.Year;
+            SelectedMonth = Collection.CollectionDate.Month;
+            var currentMonthResult = await MobileApi.GetNpmCollectionAsync(SelectedYear, SelectedMonth);
+            if (currentMonthResult.IsSuccess && currentMonthResult.Value is not null)
+                Collection = currentMonthResult.Value;
+        }
+
         IsLoading = false;
     }
 
@@ -309,6 +333,7 @@
         SelectedStall = stall;
         SelectedIsPaid = stall.IsCollectedToday;
         FishKilos = stall.FishKilosToday;
+        ORNumber = stall.ORNumberToday ?? string.Empty;
         SheetError = null;
         ShowCollectionSheet = true;
     }
@@ -324,6 +349,7 @@
         var request = new RecordMobileNpmCollectionRequest(
             SelectedStall.StallId,
             SelectedIsPaid,
+            SelectedIsPaid ? ORNumber : null,
             SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null);
 
         var result = await MobileApi.RecordNpmCollectionAsync(request);
@@ -345,6 +371,7 @@
         SelectedStall = null;
         SelectedIsPaid = false;
         FishKilos = null;
+        ORNumber = string.Empty;
         SheetError = null;
     }
 
