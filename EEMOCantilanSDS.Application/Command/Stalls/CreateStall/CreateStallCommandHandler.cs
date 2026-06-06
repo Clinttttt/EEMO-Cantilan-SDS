@@ -29,7 +29,7 @@ public class CreateStallCommandHandler(
             request.AreaNote,
             request.DailyRate,
             null,
-            "Admin");
+            createdBy: "Admin");
 
         await stallRepo.AddAsync(stall, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);

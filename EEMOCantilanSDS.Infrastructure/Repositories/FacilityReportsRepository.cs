@@ -59,7 +59,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var previousCollectionRate = await CalculateCollectionRateAsync(facilityCode, facilityId, previousStart, previousEnd, ct);
         var collectionGrowth = CalculateGrowthPercentage(currentCollectionRate, previousCollectionRate);
 
-        var occupiedStalls = await CalculateOccupiedStallsAsync(facilityId, ct);
+        var occupiedStalls = await CalculateOccupiedStallsAsync(facilityId, currentStart, currentEnd, ct);
         var totalStalls = await CalculateTotalStallsAsync(facilityId, ct);
         var stallCompliance = await GenerateStallComplianceAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var pendingCount = stallCompliance.Count(s => s.Balance > 0m);
@@ -101,13 +101,78 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         );
     }
 
+    /// <summary>
+    /// Collection history for a facility: every month of <paramref name="year"/> (up to the
+    /// current month for the current year, all 12 for past years) plus a rolling 5-year summary.
+    /// Each row reuses the same aggregation primitives as the per-period report, so the figures
+    /// match exactly what the Weekly/Monthly/Yearly views show for those periods.
+    /// </summary>
+    public async Task<FacilityHistoryDto> GetFacilityHistoryAsync(
+        FacilityCode facilityCode,
+        int year,
+        CancellationToken ct)
+    {
+        var facility = await _context.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Code == facilityCode && !f.IsDeleted, ct)
+            ?? throw new InvalidOperationException($"Facility with code {facilityCode} not found");
+        var facilityId = facility.Id;
+        var today = PhilippineTime.Today;
+
+        // Current year: only months that have started. Past years: all 12. Future years: none.
+        var maxMonth = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
+
+        var monthly = new List<FacilityHistoryPeriodDto>();
+        for (var m = 1; m <= maxMonth; m++)
+        {
+            var (start, end) = CalculateMonthlyDateRange(year, m);
+            var s = await ComputePeriodSummaryAsync(facilityCode, facilityId, start, end, ct);
+            monthly.Add(new FacilityHistoryPeriodDto(
+                new DateOnly(year, m, 1).ToString("MMMM"), year, m,
+                s.TotalStalls, s.Collected, s.Outstanding, s.FollowUp, s.Rate));
+        }
+
+        var yearly = new List<FacilityHistoryPeriodDto>();
+        for (var y = year - 4; y <= year; y++)
+        {
+            var (start, end) = CalculateYearlyDateRange(y);
+            var s = await ComputePeriodSummaryAsync(facilityCode, facilityId, start, end, ct);
+            yearly.Add(new FacilityHistoryPeriodDto(
+                y.ToString(), y, null,
+                s.TotalStalls, s.Collected, s.Outstanding, s.FollowUp, s.Rate));
+        }
+
+        return new FacilityHistoryDto(year, monthly, yearly);
+    }
+
+    /// <summary>
+    /// Computes the five history figures for one period from the existing tested aggregation
+    /// helpers, so they stay consistent with the main report. Outstanding/follow-up/stall-count
+    /// come from the period-scoped compliance rows; collected and rate from their own helpers.
+    /// </summary>
+    private async Task<(int TotalStalls, decimal Collected, decimal Outstanding, int FollowUp, decimal Rate)>
+        ComputePeriodSummaryAsync(FacilityCode facilityCode, Guid facilityId, DateOnly start, DateOnly end, CancellationToken ct)
+    {
+        var compliance = await GenerateStallComplianceAsync(facilityCode, facilityId, start, end, ct);
+        var collected = facilityCode == FacilityCode.NPM
+            ? await CalculateNpmRevenueAsync(facilityId, start, end, ct)
+            : await CalculateMonthlyRentalRevenueAsync(facilityId, start, end, ct);
+        var rate = await CalculateCollectionRateAsync(facilityCode, facilityId, start, end, ct);
+
+        return (
+            compliance.Count,
+            collected,
+            compliance.Sum(c => c.Balance),
+            compliance.Count(c => c.Balance > 0m),
+            rate);
+    }
+
     #region Stall Compliance Helpers
 
     /// <summary>
     /// Per-stall compliance rows for the report page (powers both the delinquency table
     /// and the full "all stalls" table). Covers occupied stalls (active contract) only.
     /// Status/balance reflect the selected period; MissedMonths counts months in the
-    /// period year (up to the period month) with no fully-Paid monthly record.
+    /// period year (up to the period month) the stall was under contract yet paid nothing
+    /// (NPM recognises daily collections; see <see cref="CountMissedMonths"/>).
     /// </summary>
     private async Task<IReadOnlyList<StallComplianceDto>> GenerateStallComplianceAsync(
         FacilityCode facilityCode,
@@ -116,13 +181,19 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         DateOnly endDate,
         CancellationToken ct)
     {
-        var stalls = await _context.Stalls
+        var stalls = (await _context.Stalls
             .AsNoTracking()
             .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
             .Where(s => s.FacilityId == facilityId
                 && !s.IsDeleted
                 && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
-            .ToListAsync(ct);
+            .ToListAsync(ct))
+            // Only stalls whose contract was actually effective during the selected period.
+            // Without this, a stall whose contract starts after the period (or expired before it)
+            // appears with a ₱0 obligation and renders as a phantom "Paid" payor for a month it
+            // did not yet operate — e.g. viewing May when every contract begins June 5.
+            .Where(s => CountNpmCollectableDays(s, startDate, endDate) > 0)
+            .ToList();
 
         if (stalls.Count == 0)
             return Array.Empty<StallComplianceDto>();
@@ -161,6 +232,21 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 .Select(g => new { StallId = g.Key, Total = g.Sum(dc => dc.DailyFee) })
                 .ToDictionaryAsync(x => x.StallId, x => x.Total, ct)
             : new Dictionary<Guid, decimal>();
+
+        // Months (this year, up to the report month) in which each NPM stall recorded at least one
+        // paid daily collection. NPM is collected daily, so a daily collection — not a monthly
+        // "Paid" PaymentRecord — is the real evidence that a month was paid. Used by CountMissedMonths.
+        var yearStart = new DateOnly(endDate.Year, 1, 1);
+        var dailyPaidMonthsByStall = includeFish
+            ? (await _context.DailyCollections
+                    .AsNoTracking()
+                    .Where(dc => stallIds.Contains(dc.StallId) && !dc.IsDeleted && dc.IsPaid
+                        && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
+                    .Select(dc => new { dc.StallId, dc.CollectionDate })
+                    .ToListAsync(ct))
+                .GroupBy(x => x.StallId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate.Month).ToHashSet())
+            : new Dictionary<Guid, HashSet<int>>();
 
         var rows = new List<StallComplianceDto>();
 
@@ -204,13 +290,15 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var balance = Math.Max(0m, totalBill - amountPaid);
             var status = balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
-            var missedMonths = CountMissedMonths(paymentRecords, s.Id, endDate);
+            var missedMonths = CountMissedMonths(
+                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id));
 
             rows.Add(new StallComplianceDto(
                 s.StallNo,
                 contract?.ActualOccupant ?? string.Empty,
                 contract?.NameOnContract ?? string.Empty,
                 s.Section.HasValue ? SectionLabel(s.Section) : s.AreaLocation?.ToString() ?? string.Empty,
+                s.Type.ToString(),
                 s.MonthlyRate,
                 s.DailyRate ?? (includeFish ? FeeRates.NpmDailyFee : 0m),
                 status,
@@ -218,22 +306,71 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 balance,
                 orNumber,
                 missedMonths,
-                s.AreaSqm ?? 0));
+                s.AreaSqm ?? 0,
+                contract?.EffectivityDate,
+                contract?.DurationYears ?? 0));
         }
 
         return rows.OrderBy(r => r.StallNo).ToList();
     }
 
-    private static int CountMissedMonths(List<PaymentRecord> paymentRecords, Guid stallId, DateOnly endDate)
+    /// <summary>
+    /// Counts months (this year, up to the report month) in which the stall was under an active
+    /// contract yet recorded no payment at all — the delinquency signal for the report page.
+    /// <para>
+    /// Two rules keep this honest:
+    /// (1) Months before the contract's effectivity (or after expiry) are never counted — a stall
+    ///     cannot be "behind" on a month it was not yet operating.
+    /// (2) For NPM, which is collected daily, a month counts as paid if it has either a paid daily
+    ///     collection OR a non-Unpaid monthly record. Without this, every NPM stall would read as
+    ///     fully delinquent because daily payors rarely have monthly "Paid" records.
+    /// Other facilities keep the monthly-billing rule: a month is missed unless it has a fully-Paid
+    /// record (Partial still counts as behind, matching the dashboard delinquency definition).
+    /// </para>
+    /// </summary>
+    private static int CountMissedMonths(
+        List<PaymentRecord> paymentRecords,
+        Stall stall,
+        DateOnly endDate,
+        bool isNpm,
+        HashSet<int>? dailyPaidMonths)
     {
-        var paidMonths = paymentRecords
-            .Where(pr => pr.StallId == stallId && pr.Status == PaymentStatus.Paid && pr.BillingYear == endDate.Year)
+        dailyPaidMonths ??= new HashSet<int>();
+
+        var stallPayments = paymentRecords
+            .Where(pr => pr.StallId == stall.Id && pr.BillingYear == endDate.Year)
+            .ToList();
+
+        // Months with a fully-Paid record (non-NPM "covered" rule).
+        var paidMonths = stallPayments
+            .Where(pr => pr.Status == PaymentStatus.Paid)
+            .Select(pr => pr.BillingMonth)
+            .ToHashSet();
+
+        // Months with any non-Unpaid record (NPM "paid something" rule).
+        var settledMonths = stallPayments
+            .Where(pr => pr.Status != PaymentStatus.Unpaid)
             .Select(pr => pr.BillingMonth)
             .ToHashSet();
 
         var missed = 0;
         for (var m = 1; m <= endDate.Month; m++)
-            if (!paidMonths.Contains(m)) missed++;
+        {
+            var monthStart = new DateOnly(endDate.Year, m, 1);
+            var monthEnd = new DateOnly(endDate.Year, m, DateTime.DaysInMonth(endDate.Year, m));
+
+            // Skip months the stall was not under an active contract (pre-effectivity / post-expiry).
+            if (CountNpmCollectableDays(stall, monthStart, monthEnd) == 0)
+                continue;
+
+            var covered = isNpm
+                ? settledMonths.Contains(m) || dailyPaidMonths.Contains(m)
+                : paidMonths.Contains(m);
+
+            if (!covered)
+                missed++;
+        }
+
         return missed;
     }
 
@@ -739,39 +876,40 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var npmStallIds = npmStallsById.Keys.ToList();
             var expectedDailyFees = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, startDate, endDate);
 
+            var npmPaymentRecords = await _context.PaymentRecords
+                .AsNoTracking()
+                .Where(pr => npmStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+                .ToListAsync(ct);
+
+            var monthlyDailyFeeRevenue = npmPaymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
+                ? RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall)
+                : 0m);
+
+            var stallsWithMonthlyPayments = npmPaymentRecords
+                .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate)
+                    && pr.Status != PaymentStatus.Unpaid)
+                .Select(pr => pr.StallId)
+                .ToHashSet();
+
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => npmStallIds.Contains(dc.StallId)
                     && !dc.IsDeleted
                     && dc.IsPaid
                     && dc.CollectionDate >= startDate
-                    && dc.CollectionDate <= endDate)
+                    && dc.CollectionDate <= endDate
+                    && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
 
-            var collectedFishFees = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
+            var dailyFeeRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                 && IsStallCollectableOn(stall, dc.CollectionDate)
-                    ? dc.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo
+                    ? dc.DailyFee
                     : 0m);
 
-            var monthlyFishFees = await _context.PaymentRecords
-                .AsNoTracking()
-                .Where(pr => npmStallIds.Contains(pr.StallId) && !pr.IsDeleted)
-                .ToListAsync(ct);
-
-            var collectedMonthlyFishFees = monthlyFishFees
-                .Where(pr => pr.Status == PaymentStatus.Paid
-                    && IsWholeBillingMonthSelected(pr, startDate, endDate)
-                    && npmStallsById.TryGetValue(pr.StallId, out var stall)
-                    && CountNpmCollectableDays(stall, startDate, endDate) > 0)
-                .Sum(pr => pr.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo);
-
-            var totalAssessed = expectedDailyFees + collectedFishFees + collectedMonthlyFishFees;
-            var npmTotalCollected = await CalculateNpmRevenueAsync(facilityId, startDate, endDate, ct);
-
-            if (totalAssessed == 0)
+            if (expectedDailyFees == 0)
                 return 0m;
 
-            return Math.Min(100m, (npmTotalCollected / totalAssessed) * 100m);
+            return Math.Min(100m, ((monthlyDailyFeeRevenue + dailyFeeRevenue) / expectedDailyFees) * 100m);
         }
 
         var allPaymentRecords = await _context.PaymentRecords
@@ -814,14 +952,22 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     /// </summary>
     private async Task<int> CalculateOccupiedStallsAsync(
         Guid facilityId,
+        DateOnly startDate,
+        DateOnly endDate,
         CancellationToken ct)
     {
-        return await _context.Stalls
+        // "Occupied" is period-scoped: a stall counts only if its contract was effective during
+        // the selected period. A stall whose contract starts after the period (or expired before
+        // it) is not occupied for that period, so it must not inflate the occupancy card.
+        var stalls = await _context.Stalls
             .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
             .Where(s => s.FacilityId == facilityId
                 && !s.IsDeleted
                 && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
-            .CountAsync(ct);
+            .ToListAsync(ct);
+
+        return stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
     }
 
     private async Task<int> CalculateTotalStallsAsync(
@@ -1738,7 +1884,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var rentCollected = dailyFeeRevenue + monthlyDailyFeeRevenue;
             var percentage = expectedRevenue > 0 ? (rentCollected / expectedRevenue) * 100m : 0m;
             var sectionName = SectionLabel(section);
-            var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var activeStalls = stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
             var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
 

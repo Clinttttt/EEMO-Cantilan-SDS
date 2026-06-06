@@ -27,4 +27,7 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
         
         return await GetAsync<FacilityReportsDto>(query);
     }
+
+    public async Task<Result<FacilityHistoryDto>> GetFacilityHistoryAsync(FacilityCode facilityCode, int year) =>
+        await GetAsync<FacilityHistoryDto>($"api/Facilities/{facilityCode}/history?year={year}");
 }

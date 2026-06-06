@@ -1,7 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
-using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
-using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
@@ -55,6 +55,16 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
         [FromQuery] int? weekNumber = null)
     {
         var query = new GetFacilityReportsQuery(facilityCode, period, year, month, weekNumber);
+        var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("{facilityCode}/history")]
+    public async Task<ActionResult<FacilityHistoryDto>> GetFacilityHistory(
+        [FromRoute] FacilityCode facilityCode,
+        [FromQuery] int year)
+    {
+        var query = new GetFacilityHistoryQuery(facilityCode, year);
         var result = await Sender.Send(query);
         return HandleResponse(result);
     }

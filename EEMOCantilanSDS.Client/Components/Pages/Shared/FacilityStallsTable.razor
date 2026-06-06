@@ -33,59 +33,117 @@
     {
         <div class="table-wrap">
             <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Stall No.</th>
-                        <th>Actual Occupant</th>
-                        <th>Name on Contract</th>
-                        <th>Area (sqm)</th>
-                        <th>Contract Date</th>
-                        <th>Monthly Rent</th>
-                        <th>OR No.</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var s in FilteredStalls)
-                    {
-                        <tr class="@GetRowClass(s) data-row">
-                            <td>@GetStallNo(s)</td>
-                            <td>@GetActualOccupant(s)</td>
-                            <td>
-                                @{
-                                    var contractName = GetContractName(s);
-                                    if (string.IsNullOrEmpty(contractName) || contractName.StartsWith("No contract"))
+                @if (ColumnSet == "Operational")
+                {
+                    <thead>
+                        <tr>
+                            <th>Stall No.</th>
+                            <th>Occupant</th>
+                            <th>Today</th>
+                            <th>Days Paid</th>
+                            <th>Last Paid</th>
+                            <th>OR No.</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in FilteredStalls)
+                        {
+                            <tr class="@GetRowClass(s) data-row">
+                                <td>@GetStallNo(s)</td>
+                                <td>@GetActualOccupant(s)</td>
+                                <td>
+                                    @if (GetPaidToday(s))
                                     {
-                                        <span>No contract</span>
+                                        <span class="today-pill today-paid">
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                            Paid today
+                                        </span>
                                     }
                                     else
                                     {
-                                        @contractName
+                                        <span class="today-pill today-pending">
+                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><line x1="12" y1="7" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                            Not yet
+                                        </span>
                                     }
-                                }
-                            </td>
-                            <td>@GetAreaSqm(s)</td>
-                            <td>@GetContractDate(s)</td>
-                            <td>₱@GetMonthlyRate(s).ToString("N0")</td>
-                            <td>
-                                <span class="mono">@GetORNumber(s)</span>
-                            </td>
-                            <td>
-                                <div class="action-btns">
-                                    <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
-                                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                                    </button>
-                                    <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
-                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                    </button>
-                                    <button class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">
-                                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                    </button>
-                                </div>
-                            </td>
+                                </td>
+                                <td><span class="days-paid">@GetDaysPaid(s)</span> <span class="days-unit">days</span></td>
+                                <td>@GetLastPaid(s)</td>
+                                <td><span class="mono">@GetORNumber(s)</span></td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                        </button>
+                                        <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                        </button>
+                                        <button class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">
+                                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                }
+                else
+                {
+                    <thead>
+                        <tr>
+                            <th>Stall No.</th>
+                            <th>Actual Occupant</th>
+                            <th>Name on Contract</th>
+                            <th>Area (sqm)</th>
+                            <th>Contract Date</th>
+                            <th>Monthly Rent</th>
+                            <th>OR No.</th>
+                            <th>Actions</th>
                         </tr>
-                    }
-                </tbody>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in FilteredStalls)
+                        {
+                            <tr class="@GetRowClass(s) data-row">
+                                <td>@GetStallNo(s)</td>
+                                <td>@GetActualOccupant(s)</td>
+                                <td>
+                                    @{
+                                        var contractName = GetContractName(s);
+                                        if (string.IsNullOrEmpty(contractName) || contractName.StartsWith("No contract"))
+                                        {
+                                            <span>No contract</span>
+                                        }
+                                        else
+                                        {
+                                            @contractName
+                                        }
+                                    }
+                                </td>
+                                <td>@GetAreaSqm(s)</td>
+                                <td>@GetContractDate(s)</td>
+                                <td>₱@GetMonthlyRate(s).ToString("N0")</td>
+                                <td>
+                                    <span class="mono">@GetORNumber(s)</span>
+                                </td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                        </button>
+                                        <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                        </button>
+                                        <button class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">
+                                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                }
             </table>
         </div>
     }
@@ -94,6 +152,7 @@
 @code {
 
     [Parameter] public string Facility { get; set; } = string.Empty;
+    [Parameter] public string ColumnSet { get; set; } = "Lease";
     [Parameter] public IEnumerable<TStall> FilteredStalls { get; set; } = new List<TStall>();
     [Parameter] public EventCallback<TStall> OnPaymentClick { get; set; }
     [Parameter] public EventCallback<TStall> OnHistoryClick { get; set; }
@@ -106,6 +165,15 @@
     private double GetAreaSqm(TStall stall) => GetPropertyValue<double?>(stall, "AreaSqm") ?? 0;
     private string GetORNumber(TStall stall) => GetPropertyValue<string>(stall, "ORNumber") ?? "—";
     private decimal GetMonthlyRate(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyRate") ?? 0;
+
+    // ── Operational (NPM daily) accessors ──
+    private bool GetPaidToday(TStall stall) => GetPropertyValue<bool?>(stall, "PaidToday") ?? false;
+    private int GetDaysPaid(TStall stall) => GetPropertyValue<int?>(stall, "DaysPaidThisMonth") ?? 0;
+    private string GetLastPaid(TStall stall)
+    {
+        var date = GetPropertyValue<DateOnly?>(stall, "LastPaidDate");
+        return date.HasValue ? date.Value.ToString("MMM d") : "—";
+    }
 
     private string GetContractDate(TStall stall)
     {
@@ -124,10 +192,15 @@
     private string GetRowClass(TStall stall)
     {
         var isActive = GetPropertyValue<bool?>(stall, "IsActive") ?? true;
+        if (!isActive) return "row-inactive";
+
+        // Operational (NPM daily) mode: tint reflects whether today's ₱30 was collected.
+        if (ColumnSet == "Operational")
+            return GetPaidToday(stall) ? "row-paid" : "row-unpaid";
+
         var isPaid = GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
         var isPartial = GetPropertyValue<bool?>(stall, "IsPartial") ?? false;
 
-        if (!isActive) return "row-inactive";
         if (isPaid) return "row-paid";
         if (isPartial) return "row-partial";
         return "row-unpaid";

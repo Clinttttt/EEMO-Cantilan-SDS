@@ -176,6 +176,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly, 2026, 6, 1, CancellationToken.None);
 
         Assert.Equal(80m, report.TotalRevenue);
+        Assert.Equal(Math.Round(30m / 210m * 100m, 2), Math.Round(report.CollectionRate, 2));
 
         var compliance = Assert.Single(report.StallCompliance);
         Assert.Equal("Partial", compliance.Status);

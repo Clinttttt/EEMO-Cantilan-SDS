@@ -34,6 +34,11 @@ namespace EEMOCantilanSDS.Domain.Enums
         Active = 1,
         Closed = 2,
     }
+    public enum StallType
+    {
+        Permanent = 1,
+        Transient = 2,
+    }
     public enum PaymentStatus
     {
         Unpaid = 1,

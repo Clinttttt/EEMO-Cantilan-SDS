@@ -141,7 +141,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
 }
 
 .rpt-period-tabs {
@@ -187,17 +187,16 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 6px 13px rgba(9,31,52,.14);
 }
 .rpt-utility-tab {
-    margin-left: 12px;
-    min-width: 154px;
     border-color: color-mix(in srgb, var(--gold) 42%, var(--border));
     background: linear-gradient(180deg, #fff 0%, color-mix(in srgb, var(--bg-card) 92%, var(--gold)) 100%);
     color: var(--navy);
-    gap: 7px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 4px rgba(9,31,52,.07);
 }
 .rpt-document-tab,
 .rpt-utility-tab {
     gap: 7px;
+    padding: 0 16px;
+    min-width: 0;
 }
 .rpt-document-tab svg,
 .rpt-utility-tab svg {
@@ -245,6 +244,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 .rpt-nav-btn {
     width: 28px; height: 28px;
@@ -492,6 +493,15 @@
 .rpt-bar-group.current .bar3d-front {
     background: linear-gradient(180deg, #d4b45e 0%, #c8a84b 100%);
 }
+
+/* Zero-value day: no stub bar — the ₱0 label + gridlines convey the empty day. */
+.rpt-bar-group.is-zero .bar3d-front {
+    min-height: 0;
+    background: none;
+    filter: none;
+}
+.rpt-bar-group.is-zero .rpt-bar-3d { filter: none; }
+.rpt-bar-group.is-zero .rpt-bar-val { color: var(--text-muted); }
 
 /* Top face */
 .bar3d-top,
@@ -900,9 +910,15 @@
     gap: 20px;
 }
 
+.fish-caption {
+    font-size: 12px;
+    color: var(--text-subtle);
+    margin: -4px 0 2px;
+}
 .fish-kpi-row {
     display: flex;
-    gap: 32px;
+    gap: 28px;
+    row-gap: 18px;
     flex-wrap: wrap;
 }
 .fish-kpi { display: flex; flex-direction: column; gap: 2px; }
@@ -910,12 +926,22 @@
     font-size: 22px; font-weight: 700;
     color: var(--navy);
 }
+.fish-kpi-unit { font-size: 14px; font-weight: 600; color: var(--text-subtle); }
 .fish-kpi-lbl {
     font-size: 11px; font-weight: 600;
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--text-muted);
 }
+.fish-insight {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 14px;
+    background: color-mix(in srgb, #4a9eff 8%, var(--bg-card));
+    border: 1px solid color-mix(in srgb, #4a9eff 24%, transparent);
+    border-radius: 10px;
+    font-size: 12.5px; font-weight: 500; color: var(--navy);
+}
+.fish-insight svg { width: 16px; height: 16px; color: #4a9eff; flex-shrink: 0; }
 
 .fish-trend-chart {
     display: flex;
@@ -1394,6 +1420,96 @@
 .print-report-summary {
     background: #f8fafc;
 }
+/* ── Per-section blocks ── */
+.print-empty {
+    margin: 22px 0 0;
+    padding: 16px;
+    text-align: center;
+    font-size: 12px;
+    color: #6b7280;
+    border: 1px dashed #cfd6de;
+    background: #f8fafc;
+}
+/* History table */
+.history-sheet .history-table { font-size: 15px !important; }
+.history-sheet .history-table th { font-size: 13px !important; }
+.history-sheet .history-table td { padding: 13px 14px; }
+.history-sheet .history-table th:first-child,
+.history-sheet .history-table td:first-child { min-width: 110px; white-space: nowrap; }
+.history-empty { text-align: center; color: #6b7280; padding: 18px 0; }
+/* History page — larger meta + heading to match table scale */
+.history-sheet .print-report-meta span  { font-size: 12px; }
+.history-sheet .print-report-meta strong { font-size: 16px; }
+.history-sheet .print-section-heading   { font-size: 15px; }
+.history-sheet .history-total-row td    { font-size: 15px !important; padding: 13px 14px; }
+.history-sheet .print-report-signatures { margin-top: 40px; }
+.history-sheet .print-report-signatures span  { font-size: 13px; }
+.history-sheet .print-report-signatures strong { font-size: 15px; }
+
+/* Status Report page — bump from print-compact to readable screen size */
+.status-sheet .print-report-meta span   { font-size: 11px; }
+.status-sheet .print-report-meta strong { font-size: 14px; }
+.status-sheet .print-report-summary span,
+.status-sheet .print-section-summary span  { font-size: 10px; }
+.status-sheet .print-report-summary strong,
+.status-sheet .print-section-summary strong { font-size: 14px; }
+.status-sheet .print-section-heading   { font-size: 13px; }
+.status-sheet .print-status-table      { font-size: 13px; }
+.status-sheet .print-status-table th   { font-size: 11px; }
+.status-sheet .print-status-table td   { padding: 9px 10px; }
+.status-sheet .print-report-signatures span  { font-size: 12px; }
+.status-sheet .print-report-signatures strong { font-size: 14px; }
+.history-table tfoot .history-total-row td {
+    background: #f3f6f9;
+    border-top: 2px solid #cfd6de;
+    font-size: 10px;
+}
+.print-status-table td.rate-good    { color: #2d7a5f; font-weight: 600; }
+.print-status-table td.rate-partial { color: #c8a84b; font-weight: 600; }
+.print-status-table td.rate-low     { color: #8b3a3a; font-weight: 600; }
+.print-status-table td.balance-due  { color: #8b3a3a; }
+.print-section-block {
+    margin-top: 22px;
+}
+.print-section-heading {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: #0d2137;
+    padding: 6px 0 4px;
+    border-bottom: 2px solid #0d2137;
+    margin-bottom: 0;
+}
+.print-section-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid #cfd6de;
+    border-top: none;
+    background: #f8fafc;
+}
+.print-section-summary div {
+    padding: 7px 10px;
+    border-right: 1px solid #cfd6de;
+}
+.print-section-summary div:last-child { border-right: none; }
+.print-section-summary span {
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-size: 8.5px;
+    color: #6b7280;
+}
+.print-section-summary strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    color: #111827;
+}
+/* Status cell colours */
+.print-status-table td.status-paid    { color: #2d7a5f; font-weight: 600; }
+.print-status-table td.status-partial { color: #c8a84b; font-weight: 600; }
+.print-status-table td.status-unpaid  { color: #8b3a3a; font-weight: 600; }
 .print-table-wrap {
     margin-top: 20px;
     width: 100%;
@@ -1568,41 +1684,94 @@
 .rpt-empty-title { font-size: 14px; font-weight: 700; color: var(--text-subtle, #6a8aa0); }
 .rpt-empty-text { font-size: 12.5px; color: var(--text-muted, #8faabf); }
 
-/* ── Clean fish kilo bar chart ── */
+/* ── Fish kilo bar chart — gridlined plot, matches Collection Trend ── */
 .rpt-fish-chart {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
-    height: 220px;
-    padding: 12px 4px 0;
+    gap: 12px;
+    height: 248px;
+    padding: 16px 18px 10px;
+    position: relative;
     overflow-x: auto;
+    /* Horizontal gridlines + subtle floor wash — same language as .rpt-bar-chart */
+    background:
+        repeating-linear-gradient(
+            to top,
+            transparent 0,
+            transparent 39px,
+            color-mix(in srgb, var(--border) 55%, transparent) 40px
+        ),
+        linear-gradient(to top, rgba(74, 158, 255, 0.04) 0%, transparent 100%);
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
 }
 .rpt-fish-col {
-    flex: 1 0 22px;
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     height: 100%;
+    justify-content: flex-end;
+    min-width: 26px;
 }
+.rpt-fish-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: #2f6fbf;
+    height: 16px;
+    line-height: 16px;
+    letter-spacing: .01em;
+}
+.rpt-fish-col.is-zero .rpt-fish-val { color: transparent; }
 .rpt-fish-track {
+    position: relative;
     flex: 1;
     width: 100%;
-    max-width: 28px;
+    max-width: 46px;
+    margin: 0 auto;
     display: flex;
     align-items: flex-end;
 }
 .rpt-fish-fill {
+    position: relative;
+    z-index: 1;
     width: 100%;
-    min-height: 2px;
-    background: linear-gradient(180deg, #6cb6ff, #4a9eff);
-    border-radius: 4px 4px 0 0;
-    transition: height .3s ease;
+    min-height: 0;
+    background: linear-gradient(180deg, #7cc0ff 0%, #4a9eff 58%, #3f8fe6 100%);
+    border-radius: 8px 8px 3px 3px;
+    box-shadow: 0 8px 14px color-mix(in srgb, #4a9eff 24%, transparent);
+    transition: height .35s cubic-bezier(.4, 0, .2, 1), filter .15s ease, transform .15s ease;
+}
+.rpt-fish-fill::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 42%;
+    border-radius: 8px 8px 0 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .40), rgba(255, 255, 255, 0));
+}
+.rpt-fish-col:hover .rpt-fish-fill {
+    filter: brightness(1.05);
+    transform: translateY(-2px);
+}
+/* Zero-kilo day: thin baseline tick on the floor — no placeholder box */
+.rpt-fish-col.is-zero .rpt-fish-track::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 3px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--border) 85%, transparent);
 }
 .rpt-fish-xlabel {
-    margin-top: 8px;
+    margin-top: 9px;
     font-size: 10.5px;
     color: var(--text-muted, #8faabf);
     white-space: nowrap;
+    font-weight: 500;
 }
 
 
@@ -1813,6 +1982,12 @@
     text-align: center;
     font-size: 12px;
 }
+.audit-empty-inline {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 10px 4px 4px;
+    margin: 0;
+}
 .audit-bar-plot {
     height: 174px;
     display: flex;
@@ -1853,37 +2028,45 @@
     justify-content: center;
     min-height: 0;
 }
-.audit-payor-fill {
+.audit-payor-stack {
     width: min(88px, 74%);
-    min-height: 3px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
     border-radius: 8px 8px 2px 2px;
-    position: relative;
-    transform-origin: bottom center;
-    box-shadow: 0 9px 16px color-mix(in srgb, var(--navy) 8%, transparent);
     overflow: hidden;
+    box-shadow: 0 9px 16px color-mix(in srgb, var(--navy) 8%, transparent);
 }
-.audit-payor-fill::before,
-.audit-payor-fill::after {
-    content: "";
-    position: absolute;
-    background: inherit;
-    pointer-events: none;
+.audit-seg {
+    width: 100%;
+    min-height: 0;
+    transition: height .4s cubic-bezier(.4, 0, .2, 1);
 }
-.audit-payor-fill::before {
-    inset: 0 0 auto 0;
-    height: 34%;
-    background: linear-gradient(180deg, rgba(255,255,255,.28), rgba(255,255,255,0));
+.audit-seg.seg-rent { background: linear-gradient(180deg, #3fa07a, var(--green)); }
+.audit-seg.seg-fish { background: linear-gradient(180deg, #6cb6ff, #4a9eff); }
+.audit-payor-stack.is-zero { opacity: .42; box-shadow: none; }
+.audit-stack-legend {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-top: 12px;
 }
-.audit-payor-fill::after {
-    display: none;
+.audit-stack-legend .audit-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-subtle);
 }
-.audit-payor-fill.is-zero {
-    opacity: .42;
-    box-shadow: 0 5px 10px color-mix(in srgb, var(--navy) 5%, transparent);
+.audit-stack-legend i {
+    width: 11px; height: 11px;
+    border-radius: 3px;
+    display: inline-block;
 }
-.audit-payor-fill.is-zero::before {
-    opacity: .58;
-}
+.audit-stack-legend i.seg-rent { background: var(--green); }
+.audit-stack-legend i.seg-fish { background: #4a9eff; }
 .audit-payor-label {
     width: 100%;
     font-size: 9px;
@@ -2415,4 +2598,29 @@
         gap: 6px;
     }
     .audit-risk-row-value { justify-self: start; }
+}
+
+/* ── Stallholder register ───────────────────────────────── */
+.register-caption {
+    font-size: 12px;
+    color: var(--text-subtle);
+    margin: 0 0 10px;
+    padding: 0 2px;
+}
+.rpt-register-table td.register-year {
+    font-weight: 700;
+    color: var(--navy);
+}
+.rpt-register-table tr.row-mismatch {
+    background: color-mix(in srgb, var(--gold) 9%, transparent);
+}
+.rpt-register-table tr.row-mismatch td:nth-child(3) {
+    color: var(--navy);
+    font-weight: 600;
+}
+.register-empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 22px 0;
+    font-size: 13px;
 }

@@ -2,11 +2,13 @@
 @page "/facility/npm"
 @attribute [Authorize]
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Application.Dtos.Facilities
 
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
+@inject IFacilitiesApiClient FacilitiesApi
 
 <PageTitle>EEMO Admin — New Public Market</PageTitle>
 
@@ -56,7 +58,7 @@
                 @foreach (var secs in Sections)
                 {
                     var count = StallsBySection(secs.Key).Count();
-                    var unpaid = StallsBySection(secs.Key).Count(s => !s.IsPaid);
+                    var unpaid = StallsBySection(secs.Key).Count(s => !s.PaidToday);
                     <div class="npm-sec-tab @(ActiveSection == secs.Key ? "active" : "")"
                          @onclick="() => SetSection(secs.Key)">
                         <div class="npm-sec-icon">@((MarkupString)secs.Value.Icon)</div>
@@ -94,20 +96,16 @@
                 </div>
                 <div class="npm-section-mini-stats">
                     <div class="npm-mini-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsPaid)</div>
-                        <div class="npm-mini-key">Paid</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.PaidToday)</div>
+                        <div class="npm-mini-key">Paid Today</div>
                     </div>
                     <div class="npm-mini-stat unpaid-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => !s.IsPaid && !s.IsPartial)</div>
-                        <div class="npm-mini-key">Unpaid</div>
-                    </div>
-                    <div class="npm-mini-stat partial-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsPartial)</div>
-                        <div class="npm-mini-key">Partial</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => !s.PaidToday)</div>
+                        <div class="npm-mini-key">Pending Today</div>
                     </div>
                     <div class="npm-mini-stat">
-                        <div class="npm-mini-val">₱@FilteredStalls.Where(s => s.IsPaid).Sum(s => s.MonthlyRate).ToString("N0")</div>
-                        <div class="npm-mini-key">Collected</div>
+                        <div class="npm-mini-val">₱@SectionCollected(ActiveSection).ToString("N0")</div>
+                        <div class="npm-mini-key">Collected (Month)</div>
                     </div>
                 </div>
             </div>
@@ -115,6 +113,7 @@
             <!-- ── Stalls Table (Reusable Component) ── -->
             <FacilityStallsTable TStall="NpmStall"
                                  Facility="NPM"
+                                 ColumnSet="Operational"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -173,13 +172,16 @@
 
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
-        new() { Value = $"₱{TotalCollected:N0}", Label = "Collected" },
-        new() { Value = $"₱{TotalPending:N0}", Label = "Pending" },
+        new() { Value = $"₱{(Report?.TotalRevenue ?? 0):N0}", Label = "Collected" },
+        new() { Value = $"₱{(Report?.PendingPaymentAmount ?? 0):N0}", Label = "Pending" },
         new() { Value = $"{CollectionRate}%", Label = "Collection Rate" },
-        new() { Value = $"{ActiveStalls.Count()}", Label = "Total Stalls" }
+        new() { Value = $"{(Report?.OccupiedStalls ?? ActiveStalls.Count())}", Label = "Total Stalls" }
     };
 
     private List<Toolbar.ToolbarAction> ToolbarActions = new();
+
+    // Daily-aware monthly report — single source of truth for hero + section stats (matches Reports page).
+    private FacilityReportsDto? Report;
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
@@ -192,6 +194,11 @@
 
     private async Task LoadStallsFromApi()
     {
+        // Daily-aware monthly report for the hero + section stats (same source as the Reports page).
+        var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
+            FacilityCode.NPM, ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+        if (reportResult.IsSuccess) Report = reportResult.Value;
+
         var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NPM, null, null, 100);
         if (result.IsSuccess && result.Value != null)
         {
@@ -200,6 +207,13 @@
                 FacilityCode.NPM, DateTime.Now.Year, DateTime.Now.Month);
             var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
                 ? paymentsResult.Value.ToDictionary(p => p.StallId)
+                : new();
+
+            // NPM daily operational status (paid today / days paid / last paid) — daily-collection based.
+            var dailyStatusResult = await PaymentsApi.GetNpmDailyStatusAsync(
+                FacilityCode.NPM, DateTime.Now.Year, DateTime.Now.Month);
+            var dailyStatus = dailyStatusResult.IsSuccess && dailyStatusResult.Value != null
+                ? dailyStatusResult.Value.ToDictionary(d => d.StallId)
                 : new();
 
             Stalls.Clear();
@@ -227,6 +241,8 @@
                     orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
                 }
 
+                dailyStatus.TryGetValue(dto.Id, out var ds);
+
                 Stalls.Add(new NpmStall
                 {
                     Id = id++,
@@ -243,6 +259,9 @@
                     IsPaid = isPaid,
                     IsPartial = isPartial,
                     PartialAmount = partialAmount,
+                    PaidToday = ds?.PaidToday ?? false,
+                    DaysPaidThisMonth = ds?.DaysPaidThisMonth ?? 0,
+                    LastPaidDate = ds?.LastPaidDate,
                     PaymentHistory = new()
                 });
             }
@@ -346,6 +365,10 @@
         public decimal PartialAmount { get; set; }
         public bool IsActive { get; set; }
         public string ORNumber { get; set; } = string.Empty;
+        // NPM daily operational status (current month, as of today)
+        public bool PaidToday { get; set; }
+        public int DaysPaidThisMonth { get; set; }
+        public DateOnly? LastPaidDate { get; set; }
         public string CollectorName { get; set; } = string.Empty;
         public decimal ElecReading { get; set; }
         public decimal ElecAmount { get; set; }
@@ -372,9 +395,13 @@
     IEnumerable<NpmStall> ActiveStalls => Stalls.Where(s => s.IsActive);
     IEnumerable<NpmStall> StallsBySection(string sec) => ActiveStalls.Where(s => s.Section == sec);
 
+    // Section collected this month — from the daily-aware report (matches the Reports page).
+    decimal SectionCollected(string sec) =>
+        Report?.SectionBreakdown?.FirstOrDefault(s => s.SectionName == sec)?.Revenue ?? 0m;
+
     decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
-    int CollectionRate => ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0;
+    int CollectionRate => (int)Math.Round(Report?.CollectionRate ?? 0m);
 
     IEnumerable<NpmStall> FilteredStalls => Stalls.Where(s =>
     {

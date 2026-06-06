@@ -15,6 +15,9 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
     public async Task<Result<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecordsAsync(FacilityCode facilityCode, int year, int month) =>
         await GetAsync<IReadOnlyList<FacilityPaymentRecordDto>>($"api/Payments/facility/{facilityCode}?year={year}&month={month}");
 
+    public async Task<Result<IReadOnlyList<NpmStallDailyStatusDto>>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month) =>
+        await GetAsync<IReadOnlyList<NpmStallDailyStatusDto>>($"api/Payments/facility/{facilityCode}/daily-status?year={year}&month={month}");
+
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId) =>
         await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/payment-history");
 

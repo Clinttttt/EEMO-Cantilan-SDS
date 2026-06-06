@@ -5,6 +5,7 @@ public record StallComplianceDto(
     string Occupant,
     string ContractName,
     string Section,
+    string StallType,
     decimal MonthlyRate,
     decimal DailyRate,
     string Status,
@@ -12,5 +13,7 @@ public record StallComplianceDto(
     decimal Balance,
     string? ORNumber,
     int MissedMonths,
-    double AreaSqm
+    double AreaSqm,
+    DateOnly? EffectivityDate,
+    int DurationYears
 );

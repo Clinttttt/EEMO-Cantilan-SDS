@@ -13,4 +13,10 @@ public interface IFacilityReportsRepository
         int? weekNumber,
         CancellationToken ct
     );
+
+    Task<FacilityHistoryDto> GetFacilityHistoryAsync(
+        FacilityCode facilityCode,
+        int year,
+        CancellationToken ct
+    );
 }

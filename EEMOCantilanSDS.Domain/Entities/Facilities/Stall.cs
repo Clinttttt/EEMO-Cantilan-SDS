@@ -14,6 +14,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public Guid FacilityId { get; private set; }
         public string StallNo { get; private set; } = string.Empty;
         public StallStatus Status { get; private set; } = StallStatus.Active;
+        public StallType Type { get; private set; } = StallType.Permanent;
         public ApplicableFees Fees { get; private set; }
 
         // NPM-specific
@@ -49,6 +50,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             string? areaNote = null,
             decimal? dailyRate = null,
             string? remarks = null,
+            StallType type = StallType.Permanent,
             string createdBy = "System")
         {
             return new Stall
@@ -65,6 +67,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 AreaNote = areaNote,
                 Remarks = remarks,
                 Status = StallStatus.Active,
+                Type = type,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = createdBy
             };
@@ -114,6 +117,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
         public bool IsActive() => Status == StallStatus.Active;
 
+        public void SetType(StallType type, string updatedBy = "System")
+        {
+            Type = type;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
     }
 
 }

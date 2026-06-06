@@ -14,4 +14,8 @@ public interface IFacilitiesApiClient
         int year,
         int? month = null,
         int? weekNumber = null);
+
+    Task<Result<FacilityHistoryDto>> GetFacilityHistoryAsync(
+        FacilityCode facilityCode,
+        int year);
 }

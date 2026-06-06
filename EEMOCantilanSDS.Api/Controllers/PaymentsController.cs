@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.Payments.GetFacilityPaymentRecords;
+using EEMOCantilanSDS.Application.Queries.Payments.GetNpmDailyStatus;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentRecord;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -25,6 +26,13 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<FacilityPaymentRecordDto>>> GetFacilityPaymentRecords(FacilityCode facilityCode, [FromQuery] int year, [FromQuery] int month)
     {
         var result = await Sender.Send(new GetFacilityPaymentRecordsQuery(facilityCode, year, month));
+        return HandleResponse(result);
+    }
+
+    [HttpGet("facility/{facilityCode}/daily-status")]
+    public async Task<ActionResult<IReadOnlyList<NpmStallDailyStatusDto>>> GetNpmDailyStatus(FacilityCode facilityCode, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetNpmDailyStatusQuery(facilityCode, year, month));
         return HandleResponse(result);
     }
 

@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System;
@@ -27,6 +28,11 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
             builder.Property(s => s.Fees)
                 .IsRequired()
                 .HasConversion<int>();
+
+            builder.Property(s => s.Type)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(StallType.Permanent);
 
             builder.Property(s => s.Section)
                 .HasConversion<int?>();

@@ -361,8 +361,14 @@
         }
 
         CloseCollectionSheet();
-        await LoadCollectionAsync();
-        IsSaving = false;
+        try
+        {
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
     private void CloseCollectionSheet()
