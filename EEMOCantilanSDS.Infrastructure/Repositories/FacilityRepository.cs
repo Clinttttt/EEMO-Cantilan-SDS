@@ -11,7 +11,9 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
 {
     public async Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct)
     {
-        return await context.Facilities.FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
+        return await context.Facilities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
     }
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {

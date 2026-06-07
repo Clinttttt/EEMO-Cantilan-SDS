@@ -1,450 +1,183 @@
 /* ══════════════════════════════════════════════════════════════════════
-   FacilityPaymentModal.razor.css — Payment record modal styling
+   FacilityPaymentModal.razor.css — Status-Report-style clean design
 ══════════════════════════════════════════════════════════════════════ */
 
-/* Status Badge Styling */
+/* ── Status indicator — thin left-bar, no heavy background ── */
 ::deep .status-badge {
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-left: 4px solid transparent;
-}
-
-    ::deep .status-badge::before {
-        content: '';
-        width: 7px;
-        height: 7px;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-
-    ::deep .status-badge.paid {
-        background: var(--green-bg);
-        color: var(--green);
-        border-left-color: var(--green);
-    }
-
-        ::deep .status-badge.paid::before {
-            background: var(--green);
-        }
-
-    ::deep .status-badge.partial {
-        background: rgba(184, 115, 51, 0.08);
-        color: #b87333;
-        border-left-color: #b87333;
-    }
-
-        ::deep .status-badge.partial::before {
-            background: #b87333;
-        }
-
-    ::deep .status-badge.unpaid {
-        background: var(--red-bg);
-        color: var(--red);
-        border-left-color: var(--red);
-    }
-
-        ::deep .status-badge.unpaid::before {
-            background: var(--red);
-        }
-
-/* Payment Fee Block */
-::deep .pay-fee-block {
-    margin-bottom: 16px;
-    padding: 14px 16px;
-    background: var(--bg);
-    border-radius: 10px;
-    border-left: 3px solid var(--gold);
-}
-
-::deep .pay-fee-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-}
-
-::deep .pay-fee-label {
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--navy);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-::deep .pay-fee-rate {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-/* Payment Record Row */
-::deep .pay-record-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 0;
-    font-size: 13px;
-    border-bottom: 1px solid rgba(13, 33, 55, 0.08);
-}
-
-    ::deep .pay-record-row:last-child {
-        border-bottom: none;
-    }
-
-::deep .pay-record-key {
-    color: var(--text-subtle);
-    font-weight: 500;
-}
-
-::deep .pay-record-val {
-    color: var(--navy);
-    font-weight: 400;
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    text-align: right;
-}
-
-/* OR Number display when PAID */
-::deep .or-number-display {
-    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-size: 13px;
-    background: var(--bg);
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    letter-spacing: 0.5px;
-    color: var(--navy);
-}
-
-/* OR encoded row — display + edit button side by side */
-::deep .or-encoded-row {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-/* Edit OR Number button */
-::deep .btn-edit-or {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 9px;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--navy);
-    background: transparent;
-    border: 1.5px solid var(--border);
+    padding: 10px 14px;
     border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-}
-
-    ::deep .btn-edit-or:hover {
-        background: var(--bg);
-        border-color: var(--navy);
-        color: var(--navy);
-    }
-
-/* "editing" tag next to label */
-::deep .editing-tag {
-    display: inline-block;
-    margin-left: 6px;
-    padding: 1px 7px;
-    font-size: 10px;
+    margin-bottom: 16px;
+    font-size: 12px;
     font-weight: 600;
-    background: rgba(184, 115, 51, 0.1);
-    color: #b87333;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    vertical-align: middle;
-}
-
-/* Financial Breakdown Section */
-::deep .financial-breakdown {
-    margin-top: 12px;
-    padding: 16px;
-    border-radius: 8px;
-    background: var(--bg-card);
+    letter-spacing: .05em;
     border: 1px solid var(--border);
-    padding-bottom: 12px;
-}
-
-::deep .financial-breakdown-title {
-    font-size: 13px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    background: var(--bg);
     color: var(--navy);
-    margin-bottom: 8px;
 }
-
-::deep .breakdown-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    font-size: 13px;
-    border-bottom: 1px solid var(--border);
+::deep .status-badge::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
 }
+::deep .status-badge.paid { border-left: 3px solid var(--green); }
+::deep .status-badge.paid::before { background: var(--green); }
+::deep .status-badge.partial { border-left: 3px solid #b87333; }
+::deep .status-badge.partial::before { background: #b87333; }
+::deep .status-badge.unpaid { border-left: 3px solid var(--text-muted); }
+::deep .status-badge.unpaid::before { background: var(--text-muted); }
 
-    ::deep .breakdown-item:last-child {
-        border-bottom: none;
-    }
-
-    ::deep .breakdown-item.total-paid {
-        border-bottom: 2px solid var(--border);
-        margin-bottom: 8px;
-        font-weight: 600;
-    }
-
-    ::deep .breakdown-item.balance-due {
-        color: var(--red);
-        font-weight: 600;
-    }
-
-/* Section header row inside unified block */
-::deep .breakdown-section-header {
-    font-weight: 600;
-    color: var(--navy);
-    border-bottom: none !important;
-}
-
-/* Total row */
-::deep .breakdown-total {
-    font-weight: 600;
-    border-top: 1px solid var(--border) !important;
-}
-
-/* Suppress border-bottom on whatever row sits right before Total Paid to avoid double line */
-::deep .breakdown-item:not(.breakdown-total):has(+ .breakdown-total) {
-    border-bottom: none;
-}
-
-/* OR Number input inline inside breakdown */
-::deep .breakdown-or-input {
-    align-items: flex-start;
-    gap: 12px;
-}
-
-::deep .or-input-col {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    max-width: 220px;
-}
-
-/* Inline input — narrower than full-width */
-::deep .pay-input-inline {
-    width: 100%;
-    padding: 7px 10px;
-    font-size: 12.5px;
-}
-
-/* ── Unpaid Notice ── */
+/* ── Unpaid notice ── */
 ::deep .unpaid-notice {
-    padding: 12px 14px;
-    border-radius: 8px;
-    background: rgba(13, 33, 55, 0.04);
-    border: 1px dashed rgba(13, 33, 55, 0.2);
+    padding: 11px 14px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
     font-size: 12.5px;
     color: var(--text-muted);
     margin-bottom: 16px;
     line-height: 1.5;
 }
 
-/* ── Record Payment Form Block ── */
-::deep .record-payment-block {
-    border-left: 3px solid var(--gold);
-    margin-bottom: 16px;
+/* ── Financial breakdown ── */
+::deep .financial-breakdown {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 12px;
 }
-
-/* Input Row */
-::deep .pay-input-row {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 12px;
-}
-
-    ::deep .pay-input-row:last-child {
-        margin-bottom: 0;
-    }
-
-/* Input Label */
-::deep .pay-input-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-subtle);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
-
-/* Required star */
-::deep .required-star {
-    color: var(--red);
-    margin-left: 2px;
-}
-
-/* Optional tag */
-::deep .optional-tag {
+::deep .financial-breakdown-title {
     font-size: 11px;
-    font-weight: 400;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
     color: var(--text-muted);
-    text-transform: none;
-    letter-spacing: 0;
+    padding: 10px 14px 8px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
 }
+::deep .breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+}
+::deep .breakdown-item:last-child { border-bottom: none; }
+::deep .breakdown-item.breakdown-section-header { font-weight: 600; background: var(--bg); }
+::deep .breakdown-item.breakdown-total { font-weight: 700; background: var(--bg); }
+::deep .breakdown-item.balance-due { font-weight: 700; color: var(--red); }
+::deep .breakdown-item:not(.breakdown-total):has(+ .breakdown-total) { border-bottom: none; }
+::deep .breakdown-or-input { align-items: flex-start; gap: 12px; }
+::deep .or-input-col { display: flex; flex-direction: column; gap: 4px; flex: 1; max-width: 220px; }
 
-/* Input Field */
+/* ── OR Number display ── */
+::deep .or-number-display {
+    font-size: 13px;
+    background: var(--bg);
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--navy);
+    letter-spacing: .5px;
+}
+::deep .or-encoded-row { display: flex; align-items: center; gap: 8px; }
+::deep .editing-tag {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(184,115,51,.1);
+    color: #b87333;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    vertical-align: middle;
+}
+::deep .btn-edit-or {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--navy);
+    background: transparent;
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+}
+::deep .btn-edit-or:hover { background: var(--bg); border-color: var(--navy); }
+
+/* ── Inputs ── */
 ::deep .pay-input {
     width: 100%;
     padding: 9px 12px;
     font-size: 13px;
     border: 1.5px solid var(--border);
-    border-radius: 7px;
+    border-radius: 6px;
     background: var(--bg-card);
     color: var(--navy);
     outline: none;
-    transition: border-color 0.15s ease;
     font-family: inherit;
     box-sizing: border-box;
+    transition: border-color .15s;
 }
+::deep .pay-input:focus { border-color: var(--navy); }
+::deep .pay-input.input-error { border-color: var(--red); }
+::deep .pay-input-inline { width: 100%; padding: 7px 10px; font-size: 12.5px; }
+::deep .required-star { color: var(--red); margin-left: 2px; }
+::deep .optional-tag { font-size: 11px; font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+::deep .input-error-msg { font-size: 11.5px; color: var(--red); font-weight: 500; margin-top: 2px; }
 
-    ::deep .pay-input:focus {
-        border-color: var(--gold);
-        box-shadow: 0 0 0 3px rgba(var(--gold-rgb), 0.08);
-    }
-
-    ::deep .pay-input.input-error {
-        border-color: var(--red);
-        background: var(--red-bg);
-    }
-
-/* Error Message */
-::deep .input-error-msg {
-    font-size: 11.5px;
-    color: var(--red);
-    font-weight: 500;
-    margin-top: 2px;
-}
-
-/* Save Button Loading State */
-::deep .btn-loading {
-    opacity: 0.75;
-    cursor: not-allowed;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-/* Spinner */
-::deep .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: inline-block;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Partial Amount Input Section */
+/* ── Partial section ── */
 ::deep .partial-amount-section {
     margin-bottom: 16px;
-    padding: 14px 16px;
-    background: rgba(184, 115, 51, 0.05);
-    border-radius: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
     border-left: 3px solid #b87333;
+    border-radius: 6px;
+    background: var(--bg);
 }
-
 ::deep .partial-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-subtle);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: .4px;
     display: block;
     margin-bottom: 8px;
 }
+::deep .partial-input-wrap { position: relative; display: flex; align-items: center; }
+::deep .currency-symbol { position: absolute; left: 12px; font-size: 14px; font-weight: 600; color: var(--text-muted); pointer-events: none; }
+::deep .partial-input { padding-left: 28px; font-weight: 600; }
+::deep .partial-hint { font-size: 11px; color: #b87333; margin-top: 6px; font-weight: 500; }
 
-::deep .partial-input-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
+/* ── Spinner ── */
+::deep .btn-loading { opacity: .75; cursor: not-allowed; display: flex; align-items: center; gap: 8px; }
+::deep .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-::deep .currency-symbol {
-    position: absolute;
-    left: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-muted);
-    pointer-events: none;
-}
-
-::deep .partial-input {
-    padding-left: 28px;
-    font-weight: 600;
-    font-family: monospace;
-}
-
-::deep .partial-hint {
-    font-size: 11px;
-    color: #b87333;
-    margin-top: 6px;
-    font-weight: 500;
-}
-
-/* ══════════════════════════════════════════════════════════════════════
-   CONFIRMATION MODAL — Appears on top of payment modal
-══════════════════════════════════════════════════════════════════════ */
-
-::deep .confirm-overlay {
-    z-index: 10001;
-    background: rgba(13, 33, 55, 0.7);
-}
-
-::deep .confirm-modal {
-    max-width: 420px;
-    animation: confirmSlideIn 0.2s ease-out;
-}
-
-@keyframes confirmSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
+/* ── Confirmation modal ── */
+::deep .confirm-overlay { z-index: 10001; background: rgba(13,33,55,.7); }
+::deep .confirm-modal { max-width: 420px; }
 ::deep .confirm-or-display {
-    font-family: monospace;
     font-size: 16px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--navy);
     background: var(--bg);
     padding: 12px 16px;
-    border-radius: 8px;
-    border: 2px solid var(--gold);
+    border-radius: 7px;
+    border: 1px solid var(--border);
     text-align: center;
     letter-spacing: 1px;
     margin-top: 8px;

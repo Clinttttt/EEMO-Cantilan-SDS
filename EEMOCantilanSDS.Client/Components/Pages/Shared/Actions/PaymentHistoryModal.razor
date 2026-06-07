@@ -29,7 +29,8 @@
     }
 
     int monthsPaid = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Paid);
-    int monthsUnpaid = experiencedMonths.Count - monthsPaid;
+    int monthsPartial = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Partial);
+    int monthsUnpaid = experiencedMonths.Count - monthsPaid - monthsPartial;
     decimal collected = PaymentHistory
         .Where(p => p.Status == Domain.Enums.PaymentStatus.Paid || p.Status == Domain.Enums.PaymentStatus.Partial)
         .Sum(p => p.AmountPaid);
@@ -57,13 +58,11 @@
     <div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
         <div class="ph-modal" @onclick:stopPropagation="true">
 
-            <!-- ══ HEADER — matches NCC/NPM hero banner ══ -->
+            <!-- ══ HEADER ══ -->
             <div class="ph-header">
-
-                <!-- decorative radial glow -->
                 <div class="ph-header-glow"></div>
 
-                <!-- left: icon + identity -->
+                <!-- Title row -->
                 <div class="ph-header-left">
                     <div class="ph-header-icon">
                         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
@@ -84,39 +83,8 @@
                     </div>
                 </div>
 
-                <!-- right: stats + badge + close -->
+                <!-- Badge + close — absolute top-right -->
                 <div class="ph-header-right">
-                    <div class="ph-header-stats">
-                        <div class="ph-hstat">
-                            <div class="ph-hstat-val">₱@rate.ToString("N0")</div>
-                            <div class="ph-hstat-key">Monthly Rate</div>
-                        </div>
-                        <div class="ph-hstat-div"></div>
-                        <div class="ph-hstat">
-                            <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
-                            <div class="ph-hstat-key">Months Paid</div>
-                        </div>
-                        <div class="ph-hstat-div"></div>
-                        <div class="ph-hstat">
-                            <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
-                            <div class="ph-hstat-key">Unpaid</div>
-                        </div>
-                        <div class="ph-hstat-div"></div>
-                        <div class="ph-hstat">
-                            <div class="ph-hstat-val">₱@collected.ToString("N0")</div>
-                            <div class="ph-hstat-key">Collected</div>
-                        </div>
-                            <div class="ph-hstat-div"></div>
-                            <div class="ph-hstat">
-                                <div class="ph-hstat-val @(balance > 0 ? "ph-hstat-red" : "")">₱@balance.ToString("N0")</div>
-                                <div class="ph-hstat-key">Balance Due</div>
-                            </div>
-                            <div class="ph-hstat-div"></div>
-                            <div class="ph-hstat">
-                                <div class="ph-hstat-val">₱@currentPartial.ToString("N0")</div>
-                                <div class="ph-hstat-key">Current Partial</div>
-                            </div>
-                        </div>
                     <div class="ph-header-right-actions">
                         <span class="ph-status-badge @statusClass">@statusLabel</span>
                         <button class="ph-close-btn" @onclick="() => OnClose.InvokeAsync()">
@@ -125,10 +93,39 @@
                     </div>
                 </div>
 
-                <!-- gold progress bar pinned to bottom -->
-                <div class="ph-header-progress">
-                    <div class="ph-header-progress-fill" style="width:@compliancePct%"></div>
+                <!-- Stats grid row — full width below the title -->
+                <div class="ph-header-stats">
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val">₱@rate.ToString("N0")</div>
+                        <div class="ph-hstat-key">Monthly Rate</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
+                        <div class="ph-hstat-key">Months Paid</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val @(monthsPartial > 0 ? "ph-hstat-partial" : "")">@monthsPartial<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
+                        <div class="ph-hstat-key">Partial</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
+                        <div class="ph-hstat-key">Unpaid</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val">₱@collected.ToString("N0")</div>
+                        <div class="ph-hstat-key">Collected</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val @(balance > 0 ? "ph-hstat-red" : "")">₱@balance.ToString("N0")</div>
+                        <div class="ph-hstat-key">Balance Due</div>
+                    </div>
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val">₱@currentPartial.ToString("N0")</div>
+                        <div class="ph-hstat-key">Current Partial</div>
+                    </div>
                 </div>
+
+                <div class="ph-header-progress"><div class="ph-header-progress-fill" style="width:@compliancePct%"></div></div>
             </div>
 
             <!-- ══ COMPLIANCE ROW ══ -->

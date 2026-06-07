@@ -275,10 +275,18 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             }
             else if (periodPayments.TryGetValue(s.Id, out var payments) && payments.Count > 0)
             {
-                var pr = payments[0];
-                totalBill = pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0);
-                amountPaid = pr.Status == PaymentStatus.Paid ? totalBill : pr.PartialAmount;
-                orNumber = pr.ORNumber;
+                // Monthly-billed facilities (TCC/NCC/BBQ/ICE): a period may span several billing
+                // months (e.g. the Yearly view). Aggregate EVERY in-period record so the bill,
+                // amount paid, and balance reflect the whole period — not just the latest month.
+                totalBill = payments.Sum(pr => pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
+                amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
+                    ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0)
+                    : pr.Status == PaymentStatus.Partial ? pr.PartialAmount : 0m);
+                orNumber = payments
+                    .Where(pr => !string.IsNullOrWhiteSpace(pr.ORNumber))
+                    .OrderByDescending(pr => new DateTime(pr.BillingYear, pr.BillingMonth, 1))
+                    .Select(pr => pr.ORNumber)
+                    .FirstOrDefault();
             }
             else
             {
@@ -354,10 +362,16 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .ToHashSet();
 
         var missed = 0;
+        var today = PhilippineTime.Today;
         for (var m = 1; m <= endDate.Month; m++)
         {
             var monthStart = new DateOnly(endDate.Year, m, 1);
             var monthEnd = new DateOnly(endDate.Year, m, DateTime.DaysInMonth(endDate.Year, m));
+
+            // Skip months that have not started yet (not yet due) — e.g. the Yearly view runs to
+            // December, but Jul–Dec of the current year are not delinquent until they arrive.
+            if (monthStart > today)
+                continue;
 
             // Skip months the stall was not under an active contract (pre-effectivity / post-expiry).
             if (CountNpmCollectableDays(stall, monthStart, monthEnd) == 0)
@@ -829,6 +843,49 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     }
 
     /// <summary>
+    /// Loads occupied stalls (active contract) for a non-NPM facility, including their active
+    /// contracts, so the monthly-rental obligation can be assessed independently of whether a
+    /// PaymentRecord exists for a given month (an unpaid stall has no record but still owes rent).
+    /// </summary>
+    private async Task<List<Stall>> LoadOccupiedStallsAsync(Guid facilityId, CancellationToken ct)
+    {
+        return await _context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Where(s => s.FacilityId == facilityId
+                && s.Status == StallStatus.Active
+                && !s.IsDeleted
+                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+            .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Total monthly-rental obligation for occupied stalls over [start, end] — sum of each stall's
+    /// MonthlyRate for every month its active contract is effective within the range. Used as the
+    /// "expected" baseline for trend bar scaling so unpaid stalls (which have no record) still count.
+    /// </summary>
+    private static decimal CalculateMonthlyRentalObligation(IEnumerable<Stall> occupiedStalls, DateOnly start, DateOnly end)
+    {
+        if (end < start) return 0m;
+        decimal total = 0m;
+        foreach (var s in occupiedStalls)
+        {
+            var cursor = new DateOnly(start.Year, start.Month, 1);
+            var last = new DateOnly(end.Year, end.Month, 1);
+            while (cursor <= last)
+            {
+                var mStart = cursor;
+                var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                if (s.Contracts.Any(c => c.IsActive && !c.IsDeleted
+                        && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+                    total += s.MonthlyRate;
+                cursor = cursor.AddMonths(1);
+            }
+        }
+        return total;
+    }
+
+    /// <summary>
     /// Calculates growth percentage between current and previous period.
     /// Returns 0% if previous period has zero revenue or doesn't exist.
     /// </summary>
@@ -917,30 +974,21 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .Where(pr => occupiedStallIds.Contains(pr.StallId) && !pr.IsDeleted)
             .ToListAsync(ct);
 
-        var paymentRecords = allPaymentRecords
+        // Collected = recognized rent payments in the period (Paid → full bill; Partial → partial).
+        var totalCollected = allPaymentRecords
             .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
-            .Select(pr => new
-            {
-                StallId = pr.StallId,
-                TotalBill = pr.BaseRentalAmount
-                    + (pr.ElecAmount ?? 0)
-                    + (pr.WaterAmount ?? 0)
-                    + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0),
-                AmountPaid = pr.Status == PaymentStatus.Paid
-                    ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0) + (pr.FishKilos.HasValue ? pr.FishKilos.Value * 1.00m : 0)
-                    : pr.Status == PaymentStatus.Partial
-                        ? pr.PartialAmount
-                        : 0
-            })
-            .ToList();
+            .Sum(pr => RecognizedRevenue(pr, includeFish: false));
 
-        var totalBilled = paymentRecords.Sum(pr => pr.TotalBill);
-        decimal totalCollected = paymentRecords.Sum(pr => pr.AmountPaid);
+        // Assessed = full monthly-rental obligation of EVERY occupied stall, including those with
+        // no PaymentRecord yet (an unpaid stall still owes). Using only billed records would
+        // exclude them and overstate the rate (e.g. show 100% while a payor still has a balance).
+        var occupiedStallEntities = await LoadOccupiedStallsAsync(facilityId, ct);
+        var totalAssessed = CalculateMonthlyRentalObligation(occupiedStallEntities, startDate, endDate);
 
-        if (totalBilled == 0)
+        if (totalAssessed == 0)
             return 0m;
 
-        return Math.Min(100m, (totalCollected / totalBilled) * 100m);
+        return Math.Min(100m, (totalCollected / totalAssessed) * 100m);
     }
 
     #endregion
@@ -1198,6 +1246,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
+        var occupiedStalls = facilityCode == FacilityCode.NPM
+            ? new List<Stall>()
+            : await LoadOccupiedStallsAsync(facilityId, ct);
         var today = PhilippineTime.Today;
 
         // Generate 6 data points (last 6 months)
@@ -1264,6 +1315,10 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .ToListAsync(ct);
 
                 revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
+                // Expected = full monthly-rental obligation of occupied stalls (independent of
+                // whether a record exists), so an unpaid stall still raises the bar's target.
+                var (oblStart, oblEnd) = CalculateMonthlyDateRange(targetYear, targetMonth);
+                expectedRevenue = CalculateMonthlyRentalObligation(occupiedStalls, oblStart, oblEnd);
             }
 
             trends.Add(new RevenueTrendDto(monthLabel, revenue, expectedRevenue, targetYear == today.Year && targetMonth == today.Month));
@@ -1284,6 +1339,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
+        var occupiedStalls = facilityCode == FacilityCode.NPM
+            ? new List<Stall>()
+            : await LoadOccupiedStallsAsync(facilityId, ct);
         var today = PhilippineTime.Today;
 
         // Generate 5 data points (last 5 years)
@@ -1346,6 +1404,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .ToListAsync(ct);
 
                 revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
+                // Expected = full yearly rental obligation of occupied stalls, for proportional scaling.
+                var (oblStart, oblEnd) = CalculateYearlyDateRange(targetYear);
+                expectedRevenue = CalculateMonthlyRentalObligation(occupiedStalls, oblStart, oblEnd);
             }
 
             trends.Add(new RevenueTrendDto(yearLabel, revenue, expectedRevenue, targetYear == today.Year));
