@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetClientProfile;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetGroupedSlaughterTransactions;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetOwnerTransactionHistory;
+using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterHistory;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterOverview;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterTransactions;
 using MediatR;
@@ -20,6 +21,14 @@ public class SlaughterController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<SlaughterOverviewDto>> GetOverview([FromQuery] int year, [FromQuery] int month)
     {
         var query = new GetSlaughterOverviewQuery(year, month);
+        var result = await sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("history")]
+    public async Task<ActionResult<SlaughterHistoryDto>> GetHistory([FromQuery] int year)
+    {
+        var query = new GetSlaughterHistoryQuery(year);
         var result = await sender.Send(query);
         return HandleResponse(result);
     }

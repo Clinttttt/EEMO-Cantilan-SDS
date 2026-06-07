@@ -90,12 +90,6 @@
 {
     <div class="rpt-content print-document-content">
         <section class="print-report-sheet status-sheet">
-            <div class="print-report-actions">
-                <button type="button" class="print-report-btn" @onclick="PrintPage">
-                    <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Print Document
-                </button>
-            </div>
 
             <header class="print-report-header">
                 <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
@@ -129,7 +123,7 @@
             }
             @foreach (var sec in sections)
             {
-                var rows = PrintRows.Where(r => r.Section == sec).OrderBy(r => r.StallNo).ThenBy(r => r.Payor).ToList();
+                var rows = PrintRows.Where(r => r.Section == sec).ToList();
                 if (!rows.Any()) continue;
                 var secCollected = rows.Sum(r => r.AmountPaid);
                 var secBalance   = rows.Sum(r => r.Balance);

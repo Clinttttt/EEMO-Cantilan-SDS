@@ -275,10 +275,12 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             }
             else if (periodPayments.TryGetValue(s.Id, out var payments) && payments.Count > 0)
             {
-                // Monthly-billed facilities (TCC/NCC/BBQ/ICE): a period may span several billing
-                // months (e.g. the Yearly view). Aggregate EVERY in-period record so the bill,
-                // amount paid, and balance reflect the whole period — not just the latest month.
-                totalBill = payments.Sum(pr => pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
+                // Monthly-billed facilities (TCC/NCC/BBQ/ICE): the bill is the FULL rent obligation
+                // due across every month the contract is effective in the period (so unpaid months
+                // without a record still count), plus any utilities actually billed on in-period
+                // records. The balance then reconciles with MissedMonths and the Collection Rate.
+                totalBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd)
+                    + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
                     ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0)
                     : pr.Status == PaymentStatus.Partial ? pr.PartialAmount : 0m);
@@ -290,8 +292,13 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             }
             else
             {
-                // No monthly payment → use NPM daily collections against the selected period's daily obligation.
-                totalBill = s.MonthlyRate;
+                // No payment record in the period. Monthly facilities still owe the full rent
+                // obligation that has come due across the period (every effective, started month —
+                // not just one). NPM has no monthly record here either, so its daily collections
+                // (dailyByStall) settle against its own daily obligation.
+                totalBill = includeFish
+                    ? s.MonthlyRate
+                    : CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
                 amountPaid = dailyByStall.GetValueOrDefault(s.Id);
             }
 
@@ -319,8 +326,16 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 contract?.DurationYears ?? 0));
         }
 
-        return rows.OrderBy(r => r.StallNo).ToList();
+        return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();
     }
+
+    // Orders stall numbers naturally so "2" precedes "10" (and "A2" precedes "A10"): each run of
+    // digits is zero-padded to a fixed width before an ordinal compare. Plain string ordering put
+    // "10" before "2" across the reports' All Stalls / Status Report tables.
+    private static string NaturalStallSortKey(string stallNo) =>
+        string.IsNullOrEmpty(stallNo)
+            ? string.Empty
+            : System.Text.RegularExpressions.Regex.Replace(stallNo, "[0-9]+", m => m.Value.PadLeft(12, '0'));
 
     /// <summary>
     /// Counts months (this year, up to the report month) in which the stall was under an active
@@ -860,6 +875,36 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     }
 
     /// <summary>
+    /// Rent obligation that has actually come DUE for a single stall within [start, end]: the
+    /// stall's MonthlyRate for every month its active contract is effective AND that has already
+    /// started (future months in the current period are not yet owed). This mirrors the month rule
+    /// in <see cref="CountMissedMonths"/>, so the compliance Balance, Outstanding KPI, Collection
+    /// Rate and Missed-months all reconcile (e.g. Balance of an unpaid stall == MissedMonths × rate).
+    /// </summary>
+    private static decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end)
+    {
+        if (end < start) return 0m;
+        var today = PhilippineTime.Today;
+        decimal total = 0m;
+        var cursor = new DateOnly(start.Year, start.Month, 1);
+        var last = new DateOnly(end.Year, end.Month, 1);
+        while (cursor <= last)
+        {
+            var mStart = cursor;
+            var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+            // Skip months that have not started yet (not due) and months the contract is not effective.
+            if (mStart <= today
+                && stall.Contracts.Any(c => c.IsActive && !c.IsDeleted
+                    && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+            {
+                total += stall.MonthlyRate;
+            }
+            cursor = cursor.AddMonths(1);
+        }
+        return total;
+    }
+
+    /// <summary>
     /// Total monthly-rental obligation for occupied stalls over [start, end] — sum of each stall's
     /// MonthlyRate for every month its active contract is effective within the range. Used as the
     /// "expected" baseline for trend bar scaling so unpaid stalls (which have no record) still count.
@@ -979,11 +1024,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
             .Sum(pr => RecognizedRevenue(pr, includeFish: false));
 
-        // Assessed = full monthly-rental obligation of EVERY occupied stall, including those with
-        // no PaymentRecord yet (an unpaid stall still owes). Using only billed records would
-        // exclude them and overstate the rate (e.g. show 100% while a payor still has a balance).
+        // Assessed = full monthly-rental obligation that has come DUE for EVERY occupied stall,
+        // including those with no PaymentRecord yet (an unpaid stall still owes). Uses the same
+        // due-month rule as the compliance balance so the rate and the Outstanding KPI reconcile.
         var occupiedStallEntities = await LoadOccupiedStallsAsync(facilityId, ct);
-        var totalAssessed = CalculateMonthlyRentalObligation(occupiedStallEntities, startDate, endDate);
+        var totalAssessed = occupiedStallEntities.Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
 
         if (totalAssessed == 0)
             return 0m;
@@ -1969,7 +2014,9 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         DateOnly endDate,
         CancellationToken ct)
     {
-        var areas = new[] { NccAreaLocation.Corner, NccAreaLocation.Extension };
+        // Include every NCC area tier. "Standard" was previously dropped, so any Standard-area
+        // stall's revenue/counts never reconciled to the facility totals.
+        var areas = new[] { NccAreaLocation.Corner, NccAreaLocation.Extension, NccAreaLocation.Standard };
         var breakdown = new List<SectionBreakdownDto>();
 
         // Calculate revenue and expected revenue for each area
@@ -1981,11 +2028,10 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
                 .ToListAsync(ct);
 
+            // Skip tiers with no stalls so the report never renders an empty ₱0 placeholder card
+            // (e.g. an NCC that only uses Corner + Extension).
             if (stalls.Count == 0)
-            {
-                breakdown.Add(new SectionBreakdownDto(area.ToString(), 0m, 0m, 0, 0, 0, 0));
                 continue;
-            }
 
             var stallIds = stalls.Select(s => s.Id).ToList();
 
@@ -1999,12 +2045,13 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
                 .Sum(pr => RecognizedRevenue(pr, includeFish: false));
 
-            // Calculate expected revenue for this area (occupied stalls only)
+            // Expected = rent obligation that has come due across the period (same due-month rule as
+            // the headline collection-rate KPI), so the per-area rate matches the facility rate.
             var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive && !c.IsDeleted)).ToList();
-            var expectedRevenue = occupiedStalls.Sum(s => s.MonthlyRate);
+            var expectedRevenue = occupiedStalls.Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
 
-            // Calculate percentage as (actual / expected) * 100
-            var percentage = expectedRevenue > 0 ? (actualRevenue / expectedRevenue) * 100m : 0m;
+            // Clamp to 100% like CalculateCollectionRateAsync so an overpayment can't read >100%.
+            var percentage = expectedRevenue > 0 ? Math.Min(100m, (actualRevenue / expectedRevenue) * 100m) : 0m;
             var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
             var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));

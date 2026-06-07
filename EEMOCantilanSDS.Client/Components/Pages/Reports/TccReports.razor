@@ -19,8 +19,22 @@
         </div>
         <div>
             <div class="rpt-eyebrow">FACILITY · TCC · REPORTS</div>
-            <div class="rpt-title">Tampak Commercial Center</div>
+            <div class="rpt-title">Tampak Commercial Center Reports</div>
+            <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
+    </div>
+    <div class="rpt-topbar-right">
+        <button type="button" class="rpt-action-btn" title="Export PDF" aria-label="Export PDF" @onclick="PrintPage">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export PDF
+        </button>
+        <button type="button" class="rpt-action-btn" title="Print" aria-label="Print report" @onclick="PrintPage">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Print
+        </button>
+    </div>
+    <div class="rpt-header-progress" title="Collection rate @CollectionRate%">
+        <div class="rpt-header-progress-fill" style="width:@CollectionRate%"></div>
     </div>
 </div>
 
@@ -67,12 +81,6 @@
     <!-- ══ Phase 2: Status Report ══ -->
     <div class="rpt-content print-document-content">
         <section class="print-report-sheet status-sheet">
-            <div class="print-report-actions">
-                <button type="button" class="print-report-btn" @onclick="PrintPage">
-                    <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Print Document
-                </button>
-            </div>
             <header class="print-report-header">
                 <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
                 <div class="print-republic">Republic of the Philippines</div>
@@ -113,7 +121,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var row in PrintRows.OrderBy(r => r.StallNo))
+                            @foreach (var row in PrintRows)
                             {
                                 <tr>
                                     <td>@row.StallNo</td>
@@ -401,7 +409,7 @@ else
                 <div class="tcc-feemix-list">
                     @{
                         var billed = TotalBilled;
-                        var collected = TotalCollected;
+                        var collected = RentCollected;
                         var outstanding = PendingAmount;
                         int collectedPct = billed > 0 ? (int)Math.Round(collected / billed * 100) : 0;
                         int outstandingPct = billed > 0 ? (int)Math.Round(outstanding / billed * 100) : 0;
@@ -480,7 +488,7 @@ else
                     </div>
                 </div>
                 <div class="tcc-comp-footer">
-                    <span>Total: @Total stalls · ₱@TotalCollected.ToString("N0") collected of ₱@TotalBilled.ToString("N0") billed</span>
+                    <span>Total: @Total stalls · ₱@RentCollected.ToString("N0") collected of ₱@TotalBilled.ToString("N0") billed</span>
                 </div>
             </div>
 
@@ -688,6 +696,9 @@ else
     }
 
     decimal TotalBilled => (R?.StallCompliance ?? new List<StallComplianceDto>()).Sum(s => s.AmountPaid + s.Balance);
+    // Rent actually collected for the period, from the same compliance rows as billed/open, so the
+    // Fee Mix card reconciles exactly (billed = collected + open) and bars never exceed 100%.
+    decimal RentCollected => (R?.StallCompliance ?? new List<StallComplianceDto>()).Sum(s => s.AmountPaid);
 
     // ── Delinquency ───────────────────────────────────────────────
     record DelinqRow(string StallNo, string Occupant, decimal MonthlyRate, string Status, string StatusCss, int MissedMonths, decimal Balance);
@@ -705,7 +716,6 @@ else
         public string StatusCss   => IsPaid ? "paid"  : IsPartial ? "partial" : "unpaid";
     }
     IEnumerable<StallRow> AllStalls => (R?.StallCompliance ?? new List<StallComplianceDto>())
-        .OrderBy(s => s.StallNo)
         .Select(s => new StallRow(s.StallNo, s.Occupant, s.ContractName, s.AreaSqm, s.MonthlyRate,
             s.Status == "Paid", s.Status == "Partial", s.AmountPaid, s.Balance, s.ORNumber ?? ""));
 

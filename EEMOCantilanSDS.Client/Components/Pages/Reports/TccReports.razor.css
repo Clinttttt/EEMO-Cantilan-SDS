@@ -47,6 +47,33 @@
 .rpt-topbar-icon svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .rpt-eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
 .rpt-title { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2; }
+.rpt-subtitle { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }
+.rpt-header-progress {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 3px;
+    background: rgba(255,255,255,.1);
+}
+.rpt-header-progress-fill {
+    height: 100%;
+    background: var(--gold);
+    transition: width .4s ease;
+}
+.rpt-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 1; }
+.rpt-action-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.2);
+    background: rgba(255,255,255,.07);
+    color: rgba(255,255,255,.85);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: background .15s;
+}
+.rpt-action-btn:hover { background: rgba(255,255,255,.14); }
+.rpt-action-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--gold) 85%, white); outline-offset: 2px; }
+.rpt-action-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Period bar ── */
 .rpt-period-bar {
@@ -387,8 +414,8 @@
 }
 .rpt-compliance-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--navy); }
 .rpt-compliance-table tr:last-child td { border-bottom: none; }
-.rpt-compliance-table tr.row-partial td:first-child { border-left: 3px solid #b87333; }
-.rpt-compliance-table tr.row-unpaid  td:first-child { border-left: 3px solid var(--red); }
+.rpt-compliance-table .row-partial { background: rgba(200,168,75,.04); }
+.rpt-compliance-table .row-unpaid  { background: rgba(139,58,58,.04); }
 
 /* ── Empty state ── */
 .rpt-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 40px 20px; }
@@ -398,17 +425,16 @@
 .rpt-empty-text { font-size: 12.5px; color: var(--text-muted); text-align: center; }
 
 /* ── Print document shell (shared with NPM print views) ── */
-.print-document-content { display: block; background: #eef3f7; overflow-x: hidden; padding: 0; }
+.print-document-content { display: block; background: #eef3f7; overflow-x: hidden; }
 .print-report-sheet {
     width: 100%;
     min-height: 900px;
-    max-width: none;
-    margin: 20px 0;
-    background: #fff;
-    border-radius: 8px;
-    box-shadow: 0 2px 20px rgba(13,33,55,.1);
-    padding: 32px 40px 48px;
+    padding: 30px 28px 40px;
     box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #d5dde5;
+    box-shadow: 0 18px 38px rgba(9, 31, 52, .08);
+    color: #111827;
 }
 .print-report-actions { display: flex; justify-content: flex-end; margin-bottom: 20px; }
 .print-report-btn {
@@ -420,12 +446,12 @@
     cursor: pointer;
 }
 .print-report-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.print-report-header { text-align: center; margin-bottom: 28px; display: flex; flex-direction: column; align-items: center; }
-.print-report-logo { width: 72px; height: 72px; border-radius: 50%; margin-bottom: 10px; }
-.print-republic { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: 4px; }
-.print-report-header h2 { font-size: 22px; font-weight: 800; color: var(--navy); margin: 0 0 4px; }
-.print-report-header p { font-size: 13px; color: var(--text-muted); margin: 0 0 14px; }
-.print-report-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--navy); padding-top: 12px; border-top: 2px solid var(--navy); display: inline-block; }
+.print-report-header { text-align: center; padding-bottom: 18px; border-bottom: 2px solid #111827; }
+.print-report-logo { display: block; width: 58px; height: 58px; object-fit: contain; margin: 0 auto 10px; }
+.print-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
+.print-report-header h2 { margin: 7px 0 3px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; line-height: 1.15; color: #111827; }
+.print-report-header p { margin: 0; font-size: 12px; color: #4b5563; }
+.print-report-title { margin-top: 18px; text-transform: uppercase; letter-spacing: .08em; font-size: 13px; font-weight: 800; color: #111827; }
 .print-report-meta {
     display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
     border: 1px solid #cfd6de; margin-bottom: 16px;
@@ -443,13 +469,12 @@
 .print-report-summary span { display: block; text-transform: uppercase; letter-spacing: .05em; font-size: 9px; color: #6b7280; }
 .print-report-summary strong { display: block; margin-top: 4px; font-size: 12px; color: #111827; }
 .print-report-signatures {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 24px; margin-top: 48px;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px; margin-top: 58px;
 }
-.print-report-signatures div { text-align: center; }
-.print-report-signatures div::before { content: ""; display: block; height: 1px; background: #6b7280; margin-bottom: 8px; }
-.print-report-signatures span { font-size: 11px; color: #6b7280; display: block; margin-bottom: 4px; }
-.print-report-signatures strong { font-size: 12.5px; color: #111827; }
+.print-report-signatures div { border-top: 1px solid #111827; padding-top: 8px; text-align: center; }
+.print-report-signatures span { display: block; font-size: 10px; color: #6b7280; }
+.print-report-signatures strong { display: block; margin-top: 3px; font-size: 11px; color: #111827; }
 .print-empty { margin: 22px 0; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border: 1px dashed #cfd6de; background: #f8fafc; }
 
 /* ── Status Report table ── */
@@ -499,4 +524,14 @@
     .rpt-kpi-strip { grid-template-columns: 1fr 1fr; }
     .rpt-charts-row { grid-template-columns: 1fr; }
     .rpt-audit-row { grid-template-columns: 1fr; }
+}
+
+@media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body { background: white !important; }
+    .rpt-topbar, .rpt-period-bar { background: white !important; border: none !important; box-shadow: none !important; }
+    .rpt-topbar-right, .rpt-period-tabs, .rpt-date-nav, .rpt-back-btn, .rpt-header-progress, .print-report-actions { display: none !important; }
+    .rpt-content { padding: 0 !important; }
+    .print-document-content { display: block !important; background: white !important; }
+    .print-report-sheet { width: 100% !important; min-height: auto !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
 }

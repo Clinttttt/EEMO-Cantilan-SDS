@@ -32,12 +32,14 @@ public class FacilityReportsTccComplianceTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.TCC, ReportPeriod.Yearly, 2024, null, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
-        // Bill = 3 × ₱1000 = ₱3000; paid = 1000 + 1000 + 400 = ₱2400; balance = ₱600.
+        // Full 2024 obligation = 12 × ₱1000 = ₱12,000; paid = 1000 + 1000 + 400 = ₱2400;
+        // balance = ₱9,600 (Mar's ₱600 shortfall plus the 9 months that were never recorded but
+        // are still owed under the contract).
         Assert.Equal(2400m, row.AmountPaid);
-        Assert.Equal(600m, row.Balance);
+        Assert.Equal(9600m, row.Balance);
         Assert.Equal("Partial", row.Status);
         // Outstanding KPI must match the aggregated balance.
-        Assert.Equal(600m, report.PendingPaymentAmount);
+        Assert.Equal(9600m, report.PendingPaymentAmount);
     }
 
     [Fact]
@@ -139,5 +141,31 @@ public class FacilityReportsTccComplianceTests : RepositoryTestBase
         var row = Assert.Single(report.StallCompliance);
         // Only months Jan..currentMonth are due → exactly today.Month missed, not 12.
         Assert.Equal(today.Month, row.MissedMonths);
+    }
+
+    [Fact]
+    public async Task YearlyCompliance_UnpaidStall_BalanceReconcilesWithMissedMonthsAndRate()
+    {
+        // Option B: a stall under contract all of a past year, with no payments, owes every month.
+        // Balance, Outstanding, Collection Rate and Missed-months must all reconcile.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "1", 1000m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "No Pay", "No Pay", new DateOnly(2024, 1, 1), 5, 1000m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.TCC, ReportPeriod.Yearly, 2024, null, null, CancellationToken.None);
+
+        var row = Assert.Single(report.StallCompliance);
+        Assert.Equal("Unpaid", row.Status);
+        Assert.Equal(0m, row.AmountPaid);
+        Assert.Equal(12, row.MissedMonths);                 // 2024 fully past → 12 due months
+        Assert.Equal(12_000m, row.Balance);                 // 12 × ₱1,000
+        Assert.Equal(row.MissedMonths * 1000m, row.Balance); // balance reconciles with missed months
+        Assert.Equal(12_000m, report.PendingPaymentAmount);  // Outstanding KPI matches
+        Assert.Equal(0m, report.CollectionRate);             // nothing collected of the full obligation
     }
 }

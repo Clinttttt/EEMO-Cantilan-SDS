@@ -110,6 +110,7 @@
 
             <FacilityStallsTable TStall="TStall"
                                  Facility="@FacilityShortCode"
+                                 ColumnSet="MonthlyCard"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -204,14 +205,14 @@
                 bool isPaid = false;
                 bool isPartial = false;
                 decimal partialAmount = 0;
-                string orNumber = string.Empty;
+                string orNumber = dto.ORNumber ?? string.Empty;
 
                 if (payments.TryGetValue(dto.Id, out var payment))
                 {
                     isPaid = payment.Status == PaymentStatus.Paid;
                     isPartial = payment.Status == PaymentStatus.Partial;
                     partialAmount = payment.TotalPaid;
-                    orNumber = payment.ORNumber ?? string.Empty;
+                    orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
                 }
 
                 Stalls.Add(StallMapper(dto, isPaid, isPartial, partialAmount, orNumber));
@@ -242,12 +243,19 @@
             || StallNoSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || ContractNameSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
         return matchStatus && matchSearch;
-    }).OrderBy(StallNoSelector);
+    }).OrderBy(s => NaturalStallKey(StallNoSelector(s)), StringComparer.Ordinal);
 
-    private int PaidCount => FilteredStalls.Count(IsPaidSelector);
-    private int UnpaidCount => FilteredStalls.Count(s => !IsPaidSelector(s) && !IsPartialSelector(s));
-    private int PartialCount => FilteredStalls.Count(IsPartialSelector);
-    private decimal CollectedAmount => FilteredStalls.Where(IsPaidSelector).Sum(MonthlyRateSelector);
+    // Orders stall numbers naturally ("2" before "10") by zero-padding digit runs, matching the
+    // backend report ordering. Plain string ordering put "10" before "2".
+    private static string NaturalStallKey(string stallNo) =>
+        string.IsNullOrEmpty(stallNo)
+            ? string.Empty
+            : System.Text.RegularExpressions.Regex.Replace(stallNo, "[0-9]+", m => m.Value.PadLeft(12, '0'));
+
+    private int PaidCount => ActiveStalls.Count(IsPaidSelector);
+    private int UnpaidCount => ActiveStalls.Count(s => !IsPaidSelector(s) && !IsPartialSelector(s));
+    private int PartialCount => ActiveStalls.Count(IsPartialSelector);
+    private decimal CollectedAmount => ActiveStalls.Where(IsPaidSelector).Sum(MonthlyRateSelector);
 
     private List<Toolbar.ToolbarAction> ToolbarActions => new()
     {
@@ -301,7 +309,7 @@
         if (PaymentStall != null)
         {
             ORNumberSetter(PaymentStall, payment.OrNumber);
-            StateHasChanged();
+            await LoadStallsFromApi();
             ShowPayment = false;
             PaymentStall = null;
         }

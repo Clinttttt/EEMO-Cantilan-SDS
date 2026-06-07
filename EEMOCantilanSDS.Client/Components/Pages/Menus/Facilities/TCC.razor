@@ -5,9 +5,11 @@
 @using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
+@inject IFacilitiesApiClient FacilitiesApi
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 
@@ -75,27 +77,28 @@
                 </div>
                 <div class="tcc-section-mini-stats">
                     <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">@FilteredStalls.Count(s => s.IsPaid)</div>
+                        <div class="tcc-mini-val">@ActiveStalls.Count(s => s.IsPaid)</div>
                         <div class="tcc-mini-key">Paid</div>
                     </div>
                     <div class="tcc-mini-stat unpaid-stat">
-                        <div class="tcc-mini-val">@FilteredStalls.Count(s => !s.IsPaid && !s.IsPartial)</div>
+                        <div class="tcc-mini-val">@ActiveStalls.Count(s => !s.IsPaid && !s.IsPartial)</div>
                         <div class="tcc-mini-key">Unpaid</div>
                     </div>
                     <div class="tcc-mini-stat partial-stat">
-                        <div class="tcc-mini-val">@FilteredStalls.Count(s => s.IsPartial)</div>
+                        <div class="tcc-mini-val">@ActiveStalls.Count(s => s.IsPartial)</div>
                         <div class="tcc-mini-key">Partial</div>
                     </div>
                     <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">₱@FilteredStalls.Where(s => s.IsPaid).Sum(s => s.MonthlyRate).ToString("N0")</div>
+                        <div class="tcc-mini-val">₱@((Report?.TotalRevenue ?? TotalCollected).ToString("N0"))</div>
                         <div class="tcc-mini-key">Collected</div>
                     </div>
                 </div>
             </div>
 
-            <!-- ── Stalls Table ── -->
+            <!-- ── Stalls (NPM-style cards · 2 per row) ── -->
             <FacilityStallsTable TStall="TccStall"
                                  Facility="TCC"
+                                 ColumnSet="MonthlyCard"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -148,12 +151,15 @@
 
     private RenderFragment TccIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>;
 
+    // Monthly report — single source of truth for hero + collection rate (matches the Reports page).
+    private FacilityReportsDto? Report;
+
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
-        new() { Value = $"₱{TotalCollected:N0}", Label = "Collected" },
-        new() { Value = $"₱{TotalPending:N0}", Label = "Pending" },
+        new() { Value = $"₱{(Report?.TotalRevenue ?? TotalCollected):N0}", Label = "Collected" },
+        new() { Value = $"₱{(Report?.PendingPaymentAmount ?? TotalPending):N0}", Label = "Pending" },
         new() { Value = $"{CollectionRate}%", Label = "Collection Rate" },
-        new() { Value = $"{ActiveStalls.Count()}", Label = "Total Stalls" }
+        new() { Value = $"{(Report?.OccupiedStalls ?? ActiveStalls.Count())}", Label = "Total Stalls" }
     };
 
     protected override async Task OnInitializedAsync()
@@ -164,6 +170,11 @@
 
     private async Task LoadStallsFromApi()
     {
+        // Monthly report for the hero + collection rate (same source as the Reports page).
+        var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
+            FacilityCode.TCC, ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+        if (reportResult.IsSuccess) Report = reportResult.Value;
+
         var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.TCC, null, null, 100);
         if (result.IsSuccess && result.Value != null)
         {
@@ -180,14 +191,14 @@
                 bool isPaid = false;
                 bool isPartial = false;
                 decimal partialAmount = 0;
-                string orNumber = string.Empty;
+                string orNumber = dto.ORNumber ?? string.Empty;
 
                 if (payments.TryGetValue(dto.Id, out var payment))
                 {
                     isPaid = payment.Status == PaymentStatus.Paid;
                     isPartial = payment.Status == PaymentStatus.Partial;
                     partialAmount = payment.TotalPaid;
-                    orNumber = payment.ORNumber ?? string.Empty;
+                    orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
                 }
                 
                 Stalls.Add(new TccStall
@@ -301,7 +312,9 @@
 
     decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
-    int CollectionRate => ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0;
+    int CollectionRate => Report is not null
+        ? (int)Math.Round(Report.CollectionRate)
+        : (ActiveStalls.Any() ? (int)((double)ActiveStalls.Count(s => s.IsPaid) / ActiveStalls.Count() * 100) : 0);
 
     IEnumerable<TccStall> FilteredStalls => Stalls.Where(s =>
     {
@@ -338,7 +351,10 @@
         if (PaymentStall != null)
         {
             PaymentStall.ORNumber = payment.OrNumber;
-            StateHasChanged();
+
+            // Reload from API so payment status, hero stats and mini-stats reflect the recorded payment.
+            await LoadStallsFromApi();
+
             ShowPayment = false;
             PaymentStall = null;
         }
@@ -424,23 +440,8 @@
 
         if (result.IsSuccess)
         {
-            var newStall = new TccStall
-            {
-                Id = Stalls.Any() ? Stalls.Max(s => s.Id) + 1 : 1,
-                StallGuid = result.Value!.Id,
-                StallNo = VendorForm.StallNo.Trim(),
-                ActualOccupant = VendorForm.ActualOccupant.Trim(),
-                ContractName = VendorForm.ContractName.Trim(),
-                AreaSqm = VendorForm.AreaSqm,
-                ContractDate = VendorForm.ContractDate,
-                MonthlyRate = VendorForm.MonthlyRate,
-                HasElectricity = VendorForm.FeeTypes.Contains("Electricity"),
-                HasWater = VendorForm.FeeTypes.Contains("Water"),
-                IsActive = true,
-                PaymentHistory = new()
-            };
-
-            Stalls.Add(newStall);
+            // Reload from API so the new stall reflects backend truth (GUID, name fallback, status).
+            await LoadStallsFromApi();
             CloseAddVendorModal();
         }
         else

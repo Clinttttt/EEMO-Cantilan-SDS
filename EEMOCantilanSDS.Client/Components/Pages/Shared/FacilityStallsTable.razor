@@ -84,6 +84,72 @@
                         </div>
                     </div>
                 }
+                @if (ShowFillerSlot) { @FillerSlot }
+            </div>
+        }
+        else if (ColumnSet == "MonthlyCard")
+        {
+            <div class="ops-grid">
+                @foreach (var s in FilteredStalls)
+                {
+                    var paid = GetIsPaid(s);
+                    var partial = GetIsPartial(s);
+                    <div class="ops-card @GetRowClass(s)">
+                        <div class="ops-card-top">
+                            <div class="ops-stall-no">@GetStallNo(s)</div>
+                            @if (paid)
+                            {
+                                <span class="today-pill today-paid">
+                                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                    Paid
+                                </span>
+                            }
+                            else if (partial)
+                            {
+                                <span class="today-pill today-partial">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" /></svg>
+                                    Partial
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="today-pill today-pending">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><line x1="12" y1="7" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                                    Unpaid
+                                </span>
+                            }
+                            <div class="action-btns ops-actions">
+                                <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
+                                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                </button>
+                                <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
+                                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                </button>
+                                <button class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">
+                                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="ops-card-name">@GetActualOccupant(s)</div>
+                        <div class="ops-card-meta">
+                            <span class="ops-meta-item">
+                                <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                <span class="days-paid">₱@GetMonthlyRate(s).ToString("N0")</span> / month
+                            </span>
+                            @if (partial)
+                            {
+                                <span class="ops-meta-sep">·</span>
+                                <span class="ops-meta-item">₱@GetPartialAmount(s).ToString("N0") paid</span>
+                            }
+                            @if (!string.IsNullOrEmpty(GetORNumber(s)) && GetORNumber(s) != "—")
+                            {
+                                <span class="ops-meta-sep">·</span>
+                                <span class="ops-meta-item ops-or">OR @GetORNumber(s)</span>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (ShowFillerSlot) { @FillerSlot }
             </div>
         }
         else
@@ -156,6 +222,17 @@
     [Parameter] public EventCallback<TStall> OnHistoryClick { get; set; }
     [Parameter] public EventCallback<TStall> OnEditClick { get; set; }
 
+    /// <summary>Optional text shown in the trailing placeholder when the card grid has an odd count.</summary>
+    [Parameter] public string EmptySlotLabel { get; set; } = "No other vendors";
+
+    // The 2-per-row card grid leaves one empty cell when the count is odd — fill it with a subtle placeholder.
+    private bool ShowFillerSlot => FilteredStalls.Any() && FilteredStalls.Count() % 2 != 0;
+
+    private RenderFragment FillerSlot => @<div class="ops-card ops-card-empty" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /><line x1="4.5" y1="4.5" x2="19.5" y2="19.5" /></svg>
+        <span class="ops-empty-label">@EmptySlotLabel</span>
+    </div>;
+
     // Helper methods using reflection to access stall properties generically
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
@@ -167,6 +244,11 @@
     // ── Operational (NPM daily) accessors ──
     private bool GetPaidToday(TStall stall) => GetPropertyValue<bool?>(stall, "PaidToday") ?? false;
     private int GetDaysPaid(TStall stall) => GetPropertyValue<int?>(stall, "DaysPaidThisMonth") ?? 0;
+
+    // ── Monthly card accessors (TCC/NCC/BBQ/ICE monthly rental) ──
+    private bool GetIsPaid(TStall stall) => GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
+    private bool GetIsPartial(TStall stall) => GetPropertyValue<bool?>(stall, "IsPartial") ?? false;
+    private decimal GetPartialAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "PartialAmount") ?? 0;
     private string GetLastPaid(TStall stall)
     {
         var date = GetPropertyValue<DateOnly?>(stall, "LastPaidDate");

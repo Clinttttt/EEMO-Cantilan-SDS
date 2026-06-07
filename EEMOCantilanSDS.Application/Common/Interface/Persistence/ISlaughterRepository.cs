@@ -10,6 +10,7 @@ public interface ISlaughterRepository
     Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default);
     Task<SlaughterOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct = default);
+    Task<SlaughterHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     Task AddAsync(SlaughterTransaction transaction, CancellationToken ct = default);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransaction>> GetTransactionsByOwnerDateORAsync(string ownerName, DateOnly date, string orNumber, CancellationToken ct = default);

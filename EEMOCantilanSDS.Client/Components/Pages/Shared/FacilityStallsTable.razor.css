@@ -40,6 +40,33 @@
     transition: background .1s;
 }
 .ops-card:hover { background: var(--bg); }
+/* Trailing placeholder that fills the empty grid cell on odd counts */
+.ops-card.ops-card-empty {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--bg);
+    border-left: 3px solid transparent;
+    color: var(--text-muted);
+    cursor: default;
+}
+.ops-card.ops-card-empty:hover { background: var(--bg); }
+.ops-card-empty svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: .7;
+}
+.ops-empty-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: .01em;
+}
 /* Left-border status indicator — same token as the row tints */
 .ops-card.row-paid    { border-left: 3px solid var(--green); }
 .ops-card.row-unpaid  { border-left: 3px solid var(--red); }
@@ -121,6 +148,10 @@
 .today-pending {
     color: var(--text-muted);
     background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+.today-partial {
+    color: #b87333;
+    background: color-mix(in srgb, #b87333 12%, transparent);
 }
 .days-paid {
     font-weight: 700;

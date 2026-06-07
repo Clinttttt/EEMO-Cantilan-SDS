@@ -11,6 +11,9 @@ public class SlaughterApiClient(HttpClient http) : HandleResponse(http), ISlaugh
     public async Task<Result<SlaughterOverviewDto>> GetOverviewAsync(int year, int month) =>
         await GetAsync<SlaughterOverviewDto>($"api/slaughter/overview?year={year}&month={month}");
 
+    public async Task<Result<SlaughterHistoryDto>> GetHistoryAsync(int year) =>
+        await GetAsync<SlaughterHistoryDto>($"api/slaughter/history?year={year}");
+
     public async Task<Result<IReadOnlyList<SlaughterTransactionDto>>> GetTransactionsAsync(int year, int month) =>
         await GetAsync<IReadOnlyList<SlaughterTransactionDto>>($"api/slaughter/transactions?year={year}&month={month}");
 

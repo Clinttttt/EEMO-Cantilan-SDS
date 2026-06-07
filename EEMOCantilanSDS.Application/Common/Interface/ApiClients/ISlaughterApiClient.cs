@@ -8,6 +8,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface ISlaughterApiClient
 {
     Task<Result<SlaughterOverviewDto>> GetOverviewAsync(int year, int month);
+    Task<Result<SlaughterHistoryDto>> GetHistoryAsync(int year);
     Task<Result<IReadOnlyList<SlaughterTransactionDto>>> GetTransactionsAsync(int year, int month);
     Task<Result<IReadOnlyList<OwnerTransactionGroupDto>>> GetGroupedTransactionsAsync(int year, int month);
     Task<Result<OwnerTransactionHistoryDto>> GetOwnerHistoryAsync(string ownerName, int year, int month);

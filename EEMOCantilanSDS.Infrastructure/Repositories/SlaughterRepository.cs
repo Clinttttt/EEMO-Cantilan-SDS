@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -149,6 +150,81 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             transactions.Where(x => x.AnimalType == AnimalType.Cow).Sum(x => x.NumberOfHeads),
             transactions.Where(x => x.AnimalType == AnimalType.Other).Sum(x => x.NumberOfHeads)
         );
+    }
+
+    /// <summary>
+    /// Collection history for the slaughterhouse: every month of <paramref name="year"/> (up to the
+    /// current month for the current year, all 12 for past years) plus a rolling 5-year summary.
+    /// All transactions across the 5-year window are loaded in a single query, then aggregated in
+    /// memory so each period row is consistent with the per-month overview figures.
+    /// </summary>
+    public async Task<SlaughterHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default)
+    {
+        var today = PhilippineTime.Today;
+        var firstYear = year - 4;
+
+        // One query for the whole 5-year window; group in memory (DateOnly math is not translatable).
+        var rows = await context.SlaughterTransactions
+            .AsNoTracking()
+            .Where(x => x.TransactionDate.Year >= firstYear && x.TransactionDate.Year <= year)
+            .Select(x => new HistoryRow(
+                x.OwnerName,
+                x.AnimalType,
+                x.NumberOfHeads,
+                x.RatePerHead * x.NumberOfHeads,
+                x.ORNumber,
+                x.TransactionDate))
+            .ToListAsync(ct);
+
+        // Current year: only months that have started. Past years: all 12. Future years: none.
+        var maxMonth = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
+
+        var monthly = new List<SlaughterPeriodSummaryDto>();
+        for (var m = 1; m <= maxMonth; m++)
+        {
+            var monthSet = rows.Where(r => r.Date.Year == year && r.Date.Month == m).ToList();
+            monthly.Add(SummarizeHistory(new DateOnly(year, m, 1).ToString("MMMM"), year, m, monthSet));
+        }
+
+        var yearly = new List<SlaughterPeriodSummaryDto>();
+        for (var y = firstYear; y <= year; y++)
+        {
+            var yearSet = rows.Where(r => r.Date.Year == y).ToList();
+            yearly.Add(SummarizeHistory(y.ToString(), y, null, yearSet));
+        }
+
+        return new SlaughterHistoryDto(year, monthly, yearly);
+    }
+
+    private sealed record HistoryRow(string OwnerName, AnimalType AnimalType, int NumberOfHeads, decimal Amount, string? ORNumber, DateOnly Date);
+
+    private static SlaughterPeriodSummaryDto SummarizeHistory(string label, int year, int? month, List<HistoryRow> set)
+    {
+        int Heads(AnimalType t) => set.Where(r => r.AnimalType == t).Sum(r => r.NumberOfHeads);
+        decimal Revenue(AnimalType t) => set.Where(r => r.AnimalType == t).Sum(r => r.Amount);
+
+        // One receipt = one OR number; rows without an OR are counted per owner+date so they are
+        // not merged with unrelated records (matches the report's transaction grouping).
+        var receipts = set
+            .Select(r => !string.IsNullOrEmpty(r.ORNumber) ? "OR:" + r.ORNumber : $"NX:{r.OwnerName}:{r.Date:yyyyMMdd}")
+            .Distinct()
+            .Count();
+
+        return new SlaughterPeriodSummaryDto(
+            label, year, month,
+            set.Count,
+            receipts,
+            set.Select(r => r.OwnerName).Distinct().Count(),
+            set.Sum(r => r.NumberOfHeads),
+            set.Sum(r => r.Amount),
+            Heads(AnimalType.Hog),
+            Heads(AnimalType.Carabao),
+            Heads(AnimalType.Cow),
+            Heads(AnimalType.Other),
+            Revenue(AnimalType.Hog),
+            Revenue(AnimalType.Carabao),
+            Revenue(AnimalType.Cow),
+            Revenue(AnimalType.Other));
     }
 
     public async Task AddAsync(SlaughterTransaction transaction, CancellationToken ct = default)
