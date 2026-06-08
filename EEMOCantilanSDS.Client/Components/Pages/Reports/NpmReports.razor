@@ -103,7 +103,7 @@
                 <div><span>Facility</span><strong>New Public Market</strong></div>
                 <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
                 <div><span>Prepared By</span><strong>EEMO Office</strong></div>
-                <div><span>Date Prepared</span><strong>@DateTime.Now.ToString("MMM d, yyyy")</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
 
             <div class="print-report-summary">
@@ -201,7 +201,7 @@ else if (ShowHistory)
                 <div><span>Facility</span><strong>New Public Market</strong></div>
                 <div><span>Year</span><strong>@CurrentDate.Year</strong></div>
                 <div><span>Prepared By</span><strong>EEMO Office</strong></div>
-                <div><span>Date Prepared</span><strong>@DateTime.Now.ToString("MMM d, yyyy")</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
 
             <!-- Monthly History -->
@@ -1225,7 +1225,7 @@ else
     bool ShowUtilityBilling = false;
     bool ShowPrintReport = false;
     bool ShowHistory = false;
-    DateTime CurrentDate = DateTime.Now;
+    DateTime CurrentDate = PhilippineTime.Now;
     private FacilityReportsDto? R;
     private FacilityHistoryDto? History;
     private bool HistoryLoading;

@@ -170,6 +170,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             .Select(x => new HistoryRow(
                 x.OwnerName,
                 x.AnimalType,
+                x.CustomAnimalType,
                 x.NumberOfHeads,
                 x.RatePerHead * x.NumberOfHeads,
                 x.ORNumber,
@@ -196,7 +197,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
         return new SlaughterHistoryDto(year, monthly, yearly);
     }
 
-    private sealed record HistoryRow(string OwnerName, AnimalType AnimalType, int NumberOfHeads, decimal Amount, string? ORNumber, DateOnly Date);
+    private sealed record HistoryRow(string OwnerName, AnimalType AnimalType, string? CustomAnimalType, int NumberOfHeads, decimal Amount, string? ORNumber, DateOnly Date);
 
     private static SlaughterPeriodSummaryDto SummarizeHistory(string label, int year, int? month, List<HistoryRow> set)
     {
@@ -209,6 +210,14 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             .Select(r => !string.IsNullOrEmpty(r.ORNumber) ? "OR:" + r.ORNumber : $"NX:{r.OwnerName}:{r.Date:yyyyMMdd}")
             .Distinct()
             .Count();
+
+        // Break "Other" down by the specific custom animal name (e.g. Goat, Sheep, Chicken).
+        var otherAnimals = set
+            .Where(r => r.AnimalType == AnimalType.Other)
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.CustomAnimalType) ? "Other" : r.CustomAnimalType!.Trim())
+            .Select(g => new CustomAnimalTallyDto(g.Key, g.Sum(r => r.NumberOfHeads), g.Sum(r => r.Amount)))
+            .OrderByDescending(a => a.Revenue)
+            .ToList();
 
         return new SlaughterPeriodSummaryDto(
             label, year, month,
@@ -224,7 +233,8 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             Revenue(AnimalType.Hog),
             Revenue(AnimalType.Carabao),
             Revenue(AnimalType.Cow),
-            Revenue(AnimalType.Other));
+            Revenue(AnimalType.Other),
+            otherAnimals);
     }
 
     public async Task AddAsync(SlaughterTransaction transaction, CancellationToken ct = default)

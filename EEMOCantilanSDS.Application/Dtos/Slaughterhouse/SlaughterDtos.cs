@@ -60,7 +60,14 @@ public record SlaughterPeriodSummaryDto(
     decimal HogRevenue,
     decimal CarabaoRevenue,
     decimal CowRevenue,
-    decimal OtherRevenue
+    decimal OtherRevenue,
+    IReadOnlyList<CustomAnimalTallyDto> OtherAnimals   // specific custom animal types within "Other"
+);
+
+public record CustomAnimalTallyDto(
+    string Name,
+    int Heads,
+    decimal Revenue
 );
 
 public record TransactionDateGroupDto(

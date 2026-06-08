@@ -176,7 +176,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                         ActualMonthlyRental = s.MonthlyRate,
                         WholeYearRental = s.MonthlyRate * 12,
                         FishFeeTotal = null,
-                        IsClosed = s.Status == StallStatus.Closed
+                        IsClosed = s.Status == StallStatus.Closed,
+                        AreaLocation = s.AreaLocation?.ToString()
                     };
                 }).ToList(),
                 SectionMonthlyTotal = stallsWithoutSection.Sum(s => s.MonthlyRate),

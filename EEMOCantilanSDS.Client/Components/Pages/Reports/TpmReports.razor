@@ -2,302 +2,667 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Domain.Constants
 @inject ITpmApiClient TpmApi
+@inject IJSRuntime JS
 
 <PageTitle>EEMO Admin — TPM Reports</PageTitle>
 
-<header class="rpt-topbar">
+<!-- ══ Topbar ══ -->
+<div class="rpt-topbar">
     <div class="rpt-topbar-left">
         <a href="/tpm" class="rpt-back-btn" title="Back to TPM">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div class="rpt-topbar-icon">
-            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         <div>
             <div class="rpt-eyebrow">FACILITY · TPM · REPORTS</div>
             <div class="rpt-title">Tabo-an Public Market Reports</div>
-            <div class="rpt-subtitle">@GetPeriodLabel()</div>
+            <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
     </div>
     <div class="rpt-topbar-right">
-        <button class="rpt-action-btn">
-            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <button type="button" class="rpt-action-btn" title="Export PDF" aria-label="Export PDF" @onclick="PrintPage">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Export PDF
         </button>
-        <button class="rpt-action-btn">
-            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <button type="button" class="rpt-action-btn" title="Print" aria-label="Print report" @onclick="PrintPage">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Print
         </button>
     </div>
-    <div class="rpt-header-progress">
+    <div class="rpt-header-progress" title="Collection rate @CollectionRate%">
         <div class="rpt-header-progress-fill" style="width:@CollectionRate%"></div>
-    </div>
-</header>
-
-<div class="rpt-period-bar">
-    <div class="rpt-period-tabs">
-        @foreach (var p in new[]{"Weekly","Monthly","Yearly"})
-        { <button class="rpt-period-tab @(ActivePeriod==p?"active":"")" @onclick="()=>SetPeriod(p)">@p</button> }
-    </div>
-    <div class="rpt-date-nav">
-        <button class="rpt-nav-btn" @onclick="PrevPeriod"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <span class="rpt-current-period">@GetPeriodLabel()</span>
-        <button class="rpt-nav-btn" @onclick="NextPeriod"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
 </div>
 
-<div class="rpt-content">
-
-    <div class="rpt-kpi-strip">
-        <div class="rpt-kpi-card kpi-revenue">
-            <div class="kpi-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Market Fees Collected</div>
-                <div class="kpi-value">₱@TotalCollected.ToString("N2")</div>
-                <div class="kpi-change positive">@RevenueGrowthText</div>
-            </div>
-        </div>
-        <div class="rpt-kpi-card kpi-rate">
-            <div class="kpi-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Vendor Collection Rate</div>
-                <div class="kpi-value">@CollectionRate%</div>
-                <div class="kpi-change positive">@CollectionGrowthText</div>
-            </div>
-        </div>
-        <div class="rpt-kpi-card kpi-pending">
-            <div class="kpi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Unpaid Vendors</div>
-                <div class="kpi-value">@UnpaidVendors</div>
-                <div class="kpi-change negative">₱@PendingAmount.ToString("N2") uncollected</div>
-            </div>
-        </div>
-        <div class="rpt-kpi-card kpi-stalls">
-            <div class="kpi-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Vendor Entries</div>
-                <div class="kpi-value">@TotalEntries</div>
-                <div class="kpi-change neutral">across @MarketDaysCount Fridays</div>
-            </div>
-        </div>
+<!-- ══ Period Selector ══ -->
+<div class="rpt-period-bar">
+    <div class="rpt-period-tabs">
+        @foreach (var p in new[] { "Monthly", "Yearly" })
+        {
+            <button type="button" class="rpt-period-tab @(!ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
+                    aria-pressed="@(!ShowPrintReport && !ShowHistory && ActivePeriod == p)"
+                    @onclick="() => SetPeriod(p)">@p</button>
+        }
+        <button type="button" class="rpt-period-tab rpt-document-tab @(ShowPrintReport ? "active" : "")"
+                aria-pressed="@ShowPrintReport" @onclick="ShowPrintReportView">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="16" y2="17" /></svg>
+            <span>Status Report</span>
+        </button>
+        <button type="button" class="rpt-period-tab rpt-document-tab @(ShowHistory ? "active" : "")"
+                aria-pressed="@ShowHistory" @onclick="ShowHistoryView">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>History</span>
+        </button>
     </div>
-
-    <div class="rpt-charts-row">
-        <div class="rpt-chart-card rpt-chart-wide">
-            <div class="chart-header">
-                <h3 class="chart-title">Friday Collection Trend</h3>
-                <div class="chart-legend">
-                    <span class="legend-dot" style="background:var(--green)"></span><span>Collected</span>
-                    <span class="legend-dot" style="background:var(--gold);margin-left:12px"></span><span>Current</span>
-                </div>
-            </div>
-            <div class="rpt-bar-chart">
-                @foreach (var pt in TrendPoints)
-                {
-                    <div class="rpt-bar-group @(pt.IsCurrent?"current":"")">
-                        <div class="rpt-bar-wrap">
-                            <div class="rpt-bar-3d">
-                                <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
-                                <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
-                                <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
-                            </div>
-                        </div>
-                        <div class="rpt-bar-label">@pt.Label</div>
-                        <div class="rpt-bar-val">₱@pt.ShortValue</div>
-                    </div>
-                }
-            </div>
-        </div>
-
-        <div class="rpt-chart-card rpt-chart-narrow">
-            <div class="chart-header"><h3 class="chart-title">Vendor Payment Status</h3></div>
-            <div class="rpt-donut-wrap">
-                <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="46" fill="none" stroke="var(--bg)" stroke-width="16" />
-                    @{ var arcs = BuildDonutArcs(new[]{(PaidVendors,"#2d7a5f"),(UnpaidVendors,"#8b3a3a")},46,60,60); }
-                    @foreach (var arc in arcs){ <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="16" stroke-linecap="butt" /> }
-                    <circle cx="60" cy="60" r="37" fill="white" />
-                    <text x="60" y="55" class="donut-center-pct">@CollectionRate%</text>
-                    <text x="60" y="68" class="donut-center-lbl">FULLY PAID</text>
-                </svg>
-                <div class="rpt-donut-legend">
-                    <div class="donut-leg-item"><span class="donut-leg-dot paid"></span><span>Paid</span><strong>@PaidVendors</strong></div>
-                    <div class="donut-leg-item"><span class="donut-leg-dot unpaid"></span><span>Unpaid</span><strong>@UnpaidVendors</strong></div>
-                </div>
-            </div>
-        </div>
+    <div class="rpt-date-nav @(ShowPrintReport || ShowHistory ? "utility-mode" : "")">
+        <button type="button" class="rpt-nav-btn" @onclick="PrevPeriod" aria-label="Previous period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="rpt-current-period">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</span>
+        <button type="button" class="rpt-nav-btn" @onclick="NextPeriod" aria-label="Next period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
     </div>
+</div>
 
-    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Audit Breakdown</h2></div>
-
-    <div class="rpt-breakdown-grid">
-
-        <!-- Friday market days breakdown -->
-        <div class="rpt-breakdown-card">
-            <h4 class="breakdown-title">Friday Market Days</h4>
-            <div class="breakdown-list">
-                @foreach (var f in FridayBreakdown)
-                {
-                    <div class="breakdown-item">
-                        <div class="breakdown-label"><span class="sec-dot" style="background:@f.Color"></span>@f.Label</div>
-                        <div class="breakdown-value">@f.Vendors vendors</div>
-                        <div class="breakdown-bar"><div class="bar-fill" style="width:@f.Pct%;background:@f.Color"></div></div>
-                    </div>
-                }
+@if (ShowPrintReport)
+{
+    <!-- ══ Phase 2: Status Report ══ -->
+    <div class="rpt-content print-document-content">
+        <section class="print-report-sheet status-sheet">
+            <header class="print-report-header">
+                <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <div class="print-republic">Republic of the Philippines</div>
+                <h2>Economic Enterprise &amp; Management Office</h2>
+                <p>Municipality of Cantilan, Surigao del Sur</p>
+                <div class="print-report-title">Tabo-an Public Market — Collection Status Report</div>
+            </header>
+            <div class="print-report-meta">
+                <div><span>Facility</span><strong>Tabo-an Public Market</strong></div>
+                <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
+                <div><span>Prepared By</span><strong>EEMO Office</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
-            <div class="mini-panel">
-                <div class="mini-panel-title">Fee Rate</div>
-                <div class="fee-row"><span>Per vendor per Friday</span><div class="mini-meter"><div class="mini-meter-fill" style="width:100%;background:var(--green)"></div></div><strong>₱100</strong></div>
+            <div class="print-report-summary">
+                <div><span>Vendor Entries</span><strong>@MonthAtt.Count</strong></div>
+                <div><span>Paid</span><strong>@MonthAtt.Count(a => a.IsPaid)</strong></div>
+                <div><span>Fees Collected</span><strong>&#8369;@MonthAtt.Where(a => a.IsPaid).Sum(a => a.Fee).ToString("N2")</strong></div>
+                <div><span>Collection Rate</span><strong>@CollectionRate%</strong></div>
             </div>
-        </div>
-
-        <!-- Compliance -->
-        <div class="rpt-breakdown-card">
-            <h4 class="breakdown-title">Vendor Compliance</h4>
-            <div class="breakdown-list">
-                <div class="breakdown-item">
-                    <div class="breakdown-label"><span class="status-badge paid">Paid</span></div>
-                    <div class="breakdown-value">@PaidVendors entries</div>
-                    <div class="breakdown-bar"><div class="bar-fill paid" style="width:@CollectionRate%"></div></div>
-                </div>
-                <div class="breakdown-item">
-                    <div class="breakdown-label"><span class="status-badge unpaid">Unpaid</span></div>
-                    <div class="breakdown-value">@UnpaidVendors entries</div>
-                    <div class="breakdown-bar"><div class="bar-fill unpaid" style="width:@UnpaidPct%"></div></div>
-                </div>
-            </div>
-            <div class="mini-panel">
-                <div class="mini-panel-title">Uncollected</div>
-                <div class="fee-row"><span>@UnpaidVendors vendors × ₱100</span><div class="mini-meter"><div class="mini-meter-fill" style="width:@UnpaidPct%;background:var(--red)"></div></div><strong>₱@PendingAmount.ToString("N0")</strong></div>
-            </div>
-        </div>
-
-        <!-- Friday calendar -->
-        <div class="rpt-breakdown-card rpt-streak-card">
-            <h4 class="breakdown-title">Market Day Activity — @GetPeriodLabel()</h4>
-            @if (ActivePeriod == "Yearly")
+            @if (!MonthAtt.Any())
             {
-                <div class="streak-calendar-area">
-                    <div class="streak-yearly-grid">
-                        @foreach (var mo in YearlyMonths)
-                        { <div class="streak-month-cell @mo.Css" title="@mo.Label"><span class="streak-month-name">@mo.Name</span><span class="streak-month-rate">@mo.Rate</span></div> }
-                    </div>
-                </div>
-            }
-            else if (ActivePeriod == "Weekly")
-            {
-                <div class="streak-calendar-area">
-                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
-                    <div class="streak-grid streak-grid-week">
-                        @foreach(var day in WeekDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
-                    </div>
-                </div>
+                <p class="print-empty">No vendor attendance recorded for @CurrentDate.ToString("MMMM yyyy").</p>
             }
             else
             {
-                <div class="streak-calendar-area">
-                    <div class="streak-dow-row">@foreach(var d in new[]{"Su","Mo","Tu","We","Th","Fr","Sa"}){<span>@d</span>}</div>
-                    <div class="streak-grid">
-                        @for(int b=0;b<CalendarLeadBlanks;b++){<span class="streak-day empty"></span>}
-                        @foreach(var day in CalendarDays){<span class="streak-day @day.Css" title="@day.Label">@day.Num</span>}
-                    </div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table status-sheet">
+                        <thead>
+                            <tr>
+                                <th>Market Date</th>
+                                <th>Vendor</th>
+                                <th>Goods</th>
+                                <th>Status</th>
+                                <th>Fee</th>
+                                <th>OR No.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in MonthAtt)
+                            {
+                                <tr>
+                                    <td>@a.MarketDate.ToString("MMM d")</td>
+                                    <td>@a.VendorName</td>
+                                    <td>@a.Goods</td>
+                                    <td class="status-@(a.IsPaid ? "paid" : "unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</td>
+                                    <td>&#8369;@a.Fee.ToString("N2")</td>
+                                    <td class="text-muted-cell">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             }
-            <div class="streak-legend">
-                <span><i class="leg-swatch collected"></i>Market day (@ActiveFridays)</span>
-                <span><i class="leg-swatch future"></i>Upcoming</span>
+            <div class="print-report-signatures">
+                <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Received by</span><strong>Authorized Representative</strong></div>
+            </div>
+        </section>
+    </div>
+}
+else if (ShowHistory)
+{
+    <!-- ══ Phase 3: History ══ -->
+    <div class="rpt-content print-document-content">
+        <section class="print-report-sheet history-sheet">
+            <header class="print-report-header">
+                <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <div class="print-republic">Republic of the Philippines</div>
+                <h2>Economic Enterprise &amp; Management Office</h2>
+                <p>Municipality of Cantilan, Surigao del Sur</p>
+                <div class="print-report-title">Tabo-an Public Market — Collection History</div>
+            </header>
+            <div class="print-report-meta">
+                <div><span>Facility</span><strong>Tabo-an Public Market</strong></div>
+                <div><span>Year</span><strong>@CurrentDate.Year</strong></div>
+                <div><span>Prepared By</span><strong>EEMO Office</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+            </div>
+
+            <div class="print-section-block">
+                <div class="print-section-heading">Monthly Collection — @CurrentDate.Year</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table history-table">
+                        <thead>
+                            <tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (!HistoryMonthly.Any())
+                            {
+                                <tr><td colspan="6" class="history-empty">@(HistoryLoading ? "Loading…" : "No collection records for this year.")</td></tr>
+                            }
+                            @foreach (var row in HistoryMonthly)
+                            {
+                                <tr>
+                                    <td>@row.Label</td>
+                                    <td>@row.MarketDays</td>
+                                    <td>@row.VendorEntries</td>
+                                    <td>@row.PaidEntries</td>
+                                    <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
+                                    <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (HistoryMonthly.Any())
+                        {
+                            <tfoot>
+                                <tr class="history-total-row">
+                                    <td><strong>Total</strong></td>
+                                    <td><strong>@HistoryMonthly.Sum(r => r.MarketDays)</strong></td>
+                                    <td><strong>@HistoryMonthly.Sum(r => r.VendorEntries)</strong></td>
+                                    <td><strong>@HistoryMonthly.Sum(r => r.PaidEntries)</strong></td>
+                                    <td><strong>₱@HistoryMonthly.Sum(r => r.Collected).ToString("N2")</strong></td>
+                                    <td>—</td>
+                                </tr>
+                            </tfoot>
+                        }
+                    </table>
+                </div>
+            </div>
+
+            <div class="print-section-block">
+                <div class="print-section-heading">Yearly Collection Summary</div>
+                <div class="print-table-wrap">
+                    <table class="print-status-table history-table">
+                        <thead>
+                            <tr><th>Year</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (!HistoryYearly.Any())
+                            {
+                                <tr><td colspan="6" class="history-empty">@(HistoryLoading ? "Loading…" : "No yearly records.")</td></tr>
+                            }
+                            @foreach (var row in HistoryYearly)
+                            {
+                                <tr>
+                                    <td><strong>@row.Label</strong></td>
+                                    <td>@row.MarketDays</td>
+                                    <td>@row.VendorEntries</td>
+                                    <td>@row.PaidEntries</td>
+                                    <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
+                                    <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="print-report-signatures">
+                <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Received by</span><strong>Authorized Representative</strong></div>
+            </div>
+        </section>
+    </div>
+}
+else
+{
+    <!-- ══ Phase 1: Monthly / Yearly ══ -->
+    <div class="rpt-kpi-strip">
+        <div class="rpt-kpi-card">
+            <div class="kpi-icon-wrap kpi-icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Market Fees Collected</div>
+                <div class="kpi-value">&#8369;@TotalCollected.ToString("N2")</div>
+                <div class="kpi-change">@ActivePeriod.ToLower() total</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card">
+            <div class="kpi-icon-wrap kpi-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Vendor Collection Rate</div>
+                <div class="kpi-value">@CollectionRate%</div>
+                <div class="kpi-change">@PaidEntries of @VendorEntries entries paid</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card">
+            <div class="kpi-icon-wrap kpi-icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Unpaid Vendors</div>
+                <div class="kpi-value">@UnpaidEntries</div>
+                <div class="kpi-change kpi-change-negative">&#8369;@PendingAmount.ToString("N2") uncollected</div>
+            </div>
+        </div>
+        <div class="rpt-kpi-card">
+            <div class="kpi-icon-wrap kpi-icon-neutral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+            <div class="kpi-body">
+                <div class="kpi-label">Vendor Entries</div>
+                <div class="kpi-value">@VendorEntries</div>
+                <div class="kpi-change">across @MarketDays market day@(MarketDays != 1 ? "s" : "")</div>
             </div>
         </div>
     </div>
 
-    <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Vendor Attendance Log — @GetPeriodLabel()</h2></div>
-    <div class="rpt-compliance-table-wrap">
-        <table class="rpt-compliance-table">
-            <thead><tr><th>Market Date</th><th>Vendor</th><th>Status</th><th>Fee</th><th>OR Number</th></tr></thead>
-            <tbody>
-                @foreach (var v in VendorLog)
-                {
-                    <tr class="@(v.IsPaid?"":"row-unpaid")">
-                        <td class="text-muted">@v.Date</td>
-                        <td>@v.VendorName</td>
-                        <td><span class="status-badge @(v.IsPaid?"paid":"unpaid")">@(v.IsPaid?"Paid":"Unpaid")</span></td>
-                        <td style="font-weight:600">₱@v.Fee.ToString("N0")</td>
-                        <td class="text-muted">@(string.IsNullOrEmpty(v.ORNumber)?"—":v.ORNumber)</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+    <div class="rpt-content">
 
-</div>
+        <!-- Charts Row -->
+        <div class="rpt-charts-row">
+            <div class="rpt-chart-card rpt-chart-wide">
+                <div class="chart-header">
+                    <div class="chart-header-left">
+                        <h3 class="chart-title">Collection Trend</h3>
+                        <p class="chart-subtitle">@(IsYearly ? "Collected fees by month" : "Collected fees by market day (Friday)")</p>
+                    </div>
+                    <div class="chart-legend">
+                        <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#c8a84b"></span><span class="legend-label">Current Period</span></div>
+                    </div>
+                </div>
+                <div class="rpt-bar-chart">
+                    @if (TrendPoints.Any(p => p.Amount > 0))
+                    {
+                        @foreach (var pt in TrendPoints)
+                        {
+                            <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "") @(pt.IsZero ? "is-zero" : "")" title="@pt.Label — ₱@pt.Amount.ToString("N2")">
+                                <div class="rpt-bar-wrap">
+                                    <div class="rpt-bar-3d">
+                                        <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
+                                        <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
+                                        <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
+                                    </div>
+                                </div>
+                                <div class="rpt-bar-label">@pt.Label</div>
+                                <div class="rpt-bar-val">&#8369;@pt.ShortValue</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="rpt-empty">
+                            <div class="rpt-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+                            <div class="rpt-empty-title">No fees recorded</div>
+                            <div class="rpt-empty-text">No market fees were collected for @GetPeriodLabel().</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Vendor Payment Status donut -->
+            <div class="rpt-chart-card rpt-chart-narrow rpt-status-card">
+                <div class="chart-header">
+                    <div class="chart-header-left">
+                        <h3 class="chart-title">Vendor Payment Status</h3>
+                        <p class="chart-subtitle">Entries by payment status</p>
+                    </div>
+                </div>
+                <div class="rpt-donut-wrap">
+                    <div class="rpt-donut-container">
+                        <svg class="rpt-donut-svg" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
+                            @{ var arcs = BuildDonutArcs(new[] { (PaidEntries, "#2d7a5f"), (UnpaidEntries, "#8b3a3a") }, 46, 60, 60); }
+                            @foreach (var arc in arcs)
+                            {
+                                <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
+                            }
+                            <circle cx="60" cy="60" r="35" fill="white" />
+                            <text x="60" y="56" class="donut-center-val">@CollectionRate%</text>
+                            <text x="60" y="70" class="donut-center-lbl">PAID</text>
+                        </svg>
+                    </div>
+                    <div class="rpt-donut-legend">
+                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:#2d7a5f"></span><span class="donut-leg-label">Paid</span></div><strong class="donut-leg-value">@PaidEntries</strong></div>
+                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:#8b3a3a"></span><span class="donut-leg-label">Unpaid</span></div><strong class="donut-leg-value">@UnpaidEntries</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audit Breakdown -->
+        <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Audit Breakdown</h2></div>
+
+        <div class="rpt-audit-row">
+            <!-- Vendors by Goods -->
+            <div class="audit-card tpm-breakdown-card">
+                <div class="audit-card-head">
+                    <span>Vendors by Goods</span>
+                    <small class="audit-subtitle">Entries &amp; fees per goods category</small>
+                </div>
+                @if (GoodsBreakdown.Any())
+                {
+                    <div class="tpm-tally-scroll">
+                        @foreach (var g in GoodsBreakdown)
+                        {
+                            var pct = VendorEntries > 0 ? Math.Min(100, (int)Math.Round((double)g.Entries / VendorEntries * 100)) : 0;
+                            <div class="tpm-tally-row">
+                                <div class="tpm-tally-top">
+                                    <span class="tpm-tally-name">@g.Goods</span>
+                                    <span class="tpm-tally-pct">@pct%</span>
+                                </div>
+                                <div class="tpm-tally-meter"><div class="tpm-tally-fill" style="width:@pct%"></div></div>
+                                <div class="tpm-tally-vals"><span><strong>@g.Entries</strong> entr@(g.Entries != 1 ? "ies" : "y")</span><span class="tpm-tally-sep">·</span><span>&#8369;@g.Collected.ToString("N0") collected</span></div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="delinq-empty">No vendor entries for @GetPeriodLabel().</div>
+                }
+            </div>
+
+            <!-- Vendor Compliance -->
+            <div class="audit-card">
+                <div class="audit-card-head">
+                    <span>Vendor Compliance</span>
+                    <small class="audit-subtitle">Entry distribution by payment status</small>
+                </div>
+                <div class="tpm-comp-track-wrap">
+                    @if (VendorEntries > 0)
+                    {
+                        <div class="tpm-comp-track">
+                            @if (CollectionRate > 0) { <div class="tpm-comp-seg seg-paid" style="width:@CollectionRate%" title="Paid @PaidEntries"></div> }
+                            @if (UnpaidPct > 0) { <div class="tpm-comp-seg seg-unpaid" style="width:@UnpaidPct%" title="Unpaid @UnpaidEntries"></div> }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tpm-comp-track"><div class="tpm-comp-seg seg-empty" style="width:100%"></div></div>
+                    }
+                </div>
+                <div class="tpm-comp-cards">
+                    <div class="tpm-comp-card tpm-comp-card-paid">
+                        <div class="tpm-comp-count">@PaidEntries</div>
+                        <div class="tpm-comp-pct">@CollectionRate%</div>
+                        <div class="tpm-comp-lbl">Paid</div>
+                    </div>
+                    <div class="tpm-comp-card tpm-comp-card-unpaid">
+                        <div class="tpm-comp-count">@UnpaidEntries</div>
+                        <div class="tpm-comp-pct">@UnpaidPct%</div>
+                        <div class="tpm-comp-lbl">Unpaid</div>
+                    </div>
+                </div>
+                <div class="tpm-comp-footer">
+                    <span>₱@TotalCollected.ToString("N0") collected of ₱@ExpectedAmount.ToString("N0") expected · @MarketDays market day@(MarketDays != 1 ? "s" : "")</span>
+                </div>
+            </div>
+
+            <!-- KPI stack -->
+            <div class="audit-card audit-kpi-stack">
+                <div class="audit-number-card">
+                    <strong>&#8369;@TotalCollected.ToString("N0")</strong>
+                    <span>Total Fees</span>
+                </div>
+                <div class="audit-number-card">
+                    <strong>@CollectionRate%</strong>
+                    <span>Collection Rate</span>
+                </div>
+            </div>
+        </div>
+
+        @if (IsYearly)
+        {
+            <!-- Yearly: monthly summary -->
+            <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Monthly Summary — @CurrentDate.Year</h2></div>
+            <div class="rpt-compliance-table-wrap">
+                <table class="rpt-compliance-table">
+                    <thead><tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in HistoryMonthly)
+                        {
+                            <tr>
+                                <td class="stall-no">@row.Label</td>
+                                <td>@row.MarketDays</td>
+                                <td>@row.VendorEntries</td>
+                                <td>@row.PaidEntries</td>
+                                <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
+                                <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
+                            </tr>
+                        }
+                        @if (!HistoryMonthly.Any())
+                        {
+                            <tr><td colspan="6" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <!-- Unpaid Vendors — for follow-up -->
+            <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Unpaid Vendors — for follow-up</h2></div>
+            <div class="rpt-followup-panel">
+                <div class="followup-exposure @(PendingAmount > 0 ? "followup-has-balance" : "")">
+                    <div class="followup-exp-val">&#8369;@PendingAmount.ToString("N2")</div>
+                    <div class="followup-exp-lbl">Uncollected this period — @UnpaidEntries vendor@(UnpaidEntries != 1 ? "s" : "") to follow up</div>
+                </div>
+                <div class="followup-table-head">
+                    <span>Market Date</span><span>Vendor</span><span>Goods</span><span>Fee Due</span>
+                </div>
+                @foreach (var a in UnpaidVendors)
+                {
+                    <div class="followup-row">
+                        <span class="text-muted">@a.MarketDate.ToString("MMM d")</span>
+                        <span>@a.VendorName</span>
+                        <span class="text-muted">@a.Goods</span>
+                        <span class="balance-due">&#8369;@a.Fee.ToString("N2")</span>
+                    </div>
+                }
+                @if (!UnpaidVendors.Any())
+                {
+                    <div class="delinq-empty">All vendors paid for @GetPeriodLabel().</div>
+                }
+            </div>
+
+            <!-- Vendor Attendance Log -->
+            <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Vendor Attendance Log — @GetPeriodLabel()</h2></div>
+            <div class="rpt-compliance-table-wrap">
+                <table class="rpt-compliance-table">
+                    <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Status</th><th>Fee</th><th>OR Number</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in MonthAtt)
+                        {
+                            <tr class="@(a.IsPaid ? "" : "row-unpaid")">
+                                <td class="text-muted">@a.MarketDate.ToString("MMM d")</td>
+                                <td>@a.VendorName</td>
+                                <td>@a.Goods</td>
+                                <td><span class="status-badge @(a.IsPaid ? "paid" : "unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</span></td>
+                                <td class="tpm-fee">&#8369;@a.Fee.ToString("N0")</td>
+                                <td class="text-muted">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
+                            </tr>
+                        }
+                        @if (!MonthAtt.Any())
+                        {
+                            <tr><td colspan="6" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+    </div><!-- end rpt-content -->
+}
 
 @code {
+
+    // ── Period / view state ───────────────────────────────────────
     string ActivePeriod = "Monthly";
-    DateTime CurrentDate = DateTime.Now;
-    private TpmOverviewDto? Overview;
-    private TpmOverviewDto? PrevOverview;
-    private List<TpmMarketDayDto> MarketDays = new();
-    private List<TpmVendorAttendanceDto> Att = new();
+    bool ShowPrintReport = false;
+    bool ShowHistory = false;
+    DateTime CurrentDate = PhilippineTime.Now;
+
+    private List<TpmVendorAttendanceDto> MonthAtt = new();
+    private TpmHistoryDto? Hist;
+    private bool HistoryLoading;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
     async Task LoadAsync()
     {
-        var ovr = await TpmApi.GetOverviewAsync(CurrentDate.Year, CurrentDate.Month);
-        Overview = ovr.IsSuccess ? ovr.Value : null;
-        var prevDate = CurrentDate.AddMonths(-1);
-        var prev = await TpmApi.GetOverviewAsync(prevDate.Year, prevDate.Month);
-        PrevOverview = prev.IsSuccess ? prev.Value : null;
-
-        var md = await TpmApi.GetMarketDaysAsync(CurrentDate.Year, CurrentDate.Month);
-        MarketDays = md.IsSuccess && md.Value != null ? md.Value.OrderBy(m => m.MarketDate).ToList() : new();
-
-        Att = new();
-        foreach (var day in MarketDays)
+        if (ShowHistory)
         {
-            var a = await TpmApi.GetVendorAttendanceAsync(day.MarketDate);
-            if (a.IsSuccess && a.Value != null) Att.AddRange(a.Value);
+            HistoryLoading = true;
+            var h = await TpmApi.GetHistoryAsync(CurrentDate.Year);
+            Hist = h.IsSuccess ? h.Value : null;
+            HistoryLoading = false;
         }
-    }
-    async Task SetPeriod(string p) { ActivePeriod = p; await LoadAsync(); }
-    async Task PrevPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(-7), "Yearly" => CurrentDate.AddYears(-1), _ => CurrentDate.AddMonths(-1) }; await LoadAsync(); }
-    async Task NextPeriod() { CurrentDate = ActivePeriod switch { "Weekly" => CurrentDate.AddDays(7),  "Yearly" => CurrentDate.AddYears(1),  _ => CurrentDate.AddMonths(1)  }; await LoadAsync(); }
-    string GetPeriodLabel() => ActivePeriod switch { "Weekly" => $"Week of {CurrentDate:MMM d, yyyy}", "Yearly" => CurrentDate.ToString("yyyy"), _ => CurrentDate.ToString("MMMM yyyy") };
+        else if (ActivePeriod == "Yearly" && !ShowPrintReport)
+        {
+            var h = await TpmApi.GetHistoryAsync(CurrentDate.Year);
+            Hist = h.IsSuccess ? h.Value : null;
+        }
+        else
+        {
+            // Monthly (Phase 1) and the Status Report both need the month's attendance.
+            var r = await TpmApi.GetMonthAttendanceAsync(CurrentDate.Year, CurrentDate.Month);
+            MonthAtt = r.IsSuccess && r.Value != null ? r.Value.ToList() : new();
+        }
 
-    decimal TotalCollected  => Overview?.CollectedThisMonth ?? 0m;
-    int     CollectionRate  => Overview?.CollectionRate ?? 0;
-    int     PaidVendors     => Att.Count(a => a.IsPaid);
-    int     UnpaidVendors   => Att.Count(a => !a.IsPaid);
-    int     TotalEntries    => Att.Count;
-    int     MarketDaysCount => MarketDays.Count;
-    int     ActiveFridays   => MarketDays.Count;
-    decimal PendingAmount   => Att.Where(a => !a.IsPaid).Sum(a => a.Fee);
-    int     UnpaidPct        => TotalEntries > 0 ? (int)((double)UnpaidVendors / TotalEntries * 100) : 0;
-    string  RevenueGrowthText
+        RecomputeDerived();
+    }
+
+    void RecomputeDerived()
     {
-        get
-        {
-            var prev = PrevOverview?.CollectedThisMonth ?? 0m;
-            var g = prev > 0 ? (TotalCollected - prev) / prev * 100 : 0m;
-            return $"{g:+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
-        }
-    }
-    string  CollectionGrowthText
-    {
-        get
-        {
-            var g = CollectionRate - (PrevOverview?.CollectionRate ?? 0);
-            return $"{g:+0;-0;0} pts vs previous {ActivePeriod.ToLower()}";
-        }
+        _goodsBreakdown = BuildGoodsBreakdown();
+        _trendPoints = BuildTrendPoints();
     }
 
+    async Task SetPeriod(string p) { ShowPrintReport = false; ShowHistory = false; ActivePeriod = p; await LoadAsync(); }
+    async Task ShowPrintReportView() { ShowPrintReport = true; ShowHistory = false; await LoadAsync(); }
+    async Task ShowHistoryView() { ShowHistory = true; ShowPrintReport = false; await LoadAsync(); }
+    async Task PrintPage() => await JS.InvokeVoidAsync("print");
+
+    async Task PrevPeriod()
+    {
+        if (ShowHistory) { CurrentDate = CurrentDate.AddYears(-1); await LoadAsync(); return; }
+        if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(-1); await LoadAsync(); return; }
+        CurrentDate = IsYearly ? CurrentDate.AddYears(-1) : CurrentDate.AddMonths(-1);
+        await LoadAsync();
+    }
+    async Task NextPeriod()
+    {
+        if (ShowHistory) { CurrentDate = CurrentDate.AddYears(1); await LoadAsync(); return; }
+        if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(1); await LoadAsync(); return; }
+        CurrentDate = IsYearly ? CurrentDate.AddYears(1) : CurrentDate.AddMonths(1);
+        await LoadAsync();
+    }
+
+    string GetPeriodLabel() => IsYearly ? CurrentDate.ToString("yyyy") : CurrentDate.ToString("MMMM yyyy");
+    string PrintReportPeriodLabel => $"Status Report — {CurrentDate:MMMM yyyy}";
+    string HistoryPeriodLabel => $"History — {CurrentDate.Year}";
+
+    bool IsYearly => ActivePeriod == "Yearly";
+    private TpmPeriodSummaryDto? YearRow => Hist?.Yearly.FirstOrDefault(y => y.Year == CurrentDate.Year);
+
+    static string RateCss(int rate) => rate >= 80 ? "rate-good" : rate >= 40 ? "rate-partial" : "rate-low";
+
+    // ── KPI values (period-aware) ─────────────────────────────────
+    decimal TotalCollected => IsYearly ? (YearRow?.Collected ?? 0m) : MonthAtt.Where(a => a.IsPaid).Sum(a => a.Fee);
+    int     VendorEntries  => IsYearly ? (YearRow?.VendorEntries ?? 0) : MonthAtt.Count;
+    int     PaidEntries    => IsYearly ? (YearRow?.PaidEntries ?? 0) : MonthAtt.Count(a => a.IsPaid);
+    int     UnpaidEntries  => IsYearly ? (YearRow?.UnpaidEntries ?? 0) : MonthAtt.Count(a => !a.IsPaid);
+    int     MarketDays     => IsYearly ? (YearRow?.MarketDays ?? 0) : MonthAtt.Select(a => a.MarketDate).Distinct().Count();
+    int     CollectionRate => IsYearly ? (YearRow?.CollectionRate ?? 0) : (VendorEntries > 0 ? (int)Math.Round((double)PaidEntries / VendorEntries * 100) : 0);
+    int     UnpaidPct      => VendorEntries > 0 ? Math.Max(0, 100 - CollectionRate) : 0;
+    decimal ExpectedAmount => VendorEntries * FeeRates.TpmVendorFee;
+    decimal PendingAmount  => UnpaidEntries * FeeRates.TpmVendorFee;
+
+    // ── Goods breakdown (period-aware, memoized) ──────────────────
+    record TallyRow(string Goods, int Entries, decimal Collected);
+    private IReadOnlyList<TallyRow> _goodsBreakdown = Array.Empty<TallyRow>();
+    IReadOnlyList<TallyRow> GoodsBreakdown => _goodsBreakdown;
+
+    IReadOnlyList<TallyRow> BuildGoodsBreakdown()
+    {
+        if (IsYearly)
+            return (YearRow?.Goods ?? new List<TpmGoodsTallyDto>())
+                .Select(g => new TallyRow(g.Goods, g.Entries, g.Collected)).ToList();
+        return MonthAtt
+            .GroupBy(a => string.IsNullOrWhiteSpace(a.Goods) ? "—" : a.Goods)
+            .Select(g => new TallyRow(g.Key, g.Count(), g.Where(a => a.IsPaid).Sum(a => a.Fee)))
+            .OrderByDescending(g => g.Entries)
+            .ToList();
+    }
+
+    // ── Unpaid vendors follow-up (monthly only) ───────────────────
+    IReadOnlyList<TpmVendorAttendanceDto> UnpaidVendors =>
+        MonthAtt.Where(a => !a.IsPaid).OrderBy(a => a.MarketDate).ThenBy(a => a.VendorName).ToList();
+
+    // ── Trend (per Friday for Monthly, per month for Yearly; memoized) ──
+    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct, bool IsZero)
+    {
+        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N1}k" : Amount.ToString("N0");
+    }
+    private IReadOnlyList<TrendPoint> _trendPoints = Array.Empty<TrendPoint>();
+    IReadOnlyList<TrendPoint> TrendPoints => _trendPoints;
+
+    IReadOnlyList<TrendPoint> BuildTrendPoints()
+    {
+        var today = PhilippineTime.Today;
+        List<(string Label, decimal Amount, bool IsCurrent)> pts;
+        if (IsYearly)
+        {
+            pts = (Hist?.Monthly ?? new List<TpmPeriodSummaryDto>())
+                .Select(m => (
+                    Label: new DateOnly(m.Year, m.Month ?? 1, 1).ToString("MMM"),
+                    Amount: m.Collected,
+                    IsCurrent: m.Year == today.Year && (m.Month ?? 0) == today.Month))
+                .ToList();
+        }
+        else
+        {
+            pts = MonthAtt.GroupBy(a => a.MarketDate).OrderBy(g => g.Key)
+                .Select(g => (
+                    Label: g.Key.ToString("MMM d"),
+                    Amount: g.Where(a => a.IsPaid).Sum(a => a.Fee),
+                    IsCurrent: g.Key == today))
+                .ToList();
+        }
+        var max = pts.Any() ? pts.Max(x => x.Amount) : 0m;
+        var ceiling = max > 0m ? max * 1.15m : 0m;
+        return pts.Select(x => new TrendPoint(
+            x.Label, x.Amount, x.IsCurrent,
+            x.Amount > 0m && ceiling > 0m ? Math.Max(3, (int)(x.Amount / ceiling * 100)) : 0,
+            x.Amount <= 0m)).ToList();
+    }
+
+    // ── History rows (Phase 3 + yearly monthly-summary) ───────────
+    IReadOnlyList<TpmPeriodSummaryDto> HistoryMonthly => Hist?.Monthly ?? new List<TpmPeriodSummaryDto>();
+    IReadOnlyList<TpmPeriodSummaryDto> HistoryYearly => Hist?.Yearly ?? new List<TpmPeriodSummaryDto>();
+
+    // ── Donut arc builder ─────────────────────────────────────────
     record ArcSegment(string D, string Color);
-    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segs, double r, double cx, double cy)
+    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
     {
-        int total = segs.Sum(s => s.Count); if (total == 0) yield break;
+        int total = segments.Sum(s => s.Count);
+        if (total == 0) yield break;
         double start = -Math.PI / 2;
-        foreach (var (count, color) in segs)
+        foreach (var (count, color) in segments)
         {
             if (count == 0) continue;
             double sweep = 2 * Math.PI * count / total;
@@ -308,65 +673,4 @@
             start = end;
         }
     }
-
-    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct)
-    {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
-    }
-    IEnumerable<TrendPoint> TrendPoints
-    {
-        get
-        {
-            var max = MarketDays.Any() ? MarketDays.Max(m => m.TotalCollected) : 0m;
-            return MarketDays.Select((m, i) => new TrendPoint(m.MarketDate.ToString("MMM d"), m.TotalCollected,
-                i == MarketDays.Count - 1, max > 0 ? (int)(m.TotalCollected / max * 100) : 0));
-        }
-    }
-
-    record FridayRow(string Label, int Vendors, int Pct, string Color);
-    IEnumerable<FridayRow> FridayBreakdown
-    {
-        get
-        {
-            var colors = new[] { "#2d7a5f", "#c8a84b", "#4a9eff", "#8b3a3a", "#6a8aa0" };
-            var max = MarketDays.Any() ? MarketDays.Max(m => m.VendorsPaid) : 0;
-            return MarketDays.Select((m, i) => new FridayRow(m.MarketDate.ToString("MMM d"), m.VendorsPaid,
-                max > 0 ? (int)((double)m.VendorsPaid / max * 100) : 0, colors[i % colors.Length]));
-        }
-    }
-
-    // Calendar — only Fridays matter; highlight market days from data
-    record CalDay(string Num, string Css, string Label);
-    HashSet<int> MarketDayNums => MarketDays.Where(m => m.MarketDate.Year == CurrentDate.Year && m.MarketDate.Month == CurrentDate.Month)
-        .Select(m => m.MarketDate.Day).ToHashSet();
-    int CalendarLeadBlanks => (int)new DateTime(CurrentDate.Year, CurrentDate.Month, 1).DayOfWeek;
-    int DaysInMonth => DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
-    IEnumerable<CalDay> CalendarDays => Enumerable.Range(1, DaysInMonth).Select(i =>
-    {
-        var dt = new DateTime(CurrentDate.Year, CurrentDate.Month, i);
-        if (MarketDayNums.Contains(i)) return new CalDay(i.ToString(), "collected", $"Market day — {dt:MMM d}");
-        if (dt.DayOfWeek == DayOfWeek.Friday && dt.Date > DateTime.Today) return new CalDay(i.ToString(), "future", $"Upcoming — {dt:MMM d}");
-        return new CalDay(i.ToString(), "empty", "");
-    });
-    IEnumerable<CalDay> WeekDays
-    {
-        get
-        {
-            var sun = CurrentDate.AddDays(-(int)CurrentDate.DayOfWeek);
-            return Enumerable.Range(0, 7).Select(i =>
-            {
-                var d = sun.AddDays(i);
-                var css = d.Month == CurrentDate.Month && MarketDayNums.Contains(d.Day) ? "collected"
-                    : d.DayOfWeek == DayOfWeek.Friday && d.Date > DateTime.Today ? "future" : "empty";
-                return new CalDay(d.Day.ToString(), css, $"{d:ddd MMM d}");
-            });
-        }
-    }
-    record MonthCell(string Name, int Rate, string Css, string Label);
-    IEnumerable<MonthCell> YearlyMonths => Array.Empty<MonthCell>();
-
-    record VendorRow(string Date, string VendorName, bool IsPaid, decimal Fee, string ORNumber);
-    IEnumerable<VendorRow> VendorLog => Att
-        .OrderBy(a => a.MarketDate).ThenBy(a => a.VendorName)
-        .Select(a => new VendorRow(a.MarketDate.ToString("MMM dd"), a.VendorName, a.IsPaid, a.Fee, a.ORNumber ?? ""));
 }

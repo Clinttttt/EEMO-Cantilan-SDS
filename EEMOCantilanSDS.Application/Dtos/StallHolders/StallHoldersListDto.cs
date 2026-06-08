@@ -37,4 +37,5 @@ public class StallHolderRowDto
     public decimal WholeYearRental { get; set; }
     public decimal? FishFeeTotal { get; set; }
     public bool IsClosed { get; set; }
+    public string? AreaLocation { get; set; }   // NCC: "Corner" / "Extension" / "Standard"
 }

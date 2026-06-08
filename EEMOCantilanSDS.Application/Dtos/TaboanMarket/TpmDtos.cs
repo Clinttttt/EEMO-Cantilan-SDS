@@ -35,3 +35,29 @@ public record TpmVendorDto
     public bool IsActive { get; init; }
     public string? ContactNumber { get; init; }
 }
+
+// ── Collection history (server-aggregated, mirrors FacilityHistory / TrmHistory) ──
+public record TpmHistoryDto(
+    int Year,
+    IReadOnlyList<TpmPeriodSummaryDto> Monthly,   // each month of Year (up to current month for the current year)
+    IReadOnlyList<TpmPeriodSummaryDto> Yearly     // rolling last 5 years
+);
+
+public record TpmPeriodSummaryDto(
+    string Label,            // "January" for monthly rows, "2024" for yearly rows
+    int Year,
+    int? Month,              // null for yearly rows
+    int MarketDays,          // distinct Fridays with at least one attendance
+    int VendorEntries,       // total attendance entries
+    int PaidEntries,
+    int UnpaidEntries,
+    decimal Collected,       // fees collected (paid entries only)
+    int CollectionRate,      // paid / total, as a percentage
+    IReadOnlyList<TpmGoodsTallyDto> Goods   // entry/fee tally per goods category
+);
+
+public record TpmGoodsTallyDto(
+    string Goods,
+    int Entries,
+    decimal Collected
+);

@@ -54,3 +54,33 @@ public record TrmTransporterDto
     public string PlateNumber { get; init; } = string.Empty;
     public bool IsActive { get; init; }
 }
+
+// ── Collection history (server-aggregated, mirrors FacilityHistory / SlaughterHistory) ──
+public record TrmHistoryDto(
+    int Year,
+    IReadOnlyList<TrmPeriodSummaryDto> Monthly,   // each month of Year (up to current month for the current year)
+    IReadOnlyList<TrmPeriodSummaryDto> Yearly     // rolling last 5 years
+);
+
+public record TrmPeriodSummaryDto(
+    string Label,            // "January" for monthly rows, "2024" for yearly rows
+    int Year,
+    int? Month,              // null for yearly rows
+    int Trips,
+    int Transporters,        // distinct transporters served
+    decimal Collected,
+    IReadOnlyList<TrmOrgTallyDto> Organizations,  // trip/fee tally per organization
+    IReadOnlyList<TrmRouteTallyDto> Routes        // trip/fee tally per route
+);
+
+public record TrmOrgTallyDto(
+    string Organization,
+    int Trips,
+    decimal Collected
+);
+
+public record TrmRouteTallyDto(
+    string Route,
+    int Trips,
+    decimal Collected
+);

@@ -111,9 +111,11 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<IReadOnlyList<TrmTripDto>> GetTripsByMonthAsync(int year, int month, CancellationToken ct = default)
     {
+        var (startUtc, endUtc) = PhilippineTime.MonthUtcRange(year, month);
+
         return await context.TrmTrips
             .AsNoTracking()
-            .Where(t => t.RecordedAt.Year == year && t.RecordedAt.Month == month)
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .OrderBy(t => t.RecordedAt)
             .Select(t => new TrmTripDto
             {
@@ -129,6 +131,78 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
                 RecordedAt = t.RecordedAt
             })
             .ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Collection history for the transport terminal: every month of <paramref name="year"/> (up to
+    /// the current month for the current year, all 12 for past years) plus a rolling 5-year summary.
+    /// All trips across the 5-year window are loaded in one query, then aggregated in memory.
+    /// </summary>
+    public async Task<TrmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default)
+    {
+        var today = PhilippineTime.Today;
+        var firstYear = year - 4;
+
+        // Load the UTC instants covering Philippine-time years [firstYear .. year], then attribute
+        // each trip to its Philippine-time month so report months match what operators see locally.
+        var startUtc = PhilippineTime.MonthUtcRange(firstYear, 1).StartUtc;
+        var endUtc = PhilippineTime.MonthUtcRange(year, 12).EndUtc;
+
+        var rows = (await context.TrmTrips
+            .AsNoTracking()
+            .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
+            .Select(t => new HistoryRow(
+                t.TransporterId,
+                t.Transporter!.Organization,
+                t.Route,
+                t.Fee,
+                t.RecordedAt))
+            .ToListAsync(ct))
+            .Select(r => r with { Date = PhilippineTime.ToPhilippineTime(r.Date) })
+            .ToList();
+
+        var maxMonth = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
+
+        var monthly = new List<TrmPeriodSummaryDto>();
+        for (var m = 1; m <= maxMonth; m++)
+        {
+            var set = rows.Where(r => r.Date.Year == year && r.Date.Month == m).ToList();
+            monthly.Add(SummarizeHistory(new DateOnly(year, m, 1).ToString("MMMM"), year, m, set));
+        }
+
+        var yearly = new List<TrmPeriodSummaryDto>();
+        for (var y = firstYear; y <= year; y++)
+        {
+            var set = rows.Where(r => r.Date.Year == y).ToList();
+            yearly.Add(SummarizeHistory(y.ToString(), y, null, set));
+        }
+
+        return new TrmHistoryDto(year, monthly, yearly);
+    }
+
+    private sealed record HistoryRow(Guid TransporterId, string Organization, string Route, decimal Fee, DateTime Date);
+
+    private static TrmPeriodSummaryDto SummarizeHistory(string label, int year, int? month, List<HistoryRow> set)
+    {
+        var orgs = set
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Organization) ? "—" : r.Organization)
+            .Select(g => new TrmOrgTallyDto(g.Key, g.Count(), g.Sum(r => r.Fee)))
+            .OrderByDescending(o => o.Trips)
+            .ToList();
+
+        var routes = set
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Route) ? "—" : r.Route)
+            .Select(g => new TrmRouteTallyDto(g.Key, g.Count(), g.Sum(r => r.Fee)))
+            .OrderByDescending(r => r.Trips)
+            .ToList();
+
+        return new TrmPeriodSummaryDto(
+            label, year, month,
+            set.Count,
+            set.Select(r => r.TransporterId).Distinct().Count(),
+            set.Sum(r => r.Fee),
+            orgs,
+            routes);
     }
 
     public async Task<TrmTransporterProfileDto> GetTransporterProfileAsync(Guid transporterId, CancellationToken ct = default)

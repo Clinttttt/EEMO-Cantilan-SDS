@@ -25,4 +25,23 @@ public static class PhilippineTime
         var startUtc = DateTime.SpecifyKind(Today.ToDateTime(TimeOnly.MinValue).Add(-Offset), DateTimeKind.Utc);
         return (startUtc, startUtc.AddDays(1));
     }
+
+    /// <summary>
+    /// Converts a UTC-stored instant to the equivalent Philippine wall-clock value
+    /// (Kind=Unspecified, never re-shifted). Use for displaying/attributing stored timestamps locally.
+    /// </summary>
+    public static DateTime ToPhilippineTime(DateTime utc)
+        => DateTime.SpecifyKind(DateTime.SpecifyKind(utc, DateTimeKind.Unspecified).Add(Offset), DateTimeKind.Unspecified);
+
+    /// <summary>
+    /// UTC instant range [StartUtc, EndUtc) covering a Philippine calendar month —
+    /// for filtering/aggregating UTC-stored timestamps by a local (PHT) month.
+    /// </summary>
+    public static (DateTime StartUtc, DateTime EndUtc) MonthUtcRange(int year, int month)
+    {
+        var startLocal = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Unspecified);
+        var startUtc = DateTime.SpecifyKind(startLocal.Add(-Offset), DateTimeKind.Utc);
+        var endUtc = DateTime.SpecifyKind(startLocal.AddMonths(1).Add(-Offset), DateTimeKind.Utc);
+        return (startUtc, endUtc);
+    }
 }

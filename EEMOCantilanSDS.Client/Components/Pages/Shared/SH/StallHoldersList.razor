@@ -223,6 +223,10 @@
                                     <th class="col-rate">Monthly Rentals<br />per Contract</th>
                                     <th class="col-actual">Actual Mo.<br />Rentals</th>
                                     <th class="col-whole">Whole Year<br />Rental</th>
+                                    @if (IsFacility("ncc"))
+                                    {
+                                        <th class="col-arealoc">Area Loc.</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
@@ -242,6 +246,10 @@
                                         <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
                                         <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
                                         <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
+                                        @if (IsFacility("ncc"))
+                                        {
+                                            <td class="c">@(string.IsNullOrEmpty(s.AreaLocation) ? "—" : s.AreaLocation)</td>
+                                        }
                                     </tr>
                                     rowNum++;
                                 }
@@ -254,6 +262,10 @@
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
+                                    @if (IsFacility("ncc"))
+                                    {
+                                        <td></td>
+                                    }
                                 </tr>
                             </tfoot>
                         </table>
@@ -351,6 +363,7 @@
         public bool IsActive { get; set; } = true;
         public string ORNumber { get; set; } = string.Empty;
         public decimal FishKilos { get; set; }
+        public string? AreaLocation { get; set; }
     }
 
     List<NpmStall> Stalls = new();
@@ -407,7 +420,8 @@
                         ContractDate = row.EffectivityDate == default ? null : row.EffectivityDate.ToDateTime(TimeOnly.MinValue),
                         MonthlyRate = row.MonthlyRentalRate,
                         IsActive = !row.IsClosed,
-                        FishKilos = row.FishFeeTotal ?? 0
+                        FishKilos = row.FishFeeTotal ?? 0,
+                        AreaLocation = row.AreaLocation
                     });
                 }
             }

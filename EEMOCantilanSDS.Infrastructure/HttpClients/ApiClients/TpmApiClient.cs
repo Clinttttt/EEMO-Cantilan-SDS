@@ -14,6 +14,12 @@ public class TpmApiClient(HttpClient http) : HandleResponse(http), ITpmApiClient
     public async Task<Result<IReadOnlyList<TpmMarketDayDto>>> GetMarketDaysAsync(int year, int month) =>
         await GetAsync<IReadOnlyList<TpmMarketDayDto>>($"api/tpm/market-days?year={year}&month={month}");
 
+    public async Task<Result<IReadOnlyList<TpmVendorAttendanceDto>>> GetMonthAttendanceAsync(int year, int month) =>
+        await GetAsync<IReadOnlyList<TpmVendorAttendanceDto>>($"api/tpm/month-attendance?year={year}&month={month}");
+
+    public async Task<Result<TpmHistoryDto>> GetHistoryAsync(int year) =>
+        await GetAsync<TpmHistoryDto>($"api/tpm/history?year={year}");
+
     public async Task<Result<IReadOnlyList<TpmVendorAttendanceDto>>> GetVendorAttendanceAsync(DateOnly marketDate) =>
         await GetAsync<IReadOnlyList<TpmVendorAttendanceDto>>($"api/tpm/attendance?marketDate={marketDate:yyyy-MM-dd}");
 

@@ -21,6 +21,8 @@ public interface ITpmRepository
     Task<TpmOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct = default);
     Task<IReadOnlyList<TpmMarketDayDto>> GetMarketDaysAsync(int year, int month, CancellationToken ct = default);
     Task<IReadOnlyList<TpmVendorAttendanceDto>> GetVendorAttendanceAsync(DateOnly marketDate, CancellationToken ct = default);
+    Task<IReadOnlyList<TpmVendorAttendanceDto>> GetMonthAttendanceAsync(int year, int month, CancellationToken ct = default);
+    Task<TpmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     
     // Validation
     Task<bool> IsVendorNameUniqueAsync(string vendorName, CancellationToken ct = default);

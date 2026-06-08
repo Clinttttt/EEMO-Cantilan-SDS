@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.TransportTerminal.SaveTripOrNumber;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTodayTrips;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTripsByPeriod;
+using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTrmHistory;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporterProfile;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporters;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTrmOverview;
@@ -41,6 +42,10 @@ public class TrmController(ISender sender) : ApiBaseController(sender)
     [HttpGet("trips")]
     public async Task<ActionResult<IReadOnlyList<TrmTripDto>>> GetTrips([FromQuery] int year, [FromQuery] int month)
         => HandleResponse(await Sender.Send(new GetTripsByPeriodQuery(year, month)));
+
+    [HttpGet("history")]
+    public async Task<ActionResult<TrmHistoryDto>> GetHistory([FromQuery] int year)
+        => HandleResponse(await Sender.Send(new GetTrmHistoryQuery(year)));
 
     [HttpPost("trips/{transporterId:guid}")]
     public async Task<ActionResult<TrmTripDto>> RecordTrip(Guid transporterId, [FromBody] RecordTripRequest request)

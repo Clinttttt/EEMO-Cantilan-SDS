@@ -29,7 +29,7 @@
     <div class="topbar-right">
         <div class="topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @DateTime.Now.ToString("MMMM d, yyyy")
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
         </div>
         <div class="topbar-admin">
             <div class="admin-avatar">A</div>
@@ -143,7 +143,10 @@
 
             <!-- Document Header -->
             <div class="slr-doc-header">
-                <div class="slr-doc-gov">Municipality of Cantilan</div>
+                <img class="slr-doc-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <div class="slr-doc-republic">Republic of the Philippines</div>
+                <div class="slr-doc-office">Economic Enterprise &amp; Management Office</div>
+                <div class="slr-doc-gov">Municipality of Cantilan, Surigao del Sur</div>
                 <div class="slr-doc-title">Slaughterhouse List</div>
                 <div class="slr-doc-facility">@CurrentMonth.ToString("MMMM yyyy").ToUpper()</div>
             </div>
@@ -257,7 +260,7 @@
 
 @code {
     private bool isLoading = true;
-    private DateTime CurrentMonth = DateTime.Now;
+    private DateTime CurrentMonth = PhilippineTime.Now;
     private string SearchQuery = string.Empty;
     private string ActiveFilter = "All";
     private bool IsGroupedView = false;

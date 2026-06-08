@@ -3,6 +3,8 @@ using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.SaveVendorOrNumber;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetMarketDays;
+using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetMonthAttendance;
+using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetTpmHistory;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetTpmOverview;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetVendorAttendance;
 using EEMOCantilanSDS.Application.Requests.TaboanMarket;
@@ -23,6 +25,14 @@ public class TpmController(ISender sender) : ApiBaseController(sender)
     [HttpGet("market-days")]
     public async Task<ActionResult<IReadOnlyList<TpmMarketDayDto>>> GetMarketDays([FromQuery] int year, [FromQuery] int month)
         => HandleResponse(await Sender.Send(new GetMarketDaysQuery(year, month)));
+
+    [HttpGet("month-attendance")]
+    public async Task<ActionResult<IReadOnlyList<TpmVendorAttendanceDto>>> GetMonthAttendance([FromQuery] int year, [FromQuery] int month)
+        => HandleResponse(await Sender.Send(new GetMonthAttendanceQuery(year, month)));
+
+    [HttpGet("history")]
+    public async Task<ActionResult<TpmHistoryDto>> GetHistory([FromQuery] int year)
+        => HandleResponse(await Sender.Send(new GetTpmHistoryQuery(year)));
 
     [HttpGet("attendance")]
     public async Task<ActionResult<IReadOnlyList<TpmVendorAttendanceDto>>> GetVendorAttendance([FromQuery] string marketDate)

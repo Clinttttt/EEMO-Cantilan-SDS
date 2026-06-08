@@ -65,6 +65,11 @@ public class SlaughterHistoryTests : RepositoryTestBase
         Assert.Equal(1, y2024.CarabaoHeads);
         Assert.Equal(1, y2024.OtherHeads);
         Assert.Equal(hog.TotalAmount + carabao.TotalAmount + 100m, y2024.TotalCollected);
+        // "Other" breaks down into the specific custom animal (Goat).
+        var goatTally = Assert.Single(y2024.OtherAnimals);
+        Assert.Equal("Goat", goatTally.Name);
+        Assert.Equal(1, goatTally.Heads);
+        Assert.Equal(100m, goatTally.Revenue);
     }
 
     [Fact]

@@ -454,43 +454,6 @@
     private int CarabaoCount => Overview?.CarabaoCount ?? 0;
     private int CowCount => Overview?.CowCount ?? 0;
     private int OthersCount => Overview?.OthersCount ?? 0;
-    private int LargeAnimalCount => CarabaoCount + CowCount;
-
-    private IReadOnlyList<FacilityReportsModal.ReportTrendPoint> SlhTrendPoints => GroupedOwnerTransactions
-        .OrderBy(g => g.LatestTransactionDate)
-        .GroupBy(g => g.LatestTransactionDate)
-        .Select(g => new FacilityReportsModal.ReportTrendPoint(g.Key.ToString("MMM d"), g.Sum(x => x.LatestTransactions.Sum(t => t.TotalAmount))))
-        .ToList();
-
-    private IReadOnlyList<FacilityReportsModal.ReportVolumeRow> SlhVolumeRows
-    {
-        get
-        {
-            var rows = new List<FacilityReportsModal.ReportVolumeRow>
-            {
-                new("Hogs", HogCount, "hog"),
-                new("Carabao/Cattle", LargeAnimalCount, "large-animal")
-            };
-
-            if (OthersCount > 0)
-            {
-                rows.Add(new("Others", OthersCount, "new"));
-            }
-
-            return rows;
-        }
-    }
-
-    private IReadOnlyList<FacilityReportsModal.ReportBreakdownRow> SlhFeeBreakdownRows => new List<FacilityReportsModal.ReportBreakdownRow>
-    {
-        new("Slaughter fee", (HogCount * 50m) + (LargeAnimalCount * 150m)),
-        new("Entrance fee", HogCount * 150m),
-        new("Table charge", (HogCount + LargeAnimalCount) * 30m),
-        new("Ante mortem", (HogCount + LargeAnimalCount) * 20m),
-        new("Permit", LargeAnimalCount * 100m),
-        new("Post mortem", LargeAnimalCount * 25m),
-        new("Livestock fee", LargeAnimalCount * 40m)
-    }.Where(row => row.Amount > 0).ToList();
 
     private IEnumerable<OwnerTransactionGroupDto> FilteredOwnerGroups
     {

@@ -9,6 +9,8 @@ public interface ITpmApiClient
 {
     Task<Result<TpmOverviewDto>> GetOverviewAsync(int year, int month);
     Task<Result<IReadOnlyList<TpmMarketDayDto>>> GetMarketDaysAsync(int year, int month);
+    Task<Result<IReadOnlyList<TpmVendorAttendanceDto>>> GetMonthAttendanceAsync(int year, int month);
+    Task<Result<TpmHistoryDto>> GetHistoryAsync(int year);
     Task<Result<IReadOnlyList<TpmVendorAttendanceDto>>> GetVendorAttendanceAsync(DateOnly marketDate);
     Task<Result<TpmVendorAttendanceDto>> AddVendorAsync(AddVendorToMarketDayCommand command);
     Task<Result<bool>> MarkVendorPaidAsync(Guid attendanceId, MarkVendorPaidRequest request);
