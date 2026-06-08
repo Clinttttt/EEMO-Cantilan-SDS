@@ -20,6 +20,8 @@ public record DashboardFacilityDto(
     string Name,
     decimal Collected,
     int UnpaidCount,
+    int PaidCount,
+    int PartialCount,
     int TotalVendors,
     int CollectionRate
 );

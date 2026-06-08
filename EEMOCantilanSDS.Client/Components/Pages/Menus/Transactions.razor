@@ -1,0 +1,227 @@
+@page "/transactions"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Transactions
+@using EEMOCantilanSDS.Client.Components.Shared
+@inject ITransactionsApiClient TransactionsApi
+@inject IJSRuntime JS
+
+<PageTitle>EEMO Admin — Transactions</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Transactions</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Transactions</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+    </div>
+</header>
+
+<div class="content-area">
+
+    <FacilityHero Eyebrow="EEMO Admin · Transparency"
+                  Title="Transactions"
+                  Subtitle="@(IsToday ? "Today's recorded collections across all facilities" : $"Recorded collections on {SelectedDate:MMMM d, yyyy}")"
+                  Icon="@LedgerIcon"
+                  Stats="HeroStats" />
+
+    <!-- Controls: facility filter + day navigator (single row) -->
+    <div class="txn-controls">
+        <div class="txn-segment">
+            @foreach (var f in Filters)
+            {
+                <button type="button"
+                        class="txn-seg-tab @(ActiveFilter == f.Code ? "active" : "")"
+                        @onclick="() => SetFilter(f.Code)">
+                    @f.Label
+                </button>
+            }
+        </div>
+
+      <div>
+            <div class="txn-daynav">
+                <button type="button" class="txn-navbtn" @onclick="PrevDay" aria-label="Previous day">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+
+                <div class="txn-datebox @(IsToday ? "is-today" : "")" @onclick="OpenPicker">
+                    <div class="txn-datebox-icon">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    </div>
+                    <div class="txn-datebox-text">
+                        <span class="txn-datebox-main">@(IsToday ? "Today" : SelectedDate.ToString("dddd"))</span>
+                        <span class="txn-datebox-sub">@SelectedDate.ToString("MMMM d, yyyy")</span>
+                    </div>
+                    <svg class="txn-datebox-chev" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                    <input type="date" @ref="_dateInput" class="txn-datebox-input" value="@SelectedDate.ToString("yyyy-MM-dd")"
+                           max="@PhilippineTime.Today.ToString("yyyy-MM-dd")" @onchange="OnDatePicked" aria-label="Pick a date" />
+                </div>
+
+                <button type="button" class="txn-navbtn" disabled="@IsToday" @onclick="NextDay" aria-label="Next day">
+                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+
+                @if (!IsToday)
+                {
+                    <button type="button" class="txn-jump-today" @onclick="GoToday" title="Jump to Today">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></svg>
+                    </button>
+                }
+            </div>
+
+            <button type="button" class="txn-refresh" title="Refresh" aria-label="Refresh" @onclick="Reload">
+                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></svg>
+            </button>
+      </div>
+    </div>
+
+    <!-- Feed table -->
+    <div class="section-card txn-card">
+        @if (IsLoading)
+        {
+            <div class="txn-empty">Loading transactions…</div>
+        }
+        else if (!Feed.Any())
+        {
+            <div class="txn-empty">
+                <div class="txn-empty-ic">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="txn-empty-title">No transactions @(IsToday ? "yet today" : "on this day")</div>
+                <div class="txn-empty-text">Nothing recorded for @SelectedDate.ToString("MMMM d, yyyy")@(ActiveFilter is null ? "" : $" at {ActiveLabel}"). Use the arrows or calendar to browse other days.</div>
+            </div>
+        }
+        else
+        {
+            <table class="txn-table">
+                <thead>
+                    <tr>
+                        <th>Date &amp; Time</th>
+                        <th>Facility</th>
+                        <th>Party</th>
+                        <th>Details</th>
+                        <th class="txn-num">Amount</th>
+                        <th>OR No.</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in Feed)
+                    {
+                        <tr>
+                            <td class="txn-when">
+                                <div class="txn-date">@t.OccurredAt.ToString("MMM d, yyyy")</div>
+                                @if (t.HasTime)
+                                {
+                                    <div class="txn-time">@t.OccurredAt.ToString("h:mm tt")</div>
+                                }
+                            </td>
+                            <td><span class="txn-fac-badge fac-@t.FacilityCode.ToString().ToLower()">@t.FacilityCode</span></td>
+                            <td class="txn-party">@t.Party</td>
+                            <td>
+                                <div class="txn-kind">@t.Kind</div>
+                                <div class="txn-ref">@t.Reference</div>
+                            </td>
+                            <td class="txn-num txn-amount">&#8369;@t.Amount.ToString("N2")</td>
+                            <td class="txn-or">@(string.IsNullOrEmpty(t.ORNumber) ? "—" : t.ORNumber)</td>
+                            <td><span class="txn-status @(t.Status == "Paid" ? "paid" : "partial")">@t.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+</div>
+
+@code {
+    private RenderFragment LedgerIcon => @<svg viewBox="0 0 24 24" style="width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>;
+
+    private FacilityCode? ActiveFilter;
+    private DateOnly SelectedDate = PhilippineTime.Today;
+    private bool IsLoading = true;
+    private IReadOnlyList<TransactionFeedDto> Feed = Array.Empty<TransactionFeedDto>();
+
+    private bool IsToday => SelectedDate == PhilippineTime.Today;
+
+    private ElementReference _dateInput;
+    private async Task OpenPicker() => await JS.InvokeVoidAsync("openDatePicker", _dateInput);
+
+    private record FilterOption(FacilityCode? Code, string Label);
+
+    private static readonly FilterOption[] Filters =
+    {
+        new(null,              "All"),
+        new(FacilityCode.NPM,  "NPM"),
+        new(FacilityCode.TCC,  "TCC"),
+        new(FacilityCode.NCC,  "NCC"),
+        new(FacilityCode.BBQ,  "BBQ Stand"),
+        new(FacilityCode.ICE,  "Iceplant"),
+        new(FacilityCode.SLH,  "Slaughterhouse"),
+        new(FacilityCode.TRM,  "Transport"),
+        new(FacilityCode.TPM,  "Tabo-an"),
+    };
+
+    private string ActiveLabel => Filters.First(f => f.Code == ActiveFilter).Label;
+
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = Feed.Count.ToString(), Label = "Transactions" },
+        new() { Value = "₱" + Feed.Sum(t => t.Amount).ToString("N0"), Label = "Total Value" },
+        new() { Value = ActiveFilter is null ? "All" : ActiveFilter.ToString()!, Label = "Facility" },
+    };
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task SetFilter(FacilityCode? code)
+    {
+        ActiveFilter = code;
+        await Reload();
+    }
+
+    private async Task ShowLatest()
+    {
+        SelectedDate = PhilippineTime.Today;
+        await Reload();
+    }
+
+    private Task GoToday() => ShowLatest();
+
+    private async Task PrevDay()
+    {
+        SelectedDate = SelectedDate.AddDays(-1);
+        await Reload();
+    }
+
+    private async Task NextDay()
+    {
+        if (IsToday) return;                       // never navigate into the future
+        SelectedDate = SelectedDate.AddDays(1);
+        await Reload();
+    }
+
+    private async Task OnDatePicked(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var d))
+        {
+            SelectedDate = d > PhilippineTime.Today ? PhilippineTime.Today : d;
+            await Reload();
+        }
+    }
+
+    private async Task Reload()
+    {
+        IsLoading = true;
+        var result = await TransactionsApi.GetRecentAsync(ActiveFilter, SelectedDate, 200);
+        Feed = result.IsSuccess && result.Value is not null ? result.Value : Array.Empty<TransactionFeedDto>();
+        IsLoading = false;
+    }
+}

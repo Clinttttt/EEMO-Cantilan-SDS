@@ -1,0 +1,206 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Transactions.razor.css — cross-facility transparency feed
+   Tokens from app.css. Topbar/.content-area/.section-card come from the shell.
+══════════════════════════════════════════════════════════════════════ */
+
+/* ── Controls row: facility filter + day navigator + refresh ── */
+.txn-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px 0;
+    flex-wrap: wrap;
+}
+
+.txn-segment {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 11px;
+    padding: 5px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
+}
+
+.txn-seg-tab {
+    min-height: 34px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
+    cursor: pointer;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+
+.txn-seg-tab:hover {
+    background: rgba(255, 255, 255, .72);
+    border-color: color-mix(in srgb, var(--border) 72%, transparent);
+    color: var(--navy);
+}
+
+.txn-seg-tab:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--gold) 70%, white);
+    outline-offset: 2px;
+}
+
+.txn-seg-tab.active {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    border-color: color-mix(in srgb, var(--navy) 76%, #fff);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
+}
+
+.txn-refresh {
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-subtle);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+    flex-shrink: 0;
+}
+
+.txn-refresh:hover { background: var(--bg); color: var(--navy); }
+
+.txn-refresh svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ── Day navigator ── */
+.txn-daynav {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.txn-navbtn {
+    width: 38px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--navy);
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+}
+.txn-navbtn:hover:not(:disabled) { background: var(--bg-icon); border-color: color-mix(in srgb, var(--navy) 30%, var(--border)); }
+.txn-navbtn:active:not(:disabled) { transform: scale(.94); }
+.txn-navbtn:disabled { opacity: .4; cursor: not-allowed; }
+.txn-navbtn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Central date chip — clickable, opens native picker via transparent overlay */
+.txn-datebox {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    height: 44px;
+    padding: 0 16px;
+    min-width: 210px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg-card) 0%, #fbfdff 100%);
+    box-shadow: 0 1px 3px rgba(13,33,55,.05);
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+}
+.txn-datebox:hover { border-color: color-mix(in srgb, var(--navy) 38%, var(--border)); box-shadow: 0 4px 12px rgba(13,33,55,.1); }
+.txn-datebox.is-today { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); background: linear-gradient(180deg, var(--green-bg) 0%, #f3faf6 100%); }
+
+.txn-datebox-icon {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--navy) 8%, transparent);
+    color: var(--navy);
+}
+.txn-datebox.is-today .txn-datebox-icon { background: color-mix(in srgb, var(--green) 16%, transparent); color: var(--green); }
+.txn-datebox-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.txn-datebox-text { display: flex; flex-direction: column; line-height: 1.15; }
+.txn-datebox-main { font-size: 13.5px; font-weight: 800; color: var(--navy); }
+.txn-datebox.is-today .txn-datebox-main { color: var(--green); }
+.txn-datebox-sub { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 1px; }
+.txn-datebox-chev { width: 14px; height: 14px; margin-left: auto; fill: none; stroke: var(--text-muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.txn-datebox-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; border: none; }
+
+/* Jump to today */
+.txn-jump-today {
+    width: 44px;
+    height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 11px;
+    border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--border));
+    background: color-mix(in srgb, var(--gold) 12%, var(--bg-card));
+    color: #8a6d1f; cursor: pointer;
+    transition: background .15s;
+}
+.txn-jump-today:hover { background: color-mix(in srgb, var(--gold) 22%, var(--bg-card)); }
+.txn-jump-today svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Table ── */
+.txn-card { padding: 0; overflow: hidden; }
+.txn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.txn-table th { padding: 12px 16px; background: var(--bg); border-bottom: 1px solid var(--border); text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); white-space: nowrap; }
+.txn-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--navy); vertical-align: middle; }
+.txn-table tbody tr:last-child td { border-bottom: none; }
+.txn-table tbody tr:hover { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.txn-num { text-align: left; white-space: nowrap; }
+
+.txn-when { white-space: nowrap; }
+.txn-date { font-weight: 600; }
+.txn-time { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.txn-party { font-weight: 600; }
+.txn-kind { font-weight: 600; }
+.txn-ref { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.txn-amount { font-weight: 800; color: var(--green); white-space: nowrap; }
+.txn-or { color: var(--text-muted); white-space: nowrap; }
+
+/* ── Facility badge ── */
+.txn-fac-badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: .03em; background: var(--bg-icon); color: var(--navy); border: 1px solid var(--border); }
+.fac-npm { background: #e6f0fb; color: #1e4e8c; border-color: #cfe0f4; }
+.fac-tcc { background: #e9f3ee; color: #1f6b48; border-color: #cfe6da; }
+.fac-ncc { background: #fdf3e3; color: #9a6b18; border-color: #f3e2c3; }
+.fac-bbq { background: #fbecea; color: #9a3b2c; border-color: #f3d4cf; }
+.fac-ice { background: #e8f4f7; color: #1f6a7d; border-color: #cfe7ec; }
+.fac-slh { background: #f1ecf7; color: #5a3f87; border-color: #ddd1ee; }
+.fac-trm { background: #eef0f3; color: #3a4a5e; border-color: #dde2e8; }
+.fac-tpm { background: #eef6ea; color: #44712b; border-color: #d8e9cf; }
+
+/* ── Status badge ── */
+.txn-status { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.txn-status.paid { background: var(--green-bg); color: var(--green); }
+.txn-status.partial { background: color-mix(in srgb, var(--gold) 18%, var(--bg-card)); color: #9a6b18; }
+
+/* ── Empty / loading ── */
+.txn-empty { padding: 56px 20px; text-align: center; color: var(--text-muted); font-size: 13.5px; }
+.txn-empty-ic { width: 48px; height: 48px; margin: 0 auto 14px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--bg-icon); color: var(--text-muted); }
+.txn-empty-ic svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.txn-empty-title { font-size: 15px; font-weight: 700; color: var(--navy); margin-bottom: 5px; }
+.txn-empty-text { font-size: 12.5px; color: var(--text-muted); max-width: 380px; margin: 0 auto; line-height: 1.5; }
+
+@media (max-width: 860px) {
+    .txn-table .txn-ref, .txn-table th:nth-child(4), .txn-table td:nth-child(4) { display: none; }
+}

@@ -19,4 +19,16 @@ public interface IFacilityReportsRepository
         int year,
         CancellationToken ct
     );
+
+    /// <summary>
+    /// Lean month snapshot (collected, pending, paid/partial/unpaid counts, occupied stalls,
+    /// collection rate) using the same canonical aggregation as the full report — for the dashboard
+    /// facility cards. Stall-based facilities only (NPM/TCC/NCC/BBQ/ICE).
+    /// </summary>
+    Task<FacilitySnapshotDto> GetFacilitySnapshotAsync(
+        FacilityCode facilityCode,
+        int year,
+        int month,
+        CancellationToken ct
+    );
 }

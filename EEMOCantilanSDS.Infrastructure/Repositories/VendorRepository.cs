@@ -25,19 +25,24 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
         var activeStalls = stalls.Where(s => s.Status == StallStatus.Active).ToList();
         var closedStalls = stalls.Where(s => s.Status == StallStatus.Closed).ToList();
 
-        var paidCount = stalls.Count(s =>
+        // Monthly rent collection metrics apply only to monthly-billed facilities.
+        // NPM is collected daily (DailyCollection), so it is excluded from the monthly
+        // paid/unpaid/outstanding/target figures to avoid falsely counting NPM vendors as unpaid.
+        var monthlyStalls = activeStalls.Where(s => s.Facility!.Code != FacilityCode.NPM).ToList();
+
+        var paidCount = monthlyStalls.Count(s =>
         {
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
             return payment?.Status == PaymentStatus.Paid;
         });
 
-        var unpaidCount = activeStalls.Count(s =>
+        var unpaidCount = monthlyStalls.Count(s =>
         {
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
             return payment == null || payment.Status == PaymentStatus.Unpaid;
         });
 
-        var totalOutstanding = activeStalls.Sum(s =>
+        var totalOutstanding = monthlyStalls.Sum(s =>
         {
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
             if (payment == null)
@@ -48,7 +53,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
             return totalBill - amountPaid;
         });
 
-        var monthlyTarget = activeStalls.Sum(s => s.MonthlyRate);
+        var monthlyTarget = monthlyStalls.Sum(s => s.MonthlyRate);
 
         var vendors = stalls.Select(s =>
         {
@@ -81,6 +86,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
             stalls.Count,
             activeStalls.Count,
             closedStalls.Count,
+            monthlyStalls.Count,
             paidCount,
             unpaidCount,
             totalOutstanding,

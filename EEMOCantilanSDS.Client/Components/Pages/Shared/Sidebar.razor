@@ -1,5 +1,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject NavigationManager Nav
 
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
     <div class="sidebar-brand">
@@ -17,17 +18,21 @@
     <nav class="sidebar-nav">
         <div class="nav-group-label">Main</div>
 
-        <a href="/menu" class="nav-item active">
+        <a href="/menu" class="nav-item @Active("/menu")">
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
             <span>Dashboard</span>
         </a>
-        <a href="/collectors" class="nav-item">
+        <a href="/collectors" class="nav-item @Active("/collectors")">
             <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
             <span>Collectors</span>
         </a>
-        <a href="/vendors" class="nav-item">
+        <a href="/vendors" class="nav-item @Active("/vendors")">
             <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>
             <span>Vendors &amp; Stalls</span>
+        </a>
+        <a href="/transactions" class="nav-item @Active("/transactions")">
+            <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
+            <span>Transactions</span>
         </a>
 
         <div class="nav-group-label" style="margin-top:1rem;">Facilities</div>
@@ -36,7 +41,7 @@
         {
             if (!Display.TryGetValue(fc, out var display)) { continue; }
             var unpaid = _unpaidByCode.GetValueOrDefault(fc);
-            <a href="/facility/@fc.ToString().ToLower()" class="nav-item">
+            <a href="/facility/@fc.ToString().ToLower()" class="nav-item @Active("/facility/" + fc.ToString().ToLower())">
                 @((MarkupString)display.Icon)
                 <span>@display.Label</span>
                 @if (unpaid > 0)
@@ -48,22 +53,22 @@
 
         <div class="nav-group-label" style="margin-top:1rem;">Reports</div>
 
-        <a href="/reports" class="nav-item">
+        <a href="/reports" class="nav-item @Active("/reports")">
             <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
             <span>Financial Reports</span>
         </a>
-        <a href="/audit-trail" class="nav-item">
+        <a href="/audit-trail" class="nav-item @Active("/audit-trail")">
             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
             <span>Audit Trail</span>
         </a>
-        <a href="/export" class="nav-item">
+        <a href="/export" class="nav-item @Active("/export")">
             <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             <span>Export Data</span>
         </a>
 
         <div class="nav-group-label" style="margin-top:1rem;">System</div>
 
-        <a href="/settings" class="nav-item">
+        <a href="/settings" class="nav-item @Active("/settings")">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.07 4.93l-1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M4.93 4.93l1.41 1.41M21 12h-2M5 12H3M12 21v-2M12 5V3" /></svg>
             <span>Settings</span>
         </a>
@@ -76,6 +81,19 @@
 @code {
     private bool SidebarCollapsed;
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
+
+    protected override void OnInitialized()
+        => Nav.LocationChanged += (_, _) => InvokeAsync(StateHasChanged);
+
+    // Returns "active" CSS class if the current path matches the given href (exact for /menu,
+    // prefix for everything else so /facility/npm and /tcc/reports both light up the facility item).
+    private string Active(string href)
+    {
+        var path = new Uri(Nav.Uri).AbsolutePath;
+        if (href == "/menu")
+            return path == "/menu" || path == "/" ? "active" : string.Empty;
+        return path.StartsWith(href, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+    }
 
     protected override async Task OnInitializedAsync()
     {

@@ -127,20 +127,42 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                             d.CollectionDate.Month == month, cancellationToken);
 
         var recentPayments = await context.PaymentRecords
-            .Where(p => p.CollectorId == collector.Id)
-            .OrderByDescending(p => p.PaidAt)
+            .Where(p => p.CollectorId == collector.Id && p.Status != PaymentStatus.Unpaid)
+            .OrderByDescending(p => p.PaidAt ?? p.UpdatedAt)
             .Take(10)
             .Select(p => new RecentTransactionDto(
-                p.ORNumber!,
-                p.Stall!.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted)!.ActualOccupant,
+                p.ORNumber ?? "—",
+                p.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 p.Stall.Facility!.Code,
                 "Stall Rental",
                 p.Status == PaymentStatus.Paid
                     ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
                     : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m,
                 p.Status.ToString(),
-                p.PaidAt ?? p.UpdatedAt!.Value))
+                p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt))
             .ToListAsync(cancellationToken);
+
+        // NPM collectors record daily collections (not monthly PaymentRecords), so these must be
+        // merged in or the Recent Transactions list would be empty for them.
+        var recentDaily = await context.DailyCollections
+            .Where(d => d.CollectorId == collector.Id && d.IsPaid)
+            .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+            .Take(10)
+            .Select(d => new RecentTransactionDto(
+                d.ORNumber ?? "—",
+                d.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
+                d.Stall.Facility!.Code,
+                "Daily Fee",
+                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
+                "Paid",
+                d.UpdatedAt ?? d.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        var recentTransactions = recentPayments
+            .Concat(recentDaily)
+            .OrderByDescending(t => t.TransactionDate)
+            .Take(10)
+            .ToList();
 
         return new CollectorActivityDto(
             collector.Id,
@@ -153,7 +175,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             transactions,
             collector.FacilityAssignments.Count,
             collector.LastActiveAt,
-            recentPayments);
+            recentTransactions);
     }
 
     public async Task AddAsync(CollectorUser collector, CancellationToken cancellationToken = default)

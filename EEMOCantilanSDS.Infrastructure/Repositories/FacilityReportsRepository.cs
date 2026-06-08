@@ -144,6 +144,47 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     }
 
     /// <summary>
+    /// Lean month snapshot for the dashboard — reuses the same canonical helpers as the full
+    /// report (daily-aware NPM revenue, compliance-based paid/partial/unpaid, due-obligation rate)
+    /// so the dashboard cards reconcile exactly with the facility page and reports, without the
+    /// cost of building trends, sections, streaks, etc.
+    /// </summary>
+    public async Task<FacilitySnapshotDto> GetFacilitySnapshotAsync(
+        FacilityCode facilityCode,
+        int year,
+        int month,
+        CancellationToken ct)
+    {
+        var facility = await _context.Facilities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Code == facilityCode && !f.IsDeleted, ct);
+        if (facility == null)
+            return new FacilitySnapshotDto(0m, 0m, 0, 0, 0, 0, 0);
+
+        var facilityId = facility.Id;
+        var (start, end) = CalculateMonthlyDateRange(year, month);
+
+        var collected = facilityCode == FacilityCode.NPM
+            ? await CalculateNpmRevenueAsync(facilityId, start, end, ct)
+            : await CalculateMonthlyRentalRevenueAsync(facilityId, start, end, ct);
+
+        var compliance = await GenerateStallComplianceAsync(facilityCode, facilityId, start, end, ct);
+        var perf = BuildCollectionPerformance(compliance);
+        var pending = compliance.Sum(c => c.Balance);
+        var rate = await CalculateCollectionRateAsync(facilityCode, facilityId, start, end, ct);
+        var occupied = await CalculateOccupiedStallsAsync(facilityId, start, end, ct);
+
+        return new FacilitySnapshotDto(
+            collected,
+            pending,
+            perf.FullyPaidCount,
+            perf.PartiallyPaidCount,
+            perf.UnpaidCount,
+            occupied,
+            (int)Math.Round(rate));
+    }
+
+    /// <summary>
     /// Computes the five history figures for one period from the existing tested aggregation
     /// helpers, so they stay consistent with the main report. Outstanding/follow-up/stall-count
     /// come from the period-scoped compliance rows; collected and rate from their own helpers.

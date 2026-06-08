@@ -114,8 +114,16 @@
                                 <div class="fac-stat-key">Collected</div>
                             </div>
                             <div class="fac-stat">
-                                <div class="fac-stat-val unpaid-val">@fac.UnpaidCount</div>
-                                <div class="fac-stat-key">Unpaid</div>
+                                @if (fac.Code == FacilityCode.NPM)
+                                {
+                                    <div class="fac-stat-val partial-val">@fac.PartialCount</div>
+                                    <div class="fac-stat-key">Partial</div>
+                                }
+                                else
+                                {
+                                    <div class="fac-stat-val paid-val">@fac.PaidCount</div>
+                                    <div class="fac-stat-key">Paid</div>
+                                }
                             </div>
                             <div class="fac-stat">
                                 <div class="fac-stat-val">@fac.TotalVendors</div>
@@ -181,6 +189,17 @@
                         <a href="/vendors?filter=delinquent" class="panel-link">View All</a>
                     </div>
                     <div class="delinquent-list">
+                        @if (!DelinquentVendors.Any())
+                        {
+                            <div class="delinquent-empty">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                                    <polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                                <div class="delinquent-empty-title">All accounts up to date</div>
+                                <div class="delinquent-empty-sub">No overdue balances from previous months.</div>
+                            </div>
+                        }
                         @foreach (var v in DelinquentVendors)
                         {
                             <div class="delinquent-item">

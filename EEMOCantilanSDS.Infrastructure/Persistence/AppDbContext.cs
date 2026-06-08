@@ -33,11 +33,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }
 
-        // TPM (Tabo-an Public Market)
         public DbSet<TpmVendor> TpmVendors { get; set; }
         public DbSet<TpmAttendance> TpmAttendances { get; set; }
 
-        // TRM (Transport Terminal)
         public DbSet<TrmTransporter> TrmTransporters { get; set; }
         public DbSet<TrmTrip> TrmTrips { get; set; }
 

@@ -20,11 +20,19 @@ public class UpdateStallCommandHandler(
         stall.UpdateRates(request.MonthlyRate, request.DailyRate, "Admin");
         stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, request.Remarks, "Admin");
 
-        // Update active contract occupant
+        // Update active contract occupant + terms
         var activeContract = stall.Contracts.FirstOrDefault(c => c.IsActive);
         if (activeContract is not null)
         {
             activeContract.UpdateOccupant(request.ActualOccupant, request.NameOnContract, "Admin");
+
+            if (request.ContractDate.HasValue && request.ContractYears.HasValue)
+            {
+                activeContract.UpdateTerms(
+                    DateOnly.FromDateTime(request.ContractDate.Value),
+                    request.ContractYears.Value,
+                    "Admin");
+            }
         }
 
         await stallRepo.UpdateAsync(stall, cancellationToken);

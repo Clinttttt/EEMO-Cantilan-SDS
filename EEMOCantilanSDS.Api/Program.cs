@@ -16,7 +16,7 @@ builder.ConfigureServices();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactLocal", policy =>
+    options.AddPolicy("AllowBlazor", policy =>
     {
         policy
             .WithOrigins("http://localhost:5173", "https://localhost:5173", "https://localhost:7167", "http://localhost:5198")
@@ -56,7 +56,7 @@ app.UseCookiePolicy(new CookiePolicyOptions
 app.UseRouting();
 
 
-app.UseCors("AllowReactLocal");
+app.UseCors("AllowBlazor");
 
 app.UseMiddleware<ExceptionHandlingMIddleware>();
 

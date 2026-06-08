@@ -19,5 +19,9 @@ public class UpdateStallCommandValidator : AbstractValidator<UpdateStallCommand>
         RuleFor(x => x.DailyRate)
             .GreaterThan(0).WithMessage("Daily rate must be greater than ₱0")
             .When(x => x.DailyRate.HasValue);
+
+        RuleFor(x => x.ContractYears)
+            .InclusiveBetween(0, 50).WithMessage("Contract duration must be between 0 and 50 years")
+            .When(x => x.ContractYears.HasValue);
     }
 }

@@ -44,4 +44,14 @@ public static class PhilippineTime
         var endUtc = DateTime.SpecifyKind(startLocal.AddMonths(1).Add(-Offset), DateTimeKind.Utc);
         return (startUtc, endUtc);
     }
+
+    /// <summary>
+    /// UTC instant range [StartUtc, EndUtc) covering a single Philippine calendar day —
+    /// for filtering UTC-stored timestamps by a local (PHT) date.
+    /// </summary>
+    public static (DateTime StartUtc, DateTime EndUtc) DayUtcRange(DateOnly date)
+    {
+        var startUtc = DateTime.SpecifyKind(date.ToDateTime(TimeOnly.MinValue).Add(-Offset), DateTimeKind.Utc);
+        return (startUtc, startUtc.AddDays(1));
+    }
 }

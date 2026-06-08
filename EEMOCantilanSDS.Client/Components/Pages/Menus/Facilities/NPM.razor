@@ -55,6 +55,24 @@
 
             <!-- ── Section Tabs ── -->
             <div class="npm-section-tabs">
+                @{
+                    var allCount = ActiveStalls.Count();
+                    var allUnpaid = ActiveStalls.Count(s => !s.PaidToday);
+                }
+                <div class="npm-sec-tab @(ActiveSection == "All" ? "active" : "")"
+                     @onclick='() => SetSection("All")'>
+                    <div class="npm-sec-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                    </div>
+                    <div class="npm-sec-info">
+                        <div class="npm-sec-name">All Sections</div>
+                        <div class="npm-sec-sub">@allCount stalls @(allUnpaid > 0 ? $"· {allUnpaid} unpaid" : "")</div>
+                    </div>
+                    @if (allUnpaid > 0)
+                    {
+                        <span class="npm-sec-badge">@allUnpaid</span>
+                    }
+                </div>
                 @foreach (var secs in Sections)
                 {
                     var count = StallsBySection(secs.Key).Count();
@@ -86,13 +104,26 @@
 
             <!-- ── Section Info Bar ── -->
             @{
-                var sec = Sections[ActiveSection];
+                var isAllSection = ActiveSection == "All";
+                var isFishSection = ActiveSection == "Fish Section";
+                var fishKgCollected = FishKgCollected;
+                var sectionLabel = isAllSection ? "All Sections" : ActiveSection;
+                var sectionDesc = isAllSection
+                    ? "All NPM stalls — Vegetable · Fish · Meat"
+                    : Sections[ActiveSection].Description;
+                // Fish: show the daily-rent portion only, with the ₱/kg fee broken out separately
+                // so the two aren't conflated when read or summed.
+                var collectedMonth = isAllSection
+                    ? (Report?.TotalRevenue ?? 0m)
+                    : isFishSection
+                        ? Math.Max(0m, SectionCollected(ActiveSection) - fishKgCollected)
+                        : SectionCollected(ActiveSection);
             }
             <div class="npm-section-info">
                 <div class="npm-section-info-left">
-                    <div class="npm-section-label">@ActiveSection</div>
-                    <div class="npm-section-desc">@sec.Description</div>
-                   
+                    <div class="npm-section-label">@sectionLabel</div>
+                    <div class="npm-section-desc">@sectionDesc</div>
+
                 </div>
                 <div class="npm-section-mini-stats">
                     <div class="npm-mini-stat">
@@ -104,9 +135,16 @@
                         <div class="npm-mini-key">Pending Today</div>
                     </div>
                     <div class="npm-mini-stat">
-                        <div class="npm-mini-val">₱@SectionCollected(ActiveSection).ToString("N0")</div>
-                        <div class="npm-mini-key">Collected (Month)</div>
+                        <div class="npm-mini-val">₱@collectedMonth.ToString("N0")</div>
+                        <div class="npm-mini-key">@(isFishSection ? "Daily Collected (Month)" : "Collected (Month)")</div>
                     </div>
+                    @if (isFishSection)
+                    {
+                        <div class="npm-mini-stat">
+                            <div class="npm-mini-val">₱@fishKgCollected.ToString("N0")</div>
+                            <div class="npm-mini-key">Fish Fee (₱/kg)</div>
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -164,7 +202,7 @@
     bool SidebarCollapsed = false;
 
     string SearchQuery = string.Empty;
-    string ActiveSection = "Vegetable Area";
+    string ActiveSection = "All";
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
@@ -308,7 +346,7 @@
     private void ResetState()
     {
         SearchQuery = string.Empty;
-        ActiveSection = "Vegetable Area";
+        ActiveSection = "All";
         ActiveStatus = "All";
         ShowPayment = false;
         PaymentStall = null;
@@ -399,13 +437,16 @@
     decimal SectionCollected(string sec) =>
         Report?.SectionBreakdown?.FirstOrDefault(s => s.SectionName == sec)?.Revenue ?? 0m;
 
+    // Fish ₱/kg fee collected this month (NPM-wide; only Fish-section stalls record kilos).
+    decimal FishKgCollected => Report?.FeeTypeBreakdown?.FishFeeAmount ?? 0m;
+
     decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
     int CollectionRate => (int)Math.Round(Report?.CollectionRate ?? 0m);
 
     IEnumerable<NpmStall> FilteredStalls => Stalls.Where(s =>
     {
-        if (s.Section != ActiveSection) return false;
+        if (ActiveSection != "All" && s.Section != ActiveSection) return false;
         bool matchStatus = ActiveStatus switch
         {
             "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,

@@ -60,6 +60,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedBy = updatedBy;
         }
 
+        /// <summary>
+        /// Updates the contract effectivity date and duration (e.g. when an admin corrects
+        /// contract terms from the Vendor Registry edit form).
+        /// </summary>
+        public void UpdateTerms(DateOnly effectivityDate, int durationYears, string updatedBy)
+        {
+            if (durationYears < 0)
+                throw new ArgumentOutOfRangeException(nameof(durationYears), "Contract duration cannot be negative.");
+
+            EffectivityDate = effectivityDate;
+            DurationYears = durationYears;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void UpdateRemarks(string? remarks, string updatedBy)
         {
             Remarks = remarks;

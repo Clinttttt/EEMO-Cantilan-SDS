@@ -43,6 +43,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IDailyCollectionRepository, DailyCollectionRepository>();
             service.AddScoped<IFacilityReportsRepository, FacilityReportsRepository>();
             service.AddScoped<IDashboardRepository, DashboardRepository>();
+            service.AddScoped<ITransactionFeedRepository, TransactionFeedRepository>();
 
 
             // Services

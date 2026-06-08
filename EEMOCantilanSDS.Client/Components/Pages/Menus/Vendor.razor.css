@@ -625,6 +625,22 @@ TABLE
     color: var(--text-subtle);
 }
 
+/* Daily-collection marker (NPM has no monthly payment status) */
+.pill-daily {
+    background: color-mix(in srgb, var(--navy) 8%, var(--bg-card));
+    color: var(--navy);
+    border: 1px solid var(--border);
+}
+
+/* Contract / expiry cell */
+.contract-cell { white-space: nowrap; }
+.contract-none { color: var(--text-muted); font-size: 12.5px; font-style: italic; }
+.contract-term { font-size: 12.5px; font-weight: 700; color: var(--navy); }
+.contract-exp { font-size: 11px; font-weight: 600; margin-top: 2px; }
+.contract-exp.exp-ok { color: var(--text-muted); }
+.contract-exp.exp-soon { color: #9a6b18; }
+.contract-exp.exp-bad { color: var(--red); }
+
 
 
 .action-danger svg {
@@ -940,6 +956,11 @@ TABLE
     border: 1px solid var(--border);
     background: var(--bg);
     min-height: 48px;
+    margin-bottom: 10px;
+}
+
+.fee-breakdown-item:last-child {
+    margin-bottom: 0;
 }
 
 .fee-item-left {

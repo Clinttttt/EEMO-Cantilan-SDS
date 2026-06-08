@@ -134,6 +134,14 @@
         color: var(--red);
     }
 
+    .fac-stat-val.paid-val {
+        color: var(--green);
+    }
+
+    .fac-stat-val.partial-val {
+        color: #9a6b18;
+    }
+
 .fac-stat-key {
     font-size: 8.5px;
     color: var(--text-muted);
@@ -231,6 +239,34 @@
 
 .delinquent-list {
     padding: 8px 0;
+}
+
+.delinquent-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.delinquent-empty svg {
+    width: 32px;
+    height: 32px;
+    color: var(--green);
+    stroke: var(--green);
+}
+
+.delinquent-empty-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.delinquent-empty-sub {
+    font-size: 12px;
+    color: var(--text-muted);
 }
 
 .delinquent-item {
