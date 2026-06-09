@@ -1,3 +1,41 @@
+/* ─── Bundled fonts (MAUI Resources/Fonts → WebView) ────────────────────── */
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('EBGaramond-Regular.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'EB Garamond';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('EBGaramond-SemiBold.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('DMSans-Regular.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('DMSans-Medium.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('DMSans-SemiBold.ttf') format('truetype');
+}
+
+
 /*
  * ═══════════════════════════════════════════════════════════════
  *  EEMO SHARED STYLESHEET
@@ -51,6 +89,9 @@
 
 /* 0. CSS VARIABLES (DESIGN TOKENS) */
 :root {
+    /* Responsive base — scales smoothly from 360px to 430px wide.
+       All px sizes below are written for 360px; clamp nudges larger on wider phones. */
+    font-size: clamp(13px, 3.6vw, 16px);
     /* Palette */
     --navy-primary: #0d2137; /* headers, primary text, active nav */
     --navy-secondary: #112d47; /* greeting bar, date strip bg */
@@ -97,12 +138,6 @@ html, body, #app {
    (for example `Components/Pages/Home.razor.css`,
    `Components/Shared/BottomNav.razor.css`, etc.).
    Edit those files to change layout/visual rules; leave these tokens here. */
-───────────────────────────────────────────── */
-*, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
 
 :root, html, body {
     height: 100%;
@@ -138,7 +173,7 @@ html, body, #app {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 20px;
+    padding: 14px;
     /* extra bottom padding = nav bar + safe area (iPhone home bar etc.) */
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 12px));
     scrollbar-width: none;
@@ -171,7 +206,7 @@ html, body, #app {
 ───────────────────────────────────────────── */
 .eemo-header {
     background: var(--navy-primary);
-    padding: 54px 24px 20px;
+    padding: calc(env(safe-area-inset-top, 20px) + 20px) 24px 20px;
     position: relative;
     flex-shrink: 0;
 }
@@ -646,6 +681,8 @@ html, body, #app {
     width: 100%;
     background: var(--bg-card);
     border-radius: 20px 20px 0 0;
+    max-height: 85dvh;
+    overflow-y: auto;
     /* extra bottom padding for iPhone home indicator */
     padding: 18px 24px calc(28px + env(safe-area-inset-bottom, 16px)) 24px;
     animation: eemo-slideUp 0.22s ease;
@@ -1357,7 +1394,7 @@ html, body, #app {
 
 .facility-name {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--navy-primary);
     letter-spacing: 0.1px;
 }
@@ -1392,7 +1429,7 @@ html, body, #app {
 
 .facility-amount {
     font-family: 'EB Garamond', serif;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
     color: var(--navy-primary);
 }
@@ -1557,7 +1594,7 @@ html, body, #app {
 /* ── Market header (direct markup, not AppHeader) ── */
 .header {
     background: var(--navy-primary);
-    padding: 54px 24px 16px;
+    padding: calc(env(safe-area-inset-top, 20px) + 16px) 24px 16px;
     position: relative;
     flex-shrink: 0;
 }

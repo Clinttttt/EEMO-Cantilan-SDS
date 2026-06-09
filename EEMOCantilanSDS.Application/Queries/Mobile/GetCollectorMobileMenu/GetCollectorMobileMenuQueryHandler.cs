@@ -65,7 +65,7 @@ public class GetCollectorMobileMenuQueryHandler(
     private static string GetFacilityName(FacilityCode code) => code switch
     {
         FacilityCode.NPM => "New Public Market",
-        FacilityCode.TCC => "Town Center Commercial",
+        FacilityCode.TCC => "Tampak Center Commercial",
         FacilityCode.NCC => "New Commercial Center",
         FacilityCode.BBQ => "Barbecue Stand",
         FacilityCode.ICE => "Ice Plant",

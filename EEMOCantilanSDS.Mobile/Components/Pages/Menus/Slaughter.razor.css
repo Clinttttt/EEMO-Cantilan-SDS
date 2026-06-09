@@ -150,8 +150,8 @@
     flex: 1;
     min-width: 0;
     color: var(--navy-primary);
-    font-size: 15px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -179,12 +179,348 @@
     text-align: right;
 }
 
-.stall-amount {
+/* ── Transaction card — ledger register style ───────────────── */
+.tx-card {
+    border: 0;
+    font: inherit;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 5px;
+    text-align: left;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.tx-card:active {
+    background: var(--bg-page);
+}
+
+.tx-left-bar {
+    width: 3px;
+    flex-shrink: 0;
+    background: var(--paid-green);
+}
+
+.tx-body {
+    flex: 1;
+    padding: 9px 10px;
+    min-width: 0;
+}
+
+.tx-row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tx-col-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.tx-owner {
+    font-size: 13px;
+    font-weight: 500;
     color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tx-sub {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+.tx-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(13, 33, 55, 0.07);
+    color: var(--navy-primary);
+    flex-shrink: 0;
+}
+
+.tx-tag-more {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.tx-dot {
+    font-size: 10px;
+    color: var(--border);
+}
+
+.tx-heads-inline {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.tx-col-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.tx-amount {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy-primary);
+    letter-spacing: -0.3px;
+}
+
+.tx-or {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.2px;
+}
+
+.tx-receipt-hint {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+}
+
+.tx-receipt-hint svg {
+    width: 12px;
+    height: 12px;
+    stroke: var(--text-muted);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ── Receipt sheet ─────────────────────────────────────────── */
+.receipt-sheet {
+    padding-top: 14px;
+}
+
+.receipt {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 16px;
+    margin-bottom: 14px;
+}
+
+.receipt-head {
+    text-align: center;
+}
+
+.receipt-seal {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+    margin: 0 auto 8px;
+}
+
+.receipt-gov {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.receipt-org {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy-primary);
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+.receipt-muni {
+    font-size: 10px;
+    color: var(--text-subtle);
+    margin-top: 2px;
+}
+
+.receipt-doc {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gold-primary);
+    background: rgba(200, 168, 75, 0.12);
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+
+.receipt-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 14px 0;
+}
+
+.receipt-divider.dashed {
+    background: none;
+    border-top: 1px dashed var(--border-subtle);
+}
+
+.receipt-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+}
+
+.receipt-meta-row span {
+    color: var(--text-muted);
+}
+
+.receipt-meta-row strong {
+    color: var(--navy-primary);
+    font-weight: 600;
+}
+
+.receipt-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.receipt-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 10px;
+    align-items: center;
+    font-size: 12px;
+    color: var(--navy-primary);
+}
+
+.receipt-item-head {
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.receipt-item .ri-qty {
+    width: 38px;
+    text-align: center;
+}
+
+.receipt-item .ri-rate {
+    width: 56px;
+    text-align: right;
+}
+
+.receipt-item .ri-amt {
+    width: 64px;
+    text-align: right;
+    font-weight: 600;
+}
+
+.receipt-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 2px 0;
+}
+
+.receipt-grand {
+    font-size: 13px;
+    color: var(--navy-primary);
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.receipt-grand span:last-child {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy-primary);
+}
+
+.receipt-foot-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.receipt-foot-row span {
+    color: var(--text-muted);
+}
+
+.receipt-foot-row strong {
+    color: var(--navy-primary);
+    font-weight: 600;
+}
+
+.receipt-note {
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--text-subtle);
+    text-align: center;
+}
+
+.receipt-close-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.btn-receipt-edit {
+    border: 1px solid var(--border);
+    font: inherit;
+    min-height: 44px;
+    padding: 0 24px;
+    border-radius: 12px;
+    background: #fff;
+    color: var(--navy-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-receipt-edit:active {
+    background: var(--bg-page);
+}
+
+.btn-receipt-close {
+    border: 0;
+    font: inherit;
+    min-height: 44px;
+    padding: 0 32px;
+    border-radius: 12px;
+    background: var(--bg-icon);
+    color: var(--navy-primary);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+}
+
+.btn-receipt-close:active {
+    background: var(--border);
 }
 
 .stall-status-pill {
@@ -299,6 +635,53 @@
     color: rgba(255, 255, 255, 0.7);
     font-size: 12px;
     font-weight: 700;
+}
+
+/* Per-animal heads row — compact inline label + small number input */
+.line-input-group {
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.line-input {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.line-input:last-child {
+    border-bottom: none;
+}
+
+.line-input-label {
+    color: var(--navy-primary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.line-input-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.line-input-rate {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.heads-input {
+    width: 56px !important;
+    min-height: 32px !important;
+    padding: 4px 6px !important;
+    text-align: center;
+    font-size: 13px !important;
+    border-radius: 8px !important;
 }
 
 .fee-preview strong {

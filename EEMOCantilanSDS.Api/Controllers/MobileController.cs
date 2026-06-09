@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
@@ -99,6 +100,19 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             request.CustomAnimalType,
             request.NumberOfHeads,
             request.CustomRate);
+
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPut("slaughter/update")]
+    public async Task<ActionResult<bool>> UpdateSlaughterAsync([FromBody] UpdateMobileSlaughterRequest request)
+    {
+        var command = new UpdateSlaughterCommand(
+            request.OwnerName,
+            request.TransactionDate,
+            request.ORNumber,
+            request.Animals.Select(a => new AnimalEntry(a.AnimalType, a.CustomAnimalType, a.NumberOfHeads, a.CustomRate)).ToList());
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

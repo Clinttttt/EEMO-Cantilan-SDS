@@ -73,12 +73,39 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
 
+        // SLH (per-head slaughter), TRM (per-trip), TPM (per-vendor Friday) collections also carry
+        // CollectorId — without these, collectors assigned to those facilities show ₱0 / 0 here.
+        var slaughterStats = await context.SlaughterTransactions
+            .Where(s => s.CollectorId != null && collectorIds.Contains(s.CollectorId.Value)
+                        && s.TransactionDate.Year == year && s.TransactionDate.Month == month)
+            .GroupBy(s => s.CollectorId!.Value)
+            .Select(g => new { CollectorId = g.Key, Total = g.Sum(s => s.RatePerHead * s.NumberOfHeads), Count = g.Count() })
+            .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
+        var (trmStartUtc, trmEndUtc) = PhilippineTime.MonthUtcRange(year, month);
+        var tripStats = await context.TrmTrips
+            .Where(t => t.CollectorId != null && collectorIds.Contains(t.CollectorId.Value)
+                        && t.RecordedAt >= trmStartUtc && t.RecordedAt < trmEndUtc)
+            .GroupBy(t => t.CollectorId!.Value)
+            .Select(g => new { CollectorId = g.Key, Total = g.Sum(t => t.Fee), Count = g.Count() })
+            .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
+        var tpmStats = await context.TpmAttendances
+            .Where(a => a.CollectorId != null && collectorIds.Contains(a.CollectorId.Value) && a.IsPaid
+                        && a.MarketDate.Year == year && a.MarketDate.Month == month)
+            .GroupBy(a => a.CollectorId!.Value)
+            .Select(g => new { CollectorId = g.Key, Total = g.Sum(a => a.Fee), Count = g.Count() })
+            .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
         var result = new List<CollectorListDto>();
 
         foreach (var collector in collectors)
         {
             paymentStats.TryGetValue(collector.Id, out var payment);
             dailyStats.TryGetValue(collector.Id, out var daily);
+            slaughterStats.TryGetValue(collector.Id, out var slaughter);
+            tripStats.TryGetValue(collector.Id, out var trip);
+            tpmStats.TryGetValue(collector.Id, out var tpm);
 
             result.Add(new CollectorListDto(
                 collector.Id,
@@ -86,8 +113,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 collector.Email!,
                 collector.EmployeeId!,
                 collector.FacilityAssignments.Select(fa => fa.FacilityCode).ToList(),
-                (payment?.Total ?? 0m) + (daily?.Total ?? 0m),
-                (payment?.Count ?? 0) + (daily?.Count ?? 0),
+                (payment?.Total ?? 0m) + (daily?.Total ?? 0m) + (slaughter?.Total ?? 0m) + (trip?.Total ?? 0m) + (tpm?.Total ?? 0m),
+                (payment?.Count ?? 0) + (daily?.Count ?? 0) + (slaughter?.Count ?? 0) + (trip?.Count ?? 0) + (tpm?.Count ?? 0),
                 collector.LastActiveAt,
                 collector.IsActive));
         }
@@ -117,6 +144,19 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                         d.CollectionDate.Month == month)
             .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), cancellationToken);
 
+        var (mStartUtc, mEndUtc) = PhilippineTime.MonthUtcRange(year, month);
+
+        collectedThisMonth +=
+            await context.SlaughterTransactions
+                .Where(s => s.CollectorId == collector.Id && s.TransactionDate.Year == year && s.TransactionDate.Month == month)
+                .SumAsync(s => s.RatePerHead * s.NumberOfHeads, cancellationToken) +
+            await context.TrmTrips
+                .Where(t => t.CollectorId == collector.Id && t.RecordedAt >= mStartUtc && t.RecordedAt < mEndUtc)
+                .SumAsync(t => t.Fee, cancellationToken) +
+            await context.TpmAttendances
+                .Where(a => a.CollectorId == collector.Id && a.IsPaid && a.MarketDate.Year == year && a.MarketDate.Month == month)
+                .SumAsync(a => a.Fee, cancellationToken);
+
         var transactions = await context.PaymentRecords
             .CountAsync(p => p.CollectorId == collector.Id && 
                             p.BillingYear == year && 
@@ -124,7 +164,13 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             await context.DailyCollections
             .CountAsync(d => d.CollectorId == collector.Id && 
                             d.CollectionDate.Year == year && 
-                            d.CollectionDate.Month == month, cancellationToken);
+                            d.CollectionDate.Month == month, cancellationToken) +
+            await context.SlaughterTransactions
+            .CountAsync(s => s.CollectorId == collector.Id && s.TransactionDate.Year == year && s.TransactionDate.Month == month, cancellationToken) +
+            await context.TrmTrips
+            .CountAsync(t => t.CollectorId == collector.Id && t.RecordedAt >= mStartUtc && t.RecordedAt < mEndUtc, cancellationToken) +
+            await context.TpmAttendances
+            .CountAsync(a => a.CollectorId == collector.Id && a.IsPaid && a.MarketDate.Year == year && a.MarketDate.Month == month, cancellationToken);
 
         var recentPayments = await context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id && p.Status != PaymentStatus.Unpaid)
@@ -158,8 +204,55 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 d.UpdatedAt ?? d.CreatedAt))
             .ToListAsync(cancellationToken);
 
+        // Per-transaction facilities (SLH/TRM/TPM) — these never produce PaymentRecords or
+        // DailyCollections, so their recorded activity must be merged in explicitly.
+        var recentSlaughter = await context.SlaughterTransactions
+            .Where(s => s.CollectorId == collector.Id)
+            .OrderByDescending(s => s.UpdatedAt ?? s.CreatedAt)
+            .Take(10)
+            .Select(s => new RecentTransactionDto(
+                s.ORNumber ?? "—",
+                s.OwnerName,
+                FacilityCode.SLH,
+                "Slaughter",
+                s.RatePerHead * s.NumberOfHeads,
+                "Paid",
+                s.UpdatedAt ?? s.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        var recentTrips = await context.TrmTrips
+            .Where(t => t.CollectorId == collector.Id)
+            .OrderByDescending(t => t.RecordedAt)
+            .Take(10)
+            .Select(t => new RecentTransactionDto(
+                t.ORNumber ?? "—",
+                t.DriverName,
+                FacilityCode.TRM,
+                "Terminal Trip",
+                t.Fee,
+                "Paid",
+                t.RecordedAt))
+            .ToListAsync(cancellationToken);
+
+        var recentTpm = await context.TpmAttendances
+            .Where(a => a.CollectorId == collector.Id && a.IsPaid)
+            .OrderByDescending(a => a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt)
+            .Take(10)
+            .Select(a => new RecentTransactionDto(
+                a.ORNumber ?? "—",
+                a.Vendor!.VendorName,
+                FacilityCode.TPM,
+                "Market Day",
+                a.Fee,
+                "Paid",
+                a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt))
+            .ToListAsync(cancellationToken);
+
         var recentTransactions = recentPayments
             .Concat(recentDaily)
+            .Concat(recentSlaughter)
+            .Concat(recentTrips)
+            .Concat(recentTpm)
             .OrderByDescending(t => t.TransactionDate)
             .Take(10)
             .ToList();

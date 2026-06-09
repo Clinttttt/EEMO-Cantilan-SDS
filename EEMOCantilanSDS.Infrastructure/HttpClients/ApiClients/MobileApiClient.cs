@@ -32,11 +32,18 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request) =>
         await PostAsync<RecordMobileSlaughterRequest, bool>("api/Mobile/slaughter/record", request);
 
+    public async Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request) =>
+        await UpdateAsync<UpdateMobileSlaughterRequest, bool>("api/Mobile/slaughter/update", request);
+
     public async Task<Result<MobileTrmCollectionDto>> GetTrmCollectionAsync() =>
         await GetAsync<MobileTrmCollectionDto>("api/Mobile/trm/collections");
 
     public async Task<Result<TrmTripDto>> RecordTripAsync(RecordMobileTripRequest request) =>
         await PostAsync<RecordMobileTripRequest, TrmTripDto>("api/Mobile/trm/trips", request);
+
+    public async Task<Result<TrmTransporterDto>> AddTransporterAsync(string name, string organization, string route, string plate) =>
+        await PostAsync<object, TrmTransporterDto>("api/trm/transporters",
+            new { Name = name, Organization = organization, DefaultRoute = route, PlateNumber = plate, Remarks = (string?)null });
 
     public async Task<Result<MobileTpmCollectionDto>> GetTpmCollectionAsync() =>
         await GetAsync<MobileTpmCollectionDto>("api/Mobile/tpm/collections");

@@ -31,7 +31,7 @@
         </button>
     </div>
 
-    <div class="content">
+    <div class="content slh-content">
         @if (IsLoading)
         {
             <div class="state-card">
@@ -80,27 +80,37 @@
             }
             else
             {
-                @foreach (var tx in Collection.Transactions)
+                @foreach (var r in GroupedReceipts)
                 {
-                    <div class="stall-row paid">
-                        <div class="stall-info">
-                            <div class="stall-main-row">
-                                <div class="stall-name">@tx.OwnerName</div>
-                                <span class="stall-status-pill pill-paid">@AnimalLabel(tx)</span>
-                            </div>
-                            <div class="stall-meta">
-                                <span>@tx.NumberOfHeads head@(tx.NumberOfHeads == 1 ? "" : "s")</span>
-                                <span>@FormatCurrency(tx.RatePerHead)/head</span>
-                                @if (!string.IsNullOrWhiteSpace(tx.ORNumber))
-                                {
-                                    <span>OR @tx.ORNumber</span>
-                                }
+                    <button class="tx-card" type="button" @onclick="() => OpenReceipt(r)">
+                        <div class="tx-left-bar"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@r.Owner</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-tag">@LineLabel(r.Lines.First())</span>
+                                        @if (r.Lines.Count > 1)
+                                        {
+                                            <span class="tx-tag-more">+@(r.Lines.Count - 1)</span>
+                                        }
+                                        <span class="tx-dot">·</span>
+                                        <span class="tx-heads-inline">@r.TotalHeads head@(r.TotalHeads == 1 ? "" : "s")</span>
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-amount">@FormatCurrency(r.Total)</span>
+                                    @if (!string.IsNullOrWhiteSpace(r.ORNumber))
+                                    {
+                                        <span class="tx-or">OR @r.ORNumber</span>
+                                    }
+                                </div>
                             </div>
                         </div>
-                        <div class="stall-amount-col">
-                            <div class="stall-amount">@FormatCurrency(tx.TotalAmount)</div>
+                        <div class="tx-receipt-hint">
+                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         </div>
-                    </div>
+                    </button>
                 }
             }
         }
@@ -117,18 +127,47 @@
             <div class="sheet-title">Record Slaughter</div>
             <div class="sheet-sub">Log a per-head slaughter transaction for @DayLabel.</div>
 
-            <div class="form-label">Animal type</div>
-            <div class="animal-grid">
-                @foreach (var opt in AnimalOptions)
-                {
-                    <button class="animal-chip @(SelectedAnimal == opt.Type ? "active" : "")" type="button" @onclick="() => SelectAnimal(opt.Type)">
-                        <span class="animal-chip-name">@opt.Label</span>
-                        <span class="animal-chip-rate">@(opt.Type == AnimalType.Other ? "custom" : FormatCurrency(opt.Rate))</span>
-                    </button>
-                }
+            <div class="or-number-wrap">
+                <div class="form-label">Owner name</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Owner of the animal" @bind="OwnerName" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
+                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
             </div>
 
-            @if (SelectedAnimal == AnimalType.Other)
+            <div class="form-label">Animal types · select one or more</div>
+            <div class="animal-grid">
+                @foreach (var opt in FixedAnimals)
+                {
+                    <button class="animal-chip @(opt.Heads() > 0 ? "active" : "")" type="button" @onclick="opt.Toggle">
+                        <span class="animal-chip-name">@opt.Label</span>
+                        <span class="animal-chip-rate">@FormatCurrency(opt.Rate)</span>
+                    </button>
+                }
+                <button class="animal-chip @(UseCustomAnimal ? "active" : "")" type="button" @onclick="ToggleCustom">
+                    <span class="animal-chip-name">Other</span>
+                    <span class="animal-chip-rate">custom</span>
+                </button>
+            </div>
+
+            @if (FixedAnimals.Any(a => a.Heads() > 0))
+            {
+                <div class="line-input-group">
+                    @foreach (var opt in FixedAnimals.Where(a => a.Heads() > 0))
+                    {
+                        <div class="line-input">
+                            <span class="line-input-label">@opt.Label</span>
+                            <div class="line-input-right">
+                                <span class="line-input-rate">@FormatCurrency(opt.Rate)/head</span>
+                                <input class="form-input heads-input" type="number" min="1" step="1" value="@opt.Heads()"
+                                       @onchange="e => opt.SetHeads(e.Value?.ToString())" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (UseCustomAnimal)
             {
                 <div class="or-number-wrap">
                     <div class="form-label">Animal name</div>
@@ -138,22 +177,13 @@
                         <span>₱</span>
                         <input class="form-input" type="number" min="0" step="0.01" placeholder="0" @bind="CustomRate" @bind:event="oninput" />
                     </div>
+                    <div class="form-label" style="margin-top:12px;">Number of heads</div>
+                    <input class="form-input" type="number" min="1" step="1" @bind="CustomHeads" @bind:event="oninput" />
                 </div>
             }
 
-            <div class="or-number-wrap">
-                <div class="form-label">Owner name</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="Owner of the animal" @bind="OwnerName" @bind:event="oninput" />
-
-                <div class="form-label" style="margin-top:12px;">Number of heads</div>
-                <input class="form-input" type="number" min="1" step="1" placeholder="1" @bind="NumberOfHeads" @bind:event="oninput" />
-
-                <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
-                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
-            </div>
-
             <div class="fee-preview">
-                <span>Total fee</span>
+                <span>Total fee · @TotalHeads head@(TotalHeads == 1 ? "" : "s")</span>
                 <strong>@FormatCurrency(PreviewTotal)</strong>
             </div>
 
@@ -172,6 +202,166 @@
     </div>
 }
 
+@if (ShowReceipt && SelectedReceipt is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseReceipt">
+        <div class="sheet receipt-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+
+            <div class="receipt">
+                <!-- Letterhead -->
+                <div class="receipt-head">
+                    <img src="images/sds_logo.jpg" class="receipt-seal" alt="EEMO seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">Slaughterhouse</div>
+                </div>
+
+                <div class="receipt-divider"></div>
+
+                <!-- Meta -->
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row">
+                        <span>OR No.</span>
+                        <strong>@(string.IsNullOrWhiteSpace(SelectedReceipt.ORNumber) ? "—" : SelectedReceipt.ORNumber)</strong>
+                    </div>
+                    <div class="receipt-meta-row">
+                        <span>Date</span>
+                        <strong>@SelectedReceipt.Date.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture)</strong>
+                    </div>
+                    <div class="receipt-meta-row">
+                        <span>Owner / Client</span>
+                        <strong>@SelectedReceipt.Owner</strong>
+                    </div>
+                </div>
+
+                <div class="receipt-divider"></div>
+
+                <!-- Line items -->
+                <div class="receipt-items">
+                    <div class="receipt-item receipt-item-head">
+                        <span class="ri-name">Animal</span>
+                        <span class="ri-qty">Heads</span>
+                        <span class="ri-rate">Rate</span>
+                        <span class="ri-amt">Amount</span>
+                    </div>
+                    @foreach (var line in SelectedReceipt.Lines)
+                    {
+                        <div class="receipt-item">
+                            <span class="ri-name">@LineLabel(line)</span>
+                            <span class="ri-qty">@line.NumberOfHeads</span>
+                            <span class="ri-rate">@FormatCurrency(line.RatePerHead)</span>
+                            <span class="ri-amt">@FormatCurrency(line.TotalAmount)</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="receipt-divider"></div>
+
+                <!-- Totals -->
+                <div class="receipt-total-row">
+                    <span>Total heads</span>
+                    <span>@SelectedReceipt.TotalHeads</span>
+                </div>
+                <div class="receipt-total-row receipt-grand">
+                    <span>Total amount</span>
+                    <span>@FormatCurrency(SelectedReceipt.Total)</span>
+                </div>
+
+                <div class="receipt-divider dashed"></div>
+
+                <!-- Footer -->
+                <div class="receipt-foot">
+                    <div class="receipt-foot-row">
+                        <span>Collected by</span>
+                        <strong>@Session.CollectorName</strong>
+                    </div>
+                    <div class="receipt-note">
+                        This acknowledges receipt of the per-head slaughter fees stated above.
+                        Keep for your records.
+                    </div>
+                </div>
+            </div>
+
+            <div class="receipt-close-row">
+                <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
+                <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowEdit && EditReceipt is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseEdit">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Edit Transaction</div>
+            <div class="sheet-sub">@EditReceipt.Owner · OR @(EditReceipt.ORNumber ?? "—")</div>
+
+            <div class="form-label">Animal types</div>
+            <div class="animal-grid">
+                @foreach (var opt in EditFixedAnimals)
+                {
+                    <button class="animal-chip @(opt.Heads() > 0 ? "active" : "")" type="button" @onclick="opt.Toggle">
+                        <span class="animal-chip-name">@opt.Label</span>
+                        <span class="animal-chip-rate">@FormatCurrency(opt.Rate)</span>
+                    </button>
+                }
+                <button class="animal-chip @(EditUseCustom ? "active" : "")" type="button" @onclick="ToggleEditCustom">
+                    <span class="animal-chip-name">Other</span>
+                    <span class="animal-chip-rate">custom</span>
+                </button>
+            </div>
+
+            @if (EditFixedAnimals.Any(a => a.Heads() > 0))
+            {
+                <div class="line-input-group">
+                    @foreach (var opt in EditFixedAnimals.Where(a => a.Heads() > 0))
+                    {
+                        <div class="line-input">
+                            <span class="line-input-label">@opt.Label</span>
+                            <div class="line-input-right">
+                                <span class="line-input-rate">@FormatCurrency(opt.Rate)/head</span>
+                                <input class="form-input heads-input" type="number" min="1" step="1" value="@opt.Heads()"
+                                       @onchange="e => opt.SetHeads(e.Value?.ToString())" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (EditUseCustom)
+            {
+                <div class="or-number-wrap">
+                    <div class="form-label">Animal name</div>
+                    <input class="form-input" type="text" maxlength="100" @bind="EditCustomType" @bind:event="oninput" />
+                    <div class="form-label" style="margin-top:12px;">Rate per head</div>
+                    <div class="fish-input-row">
+                        <span>₱</span>
+                        <input class="form-input" type="number" min="0" step="0.01" @bind="EditCustomRate" @bind:event="oninput" />
+                    </div>
+                    <div class="form-label" style="margin-top:12px;">Number of heads</div>
+                    <input class="form-input" type="number" min="1" step="1" @bind="EditCustomHeads" @bind:event="oninput" />
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(EditError))
+            {
+                <div class="form-error">@EditError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseEdit" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmEditAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Save Changes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private MobileSlaughterCollectionDto? Collection;
     private bool IsLoading = true;
@@ -181,22 +371,54 @@
     private DateOnly SelectedDate;
     private bool ShowSheet;
 
-    private AnimalType SelectedAnimal = AnimalType.Hog;
+    // Receipt view (grouped transaction)
+    private bool ShowReceipt;
+    private SlaughterReceipt? SelectedReceipt;
+
+    // Edit state
+    private bool ShowEdit;
+    private SlaughterReceipt? EditReceipt;
+    private int EditHogHeads;
+    private int EditCarabaoHeads;
+    private int EditCowHeads;
+    private bool EditUseCustom;
+    private string EditCustomType = string.Empty;
+    private int EditCustomHeads = 1;
+    private decimal? EditCustomRate;
+    private string? EditError;
+
+    // One transaction = one owner + one OR + one or more animal lines (mirrors the web admin).
     private string OwnerName = string.Empty;
-    private int NumberOfHeads = 1;
     private string ORNumber = string.Empty;
+    private int HogHeads;
+    private int CarabaoHeads;
+    private int CowHeads;
+    private bool UseCustomAnimal;
     private string CustomAnimalType = string.Empty;
+    private int CustomHeads = 1;
     private decimal? CustomRate;
 
-    private record AnimalOption(AnimalType Type, string Label, decimal Rate);
+    private decimal HogRate => Collection?.HogRatePerHead ?? 250m;
+    private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 365m;
 
-    private AnimalOption[] AnimalOptions =>
-    [
-        new(AnimalType.Hog, "Hog", Collection?.HogRatePerHead ?? 250m),
-        new(AnimalType.Carabao, "Carabao", Collection?.LargeAnimalRatePerHead ?? 365m),
-        new(AnimalType.Cow, "Cow", Collection?.LargeAnimalRatePerHead ?? 365m),
-        new(AnimalType.Other, "Other", 0m)
-    ];
+    // Lightweight adapter so the markup can iterate the fixed animals uniformly.
+    private sealed record FixedAnimal(string Label, AnimalType Type, decimal Rate, Func<int> Heads, Action Toggle, Action<string?> SetHeads);
+
+    private FixedAnimal[] FixedAnimals => new[]
+    {
+        new FixedAnimal("Hog", AnimalType.Hog, HogRate, () => HogHeads,
+            () => { HogHeads = HogHeads > 0 ? 0 : 1; SheetError = null; },
+            v => HogHeads = ParseHeads(v)),
+        new FixedAnimal("Carabao", AnimalType.Carabao, LargeRate, () => CarabaoHeads,
+            () => { CarabaoHeads = CarabaoHeads > 0 ? 0 : 1; SheetError = null; },
+            v => CarabaoHeads = ParseHeads(v)),
+        new FixedAnimal("Cow", AnimalType.Cow, LargeRate, () => CowHeads,
+            () => { CowHeads = CowHeads > 0 ? 0 : 1; SheetError = null; },
+            v => CowHeads = ParseHeads(v)),
+    };
+
+    private static int ParseHeads(string? raw) =>
+        int.TryParse(raw, out var n) && n > 0 ? n : 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -240,33 +462,162 @@
 
     private string DayLabel => SelectedDate.ToString("MMM dd, yyyy", CultureInfo.InvariantCulture);
 
-    private decimal SelectedRate => SelectedAnimal switch
+    // One card/receipt per owner + OR (groups the multi-animal lines recorded together).
+    private sealed record SlaughterReceipt(
+        string Owner, string? ORNumber, DateOnly Date, IReadOnlyList<SlaughterTransactionDto> Lines)
     {
-        AnimalType.Hog => Collection?.HogRatePerHead ?? 250m,
-        AnimalType.Carabao or AnimalType.Cow => Collection?.LargeAnimalRatePerHead ?? 365m,
-        AnimalType.Other => CustomRate ?? 0m,
-        _ => 0m
+        public int TotalHeads => Lines.Sum(l => l.NumberOfHeads);
+        public decimal Total => Lines.Sum(l => l.TotalAmount);
+    }
+
+    private IEnumerable<SlaughterReceipt> GroupedReceipts =>
+        (Collection?.Transactions ?? Array.Empty<SlaughterTransactionDto>())
+        .GroupBy(t => new { t.OwnerName, OR = t.ORNumber ?? string.Empty })
+        .Select(g => new SlaughterReceipt(g.Key.OwnerName, g.First().ORNumber, g.First().TransactionDate, g.ToList()));
+
+    private void OpenReceipt(SlaughterReceipt receipt)
+    {
+        SelectedReceipt = receipt;
+        ShowReceipt = true;
+    }
+
+    private void CloseReceipt()
+    {
+        ShowReceipt = false;
+        SelectedReceipt = null;
+    }
+
+    private decimal EditHogRate => Collection?.HogRatePerHead ?? 250m;
+    private decimal EditLargeRate => Collection?.LargeAnimalRatePerHead ?? 365m;
+
+    private FixedAnimal[] EditFixedAnimals => new[]
+    {
+        new FixedAnimal("Hog", AnimalType.Hog, EditHogRate, () => EditHogHeads,
+            () => { EditHogHeads = EditHogHeads > 0 ? 0 : 1; EditError = null; },
+            v => EditHogHeads = ParseHeads(v)),
+        new FixedAnimal("Carabao", AnimalType.Carabao, EditLargeRate, () => EditCarabaoHeads,
+            () => { EditCarabaoHeads = EditCarabaoHeads > 0 ? 0 : 1; EditError = null; },
+            v => EditCarabaoHeads = ParseHeads(v)),
+        new FixedAnimal("Cow", AnimalType.Cow, EditLargeRate, () => EditCowHeads,
+            () => { EditCowHeads = EditCowHeads > 0 ? 0 : 1; EditError = null; },
+            v => EditCowHeads = ParseHeads(v)),
     };
 
-    private decimal PreviewTotal => SelectedRate * Math.Max(0, NumberOfHeads);
+    private void OpenEditFromReceipt()
+    {
+        if (SelectedReceipt is null) return;
+        EditReceipt = SelectedReceipt;
+        // Seed edit state from current receipt lines.
+        EditHogHeads = EditReceipt.Lines.FirstOrDefault(l => l.AnimalType == AnimalType.Hog)?.NumberOfHeads ?? 0;
+        EditCarabaoHeads = EditReceipt.Lines.FirstOrDefault(l => l.AnimalType == AnimalType.Carabao)?.NumberOfHeads ?? 0;
+        EditCowHeads = EditReceipt.Lines.FirstOrDefault(l => l.AnimalType == AnimalType.Cow)?.NumberOfHeads ?? 0;
+        var customLine = EditReceipt.Lines.FirstOrDefault(l => l.AnimalType == AnimalType.Other);
+        EditUseCustom = customLine is not null;
+        EditCustomType = customLine?.CustomAnimalType ?? string.Empty;
+        EditCustomHeads = customLine?.NumberOfHeads ?? 1;
+        EditCustomRate = customLine?.RatePerHead;
+        EditError = null;
+        ShowReceipt = false;
+        ShowEdit = true;
+    }
+
+    private void ToggleEditCustom()
+    {
+        EditUseCustom = !EditUseCustom;
+        if (!EditUseCustom) { EditCustomType = string.Empty; EditCustomHeads = 1; EditCustomRate = null; }
+        EditError = null;
+    }
+
+    private void CloseEdit()
+    {
+        ShowEdit = false;
+        EditReceipt = null;
+        EditError = null;
+    }
+
+    private async Task ConfirmEditAsync()
+    {
+        if (EditReceipt is null) return;
+
+        var animals = new List<MobileAnimalEntry>();
+        if (EditHogHeads > 0) animals.Add(new MobileAnimalEntry(AnimalType.Hog, EditHogHeads));
+        if (EditCarabaoHeads > 0) animals.Add(new MobileAnimalEntry(AnimalType.Carabao, EditCarabaoHeads));
+        if (EditCowHeads > 0) animals.Add(new MobileAnimalEntry(AnimalType.Cow, EditCowHeads));
+        if (EditUseCustom)
+        {
+            if (string.IsNullOrWhiteSpace(EditCustomType) || EditCustomRate is null or <= 0 || EditCustomHeads < 1)
+            {
+                EditError = "Enter the custom animal name, a rate greater than 0, and at least 1 head.";
+                return;
+            }
+            animals.Add(new MobileAnimalEntry(AnimalType.Other, EditCustomHeads, EditCustomType.Trim(), EditCustomRate));
+        }
+        if (animals.Count == 0) { EditError = "Select at least one animal type."; return; }
+
+        IsSaving = true;
+        EditError = null;
+
+        var request = new UpdateMobileSlaughterRequest(
+            EditReceipt.Owner,
+            EditReceipt.Date,
+            EditReceipt.ORNumber ?? string.Empty,
+            animals);
+
+        var result = await MobileApi.UpdateSlaughterAsync(request);
+        if (!result.IsSuccess)
+        {
+            EditError = result.Error ?? "Unable to save the changes.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseEdit();
+        try { await LoadCollectionAsync(); }
+        finally { IsSaving = false; }
+    }
+
+    private static string LineLabel(SlaughterTransactionDto tx) =>
+        tx.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(tx.CustomAnimalType)
+            ? tx.CustomAnimalType!
+            : tx.AnimalType.ToString();
+
+    private int TotalHeads =>
+        HogHeads + CarabaoHeads + CowHeads + (UseCustomAnimal ? Math.Max(0, CustomHeads) : 0);
+
+    private decimal PreviewTotal =>
+        (HogHeads * HogRate) + (CarabaoHeads * LargeRate) + (CowHeads * LargeRate)
+        + (UseCustomAnimal ? Math.Max(0, CustomHeads) * (CustomRate ?? 0m) : 0m);
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
 
     private void OpenSheet()
     {
-        SelectedAnimal = AnimalType.Hog;
         OwnerName = string.Empty;
-        NumberOfHeads = 1;
         ORNumber = string.Empty;
+        HogHeads = 0;
+        CarabaoHeads = 0;
+        CowHeads = 0;
+        UseCustomAnimal = false;
         CustomAnimalType = string.Empty;
+        CustomHeads = 1;
         CustomRate = null;
         SheetError = null;
         ShowSheet = true;
     }
 
-    private void SelectAnimal(AnimalType type)
+    private void ToggleCustom()
     {
-        SelectedAnimal = type;
+        UseCustomAnimal = !UseCustomAnimal;
+        if (UseCustomAnimal)
+        {
+            CustomHeads = 1;
+        }
+        else
+        {
+            CustomAnimalType = string.Empty;
+            CustomHeads = 1;
+            CustomRate = null;
+        }
         SheetError = null;
     }
 
@@ -282,34 +633,49 @@
             SheetError = "OR number is required.";
             return;
         }
-        if (NumberOfHeads < 1)
+
+        // Build the animal lines for this single owner + OR.
+        var lines = new List<RecordMobileSlaughterRequest>();
+        var owner = OwnerName.Trim();
+        var or = ORNumber.Trim();
+
+        if (HogHeads > 0)
+            lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Hog, HogHeads));
+        if (CarabaoHeads > 0)
+            lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Carabao, CarabaoHeads));
+        if (CowHeads > 0)
+            lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Cow, CowHeads));
+        if (UseCustomAnimal)
         {
-            SheetError = "Number of heads must be at least 1.";
-            return;
+            if (string.IsNullOrWhiteSpace(CustomAnimalType) || CustomRate is null or <= 0 || CustomHeads < 1)
+            {
+                SheetError = "For 'Other', enter the animal name, a rate greater than 0, and at least 1 head.";
+                return;
+            }
+            lines.Add(new RecordMobileSlaughterRequest(owner, or, AnimalType.Other, CustomHeads, CustomAnimalType.Trim(), CustomRate));
         }
-        if (SelectedAnimal == AnimalType.Other && (string.IsNullOrWhiteSpace(CustomAnimalType) || CustomRate is null or <= 0))
+
+        if (lines.Count == 0)
         {
-            SheetError = "Enter the custom animal name and a rate greater than 0.";
+            SheetError = "Select at least one animal type.";
             return;
         }
 
         IsSaving = true;
         SheetError = null;
 
-        var request = new RecordMobileSlaughterRequest(
-            OwnerName.Trim(),
-            ORNumber.Trim(),
-            SelectedAnimal,
-            NumberOfHeads,
-            SelectedAnimal == AnimalType.Other ? CustomAnimalType.Trim() : null,
-            SelectedAnimal == AnimalType.Other ? CustomRate : null);
-
-        var result = await MobileApi.RecordSlaughterAsync(request);
-        if (!result.IsSuccess)
+        // Record each line under the same owner + OR (mirrors the web admin's per-animal rows).
+        // Submitted sequentially; stop on the first failure and surface the error.
+        foreach (var line in lines)
         {
-            SheetError = result.Error ?? "Unable to save the slaughter transaction.";
-            IsSaving = false;
-            return;
+            var result = await MobileApi.RecordSlaughterAsync(line);
+            if (!result.IsSuccess)
+            {
+                SheetError = result.Error ?? $"Unable to save the {line.AnimalType} line.";
+                IsSaving = false;
+                await LoadCollectionAsync(); // reflect any lines that did save
+                return;
+            }
         }
 
         CloseSheet();
@@ -330,9 +696,4 @@
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
-
-    private static string AnimalLabel(SlaughterTransactionDto tx) =>
-        tx.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(tx.CustomAnimalType)
-            ? tx.CustomAnimalType!
-            : tx.AnimalType.ToString();
 }

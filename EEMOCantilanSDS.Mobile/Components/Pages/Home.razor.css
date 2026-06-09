@@ -34,7 +34,7 @@
 /* Market header (direct markup, not AppHeader) */
 .header {
     background: var(--navy-primary);
-    padding: 54px 24px 16px;
+    padding: calc(env(safe-area-inset-top, 20px) + 16px) 24px 16px;
     position: relative;
     flex-shrink: 0;
 }

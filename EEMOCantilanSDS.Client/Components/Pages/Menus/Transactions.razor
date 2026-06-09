@@ -114,9 +114,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var t in Feed)
+                    @foreach (var g in GroupedFeed())
                     {
-                        <tr>
+                        var t = g.Head;
+                        var expanded = _expanded.Contains(g.Key);
+                        <tr class="@(g.IsGroup ? "txn-grouprow" : "")" @onclick="() => ToggleGroup(g)">
                             <td class="txn-when">
                                 <div class="txn-date">@t.OccurredAt.ToString("MMM d, yyyy")</div>
                                 @if (t.HasTime)
@@ -127,13 +129,37 @@
                             <td><span class="txn-fac-badge fac-@t.FacilityCode.ToString().ToLower()">@t.FacilityCode</span></td>
                             <td class="txn-party">@t.Party</td>
                             <td>
-                                <div class="txn-kind">@t.Kind</div>
-                                <div class="txn-ref">@t.Reference</div>
+                                <div class="txn-kind">
+                                    @if (g.IsGroup)
+                                    {
+                                        <svg class="txn-chev @(expanded ? "open" : "")" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                    }
+                                    @t.Kind
+                                </div>
+                                <div class="txn-ref">@(g.IsGroup ? $"{g.Lines.Count} animals · {g.TotalHeads} heads" : t.Reference)</div>
                             </td>
-                            <td class="txn-num txn-amount">&#8369;@t.Amount.ToString("N2")</td>
+                            <td class="txn-num txn-amount">&#8369;@g.Total.ToString("N2")</td>
                             <td class="txn-or">@(string.IsNullOrEmpty(t.ORNumber) ? "—" : t.ORNumber)</td>
                             <td><span class="txn-status @(t.Status == "Paid" ? "paid" : "partial")">@t.Status</span></td>
                         </tr>
+
+                        @if (g.IsGroup && expanded)
+                        {
+                            @foreach (var line in g.Lines)
+                            {
+                                <tr class="txn-subrow">
+                                    <td></td>
+                                    <td></td>
+                                    <td></td>
+                                    <td>
+                                        <div class="txn-subref">@line.Reference</div>
+                                    </td>
+                                    <td class="txn-num txn-subamount">&#8369;@line.Amount.ToString("N2")</td>
+                                    <td></td>
+                                    <td></td>
+                                </tr>
+                            }
+                        }
                     }
                 </tbody>
             </table>
@@ -151,6 +177,60 @@
     private IReadOnlyList<TransactionFeedDto> Feed = Array.Empty<TransactionFeedDto>();
 
     private bool IsToday => SelectedDate == PhilippineTime.Today;
+
+    // SLH transactions recorded under one OR (multiple animal lines) collapse into one expandable row.
+    private readonly HashSet<string> _expanded = new();
+
+    private sealed class TxnGroup
+    {
+        public required TransactionFeedDto Head { get; init; }
+        public required List<TransactionFeedDto> Lines { get; init; }
+        public required string Key { get; init; }
+        public bool IsGroup => Lines.Count > 1;
+        public decimal Total => Lines.Sum(l => l.Amount);
+        public int TotalHeads => Lines.Sum(l => ParseHeads(l.Reference));
+    }
+
+    // Reference looks like "Hog ×2" → pull the count after the × sign.
+    private static int ParseHeads(string reference)
+    {
+        var idx = reference.LastIndexOf('×');
+        return idx >= 0 && int.TryParse(reference[(idx + 1)..].Trim(), out var n) ? n : 1;
+    }
+
+    private List<TxnGroup> GroupedFeed()
+    {
+        var result = new List<TxnGroup>();
+        var slhBuckets = new Dictionary<string, TxnGroup>();
+
+        foreach (var t in Feed)
+        {
+            // Group only slaughter lines that share an OR + party + day.
+            if (t.FacilityCode == FacilityCode.SLH && !string.IsNullOrWhiteSpace(t.ORNumber))
+            {
+                var key = $"SLH|{t.ORNumber}|{t.Party}|{t.OccurredAt:yyyyMMdd}";
+                if (!slhBuckets.TryGetValue(key, out var g))
+                {
+                    g = new TxnGroup { Head = t, Lines = new List<TransactionFeedDto>(), Key = key };
+                    slhBuckets[key] = g;
+                    result.Add(g);
+                }
+                g.Lines.Add(t);
+            }
+            else
+            {
+                result.Add(new TxnGroup { Head = t, Lines = new List<TransactionFeedDto> { t }, Key = t.Id.ToString() });
+            }
+        }
+
+        return result;
+    }
+
+    private void ToggleGroup(TxnGroup g)
+    {
+        if (!g.IsGroup) return;
+        if (!_expanded.Add(g.Key)) _expanded.Remove(g.Key);
+    }
 
     private ElementReference _dateInput;
     private async Task OpenPicker() => await JS.InvokeVoidAsync("openDatePicker", _dateInput);

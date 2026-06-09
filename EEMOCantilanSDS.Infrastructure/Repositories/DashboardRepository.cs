@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Dashboard;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -125,23 +126,83 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .AsNoTracking()
             .ToDictionaryAsync(c => c.Id, c => c.FullName ?? "", ct);
 
-        // Recent paid/partial transactions
-        var recentEntities = await context.PaymentRecords
+        // Recent paid/partial transactions across ALL facilities (newest first).
+        // Each facility stores its collections in its own table, so gather the latest from each
+        // source then merge — otherwise NPM-daily, SLH, TRM and TPM never appear here.
+        const int recentTake = 8;
+
+        var recentPaymentEntities = await context.PaymentRecords
             .AsNoTracking()
             .Where(p => p.PaidAt != null)
             .OrderByDescending(p => p.PaidAt)
-            .Take(8)
+            .Take(recentTake)
             .Include(p => p.Stall!).ThenInclude(s => s.Facility)
             .Include(p => p.Stall!).ThenInclude(s => s.Contracts)
             .ToListAsync(ct);
 
-        var recent = recentEntities.Select(p => new DashboardTransactionDto(
+        var recentRows = recentPaymentEntities.Select(p => new RecentRow(
             p.ORNumber ?? "",
             p.Stall!.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant ?? "",
             p.Stall.Facility!.Code,
             p.AmountPaid,
-            p.CollectorId.HasValue && collectorNames.TryGetValue(p.CollectorId.Value, out var n) ? n : "",
+            p.CollectorId,
             p.PaidAt!.Value)).ToList();
+
+        recentRows.AddRange((await context.DailyCollections
+            .AsNoTracking()
+            .Where(d => d.IsPaid)
+            .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+            .Take(recentTake)
+            .Select(d => new
+            {
+                d.ORNumber,
+                Occupant = d.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Code = d.Stall.Facility!.Code,
+                d.DailyFee,
+                d.FishKilos,
+                d.CollectorId,
+                At = d.UpdatedAt ?? d.CreatedAt
+            })
+            .ToListAsync(ct))
+            .Select(d => new RecentRow(d.ORNumber ?? "", d.Occupant ?? "", d.Code,
+                d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo, d.CollectorId, At: d.At)));
+
+        recentRows.AddRange((await context.SlaughterTransactions
+            .AsNoTracking()
+            .OrderByDescending(s => s.UpdatedAt ?? s.CreatedAt)
+            .Take(recentTake)
+            .Select(s => new { s.ORNumber, s.OwnerName, Amount = s.RatePerHead * s.NumberOfHeads, s.CollectorId, At = s.UpdatedAt ?? s.CreatedAt })
+            .ToListAsync(ct))
+            .Select(s => new RecentRow(s.ORNumber ?? "", s.OwnerName, FacilityCode.SLH, s.Amount, s.CollectorId, s.At)));
+
+        recentRows.AddRange((await context.TrmTrips
+            .AsNoTracking()
+            .OrderByDescending(t => t.RecordedAt)
+            .Take(recentTake)
+            .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.CollectorId, t.RecordedAt })
+            .ToListAsync(ct))
+            .Select(t => new RecentRow(t.ORNumber ?? "", t.DriverName, FacilityCode.TRM, t.Fee, t.CollectorId, t.RecordedAt)));
+
+        recentRows.AddRange((await context.TpmAttendances
+            .AsNoTracking()
+            .Where(a => a.IsPaid)
+            .OrderByDescending(a => a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt)
+            .Take(recentTake)
+            .Select(a => new { a.ORNumber, Vendor = a.Vendor!.VendorName, a.Fee, a.CollectorId, At = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt })
+            .ToListAsync(ct))
+            .Select(a => new RecentRow(a.ORNumber ?? "", a.Vendor, FacilityCode.TPM, a.Fee, a.CollectorId, a.At)));
+
+        var recent = recentRows
+            .OrderByDescending(r => r.At)
+            .Take(recentTake)
+            .Select(r => new DashboardTransactionDto(
+                r.OR,
+                r.Payor,
+                r.Facility,
+                r.Amount,
+                r.CollectorId.HasValue && collectorNames.TryGetValue(r.CollectorId.Value, out var n) ? n : "",
+                r.At))
+            .ToList();
 
         // Delinquents = recorded unpaid/partial months in the rolling window, EXCLUDING the current
         // billing month (the current period isn't "overdue" yet — only past unpaid months count).
@@ -180,4 +241,8 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             RecentTransactions: recent,
             DelinquentVendors: delinquents);
     }
+
+    // Normalized recent-transaction row used to merge the latest collections across all facilities.
+    private sealed record RecentRow(
+        string OR, string Payor, FacilityCode Facility, decimal Amount, Guid? CollectorId, DateTime At);
 }

@@ -90,5 +90,13 @@ public class DashboardRepositoryTests : RepositoryTestBase
 
         // Total includes every facility's own-context revenue.
         Assert.Equal(410m, overview.TotalCollected);
+
+        // Recent transactions must surface every facility's own collections, not just monthly rent.
+        var recentFacilities = overview.RecentTransactions.Select(t => t.FacilityCode).ToHashSet();
+        Assert.Contains(FacilityCode.NPM, recentFacilities);   // daily collection
+        Assert.Contains(FacilityCode.SLH, recentFacilities);   // slaughter
+        Assert.Contains(FacilityCode.TRM, recentFacilities);   // trip
+        Assert.Contains(FacilityCode.TPM, recentFacilities);   // market day
+        Assert.Contains(overview.RecentTransactions, t => t.FacilityCode == FacilityCode.SLH && t.PayorName == "Pedro" && t.Amount == 250m);
     }
 }

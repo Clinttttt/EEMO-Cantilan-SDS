@@ -3,7 +3,8 @@
 .stall-row,
 .btn-cancel,
 .btn-confirm,
-.primary-action {
+.primary-action,
+.record-cta {
     border: 0;
     font: inherit;
 }
@@ -80,116 +81,194 @@
     text-transform: uppercase;
 }
 
-.stall-row {
+.record-cta {
     width: 100%;
-    min-height: 70px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-    position: relative;
-    padding: 13px 14px 13px 17px;
-    margin-bottom: 8px;
-    background: #fff;
-    border: 1px solid var(--border);
+    min-height: 46px;
+    margin: 0 0 14px;
     border-radius: 12px;
-    text-align: left;
-    box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
-}
-
-.stall-row::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 12px;
-    bottom: 12px;
-    width: 3px;
-    border-radius: 0 8px 8px 0;
-    background: var(--border);
-}
-
-.stall-row.paid::before {
-    background: var(--paid-green);
-}
-
-.stall-info {
-    min-width: 0;
-}
-
-.stall-main-row {
+    background: var(--navy-primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
     display: flex;
     align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+}
+
+.record-cta svg {
+    width: 16px;
+    height: 16px;
+    stroke: #fff;
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+}
+
+/* Two-mode choice row */
+.trip-choice-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
+    margin-bottom: 14px;
+}
+
+.trip-choice-btn {
+    border: 1px solid var(--border);
+    font: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px 10px;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    text-align: center;
+}
+
+.trip-choice-btn.primary {
+    background: var(--navy-primary);
+    border-color: var(--navy-primary);
+}
+
+.trip-choice-btn svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-subtle);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-bottom: 2px;
+}
+
+.trip-choice-btn.primary svg {
+    stroke: #fff;
+}
+
+.trip-choice-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy-primary);
+}
+
+.trip-choice-btn.primary .trip-choice-title {
+    color: #fff;
+}
+
+.trip-choice-sub {
+    font-size: 9px;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+.trip-choice-btn.primary .trip-choice-sub {
+    color: rgba(255,255,255,0.65);
+}
+
+/* ── Transporter cards — ledger style matching SLH ──────────── */
+.tx-card {
+    border: 0;
+    font: inherit;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    text-align: left;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.tx-card:active {
+    background: var(--bg-page);
+}
+
+.tx-left-bar {
+    width: 3px;
+    flex-shrink: 0;
+    background: var(--navy-primary);
+}
+
+.tx-body {
+    flex: 1;
+    padding: 9px 10px;
     min-width: 0;
 }
 
-.stall-name {
-    flex: 1;
+.tx-row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tx-col-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     min-width: 0;
+}
+
+.tx-owner {
+    font-size: 13px;
+    font-weight: 500;
     color: var(--navy-primary);
-    font-size: 15px;
-    font-weight: 800;
-    line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.stall-meta {
+.tx-sub {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-    color: var(--text-subtle);
-    font-size: 10px;
-}
-
-.stall-meta span {
-    background: #f3f6f9;
-    border: 1px solid #e8eef3;
-    border-radius: 7px;
-    padding: 3px 6px;
-}
-
-.stall-amount-col {
-    min-width: 56px;
-    text-align: right;
-}
-
-.stall-amount {
-    color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.add-trip {
-    display: inline-block;
-    padding: 7px 12px;
-    border-radius: 999px;
-    background: rgba(13, 33, 55, 0.06);
-    color: var(--navy-primary);
-    font-size: 11px;
-    font-weight: 800;
-}
-
-.stall-status-pill {
-    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-height: 22px;
-    padding: 0 8px;
-    border-radius: 7px;
-    font-size: 9.5px;
-    font-weight: 800;
-    white-space: nowrap;
-    text-transform: uppercase;
+    gap: 5px;
+    flex-wrap: nowrap;
 }
 
-.pill-paid {
-    color: var(--paid-green);
+.tx-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(13, 33, 55, 0.07);
+    color: var(--navy-primary);
+    flex-shrink: 0;
+}
+
+.tx-or {
+    font-size: 10px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tx-col-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.trip-count {
     background: var(--paid-green-bg);
+    color: var(--paid-green);
+}
+
+.tx-add-trip {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold-primary, #c8a84b);
+    letter-spacing: 0.2px;
 }
 
 .or-number-wrap {

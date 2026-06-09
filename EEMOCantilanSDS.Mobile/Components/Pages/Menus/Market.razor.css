@@ -242,8 +242,8 @@
     flex: 1;
     min-width: 0;
     color: var(--navy-primary);
-    font-size: 15px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 500;
     line-height: 1.25;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -274,8 +274,8 @@
 .stall-amount {
     color: var(--navy-primary);
     font-family: "EB Garamond", serif;
-    font-size: 20px;
-    font-weight: 800;
+    font-size: 14px;
+    font-weight: 600;
     line-height: 1;
 }
 

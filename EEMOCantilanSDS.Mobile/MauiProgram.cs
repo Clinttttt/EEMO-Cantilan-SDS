@@ -16,6 +16,11 @@ namespace EEMOCantilanSDS.Mobile
                 .ConfigureFonts(fonts =>
                 {
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+                    fonts.AddFont("EBGaramond-Regular.ttf",  "EBGaramondRegular");
+                    fonts.AddFont("EBGaramond-SemiBold.ttf", "EBGaramondSemiBold");
+                    fonts.AddFont("DMSans-Regular.ttf",   "DMSansRegular");
+                    fonts.AddFont("DMSans-Medium.ttf",    "DMSansMedium");
+                    fonts.AddFont("DMSans-SemiBold.ttf",  "DMSansSemiBold");
                 });
 
             builder.Services.AddMauiBlazorWebView();

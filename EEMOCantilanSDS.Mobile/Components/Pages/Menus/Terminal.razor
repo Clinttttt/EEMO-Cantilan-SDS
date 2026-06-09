@@ -71,6 +71,19 @@
 
             <div class="section-label">Transporters · tap to record a trip</div>
 
+            <div class="trip-choice-row">
+                <button class="trip-choice-btn primary" type="button" @onclick="OpenQuickTripSheet">
+                    <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1" /><path d="M16 8h4l3 3v5h-7V8z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></svg>
+                    <span class="trip-choice-title">Record a Trip</span>
+                    <span class="trip-choice-sub">Quick, no registration needed</span>
+                </button>
+                <button class="trip-choice-btn" type="button" @onclick="OpenNewTransporterSheet">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    <span class="trip-choice-title">Register Transporter</span>
+                    <span class="trip-choice-sub">Add to permanent roster</span>
+                </button>
+            </div>
+
             @if (!FilteredTransporters.Any())
             {
                 <div class="state-card">
@@ -82,32 +95,31 @@
             {
                 @foreach (var t in FilteredTransporters)
                 {
-                    <button class="stall-row" type="button" @onclick="() => OpenSheet(t)">
-                        <div class="stall-info">
-                            <div class="stall-main-row">
-                                <div class="stall-name">@t.Name</div>
-                                @if (t.TripsToday > 0)
-                                {
-                                    <span class="stall-status-pill pill-paid">@t.TripsToday today</span>
-                                }
+                    <button class="tx-card" type="button" @onclick="() => OpenSheet(t)">
+                        <div class="tx-left-bar"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@t.Name</span>
+                                    <span class="tx-sub">
+                                        @if (!string.IsNullOrWhiteSpace(t.PlateNumber))
+                                        {
+                                            <span class="tx-tag">@t.PlateNumber</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(t.DefaultRoute))
+                                        {
+                                            <span class="tx-or">@t.DefaultRoute</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    @if (t.TripsToday > 0)
+                                    {
+                                        <span class="tx-tag trip-count">@t.TripsToday trip@(t.TripsToday == 1 ? "" : "s")</span>
+                                    }
+                                    <span class="tx-add-trip">+ Trip</span>
+                                </div>
                             </div>
-                            <div class="stall-meta">
-                                @if (!string.IsNullOrWhiteSpace(t.PlateNumber))
-                                {
-                                    <span>@t.PlateNumber</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(t.DefaultRoute))
-                                {
-                                    <span>@t.DefaultRoute</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(t.Organization))
-                                {
-                                    <span>@t.Organization</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="stall-amount-col">
-                            <div class="add-trip">+ Trip</div>
                         </div>
                     </button>
                 }
@@ -158,13 +170,95 @@
     <BottomNav ActiveTab="menu" />
 </div>
 
+@if (ShowQuickTripSheet)
+{
+    <div class="sheet-overlay" @onclick="CloseQuickTripSheet">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Record a Trip</div>
+            <div class="sheet-sub">Enter the driver details and record directly. A transporter profile will be created automatically.</div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Driver name</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Driver name" @bind="QuickDriverName" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Organization / Cooperative</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="e.g. CANTITRANSCO" @bind="QuickOrg" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Plate number</div>
+                <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="QuickPlate" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Route</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Cantilan–Tandag" @bind="QuickRoute" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
+                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="QuickORNumber" @bind:event="oninput" />
+            </div>
+
+            <div class="fee-preview">
+                <span>Trip fee</span>
+                <strong>@FormatCurrency(Collection?.TripFee ?? 30m)</strong>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(QuickTripError))
+            {
+                <div class="form-error">@QuickTripError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseQuickTripSheet" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmQuickTripAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Confirm Trip")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowNewTransporterSheet)
+{
+    <div class="sheet-overlay" @onclick="CloseNewTransporterSheet">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Register Transporter</div>
+            <div class="sheet-sub">Add a new transporter to today's terminal roster.</div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Name</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Driver / operator name" @bind="NewName" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Organization / Cooperative</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="e.g. CANTITRANSCO" @bind="NewOrg" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Default route</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Cantilan–Tandag" @bind="NewRoute" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Plate number</div>
+                <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="NewPlate" @bind:event="oninput" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(NewTransporterError))
+            {
+                <div class="form-error">@NewTransporterError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseNewTransporterSheet" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmNewTransporterAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Register")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (ShowSheet && SelectedTransporter is not null)
 {
     <div class="sheet-overlay" @onclick="CloseSheet">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Record Trip</div>
-            <div class="sheet-sub">@SelectedTransporter.Name · ₱@Collection!.TripFee.ToString("N0") per trip</div>
+            <div class="sheet-sub">@SelectedTransporter.Name@(!string.IsNullOrWhiteSpace(SelectedTransporter.Organization) ? $" · {SelectedTransporter.Organization}" : "") · ₱@Collection!.TripFee.ToString("N0") per trip</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Driver name</div>
@@ -265,6 +359,121 @@
         (Collection?.Date ?? DateOnly.FromDateTime(DateTime.Now)).ToString("MMM dd, yyyy", CultureInfo.InvariantCulture);
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    // ── New transporter registration ──
+    private bool ShowNewTransporterSheet;
+    private string NewName = string.Empty;
+    private string NewOrg = string.Empty;
+    private string NewRoute = string.Empty;
+    private string NewPlate = string.Empty;
+    private string? NewTransporterError;
+
+    // ── Quick trip (register-then-record in one action) ──
+    private bool ShowQuickTripSheet;
+    private string QuickDriverName = string.Empty;
+    private string QuickOrg = string.Empty;
+    private string QuickPlate = string.Empty;
+    private string QuickRoute = string.Empty;
+    private string QuickORNumber = string.Empty;
+    private string? QuickTripError;
+
+    private void OpenQuickTripSheet()
+    {
+        QuickDriverName = string.Empty; QuickOrg = string.Empty; QuickPlate = string.Empty;
+        QuickRoute = string.Empty; QuickORNumber = string.Empty; QuickTripError = null;
+        ShowQuickTripSheet = true;
+    }
+
+    private void CloseQuickTripSheet()
+    {
+        ShowQuickTripSheet = false;
+        QuickTripError = null;
+    }
+
+    private async Task ConfirmQuickTripAsync()
+    {
+        if (string.IsNullOrWhiteSpace(QuickDriverName)) { QuickTripError = "Driver name is required."; return; }
+        if (string.IsNullOrWhiteSpace(QuickOrg)) { QuickTripError = "Organization is required."; return; }
+        if (string.IsNullOrWhiteSpace(QuickPlate)) { QuickTripError = "Plate number is required."; return; }
+        if (string.IsNullOrWhiteSpace(QuickRoute)) { QuickTripError = "Route is required."; return; }
+        if (string.IsNullOrWhiteSpace(QuickORNumber)) { QuickTripError = "OR number is required."; return; }
+
+        IsSaving = true;
+        QuickTripError = null;
+
+        // Step 1 — auto-register the transporter (silent, re-uses an existing plate if present).
+        var addResult = await MobileApi.AddTransporterAsync(
+            QuickDriverName.Trim(), QuickOrg.Trim(), QuickRoute.Trim(), QuickPlate.Trim());
+        if (!addResult.IsSuccess || addResult.Value is null)
+        {
+            QuickTripError = addResult.Error ?? "Unable to register the transporter.";
+            IsSaving = false;
+            return;
+        }
+
+        // Step 2 — record the trip immediately.
+        var tripResult = await MobileApi.RecordTripAsync(new RecordMobileTripRequest(
+            addResult.Value.Id,
+            QuickDriverName.Trim(),
+            QuickPlate.Trim(),
+            QuickRoute.Trim(),
+            QuickORNumber.Trim()));
+
+        if (!tripResult.IsSuccess)
+        {
+            QuickTripError = tripResult.Error ?? "Unable to save the trip.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseQuickTripSheet();
+        try { await LoadCollectionAsync(); }
+        finally { IsSaving = false; }
+    }
+
+    private void OpenNewTransporterSheet()
+    {
+        NewName = string.Empty; NewOrg = string.Empty; NewRoute = string.Empty; NewPlate = string.Empty;
+        NewTransporterError = null;
+        ShowNewTransporterSheet = true;
+    }
+
+    private void CloseNewTransporterSheet()
+    {
+        ShowNewTransporterSheet = false;
+        NewTransporterError = null;
+    }
+
+    private async Task ConfirmNewTransporterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewName)) { NewTransporterError = "Name is required."; return; }
+        if (string.IsNullOrWhiteSpace(NewOrg)) { NewTransporterError = "Organization is required."; return; }
+        if (string.IsNullOrWhiteSpace(NewRoute)) { NewTransporterError = "Default route is required."; return; }
+        if (string.IsNullOrWhiteSpace(NewPlate)) { NewTransporterError = "Plate number is required."; return; }
+
+        IsSaving = true;
+        NewTransporterError = null;
+
+        var result = await MobileApi.AddTransporterAsync(NewName.Trim(), NewOrg.Trim(), NewRoute.Trim(), NewPlate.Trim());
+        if (!result.IsSuccess)
+        {
+            NewTransporterError = result.Error ?? "Unable to register the transporter.";
+            IsSaving = false;
+            return;
+        }
+
+        // Reload so the new transporter appears, then auto-open its trip sheet.
+        CloseNewTransporterSheet();
+        try
+        {
+            await LoadCollectionAsync();
+            // Pre-select the newly-registered transporter so the collector can record immediately.
+            var newT = Collection?.Transporters.FirstOrDefault(t =>
+                string.Equals(t.PlateNumber, NewPlate.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (newT is not null) OpenSheet(newT);
+        }
+        finally { IsSaving = false; }
+    }
 
     private void OpenSheet(TrmTransporterListDto transporter)
     {

@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 public class UpdateSlaughterCommandHandler(
     ISlaughterRepository slaughterRepository,
     IFacilityRepository facilityRepository,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork) : IRequestHandler<UpdateSlaughterCommand, Result<bool>>
 {
@@ -18,6 +19,15 @@ public class UpdateSlaughterCommandHandler(
         var facility = await facilityRepository.GetByCodeAsync(FacilityCode.SLH, ct);
         if (facility is null)
             return Result<bool>.NotFound();
+
+        if (currentUser.Role == "Collector")
+        {
+            if (currentUser.CollectorId is not { } actingId)
+                return Result<bool>.Forbidden();
+            var actor = await collectorRepository.GetByIdAsync(actingId, ct);
+            if (actor is null || !actor.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.SLH))
+                return Result<bool>.Forbidden();
+        }
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";

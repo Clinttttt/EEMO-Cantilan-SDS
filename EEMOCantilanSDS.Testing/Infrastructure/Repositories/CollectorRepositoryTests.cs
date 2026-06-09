@@ -1,4 +1,8 @@
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
+using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -56,5 +60,40 @@ public class CollectorRepositoryTests : RepositoryTestBase
 
         Assert.Equal(0m, dto.CollectedThisMonth);
         Assert.Equal(0, dto.Transactions);
+    }
+
+    // Regression: collectors assigned to per-transaction facilities (SLH/TRM/TPM) previously
+    // showed ₱0 / 0 because only PaymentRecords + DailyCollections were aggregated.
+    [Fact]
+    public async Task GetAllCollectorsWithStats_IncludesSlaughterTripAndMarketCollections()
+    {
+        await using var ctx = NewContext();
+        var today = PhilippineTime.Today;
+
+        var collector = CollectorUser.Create("Pedro Cruz", "EEMO-2026-009", "pedro", "pedro@x.com", "0917", "pw");
+
+        // SLH: Hog ×1 = ₱250 (TransactionDate carries the period)
+        var slh = SlaughterTransaction.CreateHog(Guid.NewGuid(), collector.Id, "Owner A", 1, "OR-S1", today);
+
+        // TRM: one trip = ₱30 (RecordedAt = UtcNow → current month)
+        var trip = TrmTrip.Create(Guid.NewGuid(), 1, "Driver A", "ABC 123", "Route 1", "OR-T1", collectorId: collector.Id);
+
+        // TPM: one paid vendor = ₱100 on a Friday in the current month
+        var friday = new DateOnly(today.Year, today.Month, 1);
+        while (friday.DayOfWeek != DayOfWeek.Friday) friday = friday.AddDays(1);
+        var tpm = TpmAttendance.Create(Guid.NewGuid(), friday);
+        tpm.MarkPaid(collector.Id);
+
+        ctx.Add(collector);
+        ctx.Add(slh);
+        ctx.Add(trip);
+        ctx.Add(tpm);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var dto = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(today.Year, today.Month));
+
+        Assert.Equal(380m, dto.CollectedThisMonth); // 250 (SLH) + 30 (TRM) + 100 (TPM)
+        Assert.Equal(3, dto.Transactions);
     }
 }

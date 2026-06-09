@@ -1,8 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
-using EEMOCantilanSDS.Application.Requests.Mobile;
-using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Application.Requests.Mobile;using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -16,8 +15,10 @@ public interface IMobileApiClient
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);
     Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request);
+    Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request);
     Task<Result<MobileTrmCollectionDto>> GetTrmCollectionAsync();
     Task<Result<TrmTripDto>> RecordTripAsync(RecordMobileTripRequest request);
+    Task<Result<TrmTransporterDto>> AddTransporterAsync(string name, string organization, string route, string plate);
     Task<Result<MobileTpmCollectionDto>> GetTpmCollectionAsync();
     Task<Result<TpmVendorAttendanceDto>> AddTpmVendorAsync(AddMobileTpmVendorRequest request);
     Task<Result<bool>> MarkTpmVendorPaidAsync(MarkMobileTpmVendorPaidRequest request);
