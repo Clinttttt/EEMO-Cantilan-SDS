@@ -13,6 +13,7 @@ public interface IStallRepository
     Task<CursorPagedResult<StallDto>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section, DateTime? cursor, int pageSize, CancellationToken ct);
     Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct);
     Task<MobileNpmCollectionDto> GetMobileNpmCollectionAsync(int year, int month, DateOnly collectionDate, CancellationToken ct);
+    Task<MobileMonthlyCollectionDto> GetMobileMonthlyCollectionAsync(FacilityCode facilityCode, int year, int month, DateOnly collectionDate, CancellationToken ct);
     Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);

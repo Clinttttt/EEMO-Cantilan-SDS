@@ -1,0 +1,18 @@
+using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
+
+namespace EEMOCantilanSDS.Application.Dtos.Mobile;
+
+/// <summary>
+/// The current market-day collection for Tabo-an Public Market (TPM). The market runs only on
+/// Fridays at ₱100/vendor; this resolves to today when it is a Friday, otherwise the most recent
+/// Friday (view-only). <see cref="IsMarketDay"/> tells the client whether recording is allowed today.
+/// </summary>
+public sealed record MobileTpmCollectionDto(
+    DateOnly MarketDate,
+    bool IsMarketDay,
+    decimal VendorFee,
+    int VendorCount,
+    int PaidCount,
+    int UnpaidCount,
+    decimal CollectedAmount,
+    IReadOnlyList<TpmVendorAttendanceDto> Attendances);

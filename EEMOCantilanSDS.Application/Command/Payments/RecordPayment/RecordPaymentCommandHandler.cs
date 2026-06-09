@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 public class RecordPaymentCommandHandler(
     IPaymentRepository paymentRepository,
     IStallRepository stallRepository,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork) : IRequestHandler<RecordPaymentCommand, Result<bool>>
 {
@@ -19,8 +20,24 @@ public class RecordPaymentCommandHandler(
         if (stall == null)
             return Result<bool>.NotFound();
 
+        // Collectors may only record against a facility they are assigned to. Admins/heads
+        // (any non-Collector role) record from the web and are not assignment-restricted.
+        if (currentUser.Role == "Collector")
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId || stall.Facility is null)
+                return Result<bool>.Forbidden();
+
+            var actingCollector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
+            if (actingCollector is null ||
+                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == stall.Facility.Code))
+            {
+                return Result<bool>.Forbidden();
+            }
+        }
+
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
+        var orNumber = request.ORNumber?.Trim();
 
         var existingPaymentDto = await paymentRepository.GetPaymentRecordAsync(
             request.StallId,
@@ -39,6 +56,8 @@ public class RecordPaymentCommandHandler(
             );
             
             newPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
+            if (newPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))
+                newPayment.SetOrNumber(orNumber, recordedBy);
             await paymentRepository.AddAsync(newPayment, ct);
         }
         else
@@ -48,6 +67,8 @@ public class RecordPaymentCommandHandler(
                 return Result<bool>.NotFound();
                 
             existingPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
+            if (existingPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))
+                existingPayment.SetOrNumber(orNumber, recordedBy);
             await paymentRepository.UpdateAsync(existingPayment, ct);
         }
 

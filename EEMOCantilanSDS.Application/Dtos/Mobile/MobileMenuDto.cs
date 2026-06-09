@@ -7,10 +7,11 @@ public sealed record MobileMenuDto(
     string CollectorName,
     string EmployeeId,
     DateOnly Today,
-    IReadOnlyList<MobileFacilityMenuItemDto> AssignedFacilities);
+    IReadOnlyList<MobileFacilityMenuItemDto> Facilities);
 
 public sealed record MobileFacilityMenuItemDto(
     FacilityCode Code,
     string Name,
     string Description,
+    bool IsAssigned,
     bool IsAvailable);

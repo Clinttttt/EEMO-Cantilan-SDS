@@ -25,5 +25,9 @@ public class RecordPaymentCommandValidator : AbstractValidator<RecordPaymentComm
             .GreaterThan(0)
             .When(x => x.Status == PaymentStatus.Partial)
             .WithMessage("Partial amount must be greater than 0 when status is Partial");
+
+        RuleFor(x => x.ORNumber)
+            .MaximumLength(30)
+            .When(x => !string.IsNullOrWhiteSpace(x.ORNumber));
     }
 }

@@ -1,9 +1,21 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
+using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
+using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTpmCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTrmCollection;
 using EEMOCantilanSDS.Application.Requests.Mobile;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -39,6 +51,100 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             request.FishKilos,
             request.ORNumber);
 
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("monthly/collections")]
+    public async Task<ActionResult<MobileMonthlyCollectionDto>> GetMonthlyCollectionsAsync(
+        [FromQuery] FacilityCode facility, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetMobileMonthlyCollectionQuery(facility, year, month));
+        return HandleResponse(result);
+    }
+
+    [HttpPost("monthly/collections/record")]
+    public async Task<ActionResult<bool>> RecordMonthlyCollectionAsync([FromBody] RecordMobileMonthlyCollectionRequest request)
+    {
+        var today = PhilippineTime.Today;
+        var command = new RecordPaymentCommand(
+            request.StallId,
+            today.Year,
+            today.Month,
+            request.Status,
+            request.PartialAmount,
+            Remarks: null,
+            ORNumber: request.ORNumber);
+
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("slaughter/collections")]
+    public async Task<ActionResult<MobileSlaughterCollectionDto>> GetSlaughterCollectionsAsync(
+        [FromQuery] int year, [FromQuery] int month, [FromQuery] int day)
+    {
+        var result = await Sender.Send(new GetMobileSlaughterCollectionQuery(year, month, day));
+        return HandleResponse(result);
+    }
+
+    [HttpPost("slaughter/record")]
+    public async Task<ActionResult<bool>> RecordSlaughterAsync([FromBody] RecordMobileSlaughterRequest request)
+    {
+        var command = new RecordSlaughterCommand(
+            request.OwnerName,
+            PhilippineTime.Today,
+            request.ORNumber,
+            request.AnimalType,
+            request.CustomAnimalType,
+            request.NumberOfHeads,
+            request.CustomRate);
+
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("trm/collections")]
+    public async Task<ActionResult<MobileTrmCollectionDto>> GetTrmCollectionsAsync()
+    {
+        var result = await Sender.Send(new GetMobileTrmCollectionQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPost("trm/trips")]
+    public async Task<ActionResult<TrmTripDto>> RecordTripAsync([FromBody] RecordMobileTripRequest request)
+    {
+        var command = new RecordTripCommand(
+            request.TransporterId,
+            request.DriverName,
+            request.PlateNumber,
+            request.Route,
+            request.ORNumber,
+            request.Remarks);
+
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("tpm/collections")]
+    public async Task<ActionResult<MobileTpmCollectionDto>> GetTpmCollectionsAsync()
+    {
+        var result = await Sender.Send(new GetMobileTpmCollectionQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPost("tpm/vendors")]
+    public async Task<ActionResult<TpmVendorAttendanceDto>> AddTpmVendorAsync([FromBody] AddMobileTpmVendorRequest request)
+    {
+        var command = new AddVendorToMarketDayCommand(request.VendorName, request.Goods, PhilippineTime.Today);
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("tpm/attendance/payment")]
+    public async Task<ActionResult<bool>> MarkTpmVendorPaidAsync([FromBody] MarkMobileTpmVendorPaidRequest request)
+    {
+        var command = new MarkVendorPaidCommand(request.AttendanceId, request.IsPaid, request.ORNumber);
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }

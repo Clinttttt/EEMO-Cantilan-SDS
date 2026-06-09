@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 
@@ -7,6 +8,7 @@ public interface ISlaughterRepository
 {
     Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
+    Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default);
     Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default);
     Task<SlaughterOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct = default);

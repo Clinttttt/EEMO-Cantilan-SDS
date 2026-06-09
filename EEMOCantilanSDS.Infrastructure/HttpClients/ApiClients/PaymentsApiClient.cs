@@ -21,6 +21,9 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId) =>
         await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/payment-history");
 
+    public async Task<Result<StallLedgerSummaryDto>> GetStallLedgerSummaryAsync(Guid stallId) =>
+        await GetAsync<StallLedgerSummaryDto>($"api/Stalls/{stallId}/ledger-summary");
+
     public async Task<Result<bool>> RecordPaymentAsync(RecordPaymentCommand command) =>
         await PostAsync<RecordPaymentCommand, bool>("api/Payments/record", command);
 

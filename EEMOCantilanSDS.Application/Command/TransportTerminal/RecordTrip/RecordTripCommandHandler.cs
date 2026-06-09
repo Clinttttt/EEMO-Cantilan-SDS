@@ -9,6 +9,7 @@ namespace EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 
 public class RecordTripCommandHandler(
     ITrmRepository trmRepo,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork uow) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
 {
@@ -17,6 +18,20 @@ public class RecordTripCommandHandler(
         var transporter = await trmRepo.GetTransporterByIdAsync(request.TransporterId, ct);
         if (transporter == null)
             return Result<TrmTripDto>.NotFound();
+
+        // Collectors may only record trips if assigned to the transport terminal; admins are unrestricted.
+        if (currentUser.Role == "Collector")
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId)
+                return Result<TrmTripDto>.Forbidden();
+
+            var actingCollector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
+            if (actingCollector is null ||
+                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == Domain.Enums.FacilityCode.TRM))
+            {
+                return Result<TrmTripDto>.Forbidden();
+            }
+        }
 
         var tripNumber = await trmRepo.GetNextTripNumberForTodayAsync(ct);
 

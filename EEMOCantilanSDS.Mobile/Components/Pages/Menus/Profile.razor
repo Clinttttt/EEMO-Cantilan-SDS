@@ -1,5 +1,6 @@
 ﻿@page "/profile"
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 
 <!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
@@ -318,10 +319,12 @@
     };
 
     // ── Sign Out ──────────────────────────────────────────────────────────────
-    void SignOut()
+    async Task SignOut()
     {
-        // Clear session/auth here when backend is ready
-        Navigation.NavigateTo("/login", forceLoad: false);
+        // Revoke the refresh token server-side and clear the local session/tokens
+        // so the next collector signs in fresh.
+        await Session.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
     }
 
     // ── Edit Profile Sheet ────────────────────────────────────────────────────

@@ -271,7 +271,20 @@
                 decimal partialAmount = 0;
                 string orNumber = dto.ORNumber ?? string.Empty;
 
-                if (payments.TryGetValue(dto.Id, out var payment))
+                // NPM is collected daily, so payment status must come from the daily-aware report
+                // compliance (a vendor who paid some days is Partial). The monthly PaymentRecord alone
+                // would always read Unpaid for daily payors. Fall back to the monthly record only when
+                // the stall has no compliance row (e.g. no active contract in the period).
+                var compliance = Report?.StallCompliance?.FirstOrDefault(c => c.StallId == dto.Id);
+                if (compliance != null)
+                {
+                    isPaid = compliance.Status == "Paid";
+                    isPartial = compliance.Status == "Partial";
+                    partialAmount = compliance.AmountPaid;
+                    if (!string.IsNullOrWhiteSpace(compliance.ORNumber))
+                        orNumber = compliance.ORNumber!;
+                }
+                else if (payments.TryGetValue(dto.Id, out var payment))
                 {
                     isPaid = payment.Status == PaymentStatus.Paid;
                     isPartial = payment.Status == PaymentStatus.Partial;

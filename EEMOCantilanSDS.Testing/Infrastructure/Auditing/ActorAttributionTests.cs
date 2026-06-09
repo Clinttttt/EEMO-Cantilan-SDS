@@ -26,6 +26,7 @@ public class ActorAttributionTests
         var stall = Stall.Create(Guid.NewGuid(), "1", 900m, ApplicableFees.DailyRental);
         var paymentRepo = new Mock<IPaymentRepository>();
         var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
         var uow = new Mock<IUnitOfWork>();
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
@@ -35,7 +36,7 @@ public class ActorAttributionTests
         paymentRepo.Setup(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()))
             .Callback<PaymentRecord, CancellationToken>((p, _) => captured = p).Returns(Task.CompletedTask);
 
-        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, actor.Object, uow.Object);
+        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, actor.Object, uow.Object);
         await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 1, PaymentStatus.Paid, null, null), CancellationToken.None);
         return captured!;
     }
@@ -59,10 +60,11 @@ public class ActorAttributionTests
     {
         var attendance = TpmAttendance.Create(Guid.NewGuid(), new DateOnly(2026, 1, 2)); // a Friday
         var tpmRepo = new Mock<ITpmRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
         var uow = new Mock<IUnitOfWork>();
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, actor.Object, uow.Object);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, actor.Object, uow.Object);
         await handler.Handle(new MarkVendorPaidCommand(Guid.NewGuid(), IsPaid: true), CancellationToken.None);
         return attendance;
     }

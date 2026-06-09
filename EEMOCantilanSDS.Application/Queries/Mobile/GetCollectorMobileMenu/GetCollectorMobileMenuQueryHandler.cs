@@ -21,13 +21,21 @@ public class GetCollectorMobileMenuQueryHandler(
         if (collector is null)
             return Result<MobileMenuDto>.NotFound();
 
-        var facilities = collector.FacilityAssignments
-            .OrderBy(a => a.FacilityCode)
-            .Select(a => new MobileFacilityMenuItemDto(
-                a.FacilityCode,
-                GetFacilityName(a.FacilityCode),
-                GetFacilityDescription(a.FacilityCode),
-                a.FacilityCode == FacilityCode.NPM))
+        var assigned = collector.FacilityAssignments
+            .Select(a => a.FacilityCode)
+            .ToHashSet();
+
+        // Show every facility so the collector sees what they can and cannot access.
+        // IsAssigned drives the lock; IsAvailable additionally requires a built mobile
+        // collection screen (flip a code on here as each facility's page ships).
+        var facilities = Enum.GetValues<FacilityCode>()
+            .OrderBy(code => code)
+            .Select(code => new MobileFacilityMenuItemDto(
+                code,
+                GetFacilityName(code),
+                GetFacilityDescription(code),
+                assigned.Contains(code),
+                assigned.Contains(code) && ImplementedMobileFacilities.Contains(code)))
             .ToList();
 
         return Result<MobileMenuDto>.Success(new MobileMenuDto(
@@ -37,6 +45,22 @@ public class GetCollectorMobileMenuQueryHandler(
             PhilippineTime.Today,
             facilities));
     }
+
+    /// <summary>
+    /// Facilities whose mobile collection screen is implemented and ready to open.
+    /// Add a code here when its page + endpoints ship; the menu opens it automatically.
+    /// </summary>
+    private static readonly HashSet<FacilityCode> ImplementedMobileFacilities = new()
+    {
+        FacilityCode.NPM,
+        FacilityCode.TCC,
+        FacilityCode.NCC,
+        FacilityCode.BBQ,
+        FacilityCode.ICE,
+        FacilityCode.SLH,
+        FacilityCode.TRM,
+        FacilityCode.TPM
+    };
 
     private static string GetFacilityName(FacilityCode code) => code switch
     {

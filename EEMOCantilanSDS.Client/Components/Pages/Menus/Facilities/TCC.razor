@@ -363,7 +363,7 @@
     bool ShowHistory = false;
     TccStall? HistoryStall = null;
     void OpenHistory(TccStall s) { HistoryStall = s; ShowHistory = true; }
-    void OpenEdit(TccStall s) { Navigation.NavigateTo($"/profile/tcc/{s.StallNo}"); }
+    void OpenEdit(TccStall s) { Navigation.NavigateTo($"/profile/tcc/{s.StallGuid}"); }
 
     // Add Vendor Modal
     private bool ShowAddVendorModal { get; set; }

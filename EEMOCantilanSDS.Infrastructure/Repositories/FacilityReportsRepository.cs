@@ -350,6 +350,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id));
 
             rows.Add(new StallComplianceDto(
+                s.Id,
                 s.StallNo,
                 contract?.ActualOccupant ?? string.Empty,
                 contract?.NameOnContract ?? string.Empty,

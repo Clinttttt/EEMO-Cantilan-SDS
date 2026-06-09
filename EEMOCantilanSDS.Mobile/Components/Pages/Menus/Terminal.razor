@@ -1,0 +1,343 @@
+@page "/terminal"
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.TransportTerminal
+@using global::EEMOCantilanSDS.Application.Requests.Mobile
+@using global::EEMOCantilanSDS.Domain.Enums
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject IMobileApiClient MobileApi
+
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Transport Terminal</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <div class="header-title-block">
+                <div class="header-title">Transport Terminal</div>
+                <div class="header-sub">TRM - ₱30 per Trip</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="date-strip">
+        <div class="date-strip-left">Collector: <span>@Session.CollectorName</span></div>
+        <button class="collection-month-pill" type="button">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DayLabel
+        </button>
+    </div>
+
+    <div class="content">
+        @if (IsLoading)
+        {
+            <div class="state-card">
+                <div class="state-title">Loading terminal collections</div>
+                <div class="state-text">Please wait while today's trips are loaded.</div>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="state-card error">
+                <div class="state-title">Unable to load collections</div>
+                <div class="state-text">@ErrorMessage</div>
+                <button class="primary-action" type="button" @onclick="LoadCollectionAsync">Try Again</button>
+            </div>
+        }
+        else if (Collection is not null)
+        {
+            <div class="summary-strip">
+                <div class="summary-item">
+                    <div class="summary-value">@FormatCurrency(Collection.CollectedToday)</div>
+                    <div class="summary-key">Today</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">@Collection.TripsToday</div>
+                    <div class="summary-key">Trips</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">@Collection.TransporterCount</div>
+                    <div class="summary-key">Transporters</div>
+                </div>
+            </div>
+
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search transporter or plate" @bind="SearchQuery" @bind:event="oninput" />
+            </div>
+
+            <div class="section-label">Transporters · tap to record a trip</div>
+
+            @if (!FilteredTransporters.Any())
+            {
+                <div class="state-card">
+                    <div class="state-title">No transporters</div>
+                    <div class="state-text">No registered transporters match your search.</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var t in FilteredTransporters)
+                {
+                    <button class="stall-row" type="button" @onclick="() => OpenSheet(t)">
+                        <div class="stall-info">
+                            <div class="stall-main-row">
+                                <div class="stall-name">@t.Name</div>
+                                @if (t.TripsToday > 0)
+                                {
+                                    <span class="stall-status-pill pill-paid">@t.TripsToday today</span>
+                                }
+                            </div>
+                            <div class="stall-meta">
+                                @if (!string.IsNullOrWhiteSpace(t.PlateNumber))
+                                {
+                                    <span>@t.PlateNumber</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(t.DefaultRoute))
+                                {
+                                    <span>@t.DefaultRoute</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(t.Organization))
+                                {
+                                    <span>@t.Organization</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="stall-amount-col">
+                            <div class="add-trip">+ Trip</div>
+                        </div>
+                    </button>
+                }
+            }
+
+            <div class="section-label">Today's Trips</div>
+
+            @if (!Collection.TodayTrips.Any())
+            {
+                <div class="state-card">
+                    <div class="state-title">No trips yet</div>
+                    <div class="state-text">Recorded trips for @DayLabel will appear here.</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var trip in Collection.TodayTrips)
+                {
+                    <div class="stall-row paid">
+                        <div class="stall-info">
+                            <div class="stall-main-row">
+                                <div class="stall-name">#@trip.TripNumber · @trip.DriverName</div>
+                            </div>
+                            <div class="stall-meta">
+                                @if (!string.IsNullOrWhiteSpace(trip.PlateNumber))
+                                {
+                                    <span>@trip.PlateNumber</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(trip.Route))
+                                {
+                                    <span>@trip.Route</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(trip.ORNumber))
+                                {
+                                    <span>OR @trip.ORNumber</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="stall-amount-col">
+                            <div class="stall-amount">@FormatCurrency(trip.Fee)</div>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </div>
+
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@if (ShowSheet && SelectedTransporter is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseSheet">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Record Trip</div>
+            <div class="sheet-sub">@SelectedTransporter.Name · ₱@Collection!.TripFee.ToString("N0") per trip</div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Driver name</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Driver name" @bind="DriverName" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Plate number</div>
+                <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="PlateNumber" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Route</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Route / destination" @bind="Route" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
+                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
+            </div>
+
+            <div class="fee-preview">
+                <span>Trip fee</span>
+                <strong>@FormatCurrency(Collection!.TripFee)</strong>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error">@SheetError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Confirm Trip")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private MobileTrmCollectionDto? Collection;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private string? ErrorMessage;
+    private string? SheetError;
+    private string SearchQuery = string.Empty;
+    private bool ShowSheet;
+
+    private TrmTransporterListDto? SelectedTransporter;
+    private string DriverName = string.Empty;
+    private string PlateNumber = string.Empty;
+    private string Route = string.Empty;
+    private string ORNumber = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Session.InitializeAsync();
+        }
+        catch (HttpRequestException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+
+        var hasAccess = Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.TRM && f.IsAvailable) == true;
+        if (!hasAccess)
+        {
+            Navigation.NavigateTo("/menu", forceLoad: false);
+            return;
+        }
+
+        await LoadCollectionAsync();
+    }
+
+    private async Task LoadCollectionAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+
+        var result = await MobileApi.GetTrmCollectionAsync();
+        if (!result.IsSuccess || result.Value is null)
+        {
+            ErrorMessage = result.Error ?? "Unable to load terminal collections.";
+            IsLoading = false;
+            return;
+        }
+
+        Collection = result.Value;
+        IsLoading = false;
+    }
+
+    private IEnumerable<TrmTransporterListDto> FilteredTransporters =>
+        (Collection?.Transporters ?? Array.Empty<TrmTransporterListDto>())
+        .Where(t => string.IsNullOrWhiteSpace(SearchQuery)
+            || t.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || t.PlateNumber.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || t.Organization.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+
+    private string DayLabel =>
+        (Collection?.Date ?? DateOnly.FromDateTime(DateTime.Now)).ToString("MMM dd, yyyy", CultureInfo.InvariantCulture);
+
+    private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    private void OpenSheet(TrmTransporterListDto transporter)
+    {
+        SelectedTransporter = transporter;
+        DriverName = transporter.Name;
+        PlateNumber = transporter.PlateNumber;
+        Route = transporter.DefaultRoute;
+        ORNumber = string.Empty;
+        SheetError = null;
+        ShowSheet = true;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (SelectedTransporter is null)
+            return;
+
+        if (string.IsNullOrWhiteSpace(DriverName))
+        {
+            SheetError = "Driver name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(PlateNumber))
+        {
+            SheetError = "Plate number is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Route))
+        {
+            SheetError = "Route is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ORNumber))
+        {
+            SheetError = "OR number is required.";
+            return;
+        }
+
+        IsSaving = true;
+        SheetError = null;
+
+        var request = new RecordMobileTripRequest(
+            SelectedTransporter.Id,
+            DriverName.Trim(),
+            PlateNumber.Trim(),
+            Route.Trim(),
+            ORNumber.Trim());
+
+        var result = await MobileApi.RecordTripAsync(request);
+        if (!result.IsSuccess)
+        {
+            SheetError = result.Error ?? "Unable to save the trip.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseSheet();
+        try
+        {
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private void CloseSheet()
+    {
+        ShowSheet = false;
+        SelectedTransporter = null;
+        SheetError = null;
+    }
+
+    private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+}

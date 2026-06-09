@@ -18,7 +18,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
     }
 
     [Fact]
-    public async Task CollectorWithAssignments_ReturnsNpmAsAvailableOnly()
+    public async Task CollectorWithAssignments_ReturnsAllFacilities_AssignedFlaggedAndOnlyNpmAvailable()
     {
         var collector = NewCollector();
         var repo = new Mock<ICollectorRepository>();
@@ -31,9 +31,20 @@ public class GetCollectorMobileMenuQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Juan Collector", result.Value!.CollectorName);
-        Assert.Equal(2, result.Value.AssignedFacilities.Count);
-        Assert.True(result.Value.AssignedFacilities.Single(f => f.Code == FacilityCode.NPM).IsAvailable);
-        Assert.False(result.Value.AssignedFacilities.Single(f => f.Code == FacilityCode.TCC).IsAvailable);
+
+        // Every facility is returned so the menu can show locked (unassigned) ones.
+        var allCodes = Enum.GetValues<FacilityCode>();
+        Assert.Equal(allCodes.Length, result.Value.Facilities.Count);
+
+        // Assignment drives the lock: NPM + TCC assigned, the rest locked.
+        Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.NPM).IsAssigned);
+        Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.TCC).IsAssigned);
+        Assert.False(result.Value.Facilities.Single(f => f.Code == FacilityCode.SLH).IsAssigned);
+
+        // Availability additionally requires a built mobile screen — NPM + the monthly-rental group.
+        Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.NPM).IsAvailable);
+        Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.TCC).IsAvailable);
+        Assert.False(result.Value.Facilities.Single(f => f.Code == FacilityCode.SLH).IsAvailable);
     }
 
     [Fact]

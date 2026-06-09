@@ -1,6 +1,7 @@
 namespace EEMOCantilanSDS.Application.Dtos.Facilities;
 
 public record StallComplianceDto(
+    Guid StallId,
     string StallNo,
     string Occupant,
     string ContractName,

@@ -255,7 +255,7 @@
             return;
         }
 
-        var hasNpmAccess = Session.Menu?.AssignedFacilities.Any(f => f.Code == FacilityCode.NPM && f.IsAvailable) == true;
+        var hasNpmAccess = Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.IsAvailable) == true;
         if (!hasNpmAccess)
         {
             Navigation.NavigateTo("/menu", forceLoad: false);

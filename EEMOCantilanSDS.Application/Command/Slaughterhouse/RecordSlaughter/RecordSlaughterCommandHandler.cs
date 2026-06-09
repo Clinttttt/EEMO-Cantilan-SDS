@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 public class RecordSlaughterCommandHandler(
     ISlaughterRepository slaughterRepository,
     IFacilityRepository facilityRepository,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
 {
@@ -18,6 +19,20 @@ public class RecordSlaughterCommandHandler(
         var facility = await facilityRepository.GetByCodeAsync(FacilityCode.SLH, ct);
         if (facility is null)
             return Result<bool>.NotFound();
+
+        // Collectors may only record at the slaughterhouse if assigned to it; admins are unrestricted.
+        if (currentUser.Role == "Collector")
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId)
+                return Result<bool>.Forbidden();
+
+            var actingCollector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
+            if (actingCollector is null ||
+                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.SLH))
+            {
+                return Result<bool>.Forbidden();
+            }
+        }
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";

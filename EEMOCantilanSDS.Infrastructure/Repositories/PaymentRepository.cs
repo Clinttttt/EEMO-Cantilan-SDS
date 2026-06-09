@@ -180,6 +180,90 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         return result;
     }
 
+    /// <summary>
+    /// Rolling 12-month ledger totals for a stall, daily-aware for NPM. For each month the stall is
+    /// under an effective contract: a non-Unpaid monthly record takes precedence; otherwise NPM folds
+    /// that month's paid daily collections against the contract-aware ₱30/day obligation, while other
+    /// facilities owe the full monthly rent. Mirrors <see cref="GetPaymentHistoryAsync"/> so the
+    /// profile summary reconciles with the history grid and the reports.
+    /// </summary>
+    public async Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct)
+    {
+        var now = PhilippineTime.Now;
+        var today = PhilippineTime.Today;
+        var startDate = now.AddMonths(-11);
+
+        var stall = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .FirstOrDefaultAsync(s => s.Id == stallId, ct);
+
+        if (stall is null)
+            return new StallLedgerSummaryDto(0, 0, 0m, 0m);
+
+        var payments = await context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.StallId == stallId && !p.IsDeleted)
+            .Where(p => (p.BillingYear > startDate.Year) || (p.BillingYear == startDate.Year && p.BillingMonth >= startDate.Month))
+            .ToListAsync(ct);
+
+        var isNpm = stall.Facility?.Code == FacilityCode.NPM;
+
+        var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var dailies = isNpm
+            ? await context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => dc.StallId == stallId && dc.IsPaid && !dc.IsDeleted
+                    && dc.CollectionDate >= windowStart && dc.CollectionDate <= today)
+                .Select(dc => new { dc.CollectionDate, dc.DailyFee })
+                .ToListAsync(ct)
+            : new();
+
+        int monthsPaid = 0, monthsUnpaid = 0;
+        decimal totalCollected = 0m, totalOutstanding = 0m;
+
+        for (var i = 11; i >= 0; i--)
+        {
+            var m = now.AddMonths(-i);
+            int year = m.Year, month = m.Month;
+            var monthStart = new DateOnly(year, month, 1);
+            var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+            // Skip months the stall was not active / under an effective contract (not yet due).
+            if (CountCollectableDays(stall, monthStart, monthEnd) == 0)
+                continue;
+
+            var rec = payments.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
+
+            // A recorded (non-Unpaid) monthly payment is authoritative for both NPM and others.
+            if (rec is not null && rec.Status != PaymentStatus.Unpaid)
+            {
+                totalCollected += rec.AmountPaid;
+                totalOutstanding += rec.BalanceDue;
+                if (rec.Status == PaymentStatus.Paid) monthsPaid++; else monthsUnpaid++;
+                continue;
+            }
+
+            if (isNpm)
+            {
+                var bill = CountCollectableDays(stall, monthStart, monthEnd) * FeeRates.NpmDailyFee;
+                var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
+                totalCollected += paid;
+                totalOutstanding += Math.Max(0m, bill - paid);
+                if (bill > 0m && paid >= bill) monthsPaid++; else monthsUnpaid++;
+            }
+            else
+            {
+                // Monthly-billed facility with no record this month → full rent owed.
+                totalOutstanding += stall.MonthlyRate;
+                monthsUnpaid++;
+            }
+        }
+
+        return new StallLedgerSummaryDto(monthsPaid, monthsUnpaid, totalCollected, totalOutstanding);
+    }
+
     // Days in [start, end] where the stall is active and under an effective contract (NPM-style).
     private static int CountCollectableDays(Stall stall, DateOnly start, DateOnly end)
     {

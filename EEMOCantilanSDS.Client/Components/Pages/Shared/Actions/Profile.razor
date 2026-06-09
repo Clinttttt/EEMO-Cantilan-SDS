@@ -1,10 +1,12 @@
-@page "/profile/{FacilityId}/{StallNo}"
+@page "/profile/{FacilityId}/{StallKey}"
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Client.Components.Modals
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IDailyCollectionApiClient DailyCollectionApi
+@inject IFacilitiesApiClient FacilitiesApi
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
@@ -23,7 +25,7 @@
                         <span class="breadcrumb-sep">/</span>
                         <a href="/facility/@FacilityId.ToLower()" class="breadcrumb-link">@GetFacilityName(FacilityId)</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">Stall @StallNo</span>
+                        <span class="breadcrumb-active">Stall @(Stall?.StallNo ?? DisplayStallNo)</span>
                     </div>
                 </div>
             </div>
@@ -363,24 +365,10 @@
 
                         <div class="prof-hist-summary">
                             @{
-                                var contractStart2 = Stall.ContractDate.HasValue
-                                    ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
-                                    : (DateTime?)null;
-                                var experiencedMonths = 0;
-                                var paidCount = 0;
-                                for (int i = 11; i >= 0; i--)
-                                {
-                                    var month = DateTime.Now.AddMonths(-i);
-                                    var key = month.ToString("yyyy-MM");
-                                    var hasRec = Stall.PaymentHistory.TryGetValue(key, out var recStatus);
-                                    var beforeContract = !hasRec && contractStart2.HasValue && month < contractStart2.Value;
-                                    if (!beforeContract)
-                                    {
-                                        experiencedMonths++;
-                                        if (hasRec && recStatus == "Paid") paidCount++;
-                                    }
-                                }
-                                var unpaidCount = experiencedMonths - paidCount;
+                                var paidCount = Stall.LedgerSummary?.MonthsPaid ?? 0;
+                                var unpaidCount = Stall.LedgerSummary?.MonthsUnpaid ?? 0;
+                                var totalCollected = Stall.LedgerSummary?.TotalCollected ?? 0m;
+                                var balanceDue = Stall.LedgerSummary?.TotalOutstanding ?? 0m;
                             }
                             <div class="prof-hist-stat">
                                 <div class="prof-hist-stat-val green">@paidCount</div>
@@ -391,11 +379,11 @@
                                 <div class="prof-hist-stat-key">Months Unpaid</div>
                             </div>
                             <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val">₱@((Stall.MonthlyRate * paidCount).ToString("N0"))</div>
+                                <div class="prof-hist-stat-val">₱@totalCollected.ToString("N0")</div>
                                 <div class="prof-hist-stat-key">Total Collected</div>
                             </div>
-                            <div class="prof-hist-stat @(unpaidCount > 0 ? "stat-warn" : "")">
-                                <div class="prof-hist-stat-val red">₱@((Stall.MonthlyRate * unpaidCount).ToString("N0"))</div>
+                            <div class="prof-hist-stat @(balanceDue > 0 ? "stat-warn" : "")">
+                                <div class="prof-hist-stat-val red">₱@balanceDue.ToString("N0")</div>
                                 <div class="prof-hist-stat-key">Balance Due</div>
                             </div>
                         </div>
@@ -446,16 +434,16 @@
             <div class="eemo-modal-body">
                 <div class="edit-form-grid">
                     <div class="form-group">
-                        <label class="form-label">Facility <span class="req">*</span></label>
-                        <input class="form-input" type="text" @bind="Stall.Facility" />
+                        <label class="form-label">Facility</label>
+                        <input class="form-input" type="text" value="@Stall.Facility" readonly title="Facility cannot be changed here" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Stall / Space No. <span class="req">*</span></label>
-                        <input class="form-input" type="text" @bind="Stall.StallNo" />
+                        <label class="form-label">Stall / Space No.</label>
+                        <input class="form-input" type="text" value="@Stall.StallNo" readonly title="Stall number cannot be changed here" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Section / Area</label>
-                        <input class="form-input" type="text" @bind="Stall.Section" />
+                        <input class="form-input" type="text" value="@Stall.Section" readonly title="Section cannot be changed here" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Area (sq.m)</label>
@@ -476,8 +464,14 @@
                                @onchange="e => Stall.ContractDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : Stall.ContractDate" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Contract Duration</label>
-                        <input class="form-input" type="text" @bind="Stall.ContractDuration" placeholder="e.g. 3 years" />
+                        <label class="form-label">Contract Duration (years)</label>
+                        <select class="form-input" @bind="Stall.ContractYears">
+                            <option value="0">No contract</option>
+                            <option value="1">1 year</option>
+                            <option value="2">2 years</option>
+                            <option value="3">3 years</option>
+                            <option value="5">5 years</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Monthly Rental Rate (₱) <span class="req">*</span></label>
@@ -583,16 +577,16 @@
                     </div>
                     @if (PayStatus == "Paid")
                     {
-                        <div class="pay-record-row"><span class="pay-record-key">Amount Paid</span><span class="pay-record-val green">₱@Stall.TotalBill.ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Amount Paid</span><span class="pay-record-val">₱@Stall.TotalBill.ToString("N0")</span></div>
                     }
                     else if (PayStatus == "Partial")
                     {
-                        <div class="pay-record-row"><span class="pay-record-key">Partial Amount Paid</span><span class="pay-record-val green">₱@GetDisplayPartialAmount().ToString("N0")</span></div>
-                        <div class="pay-record-row"><span class="pay-record-key">Balance Remaining</span><span class="pay-record-val red">₱@GetDisplayBalanceRemaining().ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Partial Amount Paid</span><span class="pay-record-val">₱@GetDisplayPartialAmount().ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Balance Remaining</span><span class="pay-record-val">₱@GetDisplayBalanceRemaining().ToString("N0")</span></div>
                     }
                     else
                     {
-                        <div class="pay-record-row"><span class="pay-record-key">Amount Due</span><span class="pay-record-val red">₱@Stall.TotalBill.ToString("N0")</span></div>
+                        <div class="pay-record-row"><span class="pay-record-key">Amount Due</span><span class="pay-record-val">₱@Stall.TotalBill.ToString("N0")</span></div>
                     }
                 </div>
             </div>
@@ -625,7 +619,7 @@
     public string FacilityId { get; set; } = string.Empty;
 
     [Parameter]
-    public string StallNo { get; set; } = string.Empty;
+    public string StallKey { get; set; } = string.Empty;
 
     bool ShowEditModal = false;
     bool ShowPayModal = false;
@@ -638,6 +632,7 @@
     string ConfirmOrNumber = string.Empty;
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
+    string DisplayStallNo = string.Empty;
 
     class StallProfile
     {
@@ -650,6 +645,7 @@
         public string ContractName { get; set; } = string.Empty;
         public DateTime? ContractDate { get; set; }
         public string ContractDuration { get; set; } = string.Empty;
+        public int ContractYears { get; set; }
         public DateTime? ContractExpiry { get; set; }
         public decimal MonthlyRate { get; set; }
         public decimal? DailyRate { get; set; }
@@ -672,6 +668,8 @@
         public string CollectorName { get; set; } = string.Empty;
         public string Remarks { get; set; } = string.Empty;
         public Dictionary<string, string> PaymentHistory { get; set; } = new();
+        // Authoritative daily-aware rolling 12-month ledger totals (from the server).
+        public StallLedgerSummaryDto? LedgerSummary { get; set; }
     }
 
     StallProfile Stall = new();
@@ -702,11 +700,14 @@
         
         if (stallsResult.IsSuccess && stallsResult.Value != null)
         {
-            var stallDto = stallsResult.Value.Items.FirstOrDefault(s => s.StallNo == StallNo);
+            var stallDto = Guid.TryParse(StallKey, out var keyId)
+                ? stallsResult.Value.Items.FirstOrDefault(s => s.Id == keyId)
+                : stallsResult.Value.Items.FirstOrDefault(s => s.StallNo == StallKey);
             
             if (stallDto != null)
             {
                 StallGuid = stallDto.Id;
+                DisplayStallNo = stallDto.StallNo;
                 
                 // Load payment history
                 var historyResult = await PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
@@ -745,6 +746,26 @@
                     waterAmount = currentPaymentResult.Value.WaterAmount ?? 0;
                     orNumber = currentPaymentResult.Value.ORNumber ?? string.Empty;
                 }
+
+                // NPM is collected daily, so the true status comes from the daily-aware report
+                // compliance (a vendor who paid some days is Partial — the monthly PaymentRecord
+                // alone would read Unpaid). Mirrors the NPM facility page / payment modal.
+                if (FacilityId.ToUpper() == "NPM")
+                {
+                    var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
+                        facilityCode, Domain.Enums.ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+                    var compliance = reportResult.IsSuccess
+                        ? reportResult.Value?.StallCompliance?.FirstOrDefault(c => c.StallId == StallGuid)
+                        : null;
+                    if (compliance != null)
+                    {
+                        isPaid = compliance.Status == "Paid";
+                        isPartial = compliance.Status == "Partial";
+                        partialAmount = compliance.AmountPaid;
+                        if (!string.IsNullOrWhiteSpace(compliance.ORNumber))
+                            orNumber = compliance.ORNumber!;
+                    }
+                }
                 
                 var section = stallDto.Section switch
                 {
@@ -772,8 +793,9 @@
                     ActualOccupant = stallDto.ActualOccupant ?? "N/A",
                     ContractName = stallDto.NameOnContract ?? "N/A",
                     ContractDate = stallDto.ContractDate,
-                    ContractDuration = "3 years",
-                    ContractExpiry = stallDto.ContractDate?.AddYears(3),
+                    ContractDuration = stallDto.ContractYears > 0 ? $"{stallDto.ContractYears} year{(stallDto.ContractYears > 1 ? "s" : "")}" : "—",
+                    ContractYears = stallDto.ContractYears,
+                    ContractExpiry = stallDto.ContractYears > 0 ? stallDto.ContractDate?.AddYears(stallDto.ContractYears) : null,
                     MonthlyRate = stallDto.MonthlyRate,
                     DailyRate = stallDto.DailyRate,
                     HasElectricity = hasElec,
@@ -790,7 +812,8 @@
                     ORNumber = orNumber,
                     CollectorName = string.Empty,
                     Remarks = stallDto.Remarks ?? string.Empty,
-                    PaymentHistory = paymentHistory
+                    PaymentHistory = paymentHistory,
+                    LedgerSummary = (await PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id)).Value
                 };
             }
             else
@@ -823,14 +846,6 @@
         };
     }
 
-    static Dictionary<string, string> MakeH(int paid)
-    {
-        var d = new Dictionary<string, string>();
-        for (int i = 11; i >= 0; i--)
-            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid ? "Paid" : "Unpaid";
-        return d;
-    }
-
     async Task SaveEdit()
     {
         IsSavingEdit = true;
@@ -849,7 +864,9 @@
             null,
             Stall.ActualOccupant,
             Stall.ContractName,
-            Stall.Remarks
+            Stall.Remarks,
+            Stall.ContractDate,
+            Stall.ContractYears
         );
         
         var result = await StallsApi.UpdateStallAsync(StallGuid, command);

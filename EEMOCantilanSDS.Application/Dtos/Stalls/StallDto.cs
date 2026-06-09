@@ -17,5 +17,6 @@ public record StallDto(
     MarketSection? Section,
     NccAreaLocation? AreaLocation,
     string? AreaNote,
-    string? Remarks
+    string? Remarks,
+    int ContractYears = 0
 );

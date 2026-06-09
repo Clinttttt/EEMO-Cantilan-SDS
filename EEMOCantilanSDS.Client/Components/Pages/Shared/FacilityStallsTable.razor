@@ -235,6 +235,7 @@
 
     // Helper methods using reflection to access stall properties generically
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
+    private Guid GetStallId(TStall stall) => GetPropertyValue<Guid>(stall, "StallGuid");
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
     private string GetContractName(TStall stall) => GetPropertyValue<string>(stall, "ContractName") ?? "";
     private double GetAreaSqm(TStall stall) => GetPropertyValue<double?>(stall, "AreaSqm") ?? 0;
@@ -291,8 +292,10 @@
     /// </summary>
     private void NavigateToProfile(TStall stall)
     {
-        var stallNo = GetStallNo(stall);
+        var stallId = GetStallId(stall);
         var facilityId = Facility.ToLower();
-        Navigation.NavigateTo($"/profile/{facilityId}/{stallNo}");
+        // Prefer the unique stall GUID (NPM stall numbers repeat across sections); fall back to number.
+        var key = stallId != Guid.Empty ? stallId.ToString() : GetStallNo(stall);
+        Navigation.NavigateTo($"/profile/{facilityId}/{key}");
     }
 }

@@ -91,6 +91,84 @@ public class StallRepository(AppDbContext context) : IStallRepository
             rows);
     }
 
+    public async Task<MobileMonthlyCollectionDto> GetMobileMonthlyCollectionAsync(
+        FacilityCode facilityCode, int year, int month, DateOnly collectionDate, CancellationToken ct)
+    {
+        var stalls = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Include(s => s.PaymentRecords.Where(p =>
+                p.BillingYear == year &&
+                p.BillingMonth == month &&
+                !p.IsDeleted))
+            .Where(s =>
+                s.Facility!.Code == facilityCode &&
+                s.Status == StallStatus.Active &&
+                !s.IsDeleted &&
+                s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+            .OrderBy(s => s.StallNo)
+            .ToListAsync(ct);
+
+        var rows = stalls.Select(s =>
+        {
+            var contract = s.Contracts
+                .Where(c => c.IsActive && !c.IsDeleted)
+                .OrderByDescending(c => c.EffectivityDate)
+                .FirstOrDefault();
+
+            var record = s.PaymentRecords.FirstOrDefault();
+            var status = record?.Status ?? PaymentStatus.Unpaid;
+            // Monthly-rental facilities carry no utilities, so the bill is the flat monthly rate.
+            var amountPaid = record?.AmountPaid ?? 0m;
+            var balance = record is not null ? record.BalanceDue : s.MonthlyRate;
+
+            return new MobileMonthlyStallCollectionDto(
+                s.Id,
+                s.StallNo,
+                string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
+                contract?.NameOnContract ?? contract?.ActualOccupant ?? string.Empty,
+                GetMonthlyAreaLabel(s),
+                s.MonthlyRate,
+                status,
+                amountPaid,
+                balance,
+                record?.ORNumber,
+                record is not null);
+        }).ToList();
+
+        return new MobileMonthlyCollectionDto(
+            facilityCode,
+            GetFacilityDisplayName(facilityCode),
+            year,
+            month,
+            collectionDate,
+            rows.Count,
+            rows.Count(r => r.Status == PaymentStatus.Paid),
+            rows.Count(r => r.Status == PaymentStatus.Partial),
+            rows.Count(r => r.Status == PaymentStatus.Unpaid),
+            rows.Sum(r => r.AmountPaid),
+            rows.Sum(r => r.Balance),
+            rows);
+    }
+
+    private static string GetMonthlyAreaLabel(Stall s)
+    {
+        if (s.AreaLocation.HasValue)
+            return s.AreaLocation.Value.ToString();
+        if (s.Section.HasValue)
+            return GetSectionName(s.Section);
+        return s.Type.ToString();
+    }
+
+    private static string GetFacilityDisplayName(FacilityCode code) => code switch
+    {
+        FacilityCode.TCC => "Town Center Commercial",
+        FacilityCode.NCC => "New Commercial Center",
+        FacilityCode.BBQ => "Barbecue Stand",
+        FacilityCode.ICE => "Ice Plant",
+        _ => code.ToString()
+    };
+
     public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
     {
         var query = context.Stalls
@@ -273,7 +351,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                     s.Section,
                     s.AreaLocation,
                     s.AreaNote,
-                    s.Remarks
+                    s.Remarks,
+                    activeContract?.DurationYears ?? 0
                 );
             }).ToList(),
             NextCursor = pagedResult.NextCursor,
@@ -310,7 +389,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 s.Section,
                 s.AreaLocation,
                 s.AreaNote,
-                s.Remarks
+                s.Remarks,
+                activeContract?.DurationYears ?? 0
             );
         }).ToList();
     }

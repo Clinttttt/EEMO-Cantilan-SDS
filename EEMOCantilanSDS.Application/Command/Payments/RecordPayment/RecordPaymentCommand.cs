@@ -11,5 +11,6 @@ public record RecordPaymentCommand(
     int Month,
     PaymentStatus Status,
     decimal? PartialAmount,
-    string? Remarks
+    string? Remarks,
+    string? ORNumber = null
 ) : IRequest<Result<bool>>;

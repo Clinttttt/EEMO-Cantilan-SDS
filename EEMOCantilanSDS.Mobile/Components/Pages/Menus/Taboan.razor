@@ -1,0 +1,372 @@
+@page "/taboan"
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using global::EEMOCantilanSDS.Application.Requests.Mobile
+@using global::EEMOCantilanSDS.Domain.Enums
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject IMobileApiClient MobileApi
+
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Tabo-an Public Market</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <div class="header-title-block">
+                <div class="header-title">Tabo-an Market</div>
+                <div class="header-sub">TPM - ₱100 per Vendor (Fridays)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="date-strip">
+        <div class="date-strip-left">Collector: <span>@Session.CollectorName</span></div>
+        <button class="collection-month-pill" type="button">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @MarketLabel
+        </button>
+    </div>
+
+    <div class="content">
+        @if (IsLoading)
+        {
+            <div class="state-card">
+                <div class="state-title">Loading market collections</div>
+                <div class="state-text">Please wait while the vendor attendance is loaded.</div>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="state-card error">
+                <div class="state-title">Unable to load collections</div>
+                <div class="state-text">@ErrorMessage</div>
+                <button class="primary-action" type="button" @onclick="LoadCollectionAsync">Try Again</button>
+            </div>
+        }
+        else if (Collection is not null)
+        {
+            @if (!Collection.IsMarketDay)
+            {
+                <div class="notice-card">
+                    Tabo-an runs on <strong>Fridays</strong>. Showing the most recent market day
+                    (@MarketLabel) — recording is available on the market day.
+                </div>
+            }
+
+            <div class="summary-strip">
+                <div class="summary-item">
+                    <div class="summary-value">@FormatCurrency(Collection.CollectedAmount)</div>
+                    <div class="summary-key">Collected</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">@Collection.PaidCount</div>
+                    <div class="summary-key">Paid</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">@Collection.VendorCount</div>
+                    <div class="summary-key">Vendors</div>
+                </div>
+            </div>
+
+            @if (Collection.IsMarketDay)
+            {
+                <button class="record-cta" type="button" @onclick="OpenAddSheet">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add Vendor
+                </button>
+            }
+
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search vendor or goods" @bind="SearchQuery" @bind:event="oninput" />
+            </div>
+
+            <div class="section-label">Vendor Attendance</div>
+
+            @if (!FilteredAttendances.Any())
+            {
+                <div class="state-card">
+                    <div class="state-title">No vendors yet</div>
+                    <div class="state-text">@(Collection.IsMarketDay ? "Add a vendor to start collecting for today." : "No vendors were recorded for this market day.")</div>
+                </div>
+            }
+            else
+            {
+                @foreach (var a in FilteredAttendances)
+                {
+                    <button class="stall-row @(a.IsPaid ? "paid" : "")" type="button" @onclick="() => OpenPaySheet(a)" disabled="@(!Collection.IsMarketDay)">
+                        <div class="stall-info">
+                            <div class="stall-main-row">
+                                <div class="stall-name">@a.VendorName</div>
+                                <span class="stall-status-pill @(a.IsPaid ? "pill-paid" : "pill-unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</span>
+                            </div>
+                            <div class="stall-meta">
+                                @if (!string.IsNullOrWhiteSpace(a.Goods))
+                                {
+                                    <span>@a.Goods</span>
+                                }
+                                @if (a.IsPaid && !string.IsNullOrWhiteSpace(a.ORNumber))
+                                {
+                                    <span>OR @a.ORNumber</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="stall-amount-col">
+                            <div class="stall-amount">@FormatCurrency(a.Fee)</div>
+                        </div>
+                    </button>
+                }
+            }
+        }
+    </div>
+
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@if (ShowAddSheet)
+{
+    <div class="sheet-overlay" @onclick="CloseSheets">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Add Vendor</div>
+            <div class="sheet-sub">Register a vendor for @MarketLabel.</div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Vendor name</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="Vendor name" @bind="VendorName" @bind:event="oninput" />
+
+                <div class="form-label" style="margin-top:12px;">Goods</div>
+                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Vegetables, Dried fish" @bind="Goods" @bind:event="oninput" />
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error">@SheetError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseSheets" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmAddAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Add Vendor")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowPaySheet && SelectedAttendance is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseSheets">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Vendor Payment</div>
+            <div class="sheet-sub">@SelectedAttendance.VendorName · ₱@Collection!.VendorFee.ToString("N0")</div>
+
+            <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectedIsPaid = true">
+                <div class="status-option-icon paid-icon-sm">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+                <div class="status-option-info">
+                    <div class="status-option-label">Paid</div>
+                    <div class="status-option-sub">Vendor fee collected - @FormatCurrency(SelectedAttendance.Fee)</div>
+                </div>
+                @if (SelectedIsPaid)
+                {
+                    <div class="status-option-check">✓</div>
+                }
+            </button>
+
+            @if (SelectedIsPaid)
+            {
+                <div class="or-number-wrap">
+                    <div class="form-label">Official receipt no. <span>optional</span></div>
+                    <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
+                </div>
+            }
+
+            <button class="status-option @(!SelectedIsPaid ? "status-option-active unpaid" : "")" type="button" @onclick="() => SelectedIsPaid = false">
+                <div class="status-option-icon unpaid-icon-sm">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                </div>
+                <div class="status-option-info">
+                    <div class="status-option-label">Unpaid</div>
+                    <div class="status-option-sub">Mark this vendor as not yet paid.</div>
+                </div>
+                @if (!SelectedIsPaid)
+                {
+                    <div class="status-option-check">✓</div>
+                }
+            </button>
+
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error">@SheetError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseSheets" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmPayAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Confirm")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private MobileTpmCollectionDto? Collection;
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private string? ErrorMessage;
+    private string? SheetError;
+    private string SearchQuery = string.Empty;
+
+    private bool ShowAddSheet;
+    private bool ShowPaySheet;
+    private TpmVendorAttendanceDto? SelectedAttendance;
+    private bool SelectedIsPaid = true;
+    private string ORNumber = string.Empty;
+    private string VendorName = string.Empty;
+    private string Goods = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Session.InitializeAsync();
+        }
+        catch (HttpRequestException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+
+        var hasAccess = Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.TPM && f.IsAvailable) == true;
+        if (!hasAccess)
+        {
+            Navigation.NavigateTo("/menu", forceLoad: false);
+            return;
+        }
+
+        await LoadCollectionAsync();
+    }
+
+    private async Task LoadCollectionAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+
+        var result = await MobileApi.GetTpmCollectionAsync();
+        if (!result.IsSuccess || result.Value is null)
+        {
+            ErrorMessage = result.Error ?? "Unable to load market collections.";
+            IsLoading = false;
+            return;
+        }
+
+        Collection = result.Value;
+        IsLoading = false;
+    }
+
+    private IEnumerable<TpmVendorAttendanceDto> FilteredAttendances =>
+        (Collection?.Attendances ?? Array.Empty<TpmVendorAttendanceDto>())
+        .Where(a => string.IsNullOrWhiteSpace(SearchQuery)
+            || a.VendorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+            || a.Goods.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(a => a.IsPaid)
+        .ThenBy(a => a.VendorName);
+
+    private string MarketLabel =>
+        (Collection?.MarketDate ?? DateOnly.FromDateTime(DateTime.Now)).ToString("MMM dd, yyyy", CultureInfo.InvariantCulture);
+
+    private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    private void OpenAddSheet()
+    {
+        VendorName = string.Empty;
+        Goods = string.Empty;
+        SheetError = null;
+        ShowAddSheet = true;
+    }
+
+    private void OpenPaySheet(TpmVendorAttendanceDto attendance)
+    {
+        if (Collection?.IsMarketDay != true)
+            return;
+
+        SelectedAttendance = attendance;
+        SelectedIsPaid = true;
+        ORNumber = attendance.ORNumber ?? string.Empty;
+        SheetError = null;
+        ShowPaySheet = true;
+    }
+
+    private async Task ConfirmAddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(VendorName))
+        {
+            SheetError = "Vendor name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Goods))
+        {
+            SheetError = "Goods is required.";
+            return;
+        }
+
+        IsSaving = true;
+        SheetError = null;
+
+        var result = await MobileApi.AddTpmVendorAsync(new AddMobileTpmVendorRequest(VendorName.Trim(), Goods.Trim()));
+        if (!result.IsSuccess)
+        {
+            SheetError = result.Error ?? "Unable to add the vendor.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseSheets();
+        try { await LoadCollectionAsync(); }
+        finally { IsSaving = false; }
+    }
+
+    private async Task ConfirmPayAsync()
+    {
+        if (SelectedAttendance is null)
+            return;
+
+        IsSaving = true;
+        SheetError = null;
+
+        var request = new MarkMobileTpmVendorPaidRequest(
+            SelectedAttendance.Id,
+            SelectedIsPaid,
+            SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null);
+
+        var result = await MobileApi.MarkTpmVendorPaidAsync(request);
+        if (!result.IsSuccess)
+        {
+            SheetError = result.Error ?? "Unable to update the payment.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseSheets();
+        try { await LoadCollectionAsync(); }
+        finally { IsSaving = false; }
+    }
+
+    private void CloseSheets()
+    {
+        ShowAddSheet = false;
+        ShowPaySheet = false;
+        SelectedAttendance = null;
+        SheetError = null;
+    }
+
+    private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+}

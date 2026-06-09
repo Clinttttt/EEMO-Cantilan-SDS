@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -30,6 +32,34 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
                 x.TransactionDate
             ))
             .ToListAsync(ct);
+    }
+
+    public async Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default)
+    {
+        var transactions = await context.SlaughterTransactions
+            .Where(x => x.TransactionDate == date)
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new SlaughterTransactionDto(
+                x.Id,
+                x.OwnerName,
+                x.AnimalType,
+                x.CustomAnimalType,
+                x.NumberOfHeads,
+                x.RatePerHead,
+                x.RatePerHead * x.NumberOfHeads,
+                x.ORNumber,
+                x.TransactionDate
+            ))
+            .ToListAsync(ct);
+
+        return new MobileSlaughterCollectionDto(
+            date,
+            transactions.Count,
+            transactions.Sum(t => t.NumberOfHeads),
+            transactions.Sum(t => t.TotalAmount),
+            FeeRates.SlhHogTotalPerHead,
+            FeeRates.SlhLargeTotalPerHead,
+            transactions);
     }
 
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)

@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
+using EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 using EEMOCantilanSDS.Application.Requests.Stalls;
@@ -68,6 +69,14 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Payments.PaymentHistoryDto>>> GetPaymentHistory(Guid stallId)
     {
         var query = new GetPaymentHistoryQuery(stallId);
+        var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("{stallId}/ledger-summary")]
+    public async Task<ActionResult<Application.Dtos.Payments.StallLedgerSummaryDto>> GetLedgerSummary(Guid stallId)
+    {
+        var query = new GetStallLedgerSummaryQuery(stallId);
         var result = await Sender.Send(query);
         return HandleResponse(result);
     }

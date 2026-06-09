@@ -1281,7 +1281,7 @@
     // -- View Profile ----------------------------------------------------------
     void ViewProfile(VendorEntry v)
     {
-        Nav.NavigateTo($"/profile/{v.FacilityCode.ToLower()}/{v.StallNo}");
+        Nav.NavigateTo($"/profile/{v.FacilityCode.ToLower()}/{v.StallGuid}");
     }
 }
 

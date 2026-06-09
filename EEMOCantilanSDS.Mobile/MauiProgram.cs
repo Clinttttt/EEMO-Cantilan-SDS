@@ -48,8 +48,17 @@ namespace EEMOCantilanSDS.Mobile
 
         private static string GetApiBaseUrl()
         {
-            // Connected phone development URL. Run: adb reverse tcp:5117 tcp:5117
+#if ANDROID
+            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
+            // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117
+            var isEmulator = global::Android.OS.Build.Fingerprint?.Contains("generic") == true
+                          || global::Android.OS.Build.Fingerprint?.Contains("emulator") == true
+                          || global::Android.OS.Build.Model?.Contains("Emulator") == true
+                          || global::Android.OS.Build.Model?.Contains("Android SDK") == true;
+            return isEmulator ? "http://10.0.2.2:5117/" : "http://localhost:5117/";
+#else
             return "http://localhost:5117/";
+#endif
         }
     }
 }

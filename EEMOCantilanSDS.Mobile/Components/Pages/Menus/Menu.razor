@@ -20,57 +20,76 @@
         {
             <div class="summary-strip">
                 <div class="summary-item">
-                    <div class="summary-value">₱0</div>
-                    <div class="summary-key">Today</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-value">@AssignedFacilities.Count</div>
+                    <div class="summary-value">@Facilities.Count(f => f.IsAssigned)</div>
                     <div class="summary-key">Assigned</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-value">@AssignedFacilities.Count(f => f.IsAvailable)</div>
-                    <div class="summary-key">Available</div>
+                    <div class="summary-value">@Facilities.Count(f => f.IsAvailable)</div>
+                    <div class="summary-key">Open</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value">@Facilities.Count(f => !f.IsAssigned)</div>
+                    <div class="summary-key">Locked</div>
                 </div>
             </div>
 
-            @if (MarketFacilities.Any())
+            @if (OpenFacilities.Any())
             {
-                <div class="section-label">Market Collections</div>
-                @foreach (var facility in MarketFacilities)
+                <div class="section-label">Your Collections</div>
+                @foreach (var facility in OpenFacilities)
                 {
-                    <div class="menu-card @(facility.IsAvailable ? string.Empty : "disabled")" @onclick="() => OpenFacility(facility)">
+                    <div class="menu-card" role="button" tabindex="0" @onclick="() => OpenFacility(facility)">
                         <div class="card-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
                         <div class="card-info">
                             <div class="card-title">@facility.Name</div>
-                            <div class="card-sub">@facility.Code - @facility.Description</div>
+                            <div class="card-sub">@facility.Description</div>
                         </div>
-                        <div class="card-status">@(facility.IsAvailable ? "Open" : "Soon")</div>
+                        <div class="card-status open">Open</div>
                         <div class="card-arrow">›</div>
                     </div>
                 }
             }
 
-            @if (OtherFacilities.Any())
+            @if (ComingSoonFacilities.Any())
             {
                 <div class="group-spacer"></div>
-                <div class="section-label">Other Assigned Collections</div>
-                @foreach (var facility in OtherFacilities)
+                <div class="section-label">Assigned · Coming Soon</div>
+                @foreach (var facility in ComingSoonFacilities)
                 {
-                    <div class="menu-card disabled">
+                    <div class="menu-card soon">
                         <div class="card-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
                         <div class="card-info">
                             <div class="card-title">@facility.Name</div>
-                            <div class="card-sub">@facility.Code - @facility.Description</div>
+                            <div class="card-sub">@facility.Description</div>
                         </div>
-                        <div class="card-status">Soon</div>
+                        <div class="card-status soon">Soon</div>
                     </div>
                 }
             }
 
-            @if (!AssignedFacilities.Any())
+            @if (LockedFacilities.Any())
+            {
+                <div class="group-spacer"></div>
+                <div class="section-label">Locked · Not Assigned</div>
+                @foreach (var facility in LockedFacilities)
+                {
+                    <div class="menu-card locked" aria-disabled="true">
+                        <div class="card-icon locked-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
+                        <div class="card-info">
+                            <div class="card-title">@facility.Name</div>
+                            <div class="card-sub">Not assigned to your account</div>
+                        </div>
+                        <div class="card-lock" aria-label="Locked">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (!Facilities.Any())
             {
                 <div class="menu-state-card">
-                    No collection facility is assigned to this collector account yet.
+                    No collection facility is configured for this account yet.
                 </div>
             }
         }
@@ -83,14 +102,20 @@
     bool IsLoading = true;
     string ErrorMessage = string.Empty;
 
-    IReadOnlyList<MobileFacilityMenuItemDto> AssignedFacilities =>
-        Session.Menu?.AssignedFacilities ?? Array.Empty<MobileFacilityMenuItemDto>();
+    IReadOnlyList<MobileFacilityMenuItemDto> Facilities =>
+        Session.Menu?.Facilities ?? Array.Empty<MobileFacilityMenuItemDto>();
 
-    IEnumerable<MobileFacilityMenuItemDto> MarketFacilities =>
-        AssignedFacilities.Where(f => f.Code is FacilityCode.NPM or FacilityCode.TCC or FacilityCode.NCC or FacilityCode.TPM);
+    // Assigned and the screen is built → tappable.
+    IEnumerable<MobileFacilityMenuItemDto> OpenFacilities =>
+        Facilities.Where(f => f.IsAvailable);
 
-    IEnumerable<MobileFacilityMenuItemDto> OtherFacilities =>
-        AssignedFacilities.Except(MarketFacilities);
+    // Assigned but the mobile screen isn't shipped yet.
+    IEnumerable<MobileFacilityMenuItemDto> ComingSoonFacilities =>
+        Facilities.Where(f => f.IsAssigned && !f.IsAvailable);
+
+    // Not assigned to this collector → locked.
+    IEnumerable<MobileFacilityMenuItemDto> LockedFacilities =>
+        Facilities.Where(f => !f.IsAssigned);
 
     protected override async Task OnInitializedAsync()
     {
@@ -116,14 +141,33 @@
 
     void OpenFacility(MobileFacilityMenuItemDto facility)
     {
+        // Guard: only assigned + built facilities are navigable. The server independently
+        // enforces assignment on every collection endpoint, so this is UX-only defence.
         if (!facility.IsAvailable)
         {
             return;
         }
 
-        if (facility.Code == FacilityCode.NPM)
+        switch (facility.Code)
         {
-            Navigation.NavigateTo("/market", forceLoad: false);
+            case FacilityCode.NPM:
+                Navigation.NavigateTo("/market", forceLoad: false);
+                break;
+            case FacilityCode.TCC:
+            case FacilityCode.NCC:
+            case FacilityCode.BBQ:
+            case FacilityCode.ICE:
+                Navigation.NavigateTo($"/collect/{facility.Code}", forceLoad: false);
+                break;
+            case FacilityCode.SLH:
+                Navigation.NavigateTo("/slaughter", forceLoad: false);
+                break;
+            case FacilityCode.TRM:
+                Navigation.NavigateTo("/terminal", forceLoad: false);
+                break;
+            case FacilityCode.TPM:
+                Navigation.NavigateTo("/taboan", forceLoad: false);
+                break;
         }
     }
 
@@ -135,6 +179,10 @@
             "<svg viewBox=\"0 0 24 24\"><rect x=\"2\" y=\"7\" width=\"20\" height=\"14\" rx=\"2\" /><path d=\"M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2\" /></svg>",
         FacilityCode.NCC =>
             "<svg viewBox=\"0 0 24 24\"><path d=\"M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18\" /></svg>",
+        FacilityCode.BBQ =>
+            "<svg viewBox=\"0 0 24 24\"><path d=\"M12 2c1.5 2 1.5 3.5 0 5.5S10.5 11 12 13\" /><path d=\"M5 22l4-9\" /><path d=\"M19 22l-4-9\" /><path d=\"M7 13h10\" /></svg>",
+        FacilityCode.ICE =>
+            "<svg viewBox=\"0 0 24 24\"><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"22\" /><line x1=\"3\" y1=\"7\" x2=\"21\" y2=\"17\" /><line x1=\"21\" y1=\"7\" x2=\"3\" y2=\"17\" /></svg>",
         FacilityCode.SLH =>
             "<svg viewBox=\"0 0 24 24\"><path d=\"M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z\" /></svg>",
         FacilityCode.TRM =>
