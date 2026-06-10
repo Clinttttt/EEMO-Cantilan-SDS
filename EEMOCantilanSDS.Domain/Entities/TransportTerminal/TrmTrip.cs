@@ -9,11 +9,12 @@ namespace EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 /// </summary>
 public class TrmTrip : AuditableEntity
 {
-    public Guid TransporterId { get; private set; }
+    public Guid? TransporterId { get; private set; }
     public Guid? CollectorId { get; private set; }
     public int TripNumber { get; private set; }
     public string DriverName { get; private set; } = string.Empty;
     public string PlateNumber { get; private set; } = string.Empty;
+    public string Organization { get; private set; } = "Non-associated";
     public string Route { get; private set; } = string.Empty;
     public decimal Fee { get; private set; } = FeeRates.TrmTripFee;
     public string? ORNumber { get; private set; }
@@ -26,12 +27,13 @@ public class TrmTrip : AuditableEntity
     private TrmTrip() { } // EF Core
 
     public static TrmTrip Create(
-        Guid transporterId,
+        Guid? transporterId,
         int tripNumber,
         string driverName,
         string plateNumber,
         string route,
         string orNumber,
+        string? organization = null,
         Guid? collectorId = null,
         string? remarks = null,
         string createdBy = "System")
@@ -53,6 +55,7 @@ public class TrmTrip : AuditableEntity
             TripNumber = tripNumber,
             DriverName = driverName.Trim(),
             PlateNumber = plateNumber.Trim().ToUpper(),
+            Organization = string.IsNullOrWhiteSpace(organization) ? "Non-associated" : organization.Trim(),
             Route = route.Trim(),
             Fee = FeeRates.TrmTripFee,
             ORNumber = orNumber.Trim(),

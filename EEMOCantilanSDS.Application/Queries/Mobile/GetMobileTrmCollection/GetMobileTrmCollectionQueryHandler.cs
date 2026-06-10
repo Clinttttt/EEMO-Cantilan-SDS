@@ -27,6 +27,7 @@ public sealed class GetMobileTrmCollectionQueryHandler(
 
         var transporters = await trmRepository.GetTransportersWithTodayTripsAsync(ct);
         var todayTrips = await trmRepository.GetTodayTripsAsync(ct);
+        var (knownRoutes, knownOrgs) = await trmRepository.GetKnownRoutesAndOrgsAsync(ct);
 
         return Result<MobileTrmCollectionDto>.Success(new MobileTrmCollectionDto(
             PhilippineTime.Today,
@@ -35,6 +36,8 @@ public sealed class GetMobileTrmCollectionQueryHandler(
             todayTrips.Sum(t => t.Fee),
             transporters.Count,
             transporters,
-            todayTrips));
+            todayTrips,
+            knownRoutes,
+            knownOrgs));
     }
 }

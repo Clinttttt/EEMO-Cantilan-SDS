@@ -7,7 +7,8 @@ public class RecordTripCommandValidator : AbstractValidator<RecordTripCommand>
 {
     public RecordTripCommandValidator(ITrmRepository trmRepo)
     {
-        RuleFor(x => x.TransporterId).NotEmpty();
+        // TransporterId is optional — an ad-hoc / walk-in trip has none. When supplied it must be a real id.
+        RuleFor(x => x.TransporterId).NotEqual(Guid.Empty).When(x => x.TransporterId.HasValue);
         RuleFor(x => x.DriverName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.PlateNumber).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Route).NotEmpty().MaximumLength(200);

@@ -25,11 +25,11 @@ public class TrmHistoryTests : RepositoryTestBase
         context.TrmTransporters.AddRange(orgX1, orgX2, orgY1);
 
         // 3 trips: 2 under Org X (2 distinct transporters), 1 under Org Y. Each trip is ₱30.
-        // Routes: "North" x2, "South" x1.
+        // Routes: "North" x2, "South" x1. Trips carry their own organization (as the handler stamps it).
         context.TrmTrips.AddRange(
-            TrmTrip.Create(orgX1.Id, 1, "Driver A", "ABC123", "North", "OR-1"),
-            TrmTrip.Create(orgX2.Id, 2, "Driver B", "DEF456", "North", "OR-2"),
-            TrmTrip.Create(orgY1.Id, 3, "Driver C", "GHI789", "South", "OR-3"));
+            TrmTrip.Create(orgX1.Id, 1, "Driver A", "ABC123", "North", "OR-1", organization: "Org X"),
+            TrmTrip.Create(orgX2.Id, 2, "Driver B", "DEF456", "North", "OR-2", organization: "Org X"),
+            TrmTrip.Create(orgY1.Id, 3, "Driver C", "GHI789", "South", "OR-3", organization: "Org Y"));
         await context.SaveChangesAsync();
 
         var repo = new TrmRepository(context);

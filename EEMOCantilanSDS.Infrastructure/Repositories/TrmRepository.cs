@@ -13,6 +13,39 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
     public async Task<TrmTransporter?> GetTransporterByIdAsync(Guid id, CancellationToken ct = default)
         => await context.TrmTransporters.FirstOrDefaultAsync(t => t.Id == id, ct);
 
+    public async Task<TrmTransporter?> GetTransporterByPlateAsync(string plateNumber, CancellationToken ct = default)
+    {
+        // Plate numbers are stored trimmed + upper-cased by TrmTransporter.Create.
+        var normalized = plateNumber.Trim().ToUpper();
+        return await context.TrmTransporters.FirstOrDefaultAsync(t => t.PlateNumber == normalized, ct);
+    }
+
+    public async Task<(IReadOnlyList<string> Routes, IReadOnlyList<string> Organizations)> GetKnownRoutesAndOrgsAsync(CancellationToken ct = default)
+    {
+        // Distinct routes/orgs from both the roster and recorded trips — used as mobile pick-lists
+        // so collectors can reuse an existing value instead of re-typing it.
+        var transporterRoutes = await context.TrmTransporters.AsNoTracking().Select(t => t.DefaultRoute).ToListAsync(ct);
+        var tripRoutes = await context.TrmTrips.AsNoTracking().Select(t => t.Route).ToListAsync(ct);
+        var transporterOrgs = await context.TrmTransporters.AsNoTracking().Select(t => t.Organization).ToListAsync(ct);
+        var tripOrgs = await context.TrmTrips.AsNoTracking().Select(t => t.Organization).ToListAsync(ct);
+
+        var routes = transporterRoutes.Concat(tripRoutes)
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var orgs = transporterOrgs.Concat(tripOrgs)
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Select(o => o.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return (routes, orgs);
+    }
+
     public async Task<IReadOnlyList<TrmTransporterListDto>> GetTransportersWithTodayTripsAsync(CancellationToken ct = default)
     {
         var (startUtc, endUtc) = PhilippineTime.TodayUtcRange();
@@ -99,7 +132,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
                 TransporterId = t.TransporterId,
                 TripNumber = t.TripNumber,
                 DriverName = t.DriverName,
-                Organization = t.Transporter!.Organization,
+                Organization = t.Organization,
                 PlateNumber = t.PlateNumber,
                 Route = t.Route,
                 Fee = t.Fee,
@@ -123,7 +156,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
                 TransporterId = t.TransporterId,
                 TripNumber = t.TripNumber,
                 DriverName = t.DriverName,
-                Organization = t.Transporter!.Organization,
+                Organization = t.Organization,
                 PlateNumber = t.PlateNumber,
                 Route = t.Route,
                 Fee = t.Fee,
@@ -153,7 +186,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
             .Select(t => new HistoryRow(
                 t.TransporterId,
-                t.Transporter!.Organization,
+                t.Organization,
                 t.Route,
                 t.Fee,
                 t.RecordedAt))
@@ -180,7 +213,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
         return new TrmHistoryDto(year, monthly, yearly);
     }
 
-    private sealed record HistoryRow(Guid TransporterId, string Organization, string Route, decimal Fee, DateTime Date);
+    private sealed record HistoryRow(Guid? TransporterId, string Organization, string Route, decimal Fee, DateTime Date);
 
     private static TrmPeriodSummaryDto SummarizeHistory(string label, int year, int? month, List<HistoryRow> set)
     {
@@ -199,7 +232,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
         return new TrmPeriodSummaryDto(
             label, year, month,
             set.Count,
-            set.Select(r => r.TransporterId).Distinct().Count(),
+            set.Where(r => r.TransporterId.HasValue).Select(r => r.TransporterId).Distinct().Count(),
             set.Sum(r => r.Fee),
             orgs,
             routes);

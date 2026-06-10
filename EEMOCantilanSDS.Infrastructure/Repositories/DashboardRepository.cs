@@ -78,7 +78,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             if (f.Code == FacilityCode.TRM)
             {
                 var collectedTrm = trips.Sum(x => x.Fee);
-                var transporters = trips.Select(x => x.TransporterId).Distinct().Count();
+                var transporters = trips.Where(x => x.TransporterId.HasValue).Select(x => x.TransporterId).Distinct().Count();
                 facilityCards.Add(new DashboardFacilityDto(
                     f.Code, f.Name, collectedTrm,
                     UnpaidCount: 0, PaidCount: trips.Count, PartialCount: 0,

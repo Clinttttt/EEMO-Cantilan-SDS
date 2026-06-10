@@ -13,7 +13,7 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
         builder.HasKey(t => t.Id);
         builder.Property(t => t.Id).HasColumnType("uuid");
 
-        builder.Property(t => t.TransporterId).IsRequired().HasColumnType("uuid");
+        builder.Property(t => t.TransporterId).HasColumnType("uuid");
         builder.Property(t => t.CollectorId).HasColumnType("uuid");
 
         builder.Property(t => t.TripNumber).IsRequired().HasColumnType("integer");
@@ -25,6 +25,11 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
         builder.Property(t => t.PlateNumber)
             .IsRequired()
             .HasColumnType("character varying(20)");
+
+        builder.Property(t => t.Organization)
+            .IsRequired()
+            .HasColumnType("character varying(200)")
+            .HasDefaultValue("Non-associated");
 
         builder.Property(t => t.Route)
             .IsRequired()
@@ -54,6 +59,7 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
         builder.HasOne(t => t.Transporter)
             .WithMany(tr => tr.Trips)
             .HasForeignKey(t => t.TransporterId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasQueryFilter(t => !t.IsDeleted);

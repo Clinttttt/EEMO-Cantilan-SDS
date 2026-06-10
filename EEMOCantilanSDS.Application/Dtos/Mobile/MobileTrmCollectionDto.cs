@@ -14,4 +14,6 @@ public sealed record MobileTrmCollectionDto(
     decimal CollectedToday,
     int TransporterCount,
     IReadOnlyList<TrmTransporterListDto> Transporters,
-    IReadOnlyList<TrmTripDto> TodayTrips);
+    IReadOnlyList<TrmTripDto> TodayTrips,
+    IReadOnlyList<string> KnownRoutes,
+    IReadOnlyList<string> KnownOrganizations);

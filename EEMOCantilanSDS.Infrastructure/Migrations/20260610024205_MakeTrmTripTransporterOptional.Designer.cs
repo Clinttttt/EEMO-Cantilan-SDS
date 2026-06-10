@@ -3,6 +3,7 @@ using System;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EEMOCantilanSDS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610024205_MakeTrmTripTransporterOptional")]
+    partial class MakeTrmTripTransporterOptional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -763,12 +766,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.Property<string>("ORNumber")
                         .HasColumnType("character varying(50)");
-
-                    b.Property<string>("Organization")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("character varying(200)")
-                        .HasDefaultValue("Non-associated");
 
                     b.Property<string>("PlateNumber")
                         .IsRequired()

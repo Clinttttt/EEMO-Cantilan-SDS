@@ -69,7 +69,7 @@
                 <input type="text" placeholder="Search transporter or plate" @bind="SearchQuery" @bind:event="oninput" />
             </div>
 
-            <div class="section-label">Transporters · tap to record a trip</div>
+            <div class="section-label">Tap to record a trip</div>
 
             <div class="trip-choice-row">
                 <button class="trip-choice-btn primary" type="button" @onclick="OpenQuickTripSheet">
@@ -138,28 +138,31 @@
             {
                 @foreach (var trip in Collection.TodayTrips)
                 {
-                    <div class="stall-row paid">
-                        <div class="stall-info">
-                            <div class="stall-main-row">
-                                <div class="stall-name">#@trip.TripNumber · @trip.DriverName</div>
+                    <div class="tx-card">
+                        <div class="tx-left-bar"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">#@trip.TripNumber · @trip.DriverName</span>
+                                    <span class="tx-sub">
+                                        @if (!string.IsNullOrWhiteSpace(trip.PlateNumber))
+                                        {
+                                            <span class="tx-tag">@trip.PlateNumber</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(trip.Route))
+                                        {
+                                            <span class="tx-or">@trip.Route</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(trip.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @trip.ORNumber</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-trip-amount">@FormatCurrency(trip.Fee)</span>
+                                </div>
                             </div>
-                            <div class="stall-meta">
-                                @if (!string.IsNullOrWhiteSpace(trip.PlateNumber))
-                                {
-                                    <span>@trip.PlateNumber</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(trip.Route))
-                                {
-                                    <span>@trip.Route</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(trip.ORNumber))
-                                {
-                                    <span>OR @trip.ORNumber</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="stall-amount-col">
-                            <div class="stall-amount">@FormatCurrency(trip.Fee)</div>
                         </div>
                     </div>
                 }
@@ -170,26 +173,28 @@
     <BottomNav ActiveTab="menu" />
 </div>
 
+@* Suggestion lists rendered inline via custom SuggestInput — see @code *@
+
 @if (ShowQuickTripSheet)
 {
     <div class="sheet-overlay" @onclick="CloseQuickTripSheet">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Record a Trip</div>
-            <div class="sheet-sub">Enter the driver details and record directly. A transporter profile will be created automatically.</div>
+            <div class="sheet-sub">Enter the driver details and record directly — no roster entry is created.</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Driver name</div>
                 <input class="form-input" type="text" maxlength="100" placeholder="Driver name" @bind="QuickDriverName" @bind:event="oninput" />
 
-                <div class="form-label" style="margin-top:12px;">Organization / Cooperative</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="e.g. CANTITRANSCO" @bind="QuickOrg" @bind:event="oninput" />
+                <div class="form-label" style="margin-top:12px;">Organization <span>optional</span></div>
+                @SuggestInput(QuickOrg, v => QuickOrg = v, KnownOrganizations, "Non-associated")
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="QuickPlate" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Route</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Cantilan–Tandag" @bind="QuickRoute" @bind:event="oninput" />
+                @SuggestInput(QuickRoute, v => QuickRoute = v, KnownRoutes, "e.g. Cantilan – Tandag")
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="QuickORNumber" @bind:event="oninput" />
@@ -227,11 +232,11 @@
                 <div class="form-label">Name</div>
                 <input class="form-input" type="text" maxlength="100" placeholder="Driver / operator name" @bind="NewName" @bind:event="oninput" />
 
-                <div class="form-label" style="margin-top:12px;">Organization / Cooperative</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="e.g. CANTITRANSCO" @bind="NewOrg" @bind:event="oninput" />
+                <div class="form-label" style="margin-top:12px;">Organization / Cooperative <span>optional</span></div>
+                @SuggestInput(NewOrg, v => NewOrg = v, KnownOrganizations, "Non-associated")
 
                 <div class="form-label" style="margin-top:12px;">Default route</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Cantilan–Tandag" @bind="NewRoute" @bind:event="oninput" />
+                @SuggestInput(NewRoute, v => NewRoute = v, KnownRoutes, "e.g. Cantilan–Tandag")
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="NewPlate" @bind:event="oninput" />
@@ -268,7 +273,7 @@
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="PlateNumber" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Route</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="Route / destination" @bind="Route" @bind:event="oninput" />
+                @SuggestInput(Route, v => Route = v, KnownRoutes, "Route / destination")
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
@@ -360,6 +365,97 @@
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
 
+    private IReadOnlyList<string> KnownRoutes => Collection?.KnownRoutes ?? Array.Empty<string>();
+    private IReadOnlyList<string> KnownOrganizations => Collection?.KnownOrganizations ?? Array.Empty<string>();
+
+    // ── Searchable suggestion input ──────────────────────────────
+    // Tracks which field has the picker open and its search query.
+    private string? _openPickerId;
+    private string _pickSearch = string.Empty;
+
+    /// <summary>
+    /// Inline searchable pick-list — renders a text input + a filtered suggestion panel.
+    /// The panel appears when the input is focused and closes when a suggestion is tapped
+    /// or the user continues typing a custom value.
+    /// </summary>
+    private RenderFragment SuggestInput(string value, Action<string> set,
+        IReadOnlyList<string> options, string placeholder)
+    {
+        var id = $"si-{placeholder.GetHashCode():x}";
+        var isOpen = _openPickerId == id;
+        var search = isOpen ? _pickSearch : value;
+        var filtered = options
+            .Where(o => string.IsNullOrWhiteSpace(search) || o.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Take(8).ToList();
+
+        return __builder =>
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "suggest-wrap");
+
+            __builder.OpenElement(2, "input");
+            __builder.AddAttribute(3, "class", "form-input");
+            __builder.AddAttribute(4, "type", "text");
+            __builder.AddAttribute(5, "maxlength", "100");
+            __builder.AddAttribute(6, "placeholder", placeholder);
+            __builder.AddAttribute(7, "value", value);
+            __builder.AddAttribute(8, "autocomplete", "off");
+            __builder.AddAttribute(9, "oninput", EventCallback.Factory.Create<Microsoft.AspNetCore.Components.ChangeEventArgs>(this, e =>
+            {
+                var v = e.Value?.ToString() ?? string.Empty;
+                set(v);
+                _openPickerId = id;
+                _pickSearch = v;
+                StateHasChanged();
+            }));
+            __builder.AddAttribute(10, "onfocus", EventCallback.Factory.Create(this, () =>
+            {
+                _openPickerId = id;
+                _pickSearch = value;
+                StateHasChanged();
+            }));
+            __builder.CloseElement(); // input
+
+            if (isOpen && options.Count > 0)
+            {
+                __builder.OpenElement(20, "div");
+                __builder.AddAttribute(21, "class", "suggest-panel");
+
+                if (filtered.Count == 0)
+                {
+                    __builder.OpenElement(22, "div");
+                    __builder.AddAttribute(23, "class", "suggest-empty");
+                    __builder.AddContent(24, "No matches");
+                    __builder.CloseElement();
+                }
+                else
+                {
+                    var idx = 25;
+                    foreach (var opt in filtered)
+                    {
+                        var captured = opt;
+                        __builder.OpenElement(idx++, "button");
+                        __builder.AddAttribute(idx++, "type", "button");
+                        __builder.AddAttribute(idx++, "class", $"suggest-item{(opt == value ? " suggest-active" : "")}");
+                        __builder.AddAttribute(idx++, "onclick", EventCallback.Factory.Create(this, () =>
+                        {
+                            set(captured);
+                            _openPickerId = null;
+                            _pickSearch = string.Empty;
+                            StateHasChanged();
+                        }));
+                        __builder.AddContent(idx++, opt);
+                        __builder.CloseElement();
+                    }
+                }
+
+                __builder.CloseElement(); // suggest-panel
+            }
+
+            __builder.CloseElement(); // suggest-wrap
+        };
+    }
+
     // ── New transporter registration ──
     private bool ShowNewTransporterSheet;
     private string NewName = string.Empty;
@@ -371,7 +467,7 @@
     // ── Quick trip (register-then-record in one action) ──
     private bool ShowQuickTripSheet;
     private string QuickDriverName = string.Empty;
-    private string QuickOrg = string.Empty;
+    private string QuickOrg = "Non-associated";
     private string QuickPlate = string.Empty;
     private string QuickRoute = string.Empty;
     private string QuickORNumber = string.Empty;
@@ -379,8 +475,8 @@
 
     private void OpenQuickTripSheet()
     {
-        QuickDriverName = string.Empty; QuickOrg = string.Empty; QuickPlate = string.Empty;
-        QuickRoute = string.Empty; QuickORNumber = string.Empty; QuickTripError = null;
+        QuickDriverName = string.Empty; QuickPlate = string.Empty;
+        QuickRoute = string.Empty; QuickORNumber = string.Empty; QuickOrg = "Non-associated"; QuickTripError = null;
         ShowQuickTripSheet = true;
     }
 
@@ -393,7 +489,6 @@
     private async Task ConfirmQuickTripAsync()
     {
         if (string.IsNullOrWhiteSpace(QuickDriverName)) { QuickTripError = "Driver name is required."; return; }
-        if (string.IsNullOrWhiteSpace(QuickOrg)) { QuickTripError = "Organization is required."; return; }
         if (string.IsNullOrWhiteSpace(QuickPlate)) { QuickTripError = "Plate number is required."; return; }
         if (string.IsNullOrWhiteSpace(QuickRoute)) { QuickTripError = "Route is required."; return; }
         if (string.IsNullOrWhiteSpace(QuickORNumber)) { QuickTripError = "OR number is required."; return; }
@@ -401,27 +496,19 @@
         IsSaving = true;
         QuickTripError = null;
 
-        // Step 1 — auto-register the transporter (silent, re-uses an existing plate if present).
-        var addResult = await MobileApi.AddTransporterAsync(
-            QuickDriverName.Trim(), QuickOrg.Trim(), QuickRoute.Trim(), QuickPlate.Trim());
-        if (!addResult.IsSuccess || addResult.Value is null)
-        {
-            QuickTripError = addResult.Error ?? "Unable to register the transporter.";
-            IsSaving = false;
-            return;
-        }
-
-        // Step 2 — record the trip immediately.
-        var tripResult = await MobileApi.RecordTripAsync(new RecordMobileTripRequest(
-            addResult.Value.Id,
+        // Ad-hoc trip — no transporter registration (TransporterId stays null). The trip itself
+        // carries the driver, plate and route, so nothing is added to the permanent roster.
+        var result = await MobileApi.RecordTripAsync(new RecordMobileTripRequest(
+            TransporterId: null,
             QuickDriverName.Trim(),
             QuickPlate.Trim(),
             QuickRoute.Trim(),
-            QuickORNumber.Trim()));
+            QuickORNumber.Trim(),
+            Organization: string.IsNullOrWhiteSpace(QuickOrg) ? "Non-associated" : QuickOrg.Trim()));
 
-        if (!tripResult.IsSuccess)
+        if (!result.IsSuccess)
         {
-            QuickTripError = tripResult.Error ?? "Unable to save the trip.";
+            QuickTripError = result.Error ?? "Unable to save the trip.";
             IsSaving = false;
             return;
         }
@@ -433,7 +520,7 @@
 
     private void OpenNewTransporterSheet()
     {
-        NewName = string.Empty; NewOrg = string.Empty; NewRoute = string.Empty; NewPlate = string.Empty;
+        NewName = string.Empty; NewOrg = "Non-associated"; NewRoute = string.Empty; NewPlate = string.Empty;
         NewTransporterError = null;
         ShowNewTransporterSheet = true;
     }
@@ -447,7 +534,6 @@
     private async Task ConfirmNewTransporterAsync()
     {
         if (string.IsNullOrWhiteSpace(NewName)) { NewTransporterError = "Name is required."; return; }
-        if (string.IsNullOrWhiteSpace(NewOrg)) { NewTransporterError = "Organization is required."; return; }
         if (string.IsNullOrWhiteSpace(NewRoute)) { NewTransporterError = "Default route is required."; return; }
         if (string.IsNullOrWhiteSpace(NewPlate)) { NewTransporterError = "Plate number is required."; return; }
 

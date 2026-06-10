@@ -7,7 +7,8 @@ public class AddTransporterCommandValidator : AbstractValidator<AddTransporterCo
     public AddTransporterCommandValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Organization).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Organization).MaximumLength(200);
         RuleFor(x => x.DefaultRoute).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.PlateNumber).NotEmpty().MaximumLength(50);
     }
 }

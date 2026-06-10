@@ -134,7 +134,8 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             request.PlateNumber,
             request.Route,
             request.ORNumber,
-            request.Remarks);
+            request.Remarks,
+            request.Organization);
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

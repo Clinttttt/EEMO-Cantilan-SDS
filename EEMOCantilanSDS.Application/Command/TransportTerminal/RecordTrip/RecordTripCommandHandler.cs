@@ -15,9 +15,15 @@ public class RecordTripCommandHandler(
 {
     public async Task<Result<TrmTripDto>> Handle(RecordTripCommand request, CancellationToken ct)
     {
-        var transporter = await trmRepo.GetTransporterByIdAsync(request.TransporterId, ct);
-        if (transporter == null)
-            return Result<TrmTripDto>.NotFound();
+        // A registered transporter is optional — "Record a Trip" allows ad-hoc/walk-in trips that
+        // are NOT added to the permanent roster. When an id is supplied it must resolve.
+        TrmTransporter? transporter = null;
+        if (request.TransporterId is { } transporterId)
+        {
+            transporter = await trmRepo.GetTransporterByIdAsync(transporterId, ct);
+            if (transporter == null)
+                return Result<TrmTripDto>.NotFound();
+        }
 
         // Collectors may only record trips if assigned to the transport terminal; admins are unrestricted.
         if (currentUser.Role == "Collector")
@@ -35,6 +41,10 @@ public class RecordTripCommandHandler(
 
         var tripNumber = await trmRepo.GetNextTripNumberForTodayAsync(ct);
 
+        // Org precedence: a registered transporter's org wins; otherwise the entered org; else default.
+        var organization = transporter?.Organization
+            ?? (string.IsNullOrWhiteSpace(request.Organization) ? "Non-associated" : request.Organization.Trim());
+
         var trip = TrmTrip.Create(
             request.TransporterId,
             tripNumber,
@@ -42,6 +52,7 @@ public class RecordTripCommandHandler(
             request.PlateNumber,
             request.Route,
             request.ORNumber,
+            organization: organization,
             collectorId: currentUser.CollectorId,
             remarks: request.Remarks,
             createdBy: currentUser.Username ?? "Admin");
@@ -55,7 +66,7 @@ public class RecordTripCommandHandler(
             TransporterId = trip.TransporterId,
             TripNumber = trip.TripNumber,
             DriverName = trip.DriverName,
-            Organization = transporter.Organization,
+            Organization = trip.Organization,
             PlateNumber = trip.PlateNumber,
             Route = trip.Route,
             Fee = trip.Fee,

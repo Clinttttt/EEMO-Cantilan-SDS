@@ -5,10 +5,11 @@ using MediatR;
 namespace EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 
 public record RecordTripCommand(
-    Guid TransporterId,
+    Guid? TransporterId,
     string DriverName,
     string PlateNumber,
     string Route,
     string ORNumber,
-    string? Remarks
+    string? Remarks,
+    string? Organization = null
 ) : IRequest<Result<TrmTripDto>>;

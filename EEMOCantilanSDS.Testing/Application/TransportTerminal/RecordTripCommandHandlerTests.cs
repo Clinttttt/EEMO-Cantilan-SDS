@@ -74,4 +74,26 @@ public class RecordTripCommandHandlerTests
         Assert.Equal("Driver A", captured!.DriverName);
         Assert.Equal(collector.Id, captured.CollectorId);
     }
+
+    // Quick "Record a Trip" — ad-hoc, no transporter registration (TransporterId stays null,
+    // and the transporter table is never queried).
+    [Fact]
+    public async Task AdHocTrip_NoTransporter_RecordsWithoutRegistration()
+    {
+        var collector = CollectorWith(FacilityCode.TRM);
+        var (handler, trmRepo) = Build(collector, "Collector", collector.Id);
+
+        TrmTrip? captured = null;
+        trmRepo.Setup(r => r.AddTripAsync(It.IsAny<TrmTrip>(), It.IsAny<CancellationToken>()))
+            .Callback<TrmTrip, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var command = new RecordTripCommand(null, "Walk-in Driver", "XYZ 999", "Route 9", "OR-AH-1", null);
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(captured);
+        Assert.Null(captured!.TransporterId);              // no roster entry
+        Assert.Equal("Walk-in Driver", captured.DriverName);
+        trmRepo.Verify(r => r.GetTransporterByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

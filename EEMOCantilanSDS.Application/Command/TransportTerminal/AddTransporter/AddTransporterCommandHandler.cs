@@ -12,9 +12,16 @@ public class AddTransporterCommandHandler(
 {
     public async Task<Result<TrmTransporterDto>> Handle(AddTransporterCommand request, CancellationToken ct)
     {
+        // A plate number identifies a single vehicle — reuse the existing transporter instead of
+        // creating a duplicate (the mobile "Record a Trip" quick flow re-submits the same plate,
+        // and admins can otherwise add the same plate twice).
+        var existing = await trmRepo.GetTransporterByPlateAsync(request.PlateNumber, ct);
+        if (existing is not null)
+            return Result<TrmTransporterDto>.Success(ToDto(existing));
+
         var transporter = TrmTransporter.Create(
             request.Name,
-            request.Organization,
+            string.IsNullOrWhiteSpace(request.Organization) ? "Non-associated" : request.Organization.Trim(),
             request.DefaultRoute,
             request.PlateNumber,
             request.Remarks);
@@ -22,14 +29,16 @@ public class AddTransporterCommandHandler(
         await trmRepo.AddTransporterAsync(transporter, ct);
         await uow.SaveChangesAsync(ct);
 
-        return Result<TrmTransporterDto>.Success(new TrmTransporterDto
-        {
-            Id = transporter.Id,
-            Name = transporter.Name,
-            Organization = transporter.Organization,
-            DefaultRoute = transporter.DefaultRoute,
-            PlateNumber = transporter.PlateNumber,
-            IsActive = transporter.IsActive
-        });
+        return Result<TrmTransporterDto>.Success(ToDto(transporter));
     }
+
+    private static TrmTransporterDto ToDto(TrmTransporter t) => new()
+    {
+        Id = t.Id,
+        Name = t.Name,
+        Organization = t.Organization,
+        DefaultRoute = t.DefaultRoute,
+        PlateNumber = t.PlateNumber,
+        IsActive = t.IsActive
+    };
 }

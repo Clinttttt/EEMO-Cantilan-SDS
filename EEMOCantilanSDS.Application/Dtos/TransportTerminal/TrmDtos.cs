@@ -34,7 +34,7 @@ public record TrmTransporterProfileDto
 public record TrmTripDto
 {
     public Guid Id { get; init; }
-    public Guid TransporterId { get; init; }
+    public Guid? TransporterId { get; init; }
     public int TripNumber { get; init; }
     public string DriverName { get; init; } = string.Empty;
     public string Organization { get; init; } = string.Empty;
