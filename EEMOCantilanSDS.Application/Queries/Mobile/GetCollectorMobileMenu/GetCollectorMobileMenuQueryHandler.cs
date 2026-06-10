@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
 
 public class GetCollectorMobileMenuQueryHandler(
     ICollectorRepository collectorRepository,
+    IFacilityRepository facilityRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
 {
     public async Task<Result<MobileMenuDto>> Handle(GetCollectorMobileMenuQuery request, CancellationToken cancellationToken)
@@ -25,6 +26,10 @@ public class GetCollectorMobileMenuQueryHandler(
             .Select(a => a.FacilityCode)
             .ToHashSet();
 
+        // Facility display names come from the seeded Facility records (single source of truth),
+        // falling back to the code if a facility row is missing.
+        var names = await facilityRepository.GetFacilityNamesAsync(cancellationToken);
+
         // Show every facility so the collector sees what they can and cannot access.
         // IsAssigned drives the lock; IsAvailable additionally requires a built mobile
         // collection screen (flip a code on here as each facility's page ships).
@@ -32,7 +37,7 @@ public class GetCollectorMobileMenuQueryHandler(
             .OrderBy(code => code)
             .Select(code => new MobileFacilityMenuItemDto(
                 code,
-                GetFacilityName(code),
+                names.TryGetValue(code, out var name) ? name : code.ToString(),
                 GetFacilityDescription(code),
                 assigned.Contains(code),
                 assigned.Contains(code) && ImplementedMobileFacilities.Contains(code)))
@@ -60,19 +65,6 @@ public class GetCollectorMobileMenuQueryHandler(
         FacilityCode.SLH,
         FacilityCode.TRM,
         FacilityCode.TPM
-    };
-
-    private static string GetFacilityName(FacilityCode code) => code switch
-    {
-        FacilityCode.NPM => "New Public Market",
-        FacilityCode.TCC => "Tampak Center Commercial",
-        FacilityCode.NCC => "New Commercial Center",
-        FacilityCode.BBQ => "Barbecue Stand",
-        FacilityCode.ICE => "Ice Plant",
-        FacilityCode.SLH => "Slaughterhouse",
-        FacilityCode.TRM => "Transport Terminal",
-        FacilityCode.TPM => "Tabo-an Public Market",
-        _ => code.ToString()
     };
 
     private static string GetFacilityDescription(FacilityCode code) => code switch

@@ -53,4 +53,7 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> MarkTpmVendorPaidAsync(MarkMobileTpmVendorPaidRequest request) =>
         await PostAsync<MarkMobileTpmVendorPaidRequest, bool>("api/Mobile/tpm/attendance/payment", request);
+
+    public async Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request) =>
+        await PostAsync<HideMobileSuggestionRequest, bool>("api/Mobile/suggestions/hide", request);
 }

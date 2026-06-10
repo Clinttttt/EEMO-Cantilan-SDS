@@ -14,4 +14,5 @@ public sealed record MobileSlaughterCollectionDto(
     decimal TotalCollected,
     decimal HogRatePerHead,
     decimal LargeAnimalRatePerHead,
-    IReadOnlyList<SlaughterTransactionDto> Transactions);
+    IReadOnlyList<SlaughterTransactionDto> Transactions,
+    IReadOnlyList<string> KnownOwners);

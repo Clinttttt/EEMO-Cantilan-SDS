@@ -92,23 +92,19 @@
                                         <span class="tx-tag">@LineLabel(r.Lines.First())</span>
                                         @if (r.Lines.Count > 1)
                                         {
-                                            <span class="tx-tag-more">+@(r.Lines.Count - 1)</span>
+                                            <span class="tx-tag">+@(r.Lines.Count - 1) more</span>
                                         }
-                                        <span class="tx-dot">·</span>
-                                        <span class="tx-heads-inline">@r.TotalHeads head@(r.TotalHeads == 1 ? "" : "s")</span>
+                                        <span class="tx-or">@r.TotalHeads head@(r.TotalHeads == 1 ? "" : "s")</span>
+                                        @if (!string.IsNullOrWhiteSpace(r.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @r.ORNumber</span>
+                                        }
                                     </span>
                                 </div>
                                 <div class="tx-col-right">
                                     <span class="tx-amount">@FormatCurrency(r.Total)</span>
-                                    @if (!string.IsNullOrWhiteSpace(r.ORNumber))
-                                    {
-                                        <span class="tx-or">OR @r.ORNumber</span>
-                                    }
                                 </div>
                             </div>
-                        </div>
-                        <div class="tx-receipt-hint">
-                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         </div>
                     </button>
                 }
@@ -129,7 +125,7 @@
 
             <div class="or-number-wrap">
                 <div class="form-label">Owner name</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="Owner of the animal" @bind="OwnerName" @bind:event="oninput" />
+                @PickerField(OwnerName, "Select or type an owner", "Select Owner", KnownOwners, v => OwnerName = v, SuggestionType.SlhOwner)
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
@@ -362,6 +358,55 @@
     </div>
 }
 
+@if (ShowPicker)
+{
+    <div class="sheet-overlay picker-overlay" @onclick="ClosePicker">
+        <div class="sheet picker-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">@PickerTitle</div>
+
+            <div class="search-wrap" style="margin-bottom:12px;">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search or type a new value" @bind="PickerSearch" @bind:event="oninput" />
+            </div>
+
+            <div class="picker-list">
+                @if (!string.IsNullOrWhiteSpace(PickerSearch)
+                     && !PickerOptions.Any(o => string.Equals(o, PickerSearch.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    <button class="picker-item picker-item-new" type="button" @onclick="() => PickOption(PickerSearch.Trim())">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Use "<strong>@PickerSearch.Trim()</strong>"
+                    </button>
+                }
+
+                @foreach (var opt in PickerFiltered)
+                {
+                    <div class="picker-item-row">
+                        <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                        @if (PickerHideType is not null)
+                        {
+                            <button class="picker-item-remove" type="button" title="Remove from suggestions"
+                                    @onclick="() => HidePickerOption(opt)">
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (!PickerFiltered.Any() && string.IsNullOrWhiteSpace(PickerSearch))
+                {
+                    <div class="picker-empty">No options yet — type to add one.</div>
+                }
+            </div>
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="ClosePicker">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private MobileSlaughterCollectionDto? Collection;
     private bool IsLoading = true;
@@ -400,6 +445,76 @@
 
     private decimal HogRate => Collection?.HogRatePerHead ?? 250m;
     private decimal LargeRate => Collection?.LargeAnimalRatePerHead ?? 365m;
+
+    private IReadOnlyList<string> KnownOwners => Collection?.KnownOwners ?? Array.Empty<string>();
+
+    // ── Searchable picker (full-screen overlay) — same pattern as TRM ──
+    private bool ShowPicker;
+    private string PickerTitle = string.Empty;
+    private string PickerSearch = string.Empty;
+    private IReadOnlyList<string> PickerOptions = Array.Empty<string>();
+    private Action<string>? PickerSet;
+    private SuggestionType? PickerHideType;
+
+    private IEnumerable<string> PickerFiltered =>
+        PickerOptions.Where(o => string.IsNullOrWhiteSpace(PickerSearch)
+            || o.Contains(PickerSearch, StringComparison.OrdinalIgnoreCase));
+
+    private RenderFragment PickerField(string value, string placeholder, string title,
+        IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType = null) => __builder =>
+    {
+        __builder.OpenElement(0, "button");
+        __builder.AddAttribute(1, "type", "button");
+        __builder.AddAttribute(2, "class", "picker-field");
+        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set, hideType)));
+
+        __builder.OpenElement(4, "span");
+        __builder.AddAttribute(5, "class", string.IsNullOrWhiteSpace(value) ? "picker-field-placeholder" : "picker-field-value");
+        __builder.AddContent(6, string.IsNullOrWhiteSpace(value) ? placeholder : value);
+        __builder.CloseElement();
+
+        __builder.OpenElement(7, "svg");
+        __builder.AddAttribute(8, "class", "picker-field-chev");
+        __builder.AddAttribute(9, "viewBox", "0 0 24 24");
+        __builder.AddMarkupContent(10, "<polyline points=\"6 9 12 15 18 9\" />");
+        __builder.CloseElement();
+
+        __builder.CloseElement(); // button
+    };
+
+    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType)
+    {
+        PickerTitle = title;
+        PickerOptions = options;
+        PickerSet = set;
+        PickerHideType = hideType;
+        PickerSearch = string.Empty;
+        ShowPicker = true;
+    }
+
+    private void PickOption(string value)
+    {
+        PickerSet?.Invoke(value);
+        ShowPicker = false;
+        PickerSet = null;
+    }
+
+    private void ClosePicker()
+    {
+        ShowPicker = false;
+        PickerSet = null;
+    }
+
+    private async Task HidePickerOption(string value)
+    {
+        if (PickerHideType is not { } type) return;
+        var result = await MobileApi.HideSuggestionAsync(new HideMobileSuggestionRequest(type, value));
+        if (result.IsSuccess)
+        {
+            PickerOptions = PickerOptions.Where(o => !string.Equals(o, value, StringComparison.OrdinalIgnoreCase)).ToList();
+            await LoadCollectionAsync();
+        }
+    }
 
     // Lightweight adapter so the markup can iterate the fixed animals uniformly.
     private sealed record FixedAnimal(string Label, AnimalType Type, decimal Rate, Func<int> Heads, Action Toggle, Action<string?> SetHeads);

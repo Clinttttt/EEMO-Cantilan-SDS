@@ -1,0 +1,246 @@
+/* ══════════════════════════════════════════════════════════
+   EEMO Payor Portal — shared styles (layout + all /payor pages)
+   Mobile-first, responsive public web portal.
+══════════════════════════════════════════════════════════ */
+
+.pp-shell {
+    min-height: 100vh;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── App bar ── */
+.pp-appbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-3) 100%);
+    border-bottom: 2px solid var(--gold);
+}
+
+.pp-appbar-inner {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pp-brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+.pp-seal {
+    width: 40px; height: 40px; object-fit: cover; border-radius: 50%;
+    flex-shrink: 0; border: 1.5px solid rgba(200, 168, 75, 0.5);
+}
+
+.pp-brand-text { display: flex; flex-direction: column; min-width: 0; }
+
+.pp-eyebrow {
+    font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.pp-title { font-family: 'EB Garamond', serif; font-size: 19px; font-weight: 700; color: #fff; line-height: 1.1; }
+
+.pp-signout {
+    border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.08);
+    border-radius: 9px; width: 38px; height: 38px; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; flex-shrink: 0;
+}
+.pp-signout svg { width: 17px; height: 17px; stroke: rgba(255, 255, 255, 0.8); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Main column ── */
+.pp-main { width: 100%; max-width: 560px; margin: 0 auto; padding: 16px 16px 40px; flex: 1; }
+.pp-main-nav { padding-bottom: 84px; } /* space for bottom tab bar */
+
+.pp-page-title { font-family: 'EB Garamond', serif; font-size: 23px; font-weight: 700; color: var(--navy); margin: 4px 2px 14px; }
+
+.pp-greeting { margin: 4px 2px 14px; }
+.pp-hello { font-size: 17px; color: var(--navy); font-weight: 500; }
+.pp-hello strong { font-weight: 700; }
+.pp-hello-sub { font-size: 12px; color: var(--text-subtle); margin-top: 2px; }
+
+/* ── Outstanding hero ── */
+.pp-hero {
+    background: linear-gradient(150deg, var(--navy) 0%, var(--navy-3) 100%);
+    border-radius: 18px; padding: 22px 20px; color: #fff; position: relative;
+    overflow: hidden; box-shadow: 0 18px 40px rgba(13, 33, 55, 0.18);
+}
+.pp-hero::after { content: ""; position: absolute; inset: auto 0 0 0; height: 3px; background: var(--gold); }
+.pp-hero-compact { padding: 18px 20px; }
+
+.pp-hero-label { font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); font-weight: 700; }
+.pp-hero-amount { font-family: 'EB Garamond', serif; font-size: 38px; font-weight: 700; line-height: 1.05; margin: 6px 0 4px; }
+.pp-hero-meta { font-size: 12px; color: rgba(255, 255, 255, 0.72); }
+.pp-hero-meta strong { color: var(--gold-light); font-weight: 600; }
+
+.pp-pay-cta {
+    margin-top: 16px; width: 100%; min-height: 50px; border: 0; border-radius: 13px;
+    background: var(--gold); color: var(--navy); font-size: 15px; font-weight: 800; letter-spacing: 0.2px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 9px;
+    transition: background 0.15s, transform 0.05s;
+}
+.pp-pay-cta:hover { background: var(--gold-light); }
+.pp-pay-cta:active { transform: scale(0.99); }
+.pp-pay-cta svg { width: 18px; height: 18px; stroke: var(--navy); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.pp-hero-note { margin-top: 11px; font-size: 10.5px; line-height: 1.5; color: rgba(255, 255, 255, 0.55); text-align: center; }
+
+/* ── Section labels ── */
+.pp-section-label { margin: 22px 4px 9px; font-size: 10px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--text-muted); }
+.pp-section-head { display: flex; align-items: baseline; justify-content: space-between; }
+.pp-section-label-inline { margin-bottom: 9px; }
+.pp-link { font-size: 12px; font-weight: 700; color: var(--green); }
+
+/* ── Cards ── */
+.pp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 20px rgba(13, 33, 55, 0.05); margin-bottom: 9px; }
+
+/* Account card */
+.pp-acct { display: flex; align-items: center; gap: 13px; padding: 14px 15px; }
+.pp-acct-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--bg-icon); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pp-acct-icon svg { width: 20px; height: 20px; stroke: var(--navy-3); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pp-acct-info { flex: 1; min-width: 0; }
+.pp-acct-facility { font-size: 14px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+.pp-acct-sub { font-size: 11.5px; color: var(--text-subtle); margin-top: 2px; }
+.pp-acct-rate { text-align: right; flex-shrink: 0; }
+.pp-acct-rate-val { font-family: 'EB Garamond', serif; font-size: 16px; font-weight: 700; color: var(--navy); }
+.pp-acct-rate-key { display: block; font-size: 10px; color: var(--text-muted); }
+
+/* Balance card */
+.pp-bal { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; }
+.pp-bal-left { min-width: 0; }
+.pp-bal-top { display: flex; align-items: center; gap: 8px; }
+.pp-bal-period { font-size: 14px; font-weight: 700; color: var(--navy); }
+.pp-bal-sub { font-size: 11.5px; color: var(--text-subtle); margin-top: 4px; }
+.pp-bal-right { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex-shrink: 0; }
+.pp-bal-amount { font-family: 'EB Garamond', serif; font-size: 16px; font-weight: 700; color: var(--navy); }
+.pp-bal-pay { border: 0; border-radius: 9px; background: var(--green); color: #fff; font-size: 12.5px; font-weight: 700; padding: 7px 18px; cursor: pointer; }
+.pp-bal-pay:active { opacity: 0.9; }
+
+/* History */
+.pp-history { padding: 4px 15px; }
+.pp-hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.pp-hist-row:last-child { border-bottom: none; }
+.pp-hist-period { font-size: 13px; font-weight: 600; color: var(--navy); }
+.pp-hist-sub { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
+.pp-hist-or { color: var(--text-muted); }
+.pp-hist-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.pp-hist-amount { font-size: 13.5px; font-weight: 700; color: var(--navy); }
+.pp-empty-inline { padding: 18px 0; text-align: center; font-size: 13px; color: var(--text-subtle); }
+
+/* clickable (paid) history row + receipt */
+.pp-hist-click { cursor: pointer; position: relative; padding-right: 18px; }
+.pp-hist-click:active { background: var(--bg); }
+.pp-hist-chev { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.pp-receipt-sheet { padding-top: 10px; }
+.pp-receipt { background: #fff; border: 1px solid var(--border); border-radius: 14px; padding: 20px 18px; margin-bottom: 14px; }
+.pp-rcpt-head { text-align: center; }
+.pp-rcpt-seal { width: 56px; height: 56px; object-fit: cover; border-radius: 50%; display: block; margin: 0 auto 8px; }
+.pp-rcpt-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.pp-rcpt-org { font-size: 14px; font-weight: 700; color: var(--navy); line-height: 1.2; margin-top: 2px; }
+.pp-rcpt-muni { font-size: 10px; color: var(--text-subtle); margin-top: 2px; }
+.pp-rcpt-doc { display: inline-block; margin-top: 9px; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #8a6d1b; background: rgba(200, 168, 75, 0.14); padding: 3px 10px; border-radius: 999px; }
+.pp-rcpt-divider { height: 1px; background: var(--border); margin: 14px 0; }
+.pp-rcpt-divider.dashed { background: none; border-top: 1px dashed var(--border); }
+.pp-rcpt-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12.5px; }
+.pp-rcpt-row span { color: var(--text-muted); }
+.pp-rcpt-row strong { color: var(--navy); font-weight: 600; }
+.pp-rcpt-total { display: flex; justify-content: space-between; align-items: center; }
+.pp-rcpt-total span:first-child { font-size: 13px; font-weight: 700; color: var(--navy); }
+.pp-rcpt-total span:last-child { font-family: 'EB Garamond', serif; font-size: 20px; font-weight: 700; color: var(--navy); }
+.pp-rcpt-foot-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+.pp-rcpt-foot-row span { color: var(--text-muted); }
+.pp-rcpt-foot-row strong { color: var(--navy); font-weight: 600; }
+.pp-rcpt-note { font-size: 10px; line-height: 1.5; color: var(--text-subtle); text-align: center; }
+.pp-receipt-close-row { display: flex; }
+.pp-receipt-close-row .pp-btn-pay { flex: 1; }
+
+/* ── Badges ── */
+.pp-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.badge-paid { color: var(--green); background: var(--green-bg); }
+.badge-partial { color: #8a6d1b; background: rgba(200, 168, 75, 0.16); }
+.badge-awaiting { color: var(--navy-3); background: var(--bg-icon); }
+.badge-unpaid { color: var(--red); background: var(--red-bg); }
+
+.pp-empty { background: var(--bg-card); border: 1px dashed var(--border); border-radius: 14px; padding: 22px; text-align: center; font-size: 13px; color: var(--text-subtle); }
+.pp-foot { margin-top: 24px; text-align: center; font-size: 10.5px; line-height: 1.6; color: var(--text-muted); }
+
+/* ══ Bottom tab bar ══ */
+.pp-tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+    background: #fff; border-top: 1px solid var(--border);
+    box-shadow: 0 -6px 20px rgba(13, 33, 55, 0.06);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+.pp-tabbar-inner { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.pp-tab {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 0 8px; color: var(--text-muted); font-size: 10px; font-weight: 700;
+    cursor: pointer; border-top: 2px solid transparent;
+}
+.pp-tab svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pp-tab.active { color: var(--navy); border-top-color: var(--gold); }
+
+/* ══ Pay sheet ══ */
+.pp-overlay { position: fixed; inset: 0; background: rgba(13, 33, 55, 0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 100; animation: pp-fade 0.15s ease; }
+@keyframes pp-fade { from { opacity: 0; } to { opacity: 1; } }
+.pp-sheet { width: 100%; max-width: 560px; background: #fff; border-radius: 20px 20px 0 0; padding: 10px 18px 22px; box-shadow: 0 -12px 40px rgba(13, 33, 55, 0.25); animation: pp-rise 0.2s ease; }
+@keyframes pp-rise { from { transform: translateY(24px); } to { transform: translateY(0); } }
+.pp-sheet-handle { width: 40px; height: 4px; border-radius: 999px; background: var(--border); margin: 4px auto 14px; }
+.pp-sheet-title { font-size: 18px; font-weight: 800; color: var(--navy); }
+.pp-sheet-sub { font-size: 12px; color: var(--text-subtle); margin: 3px 0 14px; }
+.pp-sheet-summary { background: var(--bg); border: 1px solid var(--border); border-radius: 13px; padding: 13px 14px; }
+.pp-sum-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+.pp-sum-row span { color: var(--text-muted); }
+.pp-sum-row strong { color: var(--navy); font-weight: 600; }
+.pp-sum-divider { height: 1px; background: var(--border); margin: 8px 0; }
+.pp-sum-total strong { font-family: 'EB Garamond', serif; font-size: 19px; font-weight: 700; }
+.pp-sheet-note { margin-top: 12px; font-size: 11px; line-height: 1.5; color: var(--text-subtle); }
+.pp-demo-note { margin-top: 12px; background: rgba(200, 168, 75, 0.12); border: 1px solid rgba(200, 168, 75, 0.4); color: #8a6d1b; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; font-weight: 600; text-align: center; }
+.pp-sheet-btns { display: grid; grid-template-columns: 1fr 1.6fr; gap: 10px; margin-top: 16px; }
+.pp-btn-ghost, .pp-btn-pay { min-height: 48px; border-radius: 13px; font-size: 14px; font-weight: 800; cursor: pointer; }
+.pp-btn-ghost { border: 1px solid var(--border); background: #fff; color: var(--text-subtle); }
+.pp-btn-pay { border: 0; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pp-btn-pay svg { width: 17px; height: 17px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ══ Auth (login / activate) ══ */
+.pp-auth { max-width: 420px; margin: 0 auto; padding-top: 18px; }
+.pp-auth-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 18px; padding: 22px 20px; box-shadow: 0 14px 34px rgba(13, 33, 55, 0.08); }
+.pp-auth-title { font-family: 'EB Garamond', serif; font-size: 24px; font-weight: 700; color: var(--navy); }
+.pp-auth-sub { font-size: 12.5px; color: var(--text-subtle); margin: 4px 0 18px; line-height: 1.45; }
+.pp-field { display: block; margin-bottom: 13px; }
+.pp-field-label { display: block; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.pp-input { width: 100%; min-height: 46px; border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 0 13px; color: var(--navy); font-size: 14px; font-weight: 500; }
+.pp-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.16); }
+.pp-input-mono { font-family: "Cascadia Mono", "Consolas", monospace; letter-spacing: 1.5px; text-transform: uppercase; }
+.pp-divider-soft { height: 1px; background: var(--border); margin: 6px 0 14px; }
+.pp-auth-btn { margin-top: 6px; width: 100%; min-height: 50px; border: 0; border-radius: 13px; background: var(--navy); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; }
+.pp-auth-btn:active { background: var(--navy-3); }
+.pp-auth-alt { margin-top: 15px; text-align: center; font-size: 12.5px; color: var(--text-subtle); }
+.pp-auth-foot { margin-top: 18px; text-align: center; font-size: 10.5px; line-height: 1.6; color: var(--text-muted); }
+
+/* ══ Profile ══ */
+.pp-profile-head { text-align: center; padding: 8px 0 4px; }
+.pp-avatar { width: 66px; height: 66px; border-radius: 50%; margin: 0 auto 10px; background: linear-gradient(135deg, var(--navy) 0%, var(--navy-3) 100%); color: var(--gold-light); display: flex; align-items: center; justify-content: center; font-family: 'EB Garamond', serif; font-size: 24px; font-weight: 700; }
+.pp-profile-name { font-size: 17px; font-weight: 700; color: var(--navy); }
+.pp-profile-role { font-size: 11.5px; color: var(--text-subtle); margin-top: 2px; }
+.pp-detail-card { padding: 4px 15px; }
+.pp-detail-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.pp-detail-row:last-child { border-bottom: none; }
+.pp-detail-key { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.pp-detail-val { font-size: 13px; color: var(--navy); font-weight: 600; }
+.pp-signout-btn { margin-top: 18px; width: 100%; min-height: 48px; border: 1px solid rgba(139, 58, 58, 0.3); border-radius: 13px; background: var(--red-bg); color: var(--red); font-size: 14px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pp-signout-btn svg { width: 17px; height: 17px; stroke: var(--red); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Auth pages have no bottom nav ── */
+.pp-shell-auth .pp-main { padding-bottom: 40px; }
+
+/* ── Desktop framing ── */
+@media (min-width: 600px) {
+    .pp-overlay { align-items: center; }
+    .pp-sheet { border-radius: 20px; }
+}

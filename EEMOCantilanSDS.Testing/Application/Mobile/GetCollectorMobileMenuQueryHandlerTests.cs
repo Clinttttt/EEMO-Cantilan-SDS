@@ -22,10 +22,13 @@ public class GetCollectorMobileMenuQueryHandlerTests
     {
         var collector = NewCollector();
         var repo = new Mock<ICollectorRepository>();
+        var facilityRepo = new Mock<IFacilityRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         repo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
+        facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>());
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
-        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, currentUser.Object);
+        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, currentUser.Object);
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -52,6 +55,7 @@ public class GetCollectorMobileMenuQueryHandlerTests
     {
         var handler = new GetCollectorMobileMenuQueryHandler(
             Mock.Of<ICollectorRepository>(),
+            Mock.Of<IFacilityRepository>(),
             Mock.Of<ICurrentUserService>());
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);

@@ -1,0 +1,57 @@
+@page "/payor/activate"
+@layout PayorLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+
+<PageTitle>EEMO — Activate Account</PageTitle>
+
+<div class="pp-auth">
+    <div class="pp-auth-card">
+        <div class="pp-auth-title">Activate your account</div>
+        <div class="pp-auth-sub">Use the one-time code on your bill and the contact number on file.</div>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Stall / Reference No.</span>
+            <input class="pp-input" type="text" placeholder="e.g. TCC-12" @bind="StallRef" />
+        </label>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Activation Code</span>
+            <input class="pp-input pp-input-mono" type="text" placeholder="XXXX-XXXX" @bind="Code" />
+        </label>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Registered Mobile No.</span>
+            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx" @bind="Contact" />
+        </label>
+
+        <div class="pp-divider-soft"></div>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Create Password</span>
+            <input class="pp-input" type="password" placeholder="At least 8 characters" @bind="Password" />
+        </label>
+
+        <button class="pp-auth-btn" type="button" @onclick="Activate">Activate &amp; Continue</button>
+
+        <div class="pp-auth-alt">
+            Already activated?
+            <a class="pp-link" href="/payor/login">Sign in</a>
+        </div>
+    </div>
+
+    <div class="pp-auth-foot">
+        Your activation code is printed on your latest statement of account.
+    </div>
+</div>
+
+@code {
+    private string StallRef = string.Empty;
+    private string Code = string.Empty;
+    private string Contact = string.Empty;
+    private string Password = string.Empty;
+
+    // Demo: proceed to the portal.
+    private void Activate() => Nav.NavigateTo("/payor");
+}

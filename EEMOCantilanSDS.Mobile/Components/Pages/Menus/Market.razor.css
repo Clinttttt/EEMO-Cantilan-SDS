@@ -1,7 +1,7 @@
 .collection-month-pill,
 .back-btn,
-.filter-tab,
-.stall-row,
+.seg-filter-btn,
+.tx-card,
 .btn-cancel,
 .btn-confirm,
 .primary-action,
@@ -156,30 +156,32 @@
     transition: width 0.25s ease;
 }
 
-.filter-tabs {
+.seg-filter {
     display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 2px 0 10px;
-    margin-bottom: 6px;
+    gap: 3px;
+    padding: 3px;
+    margin-bottom: 12px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 12px;
 }
 
-.filter-tab {
-    flex: 0 0 auto;
-    min-height: 39px;
-    padding: 0 15px;
-    border-radius: 999px;
-    background: #fff;
+.seg-filter-btn {
+    flex: 1;
+    min-height: 36px;
+    border-radius: 9px;
+    background: transparent;
     color: var(--text-subtle);
-    border: 1px solid var(--border);
     font-size: 12px;
     font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
 }
 
-.filter-tab.active {
-    background: var(--navy-primary);
-    border-color: var(--navy-primary);
-    color: #fff;
+.seg-filter-btn.active {
+    background: #fff;
+    color: var(--navy-primary);
+    box-shadow: 0 1px 3px rgba(13, 33, 55, 0.12);
 }
 
 .section-label {
@@ -191,119 +193,138 @@
     text-transform: uppercase;
 }
 
-.stall-row {
+/* ── Stall cards — same ledger style as TRM/TPM ── */
+.tx-card {
     width: 100%;
-    min-height: 76px;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 14px;
-    position: relative;
-    padding: 13px 14px 13px 17px;
-    margin-bottom: 8px;
+    display: flex;
+    align-items: stretch;
     background: #fff;
     border: 1px solid var(--border);
     border-radius: 12px;
+    margin-bottom: 8px;
+    overflow: hidden;
     text-align: left;
+    cursor: pointer;
     box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
 }
 
-.stall-row::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 12px;
-    bottom: 12px;
+.tx-card:active {
+    background: var(--bg-page);
+}
+
+.tx-left-bar {
     width: 3px;
-    border-radius: 0 8px 8px 0;
+    flex-shrink: 0;
     background: var(--border);
 }
 
-.stall-row.paid::before {
+.tx-left-bar.bar-paid {
     background: var(--paid-green);
 }
 
-.stall-row.confirmed-unpaid::before {
+.tx-left-bar.bar-unpaid {
     background: var(--error-red);
 }
 
-.stall-info {
+.tx-body {
+    flex: 1;
+    padding: 11px 13px;
     min-width: 0;
 }
 
-.stall-main-row {
+.tx-row-main {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.tx-col-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
     min-width: 0;
 }
 
-.stall-name {
-    flex: 1;
-    min-width: 0;
-    color: var(--navy-primary);
+.tx-owner {
     font-size: 13px;
     font-weight: 500;
-    line-height: 1.25;
+    color: var(--navy-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.stall-meta {
+.tx-sub {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
-    margin-top: 8px;
-    color: var(--text-subtle);
-    font-size: 10px;
+    flex-wrap: wrap;
 }
 
-.stall-meta span {
+.tx-tag {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-subtle);
     background: #f3f6f9;
     border: 1px solid #e8eef3;
-    border-radius: 7px;
-    padding: 3px 6px;
+    border-radius: 6px;
+    padding: 2px 7px;
+    flex-shrink: 0;
 }
 
-.stall-amount-col {
-    min-width: 56px;
-    text-align: right;
-}
-
-.stall-amount {
-    color: var(--navy-primary);
-    font-family: "EB Garamond", serif;
-    font-size: 14px;
+.tx-or {
+    font-size: 10px;
     font-weight: 600;
-    line-height: 1;
-}
-
-.stall-status-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 22px;
-    padding: 0 8px;
-    border-radius: 7px;
-    font-size: 9.5px;
-    font-weight: 800;
+    color: var(--text-subtle);
+    background: #f3f6f9;
+    border: 1px solid #e8eef3;
+    border-radius: 6px;
+    padding: 2px 7px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.pill-paid {
+.tx-col-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.tx-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 5px;
+    white-space: nowrap;
+}
+
+.tx-badge.collected {
     color: var(--paid-green);
     background: var(--paid-green-bg);
 }
 
-.pill-unpaid {
+.tx-badge.notcollected {
     color: var(--error-red);
     background: var(--error-red-bg);
 }
 
-.pill-pending {
+.tx-badge.pending {
     color: var(--text-subtle);
     background: var(--bg-icon);
+}
+
+.tx-amount {
+    color: var(--navy-primary);
+    font-family: "EB Garamond", serif;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .status-option {
@@ -495,17 +516,4 @@
 .btn-cancel:disabled,
 .btn-confirm:disabled {
     opacity: 0.65;
-}
-
-@media (max-width: 390px) {
-    .stall-row {
-        grid-template-columns: minmax(0, 1fr) auto;
-    }
-
-    .stall-amount-col {
-        grid-column: auto;
-        text-align: right;
-        display: block;
-        margin-top: 0;
-    }
 }

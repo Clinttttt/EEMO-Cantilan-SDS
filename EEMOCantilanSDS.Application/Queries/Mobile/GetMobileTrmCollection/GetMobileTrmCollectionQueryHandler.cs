@@ -11,6 +11,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTrmCollection;
 public sealed class GetMobileTrmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     ITrmRepository trmRepository,
+    ISuggestionRepository suggestionRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileTrmCollectionQuery, Result<MobileTrmCollectionDto>>
 {
     public async Task<Result<MobileTrmCollectionDto>> Handle(GetMobileTrmCollectionQuery request, CancellationToken ct)
@@ -27,7 +28,16 @@ public sealed class GetMobileTrmCollectionQueryHandler(
 
         var transporters = await trmRepository.GetTransportersWithTodayTripsAsync(ct);
         var todayTrips = await trmRepository.GetTodayTripsAsync(ct);
-        var (knownRoutes, knownOrgs) = await trmRepository.GetKnownRoutesAndOrgsAsync(ct);
+        var (knownRoutes, knownOrgs, knownDrivers) = await trmRepository.GetKnownPickListsAsync(ct);
+
+        // Drop any values the office has hidden (blocklisted) from the pick-lists.
+        var hiddenRoutes = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TrmRoute, ct);
+        var hiddenOrgs = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TrmOrganization, ct);
+        var hiddenDrivers = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TrmDriver, ct);
+
+        var routes = knownRoutes.Where(r => !hiddenRoutes.Contains(r)).ToList();
+        var orgs = knownOrgs.Where(o => !hiddenOrgs.Contains(o)).ToList();
+        var drivers = knownDrivers.Where(d => !hiddenDrivers.Contains(d)).ToList();
 
         return Result<MobileTrmCollectionDto>.Success(new MobileTrmCollectionDto(
             PhilippineTime.Today,
@@ -37,7 +47,8 @@ public sealed class GetMobileTrmCollectionQueryHandler(
             transporters.Count,
             transporters,
             todayTrips,
-            knownRoutes,
-            knownOrgs));
+            routes,
+            orgs,
+            drivers));
     }
 }

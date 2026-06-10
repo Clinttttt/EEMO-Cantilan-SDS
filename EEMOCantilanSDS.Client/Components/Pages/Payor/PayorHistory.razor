@@ -1,0 +1,103 @@
+@page "/payor/history"
+@layout PayorLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@using static EEMOCantilanSDS.Client.Components.Pages.Payor.PayorDemoData
+
+<PageTitle>EEMO — Payment History</PageTitle>
+
+<div class="pp-page-title">Payment History</div>
+
+<div class="pp-card pp-history">
+    @foreach (var h in History)
+    {
+        var paid = h.Status == "Paid";
+        <div class="pp-hist-row @(paid ? "pp-hist-click" : "")" @onclick="() => OpenReceipt(h)">
+            <div class="pp-hist-left">
+                <div class="pp-hist-period">@h.Period</div>
+                <div class="pp-hist-sub">
+                    @h.Date.ToString("MMM d, yyyy") · @h.Facility
+                    @if (!string.IsNullOrWhiteSpace(h.OrNumber))
+                    {
+                        <span class="pp-hist-or">· OR @h.OrNumber</span>
+                    }
+                </div>
+            </div>
+            <div class="pp-hist-right">
+                <span class="pp-hist-amount">@FormatCurrency(h.Amount)</span>
+                <span class="pp-badge @StatusClass(h.Status)">@h.Status</span>
+            </div>
+            @if (paid)
+            {
+                <svg class="pp-hist-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+            }
+        </div>
+    }
+    @if (!History.Any())
+    {
+        <div class="pp-empty-inline">No payments recorded yet.</div>
+    }
+</div>
+
+<div class="pp-foot">
+    Tap a paid item to view its receipt. "Awaiting OR" means your online payment was received
+    and the Official Receipt is being issued by EEMO.
+</div>
+
+@if (Selected is not null)
+{
+    <div class="pp-overlay" @onclick="CloseReceipt">
+        <div class="pp-sheet pp-receipt-sheet" @onclick:stopPropagation="true">
+            <div class="pp-sheet-handle"></div>
+            <div class="pp-receipt">
+                <div class="pp-rcpt-head">
+                    <img class="pp-rcpt-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="EEMO seal" />
+                    <div class="pp-rcpt-gov">Republic of the Philippines</div>
+                    <div class="pp-rcpt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="pp-rcpt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="pp-rcpt-doc">@Selected.Facility</div>
+                </div>
+
+                <div class="pp-rcpt-divider"></div>
+
+                <div class="pp-rcpt-meta">
+                    <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.OrNumber) ? "—" : Selected.OrNumber)</strong></div>
+                    <div class="pp-rcpt-row"><span>Date</span><strong>@Selected.Date.ToString("MMMM d, yyyy")</strong></div>
+                    <div class="pp-rcpt-row"><span>Payor</span><strong>@Payor.Name</strong></div>
+                    <div class="pp-rcpt-row"><span>Account</span><strong>Stall @Accounts[0].StallNo</strong></div>
+                    <div class="pp-rcpt-row"><span>Period</span><strong>@Selected.Period</strong></div>
+                </div>
+
+                <div class="pp-rcpt-divider"></div>
+
+                <div class="pp-rcpt-total">
+                    <span>Amount Paid</span>
+                    <span>@FormatCurrency(Selected.Amount)</span>
+                </div>
+
+                <div class="pp-rcpt-divider dashed"></div>
+
+                <div class="pp-rcpt-foot">
+                    <div class="pp-rcpt-foot-row"><span>Channel</span><strong>GCash (online)</strong></div>
+                    <div class="pp-rcpt-note">This acknowledges receipt of the amount stated above. Keep for your records.</div>
+                </div>
+            </div>
+
+            <div class="pp-receipt-close-row">
+                <button class="pp-btn-pay" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private HistoryItem? Selected;
+
+    // Only paid items have an official receipt to show.
+    private void OpenReceipt(HistoryItem h)
+    {
+        if (h.Status == "Paid") Selected = h;
+    }
+
+    private void CloseReceipt() => Selected = null;
+}

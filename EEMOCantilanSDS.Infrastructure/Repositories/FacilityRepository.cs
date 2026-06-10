@@ -15,6 +15,13 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
     }
+
+    public async Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct)
+    {
+        return await context.Facilities
+            .AsNoTracking()
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
+    }
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var facility = await context.Facilities

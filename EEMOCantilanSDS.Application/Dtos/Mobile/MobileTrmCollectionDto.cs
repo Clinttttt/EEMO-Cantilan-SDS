@@ -16,4 +16,5 @@ public sealed record MobileTrmCollectionDto(
     IReadOnlyList<TrmTransporterListDto> Transporters,
     IReadOnlyList<TrmTripDto> TodayTrips,
     IReadOnlyList<string> KnownRoutes,
-    IReadOnlyList<string> KnownOrganizations);
+    IReadOnlyList<string> KnownOrganizations,
+    IReadOnlyList<string> KnownDrivers);

@@ -136,9 +136,16 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 record is not null);
         }).ToList();
 
+        // Facility display name from the seeded Facility record (single source of truth).
+        var facilityName = await context.Facilities
+            .AsNoTracking()
+            .Where(f => f.Code == facilityCode)
+            .Select(f => f.Name)
+            .FirstOrDefaultAsync(ct) ?? facilityCode.ToString();
+
         return new MobileMonthlyCollectionDto(
             facilityCode,
-            GetFacilityDisplayName(facilityCode),
+            facilityName,
             year,
             month,
             collectionDate,
@@ -159,15 +166,6 @@ public class StallRepository(AppDbContext context) : IStallRepository
             return GetSectionName(s.Section);
         return s.Type.ToString();
     }
-
-    private static string GetFacilityDisplayName(FacilityCode code) => code switch
-    {
-        FacilityCode.TCC => "Town Center Commercial",
-        FacilityCode.NCC => "New Commercial Center",
-        FacilityCode.BBQ => "Barbecue Stand",
-        FacilityCode.ICE => "Ice Plant",
-        _ => code.ToString()
-    };
 
     public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
     {

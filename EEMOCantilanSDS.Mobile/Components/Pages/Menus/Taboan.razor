@@ -139,7 +139,7 @@
                 <input class="form-input" type="text" maxlength="100" placeholder="Vendor name" @bind="VendorName" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Goods</div>
-                @PickerField(Goods, "Select or type goods", "Select Goods", KnownGoods, v => Goods = v)
+                @PickerField(Goods, "Select or type goods", "Select Goods", KnownGoods, v => Goods = v, SuggestionType.TpmGoods)
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no. <span>optional</span></div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="AddORNumber" @bind:event="oninput" />
@@ -258,7 +258,16 @@
 
                 @foreach (var opt in PickerFiltered)
                 {
-                    <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                    <div class="picker-item-row">
+                        <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                        @if (PickerHideType is not null)
+                        {
+                            <button class="picker-item-remove" type="button" title="Remove from suggestions"
+                                    @onclick="() => HidePickerOption(opt)">
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        }
+                    </div>
                 }
 
                 @if (!PickerFiltered.Any() && string.IsNullOrWhiteSpace(PickerSearch))
@@ -455,19 +464,21 @@
     private string PickerSearch = string.Empty;
     private IReadOnlyList<string> PickerOptions = Array.Empty<string>();
     private Action<string>? PickerSet;
+    private SuggestionType? PickerHideType;
 
     private IEnumerable<string> PickerFiltered =>
         PickerOptions.Where(o => string.IsNullOrWhiteSpace(PickerSearch)
             || o.Contains(PickerSearch, StringComparison.OrdinalIgnoreCase));
 
     // Read-only field that opens the picker; displays the current value or a placeholder.
+    // hideType (when set) lets the collector remove a suggestion from the list via the X button.
     private RenderFragment PickerField(string value, string placeholder, string title,
-        IReadOnlyList<string> options, Action<string> set) => __builder =>
+        IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType = null) => __builder =>
     {
         __builder.OpenElement(0, "button");
         __builder.AddAttribute(1, "type", "button");
         __builder.AddAttribute(2, "class", "picker-field");
-        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set)));
+        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set, hideType)));
 
         __builder.OpenElement(4, "span");
         __builder.AddAttribute(5, "class", string.IsNullOrWhiteSpace(value) ? "picker-field-placeholder" : "picker-field-value");
@@ -483,11 +494,12 @@
         __builder.CloseElement(); // button
     };
 
-    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set)
+    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType)
     {
         PickerTitle = title;
         PickerOptions = options;
         PickerSet = set;
+        PickerHideType = hideType;
         PickerSearch = string.Empty;
         ShowPicker = true;
     }
@@ -503,6 +515,18 @@
     {
         ShowPicker = false;
         PickerSet = null;
+    }
+
+    // Remove a value from the pick-list (persisted blocklist) so it is no longer suggested.
+    private async Task HidePickerOption(string value)
+    {
+        if (PickerHideType is not { } type) return;
+        var result = await MobileApi.HideSuggestionAsync(new HideMobileSuggestionRequest(type, value));
+        if (result.IsSuccess)
+        {
+            PickerOptions = PickerOptions.Where(o => !string.Equals(o, value, StringComparison.OrdinalIgnoreCase)).ToList();
+            await LoadCollectionAsync(); // refresh source list so it stays gone on reopen
+        }
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";

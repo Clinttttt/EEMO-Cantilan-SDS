@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollectio
 public sealed class GetMobileSlaughterCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     ISlaughterRepository slaughterRepository,
+    ISuggestionRepository suggestionRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileSlaughterCollectionQuery, Result<MobileSlaughterCollectionDto>>
 {
     public async Task<Result<MobileSlaughterCollectionDto>> Handle(GetMobileSlaughterCollectionQuery request, CancellationToken ct)
@@ -26,6 +27,11 @@ public sealed class GetMobileSlaughterCollectionQueryHandler(
 
         var date = new DateOnly(request.Year, request.Month, request.Day);
         var collection = await slaughterRepository.GetMobileSlaughterCollectionAsync(date, ct);
+
+        // Drop any owner names the office has hidden (blocklisted) from the picker.
+        var hiddenOwners = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.SlhOwner, ct);
+        if (hiddenOwners.Count > 0)
+            collection = collection with { KnownOwners = collection.KnownOwners.Where(o => !hiddenOwners.Contains(o)).ToList() };
 
         return Result<MobileSlaughterCollectionDto>.Success(collection);
     }

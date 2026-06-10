@@ -8,7 +8,7 @@ public interface ITrmRepository
     // Transporters
     Task<TrmTransporter?> GetTransporterByIdAsync(Guid id, CancellationToken ct = default);
     Task<TrmTransporter?> GetTransporterByPlateAsync(string plateNumber, CancellationToken ct = default);
-    Task<(IReadOnlyList<string> Routes, IReadOnlyList<string> Organizations)> GetKnownRoutesAndOrgsAsync(CancellationToken ct = default);
+    Task<(IReadOnlyList<string> Routes, IReadOnlyList<string> Organizations, IReadOnlyList<string> Drivers)> GetKnownPickListsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<TrmTransporterListDto>> GetTransportersWithTodayTripsAsync(CancellationToken ct = default);
     Task AddTransporterAsync(TrmTransporter transporter, CancellationToken ct = default);
 

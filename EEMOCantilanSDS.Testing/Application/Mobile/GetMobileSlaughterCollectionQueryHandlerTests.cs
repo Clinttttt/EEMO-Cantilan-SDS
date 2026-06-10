@@ -16,13 +16,17 @@ public class GetMobileSlaughterCollectionQueryHandlerTests
     {
         var collectorRepo = new Mock<ICollectorRepository>();
         var slaughterRepo = new Mock<ISlaughterRepository>();
+        var suggestionRepo = new Mock<ISuggestionRepository>();
         var currentUser = new Mock<ICurrentUserService>();
 
         if (collector is not null)
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(u => u.CollectorId).Returns(collectorId);
 
-        return (new GetMobileSlaughterCollectionQueryHandler(collectorRepo.Object, slaughterRepo.Object, currentUser.Object), slaughterRepo);
+        suggestionRepo.Setup(r => r.GetHiddenValuesAsync(It.IsAny<SuggestionType>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlySet<string>)new HashSet<string>());
+
+        return (new GetMobileSlaughterCollectionQueryHandler(collectorRepo.Object, slaughterRepo.Object, suggestionRepo.Object, currentUser.Object), slaughterRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
@@ -40,7 +44,7 @@ public class GetMobileSlaughterCollectionQueryHandlerTests
         var (handler, slaughterRepo) = Build(collector, collector.Id);
         slaughterRepo.Setup(r => r.GetMobileSlaughterCollectionAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new MobileSlaughterCollectionDto(new DateOnly(2026, 6, 9), 0, 0, 0m, 250m, 365m,
-                Array.Empty<SlaughterTransactionDto>()));
+                Array.Empty<SlaughterTransactionDto>(), Array.Empty<string>()));
 
         var result = await handler.Handle(new GetMobileSlaughterCollectionQuery(2026, 6, 9), CancellationToken.None);
 

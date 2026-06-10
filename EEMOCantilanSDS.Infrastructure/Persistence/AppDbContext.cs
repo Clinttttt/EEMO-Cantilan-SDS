@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
+using EEMOCantilanSDS.Domain.Entities.Suggestions;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -49,6 +50,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
 
         public DbSet<AuditLog> AuditLogs { get; set; }
+
+        public DbSet<HiddenSuggestion> HiddenSuggestions { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)

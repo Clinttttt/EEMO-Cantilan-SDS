@@ -85,10 +85,10 @@
                 <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
             </div>
 
-            <div class="filter-tabs">
+            <div class="seg-filter">
                 @foreach (var tab in FilterOptions)
                 {
-                    <button class="filter-tab @(ActiveFilter == tab ? "active" : "")" type="button" @onclick="() => ActiveFilter = tab">
+                    <button class="seg-filter-btn @(ActiveFilter == tab ? "active" : "")" type="button" @onclick="() => ActiveFilter = tab">
                         @tab
                     </button>
                 }
@@ -106,30 +106,33 @@
                 <div class="section-label">@Collection.TotalStalls Occupied Stalls</div>
                 @foreach (var stall in FilteredStalls)
                 {
-                    <button class="stall-row @GetRowClass(stall)" type="button" @onclick="() => OpenSheet(stall)">
-                        <div class="stall-info">
-                            <div class="stall-main-row">
-                                <div class="stall-name">@stall.PayorName</div>
-                                <span class="stall-status-pill @GetPillClass(stall)">@stall.Status</span>
+                    <button class="tx-card" type="button" @onclick="() => OpenStall(stall)">
+                        <div class="tx-left-bar @GetBarClass(stall)"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@stall.PayorName</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-tag">No. @stall.StallNo</span>
+                                        @if (!string.IsNullOrWhiteSpace(stall.AreaLabel))
+                                        {
+                                            <span class="tx-or">@stall.AreaLabel</span>
+                                        }
+                                        @if (stall.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(stall.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @stall.ORNumber</span>
+                                        }
+                                        @if (stall.Status == PaymentStatus.Partial)
+                                        {
+                                            <span class="tx-or">Bal @FormatCurrency(stall.Balance)</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-badge @GetBadgeClass(stall)">@stall.Status</span>
+                                    <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)</span>
+                                </div>
                             </div>
-                            <div class="stall-meta">
-                                <span>No. @stall.StallNo</span>
-                                @if (!string.IsNullOrWhiteSpace(stall.AreaLabel))
-                                {
-                                    <span>@stall.AreaLabel</span>
-                                }
-                                @if (stall.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(stall.ORNumber))
-                                {
-                                    <span>OR @stall.ORNumber</span>
-                                }
-                                @if (stall.Status == PaymentStatus.Partial)
-                                {
-                                    <span>Bal @FormatCurrency(stall.Balance)</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="stall-amount-col">
-                            <div class="stall-amount">@FormatCurrency(stall.MonthlyRate)</div>
                         </div>
                     </button>
                 }
@@ -240,6 +243,58 @@
     </div>
 }
 
+@if (ShowReceipt && SelectedStall is not null && Collection is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseReceipt">
+        <div class="sheet receipt-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="receipt">
+                <div class="receipt-head">
+                    <img src="images/sds_logo.jpg" class="receipt-seal" alt="EEMO seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">@(Collection.FacilityName)</div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row"><span>Period</span><strong>@MonthLabel</strong></div>
+                    <div class="receipt-meta-row"><span>Stall No.</span><strong>@SelectedStall.StallNo</strong></div>
+                    <div class="receipt-meta-row"><span>Payor</span><strong>@SelectedStall.PayorName</strong></div>
+                    @if (!string.IsNullOrWhiteSpace(SelectedStall.AreaLabel))
+                    {
+                        <div class="receipt-meta-row"><span>Area</span><strong>@SelectedStall.AreaLabel</strong></div>
+                    }
+                    <div class="receipt-meta-row"><span>Status</span><strong>@SelectedStall.Status</strong></div>
+                    @if (SelectedStall.Status == PaymentStatus.Partial)
+                    {
+                        <div class="receipt-meta-row"><span>Amount Paid</span><strong>@FormatCurrency(SelectedStall.AmountPaid)</strong></div>
+                        <div class="receipt-meta-row"><span>Balance</span><strong>@FormatCurrency(SelectedStall.Balance)</strong></div>
+                    }
+                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(SelectedStall.ORNumber) ? "—" : SelectedStall.ORNumber)</strong></div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-total-row receipt-grand">
+                    <span>Monthly Rental</span>
+                    <span>&#8369;@SelectedStall.MonthlyRate.ToString("N2")</span>
+                </div>
+                <div class="receipt-divider dashed"></div>
+                <div class="receipt-foot">
+                    <div class="receipt-foot-row">
+                        <span>Collected by</span>
+                        <strong>@Session.CollectorName</strong>
+                    </div>
+                    <div class="receipt-note">This acknowledges receipt of the monthly stall rental stated above. Keep for your records.</div>
+                </div>
+            </div>
+            <div class="receipt-close-row">
+                <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
+                <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Facility { get; set; } = string.Empty;
 
@@ -254,6 +309,7 @@
     private int SelectedYear;
     private int SelectedMonth;
     private bool ShowSheet;
+    private bool ShowReceipt;
     private MobileMonthlyStallCollectionDto? SelectedStall;
     private PaymentStatus SelectedStatus = PaymentStatus.Paid;
     private decimal? PartialAmount;
@@ -344,6 +400,33 @@
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
 
+    // Paid/Partial stalls open a receipt (view) with Edit; Unpaid opens the record sheet directly.
+    private void OpenStall(MobileMonthlyStallCollectionDto stall)
+    {
+        SelectedStall = stall;
+        if (stall.Status != PaymentStatus.Unpaid)
+        {
+            SheetError = null;
+            ShowReceipt = true;
+        }
+        else
+        {
+            OpenSheet(stall);
+        }
+    }
+
+    private void OpenEditFromReceipt()
+    {
+        ShowReceipt = false;
+        if (SelectedStall is not null) OpenSheet(SelectedStall);
+    }
+
+    private void CloseReceipt()
+    {
+        ShowReceipt = false;
+        SelectedStall = null;
+    }
+
     private void OpenSheet(MobileMonthlyStallCollectionDto stall)
     {
         SelectedStall = stall;
@@ -411,13 +494,13 @@
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
 
-    private static string GetRowClass(MobileMonthlyStallCollectionDto stall) =>
-        stall.Status == PaymentStatus.Paid ? "paid" :
-        stall.Status == PaymentStatus.Partial ? "partial" :
+    private static string GetBarClass(MobileMonthlyStallCollectionDto stall) =>
+        stall.Status == PaymentStatus.Paid ? "bar-paid" :
+        stall.Status == PaymentStatus.Partial ? "bar-partial" :
         string.Empty;
 
-    private static string GetPillClass(MobileMonthlyStallCollectionDto stall) =>
-        stall.Status == PaymentStatus.Paid ? "pill-paid" :
-        stall.Status == PaymentStatus.Partial ? "pill-partial" :
-        "pill-unpaid";
+    private static string GetBadgeClass(MobileMonthlyStallCollectionDto stall) =>
+        stall.Status == PaymentStatus.Paid ? "badge-paid" :
+        stall.Status == PaymentStatus.Partial ? "badge-partial" :
+        "badge-unpaid";
 }

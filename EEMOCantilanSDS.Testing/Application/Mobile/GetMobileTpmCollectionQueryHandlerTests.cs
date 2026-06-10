@@ -15,6 +15,7 @@ public class GetMobileTpmCollectionQueryHandlerTests
     {
         var collectorRepo = new Mock<ICollectorRepository>();
         var tpmRepo = new Mock<ITpmRepository>();
+        var suggestionRepo = new Mock<ISuggestionRepository>();
         var currentUser = new Mock<ICurrentUserService>();
 
         if (collector is not null)
@@ -23,8 +24,10 @@ public class GetMobileTpmCollectionQueryHandlerTests
 
         tpmRepo.Setup(r => r.GetAllVendorsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor>());
+        suggestionRepo.Setup(r => r.GetHiddenValuesAsync(It.IsAny<SuggestionType>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlySet<string>)new HashSet<string>());
 
-        return (new GetMobileTpmCollectionQueryHandler(collectorRepo.Object, tpmRepo.Object, currentUser.Object), tpmRepo);
+        return (new GetMobileTpmCollectionQueryHandler(collectorRepo.Object, tpmRepo.Object, suggestionRepo.Object, currentUser.Object), tpmRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

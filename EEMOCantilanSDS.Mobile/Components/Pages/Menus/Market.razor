@@ -85,10 +85,10 @@
                 <input type="text" placeholder="Search stall no. or name" @bind="SearchQuery" @bind:event="oninput" />
             </div>
 
-            <div class="filter-tabs">
+            <div class="seg-filter">
                 @foreach (var tab in FilterOptions)
                 {
-                    <button class="filter-tab @(ActiveFilter == tab ? "active" : "")" type="button" @onclick="() => ActiveFilter = tab">
+                    <button class="seg-filter-btn @(ActiveFilter == tab ? "active" : "")" type="button" @onclick="() => ActiveFilter = tab">
                         @tab
                     </button>
                 }
@@ -109,26 +109,29 @@
 
                     @foreach (var stall in sectionGroup)
                     {
-                        <button class="stall-row @GetRowClass(stall)" type="button" @onclick="() => OpenCollectionSheet(stall)">
-                            <div class="stall-info">
-                                <div class="stall-main-row">
-                                    <div class="stall-name">@stall.PayorName</div>
-                                    <span class="stall-status-pill @GetPillClass(stall)">@GetStatusLabel(stall)</span>
+                        <button class="tx-card" type="button" @onclick="() => OpenStall(stall)">
+                            <div class="tx-left-bar @GetBarClass(stall)"></div>
+                            <div class="tx-body">
+                                <div class="tx-row-main">
+                                    <div class="tx-col-info">
+                                        <span class="tx-owner">@stall.PayorName</span>
+                                        <span class="tx-sub">
+                                            <span class="tx-tag">No. @stall.StallNo</span>
+                                            @if (!string.IsNullOrWhiteSpace(stall.ORNumberToday))
+                                            {
+                                                <span class="tx-or">OR @stall.ORNumberToday</span>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(stall.ContractName) && stall.ContractName != stall.PayorName)
+                                            {
+                                                <span class="tx-or">@stall.ContractName</span>
+                                            }
+                                        </span>
+                                    </div>
+                                    <div class="tx-col-right">
+                                        <span class="tx-badge @GetBadgeClass(stall)">@GetStatusLabel(stall)</span>
+                                        <span class="tx-amount">@FormatCurrency(stall.DailyRate)</span>
+                                    </div>
                                 </div>
-                                <div class="stall-meta">
-                                    <span>No. @stall.StallNo</span>
-                                    @if (!string.IsNullOrWhiteSpace(stall.ContractName) && stall.ContractName != stall.PayorName)
-                                    {
-                                        <span>Contract: @stall.ContractName</span>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(stall.ORNumberToday))
-                                    {
-                                        <span>OR @stall.ORNumberToday</span>
-                                    }
-                                </div>
-                            </div>
-                            <div class="stall-amount-col">
-                                <div class="stall-amount">@FormatCurrency(stall.DailyRate)</div>
                             </div>
                         </button>
                     }
@@ -225,6 +228,53 @@
     </div>
 }
 
+@if (ShowReceipt && SelectedStall is not null && Collection is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseReceipt">
+        <div class="sheet receipt-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="receipt">
+                <div class="receipt-head">
+                    <img src="images/sds_logo.jpg" class="receipt-seal" alt="EEMO seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">New Public Market</div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row"><span>Date</span><strong>@Collection.CollectionDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture)</strong></div>
+                    <div class="receipt-meta-row"><span>Stall No.</span><strong>@SelectedStall.StallNo</strong></div>
+                    <div class="receipt-meta-row"><span>Payor</span><strong>@SelectedStall.PayorName</strong></div>
+                    <div class="receipt-meta-row"><span>Section</span><strong>@GetSectionShortName(SelectedStall.Section)</strong></div>
+                    @if (SelectedStall.Section == MarketSection.FishSection && SelectedStall.FishKilosToday is { } kg)
+                    {
+                        <div class="receipt-meta-row"><span>Fish kilos</span><strong>@kg.ToString("0.##") kg</strong></div>
+                    }
+                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(SelectedStall.ORNumberToday) ? "—" : SelectedStall.ORNumberToday)</strong></div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-total-row receipt-grand">
+                    <span>Daily Fee</span>
+                    <span>&#8369;@SelectedStall.DailyRate.ToString("N2")</span>
+                </div>
+                <div class="receipt-divider dashed"></div>
+                <div class="receipt-foot">
+                    <div class="receipt-foot-row">
+                        <span>Collected by</span>
+                        <strong>@Session.CollectorName</strong>
+                    </div>
+                    <div class="receipt-note">This acknowledges receipt of the daily stall fee stated above. Keep for your records.</div>
+                </div>
+            </div>
+            <div class="receipt-close-row">
+                <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
+                <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private MobileNpmCollectionDto? Collection;
     private bool IsLoading = true;
@@ -236,12 +286,13 @@
     private int SelectedYear;
     private int SelectedMonth;
     private bool ShowCollectionSheet;
+    private bool ShowReceipt;
     private MobileNpmStallCollectionDto? SelectedStall;
     private bool SelectedIsPaid;
     private decimal? FishKilos;
     private string ORNumber = string.Empty;
 
-    private readonly string[] FilterOptions = ["All", "Vegetable", "Fish", "Meat", "Collected", "Pending"];
+    private readonly string[] FilterOptions = ["All", "Vegetables", "Meat", "Fish"];
 
     protected override async Task OnInitializedAsync()
     {
@@ -305,11 +356,9 @@
 
             var matchesFilter = ActiveFilter switch
             {
-                "Vegetable" => s.Section == MarketSection.VegetableArea,
-                "Fish" => s.Section == MarketSection.FishSection,
+                "Vegetables" => s.Section == MarketSection.VegetableArea,
                 "Meat" => s.Section == MarketSection.MeatSection,
-                "Collected" => s.IsCollectedToday,
-                "Pending" => !s.IsCollectedToday,
+                "Fish" => s.Section == MarketSection.FishSection,
                 _ => true
             };
 
@@ -327,6 +376,34 @@
             : Math.Clamp((int)Math.Round((decimal)Collection.CollectedTodayCount / Collection.TotalStalls * 100m), 0, 100);
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    // Collected stalls open a receipt (view) with an Edit option; pending/uncollected open the
+    // record sheet directly so the collector can log the collection.
+    private void OpenStall(MobileNpmStallCollectionDto stall)
+    {
+        SelectedStall = stall;
+        if (stall.IsCollectedToday)
+        {
+            SheetError = null;
+            ShowReceipt = true;
+        }
+        else
+        {
+            OpenCollectionSheet(stall);
+        }
+    }
+
+    private void OpenEditFromReceipt()
+    {
+        ShowReceipt = false;
+        if (SelectedStall is not null) OpenCollectionSheet(SelectedStall);
+    }
+
+    private void CloseReceipt()
+    {
+        ShowReceipt = false;
+        SelectedStall = null;
+    }
 
     private void OpenCollectionSheet(MobileNpmStallCollectionDto stall)
     {
@@ -399,15 +476,15 @@
         _ => "Unassigned"
     };
 
-    private static string GetRowClass(MobileNpmStallCollectionDto stall) =>
-        stall.IsCollectedToday ? "paid" :
-        stall.IsMarkedToday ? "confirmed-unpaid" :
+    private static string GetBarClass(MobileNpmStallCollectionDto stall) =>
+        stall.IsCollectedToday ? "bar-paid" :
+        stall.IsMarkedToday ? "bar-unpaid" :
         string.Empty;
 
-    private static string GetPillClass(MobileNpmStallCollectionDto stall) =>
-        stall.IsCollectedToday ? "pill-paid" :
-        stall.IsMarkedToday ? "pill-unpaid" :
-        "pill-pending";
+    private static string GetBadgeClass(MobileNpmStallCollectionDto stall) =>
+        stall.IsCollectedToday ? "collected" :
+        stall.IsMarkedToday ? "notcollected" :
+        "pending";
 
     private static string GetStatusLabel(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "Collected" :

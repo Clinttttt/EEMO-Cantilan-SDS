@@ -244,7 +244,16 @@
 
                 @foreach (var opt in PickerFiltered)
                 {
-                    <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                    <div class="picker-item-row">
+                        <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                        @if (PickerHideType is not null)
+                        {
+                            <button class="picker-item-remove" type="button" title="Remove from suggestions"
+                                    @onclick="() => HidePickerOption(opt)">
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        }
+                    </div>
                 }
 
                 @if (!PickerFiltered.Any() && string.IsNullOrWhiteSpace(PickerSearch))
@@ -270,16 +279,16 @@
 
             <div class="or-number-wrap">
                 <div class="form-label">Driver name</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="Driver name" @bind="QuickDriverName" @bind:event="oninput" />
+                @PickerField(QuickDriverName, "Select or type a driver", "Select Driver", KnownDrivers, v => QuickDriverName = v, SuggestionType.TrmDriver)
 
                 <div class="form-label" style="margin-top:12px;">Organization <span>optional</span></div>
-                @PickerField(QuickOrg, "Non-associated", "Select Organization", OrgOptions, v => QuickOrg = v)
+                @PickerField(QuickOrg, "Non-associated", "Select Organization", OrgOptions, v => QuickOrg = v, SuggestionType.TrmOrganization)
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="QuickPlate" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Route</div>
-                @PickerField(QuickRoute, "Select or type a route", "Select Route", KnownRoutes, v => QuickRoute = v)
+                @PickerField(QuickRoute, "Select or type a route", "Select Route", KnownRoutes, v => QuickRoute = v, SuggestionType.TrmRoute)
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="QuickORNumber" @bind:event="oninput" />
@@ -318,10 +327,10 @@
                 <input class="form-input" type="text" maxlength="100" placeholder="Driver / operator name" @bind="NewName" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Organization / Cooperative <span>optional</span></div>
-                @PickerField(NewOrg, "Non-associated", "Select Organization", OrgOptions, v => NewOrg = v)
+                @PickerField(NewOrg, "Non-associated", "Select Organization", OrgOptions, v => NewOrg = v, SuggestionType.TrmOrganization)
 
                 <div class="form-label" style="margin-top:12px;">Default route</div>
-                @PickerField(NewRoute, "Select or type a route", "Select Route", KnownRoutes, v => NewRoute = v)
+                @PickerField(NewRoute, "Select or type a route", "Select Route", KnownRoutes, v => NewRoute = v, SuggestionType.TrmRoute)
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="NewPlate" @bind:event="oninput" />
@@ -457,6 +466,7 @@
 
     private IReadOnlyList<string> KnownRoutes => Collection?.KnownRoutes ?? Array.Empty<string>();
     private IReadOnlyList<string> KnownOrganizations => Collection?.KnownOrganizations ?? Array.Empty<string>();
+    private IReadOnlyList<string> KnownDrivers => Collection?.KnownDrivers ?? Array.Empty<string>();
 
     // Organizations always offer "Non-associated" as the first option.
     private IReadOnlyList<string> OrgOptions =>
@@ -470,19 +480,21 @@
     private string PickerSearch = string.Empty;
     private IReadOnlyList<string> PickerOptions = Array.Empty<string>();
     private Action<string>? PickerSet;
+    private SuggestionType? PickerHideType;
 
     private IEnumerable<string> PickerFiltered =>
         PickerOptions.Where(o => string.IsNullOrWhiteSpace(PickerSearch)
             || o.Contains(PickerSearch, StringComparison.OrdinalIgnoreCase));
 
     // Read-only field that opens the picker; displays the current value or a placeholder.
+    // hideType (when set) lets the collector remove a suggestion from the list via the X button.
     private RenderFragment PickerField(string value, string placeholder, string title,
-        IReadOnlyList<string> options, Action<string> set) => __builder =>
+        IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType = null) => __builder =>
     {
         __builder.OpenElement(0, "button");
         __builder.AddAttribute(1, "type", "button");
         __builder.AddAttribute(2, "class", "picker-field");
-        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set)));
+        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set, hideType)));
 
         __builder.OpenElement(4, "span");
         __builder.AddAttribute(5, "class", string.IsNullOrWhiteSpace(value) ? "picker-field-placeholder" : "picker-field-value");
@@ -498,11 +510,12 @@
         __builder.CloseElement(); // button
     };
 
-    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set)
+    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set, SuggestionType? hideType)
     {
         PickerTitle = title;
         PickerOptions = options;
         PickerSet = set;
+        PickerHideType = hideType;
         PickerSearch = string.Empty;
         ShowPicker = true;
     }
@@ -518,6 +531,18 @@
     {
         ShowPicker = false;
         PickerSet = null;
+    }
+
+    // Remove a value from the pick-list (persisted blocklist) so it is no longer suggested.
+    private async Task HidePickerOption(string value)
+    {
+        if (PickerHideType is not { } type) return;
+        var result = await MobileApi.HideSuggestionAsync(new HideMobileSuggestionRequest(type, value));
+        if (result.IsSuccess)
+        {
+            PickerOptions = PickerOptions.Where(o => !string.Equals(o, value, StringComparison.OrdinalIgnoreCase)).ToList();
+            await LoadCollectionAsync(); // refresh source lists so it stays gone on reopen
+        }
     }
 
     // ── New transporter registration ──

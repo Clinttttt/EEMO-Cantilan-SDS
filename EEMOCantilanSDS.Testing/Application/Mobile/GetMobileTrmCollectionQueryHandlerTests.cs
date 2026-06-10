@@ -15,13 +15,21 @@ public class GetMobileTrmCollectionQueryHandlerTests
     {
         var collectorRepo = new Mock<ICollectorRepository>();
         var trmRepo = new Mock<ITrmRepository>();
+        var suggestionRepo = new Mock<ISuggestionRepository>();
         var currentUser = new Mock<ICurrentUserService>();
 
         if (collector is not null)
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(u => u.CollectorId).Returns(collectorId);
 
-        return (new GetMobileTrmCollectionQueryHandler(collectorRepo.Object, trmRepo.Object, currentUser.Object), trmRepo);
+        trmRepo.Setup(r => r.GetKnownPickListsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((IReadOnlyList<string>)Array.Empty<string>(),
+                           (IReadOnlyList<string>)Array.Empty<string>(),
+                           (IReadOnlyList<string>)Array.Empty<string>()));
+        suggestionRepo.Setup(r => r.GetHiddenValuesAsync(It.IsAny<SuggestionType>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlySet<string>)new HashSet<string>());
+
+        return (new GetMobileTrmCollectionQueryHandler(collectorRepo.Object, trmRepo.Object, suggestionRepo.Object, currentUser.Object), trmRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

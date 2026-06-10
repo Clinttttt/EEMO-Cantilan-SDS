@@ -1,0 +1,43 @@
+@page "/payor/login"
+@layout PayorLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+
+<PageTitle>EEMO — Payor Sign in</PageTitle>
+
+<div class="pp-auth">
+    <div class="pp-auth-card">
+        <div class="pp-auth-title">Sign in</div>
+        <div class="pp-auth-sub">Access your balances and pay online.</div>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Stall / Reference No.</span>
+            <input class="pp-input" type="text" placeholder="e.g. TCC-12" @bind="StallRef" />
+        </label>
+
+        <label class="pp-field">
+            <span class="pp-field-label">Password</span>
+            <input class="pp-input" type="password" placeholder="••••••••" @bind="Password" />
+        </label>
+
+        <button class="pp-auth-btn" type="button" @onclick="SignIn">Sign in</button>
+
+        <div class="pp-auth-alt">
+            First time here?
+            <a class="pp-link" href="/payor/activate">Activate your account</a>
+        </div>
+    </div>
+
+    <div class="pp-auth-foot">
+        EEMO Revenue Collection · Municipality of Cantilan, Surigao del Sur
+    </div>
+</div>
+
+@code {
+    private string StallRef = string.Empty;
+    private string Password = string.Empty;
+
+    // Demo: any input proceeds to the portal.
+    private void SignIn() => Nav.NavigateTo("/payor");
+}

@@ -11,6 +11,7 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTpmCollection;
 public sealed class GetMobileTpmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     ITpmRepository tpmRepository,
+    ISuggestionRepository suggestionRepository,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileTpmCollectionQuery, Result<MobileTpmCollectionDto>>
 {
     public async Task<Result<MobileTpmCollectionDto>> Handle(GetMobileTpmCollectionQuery request, CancellationToken ct)
@@ -40,6 +41,10 @@ public sealed class GetMobileTpmCollectionQueryHandler(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // Drop any goods the office has hidden (blocklisted) from the picker.
+        var hiddenGoods = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TpmGoods, ct);
+        knownGoods = knownGoods.Where(g => !hiddenGoods.Contains(g)).ToList();
 
         return Result<MobileTpmCollectionDto>.Success(new MobileTpmCollectionDto(
             marketDate,

@@ -35,7 +35,7 @@ else
     private void UpdateSidebarVisibility()
     {
         var path = new Uri(Navigation.Uri).AbsolutePath.ToLower();
-        showSidebar = !path.Contains("/login") && !path.Contains("/setup") && !path.Contains("account-setup-admin");
+        showSidebar = !path.Contains("/login") && !path.Contains("/setup") && !path.Contains("account-setup-admin") && !path.Contains("/payor");
     }
 
     public void Dispose()

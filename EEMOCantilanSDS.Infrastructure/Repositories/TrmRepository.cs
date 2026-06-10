@@ -20,14 +20,20 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
         return await context.TrmTransporters.FirstOrDefaultAsync(t => t.PlateNumber == normalized, ct);
     }
 
-    public async Task<(IReadOnlyList<string> Routes, IReadOnlyList<string> Organizations)> GetKnownRoutesAndOrgsAsync(CancellationToken ct = default)
+    public async Task<(IReadOnlyList<string> Routes, IReadOnlyList<string> Organizations, IReadOnlyList<string> Drivers)> GetKnownPickListsAsync(CancellationToken ct = default)
     {
-        // Distinct routes/orgs from both the roster and recorded trips — used as mobile pick-lists
-        // so collectors can reuse an existing value instead of re-typing it.
+        // Distinct routes/orgs/driver-names from both the roster and recorded trips — used as mobile
+        // pick-lists so collectors can reuse an existing value instead of re-typing it.
         var transporterRoutes = await context.TrmTransporters.AsNoTracking().Select(t => t.DefaultRoute).ToListAsync(ct);
         var tripRoutes = await context.TrmTrips.AsNoTracking().Select(t => t.Route).ToListAsync(ct);
         var transporterOrgs = await context.TrmTransporters.AsNoTracking().Select(t => t.Organization).ToListAsync(ct);
         var tripOrgs = await context.TrmTrips.AsNoTracking().Select(t => t.Organization).ToListAsync(ct);
+        // Driver suggestions come only from previously-recorded ad-hoc trips (TransporterId == null),
+        // not the registered roster — registered drivers are recorded via the roster's "+ Trip".
+        var tripDrivers = await context.TrmTrips.AsNoTracking()
+            .Where(t => t.TransporterId == null)
+            .Select(t => t.DriverName)
+            .ToListAsync(ct);
 
         var routes = transporterRoutes.Concat(tripRoutes)
             .Where(r => !string.IsNullOrWhiteSpace(r))
@@ -43,7 +49,14 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             .OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return (routes, orgs);
+        var drivers = tripDrivers
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => d.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d => d, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return (routes, orgs, drivers);
     }
 
     public async Task<IReadOnlyList<TrmTransporterListDto>> GetTransportersWithTodayTripsAsync(CancellationToken ct = default)

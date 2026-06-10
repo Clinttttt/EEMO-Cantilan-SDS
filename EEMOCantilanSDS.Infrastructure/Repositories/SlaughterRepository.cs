@@ -52,6 +52,17 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             ))
             .ToListAsync(ct);
 
+        // Distinct owner names across all transactions — feeds the mobile "Owner name" picker.
+        var knownOwners = (await context.SlaughterTransactions
+            .AsNoTracking()
+            .Select(x => x.OwnerName)
+            .ToListAsync(ct))
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Select(o => o.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(o => o, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return new MobileSlaughterCollectionDto(
             date,
             transactions.Count,
@@ -59,7 +70,8 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             transactions.Sum(t => t.TotalAmount),
             FeeRates.SlhHogTotalPerHead,
             FeeRates.SlhLargeTotalPerHead,
-            transactions);
+            transactions,
+            knownOwners);
     }
 
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)

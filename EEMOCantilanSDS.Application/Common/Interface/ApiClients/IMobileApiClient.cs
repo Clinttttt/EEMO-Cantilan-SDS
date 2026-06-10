@@ -22,4 +22,5 @@ public interface IMobileApiClient
     Task<Result<MobileTpmCollectionDto>> GetTpmCollectionAsync();
     Task<Result<TpmVendorAttendanceDto>> AddTpmVendorAsync(AddMobileTpmVendorRequest request);
     Task<Result<bool>> MarkTpmVendorPaidAsync(MarkMobileTpmVendorPaidRequest request);
+    Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request);
 }

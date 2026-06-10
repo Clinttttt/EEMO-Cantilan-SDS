@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
+using EEMOCantilanSDS.Domain.Entities.Suggestions;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -31,6 +32,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<CollectorUser> CollectorUsers { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<AuditLog> AuditLogs { get; }
+        DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

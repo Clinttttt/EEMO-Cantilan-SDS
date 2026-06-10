@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
+using EEMOCantilanSDS.Application.Command.Suggestions.HideSuggestion;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -164,6 +165,13 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     {
         var command = new MarkVendorPaidCommand(request.AttendanceId, request.IsPaid, request.ORNumber);
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("suggestions/hide")]
+    public async Task<ActionResult<bool>> HideSuggestionAsync([FromBody] HideMobileSuggestionRequest request)
+    {
+        var result = await Sender.Send(new HideSuggestionCommand(request.Type, request.Value));
         return HandleResponse(result);
     }
 }

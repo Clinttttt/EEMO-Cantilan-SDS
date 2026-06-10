@@ -1,0 +1,55 @@
+@page "/payor/profile"
+@layout PayorLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@using static EEMOCantilanSDS.Client.Components.Pages.Payor.PayorDemoData
+
+<PageTitle>EEMO — Profile</PageTitle>
+
+<div class="pp-page-title">Profile</div>
+
+<div class="pp-profile-head">
+    <div class="pp-avatar">@Initials</div>
+    <div class="pp-profile-name">@Payor.Name</div>
+    <div class="pp-profile-role">Registered Payor</div>
+</div>
+
+<div class="pp-section-label">Contact Details</div>
+<div class="pp-card pp-detail-card">
+    <div class="pp-detail-row">
+        <span class="pp-detail-key">Mobile</span>
+        <span class="pp-detail-val">@Payor.Contact</span>
+    </div>
+    <div class="pp-detail-row">
+        <span class="pp-detail-key">Email</span>
+        <span class="pp-detail-val">@Payor.Email</span>
+    </div>
+</div>
+
+<div class="pp-section-label">Linked Account@(Accounts.Count == 1 ? "" : "s")</div>
+@foreach (var acct in Accounts)
+{
+    <div class="pp-card pp-acct">
+        <div class="pp-acct-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+        </div>
+        <div class="pp-acct-info">
+            <div class="pp-acct-facility">@acct.Facility</div>
+            <div class="pp-acct-sub">Stall @acct.StallNo</div>
+        </div>
+    </div>
+}
+
+<button class="pp-signout-btn" type="button" @onclick='() => Nav.NavigateTo("/payor/login")'>
+    <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+    Sign out
+</button>
+
+<div class="pp-foot">EEMO Revenue Collection · Municipality of Cantilan</div>
+
+@code {
+    private string Initials =>
+        string.Concat(Payor.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2).Select(p => char.ToUpper(p[0])));
+}
