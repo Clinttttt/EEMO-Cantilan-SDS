@@ -753,23 +753,32 @@ else
     {
         get
         {
-            List<(string Label, decimal Amount)> pts;
+            var today = PhilippineTime.Today;
+            List<(string Label, decimal Amount, bool IsCurrent)> pts;
             if (IsYearly)
             {
+                // Highlight the current month only when viewing the current year.
                 pts = (Hist?.Monthly ?? new List<SlaughterPeriodSummaryDto>())
-                    .Select(m => (Label: new DateOnly(m.Year, m.Month ?? 1, 1).ToString("MMM"), Amount: m.TotalCollected))
+                    .Select(m => (
+                        Label: new DateOnly(m.Year, m.Month ?? 1, 1).ToString("MMM"),
+                        Amount: m.TotalCollected,
+                        IsCurrent: m.Year == today.Year && (m.Month ?? 0) == today.Month))
                     .ToList();
             }
             else
             {
+                // Highlight the bar only if it is actually today.
                 pts = MonthTxns.GroupBy(t => t.TransactionDate).OrderBy(g => g.Key)
-                    .Select(g => (Label: g.Key.ToString("MMM d"), Amount: g.Sum(t => t.TotalAmount)))
+                    .Select(g => (
+                        Label: g.Key.ToString("MMM d"),
+                        Amount: g.Sum(t => t.TotalAmount),
+                        IsCurrent: g.Key == today))
                     .ToList();
             }
             var max = pts.Any() ? pts.Max(x => x.Amount) : 0m;
             var ceiling = max > 0m ? max * 1.15m : 0m;
-            return pts.Select((x, i) => new TrendPoint(
-                x.Label, x.Amount, i == pts.Count - 1,
+            return pts.Select(x => new TrendPoint(
+                x.Label, x.Amount, x.IsCurrent,
                 x.Amount > 0m && ceiling > 0m ? Math.Max(3, (int)(x.Amount / ceiling * 100)) : 0,
                 x.Amount <= 0m));
         }

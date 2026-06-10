@@ -85,7 +85,8 @@
             </div>
             <div class="print-report-summary">
                 <div><span>Total Trips</span><strong>@MonthTrips.Count</strong></div>
-                <div><span>Transporters</span><strong>@MonthTrips.Select(t => t.TransporterId).Distinct().Count()</strong></div>
+                <div><span>Registered</span><strong>@MonthTrips.Where(t => t.TransporterId.HasValue).Select(t => t.TransporterId).Distinct().Count()</strong></div>
+                <div><span>Walk-in Trips</span><strong>@MonthTrips.Count(t => !t.TransporterId.HasValue)</strong></div>
                 <div><span>Fees Collected</span><strong>&#8369;@MonthTrips.Sum(t => t.Fee).ToString("N2")</strong></div>
                 <div><span>Routes Served</span><strong>@MonthTrips.Select(t => t.Route).Where(r => !string.IsNullOrWhiteSpace(r)).Distinct().Count()</strong></div>
             </div>
@@ -157,12 +158,12 @@ else if (ShowHistory)
                 <div class="print-table-wrap">
                     <table class="print-status-table history-table">
                         <thead>
-                            <tr><th>Month</th><th>Trips</th><th>Transporters</th><th>Fees Collected</th></tr>
+                            <tr><th>Month</th><th>Trips</th><th>Registered</th><th>Walk-in</th><th>Fees Collected</th></tr>
                         </thead>
                         <tbody>
                             @if (!HistoryMonthly.Any())
                             {
-                                <tr><td colspan="4" class="history-empty">@(HistoryLoading ? "Loading…" : "No collection records for this year.")</td></tr>
+                                <tr><td colspan="5" class="history-empty">@(HistoryLoading ? "Loading…" : "No collection records for this year.")</td></tr>
                             }
                             @foreach (var row in HistoryMonthly)
                             {
@@ -170,6 +171,7 @@ else if (ShowHistory)
                                     <td>@row.Label</td>
                                     <td>@row.Trips</td>
                                     <td>@row.Transporters</td>
+                                    <td>@row.AdHocTrips</td>
                                     <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
                                 </tr>
                             }
@@ -181,6 +183,7 @@ else if (ShowHistory)
                                     <td><strong>Total</strong></td>
                                     <td><strong>@HistoryMonthly.Sum(r => r.Trips)</strong></td>
                                     <td>—</td>
+                                    <td><strong>@HistoryMonthly.Sum(r => r.AdHocTrips)</strong></td>
                                     <td><strong>₱@HistoryMonthly.Sum(r => r.Collected).ToString("N2")</strong></td>
                                 </tr>
                             </tfoot>
@@ -194,12 +197,12 @@ else if (ShowHistory)
                 <div class="print-table-wrap">
                     <table class="print-status-table history-table">
                         <thead>
-                            <tr><th>Year</th><th>Trips</th><th>Transporters</th><th>Fees Collected</th></tr>
+                            <tr><th>Year</th><th>Trips</th><th>Registered</th><th>Walk-in</th><th>Fees Collected</th></tr>
                         </thead>
                         <tbody>
                             @if (!HistoryYearly.Any())
                             {
-                                <tr><td colspan="4" class="history-empty">@(HistoryLoading ? "Loading…" : "No yearly records.")</td></tr>
+                                <tr><td colspan="5" class="history-empty">@(HistoryLoading ? "Loading…" : "No yearly records.")</td></tr>
                             }
                             @foreach (var row in HistoryYearly)
                             {
@@ -207,6 +210,7 @@ else if (ShowHistory)
                                     <td><strong>@row.Label</strong></td>
                                     <td>@row.Trips</td>
                                     <td>@row.Transporters</td>
+                                    <td>@row.AdHocTrips</td>
                                     <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
                                 </tr>
                             }
@@ -246,9 +250,9 @@ else
         <div class="rpt-kpi-card">
             <div class="kpi-icon-wrap kpi-icon-neutral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             <div class="kpi-body">
-                <div class="kpi-label">Active Transporters</div>
+                <div class="kpi-label">Registered Transporters</div>
                 <div class="kpi-value">@ActiveTransporters</div>
-                <div class="kpi-change">this @PeriodNoun</div>
+                <div class="kpi-change">@(AdHocTrips > 0 ? $"+{AdHocTrips} walk-in trip{(AdHocTrips == 1 ? "" : "s")}" : $"this {PeriodNoun}")</div>
             </div>
         </div>
         <div class="rpt-kpi-card">
@@ -310,7 +314,7 @@ else
                 <div class="chart-header">
                     <div class="chart-header-left">
                         <h3 class="chart-title">Trips by Route</h3>
-                        <p class="chart-subtitle">Share of trips per route</p>
+                        <p class="chart-subtitle">@(RoutesServed > 5 ? $"Top 5 of {RoutesServed} routes" : "Share of trips per route")</p>
                     </div>
                 </div>
                 <div class="rpt-donut-wrap">
@@ -332,9 +336,10 @@ else
                         {
                             @foreach (var seg in rsegs)
                             {
+                                var legPct = TotalTrips > 0 ? (int)Math.Round((double)seg.Count / TotalTrips * 100) : 0;
                                 <div class="donut-leg-item">
                                     <div class="donut-leg-left"><span class="donut-leg-dot" style="background:@seg.Color"></span><span class="donut-leg-label">@seg.Label</span></div>
-                                    <strong class="donut-leg-value">@seg.Count</strong>
+                                    <strong class="donut-leg-value">@seg.Count <span class="donut-leg-pct">· @legPct%</span></strong>
                                 </div>
                             }
                         }
@@ -428,7 +433,7 @@ else
             <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Monthly Summary — @CurrentDate.Year</h2></div>
             <div class="rpt-compliance-table-wrap">
                 <table class="rpt-compliance-table">
-                    <thead><tr><th>Month</th><th>Trips</th><th>Transporters</th><th>Fees Collected</th></tr></thead>
+                    <thead><tr><th>Month</th><th>Trips</th><th>Registered</th><th>Walk-in</th><th>Fees Collected</th></tr></thead>
                     <tbody>
                         @foreach (var row in HistoryMonthly)
                         {
@@ -436,12 +441,13 @@ else
                                 <td class="stall-no">@row.Label</td>
                                 <td>@row.Trips</td>
                                 <td>@row.Transporters</td>
+                                <td>@row.AdHocTrips</td>
                                 <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
                             </tr>
                         }
                         @if (!HistoryMonthly.Any())
                         {
-                            <tr><td colspan="4" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
+                            <tr><td colspan="5" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
                         }
                     </tbody>
                 </table>
@@ -560,7 +566,8 @@ else
     // ── KPI values (period-aware) ─────────────────────────────────
     decimal TotalCollected   => IsYearly ? (YearRow?.Collected ?? 0m) : MonthTrips.Sum(t => t.Fee);
     int     TotalTrips       => IsYearly ? (YearRow?.Trips ?? 0) : MonthTrips.Count;
-    int     ActiveTransporters => IsYearly ? (YearRow?.Transporters ?? 0) : MonthTrips.Select(t => t.TransporterId).Distinct().Count();
+    int     ActiveTransporters => IsYearly ? (YearRow?.Transporters ?? 0) : MonthTrips.Where(t => t.TransporterId.HasValue).Select(t => t.TransporterId).Distinct().Count();
+    int     AdHocTrips       => IsYearly ? (YearRow?.AdHocTrips ?? 0) : MonthTrips.Count(t => !t.TransporterId.HasValue);
     int     RoutesServed     => _routeBreakdown.Count;
     string? TopRoute         => _routeBreakdown.Count > 0 ? _routeBreakdown[0].Route : null;
 
@@ -610,8 +617,10 @@ else
         var segs = ranked.Take(5)
             .Select((r, i) => new DonutSeg(r.Route, r.Trips, RoutePalette[i % RoutePalette.Length]))
             .ToList();
-        var other = ranked.Skip(5).Sum(r => r.Trips);
-        if (other > 0) segs.Add(new DonutSeg("Other", other, "#c3ced8"));
+        var rest = ranked.Skip(5).ToList();
+        var other = rest.Sum(r => r.Trips);
+        if (other > 0)
+            segs.Add(new DonutSeg($"Other ({rest.Count} route{(rest.Count == 1 ? "" : "s")})", other, "#c3ced8"));
         return segs;
     }
 

@@ -1,4 +1,4 @@
-.collection-month-pill,
+﻿.collection-month-pill,
 .back-btn,
 .stall-row,
 .btn-cancel,
@@ -169,107 +169,7 @@
     color: rgba(255,255,255,0.65);
 }
 
-/* ── Transporter cards — ledger style matching SLH ──────────── */
-.tx-card {
-    border: 0;
-    font: inherit;
-    width: 100%;
-    display: flex;
-    align-items: stretch;
-    background: #fff;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    margin-bottom: 6px;
-    text-align: left;
-    overflow: hidden;
-    cursor: pointer;
-}
 
-.tx-card:active {
-    background: var(--bg-page);
-}
-
-.tx-left-bar {
-    width: 3px;
-    flex-shrink: 0;
-    background: var(--navy-primary);
-}
-
-.tx-body {
-    flex: 1;
-    padding: 9px 10px;
-    min-width: 0;
-}
-
-.tx-row-main {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.tx-col-info {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-}
-
-.tx-owner {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--navy-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.tx-sub {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-wrap: nowrap;
-}
-
-.tx-tag {
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: rgba(13, 33, 55, 0.07);
-    color: var(--navy-primary);
-    flex-shrink: 0;
-}
-
-.tx-or {
-    font-size: 10px;
-    color: var(--text-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.tx-col-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 3px;
-    flex-shrink: 0;
-}
-
-.trip-count {
-    background: var(--paid-green-bg);
-    color: var(--paid-green);
-}
-
-.tx-add-trip {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--gold-primary, #c8a84b);
-    letter-spacing: 0.2px;
-}
 
 .tx-trip-amount {
     font-size: 13px;
@@ -277,57 +177,86 @@
     color: var(--navy-primary);
 }
 
-/* ── Searchable suggestion input ────────────────────────────── */
-.suggest-wrap {
-    position: relative;
-}
-
-.suggest-panel {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: #fff;
+.form-select {
+    width: 100%;
+    min-height: 44px;
     border: 1px solid var(--border);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(13, 33, 55, 0.12);
-    z-index: 9999;
-    overflow: hidden;
-    max-height: 220px;
-    overflow-y: auto;
+    border-radius: 12px;
+    background: #fff;
+    padding: 0 12px;
+    color: var(--navy-primary);
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    appearance: auto;
 }
 
-.suggest-item {
+/* ── Picker overlay list ───────────────────────────────────── */
+.picker-overlay {
+    z-index: 30000; /* above the record/register sheets so it never paints behind */
+}
+
+.picker-sheet {
+    display: flex;
+    flex-direction: column;
+}
+
+.picker-list {
+    overflow-y: auto;
+    max-height: 50dvh;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
+
+.picker-item {
     border: 0;
     font: inherit;
     width: 100%;
     text-align: left;
-    padding: 11px 14px;
-    font-size: 13px;
-    font-weight: 400;
+    padding: 13px 14px;
+    font-size: 14px;
+    font-weight: 500;
     color: var(--navy-primary);
-    background: transparent;
+    background: #fff;
     cursor: pointer;
     display: block;
     border-bottom: 1px solid var(--border);
 }
 
-.suggest-item:last-child {
+.picker-item:last-child {
     border-bottom: none;
 }
 
-.suggest-item:active,
-.suggest-item:hover {
+.picker-item:active {
     background: var(--bg-page);
 }
 
-.suggest-active {
-    font-weight: 600;
-    background: var(--bg-icon);
+.picker-item-new {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--navy-primary);
+    background: var(--bg-page);
+    font-weight: 500;
 }
 
-.suggest-empty {
-    padding: 12px 14px;
+.picker-item-new strong {
+    font-weight: 700;
+}
+
+.picker-item-new svg {
+    width: 15px;
+    height: 15px;
+    stroke: var(--gold-primary, #c8a84b);
+    fill: none;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    flex-shrink: 0;
+}
+
+.picker-empty {
+    padding: 16px 14px;
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
@@ -426,3 +355,55 @@
 .btn-confirm:disabled {
     opacity: 0.65;
 }
+
+
+/* ── TRM-specific tx-card variants ── */
+.trip-count { background: var(--paid-green-bg); color: var(--paid-green); }
+
+.tx-add-trip {
+    font-size: 11px; font-weight: 700;
+    color: var(--gold-primary, #c8a84b); letter-spacing: .2px;
+}
+
+
+/* ── Transporter cards — ledger style matching SLH ──────────── */
+.tx-card {
+    border: 0;
+    font: inherit;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    text-align: left;
+    overflow: hidden;
+    cursor: pointer;
+}
+.tx-card:active { background: var(--bg-page); }
+
+.tx-left-bar { width: 3px; flex-shrink: 0; background: var(--navy-primary); }
+
+.tx-body { flex: 1; padding: 9px 10px; min-width: 0; }
+
+.tx-row-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.tx-col-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.tx-owner {
+    font-size: 13px; font-weight: 500; color: var(--navy-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tx-sub { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+
+.tx-tag {
+    font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 4px;
+    background: rgba(13,33,55,.07); color: var(--navy-primary); flex-shrink: 0;
+}
+
+.tx-or { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tx-col-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }

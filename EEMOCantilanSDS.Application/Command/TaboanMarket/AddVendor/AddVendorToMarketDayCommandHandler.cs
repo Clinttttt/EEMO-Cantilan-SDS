@@ -45,6 +45,14 @@ public class AddVendorToMarketDayCommandHandler(
             return Result<TpmVendorAttendanceDto>.Failure("Vendor already added to this market day.");
 
         var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate);
+
+        // At Tabo-an, paying the ₱100 is what grants the vendor their area, so recording a vendor
+        // inherently means the fee was collected — the attendance is paid on creation.
+        var recordedBy = currentUser.Username ?? "Admin";
+        attendance.MarkPaid(currentUser.CollectorId, updatedBy: recordedBy);
+        if (!string.IsNullOrWhiteSpace(request.ORNumber))
+            attendance.SetORNumber(request.ORNumber.Trim(), recordedBy);
+
         await tpmRepo.AddAttendanceAsync(attendance, ct);
         await uow.SaveChangesAsync(ct);
 

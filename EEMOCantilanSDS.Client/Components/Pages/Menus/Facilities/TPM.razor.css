@@ -893,6 +893,70 @@
     stroke: var(--red);
 }
 
+/* ── Edit action button ──────────────────────────── */
+.tpm-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 30px;
+    padding: 0 0.7rem;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-icon);
+    color: var(--navy-3);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.tpm-edit-btn svg {
+    width: 13px;
+    height: 13px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.tpm-edit-btn:hover {
+    background: var(--bg-card);
+    border-color: var(--gold);
+    color: var(--navy);
+}
+
+/* ── Status toggle (edit modal) ──────────────────── */
+.tpm-status-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tpm-status-choice {
+    flex: 1;
+    min-height: 38px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.tpm-status-choice.active.paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+    color: var(--green);
+}
+
+.tpm-status-choice.active.unpaid {
+    background: var(--red-bg);
+    border-color: var(--red);
+    color: var(--red);
+}
+
 /* ── Modal ───────────────────────────────────────── */
 .tpm-modal-overlay {
     position: fixed;

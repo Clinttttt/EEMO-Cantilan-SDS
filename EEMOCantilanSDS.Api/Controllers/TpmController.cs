@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.SaveVendorOrNumber;
+using EEMOCantilanSDS.Application.Command.TaboanMarket.UpdateVendor;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetMarketDays;
 using EEMOCantilanSDS.Application.Queries.TaboanMarket.GetMonthAttendance;
@@ -53,6 +54,11 @@ public class TpmController(ISender sender) : ApiBaseController(sender)
     [HttpPatch("attendance/{attendanceId}/or-number")]
     public async Task<ActionResult<bool>> SaveOrNumber(Guid attendanceId, [FromBody] SaveOrNumberRequest request)
         => HandleResponse(await Sender.Send(new SaveVendorOrNumberCommand(attendanceId, request.ORNumber)));
+
+    [HttpPatch("attendance/{attendanceId}")]
+    public async Task<ActionResult<bool>> UpdateVendor(Guid attendanceId, [FromBody] UpdateTpmVendorRequest request)
+        => HandleResponse(await Sender.Send(new UpdateTpmVendorCommand(
+            attendanceId, request.VendorName, request.Goods, request.IsPaid, request.ORNumber)));
 }
 
 

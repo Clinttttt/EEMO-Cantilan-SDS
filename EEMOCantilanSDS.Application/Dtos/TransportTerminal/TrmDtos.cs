@@ -67,7 +67,8 @@ public record TrmPeriodSummaryDto(
     int Year,
     int? Month,              // null for yearly rows
     int Trips,
-    int Transporters,        // distinct transporters served
+    int Transporters,        // distinct registered transporters served (ad-hoc trips excluded)
+    int AdHocTrips,          // trips with no registered transporter (walk-in); Trips = registered trips + AdHocTrips
     decimal Collected,
     IReadOnlyList<TrmOrgTallyDto> Organizations,  // trip/fee tally per organization
     IReadOnlyList<TrmRouteTallyDto> Routes        // trip/fee tally per route

@@ -93,6 +93,7 @@
             }
             else
             {
+                <div class="section-label">Registered</div>
                 @foreach (var t in FilteredTransporters)
                 {
                     <button class="tx-card" type="button" @onclick="() => OpenSheet(t)">
@@ -138,7 +139,7 @@
             {
                 @foreach (var trip in Collection.TodayTrips)
                 {
-                    <div class="tx-card">
+                    <div class="tx-card" @onclick="() => OpenTripReceipt(trip)">
                         <div class="tx-left-bar"></div>
                         <div class="tx-body">
                             <div class="tx-row-main">
@@ -175,6 +176,90 @@
 
 @* Suggestion lists rendered inline via custom SuggestInput — see @code *@
 
+@if (ShowTripReceipt && SelectedTrip is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseTripReceipt">
+        <div class="sheet receipt-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="receipt">
+                <div class="receipt-head">
+                    <img src="images/sds_logo.jpg" class="receipt-seal" alt="EEMO seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">Transport Terminal</div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row"><span>Trip No.</span><strong>#@SelectedTrip.TripNumber</strong></div>
+                    <div class="receipt-meta-row"><span>Date</span><strong>@SelectedTrip.RecordedAt.AddHours(8).ToString("MMMM dd, yyyy")</strong></div>
+                    <div class="receipt-meta-row"><span>Driver</span><strong>@SelectedTrip.DriverName</strong></div>
+                    <div class="receipt-meta-row"><span>Organization</span><strong>@SelectedTrip.Organization</strong></div>
+                    <div class="receipt-meta-row"><span>Plate No.</span><strong>@SelectedTrip.PlateNumber</strong></div>
+                    <div class="receipt-meta-row"><span>Route</span><strong>@SelectedTrip.Route</strong></div>
+                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(SelectedTrip.ORNumber) ? "—" : SelectedTrip.ORNumber)</strong></div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-total-row receipt-grand">
+                    <span>Terminal Fee</span>
+                    <span>&#8369;@SelectedTrip.Fee.ToString("N2")</span>
+                </div>
+                <div class="receipt-divider dashed"></div>
+                <div class="receipt-foot">
+                    <div class="receipt-foot-row">
+                        <span>Collected by</span>
+                        <strong>@Session.CollectorName</strong>
+                    </div>
+                    <div class="receipt-note">This acknowledges receipt of the terminal fee stated above. Keep for your records.</div>
+                </div>
+            </div>
+            <div class="receipt-close-row">
+                <button class="btn-receipt-close" type="button" @onclick="CloseTripReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowPicker)
+{
+    <div class="sheet-overlay picker-overlay" @onclick="ClosePicker">
+        <div class="sheet picker-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">@PickerTitle</div>
+
+            <div class="search-wrap" style="margin-bottom:12px;">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search or type a new value" @bind="PickerSearch" @bind:event="oninput" />
+            </div>
+
+            <div class="picker-list">
+                @if (!string.IsNullOrWhiteSpace(PickerSearch)
+                     && !PickerOptions.Any(o => string.Equals(o, PickerSearch.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    <button class="picker-item picker-item-new" type="button" @onclick="() => PickOption(PickerSearch.Trim())">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Use "<strong>@PickerSearch.Trim()</strong>"
+                    </button>
+                }
+
+                @foreach (var opt in PickerFiltered)
+                {
+                    <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                }
+
+                @if (!PickerFiltered.Any() && string.IsNullOrWhiteSpace(PickerSearch))
+                {
+                    <div class="picker-empty">No options yet — type to add one.</div>
+                }
+            </div>
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="ClosePicker">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (ShowQuickTripSheet)
 {
     <div class="sheet-overlay" @onclick="CloseQuickTripSheet">
@@ -188,13 +273,13 @@
                 <input class="form-input" type="text" maxlength="100" placeholder="Driver name" @bind="QuickDriverName" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Organization <span>optional</span></div>
-                @SuggestInput(QuickOrg, v => QuickOrg = v, KnownOrganizations, "Non-associated")
+                @PickerField(QuickOrg, "Non-associated", "Select Organization", OrgOptions, v => QuickOrg = v)
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="QuickPlate" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Route</div>
-                @SuggestInput(QuickRoute, v => QuickRoute = v, KnownRoutes, "e.g. Cantilan – Tandag")
+                @PickerField(QuickRoute, "Select or type a route", "Select Route", KnownRoutes, v => QuickRoute = v)
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="QuickORNumber" @bind:event="oninput" />
@@ -233,10 +318,10 @@
                 <input class="form-input" type="text" maxlength="100" placeholder="Driver / operator name" @bind="NewName" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Organization / Cooperative <span>optional</span></div>
-                @SuggestInput(NewOrg, v => NewOrg = v, KnownOrganizations, "Non-associated")
+                @PickerField(NewOrg, "Non-associated", "Select Organization", OrgOptions, v => NewOrg = v)
 
                 <div class="form-label" style="margin-top:12px;">Default route</div>
-                @SuggestInput(NewRoute, v => NewRoute = v, KnownRoutes, "e.g. Cantilan–Tandag")
+                @PickerField(NewRoute, "Select or type a route", "Select Route", KnownRoutes, v => NewRoute = v)
 
                 <div class="form-label" style="margin-top:12px;">Plate number</div>
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="NewPlate" @bind:event="oninput" />
@@ -273,7 +358,7 @@
                 <input class="form-input" type="text" maxlength="20" placeholder="ABC 1234" @bind="PlateNumber" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Route</div>
-                @SuggestInput(Route, v => Route = v, KnownRoutes, "Route / destination")
+                @PickerField(Route, "Select or type a route", "Select Route", KnownRoutes, v => Route = v)
 
                 <div class="form-label" style="margin-top:12px;">Official receipt no.</div>
                 <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
@@ -307,6 +392,11 @@
     private string? SheetError;
     private string SearchQuery = string.Empty;
     private bool ShowSheet;
+    private bool ShowTripReceipt;
+    private TrmTripDto? SelectedTrip;
+
+    void OpenTripReceipt(TrmTripDto trip) { SelectedTrip = trip; ShowTripReceipt = true; }
+    void CloseTripReceipt() { ShowTripReceipt = false; SelectedTrip = null; }
 
     private TrmTransporterListDto? SelectedTransporter;
     private string DriverName = string.Empty;
@@ -368,92 +458,66 @@
     private IReadOnlyList<string> KnownRoutes => Collection?.KnownRoutes ?? Array.Empty<string>();
     private IReadOnlyList<string> KnownOrganizations => Collection?.KnownOrganizations ?? Array.Empty<string>();
 
-    // ── Searchable suggestion input ──────────────────────────────
-    // Tracks which field has the picker open and its search query.
-    private string? _openPickerId;
-    private string _pickSearch = string.Empty;
+    // Organizations always offer "Non-associated" as the first option.
+    private IReadOnlyList<string> OrgOptions =>
+        KnownOrganizations.Contains("Non-associated", StringComparer.OrdinalIgnoreCase)
+            ? KnownOrganizations
+            : KnownOrganizations.Prepend("Non-associated").ToList();
 
-    /// <summary>
-    /// Inline searchable pick-list — renders a text input + a filtered suggestion panel.
-    /// The panel appears when the input is focused and closes when a suggestion is tapped
-    /// or the user continues typing a custom value.
-    /// </summary>
-    private RenderFragment SuggestInput(string value, Action<string> set,
-        IReadOnlyList<string> options, string placeholder)
+    // ── Searchable picker (full-screen overlay) ──────────────────
+    private bool ShowPicker;
+    private string PickerTitle = string.Empty;
+    private string PickerSearch = string.Empty;
+    private IReadOnlyList<string> PickerOptions = Array.Empty<string>();
+    private Action<string>? PickerSet;
+
+    private IEnumerable<string> PickerFiltered =>
+        PickerOptions.Where(o => string.IsNullOrWhiteSpace(PickerSearch)
+            || o.Contains(PickerSearch, StringComparison.OrdinalIgnoreCase));
+
+    // Read-only field that opens the picker; displays the current value or a placeholder.
+    private RenderFragment PickerField(string value, string placeholder, string title,
+        IReadOnlyList<string> options, Action<string> set) => __builder =>
     {
-        var id = $"si-{placeholder.GetHashCode():x}";
-        var isOpen = _openPickerId == id;
-        var search = isOpen ? _pickSearch : value;
-        var filtered = options
-            .Where(o => string.IsNullOrWhiteSpace(search) || o.Contains(search, StringComparison.OrdinalIgnoreCase))
-            .Take(8).ToList();
+        __builder.OpenElement(0, "button");
+        __builder.AddAttribute(1, "type", "button");
+        __builder.AddAttribute(2, "class", "picker-field");
+        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set)));
 
-        return __builder =>
-        {
-            __builder.OpenElement(0, "div");
-            __builder.AddAttribute(1, "class", "suggest-wrap");
+        __builder.OpenElement(4, "span");
+        __builder.AddAttribute(5, "class", string.IsNullOrWhiteSpace(value) ? "picker-field-placeholder" : "picker-field-value");
+        __builder.AddContent(6, string.IsNullOrWhiteSpace(value) ? placeholder : value);
+        __builder.CloseElement();
 
-            __builder.OpenElement(2, "input");
-            __builder.AddAttribute(3, "class", "form-input");
-            __builder.AddAttribute(4, "type", "text");
-            __builder.AddAttribute(5, "maxlength", "100");
-            __builder.AddAttribute(6, "placeholder", placeholder);
-            __builder.AddAttribute(7, "value", value);
-            __builder.AddAttribute(8, "autocomplete", "off");
-            __builder.AddAttribute(9, "oninput", EventCallback.Factory.Create<Microsoft.AspNetCore.Components.ChangeEventArgs>(this, e =>
-            {
-                var v = e.Value?.ToString() ?? string.Empty;
-                set(v);
-                _openPickerId = id;
-                _pickSearch = v;
-                StateHasChanged();
-            }));
-            __builder.AddAttribute(10, "onfocus", EventCallback.Factory.Create(this, () =>
-            {
-                _openPickerId = id;
-                _pickSearch = value;
-                StateHasChanged();
-            }));
-            __builder.CloseElement(); // input
+        __builder.OpenElement(7, "svg");
+        __builder.AddAttribute(8, "class", "picker-field-chev");
+        __builder.AddAttribute(9, "viewBox", "0 0 24 24");
+        __builder.AddMarkupContent(10, "<polyline points=\"6 9 12 15 18 9\" />");
+        __builder.CloseElement();
 
-            if (isOpen && options.Count > 0)
-            {
-                __builder.OpenElement(20, "div");
-                __builder.AddAttribute(21, "class", "suggest-panel");
+        __builder.CloseElement(); // button
+    };
 
-                if (filtered.Count == 0)
-                {
-                    __builder.OpenElement(22, "div");
-                    __builder.AddAttribute(23, "class", "suggest-empty");
-                    __builder.AddContent(24, "No matches");
-                    __builder.CloseElement();
-                }
-                else
-                {
-                    var idx = 25;
-                    foreach (var opt in filtered)
-                    {
-                        var captured = opt;
-                        __builder.OpenElement(idx++, "button");
-                        __builder.AddAttribute(idx++, "type", "button");
-                        __builder.AddAttribute(idx++, "class", $"suggest-item{(opt == value ? " suggest-active" : "")}");
-                        __builder.AddAttribute(idx++, "onclick", EventCallback.Factory.Create(this, () =>
-                        {
-                            set(captured);
-                            _openPickerId = null;
-                            _pickSearch = string.Empty;
-                            StateHasChanged();
-                        }));
-                        __builder.AddContent(idx++, opt);
-                        __builder.CloseElement();
-                    }
-                }
+    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set)
+    {
+        PickerTitle = title;
+        PickerOptions = options;
+        PickerSet = set;
+        PickerSearch = string.Empty;
+        ShowPicker = true;
+    }
 
-                __builder.CloseElement(); // suggest-panel
-            }
+    private void PickOption(string value)
+    {
+        PickerSet?.Invoke(value);
+        ShowPicker = false;
+        PickerSet = null;
+    }
 
-            __builder.CloseElement(); // suggest-wrap
-        };
+    private void ClosePicker()
+    {
+        ShowPicker = false;
+        PickerSet = null;
     }
 
     // ── New transporter registration ──

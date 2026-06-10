@@ -31,15 +31,24 @@ public sealed class GetMobileTpmCollectionQueryHandler(
 
         var attendances = await tpmRepository.GetVendorAttendanceAsync(marketDate, ct);
 
+        // Distinct goods across all registered vendors — feeds the mobile "Goods" picker.
+        var allVendors = await tpmRepository.GetAllVendorsAsync(ct);
+        var knownGoods = allVendors
+            .Select(v => v.Goods)
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Select(g => g.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return Result<MobileTpmCollectionDto>.Success(new MobileTpmCollectionDto(
             marketDate,
             isMarketDay,
             FeeRates.TpmVendorFee,
             attendances.Count,
-            attendances.Count(a => a.IsPaid),
-            attendances.Count(a => !a.IsPaid),
             attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
-            attendances));
+            attendances,
+            knownGoods));
     }
 
     // Today if it is a Friday, otherwise the most recent past Friday.

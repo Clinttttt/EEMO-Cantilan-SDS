@@ -233,6 +233,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             label, year, month,
             set.Count,
             set.Where(r => r.TransporterId.HasValue).Select(r => r.TransporterId).Distinct().Count(),
+            set.Count(r => !r.TransporterId.HasValue),
             set.Sum(r => r.Fee),
             orgs,
             routes);

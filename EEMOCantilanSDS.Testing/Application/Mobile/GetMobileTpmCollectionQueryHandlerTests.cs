@@ -21,6 +21,9 @@ public class GetMobileTpmCollectionQueryHandlerTests
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(u => u.CollectorId).Returns(collectorId);
 
+        tpmRepo.Setup(r => r.GetAllVendorsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor>());
+
         return (new GetMobileTpmCollectionQueryHandler(collectorRepo.Object, tpmRepo.Object, currentUser.Object), tpmRepo);
     }
 
@@ -49,8 +52,7 @@ public class GetMobileTpmCollectionQueryHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal(DayOfWeek.Friday, result.Value!.MarketDate.DayOfWeek);  // always resolves to a Friday
         Assert.Equal(100m, result.Value.VendorFee);
-        Assert.Equal(1, result.Value.PaidCount);
-        Assert.Equal(1, result.Value.UnpaidCount);
+        Assert.Equal(2, result.Value.VendorCount);
         Assert.Equal(100m, result.Value.CollectedAmount);
     }
 

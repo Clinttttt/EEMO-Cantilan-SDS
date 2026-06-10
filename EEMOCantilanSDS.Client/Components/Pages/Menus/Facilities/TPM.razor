@@ -86,7 +86,7 @@
                             <div class="tpm-friday-full">@friday.ToString("MMMM d, yyyy")</div>
                             @if (!isFuture && record != null)
                             {
-                                <div class="tpm-friday-meta">@record.VendorsPaid paid · ₱@(record.TotalCollected.ToString("N0")) collected</div>
+                                <div class="tpm-friday-meta">@record.VendorsPaid vendor@(record.VendorsPaid == 1 ? "" : "s") · ₱@(record.TotalCollected.ToString("N0")) collected</div>
                             }
                             else if (!isFuture)
                             {
@@ -100,7 +100,7 @@
                         @if (!isFuture && record != null)
                         {
                             <div class="tpm-friday-badge tpm-badge-done">
-                                <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                               
                                 @record.VendorsPaid
                             </div>
                         }
@@ -123,7 +123,7 @@
                 </div>
                 <div class="tpm-cal-sum-item">
                     <span class="tpm-cal-sum-val">@MarketDays.Sum(m => m.VendorsPaid)</span>
-                    <span class="tpm-cal-sum-key">Total Vendors Paid</span>
+                    <span class="tpm-cal-sum-key">Total Vendors</span>
                 </div>
                 <div class="tpm-cal-sum-item">
                     <span class="tpm-cal-sum-val tpm-sum-gold">₱@MarketDays.Sum(m => m.TotalCollected).ToString("N0")</span>
@@ -169,15 +169,11 @@
             {
                 <div class="tpm-attendance-info">
                     <div class="tpm-attend-stat">
-                        <span class="tpm-attend-val tpm-sum-green">@FilteredVendors.Count(v => v.IsPaid)</span>
-                        <span class="tpm-attend-key">Paid</span>
+                        <span class="tpm-attend-val tpm-sum-green">@FilteredVendors.Count()</span>
+                        <span class="tpm-attend-key">Vendors</span>
                     </div>
                     <div class="tpm-attend-stat">
-                        <span class="tpm-attend-val tpm-sum-red">@FilteredVendors.Count(v => !v.IsPaid)</span>
-                        <span class="tpm-attend-key">Unpaid</span>
-                    </div>
-                    <div class="tpm-attend-stat">
-                        <span class="tpm-attend-val tpm-sum-gold">₱@(FilteredVendors.Where(v => v.IsPaid).Sum(v => v.Fee).ToString("N0"))</span>
+                        <span class="tpm-attend-val tpm-sum-gold">₱@(FilteredVendors.Sum(v => v.Fee).ToString("N0"))</span>
                         <span class="tpm-attend-key">Collected</span>
                     </div>
                     <button class="tpm-add-vendor-btn" @onclick="OpenAddVendorModal">
@@ -209,7 +205,6 @@
                                     <th>Goods / Product</th>
                                     <th>OR No.</th>
                                     <th>Fee</th>
-                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -238,24 +233,11 @@
                                             }
                                         </td>
                                         <td class="tpm-fee-cell">₱@vendor.Fee.ToString("N0")</td>
-                                        <td>
-                                            <span class="tpm-status-pill @(vendor.IsPaid ? "pill-paid" : "pill-unpaid")">
-                                                @(vendor.IsPaid ? "Paid" : "Unpaid")
-                                            </span>
-                                        </td>
                                         <td class="tpm-actions-cell">
-                                            @if (!vendor.IsPaid)
-                                            {
-                                                <button class="tpm-pay-btn" @onclick="() => MarkPaid(vendor)" title="Mark as Paid">
-                                                    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button class="tpm-unpay-btn" @onclick="() => MarkUnpaid(vendor)" title="Mark as Unpaid">
-                                                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                                </button>
-                                            }
+                                            <button class="tpm-edit-btn" @onclick="() => OpenEditModal(vendor)" title="Edit vendor">
+                                                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                                Edit
+                                            </button>
                                         </td>
                                     </tr>
                                 }
@@ -361,6 +343,60 @@
     </div>
 }
 
+<!-- ── Edit Vendor Modal ── -->
+@if (ShowEditModal && EditVendor != null)
+{
+    <div class="tpm-modal-overlay" @onclick="CloseEditModal">
+        <div class="tpm-modal" @onclick:stopPropagation="true">
+            <div class="tpm-modal-header">
+                <div class="tpm-modal-title">Edit Vendor</div>
+                <button class="tpm-modal-close" @onclick="CloseEditModal">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="tpm-modal-body">
+                <div class="tpm-form-group">
+                    <label class="tpm-form-label">Vendor Name</label>
+                    <input class="tpm-form-input" placeholder="e.g. Maria Dela Cruz" @bind="EditVendorName" />
+                    @if (EditFieldErrors.ContainsKey("VendorName"))
+                    {
+                        <div class="tpm-form-error">@EditFieldErrors["VendorName"]</div>
+                    }
+                </div>
+                <div class="tpm-form-group">
+                    <label class="tpm-form-label">Goods / Product</label>
+                    <input class="tpm-form-input" list="tpm-goods-options" placeholder="e.g. Vegetables, Cooked Food" @bind="EditGoods" />
+                    <datalist id="tpm-goods-options">
+                        @foreach (var g in KnownGoods)
+                        {
+                            <option value="@g" />
+                        }
+                    </datalist>
+                    @if (EditFieldErrors.ContainsKey("Goods"))
+                    {
+                        <div class="tpm-form-error">@EditFieldErrors["Goods"]</div>
+                    }
+                </div>
+                <div class="tpm-form-group">
+                    <label class="tpm-form-label">OR Number <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label>
+                    <input class="tpm-form-input" placeholder="e.g. 000001" @bind="EditORNumber" />
+                </div>
+                @if (!string.IsNullOrEmpty(EditError))
+                {
+                    <div class="tpm-form-error-banner">@EditError</div>
+                }
+            </div>
+            <div class="tpm-modal-footer">
+                <button class="tpm-btn-ghost" @onclick="CloseEditModal">Cancel</button>
+                <button class="tpm-btn-primary" @onclick="SubmitEditVendor" disabled="@isSaving">
+                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                    @(isSaving ? "Saving..." : "Save Changes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private RenderFragment TpmIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
 
@@ -453,19 +489,7 @@
         isLoadingAttendance = false;
     }
 
-    // ── Payment Actions ───────────────────────────
-    private async Task MarkPaid(TpmVendorAttendanceDto vendor) => await SetVendorPaid(vendor, true);
-    private async Task MarkUnpaid(TpmVendorAttendanceDto vendor) => await SetVendorPaid(vendor, false);
-
-    private async Task SetVendorPaid(TpmVendorAttendanceDto vendor, bool isPaid)
-    {
-        var result = await TpmApi.MarkVendorPaidAsync(vendor.Id, new MarkVendorPaidRequest(isPaid));
-        if (result.IsSuccess && SelectedFriday.HasValue)
-        {
-            await SelectFriday(SelectedFriday.Value);
-            await LoadOverviewAndMarketDaysAsync();
-        }
-    }
+    // ── Payment status is now edited via the Edit modal (SubmitEditVendor). ──
 
     // ── Add Vendor Modal ──────────────────────────
     private bool ShowAddVendorModal;
@@ -575,6 +599,81 @@
         else
         {
             OrErrorMessage = result.Error ?? "Failed to save OR number.";
+        }
+    }
+
+    // ── Edit Vendor Modal ─────────────────────────
+    private bool ShowEditModal;
+    private TpmVendorAttendanceDto? EditVendor;
+    private string EditVendorName = string.Empty;
+    private string EditGoods = string.Empty;
+    private string EditORNumber = string.Empty;
+    private string EditError = string.Empty;
+    private Dictionary<string, string> EditFieldErrors = new();
+
+    // Existing goods on the selected day — feeds the edit modal's goods suggestions.
+    private IReadOnlyList<string> KnownGoods => Attendance
+        .Select(a => a.Goods)
+        .Where(g => !string.IsNullOrWhiteSpace(g))
+        .Select(g => g.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    private void OpenEditModal(TpmVendorAttendanceDto vendor)
+    {
+        EditVendor = vendor;
+        EditVendorName = vendor.VendorName;
+        EditGoods = vendor.Goods;
+        EditORNumber = vendor.ORNumber ?? string.Empty;
+        EditError = string.Empty;
+        EditFieldErrors.Clear();
+        ShowEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        ShowEditModal = false;
+        EditVendor = null;
+        EditFieldErrors.Clear();
+        EditError = string.Empty;
+    }
+
+    private async Task SubmitEditVendor()
+    {
+        EditFieldErrors.Clear();
+        EditError = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(EditVendorName))
+            EditFieldErrors["VendorName"] = "Vendor name is required.";
+        if (string.IsNullOrWhiteSpace(EditGoods))
+            EditFieldErrors["Goods"] = "Goods / product is required.";
+        if (EditFieldErrors.Any()) return;
+        if (EditVendor == null) return;
+
+        isSaving = true;
+        var request = new UpdateTpmVendorRequest(
+            EditVendorName.Trim(),
+            EditGoods.Trim(),
+            true,
+            !string.IsNullOrWhiteSpace(EditORNumber) ? EditORNumber.Trim() : null);
+        var result = await TpmApi.UpdateVendorAsync(EditVendor.Id, request);
+        isSaving = false;
+
+        if (result.IsSuccess)
+        {
+            if (SelectedFriday.HasValue) await SelectFriday(SelectedFriday.Value);
+            await LoadOverviewAndMarketDaysAsync();
+            CloseEditModal();
+        }
+        else if (result.ValidationErrors != null && result.ValidationErrors.Any())
+        {
+            foreach (var error in result.ValidationErrors)
+                EditFieldErrors[error.Key] = error.Value.FirstOrDefault() ?? string.Empty;
+        }
+        else
+        {
+            EditError = result.Error ?? "Failed to update vendor.";
         }
     }
 

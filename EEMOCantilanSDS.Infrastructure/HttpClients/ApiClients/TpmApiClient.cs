@@ -31,4 +31,7 @@ public class TpmApiClient(HttpClient http) : HandleResponse(http), ITpmApiClient
 
     public async Task<Result<bool>> SaveOrNumberAsync(Guid attendanceId, SaveOrNumberRequest request) =>
         await UpdateAsync<SaveOrNumberRequest, bool>($"api/tpm/attendance/{attendanceId}/or-number", request);
+
+    public async Task<Result<bool>> UpdateVendorAsync(Guid attendanceId, UpdateTpmVendorRequest request) =>
+        await UpdateAsync<UpdateTpmVendorRequest, bool>($"api/tpm/attendance/{attendanceId}", request);
 }

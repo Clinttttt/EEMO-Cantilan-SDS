@@ -151,9 +151,12 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     [HttpPost("tpm/vendors")]
     public async Task<ActionResult<TpmVendorAttendanceDto>> AddTpmVendorAsync([FromBody] AddMobileTpmVendorRequest request)
     {
-        var command = new AddVendorToMarketDayCommand(request.VendorName, request.Goods, PhilippineTime.Today);
-        var result = await Sender.Send(command);
-        return HandleResponse(result);
+        var command = new AddVendorToMarketDayCommand(
+            request.VendorName,
+            request.Goods,
+            PhilippineTime.Today,
+            string.IsNullOrWhiteSpace(request.ORNumber) ? null : request.ORNumber.Trim());
+        return HandleResponse(await Sender.Send(command));
     }
 
     [HttpPost("tpm/attendance/payment")]

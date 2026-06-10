@@ -63,10 +63,6 @@
                     <div class="summary-key">Collected</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-value">@Collection.PaidCount</div>
-                    <div class="summary-key">Paid</div>
-                </div>
-                <div class="summary-item">
                     <div class="summary-value">@Collection.VendorCount</div>
                     <div class="summary-key">Vendors</div>
                 </div>
@@ -98,25 +94,28 @@
             {
                 @foreach (var a in FilteredAttendances)
                 {
-                    <button class="stall-row @(a.IsPaid ? "paid" : "")" type="button" @onclick="() => OpenPaySheet(a)" disabled="@(!Collection.IsMarketDay)">
-                        <div class="stall-info">
-                            <div class="stall-main-row">
-                                <div class="stall-name">@a.VendorName</div>
-                                <span class="stall-status-pill @(a.IsPaid ? "pill-paid" : "pill-unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</span>
+                    <button class="tx-card" type="button" @onclick="() => OpenVendorAction(a)">
+                        <div class="tx-left-bar @(a.IsPaid ? "bar-paid" : "")"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@a.VendorName</span>
+                                    <span class="tx-sub">
+                                        @if (!string.IsNullOrWhiteSpace(a.Goods))
+                                        {
+                                            <span class="tx-tag">@a.Goods</span>
+                                        }
+                                        @if (a.IsPaid && !string.IsNullOrWhiteSpace(a.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @a.ORNumber</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-tag @(a.IsPaid ? "tag-paid" : "tag-unpaid")">@(a.IsPaid ? "PAID" : "UNPAID")</span>
+                                    <span class="tx-amount">@FormatCurrency(a.Fee)</span>
+                                </div>
                             </div>
-                            <div class="stall-meta">
-                                @if (!string.IsNullOrWhiteSpace(a.Goods))
-                                {
-                                    <span>@a.Goods</span>
-                                }
-                                @if (a.IsPaid && !string.IsNullOrWhiteSpace(a.ORNumber))
-                                {
-                                    <span>OR @a.ORNumber</span>
-                                }
-                            </div>
-                        </div>
-                        <div class="stall-amount-col">
-                            <div class="stall-amount">@FormatCurrency(a.Fee)</div>
                         </div>
                     </button>
                 }
@@ -133,14 +132,17 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Add Vendor</div>
-            <div class="sheet-sub">Register a vendor for @MarketLabel.</div>
+            <div class="sheet-sub">Register a vendor for @MarketLabel. The ₱100 fee is collected on entry.</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Vendor name</div>
                 <input class="form-input" type="text" maxlength="100" placeholder="Vendor name" @bind="VendorName" @bind:event="oninput" />
 
                 <div class="form-label" style="margin-top:12px;">Goods</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="e.g. Vegetables, Dried fish" @bind="Goods" @bind:event="oninput" />
+                @PickerField(Goods, "Select or type goods", "Select Goods", KnownGoods, v => Goods = v)
+
+                <div class="form-label" style="margin-top:12px;">Official receipt no. <span>optional</span></div>
+                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="AddORNumber" @bind:event="oninput" />
             </div>
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
@@ -163,44 +165,13 @@
     <div class="sheet-overlay" @onclick="CloseSheets">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
-            <div class="sheet-title">Vendor Payment</div>
-            <div class="sheet-sub">@SelectedAttendance.VendorName · ₱@Collection!.VendorFee.ToString("N0")</div>
+            <div class="sheet-title">Update Receipt No.</div>
+            <div class="sheet-sub">@SelectedAttendance.VendorName · ₱@Collection!.VendorFee.ToString("N0") · Paid</div>
 
-            <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectedIsPaid = true">
-                <div class="status-option-icon paid-icon-sm">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                </div>
-                <div class="status-option-info">
-                    <div class="status-option-label">Paid</div>
-                    <div class="status-option-sub">Vendor fee collected - @FormatCurrency(SelectedAttendance.Fee)</div>
-                </div>
-                @if (SelectedIsPaid)
-                {
-                    <div class="status-option-check">✓</div>
-                }
-            </button>
-
-            @if (SelectedIsPaid)
-            {
-                <div class="or-number-wrap">
-                    <div class="form-label">Official receipt no. <span>optional</span></div>
-                    <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
-                </div>
-            }
-
-            <button class="status-option @(!SelectedIsPaid ? "status-option-active unpaid" : "")" type="button" @onclick="() => SelectedIsPaid = false">
-                <div class="status-option-icon unpaid-icon-sm">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                </div>
-                <div class="status-option-info">
-                    <div class="status-option-label">Unpaid</div>
-                    <div class="status-option-sub">Mark this vendor as not yet paid.</div>
-                </div>
-                @if (!SelectedIsPaid)
-                {
-                    <div class="status-option-check">✓</div>
-                }
-            </button>
+            <div class="or-number-wrap">
+                <div class="form-label">Official receipt no. <span>optional</span></div>
+                <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50" placeholder="000001" @bind="ORNumber" @bind:event="oninput" />
+            </div>
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
             {
@@ -210,8 +181,94 @@
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseSheets" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmPayAsync" disabled="@IsSaving">
-                    @(IsSaving ? "Saving..." : "Confirm")
+                    @(IsSaving ? "Saving..." : "Save")
                 </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowVendorReceipt && SelectedAttendance is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseSheets">
+        <div class="sheet receipt-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="receipt">
+                <div class="receipt-head">
+                    <img src="images/sds_logo.jpg" class="receipt-seal" alt="EEMO seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">Tabo-an Public Market</div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row"><span>Market Date</span><strong>@SelectedAttendance.MarketDate.ToString("MMMM dd, yyyy")</strong></div>
+                    <div class="receipt-meta-row"><span>Vendor</span><strong>@SelectedAttendance.VendorName</strong></div>
+                    <div class="receipt-meta-row"><span>Goods</span><strong>@(string.IsNullOrWhiteSpace(SelectedAttendance.Goods) ? "—" : SelectedAttendance.Goods)</strong></div>
+                    <div class="receipt-meta-row"><span>Status</span><strong>@(SelectedAttendance.IsPaid ? "Paid" : "Unpaid")</strong></div>
+                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(SelectedAttendance.ORNumber) ? "—" : SelectedAttendance.ORNumber)</strong></div>
+                </div>
+                <div class="receipt-divider"></div>
+                <div class="receipt-total-row receipt-grand">
+                    <span>Vendor Fee</span>
+                    <span>&#8369;@SelectedAttendance.Fee.ToString("N2")</span>
+                </div>
+                <div class="receipt-divider dashed"></div>
+                <div class="receipt-foot">
+                    <div class="receipt-foot-row">
+                        <span>Collected by</span>
+                        <strong>@Session.CollectorName</strong>
+                    </div>
+                    <div class="receipt-note">This acknowledges receipt of the Tabo-an Public Market vendor fee. Keep for your records.</div>
+                </div>
+            </div>
+            <div class="receipt-close-row">
+                @if (Collection?.IsMarketDay == true)
+                {
+                    <button class="btn-receipt-edit" type="button" @onclick="OpenPayFromReceipt">Edit</button>
+                }
+                <button class="btn-receipt-close" type="button" @onclick="CloseSheets">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowPicker)
+{
+    <div class="sheet-overlay picker-overlay" @onclick="ClosePicker">
+        <div class="sheet picker-sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">@PickerTitle</div>
+
+            <div class="search-wrap" style="margin-bottom:12px;">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search or type a new value" @bind="PickerSearch" @bind:event="oninput" />
+            </div>
+
+            <div class="picker-list">
+                @if (!string.IsNullOrWhiteSpace(PickerSearch)
+                     && !PickerOptions.Any(o => string.Equals(o, PickerSearch.Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    <button class="picker-item picker-item-new" type="button" @onclick="() => PickOption(PickerSearch.Trim())">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Use "<strong>@PickerSearch.Trim()</strong>"
+                    </button>
+                }
+
+                @foreach (var opt in PickerFiltered)
+                {
+                    <button class="picker-item" type="button" @onclick="() => PickOption(opt)">@opt</button>
+                }
+
+                @if (!PickerFiltered.Any() && string.IsNullOrWhiteSpace(PickerSearch))
+                {
+                    <div class="picker-empty">No options yet — type to add one.</div>
+                }
+            </div>
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="ClosePicker">Cancel</button>
             </div>
         </div>
     </div>
@@ -227,11 +284,14 @@
 
     private bool ShowAddSheet;
     private bool ShowPaySheet;
+    private bool ShowVendorReceipt;
     private TpmVendorAttendanceDto? SelectedAttendance;
-    private bool SelectedIsPaid = true;
     private string ORNumber = string.Empty;
     private string VendorName = string.Empty;
     private string Goods = string.Empty;
+    private string AddORNumber = string.Empty;
+
+    private IReadOnlyList<string> KnownGoods => Collection?.KnownGoods ?? Array.Empty<string>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -289,8 +349,26 @@
     {
         VendorName = string.Empty;
         Goods = string.Empty;
+        AddORNumber = string.Empty;
         SheetError = null;
         ShowAddSheet = true;
+    }
+
+    // Clicking a card → receipt (view-only). Edit button inside receipt → pay sheet.
+    private void OpenVendorAction(TpmVendorAttendanceDto attendance)
+    {
+        SelectedAttendance = attendance;
+        SheetError = null;
+        ShowVendorReceipt = true;
+    }
+
+    private void OpenPayFromReceipt()
+    {
+        ShowVendorReceipt = false;
+        if (SelectedAttendance is null) return;
+        ORNumber = SelectedAttendance.ORNumber ?? string.Empty;
+        SheetError = null;
+        ShowPaySheet = true;
     }
 
     private void OpenPaySheet(TpmVendorAttendanceDto attendance)
@@ -299,7 +377,6 @@
             return;
 
         SelectedAttendance = attendance;
-        SelectedIsPaid = true;
         ORNumber = attendance.ORNumber ?? string.Empty;
         SheetError = null;
         ShowPaySheet = true;
@@ -321,7 +398,10 @@
         IsSaving = true;
         SheetError = null;
 
-        var result = await MobileApi.AddTpmVendorAsync(new AddMobileTpmVendorRequest(VendorName.Trim(), Goods.Trim()));
+        var result = await MobileApi.AddTpmVendorAsync(new AddMobileTpmVendorRequest(
+            VendorName.Trim(),
+            Goods.Trim(),
+            string.IsNullOrWhiteSpace(AddORNumber) ? null : AddORNumber.Trim()));
         if (!result.IsSuccess)
         {
             SheetError = result.Error ?? "Unable to add the vendor.";
@@ -344,8 +424,8 @@
 
         var request = new MarkMobileTpmVendorPaidRequest(
             SelectedAttendance.Id,
-            SelectedIsPaid,
-            SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null);
+            true,
+            string.IsNullOrWhiteSpace(ORNumber) ? null : ORNumber.Trim());
 
         var result = await MobileApi.MarkTpmVendorPaidAsync(request);
         if (!result.IsSuccess)
@@ -364,8 +444,65 @@
     {
         ShowAddSheet = false;
         ShowPaySheet = false;
+        ShowVendorReceipt = false;
         SelectedAttendance = null;
         SheetError = null;
+    }
+
+    // ── Searchable picker (full-screen overlay) — same pattern as TRM ──
+    private bool ShowPicker;
+    private string PickerTitle = string.Empty;
+    private string PickerSearch = string.Empty;
+    private IReadOnlyList<string> PickerOptions = Array.Empty<string>();
+    private Action<string>? PickerSet;
+
+    private IEnumerable<string> PickerFiltered =>
+        PickerOptions.Where(o => string.IsNullOrWhiteSpace(PickerSearch)
+            || o.Contains(PickerSearch, StringComparison.OrdinalIgnoreCase));
+
+    // Read-only field that opens the picker; displays the current value or a placeholder.
+    private RenderFragment PickerField(string value, string placeholder, string title,
+        IReadOnlyList<string> options, Action<string> set) => __builder =>
+    {
+        __builder.OpenElement(0, "button");
+        __builder.AddAttribute(1, "type", "button");
+        __builder.AddAttribute(2, "class", "picker-field");
+        __builder.AddAttribute(3, "onclick", EventCallback.Factory.Create(this, () => OpenPicker(title, options, set)));
+
+        __builder.OpenElement(4, "span");
+        __builder.AddAttribute(5, "class", string.IsNullOrWhiteSpace(value) ? "picker-field-placeholder" : "picker-field-value");
+        __builder.AddContent(6, string.IsNullOrWhiteSpace(value) ? placeholder : value);
+        __builder.CloseElement();
+
+        __builder.OpenElement(7, "svg");
+        __builder.AddAttribute(8, "class", "picker-field-chev");
+        __builder.AddAttribute(9, "viewBox", "0 0 24 24");
+        __builder.AddMarkupContent(10, "<polyline points=\"6 9 12 15 18 9\" />");
+        __builder.CloseElement();
+
+        __builder.CloseElement(); // button
+    };
+
+    private void OpenPicker(string title, IReadOnlyList<string> options, Action<string> set)
+    {
+        PickerTitle = title;
+        PickerOptions = options;
+        PickerSet = set;
+        PickerSearch = string.Empty;
+        ShowPicker = true;
+    }
+
+    private void PickOption(string value)
+    {
+        PickerSet?.Invoke(value);
+        ShowPicker = false;
+        PickerSet = null;
+    }
+
+    private void ClosePicker()
+    {
+        ShowPicker = false;
+        PickerSet = null;
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";

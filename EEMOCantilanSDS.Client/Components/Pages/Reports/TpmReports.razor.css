@@ -16,8 +16,6 @@
 .rpt-eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 3px; }
 .rpt-title { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2; }
 .rpt-subtitle { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 2px; }
-.rpt-header-progress { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: rgba(255,255,255,.1); }
-.rpt-header-progress-fill { height: 100%; background: var(--gold); transition: width .4s ease; }
 .rpt-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 1; }
 .rpt-action-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.07); color: rgba(255,255,255,.85); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s; }
 .rpt-action-btn:hover { background: rgba(255,255,255,.14); }
@@ -101,6 +99,8 @@
 .donut-leg-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .donut-leg-label { font-size: 12.5px; color: var(--text); }
 .donut-leg-value { font-size: 12.5px; font-weight: 700; color: var(--navy); }
+.donut-leg-pct { font-size: 10.5px; font-weight: 600; color: var(--text-muted); }
+.kpi-value-text { font-size: 18px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Section heading ── */
 .rpt-section-heading { display: flex; align-items: center; gap: 12px; padding: 0 0 4px; }
@@ -133,42 +133,8 @@
 .tpm-tally-vals strong { color: var(--navy); font-weight: 800; }
 .tpm-tally-sep { color: var(--text-muted); }
 
-/* ── Vendor compliance ── */
-.tpm-comp-track-wrap { margin-bottom: 14px; }
-.tpm-comp-track { height: 10px; border-radius: 6px; overflow: hidden; display: flex; background: var(--bg); border: 1px solid var(--border); }
-.tpm-comp-seg { height: 100%; transition: width .4s ease; }
-.tpm-comp-seg.seg-paid { background: var(--green); }
-.tpm-comp-seg.seg-unpaid { background: var(--red); }
-.tpm-comp-seg.seg-empty { background: var(--bg); }
-.tpm-comp-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.tpm-comp-card { padding: 12px 10px; border-radius: 10px; border: 1px solid var(--border); text-align: center; background: var(--bg); }
-.tpm-comp-card-paid { border-color: color-mix(in srgb, var(--green) 35%, var(--border)); background: var(--green-bg); }
-.tpm-comp-card-unpaid { border-color: color-mix(in srgb, var(--red) 25%, var(--border)); background: var(--red-bg); }
-.tpm-comp-count { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1; }
-.tpm-comp-pct { font-size: 12px; font-weight: 700; margin-top: 2px; }
-.tpm-comp-card-paid .tpm-comp-pct { color: var(--green); }
-.tpm-comp-card-unpaid .tpm-comp-pct { color: var(--red); }
-.tpm-comp-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-top: 3px; }
-.tpm-comp-footer { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 11.5px; color: var(--text-subtle); text-align: center; }
-
-/* ── Status badges + fee cell ── */
-.status-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.status-badge.paid { background: var(--green-bg); color: var(--green); }
-.status-badge.unpaid { background: var(--red-bg); color: var(--red); }
+/* ── Fee cell ── */
 .tpm-fee { font-weight: 700; color: var(--green); }
-
-/* ── Unpaid Vendors follow-up panel ── */
-.rpt-followup-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-.followup-exposure { padding: 16px 18px; background: var(--bg); border-bottom: 1px solid var(--border); }
-.followup-exposure.followup-has-balance { background: var(--red-bg); }
-.followup-exp-val { font-size: 24px; font-weight: 800; color: var(--navy); line-height: 1; }
-.followup-has-balance .followup-exp-val { color: var(--red); }
-.followup-exp-lbl { font-size: 12px; color: var(--text-subtle); margin-top: 5px; }
-.followup-table-head, .followup-row { display: grid; grid-template-columns: 1fr 2fr 1.5fr 1fr; gap: 10px; padding: 10px 18px; align-items: center; }
-.followup-table-head { background: var(--bg); border-bottom: 1px solid var(--border); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
-.followup-row { border-bottom: 1px solid var(--border); font-size: 13px; color: var(--navy); }
-.followup-row:last-child { border-bottom: none; }
-.balance-due { color: var(--red); font-weight: 700; }
 
 /* ── Tables ── */
 .rpt-compliance-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -176,12 +142,8 @@
 .rpt-compliance-table th { padding: 10px 14px; background: var(--bg); border-bottom: 1px solid var(--border); text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); white-space: nowrap; }
 .rpt-compliance-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); color: var(--navy); }
 .rpt-compliance-table tr:last-child td { border-bottom: none; }
-.rpt-compliance-table .row-unpaid { background: rgba(139,58,58,.04); }
 .stall-no { font-weight: 700; }
 .text-muted { color: var(--text-muted); }
-.rate-good { color: var(--green); font-weight: 700; }
-.rate-partial { color: var(--gold); font-weight: 700; }
-.rate-low { color: var(--red); font-weight: 700; }
 .delinq-empty { padding: 20px; text-align: center; font-size: 13px; color: var(--text-muted); }
 
 /* ── Empty state ── */
@@ -249,7 +211,6 @@
     .rpt-kpi-strip { grid-template-columns: 1fr 1fr; }
     .rpt-charts-row { grid-template-columns: 1fr; }
     .rpt-audit-row { grid-template-columns: 1fr; }
-    .followup-table-head, .followup-row { grid-template-columns: 1fr 1.5fr 1fr 1fr; }
 }
 
 @media print {

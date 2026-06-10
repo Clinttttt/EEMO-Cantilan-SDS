@@ -7,5 +7,6 @@ namespace EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 public record AddVendorToMarketDayCommand(
     string VendorName,
     string Goods,
-    DateOnly MarketDate
+    DateOnly MarketDate,
+    string? ORNumber = null
 ) : IRequest<Result<TpmVendorAttendanceDto>>;

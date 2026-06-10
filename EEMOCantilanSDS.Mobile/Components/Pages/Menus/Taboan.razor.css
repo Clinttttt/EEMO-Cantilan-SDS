@@ -385,3 +385,95 @@
 .btn-confirm:disabled {
     opacity: 0.65;
 }
+
+
+/* ── Vendor card (tx-card pattern) ── */
+.bar-paid { background: var(--paid-green) !important; }
+
+.tag-paid  { background: rgba(45,122,95,.12); color: var(--paid-green); }
+.tag-unpaid { background: rgba(139,58,58,.1); color: var(--red-primary); }
+
+.tx-amount {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy-primary);
+    font-family: "EB Garamond", serif;
+}
+
+
+/* ── Vendor cards — same ledger style as TRM ─────────────────── */
+.tx-card {
+    border: 0;
+    font: inherit;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    text-align: left;
+    overflow: hidden;
+    cursor: pointer;
+}
+.tx-card:active { background: var(--bg-page); }
+
+.tx-left-bar { width: 3px; flex-shrink: 0; background: var(--navy-primary); }
+
+.tx-body { flex: 1; padding: 9px 10px; min-width: 0; }
+
+.tx-row-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.tx-col-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.tx-owner {
+    font-size: 13px; font-weight: 500; color: var(--navy-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.tx-sub { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+
+.tx-tag {
+    font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 4px;
+    background: rgba(13,33,55,.07); color: var(--navy-primary); flex-shrink: 0;
+}
+
+.tx-or { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tx-col-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+
+
+/* ── Searchable picker overlay (same as TRM) ─────────────────── */
+.picker-overlay { z-index: 30000; }
+
+.picker-sheet { display: flex; flex-direction: column; }
+
+.picker-list {
+    overflow-y: auto;
+    max-height: 50dvh;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+}
+
+.picker-item {
+    border: 0; font: inherit; width: 100%; text-align: left;
+    padding: 13px 14px; font-size: 14px; font-weight: 500;
+    color: var(--navy-primary); background: #fff; cursor: pointer;
+    display: block; border-bottom: 1px solid var(--border);
+}
+.picker-item:last-child { border-bottom: none; }
+.picker-item:active { background: var(--bg-page); }
+
+.picker-item-new {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--navy-primary); background: var(--bg-page); font-weight: 500;
+}
+.picker-item-new strong { font-weight: 700; }
+.picker-item-new svg {
+    width: 15px; height: 15px; stroke: var(--gold-primary, #c8a84b);
+    fill: none; stroke-width: 2.4; stroke-linecap: round; flex-shrink: 0;
+}
+
+.picker-empty { padding: 16px 14px; font-size: 12px; color: var(--text-muted); text-align: center; }

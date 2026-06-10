@@ -12,7 +12,6 @@ public sealed record MobileTpmCollectionDto(
     bool IsMarketDay,
     decimal VendorFee,
     int VendorCount,
-    int PaidCount,
-    int UnpaidCount,
     decimal CollectedAmount,
-    IReadOnlyList<TpmVendorAttendanceDto> Attendances);
+    IReadOnlyList<TpmVendorAttendanceDto> Attendances,
+    IReadOnlyList<string> KnownGoods);

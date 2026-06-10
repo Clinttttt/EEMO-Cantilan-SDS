@@ -15,4 +15,5 @@ public interface ITpmApiClient
     Task<Result<TpmVendorAttendanceDto>> AddVendorAsync(AddVendorToMarketDayCommand command);
     Task<Result<bool>> MarkVendorPaidAsync(Guid attendanceId, MarkVendorPaidRequest request);
     Task<Result<bool>> SaveOrNumberAsync(Guid attendanceId, SaveOrNumberRequest request);
+    Task<Result<bool>> UpdateVendorAsync(Guid attendanceId, UpdateTpmVendorRequest request);
 }

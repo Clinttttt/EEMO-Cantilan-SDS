@@ -33,9 +33,6 @@
             Print
         </button>
     </div>
-    <div class="rpt-header-progress" title="Collection rate @CollectionRate%">
-        <div class="rpt-header-progress-fill" style="width:@CollectionRate%"></div>
-    </div>
 </div>
 
 <!-- ══ Period Selector ══ -->
@@ -89,9 +86,8 @@
             </div>
             <div class="print-report-summary">
                 <div><span>Vendor Entries</span><strong>@MonthAtt.Count</strong></div>
-                <div><span>Paid</span><strong>@MonthAtt.Count(a => a.IsPaid)</strong></div>
+                <div><span>Market Days</span><strong>@MonthAtt.Select(a => a.MarketDate).Distinct().Count()</strong></div>
                 <div><span>Fees Collected</span><strong>&#8369;@MonthAtt.Where(a => a.IsPaid).Sum(a => a.Fee).ToString("N2")</strong></div>
-                <div><span>Collection Rate</span><strong>@CollectionRate%</strong></div>
             </div>
             @if (!MonthAtt.Any())
             {
@@ -106,7 +102,6 @@
                                 <th>Market Date</th>
                                 <th>Vendor</th>
                                 <th>Goods</th>
-                                <th>Status</th>
                                 <th>Fee</th>
                                 <th>OR No.</th>
                             </tr>
@@ -118,7 +113,6 @@
                                     <td>@a.MarketDate.ToString("MMM d")</td>
                                     <td>@a.VendorName</td>
                                     <td>@a.Goods</td>
-                                    <td class="status-@(a.IsPaid ? "paid" : "unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</td>
                                     <td>&#8369;@a.Fee.ToString("N2")</td>
                                     <td class="text-muted-cell">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
                                 </tr>
@@ -159,12 +153,12 @@ else if (ShowHistory)
                 <div class="print-table-wrap">
                     <table class="print-status-table history-table">
                         <thead>
-                            <tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr>
+                            <tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Collected</th></tr>
                         </thead>
                         <tbody>
                             @if (!HistoryMonthly.Any())
                             {
-                                <tr><td colspan="6" class="history-empty">@(HistoryLoading ? "Loading…" : "No collection records for this year.")</td></tr>
+                                <tr><td colspan="4" class="history-empty">@(HistoryLoading ? "Loading…" : "No collection records for this year.")</td></tr>
                             }
                             @foreach (var row in HistoryMonthly)
                             {
@@ -172,9 +166,7 @@ else if (ShowHistory)
                                     <td>@row.Label</td>
                                     <td>@row.MarketDays</td>
                                     <td>@row.VendorEntries</td>
-                                    <td>@row.PaidEntries</td>
                                     <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
-                                    <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
                                 </tr>
                             }
                         </tbody>
@@ -185,9 +177,7 @@ else if (ShowHistory)
                                     <td><strong>Total</strong></td>
                                     <td><strong>@HistoryMonthly.Sum(r => r.MarketDays)</strong></td>
                                     <td><strong>@HistoryMonthly.Sum(r => r.VendorEntries)</strong></td>
-                                    <td><strong>@HistoryMonthly.Sum(r => r.PaidEntries)</strong></td>
                                     <td><strong>₱@HistoryMonthly.Sum(r => r.Collected).ToString("N2")</strong></td>
-                                    <td>—</td>
                                 </tr>
                             </tfoot>
                         }
@@ -200,12 +190,12 @@ else if (ShowHistory)
                 <div class="print-table-wrap">
                     <table class="print-status-table history-table">
                         <thead>
-                            <tr><th>Year</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr>
+                            <tr><th>Year</th><th>Market Days</th><th>Vendor Entries</th><th>Collected</th></tr>
                         </thead>
                         <tbody>
                             @if (!HistoryYearly.Any())
                             {
-                                <tr><td colspan="6" class="history-empty">@(HistoryLoading ? "Loading…" : "No yearly records.")</td></tr>
+                                <tr><td colspan="4" class="history-empty">@(HistoryLoading ? "Loading…" : "No yearly records.")</td></tr>
                             }
                             @foreach (var row in HistoryYearly)
                             {
@@ -213,9 +203,7 @@ else if (ShowHistory)
                                     <td><strong>@row.Label</strong></td>
                                     <td>@row.MarketDays</td>
                                     <td>@row.VendorEntries</td>
-                                    <td>@row.PaidEntries</td>
                                     <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
-                                    <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
                                 </tr>
                             }
                         </tbody>
@@ -244,19 +232,19 @@ else
             </div>
         </div>
         <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+            <div class="kpi-icon-wrap kpi-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
             <div class="kpi-body">
-                <div class="kpi-label">Vendor Collection Rate</div>
-                <div class="kpi-value">@CollectionRate%</div>
-                <div class="kpi-change">@PaidEntries of @VendorEntries entries paid</div>
+                <div class="kpi-label">Avg Vendors / Market Day</div>
+                <div class="kpi-value">@AvgVendorsPerMarketDay.ToString("0.#")</div>
+                <div class="kpi-change">across @MarketDays market day@(MarketDays != 1 ? "s" : "")</div>
             </div>
         </div>
         <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div class="kpi-icon-wrap kpi-icon-neutral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
             <div class="kpi-body">
-                <div class="kpi-label">Unpaid Vendors</div>
-                <div class="kpi-value">@UnpaidEntries</div>
-                <div class="kpi-change kpi-change-negative">&#8369;@PendingAmount.ToString("N2") uncollected</div>
+                <div class="kpi-label">Top Goods</div>
+                <div class="kpi-value kpi-value-text">@TopGoods</div>
+                <div class="kpi-change">@(TopGoodsEntries > 0 ? $"{TopGoodsEntries} entr{(TopGoodsEntries == 1 ? "y" : "ies")}" : "no entries yet")</div>
             </div>
         </div>
         <div class="rpt-kpi-card">
@@ -313,31 +301,41 @@ else
                 </div>
             </div>
 
-            <!-- Vendor Payment Status donut -->
+            <!-- Vendors by Goods donut -->
             <div class="rpt-chart-card rpt-chart-narrow rpt-status-card">
                 <div class="chart-header">
                     <div class="chart-header-left">
-                        <h3 class="chart-title">Vendor Payment Status</h3>
-                        <p class="chart-subtitle">Entries by payment status</p>
+                        <h3 class="chart-title">Vendors by Goods</h3>
+                        <p class="chart-subtitle">@(GoodsBreakdown.Count > 5 ? $"Top 5 of {GoodsBreakdown.Count} categories" : "Share of entries per goods")</p>
                     </div>
                 </div>
                 <div class="rpt-donut-wrap">
                     <div class="rpt-donut-container">
                         <svg class="rpt-donut-svg" viewBox="0 0 120 120">
                             <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
-                            @{ var arcs = BuildDonutArcs(new[] { (PaidEntries, "#2d7a5f"), (UnpaidEntries, "#8b3a3a") }, 46, 60, 60); }
-                            @foreach (var arc in arcs)
+                            @{ var gArcs = BuildDonutArcs(GoodsSegments.Select(s => (s.Count, s.Color)).ToArray(), 46, 60, 60); }
+                            @foreach (var arc in gArcs)
                             {
                                 <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
                             }
                             <circle cx="60" cy="60" r="35" fill="white" />
-                            <text x="60" y="56" class="donut-center-val">@CollectionRate%</text>
-                            <text x="60" y="70" class="donut-center-lbl">PAID</text>
+                            <text x="60" y="56" class="donut-center-val">@VendorEntries</text>
+                            <text x="60" y="70" class="donut-center-lbl">ENTRIES</text>
                         </svg>
                     </div>
                     <div class="rpt-donut-legend">
-                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:#2d7a5f"></span><span class="donut-leg-label">Paid</span></div><strong class="donut-leg-value">@PaidEntries</strong></div>
-                        <div class="donut-leg-item"><div class="donut-leg-left"><span class="donut-leg-dot" style="background:#8b3a3a"></span><span class="donut-leg-label">Unpaid</span></div><strong class="donut-leg-value">@UnpaidEntries</strong></div>
+                        @foreach (var seg in GoodsSegments)
+                        {
+                            var legPct = VendorEntries > 0 ? (int)Math.Round((double)seg.Count / VendorEntries * 100) : 0;
+                            <div class="donut-leg-item">
+                                <div class="donut-leg-left"><span class="donut-leg-dot" style="background:@seg.Color"></span><span class="donut-leg-label">@seg.Label</span></div>
+                                <strong class="donut-leg-value">@seg.Count <span class="donut-leg-pct">· @legPct%</span></strong>
+                            </div>
+                        }
+                        @if (!GoodsSegments.Any())
+                        {
+                            <div class="delinq-empty">No vendor entries for @GetPeriodLabel().</div>
+                        }
                     </div>
                 </div>
             </div>
@@ -376,42 +374,6 @@ else
                 }
             </div>
 
-            <!-- Vendor Compliance -->
-            <div class="audit-card">
-                <div class="audit-card-head">
-                    <span>Vendor Compliance</span>
-                    <small class="audit-subtitle">Entry distribution by payment status</small>
-                </div>
-                <div class="tpm-comp-track-wrap">
-                    @if (VendorEntries > 0)
-                    {
-                        <div class="tpm-comp-track">
-                            @if (CollectionRate > 0) { <div class="tpm-comp-seg seg-paid" style="width:@CollectionRate%" title="Paid @PaidEntries"></div> }
-                            @if (UnpaidPct > 0) { <div class="tpm-comp-seg seg-unpaid" style="width:@UnpaidPct%" title="Unpaid @UnpaidEntries"></div> }
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="tpm-comp-track"><div class="tpm-comp-seg seg-empty" style="width:100%"></div></div>
-                    }
-                </div>
-                <div class="tpm-comp-cards">
-                    <div class="tpm-comp-card tpm-comp-card-paid">
-                        <div class="tpm-comp-count">@PaidEntries</div>
-                        <div class="tpm-comp-pct">@CollectionRate%</div>
-                        <div class="tpm-comp-lbl">Paid</div>
-                    </div>
-                    <div class="tpm-comp-card tpm-comp-card-unpaid">
-                        <div class="tpm-comp-count">@UnpaidEntries</div>
-                        <div class="tpm-comp-pct">@UnpaidPct%</div>
-                        <div class="tpm-comp-lbl">Unpaid</div>
-                    </div>
-                </div>
-                <div class="tpm-comp-footer">
-                    <span>₱@TotalCollected.ToString("N0") collected of ₱@ExpectedAmount.ToString("N0") expected · @MarketDays market day@(MarketDays != 1 ? "s" : "")</span>
-                </div>
-            </div>
-
             <!-- KPI stack -->
             <div class="audit-card audit-kpi-stack">
                 <div class="audit-number-card">
@@ -419,8 +381,8 @@ else
                     <span>Total Fees</span>
                 </div>
                 <div class="audit-number-card">
-                    <strong>@CollectionRate%</strong>
-                    <span>Collection Rate</span>
+                    <strong>@MarketDays</strong>
+                    <span>Market Days</span>
                 </div>
             </div>
         </div>
@@ -431,7 +393,7 @@ else
             <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Monthly Summary — @CurrentDate.Year</h2></div>
             <div class="rpt-compliance-table-wrap">
                 <table class="rpt-compliance-table">
-                    <thead><tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Paid</th><th>Collected</th><th>Collection Rate</th></tr></thead>
+                    <thead><tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Collected</th></tr></thead>
                     <tbody>
                         @foreach (var row in HistoryMonthly)
                         {
@@ -439,14 +401,12 @@ else
                                 <td class="stall-no">@row.Label</td>
                                 <td>@row.MarketDays</td>
                                 <td>@row.VendorEntries</td>
-                                <td>@row.PaidEntries</td>
                                 <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
-                                <td class="@RateCss(row.CollectionRate)">@(row.VendorEntries > 0 ? row.CollectionRate + "%" : "—")</td>
                             </tr>
                         }
                         @if (!HistoryMonthly.Any())
                         {
-                            <tr><td colspan="6" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
+                            <tr><td colspan="4" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
                         }
                     </tbody>
                 </table>
@@ -454,51 +414,25 @@ else
         }
         else
         {
-            <!-- Unpaid Vendors — for follow-up -->
-            <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Unpaid Vendors — for follow-up</h2></div>
-            <div class="rpt-followup-panel">
-                <div class="followup-exposure @(PendingAmount > 0 ? "followup-has-balance" : "")">
-                    <div class="followup-exp-val">&#8369;@PendingAmount.ToString("N2")</div>
-                    <div class="followup-exp-lbl">Uncollected this period — @UnpaidEntries vendor@(UnpaidEntries != 1 ? "s" : "") to follow up</div>
-                </div>
-                <div class="followup-table-head">
-                    <span>Market Date</span><span>Vendor</span><span>Goods</span><span>Fee Due</span>
-                </div>
-                @foreach (var a in UnpaidVendors)
-                {
-                    <div class="followup-row">
-                        <span class="text-muted">@a.MarketDate.ToString("MMM d")</span>
-                        <span>@a.VendorName</span>
-                        <span class="text-muted">@a.Goods</span>
-                        <span class="balance-due">&#8369;@a.Fee.ToString("N2")</span>
-                    </div>
-                }
-                @if (!UnpaidVendors.Any())
-                {
-                    <div class="delinq-empty">All vendors paid for @GetPeriodLabel().</div>
-                }
-            </div>
-
             <!-- Vendor Attendance Log -->
             <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Vendor Attendance Log — @GetPeriodLabel()</h2></div>
             <div class="rpt-compliance-table-wrap">
                 <table class="rpt-compliance-table">
-                    <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Status</th><th>Fee</th><th>OR Number</th></tr></thead>
+                    <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Fee</th><th>OR Number</th></tr></thead>
                     <tbody>
                         @foreach (var a in MonthAtt)
                         {
-                            <tr class="@(a.IsPaid ? "" : "row-unpaid")">
+                            <tr>
                                 <td class="text-muted">@a.MarketDate.ToString("MMM d")</td>
                                 <td>@a.VendorName</td>
                                 <td>@a.Goods</td>
-                                <td><span class="status-badge @(a.IsPaid ? "paid" : "unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</span></td>
                                 <td class="tpm-fee">&#8369;@a.Fee.ToString("N0")</td>
                                 <td class="text-muted">@(string.IsNullOrEmpty(a.ORNumber) ? "—" : a.ORNumber)</td>
                             </tr>
                         }
                         @if (!MonthAtt.Any())
                         {
-                            <tr><td colspan="6" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
+                            <tr><td colspan="5" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
                         }
                     </tbody>
                 </table>
@@ -549,6 +483,7 @@ else
     void RecomputeDerived()
     {
         _goodsBreakdown = BuildGoodsBreakdown();
+        _goodsSegments = BuildGoodsSegments(_goodsBreakdown);
         _trendPoints = BuildTrendPoints();
     }
 
@@ -579,18 +514,13 @@ else
     bool IsYearly => ActivePeriod == "Yearly";
     private TpmPeriodSummaryDto? YearRow => Hist?.Yearly.FirstOrDefault(y => y.Year == CurrentDate.Year);
 
-    static string RateCss(int rate) => rate >= 80 ? "rate-good" : rate >= 40 ? "rate-partial" : "rate-low";
-
     // ── KPI values (period-aware) ─────────────────────────────────
     decimal TotalCollected => IsYearly ? (YearRow?.Collected ?? 0m) : MonthAtt.Where(a => a.IsPaid).Sum(a => a.Fee);
     int     VendorEntries  => IsYearly ? (YearRow?.VendorEntries ?? 0) : MonthAtt.Count;
-    int     PaidEntries    => IsYearly ? (YearRow?.PaidEntries ?? 0) : MonthAtt.Count(a => a.IsPaid);
-    int     UnpaidEntries  => IsYearly ? (YearRow?.UnpaidEntries ?? 0) : MonthAtt.Count(a => !a.IsPaid);
     int     MarketDays     => IsYearly ? (YearRow?.MarketDays ?? 0) : MonthAtt.Select(a => a.MarketDate).Distinct().Count();
-    int     CollectionRate => IsYearly ? (YearRow?.CollectionRate ?? 0) : (VendorEntries > 0 ? (int)Math.Round((double)PaidEntries / VendorEntries * 100) : 0);
-    int     UnpaidPct      => VendorEntries > 0 ? Math.Max(0, 100 - CollectionRate) : 0;
-    decimal ExpectedAmount => VendorEntries * FeeRates.TpmVendorFee;
-    decimal PendingAmount  => UnpaidEntries * FeeRates.TpmVendorFee;
+    decimal AvgVendorsPerMarketDay => MarketDays > 0 ? Math.Round((decimal)VendorEntries / MarketDays, 1) : 0m;
+    string  TopGoods       => GoodsBreakdown.Count > 0 ? GoodsBreakdown[0].Goods : "—";
+    int     TopGoodsEntries => GoodsBreakdown.Count > 0 ? GoodsBreakdown[0].Entries : 0;
 
     // ── Goods breakdown (period-aware, memoized) ──────────────────
     record TallyRow(string Goods, int Entries, decimal Collected);
@@ -609,9 +539,23 @@ else
             .ToList();
     }
 
-    // ── Unpaid vendors follow-up (monthly only) ───────────────────
-    IReadOnlyList<TpmVendorAttendanceDto> UnpaidVendors =>
-        MonthAtt.Where(a => !a.IsPaid).OrderBy(a => a.MarketDate).ThenBy(a => a.VendorName).ToList();
+    // ── Goods donut segments (top 5 + Other) — mirrors TRM's route donut ──
+    record DonutSeg(string Label, int Count, string Color);
+    static readonly string[] GoodsPalette = { "#1e3a5f", "#2d7a5f", "#c8a84b", "#6a8aa0", "#b5894e" };
+    private IReadOnlyList<DonutSeg> _goodsSegments = Array.Empty<DonutSeg>();
+    IReadOnlyList<DonutSeg> GoodsSegments => _goodsSegments;
+
+    IReadOnlyList<DonutSeg> BuildGoodsSegments(IReadOnlyList<TallyRow> ranked)
+    {
+        var segs = ranked.Take(5)
+            .Select((g, i) => new DonutSeg(g.Goods, g.Entries, GoodsPalette[i % GoodsPalette.Length]))
+            .ToList();
+        var rest = ranked.Skip(5).ToList();
+        var other = rest.Sum(g => g.Entries);
+        if (other > 0)
+            segs.Add(new DonutSeg($"Other ({rest.Count} categor{(rest.Count == 1 ? "y" : "ies")})", other, "#c3ced8"));
+        return segs;
+    }
 
     // ── Trend (per Friday for Monthly, per month for Yearly; memoized) ──
     record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct, bool IsZero)
