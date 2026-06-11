@@ -62,8 +62,6 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
             builder.Property(x => x.IsDeleted).HasDefaultValue(false);
             builder.Property(x => x.DeletedAt);
             builder.Property(x => x.DeletedBy).HasMaxLength(100);
-
-            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

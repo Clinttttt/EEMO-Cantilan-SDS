@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
+using EEMOCantilanSDS.Application.Command.Collectors.ResetCollectorPassword;
 using EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
 using EEMOCantilanSDS.Application.Dtos;
@@ -53,6 +54,13 @@ public class CollectorsController : ApiBaseController
     public async Task<ActionResult<bool>> ToggleStatusAsync(Guid id, [FromBody] ToggleCollectorStatusRequest request)
     {
         var result = await Sender.Send(new ToggleCollectorStatusCommand(id, request.IsActive));
+        return HandleResponse(result);
+    }
+
+    [HttpPatch("{id:guid}/reset-password")]
+    public async Task<ActionResult<bool>> ResetPasswordAsync(Guid id, [FromBody] ResetCollectorPasswordRequest request)
+    {
+        var result = await Sender.Send(new ResetCollectorPasswordCommand(id, request.NewPassword));
         return HandleResponse(result);
     }
 

@@ -156,7 +156,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .Select(d => new
             {
                 d.ORNumber,
-                Occupant = d.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Occupant = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
                 Code = d.Stall.Facility!.Code,
                 d.DailyFee,
                 d.FishKilos,

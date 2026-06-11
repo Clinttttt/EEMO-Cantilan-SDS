@@ -20,7 +20,7 @@ public class DailyCollectionRepository(AppDbContext context) : IDailyCollectionR
 
         return await context.DailyCollections
             .AsNoTracking()
-            .Where(d => d.StallId == stallId && d.CollectionDate >= startDate && d.CollectionDate <= endDate && !d.IsDeleted)
+            .Where(d => d.StallId == stallId && d.CollectionDate >= startDate && d.CollectionDate <= endDate)
             .OrderBy(d => d.CollectionDate)
             .ToListAsync(ct);
     }

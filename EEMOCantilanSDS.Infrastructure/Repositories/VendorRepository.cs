@@ -16,10 +16,9 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
     {
         var stalls = await context.Stalls
             .AsNoTracking()
-            .Where(s => !s.IsDeleted)
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
-            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
             .ToListAsync(cancellationToken);
 
         var activeStalls = stalls.Where(s => s.Status == StallStatus.Active).ToList();

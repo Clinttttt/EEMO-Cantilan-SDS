@@ -21,7 +21,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
     {
         var payment = await context.PaymentRecords
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.StallId == stallId && p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted, ct);
+            .FirstOrDefaultAsync(p => p.StallId == stallId && p.BillingYear == year && p.BillingMonth == month, ct);
 
         if (payment == null)
             return null;
@@ -43,7 +43,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
     {
         var payments = await context.PaymentRecords
             .AsNoTracking()
-            .Where(p => p.Stall!.Facility!.Code == facilityCode && p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted)
+            .Where(p => p.Stall!.Facility!.Code == facilityCode && p.BillingYear == year && p.BillingMonth == month)
             .ToListAsync(ct);
 
         // AmountPaid is a C# computed property — map in memory, not in SQL
@@ -65,7 +65,6 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .AsNoTracking()
             .Where(dc => dc.Stall!.Facility!.Code == facilityCode
                 && dc.IsPaid
-                && !dc.IsDeleted
                 && dc.CollectionDate >= monthStart
                 && dc.CollectionDate <= monthEnd)
             .Select(dc => new { dc.StallId, dc.CollectionDate })
@@ -90,12 +89,12 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var stall = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .FirstOrDefaultAsync(s => s.Id == stallId, ct);
 
         var payments = await context.PaymentRecords
             .AsNoTracking()
-            .Where(p => p.StallId == stallId && !p.IsDeleted)
+            .Where(p => p.StallId == stallId)
             .Where(p => (p.BillingYear > startDate.Year) || (p.BillingYear == startDate.Year && p.BillingMonth >= startDate.Month))
             .ToListAsync(ct);
 
@@ -116,7 +115,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
         var dailies = await context.DailyCollections
             .AsNoTracking()
-            .Where(dc => dc.StallId == stallId && dc.IsPaid && !dc.IsDeleted
+            .Where(dc => dc.StallId == stallId && dc.IsPaid
                 && dc.CollectionDate >= windowStart && dc.CollectionDate <= today)
             .Select(dc => new { dc.CollectionDate, dc.DailyFee, dc.CollectorId, dc.ORNumber })
             .ToListAsync(ct);
@@ -196,7 +195,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var stall = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .FirstOrDefaultAsync(s => s.Id == stallId, ct);
 
         if (stall is null)
@@ -204,7 +203,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
         var payments = await context.PaymentRecords
             .AsNoTracking()
-            .Where(p => p.StallId == stallId && !p.IsDeleted)
+            .Where(p => p.StallId == stallId)
             .Where(p => (p.BillingYear > startDate.Year) || (p.BillingYear == startDate.Year && p.BillingMonth >= startDate.Month))
             .ToListAsync(ct);
 
@@ -214,7 +213,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var dailies = isNpm
             ? await context.DailyCollections
                 .AsNoTracking()
-                .Where(dc => dc.StallId == stallId && dc.IsPaid && !dc.IsDeleted
+                .Where(dc => dc.StallId == stallId && dc.IsPaid
                     && dc.CollectionDate >= windowStart && dc.CollectionDate <= today)
                 .Select(dc => new { dc.CollectionDate, dc.DailyFee })
                 .ToListAsync(ct)
@@ -271,7 +270,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var days = 0;
         for (var d = start; d <= end; d = d.AddDays(1))
         {
-            if (stall.Contracts.Any(c => c.IsActive && !c.IsDeleted && c.EffectivityDate <= d && d <= c.ExpiryDate))
+            if (stall.Contracts.Any(c => c.IsActive && c.EffectivityDate <= d && d <= c.ExpiryDate))
                 days++;
         }
         return days;
@@ -279,11 +278,13 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
     {
-        if (await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
-        if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
-        if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
-        if (await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
-        if (await context.TrmTrips.AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
+        // OR (receipt) numbers must stay globally unique even against soft-deleted records,
+        // so bypass the global IsDeleted filter for these existence checks.
+        if (await context.PaymentRecords.IgnoreQueryFilters().AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
+        if (await context.DailyCollections.IgnoreQueryFilters().AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
+        if (await context.SlaughterTransactions.IgnoreQueryFilters().AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
+        if (await context.TpmAttendances.IgnoreQueryFilters().AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
+        if (await context.TrmTrips.IgnoreQueryFilters().AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
         return true;
     }
 

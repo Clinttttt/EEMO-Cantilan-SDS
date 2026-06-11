@@ -53,6 +53,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             UpdatedBy = updatedBy;
         }
 
+        public void Activate(string updatedBy)
+        {
+            IsActive = true;
+            FailedAttempts = 0;
+            LockedUntil = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        // Head-initiated password reset. Forces a change on next login and clears any lockout
+        // so a forgotten-password account can immediately sign in with the temporary password.
+        public void ResetPassword(string newPassword, string updatedBy)
+        {
+            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            MustChangePassword = true;
+            FailedAttempts = 0;
+            LockedUntil = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void RecordLogin()
         {
             FailedAttempts = 0;

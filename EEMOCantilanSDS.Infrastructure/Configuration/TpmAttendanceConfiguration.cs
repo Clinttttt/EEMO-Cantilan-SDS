@@ -76,8 +76,5 @@ public class TpmAttendanceConfiguration : IEntityTypeConfiguration<TpmAttendance
             .WithMany(v => v.Attendances)
             .HasForeignKey(a => a.VendorId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        // Global query filter for soft delete
-        builder.HasQueryFilter(a => !a.IsDeleted);
     }
 }

@@ -230,6 +230,12 @@ a {
         background: var(--bg);
     }
 
+/* AccountChip renders the topbar identity as an anchor; keep it visually identical to the div chip. */
+a.topbar-admin.account-chip {
+    text-decoration: none;
+    color: var(--text);
+}
+
 .admin-avatar {
     width: 30px;
     height: 30px;

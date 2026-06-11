@@ -61,6 +61,7 @@ EEMOCantilanSDS.sln
 ### Infrastructure
 - `AppDbContext : DbContext`
 - One `IEntityTypeConfiguration<T>` per entity
+- Soft-delete filtering is centralized in `AppDbContext`: every `AuditableEntity` is excluded by default through the global `IsDeleted == false` query filter
 - Repository implementations of Application interfaces
 - `UnitOfWork : IUnitOfWork` wraps DbContext + all repo instances
 - Migrations (auto-generated — never manually edited)
@@ -184,6 +185,7 @@ EEMOCantilanSDS.sln
 
 ## What NOT to Do (hard rules — never violate)
 
+- Never add routine `!x.IsDeleted` predicates in repositories for `AuditableEntity` queries; rely on the global soft-delete query filter unless the query intentionally uses `IgnoreQueryFilters()` or needs an explicit exception documented in code
 - Never inject `DbContext` directly in handlers — use repos + `IUnitOfWork`
 - Never call `context.SaveChangesAsync` directly in handlers — always via `uow.SaveChangesAsync()`
 - Never call `uow.CommitAsync()` — the method is `SaveChangesAsync()`

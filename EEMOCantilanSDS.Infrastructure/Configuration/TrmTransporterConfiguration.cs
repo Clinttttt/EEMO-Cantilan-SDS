@@ -48,7 +48,5 @@ public class TrmTransporterConfiguration : IEntityTypeConfiguration<TrmTransport
             .WithOne(tr => tr.Transporter)
             .HasForeignKey(tr => tr.TransporterId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasQueryFilter(t => !t.IsDeleted);
     }
 }

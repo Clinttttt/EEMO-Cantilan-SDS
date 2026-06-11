@@ -61,7 +61,5 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
             .HasForeignKey(t => t.TransporterId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasQueryFilter(t => !t.IsDeleted);
     }
 }

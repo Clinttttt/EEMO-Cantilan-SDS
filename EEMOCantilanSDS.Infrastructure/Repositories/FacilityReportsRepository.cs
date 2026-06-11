@@ -25,7 +25,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get facility ID
         var facility = await _context.Facilities
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Code == facilityCode && !f.IsDeleted, ct);
+            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
 
         if (facility == null)
         {
@@ -112,7 +112,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         int year,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Code == facilityCode && !f.IsDeleted, ct)
+        var facility = await _context.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Code == facilityCode, ct)
             ?? throw new InvalidOperationException($"Facility with code {facilityCode} not found");
         var facilityId = facility.Id;
         var today = PhilippineTime.Today;
@@ -157,7 +157,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         var facility = await _context.Facilities
             .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Code == facilityCode && !f.IsDeleted, ct);
+            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
         if (facility == null)
             return new FacilitySnapshotDto(0m, 0m, 0, 0, 0, 0, 0);
 
@@ -224,10 +224,10 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         var stalls = (await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .Where(s => s.FacilityId == facilityId
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct))
             // Only stalls whose contract was actually effective during the selected period.
             // Without this, a stall whose contract starts after the period (or expired before it)
@@ -243,7 +243,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => stallIds.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var includeFish = facilityCode == FacilityCode.NPM;
@@ -266,7 +266,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var dailyByStall = includeFish
             ? await _context.DailyCollections
                 .AsNoTracking()
-                .Where(dc => stallIds.Contains(dc.StallId) && !dc.IsDeleted && dc.IsPaid
+                .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
                     && !stallsWithNpmPeriodPayments.Contains(dc.StallId)
                     && dc.CollectionDate >= complianceStart && dc.CollectionDate <= complianceEnd)
                 .GroupBy(dc => dc.StallId)
@@ -281,7 +281,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var dailyPaidMonthsByStall = includeFish
             ? (await _context.DailyCollections
                     .AsNoTracking()
-                    .Where(dc => stallIds.Contains(dc.StallId) && !dc.IsDeleted && dc.IsPaid
+                    .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
                         && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
                     .Select(dc => new { dc.StallId, dc.CollectionDate })
                     .ToListAsync(ct))
@@ -293,7 +293,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         foreach (var s in stalls)
         {
-            var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+            var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
 
             decimal totalBill;
             string? orNumber = null;
@@ -640,13 +640,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
     private static bool IsContractCollectableOn(Contract contract, DateOnly date)
         => contract.IsActive
-            && !contract.IsDeleted
             && contract.EffectivityDate <= date
             && date <= contract.ExpiryDate;
 
     private static bool IsStallCollectableOn(Stall stall, DateOnly date)
         => stall.Status == StallStatus.Active
-            && !stall.IsDeleted
             && stall.Contracts.Any(c => IsContractCollectableOn(c, date));
 
     private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate)
@@ -671,11 +669,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         return await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .Where(s => s.FacilityId == facilityId
                 && s.Status == StallStatus.Active
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct);
     }
 
@@ -845,7 +843,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get all payment records and filter in memory
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => npmStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => npmStallIds.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var monthlyRevenue = paymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -866,7 +864,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
                 && dc.IsPaid
-                && !dc.IsDeleted
+               
                 && !stallsWithMonthlyPayments.Contains(dc.StallId))
             .ToListAsync(ct);
 
@@ -891,7 +889,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get all payment records and filter in memory
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => pr.Stall!.FacilityId == facilityId && !pr.IsDeleted)
+            .Where(pr => pr.Stall!.FacilityId == facilityId)
             .ToListAsync(ct);
 
         return paymentRecords
@@ -908,11 +906,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         return await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .Where(s => s.FacilityId == facilityId
                 && s.Status == StallStatus.Active
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct);
     }
 
@@ -936,7 +934,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
             // Skip months that have not started yet (not due) and months the contract is not effective.
             if (mStart <= today
-                && stall.Contracts.Any(c => c.IsActive && !c.IsDeleted
+                && stall.Contracts.Any(c => c.IsActive
                     && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
             {
                 total += stall.MonthlyRate;
@@ -963,7 +961,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             {
                 var mStart = cursor;
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-                if (s.Contracts.Any(c => c.IsActive && !c.IsDeleted
+                if (s.Contracts.Any(c => c.IsActive
                         && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
                     total += s.MonthlyRate;
                 cursor = cursor.AddMonths(1);
@@ -1003,8 +1001,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var occupiedStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .Select(s => new { s.Id, s.MonthlyRate })
             .ToListAsync(ct);
 
@@ -1022,7 +1020,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             var npmPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
-                .Where(pr => npmStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+                .Where(pr => npmStallIds.Contains(pr.StallId))
                 .ToListAsync(ct);
 
             var monthlyDailyFeeRevenue = npmPaymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -1038,7 +1036,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => npmStallIds.Contains(dc.StallId)
-                    && !dc.IsDeleted
+                   
                     && dc.IsPaid
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
@@ -1058,7 +1056,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => occupiedStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => occupiedStallIds.Contains(pr.StallId))
             .ToListAsync(ct);
 
         // Collected = recognized rent payments in the period (Paid → full bill; Partial → partial).
@@ -1096,10 +1094,10 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // it) is not occupied for that period, so it must not inflate the occupancy card.
         var stalls = await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .Where(s => s.FacilityId == facilityId
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct);
 
         return stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
@@ -1111,7 +1109,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         return await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
+            .Where(s => s.FacilityId == facilityId)
             .CountAsync(ct);
     }
 
@@ -1142,8 +1140,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var occupiedStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId 
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .Select(s => new { s.Id, s.MonthlyRate })
             .ToListAsync(ct);
 
@@ -1155,7 +1153,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get all payment records and filter in memory
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => occupiedStalls.Select(s => s.Id).Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => occupiedStalls.Select(s => s.Id).Contains(pr.StallId))
             .ToListAsync(ct);
 
         var paymentsByStall = allPaymentRecords
@@ -1171,7 +1169,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             ? await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => occupiedStalls.Select(s => s.Id).Contains(dc.StallId)
-                    && !dc.IsDeleted
+                   
                     && dc.IsPaid
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate)
@@ -1286,7 +1284,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .Where(pr => npmStallIds.Contains(pr.StallId)
                         && pr.BillingYear == date.Year
                         && pr.BillingMonth == date.Month
-                        && !pr.IsDeleted)
+                       )
                     .ToListAsync(ct);
 
                 var monthlyRevenue = paymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -1302,7 +1300,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .Where(dc => npmStallIds.Contains(dc.StallId)
                         && dc.CollectionDate == date
                         && dc.IsPaid
-                        && !dc.IsDeleted
+                       
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
@@ -1360,7 +1358,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .Where(pr => npmStallIds.Contains(pr.StallId)
                         && pr.BillingYear == targetYear
                         && pr.BillingMonth == targetMonth
-                        && !pr.IsDeleted)
+                       )
                     .ToListAsync(ct);
 
                 var monthlyRevenue = paymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -1379,7 +1377,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && dc.CollectionDate >= monthStart
                         && dc.CollectionDate <= monthEnd
                         && dc.IsPaid
-                        && !dc.IsDeleted
+                       
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
@@ -1398,7 +1396,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .Where(pr => pr.Stall!.FacilityId == facilityId
                         && pr.BillingYear == targetYear
                         && pr.BillingMonth == targetMonth
-                        && !pr.IsDeleted)
+                       )
                     .ToListAsync(ct);
 
                 revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
@@ -1450,7 +1448,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .AsNoTracking()
                     .Where(pr => npmStallIds.Contains(pr.StallId)
                         && pr.BillingYear == targetYear
-                        && !pr.IsDeleted)
+                       )
                     .ToListAsync(ct);
 
                 var monthlyRevenue = paymentRecords.Sum(pr => npmStallsById.TryGetValue(pr.StallId, out var stall)
@@ -1469,7 +1467,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                         && dc.CollectionDate >= yearStart
                         && dc.CollectionDate <= yearEnd
                         && dc.IsPaid
-                        && !dc.IsDeleted
+                       
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
@@ -1487,7 +1485,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     .AsNoTracking()
                     .Where(pr => pr.Stall!.FacilityId == facilityId
                         && pr.BillingYear == targetYear
-                        && !pr.IsDeleted)
+                       )
                     .ToListAsync(ct);
 
                 revenue = paymentRecords.Sum(pr => RecognizedRevenue(pr, includeFish: false));
@@ -1525,7 +1523,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
                 && dc.IsPaid
-                && !dc.IsDeleted)
+               )
             .GroupBy(dc => dc.CollectionDate)
             .Select(g => new
             {
@@ -1579,7 +1577,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => npmStallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => npmStallIds.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var periodPaymentRecords = paymentRecords
@@ -1599,7 +1597,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
                 && dc.IsPaid
-                && !dc.IsDeleted
+               
                 && !stallsWithMonthlyPayments.Contains(dc.StallId))
             .ToListAsync(ct);
 
@@ -1705,11 +1703,11 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Occupied stalls (active contract) — coverage is computed per stall.
         var stalls = await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .Where(s => s.FacilityId == facilityId
                 && s.Status == StallStatus.Active
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct);
 
         var stallIds = stalls.Select(s => s.Id).ToList();
@@ -1717,7 +1715,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Amount paid per stall for this month (monthly record). ₱30 (daily fee) == 1 covered day.
         var monthlyPayments = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(p => stallIds.Contains(p.StallId) && p.BillingYear == monthStart.Year && p.BillingMonth == monthStart.Month && !p.IsDeleted)
+            .Where(p => stallIds.Contains(p.StallId) && p.BillingYear == monthStart.Year && p.BillingMonth == monthStart.Month)
             .ToListAsync(ct);
         // Per-stall coverage: rent paid ÷ ₱30 = covered days for that stall (whole month when fully paid),
         // plus explicit daily-collection dates. A monthly payment supersedes daily collections.
@@ -1728,14 +1726,14 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
         var dailyDatesByStall = (await _context.DailyCollections
                 .AsNoTracking()
-                .Where(dc => stallIds.Contains(dc.StallId) && dc.CollectionDate >= monthStart && dc.CollectionDate <= monthEnd && dc.IsPaid && !dc.IsDeleted)
+                .Where(dc => stallIds.Contains(dc.StallId) && dc.CollectionDate >= monthStart && dc.CollectionDate <= monthEnd && dc.IsPaid)
                 .Select(dc => new { dc.StallId, dc.CollectionDate })
                 .ToListAsync(ct))
             .GroupBy(x => x.StallId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
         bool CollectableOn(Stall s, DateOnly d) => s.Contracts.Any(c =>
-            c.IsActive && !c.IsDeleted && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));
+            c.IsActive && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));
 
         var collectableDaysByStall = stalls.ToDictionary(
             s => s.Id,
@@ -1847,8 +1845,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var activeStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .Select(s => s.Id)
             .ToListAsync(ct);
 
@@ -1862,7 +1860,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get all payment records and filter in memory
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => activeStalls.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => activeStalls.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var paymentStatuses = allPaymentRecords
@@ -1877,7 +1875,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => activeStalls.Contains(dc.StallId) 
-                    && !dc.IsDeleted 
+                    
                     && dc.IsPaid
                     && dc.CollectionDate >= startDate 
                     && dc.CollectionDate <= endDate)
@@ -1966,8 +1964,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         {
             var stalls = await _context.Stalls
                 .AsNoTracking()
-                .Where(s => s.FacilityId == facilityId && s.Section == section && !s.IsDeleted)
-                .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+                .Where(s => s.FacilityId == facilityId && s.Section == section)
+                .Include(s => s.Contracts.Where(c => c.IsActive))
                 .ToListAsync(ct);
 
             if (stalls.Count == 0)
@@ -1982,7 +1980,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             // Get payment records for this section
             var allPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
-                .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+                .Where(pr => stallIds.Contains(pr.StallId))
                 .ToListAsync(ct);
 
             var monthlyRevenue = allPaymentRecords.Sum(pr => stallsById.TryGetValue(pr.StallId, out var stall)
@@ -2003,7 +2001,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
                     && dc.IsPaid
-                    && !dc.IsDeleted
+                   
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
 
@@ -2024,7 +2022,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var actualRevenue = dailyRevenue + monthlyRevenue;
 
             // Calculate expected revenue for this section (occupied stalls only)
-            var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive && !c.IsDeleted)).ToList();
+            var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
             var expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(occupiedStalls, startDate, endDate);
 
             // Collection rate is for the daily stall-rent obligation only. Fish kilo fees are
@@ -2034,7 +2032,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var sectionName = SectionLabel(section);
             var activeStalls = stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
-            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
 
             breakdown.Add(new SectionBreakdownDto(
                 sectionName,
@@ -2066,8 +2064,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         {
             var stalls = await _context.Stalls
                 .AsNoTracking()
-                .Where(s => s.FacilityId == facilityId && s.AreaLocation == area && !s.IsDeleted)
-                .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+                .Where(s => s.FacilityId == facilityId && s.AreaLocation == area)
+                .Include(s => s.Contracts.Where(c => c.IsActive))
                 .ToListAsync(ct);
 
             // Skip tiers with no stalls so the report never renders an empty ₱0 placeholder card
@@ -2080,7 +2078,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             // Calculate actual revenue collected (only Paid/Partial)
             var allPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
-                .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+                .Where(pr => stallIds.Contains(pr.StallId))
                 .ToListAsync(ct);
 
             var actualRevenue = allPaymentRecords
@@ -2089,14 +2087,14 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
 
             // Expected = rent obligation that has come due across the period (same due-month rule as
             // the headline collection-rate KPI), so the per-area rate matches the facility rate.
-            var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive && !c.IsDeleted)).ToList();
+            var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
             var expectedRevenue = occupiedStalls.Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
 
             // Clamp to 100% like CalculateCollectionRateAsync so an overpayment can't read >100%.
             var percentage = expectedRevenue > 0 ? Math.Min(100m, (actualRevenue / expectedRevenue) * 100m) : 0m;
-            var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var activeStalls = stalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
-            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive && !c.IsDeleted));
+            var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
 
             breakdown.Add(new SectionBreakdownDto(
                 area.ToString(),
@@ -2128,8 +2126,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
     {
         var stalls = await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId && !s.IsDeleted)
-            .Include(s => s.Contracts.Where(c => c.IsActive && !c.IsDeleted))
+            .Where(s => s.FacilityId == facilityId)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
             .ToListAsync(ct);
 
         if (stalls.Count == 0)
@@ -2144,7 +2142,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // (IsPaymentInDateRange builds DateOnly values and cannot be translated to SQL).
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => stallIds.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => stallIds.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var monthlyRevenueByStall = paymentRecords
@@ -2175,7 +2173,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
                     && dc.IsPaid
-                    && !dc.IsDeleted
+                   
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
 
@@ -2221,8 +2219,8 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         var activeStalls = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId
-                && !s.IsDeleted
-                && s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+               
+                && s.Contracts.Any(c => c.IsActive))
             .Select(s => s.Id)
             .ToListAsync(ct);
 
@@ -2234,7 +2232,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
         // Get all payment records and filter in memory
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => activeStalls.Contains(pr.StallId) && !pr.IsDeleted)
+            .Where(pr => activeStalls.Contains(pr.StallId))
             .ToListAsync(ct);
 
         var paymentStatuses = allPaymentRecords
@@ -2249,7 +2247,7 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => activeStalls.Contains(dc.StallId) 
-                    && !dc.IsDeleted 
+                    
                     && dc.IsPaid
                     && dc.CollectionDate >= startDate 
                     && dc.CollectionDate <= endDate)

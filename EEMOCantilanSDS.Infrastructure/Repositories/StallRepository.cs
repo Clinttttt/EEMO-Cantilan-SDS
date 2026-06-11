@@ -22,16 +22,14 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
         var stalls = await context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Include(s => s.Contracts)
             .Include(s => s.DailyCollections.Where(d =>
                 d.CollectionDate >= monthStart &&
-                d.CollectionDate <= monthEnd &&
-                !d.IsDeleted))
+                d.CollectionDate <= monthEnd))
             .Where(s =>
                 s.Facility!.Code == FacilityCode.NPM &&
                 s.Status == StallStatus.Active &&
-                s.Section.HasValue &&
-                !s.IsDeleted)
+                s.Section.HasValue)
             .OrderBy(s => s.Section)
             .ThenBy(s => s.StallNo)
             .ToListAsync(ct);
@@ -39,7 +37,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
         var rows = stalls.Select(s =>
         {
             var contract = s.Contracts
-                .Where(c => c.IsActive && !c.IsDeleted)
+                .Where(c => c.IsActive)
                 .OrderByDescending(c => c.EffectivityDate)
                 .FirstOrDefault();
 
@@ -96,23 +94,21 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var stalls = await context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
+            .Include(s => s.Contracts)
             .Include(s => s.PaymentRecords.Where(p =>
                 p.BillingYear == year &&
-                p.BillingMonth == month &&
-                !p.IsDeleted))
+                p.BillingMonth == month))
             .Where(s =>
                 s.Facility!.Code == facilityCode &&
                 s.Status == StallStatus.Active &&
-                !s.IsDeleted &&
-                s.Contracts.Any(c => c.IsActive && !c.IsDeleted))
+                s.Contracts.Any(c => c.IsActive))
             .OrderBy(s => s.StallNo)
             .ToListAsync(ct);
 
         var rows = stalls.Select(s =>
         {
             var contract = s.Contracts
-                .Where(c => c.IsActive && !c.IsDeleted)
+                .Where(c => c.IsActive)
                 .OrderByDescending(c => c.EffectivityDate)
                 .FirstOrDefault();
 
@@ -171,8 +167,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var query = context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
-            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == facilityCode);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -183,9 +179,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
             query = query.Where(s =>
                 s.StallNo.ToLower().Contains(term) ||
                 s.Contracts.Any(c =>
-                    !c.IsDeleted && (
-                        c.ActualOccupant.ToLower().Contains(term) ||
-                        (c.NameOnContract ?? "").ToLower().Contains(term))));
+                    c.ActualOccupant.ToLower().Contains(term) ||
+                    (c.NameOnContract ?? "").ToLower().Contains(term)));
         }
 
         var stalls = await query
@@ -203,7 +198,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 StallCount = g.Count(),
                 Rows = g.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
                     var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
                     return new StallHolderRowDto
                     {
@@ -237,7 +232,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 StallCount = stallsWithoutSection.Count,
                 Rows = stallsWithoutSection.Select((s, idx) =>
                 {
-                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
                     var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
                     return new StallHolderRowDto
                     {
@@ -314,8 +309,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var query = context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
-            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == facilityCode);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -334,7 +329,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
         {
             Items = pagedResult.Items.Select(s =>
             {
-                var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+                var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
                 return new StallDto(
                     s.Id,
                     s.StallNo,
@@ -361,8 +356,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var query = context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => !c.IsDeleted))
-            .Where(s => s.Facility!.Code == facilityCode && !s.IsDeleted);
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == facilityCode);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
@@ -371,7 +366,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
         return stalls.Select(s =>
         {
-            var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive && !c.IsDeleted);
+            var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
 
             return new StallDto(
                 s.Id,
@@ -397,8 +392,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var stalls = await context.Stalls
             .AsNoTracking()
-            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
-            .Where(s => s.Facility!.Code == facilityCode && s.Section.HasValue && !s.IsDeleted)
+            .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
+            .Where(s => s.Facility!.Code == facilityCode && s.Section.HasValue)
             .ToListAsync(ct);
 
         return stalls
@@ -450,8 +445,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var query = context.Stalls.Where(s =>
             s.Facility!.Code == facilityCode &&
-            s.StallNo == stallNo &&
-            !s.IsDeleted);
+            s.StallNo == stallNo);
 
         query = facilityCode == FacilityCode.NPM
             ? query.Where(s => s.Section == section)

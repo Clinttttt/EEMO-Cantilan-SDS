@@ -62,8 +62,5 @@ public class TpmVendorConfiguration : IEntityTypeConfiguration<TpmVendor>
             .WithOne(a => a.Vendor)
             .HasForeignKey(a => a.VendorId)
             .OnDelete(DeleteBehavior.Restrict);
-
-        // Global query filter for soft delete
-        builder.HasQueryFilter(v => !v.IsDeleted);
     }
 }

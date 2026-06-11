@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -11,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -57,6 +59,25 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+            ApplySoftDeleteQueryFilters(modelBuilder);
+        }
+
+        private static void ApplySoftDeleteQueryFilters(ModelBuilder modelBuilder)
+        {
+            var auditableRootTypes = modelBuilder.Model.GetEntityTypes()
+                .Where(entityType => entityType.BaseType is null
+                    && typeof(AuditableEntity).IsAssignableFrom(entityType.ClrType));
+
+            foreach (var entityType in auditableRootTypes)
+            {
+                var parameter = Expression.Parameter(entityType.ClrType, "entity");
+                var isDeleted = Expression.Property(parameter, nameof(AuditableEntity.IsDeleted));
+                var filter = Expression.Lambda(
+                    Expression.Equal(isDeleted, Expression.Constant(false)),
+                    parameter);
+
+                entityType.SetQueryFilter(filter);
+            }
         }
     }
 }

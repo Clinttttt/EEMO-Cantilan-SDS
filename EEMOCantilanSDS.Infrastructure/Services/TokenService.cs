@@ -89,7 +89,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         {
             var hashed = HashRefreshToken(RefreshToken);
             var user = await context.Users.FirstOrDefaultAsync(
-                s => s.RefreshToken == hashed && !s.IsDeleted && s.IsActive, cancellationToken);
+                s => s.RefreshToken == hashed && s.IsActive, cancellationToken);
             if (user is null
                 || user.RefreshTokenExpiryTime <= DateTime.UtcNow
                 || (user.LockedUntil.HasValue && user.LockedUntil > DateTime.UtcNow))

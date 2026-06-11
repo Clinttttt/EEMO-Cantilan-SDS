@@ -11,13 +11,13 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
 {
     public async Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct)
     {
-        return await context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
+        return await context.Facilities.FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
     }
 
     public async Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct)
     {
+        // Seeded facility names are the single source of truth for display labels.
+        // Soft-deleted rows are excluded by the global query filters.
         return await context.Facilities
             .AsNoTracking()
             .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
@@ -26,8 +26,8 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
     {
         var facility = await context.Facilities
             .AsNoTracking()
-            .Include(f => f.Stalls.Where(s => !s.IsDeleted))
-                .ThenInclude(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month && !p.IsDeleted))
+            .Include(f => f.Stalls)
+                .ThenInclude(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
             .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
 
         if (facility == null)

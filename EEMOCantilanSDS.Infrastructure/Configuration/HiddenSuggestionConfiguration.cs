@@ -34,7 +34,5 @@ public class HiddenSuggestionConfiguration : IEntityTypeConfiguration<HiddenSugg
 
         // One blocklist entry per (type, value)
         builder.HasIndex(h => new { h.Type, h.Value }).IsUnique();
-
-        builder.HasQueryFilter(h => !h.IsDeleted);
     }
 }

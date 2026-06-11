@@ -77,8 +77,6 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
                 .WithMany()
                 .HasForeignKey(s => s.StallId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }
 }

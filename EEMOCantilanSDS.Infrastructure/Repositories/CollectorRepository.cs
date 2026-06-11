@@ -15,13 +15,13 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
     {
         return await context.CollectorUsers
             .Include(c => c.FacilityAssignments)
-            .FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
     public async Task<CollectorUser?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
         return await context.CollectorUsers
-            .FirstOrDefaultAsync(c => c.Username == username && !c.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Username == username, cancellationToken);
     }
 
     public async Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, CancellationToken cancellationToken = default)
@@ -30,8 +30,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         return await context.CollectorUsers
             .Include(c => c.FacilityAssignments)
             .FirstOrDefaultAsync(c =>
-                !c.IsDeleted &&
-                (c.Username == normalized || c.EmployeeId == normalized),
+                c.Username == normalized || c.EmployeeId == normalized,
                 cancellationToken);
     }
 
@@ -39,7 +38,6 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
     {
         var collectors = await context.CollectorUsers
             .Include(c => c.FacilityAssignments)
-            .Where(c => !c.IsDeleted)
             .ToListAsync(cancellationToken);
 
         var collectorIds = collectors.Select(c => c.Id).ToList();
@@ -126,7 +124,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
     {
         var collector = await context.CollectorUsers
             .Include(c => c.FacilityAssignments)
-            .FirstOrDefaultAsync(c => c.Id == collectorId && !c.IsDeleted, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Id == collectorId, cancellationToken);
 
         if (collector is null)
             return null;
@@ -178,7 +176,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .Take(10)
             .Select(p => new RecentTransactionDto(
                 p.ORNumber ?? "—",
-                p.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
+                p.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 p.Stall.Facility!.Code,
                 "Stall Rental",
                 p.Status == PaymentStatus.Paid
@@ -196,7 +194,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .Take(10)
             .Select(d => new RecentTransactionDto(
                 d.ORNumber ?? "—",
-                d.Stall!.Contracts.Where(c => c.IsActive && !c.IsDeleted).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
+                d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 d.Stall.Facility!.Code,
                 "Daily Fee",
                 d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
@@ -278,17 +276,18 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
     public async Task<bool> IsEmployeeIdUniqueAsync(string employeeId, CancellationToken cancellationToken = default)
     {
-        return !await context.CollectorUsers.AnyAsync(c => c.EmployeeId == employeeId, cancellationToken);
+        // Uniqueness must consider soft-deleted users too (their rows still exist), so bypass the global filter.
+        return !await context.CollectorUsers.IgnoreQueryFilters().AnyAsync(c => c.EmployeeId == employeeId, cancellationToken);
     }
 
     public async Task<bool> IsUsernameUniqueAsync(string username, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.AnyAsync(u => u.Username == username, cancellationToken);
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, cancellationToken);
     }
 
     public async Task<bool> IsEmailUniqueAsync(string email, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.AnyAsync(u => u.Email == email, cancellationToken);
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email, cancellationToken);
     }
 
     public async Task AddFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default)
@@ -328,6 +327,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         var prefix = $"EEMO-{currentYear}-";
 
         var lastEmployeeId = await context.CollectorUsers
+            .IgnoreQueryFilters()
             .Where(c => c.EmployeeId!.StartsWith(prefix))
             .OrderByDescending(c => c.EmployeeId)
             .Select(c => c.EmployeeId)

@@ -66,6 +66,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             UpdatedBy = updatedBy;
         }
 
+        // Head-initiated password reset for collectors who forgot their mobile-app credentials.
+        // Clears any lockout so the collector can sign in again with the temporary password.
+        public void ResetPassword(string newPassword, string updatedBy)
+        {
+            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            FailedAttempts = 0;
+            LockedUntil = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void RecordLogin()
         {
             LastActiveAt = DateTime.UtcNow;
