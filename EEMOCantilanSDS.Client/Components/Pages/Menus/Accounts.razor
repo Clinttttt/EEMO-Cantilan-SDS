@@ -46,7 +46,7 @@
             <div>
                 <div class="vs-hero-eyebrow">EEMO Admin · System Accounts</div>
                 <div class="vs-hero-title">User Accounts</div>
-                <div class="vs-hero-sub">Administrators &amp; field collectors managed by the Head (EEMO Office)</div>
+                <div class="vs-hero-sub">Administrators &amp; field collectors managed by the Head</div>
             </div>
         </div>
         <div class="vs-hero-stats">
@@ -133,7 +133,10 @@
         <!-- ADMINISTRATORS -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">Administrator Accounts</div>
+                <div>
+                    <div class="panel-title">Administrator Accounts</div>
+                    <div class="panel-subtitle">Web portal access · managed by the Head (EEMO Office)</div>
+                </div>
                 <div class="panel-count">@FilteredAdmins.Count() records</div>
             </div>
 
@@ -152,16 +155,15 @@
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
+                    <table class="data-table registry-table">
                         <thead>
                             <tr>
                                 <th>Administrator</th>
-                                <th>Username</th>
-                                <th>Email</th>
+                                <th class="cell-email">Email</th>
                                 <th>Role</th>
                                 <th>Status</th>
-                                <th>Last Login</th>
-                                <th>Actions</th>
+                                <th class="cell-login">Last Login</th>
+                                <th class="col-actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -169,30 +171,45 @@
                             {
                                 <tr class="@(!a.IsActive ? "row-inactive" : "")">
                                     <td>
-                                        <div class="collector-cell">
-                                            <div>
-                                                <div>@a.FullName</div>
-                                                @if (a.MustChangePassword)
-                                                {
-                                                    <div class="collector-email">Must change password</div>
-                                                }
+                                        <div class="acct-cell">
+                                            <div class="acct-avatar">@Initials(a.FullName)</div>
+                                            <div class="acct-id-text">
+                                                <span class="acct-name">@a.FullName</span>
+                                                <span class="acct-handle">@a.Username</span>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="mono">@a.Username</td>
-                                    <td>@a.Email</td>
+                                    <td class="cell-email"><span class="acct-email" title="@a.Email">@a.Email</span></td>
                                     <td>
-                                        <span class="status-pill @(a.Role == AdminRole.SuperAdmin ? "pill-active" : "pill-inactive")">
+                                        <span class="role-badge @(a.Role == AdminRole.SuperAdmin ? "head" : "admin")">
+                                            @if (a.Role == AdminRole.SuperAdmin)
+                                            {
+                                                <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" /><polyline points="9 12 11 14 15 10" /></svg>
+                                            }
+                                            else
+                                            {
+                                                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                            }
                                             @(a.Role == AdminRole.SuperAdmin ? "Head" : "Admin")
                                         </span>
                                     </td>
                                     <td>
-                                        <span class="status-pill @(a.IsActive ? "pill-active" : "pill-inactive")">
-                                            @(a.IsActive ? "Active" : "Inactive")
-                                        </span>
+                                        <div class="acct-status-cell">
+                                            <span class="acct-status @(a.IsActive ? "is-active" : "is-inactive")">
+                                                <span class="acct-status-dot"></span>
+                                                @(a.IsActive ? "Active" : "Inactive")
+                                            </span>
+                                            @if (a.MustChangePassword)
+                                            {
+                                                <span class="acct-flag" title="Must change password on next login">
+                                                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                                                    Reset pending
+                                                </span>
+                                            }
+                                        </div>
                                     </td>
-                                    <td>@(a.LastLoginAt?.ToString("MMM d, yyyy") ?? "Never")</td>
-                                    <td>
+                                    <td class="cell-login"><span class="acct-meta">@(a.LastLoginAt?.ToString("MMM d, yyyy") ?? "Never")</span></td>
+                                    <td class="col-actions">
                                         <div class="action-btns">
                                             <button class="action-btn" title="View Profile" @onclick="() => OpenAdminProfile(a)">
                                                 <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -222,6 +239,10 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="registry-footer">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                    Only the Head can create or manage administrator accounts. Reset a password to issue a temporary one.
+                </div>
             }
         </div>
     }
@@ -230,7 +251,10 @@
         <!-- COLLECTORS -->
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">Collector Accounts</div>
+                <div>
+                    <div class="panel-title">Collector Accounts</div>
+                    <div class="panel-subtitle">Field collection access · mobile app</div>
+                </div>
                 <div class="panel-count">@FilteredCollectors.Count() records</div>
             </div>
 
@@ -249,15 +273,15 @@
             else
             {
                 <div class="table-wrap">
-                    <table class="data-table">
+                    <table class="data-table registry-table">
                         <thead>
                             <tr>
                                 <th>Collector</th>
                                 <th>Employee ID</th>
                                 <th>Assigned Facilities</th>
                                 <th>Status</th>
-                                <th>Last Active</th>
-                                <th>Actions</th>
+                                <th class="cell-login">Last Active</th>
+                                <th class="col-actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -265,10 +289,11 @@
                             {
                                 <tr class="@(!c.IsActive ? "row-inactive" : "")">
                                     <td>
-                                        <div class="collector-cell">
-                                            <div>
-                                                <div>@c.FullName</div>
-                                                <div class="collector-email">@c.Email</div>
+                                        <div class="acct-cell">
+                                            <div class="acct-avatar">@Initials(c.FullName)</div>
+                                            <div class="acct-id-text">
+                                                <span class="acct-name">@c.FullName</span>
+                                                <span class="acct-email-sub" title="@c.Email">@c.Email</span>
                                             </div>
                                         </div>
                                     </td>
@@ -282,12 +307,13 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="status-pill @(c.IsActive ? "pill-active" : "pill-inactive")">
+                                        <span class="acct-status @(c.IsActive ? "is-active" : "is-inactive")">
+                                            <span class="acct-status-dot"></span>
                                             @(c.IsActive ? "Active" : "Inactive")
                                         </span>
                                     </td>
-                                    <td>@(c.LastActiveAt?.ToString("MMM d, yyyy") ?? "Never")</td>
-                                    <td>
+                                    <td class="cell-login"><span class="acct-meta">@(c.LastActiveAt?.ToString("MMM d, yyyy") ?? "Never")</span></td>
+                                    <td class="col-actions">
                                         <div class="action-btns">
                                             <button class="action-btn" title="Reset Password" @onclick="() => OpenResetPassword(c.Id, c.FullName, true)">
                                                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
@@ -311,6 +337,10 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="registry-footer">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                    Collectors are created and assigned to facilities from the Collectors page; here you can reset passwords or change access.
+                </div>
             }
         </div>
     }
@@ -330,7 +360,7 @@
             </div>
             <div>
                 <div class="eemo-drawer-header-title">@(IsEditingAdmin ? "Edit Administrator" : "Add New Administrator")</div>
-                <div class="eemo-drawer-header-sub">@(IsEditingAdmin ? "Update administrator profile and role." : "Create a web administrator account.")</div>
+                <div class="eemo-drawer-header-sub">@(IsEditingAdmin ? "Update administrator details." : "Create a web administrator account.")</div>
             </div>
         </div>
         <button class="eemo-drawer-header-close" @onclick="CloseAdminDrawer">
@@ -347,39 +377,27 @@
 
         <div class="form-row-2">
             <div class="form-group">
-                <label class="form-label">Username <span class="req">@(IsEditingAdmin ? "" : "*")</span></label>
+                <label class="form-label">Username <span class="req">*</span></label>
                 <input class="form-input" type="text" placeholder="Login username"
-                       @bind="AdminForm.Username" @bind:event="oninput" disabled="@IsEditingAdmin" />
-                @if (IsEditingAdmin)
-                {
-                    <div class="collector-email" style="margin-top:.25rem;">Username cannot be changed.</div>
-                }
+                       @bind="AdminForm.Username" @bind:event="oninput" autocomplete="off" />
             </div>
             <div class="form-group">
-                <label class="form-label">Role <span class="req">*</span></label>
-                <select class="form-input" @bind="AdminForm.Role">
-                    <option value="@AdminRole.Admin">Admin</option>
-                    <option value="@AdminRole.SuperAdmin">Head (SuperAdmin)</option>
-                </select>
+                <label class="form-label">Email Address <span class="req">*</span></label>
+                <input class="form-input" type="email" placeholder="admin@cantilan.gov.ph"
+                       @bind="AdminForm.Email" @bind:event="oninput" />
             </div>
-        </div>
-
-        <div class="form-group">
-            <label class="form-label">Email Address <span class="req">*</span></label>
-            <input class="form-input" type="email" placeholder="admin@cantilan.gov.ph"
-                   @bind="AdminForm.Email" @bind:event="oninput" />
         </div>
 
         @if (!IsEditingAdmin)
         {
             <div class="form-group">
                 <label class="form-label">Temporary Password <span class="req">*</span></label>
-                <div style="display:flex; gap:.5rem;">
+                <div class="input-with-action">
                     <input class="form-input" type="text" placeholder="Set initial password"
                            @bind="AdminForm.Password" @bind:event="oninput" />
                     <button class="btn-ghost" type="button" @onclick="() => AdminForm.Password = GeneratePassword()">Generate</button>
                 </div>
-                <div class="collector-email" style="margin-top:.25rem;">The admin will be required to change this on first login.</div>
+                <div class="field-hint">The admin will be required to change this on first login.</div>
             </div>
         }
 
@@ -388,6 +406,88 @@
             <div class="form-error">
                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                 @AdminFormError
+            </div>
+        }
+
+        @if (IsEditingAdmin && EditingAdmin is not null)
+        {
+            <div class="drawer-section">
+                <div class="drawer-section-title">Account Overview</div>
+                <div class="profile-badges">
+                    <span class="role-badge @(EditingAdmin.Role == AdminRole.SuperAdmin ? "head" : "admin")">
+                        @if (EditingAdmin.Role == AdminRole.SuperAdmin)
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" /><polyline points="9 12 11 14 15 10" /></svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                        }
+                        @(EditingAdmin.Role == AdminRole.SuperAdmin ? "Head" : "Admin")
+                    </span>
+                    <span class="acct-status @(EditingAdmin.IsActive ? "is-active" : "is-inactive")">
+                        <span class="acct-status-dot"></span>
+                        @(EditingAdmin.IsActive ? "Active" : "Inactive")
+                    </span>
+                    @if (EditingAdmin.MustChangePassword)
+                    {
+                        <span class="acct-flag" title="Must change password on next login">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                            Reset pending
+                        </span>
+                    }
+                </div>
+                <div class="profile-grid">
+                    <div class="profile-item">
+                        <span class="profile-label">Last Login</span>
+                        <span class="profile-value">@(EditingAdmin.LastLoginAt?.ToString("MMM d, yyyy · hh:mm tt") ?? "Never")</span>
+                    </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Account Created</span>
+                        <span class="profile-value">@EditingAdmin.CreatedAt.ToString("MMM d, yyyy")</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawer-section">
+                <div class="drawer-section-title">Quick Actions</div>
+                <div class="drawer-actions">
+                    <button type="button" class="btn-ghost drawer-action" @onclick="ResetFromDrawer">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                        Reset Password
+                    </button>
+                    <button type="button" class="btn-ghost drawer-action @(EditingAdmin.IsActive ? "is-danger" : "is-success")" @onclick="ToggleFromDrawer">
+                        @if (EditingAdmin.IsActive)
+                        {
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                        }
+                        @(EditingAdmin.IsActive ? "Deactivate Account" : "Activate Account")
+                    </button>
+                </div>
+            </div>
+        }
+        else if (!IsEditingAdmin)
+        {
+            <div class="info-panel">
+                <div class="info-panel-title">What happens next</div>
+                <ul class="info-list">
+                    <li>
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                        Web portal access only — field collectors use the mobile app.
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                        The admin signs in with the temporary password above and must change it on first login.
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                        You can reset the password or deactivate the account anytime from this page.
+                    </li>
+                </ul>
             </div>
         }
     </div>
@@ -409,9 +509,14 @@
     <div class="eemo-modal-overlay" @onclick="CloseReset">
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">Reset Password</div>
-                    <div class="eemo-modal-sub">@ResetTargetName</div>
+                <div class="modal-head">
+                    <div class="modal-head-icon is-gold">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                    </div>
+                    <div>
+                        <div class="eemo-modal-title">Reset Password</div>
+                        <div class="eemo-modal-sub">@ResetTargetName</div>
+                    </div>
                 </div>
                 <button class="eemo-modal-close" @onclick="CloseReset">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -419,7 +524,7 @@
             </div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
-                    Set a new temporary password for <strong>@ResetTargetName</strong>.
+                    Set a new temporary password for <span class="confirm-name">@ResetTargetName</span>.
                     @if (ResetIsCollector)
                     {
                         <span>They can sign in to the mobile app with it.</span>
@@ -431,11 +536,21 @@
                 </p>
                 <div class="form-group">
                     <label class="form-label">New Password <span class="req">*</span></label>
-                    <div style="display:flex; gap:.5rem;">
+                    <div class="input-with-action">
                         <input class="form-input" type="text" placeholder="At least 8 characters"
                                @bind="ResetPasswordValue" @bind:event="oninput" />
                         <button class="btn-ghost" type="button" @onclick="() => ResetPasswordValue = GeneratePassword()">Generate</button>
                     </div>
+                    <div class="field-hint">Share this temporary password with the account holder securely.</div>
+                </div>
+                <div class="security-note">
+                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                    <span>Security check — confirm it's really you before changing someone's password.</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Confirm With Your Password <span class="req">*</span></label>
+                    <input class="form-input" type="password" placeholder="Your own account password"
+                           @bind="ResetConfirmValue" @bind:event="oninput" autocomplete="current-password" />
                 </div>
                 @if (!string.IsNullOrEmpty(ResetError))
                 {
@@ -462,17 +577,35 @@
     <div class="eemo-modal-overlay" @onclick="() => ShowToggle = false">
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
-                <div class="eemo-modal-title">@(ToggleIsActive ? "Deactivate Account?" : "Activate Account?")</div>
+                <div class="modal-head">
+                    <div class="modal-head-icon @(ToggleIsActive ? "is-danger" : "is-success")">
+                        @if (ToggleIsActive)
+                        {
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                        }
+                    </div>
+                    <div>
+                        <div class="eemo-modal-title">@(ToggleIsActive ? "Deactivate Account" : "Activate Account")</div>
+                        <div class="eemo-modal-sub">@ToggleTargetName</div>
+                    </div>
+                </div>
+                <button class="eemo-modal-close" @onclick="() => ShowToggle = false">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
             </div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
                     @if (ToggleIsActive)
                     {
-                        @($"Deactivate {ToggleTargetName}? They will no longer be able to sign in.")
+                        <text>Deactivate <span class="confirm-name">@ToggleTargetName</span>? They will no longer be able to sign in until reactivated.</text>
                     }
                     else
                     {
-                        @($"Reactivate {ToggleTargetName}? They will regain access.")
+                        <text>Reactivate <span class="confirm-name">@ToggleTargetName</span>? They will regain access immediately.</text>
                     }
                 </p>
                 @if (!string.IsNullOrEmpty(ToggleError))
@@ -502,53 +635,64 @@
     <div class="eemo-modal-overlay" @onclick="() => ShowAdminProfile = false">
         <div class="eemo-modal" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
-                <div>
-                    <div class="eemo-modal-title">@ProfileAdmin.FullName</div>
-                    <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head · EEMO Office" : "Administrator")</div>
+                <div class="modal-head">
+                    <div class="acct-avatar acct-avatar-lg">@Initials(ProfileAdmin.FullName)</div>
+                    <div>
+                        <div class="eemo-modal-title">@ProfileAdmin.FullName</div>
+                        <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head · EEMO Office" : "Administrator")</div>
+                    </div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowAdminProfile = false">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
             <div class="eemo-modal-body">
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label class="form-label">Username</label>
-                        <div class="mono">@ProfileAdmin.Username</div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Role</label>
-                        <div>@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head (SuperAdmin)" : "Admin")</div>
-                    </div>
+                <div class="profile-badges">
+                    <span class="role-badge @(ProfileAdmin.Role == AdminRole.SuperAdmin ? "head" : "admin")">
+                        @if (ProfileAdmin.Role == AdminRole.SuperAdmin)
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" /><polyline points="9 12 11 14 15 10" /></svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                        }
+                        @(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head" : "Admin")
+                    </span>
+                    <span class="acct-status @(ProfileAdmin.IsActive ? "is-active" : "is-inactive")">
+                        <span class="acct-status-dot"></span>
+                        @(ProfileAdmin.IsActive ? "Active" : "Inactive")
+                    </span>
+                    @if (ProfileAdmin.MustChangePassword)
+                    {
+                        <span class="acct-flag" title="Must change password on next login">
+                            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                            Reset pending
+                        </span>
+                    }
                 </div>
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-                        <div>@ProfileAdmin.Email</div>
+                <div class="profile-grid">
+                    <div class="profile-item">
+                        <span class="profile-label">Username</span>
+                        <span class="profile-value mono">@ProfileAdmin.Username</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Status</label>
-                        <div>
-                            <span class="status-pill @(ProfileAdmin.IsActive ? "pill-active" : "pill-inactive")">
-                                @(ProfileAdmin.IsActive ? "Active" : "Inactive")
-                            </span>
-                        </div>
+                    <div class="profile-item">
+                        <span class="profile-label">Email</span>
+                        <span class="profile-value">@ProfileAdmin.Email</span>
                     </div>
-                </div>
-                <div class="form-row-2">
-                    <div class="form-group">
-                        <label class="form-label">Last Login</label>
-                        <div>@(ProfileAdmin.LastLoginAt?.ToString("MMM d, yyyy · hh:mm tt") ?? "Never")</div>
+                    <div class="profile-item">
+                        <span class="profile-label">Last Login</span>
+                        <span class="profile-value">@(ProfileAdmin.LastLoginAt?.ToString("MMM d, yyyy · hh:mm tt") ?? "Never")</span>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Created</label>
-                        <div>@ProfileAdmin.CreatedAt.ToString("MMM d, yyyy")</div>
+                    <div class="profile-item">
+                        <span class="profile-label">Account Created</span>
+                        <span class="profile-value">@ProfileAdmin.CreatedAt.ToString("MMM d, yyyy")</span>
                     </div>
                 </div>
             </div>
             <div class="eemo-modal-footer">
                 <button class="btn-ghost" @onclick="() => ShowAdminProfile = false">Close</button>
-                <button class="btn-primary" @onclick="() => { ShowAdminProfile = false; OpenEditAdmin(ProfileAdmin!); }">Edit</button>
+                <button class="btn-primary" @onclick="() => { ShowAdminProfile = false; OpenEditAdmin(ProfileAdmin!); }">Edit Account</button>
             </div>
         </div>
     </div>
@@ -614,6 +758,7 @@
     private bool ShowAdminDrawer;
     private bool IsEditingAdmin;
     private Guid EditingAdminId = Guid.Empty;
+    private AdminListDto? EditingAdmin;
     private AdminFormModel AdminForm = new();
     private string AdminFormError = string.Empty;
 
@@ -621,6 +766,7 @@
     {
         IsEditingAdmin = false;
         EditingAdminId = Guid.Empty;
+        EditingAdmin = null;
         AdminForm = new() { Password = GeneratePassword() };
         AdminFormError = string.Empty;
         ShowAdminDrawer = true;
@@ -630,6 +776,7 @@
     {
         IsEditingAdmin = true;
         EditingAdminId = a.Id;
+        EditingAdmin = a;
         AdminForm = new AdminFormModel
         {
             FullName = a.FullName,
@@ -650,8 +797,8 @@
     private async Task SaveAdmin()
     {
         if (string.IsNullOrWhiteSpace(AdminForm.FullName)) { AdminFormError = "Full name is required."; return; }
+        if (string.IsNullOrWhiteSpace(AdminForm.Username)) { AdminFormError = "Username is required."; return; }
         if (string.IsNullOrWhiteSpace(AdminForm.Email)) { AdminFormError = "Email is required."; return; }
-        if (!IsEditingAdmin && string.IsNullOrWhiteSpace(AdminForm.Username)) { AdminFormError = "Username is required."; return; }
         if (!IsEditingAdmin && AdminForm.Password.Length < 8) { AdminFormError = "Password must be at least 8 characters."; return; }
 
         IsSaving = true;
@@ -659,20 +806,40 @@
         {
             if (IsEditingAdmin)
             {
-                var cmd = new UpdateAdminCommand(EditingAdminId, AdminForm.FullName.Trim(), AdminForm.Email.Trim(), AdminForm.Role);
+                var cmd = new UpdateAdminCommand(EditingAdminId, AdminForm.FullName.Trim(), AdminForm.Username.Trim(), AdminForm.Email.Trim(), AdminForm.Role);
                 var result = await AdminsApi.UpdateAdminAsync(cmd);
                 if (result.IsSuccess) { await LoadAll(); CloseAdminDrawer(); }
-                else AdminFormError = result.Error ?? "Failed to update administrator.";
+                else AdminFormError = result.StatusCode == 409
+                    ? "That username is already taken."
+                    : (result.Error ?? "Failed to update administrator.");
             }
             else
             {
                 var cmd = new CreateAdminCommand(AdminForm.FullName.Trim(), AdminForm.Username.Trim(), AdminForm.Email.Trim(), AdminForm.Password, AdminForm.Role);
                 var result = await AdminsApi.CreateAdminAsync(cmd);
                 if (result.IsSuccess) { await LoadAll(); CloseAdminDrawer(); }
-                else AdminFormError = result.Error ?? "Failed to create administrator.";
+                else AdminFormError = result.StatusCode == 409
+                    ? "That username is already taken."
+                    : (result.Error ?? "Failed to create administrator.");
             }
         }
         finally { IsSaving = false; }
+    }
+
+    private void ResetFromDrawer()
+    {
+        var id = EditingAdminId;
+        var name = AdminForm.FullName;
+        CloseAdminDrawer();
+        OpenResetPassword(id, name, false);
+    }
+
+    private void ToggleFromDrawer()
+    {
+        if (EditingAdmin is null) return;
+        var a = EditingAdmin;
+        CloseAdminDrawer();
+        OpenToggle(a.Id, a.FullName, a.IsActive, false);
     }
 
     // ── Reset Password ───────────────────────────────────────────────────
@@ -681,6 +848,7 @@
     private string ResetTargetName = string.Empty;
     private bool ResetIsCollector;
     private string ResetPasswordValue = string.Empty;
+    private string ResetConfirmValue = string.Empty;
     private string ResetError = string.Empty;
 
     private void OpenResetPassword(Guid id, string name, bool isCollector)
@@ -689,6 +857,7 @@
         ResetTargetName = name;
         ResetIsCollector = isCollector;
         ResetPasswordValue = GeneratePassword();
+        ResetConfirmValue = string.Empty;
         ResetError = string.Empty;
         ShowReset = true;
     }
@@ -696,22 +865,35 @@
     private void CloseReset()
     {
         ShowReset = false;
+        ResetConfirmValue = string.Empty;
         ResetError = string.Empty;
     }
 
     private async Task ConfirmReset()
     {
-        if (ResetPasswordValue.Length < 8) { ResetError = "Password must be at least 8 characters."; return; }
+        if (ResetPasswordValue.Length < 8) { ResetError = "New password must be at least 8 characters."; return; }
+        if (string.IsNullOrWhiteSpace(ResetConfirmValue)) { ResetError = "Enter your own password to authorize this reset."; return; }
 
         IsSaving = true;
         try
         {
             var result = ResetIsCollector
-                ? await CollectorsApi.ResetCollectorPasswordAsync(ResetTargetId, ResetPasswordValue)
-                : await AdminsApi.ResetAdminPasswordAsync(ResetTargetId, ResetPasswordValue);
+                ? await CollectorsApi.ResetCollectorPasswordAsync(ResetTargetId, ResetPasswordValue, ResetConfirmValue)
+                : await AdminsApi.ResetAdminPasswordAsync(ResetTargetId, ResetPasswordValue, ResetConfirmValue);
 
-            if (result.IsSuccess) { await LoadAll(); CloseReset(); }
-            else ResetError = result.Error ?? "Failed to reset password.";
+            if (result.IsSuccess)
+            {
+                await LoadAll();
+                CloseReset();
+            }
+            else
+            {
+                // After the client-side checks above, a server rejection means the account is gone
+                // (404) or the Head's confirmation password was wrong (400).
+                ResetError = result.StatusCode == 404
+                    ? "That account no longer exists."
+                    : "Your password is incorrect — the reset was not applied.";
+            }
         }
         finally { IsSaving = false; }
     }
@@ -760,6 +942,18 @@
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
+
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant();
+    }
+
     private static string GeneratePassword()
     {
         const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";

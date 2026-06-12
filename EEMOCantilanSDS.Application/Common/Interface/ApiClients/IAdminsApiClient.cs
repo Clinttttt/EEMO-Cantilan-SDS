@@ -11,5 +11,5 @@ public interface IAdminsApiClient
     Task<Result<AdminDto>> CreateAdminAsync(CreateAdminCommand command);
     Task<Result<bool>> UpdateAdminAsync(UpdateAdminCommand command);
     Task<Result<bool>> ToggleAdminStatusAsync(Guid id, bool isActive);
-    Task<Result<bool>> ResetAdminPasswordAsync(Guid id, string newPassword);
+    Task<Result<bool>> ResetAdminPasswordAsync(Guid id, string newPassword, string confirmPassword);
 }

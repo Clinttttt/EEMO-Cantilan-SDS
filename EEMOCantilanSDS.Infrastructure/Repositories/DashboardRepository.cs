@@ -126,6 +126,13 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .AsNoTracking()
             .ToDictionaryAsync(c => c.Id, c => c.FullName ?? "", ct);
 
+        // Admin/Head recorders: admin-recorded entries carry no CollectorId — the actor is captured
+        // in the audit CreatedBy (username). Map username → full name so the dashboard can attribute them.
+        var adminNames = await context.AdminUsers
+            .AsNoTracking()
+            .Where(a => a.Username != null)
+            .ToDictionaryAsync(a => a.Username!, a => a.FullName ?? a.Username!, ct);
+
         // Recent paid/partial transactions across ALL facilities (newest first).
         // Each facility stores its collections in its own table, so gather the latest from each
         // source then merge — otherwise NPM-daily, SLH, TRM and TPM never appear here.
@@ -146,6 +153,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             p.Stall.Facility!.Code,
             p.AmountPaid,
             p.CollectorId,
+            p.CreatedBy,
             p.PaidAt!.Value)).ToList();
 
         recentRows.AddRange((await context.DailyCollections
@@ -161,36 +169,37 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 d.DailyFee,
                 d.FishKilos,
                 d.CollectorId,
+                d.CreatedBy,
                 At = d.UpdatedAt ?? d.CreatedAt
             })
             .ToListAsync(ct))
             .Select(d => new RecentRow(d.ORNumber ?? "", d.Occupant ?? "", d.Code,
-                d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo, d.CollectorId, At: d.At)));
+                d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo, d.CollectorId, d.CreatedBy, At: d.At)));
 
         recentRows.AddRange((await context.SlaughterTransactions
             .AsNoTracking()
             .OrderByDescending(s => s.UpdatedAt ?? s.CreatedAt)
             .Take(recentTake)
-            .Select(s => new { s.ORNumber, s.OwnerName, Amount = s.RatePerHead * s.NumberOfHeads, s.CollectorId, At = s.UpdatedAt ?? s.CreatedAt })
+            .Select(s => new { s.ORNumber, s.OwnerName, Amount = s.RatePerHead * s.NumberOfHeads, s.CollectorId, s.CreatedBy, At = s.UpdatedAt ?? s.CreatedAt })
             .ToListAsync(ct))
-            .Select(s => new RecentRow(s.ORNumber ?? "", s.OwnerName, FacilityCode.SLH, s.Amount, s.CollectorId, s.At)));
+            .Select(s => new RecentRow(s.ORNumber ?? "", s.OwnerName, FacilityCode.SLH, s.Amount, s.CollectorId, s.CreatedBy, s.At)));
 
         recentRows.AddRange((await context.TrmTrips
             .AsNoTracking()
             .OrderByDescending(t => t.RecordedAt)
             .Take(recentTake)
-            .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.CollectorId, t.RecordedAt })
+            .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.CollectorId, t.CreatedBy, t.RecordedAt })
             .ToListAsync(ct))
-            .Select(t => new RecentRow(t.ORNumber ?? "", t.DriverName, FacilityCode.TRM, t.Fee, t.CollectorId, t.RecordedAt)));
+            .Select(t => new RecentRow(t.ORNumber ?? "", t.DriverName, FacilityCode.TRM, t.Fee, t.CollectorId, t.CreatedBy, t.RecordedAt)));
 
         recentRows.AddRange((await context.TpmAttendances
             .AsNoTracking()
             .Where(a => a.IsPaid)
             .OrderByDescending(a => a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt)
             .Take(recentTake)
-            .Select(a => new { a.ORNumber, Vendor = a.Vendor!.VendorName, a.Fee, a.CollectorId, At = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt })
+            .Select(a => new { a.ORNumber, Vendor = a.Vendor!.VendorName, a.Fee, a.CollectorId, a.CreatedBy, At = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt })
             .ToListAsync(ct))
-            .Select(a => new RecentRow(a.ORNumber ?? "", a.Vendor, FacilityCode.TPM, a.Fee, a.CollectorId, a.At)));
+            .Select(a => new RecentRow(a.ORNumber ?? "", a.Vendor, FacilityCode.TPM, a.Fee, a.CollectorId, a.CreatedBy, a.At)));
 
         var recent = recentRows
             .OrderByDescending(r => r.At)
@@ -200,7 +209,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 r.Payor,
                 r.Facility,
                 r.Amount,
-                r.CollectorId.HasValue && collectorNames.TryGetValue(r.CollectorId.Value, out var n) ? n : "",
+                ResolveRecorder(r, collectorNames, adminNames),
                 r.At))
             .ToList();
 
@@ -244,5 +253,23 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
 
     // Normalized recent-transaction row used to merge the latest collections across all facilities.
     private sealed record RecentRow(
-        string OR, string Payor, FacilityCode Facility, decimal Amount, Guid? CollectorId, DateTime At);
+        string OR, string Payor, FacilityCode Facility, decimal Amount, Guid? CollectorId, string? RecordedBy, DateTime At);
+
+    // Who recorded a transaction: the field collector (CollectorId) when set, otherwise the
+    // admin/Head captured in the audit CreatedBy. Falls back to the raw actor (e.g. "System").
+    private static string ResolveRecorder(
+        RecentRow row,
+        IReadOnlyDictionary<Guid, string> collectorNames,
+        IReadOnlyDictionary<string, string> adminNames)
+    {
+        if (row.CollectorId is { } id
+            && collectorNames.TryGetValue(id, out var collector)
+            && !string.IsNullOrWhiteSpace(collector))
+            return collector;
+
+        if (!string.IsNullOrWhiteSpace(row.RecordedBy))
+            return adminNames.TryGetValue(row.RecordedBy, out var admin) ? admin : row.RecordedBy;
+
+        return "—";
+    }
 }

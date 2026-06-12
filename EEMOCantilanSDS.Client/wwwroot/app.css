@@ -236,6 +236,15 @@ a.topbar-admin.account-chip {
     color: var(--text);
 }
 
+/* Administrators see a non-interactive identity chip (account management is Head-only). */
+.topbar-admin.account-chip-static {
+    cursor: default;
+}
+
+    .topbar-admin.account-chip-static:hover {
+        background: transparent;
+    }
+
 .admin-avatar {
     width: 30px;
     height: 30px;

@@ -1,11 +1,49 @@
-@* Topbar account chip. Links the "Administrator / EEMO Office" identity to the
-   account-management page. Renders as a plain anchor so navigation works in both
-   static and interactive render modes. *@
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthState
 
-<a href="/accounts" class="topbar-admin account-chip" title="Manage accounts">
-    <div class="admin-avatar">A</div>
-    <div class="admin-info">
-        <div class="admin-name">Administrator</div>
-        <div class="admin-role">EEMO Office</div>
+@* Topbar account chip. Reflects the signed-in user's role:
+   - Head (SuperAdmin): labelled "Head" and links to account management.
+   - Administrator: labelled "Administrator" and is NOT clickable (account management is Head-only). *@
+
+@if (_isHead)
+{
+    <a href="/accounts" class="topbar-admin account-chip" title="Manage accounts">
+        <div class="admin-avatar">@_initial</div>
+        <div class="admin-info">
+            <div class="admin-name">@_label</div>
+            <div class="admin-role">EEMO Office</div>
+        </div>
+    </a>
+}
+else
+{
+    <div class="topbar-admin account-chip-static">
+        <div class="admin-avatar">@_initial</div>
+        <div class="admin-info">
+            <div class="admin-name">@_label</div>
+            <div class="admin-role">EEMO Office</div>
+        </div>
     </div>
-</a>
+}
+
+@code {
+    private bool _isHead;
+    private string _label = "Administrator";
+    private string _initial = "A";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        _isHead = IsHead(state.User);
+        _label = _isHead ? "Head" : "Administrator";
+        _initial = _isHead ? "H" : "A";
+    }
+
+    // The cookie principal is built from the raw JWT, so the role can land under "role",
+    // ClaimTypes.Role, or a schema URI. Match the SuperAdmin value across all of them.
+    private static bool IsHead(ClaimsPrincipal user) =>
+        user.IsInRole("SuperAdmin")
+        || user.Claims.Any(c =>
+            string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+            && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+}

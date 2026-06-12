@@ -60,7 +60,7 @@ public class CollectorsController : ApiBaseController
     [HttpPatch("{id:guid}/reset-password")]
     public async Task<ActionResult<bool>> ResetPasswordAsync(Guid id, [FromBody] ResetCollectorPasswordRequest request)
     {
-        var result = await Sender.Send(new ResetCollectorPasswordCommand(id, request.NewPassword));
+        var result = await Sender.Send(new ResetCollectorPasswordCommand(id, request.NewPassword, request.ConfirmPassword));
         return HandleResponse(result);
     }
 

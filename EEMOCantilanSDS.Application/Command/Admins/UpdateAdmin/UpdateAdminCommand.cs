@@ -7,5 +7,6 @@ namespace EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 public record UpdateAdminCommand(
     Guid AdminId,
     string FullName,
+    string Username,
     string Email,
     AdminRole Role) : IRequest<Result<bool>>;

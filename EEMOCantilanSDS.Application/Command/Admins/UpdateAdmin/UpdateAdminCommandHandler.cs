@@ -25,8 +25,17 @@ public class UpdateAdminCommandHandler(
                 return Result<bool>.Failure("At least one active Head (SuperAdmin) must remain.");
         }
 
+        var newUsername = request.Username.Trim();
+        // Only validate uniqueness when the username actually changes (so keeping it is never
+        // flagged as "taken by yourself"). IsUsernameUniqueAsync ignores the soft-delete filter.
+        if (!string.Equals(newUsername, admin.Username, StringComparison.OrdinalIgnoreCase)
+            && !await adminRepo.IsUsernameUniqueAsync(newUsername, cancellationToken))
+        {
+            return Result<bool>.Conflict();
+        }
+
         var actor = currentUser.Username ?? "Admin";
-        admin.UpdateProfile(request.FullName.Trim(), request.Email.Trim(), actor);
+        admin.UpdateProfile(request.FullName.Trim(), newUsername, request.Email.Trim(), actor);
         admin.ChangeRole(request.Role, actor);
 
         await uow.SaveChangesAsync(cancellationToken);

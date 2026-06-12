@@ -12,6 +12,6 @@ public interface ICollectorsApiClient
     Task<Result<CollectorDto>> CreateCollectorAsync(CreateCollectorCommand command);
     Task<Result<bool>> UpdateCollectorAsync(UpdateCollectorCommand command);
     Task<Result<bool>> ToggleCollectorStatusAsync(Guid id, bool isActive);
-    Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword);
+    Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword, string confirmPassword);
     Task<Result<string>> GetNextEmployeeIdAsync();
 }

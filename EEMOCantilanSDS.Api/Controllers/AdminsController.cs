@@ -52,7 +52,7 @@ public class AdminsController : ApiBaseController
     [HttpPatch("{id:guid}/reset-password")]
     public async Task<ActionResult<bool>> ResetPasswordAsync(Guid id, [FromBody] ResetPasswordRequest request)
     {
-        var result = await Sender.Send(new ResetAdminPasswordCommand(id, request.NewPassword));
+        var result = await Sender.Send(new ResetAdminPasswordCommand(id, request.NewPassword, request.ConfirmPassword));
         return HandleResponse(result);
     }
 }

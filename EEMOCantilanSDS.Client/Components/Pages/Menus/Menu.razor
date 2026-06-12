@@ -157,7 +157,7 @@
                                 <th>Payor</th>
                                 <th>Facility</th>
                                 <th>Amount</th>
-                                <th>Collector</th>
+                                <th>Recorded By</th>
                                 <th>Time</th>
                             </tr>
                         </thead>
@@ -169,7 +169,7 @@
                                     <td>@tx.PayorName</td>
                                     <td><span>@tx.FacilityCode</span></td>
                                     <td>₱@tx.Amount.ToString("N0")</td>
-                                    <td>@tx.CollectorName</td>
+                                    <td>@tx.RecordedBy</td>
                                     <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
                                 </tr>
                             }

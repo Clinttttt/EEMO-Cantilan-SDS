@@ -12,6 +12,15 @@ public class ResetAdminPasswordCommandHandler(
 {
     public async Task<Result<bool>> Handle(ResetAdminPasswordCommand request, CancellationToken cancellationToken)
     {
+        // Re-authenticate the acting Head: resetting another account's password is sensitive and
+        // must not be possible from an unattended session without re-entering the Head's password.
+        if (currentUser.UserId is not { } actingId)
+            return Result<bool>.Unauthorized();
+
+        var actor = await adminRepo.GetByIdAsync(actingId, cancellationToken);
+        if (actor is null || !actor.VerifyPassword(request.ConfirmPassword))
+            return Result<bool>.Failure("Your password is incorrect.", 400);
+
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
         if (admin is null) return Result<bool>.NotFound();
 

@@ -11,5 +11,8 @@ public class ResetCollectorPasswordCommandValidator : AbstractValidator<ResetCol
         RuleFor(x => x.NewPassword)
             .NotEmpty().WithMessage("New password is required")
             .MinimumLength(8).WithMessage("Password must be at least 8 characters");
+
+        RuleFor(x => x.ConfirmPassword)
+            .NotEmpty().WithMessage("Enter your own password to confirm this action");
     }
 }

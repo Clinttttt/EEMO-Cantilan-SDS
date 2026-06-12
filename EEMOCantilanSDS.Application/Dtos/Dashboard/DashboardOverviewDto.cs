@@ -31,7 +31,7 @@ public record DashboardTransactionDto(
     string PayorName,
     FacilityCode FacilityCode,
     decimal Amount,
-    string CollectorName,
+    string RecordedBy,
     DateTime CollectedAt
 );
 

@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
+using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,6 +38,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         {
             RefreshToken = null;
             RefreshTokenExpiryTime = null;
+        }
+
+        /// <summary>
+        /// Verifies a plaintext password against this user's stored hash. Used for sensitive-action
+        /// re-authentication (e.g. the Head confirming their identity before resetting a password).
+        /// </summary>
+        public bool VerifyPassword(string password)
+        {
+            if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(PasswordHash))
+                return false;
+
+            return new PasswordHasher<BaseUser>()
+                .VerifyHashedPassword(this, PasswordHash, password) != PasswordVerificationResult.Failed;
         }
     }
 }

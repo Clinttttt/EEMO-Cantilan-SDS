@@ -31,9 +31,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 CreatedBy = "System"
             };
         }
-        public void UpdateProfile(string fullName, string email, string updatedBy)
+        public void UpdateProfile(string fullName, string username, string email, string updatedBy)
         {
             FullName = fullName;
+            Username = username;
             Email = email;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;

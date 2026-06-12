@@ -114,7 +114,7 @@ public class AdminCommandHandlerTests
         var handler = new UpdateAdminCommandHandler(repo.Object, user.Object, uow.Object);
 
         var result = await handler.Handle(
-            new UpdateAdminCommand(admin.Id, "New Name", "new@eemo.gov", AdminRole.Admin),
+            new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -131,7 +131,7 @@ public class AdminCommandHandlerTests
         var handler = new UpdateAdminCommandHandler(repo.Object, user.Object, uow.Object);
 
         var result = await handler.Handle(
-            new UpdateAdminCommand(admin.Id, "New Name", "new@eemo.gov", AdminRole.Admin),
+            new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -141,14 +141,16 @@ public class AdminCommandHandlerTests
     }
 
     [Fact]
-    public async Task ResetPassword_ChangesHash_AndSaves()
+    public async Task ResetPassword_WithCorrectConfirmation_ChangesHash_AndSaves()
     {
-        var admin = NewAdmin(AdminRole.Admin);
+        var admin = NewAdmin(AdminRole.Admin); // password "Secret123!"
         var originalHash = admin.PasswordHash;
         var (repo, user, uow) = Mocks(admin);
+        user.SetupGet(c => c.UserId).Returns(admin.Id); // acting Head confirms with own password
         var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
 
-        var result = await handler.Handle(new ResetAdminPasswordCommand(admin.Id, "BrandNew123!"), CancellationToken.None);
+        var result = await handler.Handle(
+            new ResetAdminPasswordCommand(admin.Id, "BrandNew123!", "Secret123!"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotEqual(originalHash, admin.PasswordHash);
@@ -157,12 +159,39 @@ public class AdminCommandHandlerTests
     }
 
     [Fact]
-    public async Task ResetPassword_NotFound_Returns404()
+    public async Task ResetPassword_WrongConfirmation_IsRejected_AndDoesNotSave()
     {
-        var (repo, user, uow) = Mocks(null);
+        var admin = NewAdmin(AdminRole.Admin); // password "Secret123!"
+        var originalHash = admin.PasswordHash;
+        var (repo, user, uow) = Mocks(admin);
+        user.SetupGet(c => c.UserId).Returns(admin.Id);
         var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
 
-        var result = await handler.Handle(new ResetAdminPasswordCommand(Guid.NewGuid(), "BrandNew123!"), CancellationToken.None);
+        var result = await handler.Handle(
+            new ResetAdminPasswordCommand(admin.Id, "BrandNew123!", "WrongPassword!"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(originalHash, admin.PasswordHash);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ResetPassword_NotFound_Returns404()
+    {
+        var actor = NewAdmin(AdminRole.SuperAdmin); // password "Secret123!"
+        var missingId = Guid.NewGuid();
+        var repo = new Mock<IAdminRepository>();
+        repo.Setup(r => r.GetByIdAsync(actor.Id, It.IsAny<CancellationToken>())).ReturnsAsync(actor);
+        repo.Setup(r => r.GetByIdAsync(missingId, It.IsAny<CancellationToken>())).ReturnsAsync((AdminUser?)null);
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(c => c.Username).Returns("head");
+        user.SetupGet(c => c.UserId).Returns(actor.Id);
+        var uow = new Mock<IUnitOfWork>();
+        var handler = new ResetAdminPasswordCommandHandler(repo.Object, user.Object, uow.Object);
+
+        var result = await handler.Handle(
+            new ResetAdminPasswordCommand(missingId, "BrandNew123!", "Secret123!"), CancellationToken.None);
 
         Assert.Equal(404, result.StatusCode);
     }

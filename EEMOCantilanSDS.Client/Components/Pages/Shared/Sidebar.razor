@@ -1,5 +1,7 @@
+@using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
@@ -9,7 +11,7 @@
         </div>
         <div class="sidebar-brand-text">
             <div class="sidebar-brand-name">STALLTRACK</div>
-            <div class="sidebar-brand-sub">Admin Portal</div>
+            <div class="sidebar-brand-sub">@_portalLabel</div>
         </div>
     </div>
 
@@ -80,6 +82,7 @@
 </aside>
 @code {
     private bool SidebarCollapsed;
+    private string _portalLabel = "Admin Portal";
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
 
     protected override void OnInitialized()
@@ -97,6 +100,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var isHead = state.User.IsInRole("SuperAdmin")
+            || state.User.Claims.Any(c =>
+                string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+        _portalLabel = isHead ? "Head Portal" : "Admin Portal";
+
         var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
         var result = await FacilitiesApi.GetFacilitySummariesAsync(now.Year, now.Month);
         if (result.IsSuccess && result.Value is not null)

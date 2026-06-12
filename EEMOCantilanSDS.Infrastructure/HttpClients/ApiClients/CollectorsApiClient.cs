@@ -28,8 +28,8 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
     public async Task<Result<bool>> ToggleCollectorStatusAsync(Guid id, bool isActive) =>
         await UpdateAsync<ToggleCollectorStatusRequest, bool>($"api/Collectors/{id}/status", new ToggleCollectorStatusRequest(isActive));
 
-    public async Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword) =>
-        await UpdateAsync<ResetCollectorPasswordRequest, bool>($"api/Collectors/{id}/reset-password", new ResetCollectorPasswordRequest(newPassword));
+    public async Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword, string confirmPassword) =>
+        await UpdateAsync<ResetCollectorPasswordRequest, bool>($"api/Collectors/{id}/reset-password", new ResetCollectorPasswordRequest(newPassword, confirmPassword));
 
     public async Task<Result<string>> GetNextEmployeeIdAsync() =>
         await _http.GetPlainStringAsync("api/Collectors/next-employee-id");

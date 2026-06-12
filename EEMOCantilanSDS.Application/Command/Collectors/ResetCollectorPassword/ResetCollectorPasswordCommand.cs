@@ -3,4 +3,4 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Collectors.ResetCollectorPassword;
 
-public record ResetCollectorPasswordCommand(Guid CollectorId, string NewPassword) : IRequest<Result<bool>>;
+public record ResetCollectorPasswordCommand(Guid CollectorId, string NewPassword, string ConfirmPassword) : IRequest<Result<bool>>;
