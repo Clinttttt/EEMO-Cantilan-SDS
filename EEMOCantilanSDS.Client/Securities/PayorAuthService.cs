@@ -10,18 +10,6 @@ namespace EEMOCantilanSDS.Client.Securities;
 /// the Blazor auth state. Mirrors <see cref="AuthService"/> but for the /payor area.</summary>
 public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthStateProvider authStateProvider, ILogger<PayorAuthService> logger)
 {
-    public async Task<bool> ActivateAsync(ActivatePayorAccountCommand command)
-    {
-        var error = await PostCookieAsync("/api/payorauthproxy/activate", command);
-        if (error is null)
-        {
-            await authStateProvider.MarkUserAsAuthenticated();
-            navigation.NavigateTo("/payor", forceLoad: true);
-            return true;
-        }
-        return false;
-    }
-
     public async Task<(bool Ok, string? Error)> ActivateWithErrorAsync(ActivatePayorAccountCommand command)
     {
         var error = await PostCookieAsync("/api/payorauthproxy/activate", command);
@@ -34,7 +22,7 @@ public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthS
         return (false, error);
     }
 
-    public async Task<(bool Ok, string? Error)> LoginWithErrorAsync(string contactNumber, string password)
+    public async Task<bool> LoginAsync(string contactNumber, string password)
     {
         var error = await PostCookieAsync("/api/payorauthproxy/login",
             new PayorLoginCommand(contactNumber, password));
@@ -42,15 +30,9 @@ public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthS
         {
             await authStateProvider.MarkUserAsAuthenticated();
             navigation.NavigateTo("/payor", forceLoad: true);
-            return (true, null);
+            return true;
         }
-        return (false, error);
-    }
-
-    public async Task<bool> LoginAsync(string contactNumber, string password)
-    {
-        var (ok, _) = await LoginWithErrorAsync(contactNumber, password);
-        return ok;
+        return false;
     }
 
     public async Task LogoutAsync()

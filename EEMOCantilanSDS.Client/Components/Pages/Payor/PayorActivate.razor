@@ -24,8 +24,7 @@
 
         <label class="pp-field">
             <span class="pp-field-label">Registered Mobile No.</span>
-            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx"
-                   value="@Contact" @oninput="OnContactChanged" />
+            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx" @bind="Contact" />
         </label>
 
         <div class="pp-divider-soft"></div>
@@ -64,18 +63,10 @@
     private bool Busy;
     private bool MaybeReturning;
 
-    // Label hints that this might be an existing account adding a new stall.
+    // The "existing account" hint is driven ONLY by the server's response (below), never guessed from
+    // the phone number — a first-time payor must see "Create Password", not "existing password".
     private string PasswordLabel => MaybeReturning ? "Password (existing account)" : "Create Password";
     private string PasswordPlaceholder => MaybeReturning ? "Your existing password" : "At least 8 characters";
-
-    private void OnContactChanged(ChangeEventArgs e)
-    {
-        var val = e.Value?.ToString()?.Trim() ?? string.Empty;
-        Contact = val;
-        // If 11+ digits entered, hint that a returning user should enter their existing password.
-        MaybeReturning = val.Length >= 11;
-        Error = null;
-    }
 
     private async Task Activate()
     {

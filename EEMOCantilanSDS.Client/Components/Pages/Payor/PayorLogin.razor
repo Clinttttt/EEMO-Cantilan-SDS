@@ -58,10 +58,12 @@
         }
 
         Busy = true;
-        var (ok, serverError) = await PayorAuth.LoginWithErrorAsync(Contact.Trim(), Password);
+        var ok = await PayorAuth.LoginAsync(Contact.Trim(), Password);
         Busy = false;
 
+        // Login failures are intentionally generic (non-enumerating) — never reveal whether the
+        // number exists; the server returns no message for 401/404 by design.
         if (!ok)
-            Error = serverError ?? "Invalid mobile number or password.";
+            Error = "Invalid mobile number or password.";
     }
 }
