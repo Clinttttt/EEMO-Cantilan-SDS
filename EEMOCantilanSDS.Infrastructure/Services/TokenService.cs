@@ -79,6 +79,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             {
                 AdminUser admin => admin.Role.ToString(),
                 CollectorUser collector => "Collector",
+                PayorUser payor => "Payor",
                 _ => throw new InvalidOperationException("Unknown user type")
             };
         }

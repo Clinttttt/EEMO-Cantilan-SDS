@@ -379,6 +379,99 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("DailyCollections", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.OnlinePaymentTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("GatewayReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ORNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaymentId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("PaymentRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PayorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("RawPayload")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GatewayReference")
+                        .IsUnique();
+
+                    b.HasIndex("PaymentRecordId");
+
+                    b.HasIndex("Reference")
+                        .IsUnique();
+
+                    b.ToTable("OnlinePaymentTransactions", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.PaymentRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -966,6 +1059,97 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("CollectorFacilityAssignments", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorActivationCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ContactNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid?>("PayorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("StallId");
+
+                    b.ToTable("PayorActivationCodes", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorStallLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PayorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StallId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StallId");
+
+                    b.HasIndex("PayorUserId", "StallId")
+                        .IsUnique();
+
+                    b.ToTable("PayorStallLinks", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.AdminUser", b =>
                 {
                     b.HasBaseType("EEMOCantilanSDS.Domain.Entities.Users.BaseUser");
@@ -992,6 +1176,13 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasDiscriminator().HasValue("Collector");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorUser", b =>
+                {
+                    b.HasBaseType("EEMOCantilanSDS.Domain.Entities.Users.BaseUser");
+
+                    b.HasDiscriminator().HasValue("Payor");
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", b =>
@@ -1025,6 +1216,17 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Stall");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.OnlinePaymentTransaction", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Payments.PaymentRecord", "PaymentRecord")
+                        .WithMany()
+                        .HasForeignKey("PaymentRecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PaymentRecord");
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.PaymentRecord", b =>
@@ -1087,6 +1289,36 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Navigation("Facility");
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorActivationCode", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
+                        .WithMany()
+                        .HasForeignKey("StallId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Stall");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorStallLink", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Users.PayorUser", "Payor")
+                        .WithMany("StallLinks")
+                        .HasForeignKey("PayorUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
+                        .WithMany()
+                        .HasForeignKey("StallId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Payor");
+
+                    b.Navigation("Stall");
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.Facility", b =>
                 {
                     b.Navigation("CollectorAssignments");
@@ -1116,6 +1348,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.CollectorUser", b =>
                 {
                     b.Navigation("FacilityAssignments");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorUser", b =>
+                {
+                    b.Navigation("StallLinks");
                 });
 #pragma warning restore 612, 618
         }

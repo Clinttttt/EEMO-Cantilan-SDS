@@ -1,0 +1,122 @@
+.op-intro {
+    margin-bottom: 1rem;
+}
+
+.op-intro-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.op-intro-sub {
+    margin-top: 4px;
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+    max-width: 70ch;
+}
+
+.op-banner {
+    margin-bottom: 1rem;
+    padding: 0.7rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+}
+
+.op-banner-ok {
+    background: var(--green-bg);
+    color: var(--green);
+    border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+}
+
+.op-banner-error {
+    background: var(--red-bg);
+    color: var(--red);
+    border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+}
+
+.op-empty {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--text-subtle);
+}
+
+.op-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.op-table thead th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.op-table tbody td {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.op-strong {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.op-muted {
+    font-size: 0.78rem;
+    color: var(--text-subtle);
+}
+
+.op-mono {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--text-subtle);
+}
+
+.op-amt {
+    text-align: right;
+}
+
+.op-input {
+    width: 100%;
+    min-width: 150px;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--bg-card);
+}
+
+.op-input:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+
+.op-btn {
+    border: 0;
+    background: var(--navy);
+    color: #fff;
+    padding: 0.55rem 1rem;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.op-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.op-btn:not(:disabled):hover {
+    background: var(--navy-2);
+}

@@ -1,0 +1,26 @@
+using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Entities.Payments;
+
+namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
+
+public interface IOnlinePaymentRepository
+{
+    Task<OnlinePaymentTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Looks up a transaction by its gateway (checkout session) reference — the webhook dedupe key.</summary>
+    Task<OnlinePaymentTransaction?> GetByGatewayReferenceAsync(string gatewayReference, CancellationToken ct = default);
+
+    Task<bool> ReferenceExistsAsync(string reference, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the record's still-resumable transaction (Initiated/Pending) if one exists, so a payor
+    /// who abandoned a checkout is sent back to the same session instead of opening a duplicate.
+    /// Settled (Paid/Completed) periods are blocked earlier by the zero-balance check.
+    /// </summary>
+    Task<OnlinePaymentTransaction?> GetResumableTransactionForRecordAsync(Guid paymentRecordId, CancellationToken ct = default);
+
+    Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default);
+
+    /// <summary>Online payments that are Paid (money received) but still awaiting staff OR encoding.</summary>
+    Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrAsync(CancellationToken ct = default);
+}

@@ -2,7 +2,8 @@
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
-@inject NavigationManager Nav
+@using EEMOCantilanSDS.Application.Command.Auth.PayorAuth.Activate
+@inject PayorAuthService PayorAuth
 
 <PageTitle>EEMO — Activate Account</PageTitle>
 
@@ -12,8 +13,8 @@
         <div class="pp-auth-sub">Use the one-time code on your bill and the contact number on file.</div>
 
         <label class="pp-field">
-            <span class="pp-field-label">Stall / Reference No.</span>
-            <input class="pp-input" type="text" placeholder="e.g. TCC-12" @bind="StallRef" />
+            <span class="pp-field-label">Full Name</span>
+            <input class="pp-input" type="text" placeholder="Name on your account" @bind="FullName" />
         </label>
 
         <label class="pp-field">
@@ -33,7 +34,14 @@
             <input class="pp-input" type="password" placeholder="At least 8 characters" @bind="Password" />
         </label>
 
-        <button class="pp-auth-btn" type="button" @onclick="Activate">Activate &amp; Continue</button>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="pp-auth-error">@Error</div>
+        }
+
+        <button class="pp-auth-btn" type="button" disabled="@Busy" @onclick="Activate">
+            @(Busy ? "Activating…" : "Activate & Continue")
+        </button>
 
         <div class="pp-auth-alt">
             Already activated?
@@ -47,11 +55,36 @@
 </div>
 
 @code {
-    private string StallRef = string.Empty;
+    private string FullName = string.Empty;
     private string Code = string.Empty;
     private string Contact = string.Empty;
     private string Password = string.Empty;
+    private string? Error;
+    private bool Busy;
 
-    // Demo: proceed to the portal.
-    private void Activate() => Nav.NavigateTo("/payor");
+    private async Task Activate()
+    {
+        Error = null;
+
+        if (string.IsNullOrWhiteSpace(FullName) || string.IsNullOrWhiteSpace(Code)
+            || string.IsNullOrWhiteSpace(Contact) || string.IsNullOrWhiteSpace(Password))
+        {
+            Error = "Please complete all fields.";
+            return;
+        }
+
+        if (Password.Length < 8)
+        {
+            Error = "Password must be at least 8 characters.";
+            return;
+        }
+
+        Busy = true;
+        var ok = await PayorAuth.ActivateAsync(new ActivatePayorAccountCommand(
+            Code.Trim(), Contact.Trim(), FullName.Trim(), Password));
+        Busy = false;
+
+        if (!ok)
+            Error = "Activation failed. Check your code and mobile number, or sign in if you already have an account.";
+    }
 }

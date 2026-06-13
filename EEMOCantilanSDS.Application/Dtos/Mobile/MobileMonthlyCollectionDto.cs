@@ -32,4 +32,7 @@ public sealed record MobileMonthlyStallCollectionDto(
     decimal AmountPaid,
     decimal Balance,
     string? ORNumber,
-    bool IsRecorded);
+    bool IsRecorded,
+    bool PaidOnline = false,
+    bool AwaitingOr = false,
+    Guid? OnlinePaymentTransactionId = null);

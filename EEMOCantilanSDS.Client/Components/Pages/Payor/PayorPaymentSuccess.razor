@@ -1,0 +1,26 @@
+@page "/payor/payment/success"
+@layout PayorLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+
+<PageTitle>EEMO — Payment Received</PageTitle>
+
+<div class="pp-page-title">Payment received</div>
+
+<section class="pp-hero pp-hero-compact">
+    <div class="pp-hero-label">Thank you</div>
+    <div class="pp-hero-amount">✓</div>
+    <div class="pp-hero-meta">We're confirming your payment with GCash.</div>
+</section>
+
+<div class="pp-card pp-detail-card">
+    <p style="margin:0;color:var(--text-subtle);">
+        Your balance updates automatically once GCash confirms the payment — this is usually immediate
+        but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in
+        your payment history.
+    </p>
+</div>
+
+<a class="pp-pay-cta" href="/payor">Back to portal</a>
+
+<div class="pp-foot">EEMO Revenue Collection · Municipality of Cantilan, Surigao del Sur</div>

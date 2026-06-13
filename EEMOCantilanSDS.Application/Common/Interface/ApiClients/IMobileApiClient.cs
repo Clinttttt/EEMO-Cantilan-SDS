@@ -1,4 +1,6 @@
+using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Requests.Mobile;using EEMOCantilanSDS.Domain.Common;
@@ -23,4 +25,10 @@ public interface IMobileApiClient
     Task<Result<TpmVendorAttendanceDto>> AddTpmVendorAsync(AddMobileTpmVendorRequest request);
     Task<Result<bool>> MarkTpmVendorPaidAsync(MarkMobileTpmVendorPaidRequest request);
     Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request);
+
+    /// <summary>Issues a single-use payor activation code for a stall (collector-facility guarded server-side).</summary>
+    Task<Result<StallActivationCodeDto>> GenerateActivationCodeAsync(GenerateStallActivationCodeCommand command);
+
+    /// <summary>Encodes the manual OR for an online payment awaiting OR (preserves online attribution; completes the transaction).</summary>
+    Task<Result<bool>> IssueOnlinePaymentOrNumberAsync(Guid transactionId, string orNumber);
 }

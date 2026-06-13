@@ -2,111 +2,115 @@
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
-@using static EEMOCantilanSDS.Client.Components.Pages.Payor.PayorDemoData
+@using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate
+@using EEMOCantilanSDS.Application.Dtos.Payors
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IPayorApiClient PayorApi
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
 
 <PageTitle>EEMO — Balances</PageTitle>
 
 <div class="pp-page-title">Outstanding Balances</div>
 
-<section class="pp-hero pp-hero-compact">
-    <div class="pp-hero-label">Total Due</div>
-    <div class="pp-hero-amount">@FormatCurrency(TotalOutstanding)</div>
-    <div class="pp-hero-meta">Earliest due <strong>@EarliestDue.ToString("MMM d, yyyy")</strong></div>
-    @if (Outstanding.Any())
-    {
-        <button class="pp-pay-cta" type="button" @onclick="() => OpenPay(null)">
-            <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
-            Pay All with GCash
-        </button>
-    }
-</section>
-
-<div class="pp-section-label">Per Period</div>
-@if (!Outstanding.Any())
+@if (Loading)
 {
-    <div class="pp-empty">You're all paid up. Thank you!</div>
+    <div class="pp-empty">Loading balances…</div>
 }
 else
 {
-    @foreach (var item in Outstanding)
+    <section class="pp-hero pp-hero-compact">
+        <div class="pp-hero-label">Total Due</div>
+        <div class="pp-hero-amount">@PayorFormat.Currency(TotalDue)</div>
+        <div class="pp-hero-meta">@Items.Count unpaid period@(Items.Count == 1 ? "" : "s")</div>
+    </section>
+
+    <div class="pp-section-label">Per Period</div>
+    @if (Items.Count == 0)
     {
-        <div class="pp-card pp-bal">
-            <div class="pp-bal-left">
-                <div class="pp-bal-top">
-                    <span class="pp-bal-period">@item.Period</span>
-                    <span class="pp-badge @StatusClass(item.Status)">@item.Status</span>
-                </div>
-                <div class="pp-bal-sub">@item.Facility · Due @item.DueDate.ToString("MMM d, yyyy")</div>
-            </div>
-            <div class="pp-bal-right">
-                <span class="pp-bal-amount">@FormatCurrency(item.Amount)</span>
-                <button class="pp-bal-pay" type="button" @onclick="() => OpenPay(item)">Pay</button>
-            </div>
-        </div>
+        <div class="pp-empty">You're all paid up. Thank you!</div>
     }
-}
-
-<div class="pp-foot">Your balance updates automatically once GCash confirms the payment.</div>
-
-@if (ShowPay)
-{
-    <div class="pp-overlay" @onclick="ClosePay">
-        <div class="pp-sheet" @onclick:stopPropagation="true">
-            <div class="pp-sheet-handle"></div>
-            <div class="pp-sheet-title">Pay with GCash</div>
-            <div class="pp-sheet-sub">You'll be securely redirected to GCash via PayMongo.</div>
-
-            <div class="pp-sheet-summary">
-                <div class="pp-sum-row"><span>Account</span><strong>@Accounts[0].Facility · Stall @Accounts[0].StallNo</strong></div>
-                @if (PaySelection is not null)
-                {
-                    <div class="pp-sum-row"><span>Period</span><strong>@PaySelection.Period</strong></div>
-                }
-                else
-                {
-                    <div class="pp-sum-row"><span>Periods</span><strong>@Outstanding.Count unpaid</strong></div>
-                }
-                <div class="pp-sum-divider"></div>
-                <div class="pp-sum-row pp-sum-total"><span>Amount due</span><strong>@FormatCurrency(PayAmount)</strong></div>
+    else
+    {
+        @foreach (var item in Items)
+        {
+            <div class="pp-card pp-bal">
+                <div class="pp-bal-left">
+                    <div class="pp-bal-top">
+                        <span class="pp-bal-period">@item.Period</span>
+                        <span class="pp-badge badge-unpaid">Unpaid</span>
+                    </div>
+                    <div class="pp-bal-sub">@PayorFormat.FacilityName(item.Facility) · Stall @item.StallNo</div>
+                </div>
+                <div class="pp-bal-right">
+                    <span class="pp-bal-amount">@PayorFormat.Currency(item.BalanceDue)</span>
+                    <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => Pay(item)">
+                        @(PayingId == ItemKey(item) ? "…" : "Pay")
+                    </button>
+                </div>
             </div>
+        }
+    }
 
-            <div class="pp-sheet-note">
-                Your Official Receipt (OR) will be issued by EEMO once the payment is validated.
-            </div>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="pp-demo-note">@Error</div>
+    }
 
-            @if (DemoNotice)
-            {
-                <div class="pp-demo-note">Demo preview — the GCash gateway isn't connected yet.</div>
-            }
-
-            <div class="pp-sheet-btns">
-                <button class="pp-btn-ghost" type="button" @onclick="ClosePay">Cancel</button>
-                <button class="pp-btn-pay" type="button" @onclick="() => DemoNotice = true">
-                    <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
-                    Proceed to GCash
-                </button>
-            </div>
-        </div>
+    <div class="pp-foot">
+        You'll be redirected to GCash via PayMongo. Your balance updates automatically once payment is confirmed;
+        the Official Receipt is issued by EEMO afterwards.
     </div>
 }
 
 @code {
-    private bool ShowPay;
-    private bool DemoNotice;
-    private OutstandingItem? PaySelection;
-    private decimal PayAmount => PaySelection?.Amount ?? TotalOutstanding;
+    private bool Loading = true;
+    private bool Busy;
+    private string? PayingId;
+    private string? Error;
+    private IReadOnlyList<PayorPayableItemDto> Items = Array.Empty<PayorPayableItemDto>();
 
-    private void OpenPay(OutstandingItem? item)
+    private decimal TotalDue => Items.Sum(i => i.BalanceDue);
+
+    private static string ItemKey(PayorPayableItemDto i) => $"{i.StallId}:{i.Year}:{i.Month}";
+
+    protected override async Task OnInitializedAsync()
     {
-        PaySelection = item;
-        DemoNotice = false;
-        ShowPay = true;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        {
+            Nav.NavigateTo("/payor/login", forceLoad: true);
+            return;
+        }
+
+        await LoadAsync();
+        Loading = false;
     }
 
-    private void ClosePay()
+    private async Task LoadAsync()
     {
-        ShowPay = false;
-        PaySelection = null;
-        DemoNotice = false;
+        var result = await PayorApi.GetPayableItemsAsync();
+        if (result.IsSuccess && result.Value is not null)
+            Items = result.Value;
+    }
+
+    private async Task Pay(PayorPayableItemDto item)
+    {
+        Error = null;
+        Busy = true;
+        PayingId = ItemKey(item);
+
+        var result = await PayorApi.InitiatePaymentAsync(new InitiateOnlinePaymentCommand(item.StallId, item.Year, item.Month));
+
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.CheckoutUrl))
+        {
+            // Hand off to the hosted GCash checkout.
+            Nav.NavigateTo(result.Value.CheckoutUrl, forceLoad: true);
+            return;
+        }
+
+        Busy = false;
+        PayingId = null;
+        Error = result.Error ?? "Unable to start the payment. Please try again.";
     }
 }

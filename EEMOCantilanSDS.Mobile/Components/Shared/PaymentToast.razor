@@ -1,0 +1,54 @@
+@using EEMOCantilanSDS.Application.Common.Payments
+@implements IDisposable
+@inject EEMOCantilanSDS.Mobile.Services.MobilePaymentHubService Hub
+
+@if (_toasts.Count > 0)
+{
+    <div class="pay-toast-stack">
+        @foreach (var t in _toasts)
+        {
+            <div class="pay-toast" @key="t.Id">
+                <div class="pay-toast-icon">
+                    <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14 0" /><path d="M8.5 16.1a6 6 0 0 1 7 0" /><line x1="12" y1="20" x2="12" y2="20" /></svg>
+                </div>
+                <div class="pay-toast-body">
+                    <div class="pay-toast-title">Online payment received</div>
+                    <div class="pay-toast-text">₱@t.Amount.ToString("N2") · @t.Period</div>
+                    <div class="pay-toast-sub">Open the stall to encode its OR</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private sealed record ToastItem(Guid Id, decimal Amount, string Period);
+
+    private readonly List<ToastItem> _toasts = new();
+
+    protected override void OnInitialized() => Hub.PaymentReceived += OnPayment;
+
+    private void OnPayment(OnlinePaymentNotification n)
+    {
+        var item = new ToastItem(Guid.NewGuid(), n.Amount, n.Period);
+        // The hub event fires off the UI thread; marshal onto it.
+        _ = InvokeAsync(() =>
+        {
+            _toasts.Add(item);
+            StateHasChanged();
+            _ = DismissLaterAsync(item.Id);
+        });
+    }
+
+    private async Task DismissLaterAsync(Guid id)
+    {
+        await Task.Delay(7000);
+        await InvokeAsync(() =>
+        {
+            if (_toasts.RemoveAll(t => t.Id == id) > 0)
+                StateHasChanged();
+        });
+    }
+
+    public void Dispose() => Hub.PaymentReceived -= OnPayment;
+}

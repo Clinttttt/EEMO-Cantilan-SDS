@@ -1,5 +1,6 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Infrastructure.Payments;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -46,11 +48,32 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IDashboardRepository, DashboardRepository>();
             service.AddScoped<ITransactionFeedRepository, TransactionFeedRepository>();
             service.AddScoped<ISuggestionRepository, SuggestionRepository>();
+            service.AddScoped<IPayorRepository, PayorRepository>();
+            service.AddScoped<IOnlinePaymentRepository, OnlinePaymentRepository>();
 
 
             // Services
             service.AddScoped<ICurrentUserService, CurrentUserService>();
             service.AddScoped<ITokenService, TokenService>();
+            service.AddScoped<IOnlinePaymentUrlBuilder, OnlinePaymentUrlBuilder>();
+
+            // Online payment gateway (PayMongo hosted checkout, GCash). Secret-key Basic auth is
+            // applied once here; the key is the username with an empty password, base64-encoded.
+            var payMongo = configuration.GetSection("PayMongo");
+            service.AddHttpClient<IPaymentGateway, PayMongoPaymentGateway>(client =>
+            {
+                var baseUrl = payMongo["BaseUrl"];
+                if (string.IsNullOrWhiteSpace(baseUrl))
+                    baseUrl = "https://api.paymongo.com/v1";
+
+                // Ensure relative request paths (e.g. "checkout_sessions") resolve under the version segment.
+                client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+
+                var secretKey = payMongo["SecretKey"] ?? string.Empty;
+                var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{secretKey}:"));
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basic);
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            });
 
             return service;
 

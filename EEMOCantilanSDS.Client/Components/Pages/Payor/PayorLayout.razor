@@ -1,6 +1,8 @@
+@using EEMOCantilanSDS.Client.Securities
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject NavigationManager Nav
+@inject PayorAuthService PayorAuth
 
 <div class="pp-shell @(ShowNav ? "" : "pp-shell-auth")">
 
@@ -15,7 +17,7 @@
             </div>
             @if (ShowNav)
             {
-                <button class="pp-signout" type="button" title="Sign out" @onclick='() => Nav.NavigateTo("/payor/login")'>
+                <button class="pp-signout" type="button" title="Sign out" @onclick="SignOut">
                     <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                 </button>
             }
@@ -74,4 +76,6 @@
     }
 
     public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+
+    private async Task SignOut() => await PayorAuth.LogoutAsync();
 }

@@ -19,15 +19,18 @@ namespace EEMOCantilanSDS.Client
             AddPersistence(service, configuration);
 
             service.AddHttpContextAccessor();
-            
-            // Add Cookie Authentication
+
+            // Single shared auth cookie. (A path-based dual-cookie scheme was tried but is unreliable in
+            // Blazor Server: the interactive circuit runs over /_blazor, which has no area path, so the
+            // selector mis-resolves. SameSite=Lax so the cookie survives the top-level redirect back from
+            // the PayMongo hosted checkout to /payor/payment/success.)
             service.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
                 .AddCookie(options =>
                 {
                     options.Cookie.Name = ".AspNetCore.Cookies";
                     options.Cookie.HttpOnly = true;
                     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                    options.Cookie.SameSite = SameSiteMode.Strict;
+                    options.Cookie.SameSite = SameSiteMode.Lax;
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.LoginPath = "/login";
@@ -38,6 +41,7 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<TokenService>();
             service.AddScoped<CircuitHandler, TokenCircuitHandler>();
             service.AddScoped<AuthService>();
+            service.AddScoped<PayorAuthService>();
             service.AddScoped<AuthorizationDelegatingHandler>();
             service.AddScoped<RefreshTokenDelegatingHandler>();
             service.AddScoped<AuthStateProvider>();
@@ -64,6 +68,11 @@ namespace EEMOCantilanSDS.Client
 
 
 
+            service.AddHttpClient<IPayorAuthApiClient, PayorAuthApiClient>("PayorAuthClient", client =>
+            {
+                client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
+            });
+
             service.AddApiHttpClient<ISetupApiClient, SetupApiClient>(configuration);
             service.AddApiHttpClient<IStallsApiClient, StallsApiClient>(configuration);
             service.AddApiHttpClient<ICollectorsApiClient, CollectorsApiClient>(configuration);
@@ -77,6 +86,8 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IFacilitiesApiClient, FacilitiesApiClient>(configuration);
             service.AddApiHttpClient<IDashboardApiClient, DashboardApiClient>(configuration);
             service.AddApiHttpClient<ITransactionsApiClient, TransactionsApiClient>(configuration);
+            service.AddApiHttpClient<IPayorApiClient, PayorApiClient>(configuration);
+            service.AddApiHttpClient<IOnlinePaymentsApiClient, OnlinePaymentsApiClient>(configuration);
 
             return service;
         }

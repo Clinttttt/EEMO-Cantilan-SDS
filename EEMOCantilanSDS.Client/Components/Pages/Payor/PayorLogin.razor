@@ -2,7 +2,7 @@
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
-@inject NavigationManager Nav
+@inject PayorAuthService PayorAuth
 
 <PageTitle>EEMO — Payor Sign in</PageTitle>
 
@@ -12,8 +12,8 @@
         <div class="pp-auth-sub">Access your balances and pay online.</div>
 
         <label class="pp-field">
-            <span class="pp-field-label">Stall / Reference No.</span>
-            <input class="pp-input" type="text" placeholder="e.g. TCC-12" @bind="StallRef" />
+            <span class="pp-field-label">Registered Mobile No.</span>
+            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx" @bind="Contact" />
         </label>
 
         <label class="pp-field">
@@ -21,7 +21,14 @@
             <input class="pp-input" type="password" placeholder="••••••••" @bind="Password" />
         </label>
 
-        <button class="pp-auth-btn" type="button" @onclick="SignIn">Sign in</button>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="pp-auth-error">@Error</div>
+        }
+
+        <button class="pp-auth-btn" type="button" disabled="@Busy" @onclick="SignIn">
+            @(Busy ? "Signing in…" : "Sign in")
+        </button>
 
         <div class="pp-auth-alt">
             First time here?
@@ -35,9 +42,26 @@
 </div>
 
 @code {
-    private string StallRef = string.Empty;
+    private string Contact = string.Empty;
     private string Password = string.Empty;
+    private string? Error;
+    private bool Busy;
 
-    // Demo: any input proceeds to the portal.
-    private void SignIn() => Nav.NavigateTo("/payor");
+    private async Task SignIn()
+    {
+        Error = null;
+
+        if (string.IsNullOrWhiteSpace(Contact) || string.IsNullOrWhiteSpace(Password))
+        {
+            Error = "Enter your mobile number and password.";
+            return;
+        }
+
+        Busy = true;
+        var ok = await PayorAuth.LoginAsync(Contact.Trim(), Password);
+        Busy = false;
+
+        if (!ok)
+            Error = "Invalid mobile number or password.";
+    }
 }

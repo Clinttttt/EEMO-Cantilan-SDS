@@ -56,4 +56,12 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request) =>
         await PostAsync<HideMobileSuggestionRequest, bool>("api/Mobile/suggestions/hide", request);
+
+    public async Task<Result<Application.Dtos.Payors.StallActivationCodeDto>> GenerateActivationCodeAsync(
+        Application.Command.Payors.GenerateStallActivationCode.GenerateStallActivationCodeCommand command) =>
+        await PostAsync<Application.Command.Payors.GenerateStallActivationCode.GenerateStallActivationCodeCommand,
+            Application.Dtos.Payors.StallActivationCodeDto>("api/activation-codes/generate", command);
+
+    public async Task<Result<bool>> IssueOnlinePaymentOrNumberAsync(Guid transactionId, string orNumber) =>
+        await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/or-number", new { ORNumber = orNumber });
 }

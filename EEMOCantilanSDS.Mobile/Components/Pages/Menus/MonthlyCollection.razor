@@ -1,12 +1,16 @@
 ﻿@page "/collect/{Facility}"
 @using System.Globalization
+@using Microsoft.JSInterop
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Payors
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
+@inject IJSRuntime JS
 
 <div class="page-shell">
     <div class="header">
@@ -106,32 +110,49 @@
                 <div class="section-label">@Collection.TotalStalls Occupied Stalls</div>
                 @foreach (var stall in FilteredStalls)
                 {
-                    <button class="tx-card" type="button" @onclick="() => OpenStall(stall)">
+                    <button class="tx-card" type="button" @onclick="() => OnCardTap(stall)">
                         <div class="tx-left-bar @GetBarClass(stall)"></div>
                         <div class="tx-body">
-                            <div class="tx-row-main">
-                                <div class="tx-col-info">
-                                    <span class="tx-owner">@stall.PayorName</span>
-                                    <span class="tx-sub">
-                                        <span class="tx-tag">No. @stall.StallNo</span>
-                                        @if (!string.IsNullOrWhiteSpace(stall.AreaLabel))
-                                        {
-                                            <span class="tx-or">@stall.AreaLabel</span>
-                                        }
-                                        @if (stall.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(stall.ORNumber))
-                                        {
-                                            <span class="tx-or">OR @stall.ORNumber</span>
-                                        }
-                                        @if (stall.Status == PaymentStatus.Partial)
-                                        {
-                                            <span class="tx-or">Bal @FormatCurrency(stall.Balance)</span>
-                                        }
-                                    </span>
-                                </div>
-                                <div class="tx-col-right">
+                            <div class="tx-top">
+                                <span class="tx-owner">@stall.PayorName</span>
+                                <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)</span>
+                            </div>
+
+                            <div class="tx-tags">
+                                <span class="tx-tag">No. @stall.StallNo</span>
+                                @if (!string.IsNullOrWhiteSpace(stall.AreaLabel))
+                                {
+                                    <span class="tx-tag">@stall.AreaLabel</span>
+                                }
+                                @if (stall.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(stall.ORNumber))
+                                {
+                                    <span class="tx-tag tx-tag-or">OR @stall.ORNumber</span>
+                                }
+                                @if (stall.Status == PaymentStatus.Partial)
+                                {
+                                    <span class="tx-tag">Bal @FormatCurrency(stall.Balance)</span>
+                                }
+                            </div>
+
+                            <div class="tx-statusrow">
+                                <div class="tx-statuschips">
                                     <span class="tx-badge @GetBadgeClass(stall)">@stall.Status</span>
-                                    <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)</span>
+                                    @if (stall.PaidOnline)
+                                    {
+                                        <span class="tx-online">
+                                            <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14 0" /><path d="M8.5 16.1a6 6 0 0 1 7 0" /><line x1="12" y1="20" x2="12" y2="20" /></svg>
+                                            Online
+                                        </span>
+                                    }
+                                    @if (stall.AwaitingOr)
+                                    {
+                                        <span class="tx-pending">OR pending</span>
+                                    }
                                 </div>
+                                <span class="tx-key" role="button" tabindex="0" title="Payor activation code"
+                                      @onclick="() => OpenActivation(stall)" @onclick:stopPropagation="true">
+                                    <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
+                                </span>
                             </div>
                         </div>
                     </button>
@@ -295,6 +316,113 @@
     </div>
 }
 
+@if (ShowActivation && ActivationStall is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseActivation">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Payor Activation Code</div>
+            <div class="sheet-sub">Issue a one-time code so this payor can activate their online account.</div>
+
+            <div class="sheet-preview">
+                <div class="preview-num">@ActivationStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@ActivationStall.PayorName</div>
+                    <div class="preview-detail">Monthly rental - @FormatCurrency(ActivationStall.MonthlyRate)</div>
+                </div>
+            </div>
+
+            @if (ActivationResult is null)
+            {
+                <div class="or-number-wrap">
+                    <div class="form-label">Payor's mobile number</div>
+                    <input class="form-input mono-input"
+                           type="tel"
+                           inputmode="numeric"
+                           maxlength="20"
+                           placeholder="09xx xxx xxxx"
+                           @bind="ActivationContact"
+                           @bind:event="oninput" />
+                    <div class="form-hint">The payor must enter this exact number when activating.</div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(ActivationError))
+                {
+                    <div class="form-error">@ActivationError</div>
+                }
+
+                <div class="sheet-btn-row">
+                    <button class="btn-cancel" type="button" @onclick="CloseActivation" disabled="@IsGenerating">Cancel</button>
+                    <button class="btn-confirm" type="button" @onclick="GenerateActivationAsync" disabled="@IsGenerating">
+                        @(IsGenerating ? "Generating..." : "Generate Code")
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="activation-code-box">
+                    <div class="activation-code-label">Activation code</div>
+                    <div class="activation-code-value">@ActivationResult.Code</div>
+                    <button class="btn-copy" type="button" @onclick="CopyCodeAsync">@CopyLabel</button>
+                </div>
+                <div class="activation-meta">
+                    <div class="activation-meta-row"><span>For mobile</span><strong>@ActivationResult.ContactNumber</strong></div>
+                    <div class="activation-meta-row"><span>Expires</span><strong>@ActivationResult.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")</strong></div>
+                </div>
+                <div class="form-hint">
+                    Give this code to the payor. They activate at the Payor Portal using this code and the mobile
+                    number above. Generating a new code voids this one.
+                </div>
+                <div class="sheet-btn-row">
+                    <button class="btn-confirm" type="button" @onclick="CloseActivation">Done</button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (ShowEncodeOr && EncodeStall is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseEncodeOr">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Encode Official Receipt</div>
+            <div class="sheet-sub">This stall was paid online. Enter the OR number you issued for it.</div>
+
+            <div class="sheet-preview">
+                <div class="preview-num">@EncodeStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@EncodeStall.PayorName</div>
+                    <div class="preview-detail">Paid online · @FormatCurrency(EncodeStall.MonthlyRate)</div>
+                </div>
+            </div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Official receipt no.</div>
+                <input class="form-input mono-input"
+                       type="text"
+                       maxlength="50"
+                       placeholder="e.g. OR-2026-0301"
+                       @bind="EncodeOrInput"
+                       @bind:event="oninput" />
+                <div class="form-hint">The online payment is already received; this only records the OR.</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(EncodeError))
+            {
+                <div class="form-error">@EncodeError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseEncodeOr" disabled="@EncodeBusy">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmEncodeOrAsync" disabled="@EncodeBusy">
+                    @(EncodeBusy ? "Saving..." : "Save OR")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public string Facility { get; set; } = string.Empty;
 
@@ -314,6 +442,127 @@
     private PaymentStatus SelectedStatus = PaymentStatus.Paid;
     private decimal? PartialAmount;
     private string ORNumber = string.Empty;
+
+    // Payor activation-code issuance
+    private bool ShowActivation;
+    private bool IsGenerating;
+    private MobileMonthlyStallCollectionDto? ActivationStall;
+    private string ActivationContact = string.Empty;
+    private string? ActivationError;
+    private StallActivationCodeDto? ActivationResult;
+    private string CopyLabel = "Copy";
+
+    // Encode OR for an online payment that is awaiting OR
+    private bool ShowEncodeOr;
+    private bool EncodeBusy;
+    private MobileMonthlyStallCollectionDto? EncodeStall;
+    private string EncodeOrInput = string.Empty;
+    private string? EncodeError;
+
+    // Online · OR-pending stalls open the Encode-OR sheet (preserves online attribution — uses the
+    // dedicated command, not generic record-payment); everything else opens the record-payment sheet.
+    private void OnCardTap(MobileMonthlyStallCollectionDto stall)
+    {
+        if (stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue)
+            OpenEncodeOr(stall);
+        else
+            OpenStall(stall);
+    }
+
+    private void OpenEncodeOr(MobileMonthlyStallCollectionDto stall)
+    {
+        EncodeStall = stall;
+        EncodeOrInput = string.Empty;
+        EncodeError = null;
+        ShowEncodeOr = true;
+    }
+
+    private void CloseEncodeOr()
+    {
+        ShowEncodeOr = false;
+        EncodeStall = null;
+        EncodeError = null;
+    }
+
+    private async Task ConfirmEncodeOrAsync()
+    {
+        if (EncodeStall?.OnlinePaymentTransactionId is not { } txnId) return;
+
+        if (string.IsNullOrWhiteSpace(EncodeOrInput))
+        {
+            EncodeError = "Enter the OR number.";
+            return;
+        }
+
+        EncodeBusy = true;
+        var result = await MobileApi.IssueOnlinePaymentOrNumberAsync(txnId, EncodeOrInput.Trim());
+        EncodeBusy = false;
+
+        if (result.IsSuccess)
+        {
+            ShowEncodeOr = false;
+            EncodeStall = null;
+            await LoadCollectionAsync();
+        }
+        else
+        {
+            EncodeError = result.Error ?? "Could not save the OR. It may already be in use.";
+        }
+    }
+
+    private void OpenActivation(MobileMonthlyStallCollectionDto stall)
+    {
+        ActivationStall = stall;
+        ActivationContact = string.Empty;
+        ActivationError = null;
+        ActivationResult = null;
+        CopyLabel = "Copy";
+        ShowActivation = true;
+    }
+
+    private void CloseActivation()
+    {
+        ShowActivation = false;
+        ActivationStall = null;
+        ActivationResult = null;
+        ActivationError = null;
+    }
+
+    private async Task GenerateActivationAsync()
+    {
+        if (ActivationStall is null) return;
+        ActivationError = null;
+
+        if (string.IsNullOrWhiteSpace(ActivationContact))
+        {
+            ActivationError = "Enter the payor's mobile number.";
+            return;
+        }
+
+        IsGenerating = true;
+        var result = await MobileApi.GenerateActivationCodeAsync(
+            new GenerateStallActivationCodeCommand(ActivationStall.StallId, ActivationContact.Trim(), null));
+        IsGenerating = false;
+
+        if (result.IsSuccess && result.Value is not null)
+            ActivationResult = result.Value;
+        else
+            ActivationError = result.Error ?? "Could not generate the code. Please try again.";
+    }
+
+    private async Task CopyCodeAsync()
+    {
+        if (ActivationResult is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", ActivationResult.Code);
+            CopyLabel = "Copied!";
+        }
+        catch
+        {
+            CopyLabel = "Copy failed";
+        }
+    }
 
     private readonly string[] FilterOptions = ["All", "Paid", "Partial", "Unpaid"];
 

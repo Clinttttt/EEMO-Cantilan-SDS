@@ -8,7 +8,8 @@ namespace EEMOCantilanSDS.Mobile.Services;
 public sealed class MobileSessionService(
     MobileTokenStore tokenStore,
     ICollectorAuthApiClient collectorAuthApiClient,
-    IMobileApiClient mobileApiClient)
+    IMobileApiClient mobileApiClient,
+    MobilePaymentHubService paymentHub)
 {
     public MobileMenuDto? Menu { get; private set; }
     public bool IsAuthenticated => tokenStore.HasAccessToken && Menu is not null;
@@ -80,6 +81,8 @@ public sealed class MobileSessionService(
         }
 
         Menu = result.Value;
+        // Now authenticated with a working session — connect the realtime payment hub (idempotent, best-effort).
+        await paymentHub.StartAsync();
         return null;
     }
 
@@ -122,5 +125,6 @@ public sealed class MobileSessionService(
 
         tokenStore.Clear();
         Menu = null;
+        await paymentHub.StopAsync();
     }
 }

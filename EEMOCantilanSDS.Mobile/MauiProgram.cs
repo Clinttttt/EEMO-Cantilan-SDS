@@ -26,6 +26,7 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<MobileTokenStore>();
             builder.Services.AddSingleton<MobileSessionService>();
+            builder.Services.AddSingleton<MobilePaymentHubService>();
             builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
             builder.Services.AddTransient<MobileAuthorizationDelegatingHandler>();
 
@@ -51,10 +52,9 @@ namespace EEMOCantilanSDS.Mobile
             return builder.Build();
         }
 
-        private static string GetApiBaseUrl()
+        internal static string GetApiBaseUrl()
         {
-#if ANDROID
-            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
+#if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117
             var isEmulator = global::Android.OS.Build.Fingerprint?.Contains("generic") == true
                           || global::Android.OS.Build.Fingerprint?.Contains("emulator") == true

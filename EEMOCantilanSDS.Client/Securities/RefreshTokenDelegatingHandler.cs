@@ -29,8 +29,16 @@ public class RefreshTokenDelegatingHandler(
                 return response;
 
             var refreshClient = httpClientFactory.CreateClient("RefreshClient");
+
+            // Refresh against the correct area, decided by the failing request's own URL (reliable in a
+            // Blazor circuit, unlike the page path): payor/online-payment APIs renew the payor token.
+            var apiPath = request.RequestUri?.AbsolutePath ?? string.Empty;
+            var isPayorApi = apiPath.Contains("/api/payor", StringComparison.OrdinalIgnoreCase)
+                || apiPath.Contains("/api/onlinepayments", StringComparison.OrdinalIgnoreCase);
+            var refreshEndpoint = isPayorApi ? "api/PayorAuth/refresh-token" : "api/AdminAuth/refresh-token";
+
             var refreshResponse = await refreshClient.PostAsJsonAsync(
-                "api/AdminAuth/refresh-token", new { RefreshToken = refreshToken }, cancellationToken);
+                refreshEndpoint, new { RefreshToken = refreshToken }, cancellationToken);
 
             if (!refreshResponse.IsSuccessStatusCode)
                 return response;

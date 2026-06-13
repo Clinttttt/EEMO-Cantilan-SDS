@@ -105,6 +105,33 @@ public class StallRepository(AppDbContext context) : IStallRepository
             .OrderBy(s => s.StallNo)
             .ToListAsync(ct);
 
+        // Which of this month's records were settled online (so the collector sees "paid online" and
+        // doesn't collect again). A record is online-settled if it has a Paid/Completed transaction.
+        var monthRecordIds = stalls
+            .Select(s => s.PaymentRecords.FirstOrDefault())
+            .Where(r => r is not null)
+            .Select(r => r!.Id)
+            .ToList();
+
+        var onlineTxns = monthRecordIds.Count == 0
+            ? new List<(Guid PaymentRecordId, Guid Id, OnlinePaymentStatus Status)>()
+            : (await context.OnlinePaymentTransactions
+                .AsNoTracking()
+                .Where(t => monthRecordIds.Contains(t.PaymentRecordId)
+                    && (t.Status == OnlinePaymentStatus.Paid || t.Status == OnlinePaymentStatus.Completed))
+                .Select(t => new { t.PaymentRecordId, t.Id, t.Status })
+                .ToListAsync(ct))
+                .Select(t => (t.PaymentRecordId, t.Id, t.Status))
+                .ToList();
+
+        // Record ids that were settled online (for the "Online" chip)…
+        var onlinePaidRecordIds = onlineTxns.Select(t => t.PaymentRecordId).ToHashSet();
+        // …and the still-Paid (not yet OR-completed) transaction per record (for in-field OR encoding).
+        var awaitingOrTxnByRecord = onlineTxns
+            .Where(t => t.Status == OnlinePaymentStatus.Paid)
+            .GroupBy(t => t.PaymentRecordId)
+            .ToDictionary(g => g.Key, g => g.First().Id);
+
         var rows = stalls.Select(s =>
         {
             var contract = s.Contracts
@@ -118,6 +145,13 @@ public class StallRepository(AppDbContext context) : IStallRepository
             var amountPaid = record?.AmountPaid ?? 0m;
             var balance = record is not null ? record.BalanceDue : s.MonthlyRate;
 
+            var paidOnline = record is not null && onlinePaidRecordIds.Contains(record.Id);
+            // Paid online but the staff have not yet encoded the Official Receipt (no OR on the record).
+            var awaitingOr = paidOnline && string.IsNullOrWhiteSpace(record!.ORNumber);
+            Guid? onlineTxnId = awaitingOr && awaitingOrTxnByRecord.TryGetValue(record!.Id, out var txnId)
+                ? txnId
+                : null;
+
             return new MobileMonthlyStallCollectionDto(
                 s.Id,
                 s.StallNo,
@@ -129,7 +163,10 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 amountPaid,
                 balance,
                 record?.ORNumber,
-                record is not null);
+                record is not null,
+                paidOnline,
+                awaitingOr,
+                onlineTxnId);
         }).ToList();
 
         // Facility display name from the seeded Facility record (single source of truth).

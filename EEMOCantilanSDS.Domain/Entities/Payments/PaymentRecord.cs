@@ -106,6 +106,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedBy = updatedBy;
         }
 
+        /// <summary>
+        /// Marks this record fully Paid from an online (GCash/PayMongo) payment. Per the attribution
+        /// rule, online payments carry NO collector (CollectorId stays null — captured in audit instead),
+        /// and the OR number is left null until staff encode it. Clearing the balance here is what makes
+        /// delinquency recompute as cleared for this period.
+        /// </summary>
+        public void MarkPaidOnline(string remarks, string updatedBy = "Online")
+        {
+            Status = PaymentStatus.Paid;
+            CollectorId = null;
+            ORNumber = null;
+            PartialAmount = 0;
+            Remarks = remarks;
+            PaidAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void MarkUnpaid(string updatedBy = "System")
         {
             Status = PaymentStatus.Unpaid;

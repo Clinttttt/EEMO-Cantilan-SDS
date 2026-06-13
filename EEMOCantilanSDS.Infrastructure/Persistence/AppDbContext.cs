@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
  
         public DbSet<PaymentRecord> PaymentRecords { get; set; }
         public DbSet<DailyCollection> DailyCollections { get; set; }
+        public DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; set; }
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }
 
@@ -46,6 +47,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<BaseUser> Users { get; set; }
         public DbSet<AdminUser> AdminUsers { get; set; }
         public DbSet<CollectorUser> CollectorUsers { get; set; }
+        public DbSet<PayorUser> PayorUsers { get; set; }
+
+        public DbSet<PayorActivationCode> PayorActivationCodes { get; set; }
+        public DbSet<PayorStallLink> PayorStallLinks { get; set; }
 
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }

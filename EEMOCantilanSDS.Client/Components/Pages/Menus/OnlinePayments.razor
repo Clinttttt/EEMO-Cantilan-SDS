@@ -1,0 +1,156 @@
+@page "/online-payments"
+@using Microsoft.AspNetCore.Authorization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Client.Components.Shared
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@inject IOnlinePaymentsApiClient OnlinePaymentsApi
+
+<PageTitle>EEMO Admin — Online Payments</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Online Payments</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Awaiting OR</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @DateTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="op-intro">
+        <div class="op-intro-title">GCash payments received — awaiting Official Receipt</div>
+        <div class="op-intro-sub">
+            These payors paid online and their balance is already cleared. Encode the manually-issued OR number to
+            complete each transaction. Amounts and the payor are shown for verification against the treasury report.
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Message))
+    {
+        <div class="op-banner @(IsError ? "op-banner-error" : "op-banner-ok")">@Message</div>
+    }
+
+    <div class="section-card">
+        @if (Loading)
+        {
+            <div class="op-empty">Loading…</div>
+        }
+        else if (Items.Count == 0)
+        {
+            <div class="op-empty">No online payments are awaiting an OR. You're all caught up.</div>
+        }
+        else
+        {
+            <table class="op-table">
+                <thead>
+                    <tr>
+                        <th>Paid</th>
+                        <th>Payor</th>
+                        <th>Stall / Period</th>
+                        <th>Reference</th>
+                        <th class="op-amt">Amount</th>
+                        <th>OR Number</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Items)
+                    {
+                        <tr>
+                            <td>
+                                <div class="op-strong">@(item.PaidAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")</div>
+                                <div class="op-muted">@(item.PaidAt?.ToLocalTime().ToString("h:mm tt") ?? "")</div>
+                            </td>
+                            <td>
+                                <div class="op-strong">@item.PayorName</div>
+                                <div class="op-muted">@(item.Method ?? "gcash")</div>
+                            </td>
+                            <td>
+                                <div class="op-strong">@item.Facility · Stall @item.StallNo</div>
+                                <div class="op-muted">@item.Period</div>
+                            </td>
+                            <td class="op-mono">@item.Reference</td>
+                            <td class="op-amt op-strong">₱@item.Amount.ToString("N2")</td>
+                            <td>
+                                <input class="op-input" type="text" maxlength="50" placeholder="e.g. OR-2026-0301"
+                                       value="@GetOr(item.TransactionId)"
+                                       @oninput="e => SetOr(item.TransactionId, e.Value?.ToString())" />
+                            </td>
+                            <td>
+                                <button class="op-btn" type="button"
+                                        disabled="@(Busy || string.IsNullOrWhiteSpace(GetOr(item.TransactionId)))"
+                                        @onclick="() => EncodeAsync(item)">
+                                    @(BusyId == item.TransactionId ? "Saving…" : "Encode OR")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private bool Loading = true;
+    private bool Busy;
+    private Guid? BusyId;
+    private string? Message;
+    private bool IsError;
+    private List<OnlinePaymentAwaitingOrDto> Items = new();
+    private readonly Dictionary<Guid, string> _orInputs = new();
+
+    private string GetOr(Guid id) => _orInputs.TryGetValue(id, out var v) ? v : string.Empty;
+    private void SetOr(Guid id, string? v) => _orInputs[id] = v?.Trim() ?? string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Loading = true;
+        var result = await OnlinePaymentsApi.GetAwaitingOrAsync();
+        Items = result.IsSuccess && result.Value is not null
+            ? result.Value.ToList()
+            : new List<OnlinePaymentAwaitingOrDto>();
+        Loading = false;
+    }
+
+    private async Task EncodeAsync(OnlinePaymentAwaitingOrDto item)
+    {
+        var orNumber = GetOr(item.TransactionId);
+        if (string.IsNullOrWhiteSpace(orNumber)) return;
+
+        Message = null;
+        Busy = true;
+        BusyId = item.TransactionId;
+
+        var result = await OnlinePaymentsApi.IssueOrNumberAsync(item.TransactionId, orNumber);
+
+        Busy = false;
+        BusyId = null;
+
+        if (result.IsSuccess)
+        {
+            Items.RemoveAll(i => i.TransactionId == item.TransactionId);
+            _orInputs.Remove(item.TransactionId);
+            IsError = false;
+            Message = $"OR {orNumber} encoded — transaction completed.";
+        }
+        else
+        {
+            IsError = true;
+            Message = result.Error ?? "Could not encode the OR number. It may already be in use.";
+        }
+    }
+}

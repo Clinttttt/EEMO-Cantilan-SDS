@@ -2,47 +2,59 @@
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
-@using static EEMOCantilanSDS.Client.Components.Pages.Payor.PayorDemoData
+@using System.Security.Claims
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IPayorApiClient PayorApi
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
 
 <PageTitle>EEMO — Payment History</PageTitle>
 
 <div class="pp-page-title">Payment History</div>
 
-<div class="pp-card pp-history">
-    @foreach (var h in History)
-    {
-        var paid = h.Status == "Paid";
-        <div class="pp-hist-row @(paid ? "pp-hist-click" : "")" @onclick="() => OpenReceipt(h)">
-            <div class="pp-hist-left">
-                <div class="pp-hist-period">@h.Period</div>
-                <div class="pp-hist-sub">
-                    @h.Date.ToString("MMM d, yyyy") · @h.Facility
-                    @if (!string.IsNullOrWhiteSpace(h.OrNumber))
-                    {
-                        <span class="pp-hist-or">· OR @h.OrNumber</span>
-                    }
+@if (Loading)
+{
+    <div class="pp-empty">Loading history…</div>
+}
+else
+{
+    <div class="pp-card pp-history">
+        @foreach (var h in Rows)
+        {
+            var paid = h.Item.Status == PaymentStatus.Paid;
+            <div class="pp-hist-row @(paid ? "pp-hist-click" : "")" @onclick="() => OpenReceipt(h)">
+                <div class="pp-hist-left">
+                    <div class="pp-hist-period">@h.Item.Period</div>
+                    <div class="pp-hist-sub">
+                        @PayorFormat.FacilityName(h.Facility) · Stall @h.StallNo
+                        @if (!string.IsNullOrWhiteSpace(h.Item.ORNumber))
+                        {
+                            <span class="pp-hist-or">· OR @h.Item.ORNumber</span>
+                        }
+                    </div>
                 </div>
+                <div class="pp-hist-right">
+                    <span class="pp-hist-amount">@PayorFormat.Currency(RowAmount(h.Item))</span>
+                    <span class="pp-badge @PayorFormat.StatusClass(h.Item.Status)">@PayorFormat.StatusText(h.Item.Status)</span>
+                </div>
+                @if (paid)
+                {
+                    <svg class="pp-hist-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                }
             </div>
-            <div class="pp-hist-right">
-                <span class="pp-hist-amount">@FormatCurrency(h.Amount)</span>
-                <span class="pp-badge @StatusClass(h.Status)">@h.Status</span>
-            </div>
-            @if (paid)
-            {
-                <svg class="pp-hist-chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-            }
-        </div>
-    }
-    @if (!History.Any())
-    {
-        <div class="pp-empty-inline">No payments recorded yet.</div>
-    }
-</div>
+        }
+        @if (Rows.Count == 0)
+        {
+            <div class="pp-empty-inline">No payments recorded yet.</div>
+        }
+    </div>
 
-<div class="pp-foot">
-    Tap a paid item to view its receipt. "Awaiting OR" means your online payment was received
-    and the Official Receipt is being issued by EEMO.
-</div>
+    <div class="pp-foot">
+        Tap a paid item to view its receipt.
+    </div>
+}
 
 @if (Selected is not null)
 {
@@ -55,30 +67,29 @@
                     <div class="pp-rcpt-gov">Republic of the Philippines</div>
                     <div class="pp-rcpt-org">Economic Enterprise &amp; Management Office</div>
                     <div class="pp-rcpt-muni">Municipality of Cantilan, Surigao del Sur</div>
-                    <div class="pp-rcpt-doc">@Selected.Facility</div>
+                    <div class="pp-rcpt-doc">@PayorFormat.FacilityName(Selected.Facility)</div>
                 </div>
 
                 <div class="pp-rcpt-divider"></div>
 
                 <div class="pp-rcpt-meta">
-                    <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.OrNumber) ? "—" : Selected.OrNumber)</strong></div>
-                    <div class="pp-rcpt-row"><span>Date</span><strong>@Selected.Date.ToString("MMMM d, yyyy")</strong></div>
-                    <div class="pp-rcpt-row"><span>Payor</span><strong>@Payor.Name</strong></div>
-                    <div class="pp-rcpt-row"><span>Account</span><strong>Stall @Accounts[0].StallNo</strong></div>
-                    <div class="pp-rcpt-row"><span>Period</span><strong>@Selected.Period</strong></div>
+                    <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.Item.ORNumber) ? "—" : Selected.Item.ORNumber)</strong></div>
+                    <div class="pp-rcpt-row"><span>Date</span><strong>@(Selected.Item.PaidAt?.ToString("MMMM d, yyyy") ?? "—")</strong></div>
+                    <div class="pp-rcpt-row"><span>Payor</span><strong>@Name</strong></div>
+                    <div class="pp-rcpt-row"><span>Account</span><strong>Stall @Selected.StallNo</strong></div>
+                    <div class="pp-rcpt-row"><span>Period</span><strong>@Selected.Item.Period</strong></div>
                 </div>
 
                 <div class="pp-rcpt-divider"></div>
 
                 <div class="pp-rcpt-total">
                     <span>Amount Paid</span>
-                    <span>@FormatCurrency(Selected.Amount)</span>
+                    <span>@PayorFormat.Currency(Selected.Item.AmountPaid)</span>
                 </div>
 
                 <div class="pp-rcpt-divider dashed"></div>
 
                 <div class="pp-rcpt-foot">
-                    <div class="pp-rcpt-foot-row"><span>Channel</span><strong>GCash (online)</strong></div>
                     <div class="pp-rcpt-note">This acknowledges receipt of the amount stated above. Keep for your records.</div>
                 </div>
             </div>
@@ -91,12 +102,46 @@
 }
 
 @code {
-    private HistoryItem? Selected;
+    private sealed record Row(FacilityCode Facility, string StallNo, PaymentHistoryDto Item);
 
-    // Only paid items have an official receipt to show.
-    private void OpenReceipt(HistoryItem h)
+    private bool Loading = true;
+    private string Name = "—";
+    private List<Row> Rows = new();
+    private Row? Selected;
+
+    private static decimal RowAmount(PaymentHistoryDto h) =>
+        h.Status == PaymentStatus.Unpaid ? h.TotalBill : h.AmountPaid;
+
+    protected override async Task OnInitializedAsync()
     {
-        if (h.Status == "Paid") Selected = h;
+        var state = await AuthState.GetAuthenticationStateAsync();
+        if (state.User.Identity?.IsAuthenticated != true)
+        {
+            Nav.NavigateTo("/payor/login", forceLoad: true);
+            return;
+        }
+
+        Name = state.User.FindFirst(ClaimTypes.Name)?.Value ?? "—";
+
+        var balances = await PayorApi.GetBalancesAsync();
+        if (balances.IsSuccess && balances.Value is not null)
+        {
+            foreach (var stall in balances.Value)
+            {
+                var history = await PayorApi.GetHistoryAsync(stall.StallId);
+                if (history.IsSuccess && history.Value is not null)
+                    Rows.AddRange(history.Value.Select(h => new Row(stall.Facility, stall.StallNo, h)));
+            }
+        }
+
+        // Most recent first; records without a PaidAt (unpaid periods) sort last.
+        Rows = Rows.OrderByDescending(r => r.Item.PaidAt ?? DateTime.MinValue).ToList();
+        Loading = false;
+    }
+
+    private void OpenReceipt(Row row)
+    {
+        if (row.Item.Status == PaymentStatus.Paid) Selected = row;
     }
 
     private void CloseReceipt() => Selected = null;

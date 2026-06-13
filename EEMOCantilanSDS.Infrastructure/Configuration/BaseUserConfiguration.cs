@@ -20,7 +20,8 @@ namespace EEMOCantilanSDS.Infrastructure.Configuration
 
             builder.HasDiscriminator<string>("UserType")
                   .HasValue<AdminUser>("Admin")
-                  .HasValue<CollectorUser>("Collector");
+                  .HasValue<CollectorUser>("Collector")
+                  .HasValue<PayorUser>("Payor");
 
             builder.Property(s => s.FullName)
                 .HasMaxLength(100);

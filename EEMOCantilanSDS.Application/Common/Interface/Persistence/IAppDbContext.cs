@@ -22,6 +22,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
         DbSet<DailyCollection> DailyCollections { get; }
+        DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }
         DbSet<SlaughterTransaction> SlaughterTransactions { get; }
         DbSet<TpmVendor> TpmVendors { get; }
         DbSet<TpmAttendance> TpmAttendances { get; }
@@ -30,6 +31,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<BaseUser> Users { get; }
         DbSet<AdminUser> AdminUsers { get; }
         DbSet<CollectorUser> CollectorUsers { get; }
+        DbSet<PayorUser> PayorUsers { get; }
+        DbSet<PayorActivationCode> PayorActivationCodes { get; }
+        DbSet<PayorStallLink> PayorStallLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }

@@ -22,7 +22,8 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     private static readonly HashSet<Type> AuditedTypes =
     [
         typeof(PaymentRecord), typeof(DailyCollection),
-        typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction)
+        typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
+        typeof(OnlinePaymentTransaction)
     ];
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(

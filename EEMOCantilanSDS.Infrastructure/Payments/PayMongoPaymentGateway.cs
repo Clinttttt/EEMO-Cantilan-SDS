@@ -1,0 +1,217 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Domain.Common;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace EEMOCantilanSDS.Infrastructure.Payments;
+
+/// <summary>
+/// PayMongo implementation of <see cref="IPaymentGateway"/> using hosted Checkout Sessions with
+/// GCash. The secret-key Basic-auth header is applied once at HttpClient registration time
+/// (see <c>AddInfrastructureService</c>); this class reads the webhook signing secret on demand,
+/// mirroring how <c>TokenService</c> reads JWT config directly from <see cref="IConfiguration"/>.
+/// </summary>
+public sealed class PayMongoPaymentGateway(
+    HttpClient httpClient,
+    IConfiguration configuration,
+    ILogger<PayMongoPaymentGateway> logger) : IPaymentGateway
+{
+    public const string ProviderName = "PayMongo";
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public string Provider => ProviderName;
+
+    public async Task<Result<CheckoutSessionResult>> CreateCheckoutSessionAsync(
+        CreateCheckoutSessionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // PayMongo works in centavos (smallest unit). Convert pesos → integer centavos.
+        var amountCentavos = (long)Math.Round(request.Amount * 100m, MidpointRounding.AwayFromZero);
+
+        var body = new
+        {
+            data = new
+            {
+                attributes = new
+                {
+                    send_email_receipt = false,
+                    show_description = true,
+                    show_line_items = true,
+                    description = request.Description,
+                    line_items = new[]
+                    {
+                        new
+                        {
+                            currency = "PHP",
+                            amount = amountCentavos,
+                            name = request.Description,
+                            quantity = 1
+                        }
+                    },
+                    payment_method_types = new[] { "gcash" },
+                    reference_number = request.Reference,
+                    success_url = request.SuccessUrl,
+                    cancel_url = request.CancelUrl,
+                    billing = string.IsNullOrWhiteSpace(request.CustomerName) && string.IsNullOrWhiteSpace(request.CustomerEmail)
+                        ? null
+                        : new { name = request.CustomerName, email = request.CustomerEmail }
+                }
+            }
+        };
+
+        try
+        {
+            using var content = new StringContent(
+                JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
+
+            using var response = await httpClient.PostAsync("checkout_sessions", content, cancellationToken);
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogError("PayMongo checkout session creation failed ({Status}): {Payload}",
+                    (int)response.StatusCode, payload);
+                return Result<CheckoutSessionResult>.Failure(
+                    $"Payment provider rejected the request ({(int)response.StatusCode}).", 502);
+            }
+
+            using var doc = JsonDocument.Parse(payload);
+            var data = doc.RootElement.GetProperty("data");
+            var id = data.GetProperty("id").GetString();
+            var checkoutUrl = data.GetProperty("attributes").GetProperty("checkout_url").GetString();
+
+            if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(checkoutUrl))
+            {
+                logger.LogError("PayMongo checkout session response missing id/checkout_url: {Payload}", payload);
+                return Result<CheckoutSessionResult>.Failure("Payment provider returned an incomplete response.", 502);
+            }
+
+            return Result<CheckoutSessionResult>.Success(new CheckoutSessionResult(checkoutUrl, id, ProviderName));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            logger.LogError(ex, "PayMongo checkout session creation threw.");
+            return Result<CheckoutSessionResult>.Failure("Unable to reach the payment provider.", 502);
+        }
+    }
+
+    public bool VerifyWebhookSignature(string payload, string signatureHeader)
+    {
+        var secret = configuration["PayMongo:WebhookSecret"];
+        if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(signatureHeader) || string.IsNullOrEmpty(payload))
+            return false;
+
+        // PayMongo signature header format: "t=<timestamp>,te=<test_sig>,li=<live_sig>".
+        string? timestamp = null, testSig = null, liveSig = null;
+        foreach (var part in signatureHeader.Split(','))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length != 2) continue;
+            switch (kv[0].Trim())
+            {
+                case "t": timestamp = kv[1].Trim(); break;
+                case "te": testSig = kv[1].Trim(); break;
+                case "li": liveSig = kv[1].Trim(); break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(timestamp))
+            return false;
+
+        var signedPayload = $"{timestamp}.{payload}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var computed = Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload))).ToLowerInvariant();
+
+        return SignatureMatches(computed, testSig) || SignatureMatches(computed, liveSig);
+    }
+
+    public Result<PaymentGatewayEvent> ParseEvent(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+            return Result<PaymentGatewayEvent>.Failure("Empty webhook payload.");
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            var attributes = doc.RootElement.GetProperty("data").GetProperty("attributes");
+            var eventName = attributes.GetProperty("type").GetString() ?? string.Empty;
+            var resource = attributes.GetProperty("data");
+            var resourceId = resource.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? string.Empty : string.Empty;
+            var resourceAttrs = resource.TryGetProperty("attributes", out var raEl) ? raEl : default;
+
+            var type = eventName switch
+            {
+                "checkout_session.payment.paid" or "payment.paid" => PaymentGatewayEventType.Paid,
+                "payment.failed" => PaymentGatewayEventType.Failed,
+                "checkout_session.expired" => PaymentGatewayEventType.Expired,
+                _ => PaymentGatewayEventType.Unknown
+            };
+
+            // For checkout-session events the actual payment lives in attributes.payments[0];
+            // for direct payment events the amount/id are on the resource itself.
+            JsonElement paymentAttrs = resourceAttrs;
+            string? paymentId = resourceId.StartsWith("pay_", StringComparison.OrdinalIgnoreCase) ? resourceId : null;
+
+            if (resourceAttrs.ValueKind == JsonValueKind.Object
+                && resourceAttrs.TryGetProperty("payments", out var payments)
+                && payments.ValueKind == JsonValueKind.Array
+                && payments.GetArrayLength() > 0)
+            {
+                var firstPayment = payments[0];
+                if (firstPayment.TryGetProperty("id", out var payIdEl))
+                    paymentId = payIdEl.GetString();
+                if (firstPayment.TryGetProperty("attributes", out var payAttrsEl))
+                    paymentAttrs = payAttrsEl;
+            }
+
+            decimal amount = 0m;
+            if (paymentAttrs.ValueKind == JsonValueKind.Object
+                && paymentAttrs.TryGetProperty("amount", out var amountEl)
+                && amountEl.ValueKind == JsonValueKind.Number)
+            {
+                amount = amountEl.GetInt64() / 100m;
+            }
+
+            string? method = null;
+            if (paymentAttrs.ValueKind == JsonValueKind.Object
+                && paymentAttrs.TryGetProperty("source", out var sourceEl)
+                && sourceEl.ValueKind == JsonValueKind.Object
+                && sourceEl.TryGetProperty("type", out var methodEl))
+            {
+                method = methodEl.GetString();
+            }
+
+            DateTime? paidAt = null;
+            if (paymentAttrs.ValueKind == JsonValueKind.Object
+                && paymentAttrs.TryGetProperty("paid_at", out var paidAtEl)
+                && paidAtEl.ValueKind == JsonValueKind.Number)
+            {
+                paidAt = DateTimeOffset.FromUnixTimeSeconds(paidAtEl.GetInt64()).UtcDateTime;
+            }
+
+            return Result<PaymentGatewayEvent>.Success(
+                new PaymentGatewayEvent(type, resourceId, amount, paymentId, method, paidAt, payload));
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            logger.LogError(ex, "Failed to parse PayMongo webhook payload.");
+            return Result<PaymentGatewayEvent>.Failure("Malformed webhook payload.");
+        }
+    }
+
+    private static bool SignatureMatches(string computedHex, string? providedHex)
+    {
+        if (string.IsNullOrWhiteSpace(providedHex) || computedHex.Length != providedHex.Length)
+            return false;
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.ASCII.GetBytes(computedHex),
+            Encoding.ASCII.GetBytes(providedHex.ToLower(CultureInfo.InvariantCulture)));
+    }
+}
