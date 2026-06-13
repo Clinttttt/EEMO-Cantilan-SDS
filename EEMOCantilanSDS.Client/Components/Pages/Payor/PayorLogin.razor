@@ -58,10 +58,10 @@
         }
 
         Busy = true;
-        var ok = await PayorAuth.LoginAsync(Contact.Trim(), Password);
+        var (ok, serverError) = await PayorAuth.LoginWithErrorAsync(Contact.Trim(), Password);
         Busy = false;
 
         if (!ok)
-            Error = "Invalid mobile number or password.";
+            Error = serverError ?? "Invalid mobile number or password.";
     }
 }

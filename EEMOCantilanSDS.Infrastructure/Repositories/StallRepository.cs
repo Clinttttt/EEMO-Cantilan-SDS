@@ -197,7 +197,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
             return s.AreaLocation.Value.ToString();
         if (s.Section.HasValue)
             return GetSectionName(s.Section);
-        return s.Type.ToString();
+        // No generic stall-type chip ("Permanent"/"Transient") — it adds noise on the collector card.
+        return string.Empty;
     }
 
     public async Task<StallHoldersListDto> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)

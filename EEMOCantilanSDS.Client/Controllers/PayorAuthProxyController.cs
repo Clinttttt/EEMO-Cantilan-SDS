@@ -50,7 +50,8 @@ public class PayorAuthProxyController(IPayorAuthApiClient payorAuth, ILogger<Pay
         if (!result.IsSuccess || result.Value is null)
         {
             logger.LogWarning("Payor auth failed (status {Status}).", result.StatusCode);
-            return StatusCode(result.StatusCode ?? 401);
+            // Return the error message so the Blazor page can surface the exact text to the user.
+            return StatusCode(result.StatusCode ?? 401, new { error = result.Error });
         }
 
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(result.Value.AccessToken);

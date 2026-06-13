@@ -12,24 +12,44 @@ public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthS
 {
     public async Task<bool> ActivateAsync(ActivatePayorAccountCommand command)
     {
-        var ok = await PostCookieAsync("/api/payorauthproxy/activate", command);
-        if (ok)
+        var error = await PostCookieAsync("/api/payorauthproxy/activate", command);
+        if (error is null)
         {
             await authStateProvider.MarkUserAsAuthenticated();
             navigation.NavigateTo("/payor", forceLoad: true);
+            return true;
         }
-        return ok;
+        return false;
+    }
+
+    public async Task<(bool Ok, string? Error)> ActivateWithErrorAsync(ActivatePayorAccountCommand command)
+    {
+        var error = await PostCookieAsync("/api/payorauthproxy/activate", command);
+        if (error is null)
+        {
+            await authStateProvider.MarkUserAsAuthenticated();
+            navigation.NavigateTo("/payor", forceLoad: true);
+            return (true, null);
+        }
+        return (false, error);
+    }
+
+    public async Task<(bool Ok, string? Error)> LoginWithErrorAsync(string contactNumber, string password)
+    {
+        var error = await PostCookieAsync("/api/payorauthproxy/login",
+            new PayorLoginCommand(contactNumber, password));
+        if (error is null)
+        {
+            await authStateProvider.MarkUserAsAuthenticated();
+            navigation.NavigateTo("/payor", forceLoad: true);
+            return (true, null);
+        }
+        return (false, error);
     }
 
     public async Task<bool> LoginAsync(string contactNumber, string password)
     {
-        var ok = await PostCookieAsync("/api/payorauthproxy/login",
-            new PayorLoginCommand(contactNumber, password));
-        if (ok)
-        {
-            await authStateProvider.MarkUserAsAuthenticated();
-            navigation.NavigateTo("/payor", forceLoad: true);
-        }
+        var (ok, _) = await LoginWithErrorAsync(contactNumber, password);
         return ok;
     }
 
@@ -47,17 +67,18 @@ public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthS
         navigation.NavigateTo("/payor/login", forceLoad: true);
     }
 
-    private async Task<bool> PostCookieAsync<T>(string url, T payload)
+    private async Task<string?> PostCookieAsync<T>(string url, T payload)
     {
         try
         {
             var json = JsonSerializer.Serialize(payload);
-            return await js.InvokeAsync<bool>("loginWithCookies", url, json);
+            // loginWithCookies now returns null on success or an error message string on failure.
+            return await js.InvokeAsync<string?>("loginWithCookies", url, json);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Exception during payor auth POST to {Url}", url);
-            return false;
+            return "Unable to connect. Please try again.";
         }
     }
 }

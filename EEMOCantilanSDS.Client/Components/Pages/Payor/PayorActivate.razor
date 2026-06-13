@@ -24,14 +24,15 @@
 
         <label class="pp-field">
             <span class="pp-field-label">Registered Mobile No.</span>
-            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx" @bind="Contact" />
+            <input class="pp-input" type="tel" inputmode="numeric" placeholder="09xx xxx xxxx"
+                   value="@Contact" @oninput="OnContactChanged" />
         </label>
 
         <div class="pp-divider-soft"></div>
 
         <label class="pp-field">
-            <span class="pp-field-label">Create Password</span>
-            <input class="pp-input" type="password" placeholder="At least 8 characters" @bind="Password" />
+            <span class="pp-field-label">@PasswordLabel</span>
+            <input class="pp-input" type="password" placeholder="@PasswordPlaceholder" @bind="Password" />
         </label>
 
         @if (!string.IsNullOrEmpty(Error))
@@ -61,6 +62,20 @@
     private string Password = string.Empty;
     private string? Error;
     private bool Busy;
+    private bool MaybeReturning;
+
+    // Label hints that this might be an existing account adding a new stall.
+    private string PasswordLabel => MaybeReturning ? "Password (existing account)" : "Create Password";
+    private string PasswordPlaceholder => MaybeReturning ? "Your existing password" : "At least 8 characters";
+
+    private void OnContactChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString()?.Trim() ?? string.Empty;
+        Contact = val;
+        // If 11+ digits entered, hint that a returning user should enter their existing password.
+        MaybeReturning = val.Length >= 11;
+        Error = null;
+    }
 
     private async Task Activate()
     {
@@ -80,11 +95,17 @@
         }
 
         Busy = true;
-        var ok = await PayorAuth.ActivateAsync(new ActivatePayorAccountCommand(
+        var (ok, serverError) = await PayorAuth.ActivateWithErrorAsync(new ActivatePayorAccountCommand(
             Code.Trim(), Contact.Trim(), FullName.Trim(), Password));
         Busy = false;
 
         if (!ok)
-            Error = "Activation failed. Check your code and mobile number, or sign in if you already have an account.";
+        {
+            // Surface the exact server message (e.g. wrong password for existing account, expired code).
+            Error = serverError ?? "Activation failed. Check your code and mobile number.";
+            // If it's the "existing account" message, adjust the hint.
+            if (serverError is not null && serverError.Contains("existing password", StringComparison.OrdinalIgnoreCase))
+                MaybeReturning = true;
+        }
     }
 }
