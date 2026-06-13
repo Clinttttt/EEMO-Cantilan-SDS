@@ -38,7 +38,11 @@ namespace EEMOCantilanSDS.Api.Controllers
                 401 => Unauthorized(),
                 403 => StatusCode(403),          
                 404 => NotFound(),
-                409 => Conflict(),
+                409 => Conflict(new
+                {
+                    IsSuccess = false,
+                    Error = result.Error
+                }),
                 500 => StatusCode(500, new
                 {
                     IsSuccess = false,

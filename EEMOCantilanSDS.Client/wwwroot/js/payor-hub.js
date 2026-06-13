@@ -1,6 +1,6 @@
-// Admin realtime: connects to the API's online-payment hub and relays "payment received" events to
-// the Blazor toaster component. Token-based (passed from the server-side circuit), camel/Pascal-safe.
-window.eemoPaymentHub = {
+// Payor portal realtime: connects the signed-in payor to their per-payor hub and relays the
+// "Official Receipt issued" event to the Blazor toaster. Token-based (the payor JWT from the circuit).
+window.eemoPayorHub = {
     connection: null,
 
     start: async function (hubUrl, token, dotNetRef) {
@@ -18,18 +18,19 @@ window.eemoPaymentHub = {
                 .withAutomaticReconnect()
                 .build();
 
-            this.connection.on("OnlinePaymentReceived", function (n) {
+            this.connection.on("OnlinePaymentOrIssued", function (n) {
                 if (!n) return;
-                const amount = n.amount ?? n.Amount ?? 0;
+                const orNumber = n.orNumber ?? n.OrNumber ?? "";
                 const period = n.period ?? n.Period ?? "";
+                const amount = n.amount ?? n.Amount ?? 0;
                 const reference = n.reference ?? n.Reference ?? "";
-                dotNetRef.invokeMethodAsync("OnPaymentReceived", amount, period, reference);
+                dotNetRef.invokeMethodAsync("OnOrIssued", orNumber, period, amount, reference);
             });
 
             await this.connection.start();
             return true;
         } catch (e) {
-            console.error("Online-payment hub failed to start:", e);
+            console.error("Payor hub failed to start:", e);
             return false;
         }
     },

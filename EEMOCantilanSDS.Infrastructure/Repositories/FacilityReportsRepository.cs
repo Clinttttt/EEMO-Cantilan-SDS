@@ -2107,6 +2107,46 @@ public class FacilityReportsRepository(AppDbContext context) : IFacilityReportsR
             ));
         }
 
+        // Stalls with no area tier assigned still bill rent and sit in the facility totals. Surface them
+        // as their own "No Location" card so the area breakdown reconciles with the headline totals
+        // instead of silently dropping their revenue (which made Corner+Extension look short of total).
+        var unassigned = await _context.Stalls
+            .AsNoTracking()
+            .Where(s => s.FacilityId == facilityId && s.AreaLocation == null)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .ToListAsync(ct);
+
+        if (unassigned.Count > 0)
+        {
+            var stallIds = unassigned.Select(s => s.Id).ToList();
+
+            var allPaymentRecords = await _context.PaymentRecords
+                .AsNoTracking()
+                .Where(pr => stallIds.Contains(pr.StallId))
+                .ToListAsync(ct);
+
+            var actualRevenue = allPaymentRecords
+                .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
+                .Sum(pr => RecognizedRevenue(pr, includeFish: false));
+
+            var occupiedStalls = unassigned.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
+            var expectedRevenue = occupiedStalls.Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
+            var percentage = expectedRevenue > 0 ? Math.Min(100m, (actualRevenue / expectedRevenue) * 100m) : 0m;
+            var activeStalls = unassigned.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
+            var closedStalls = unassigned.Count(s => s.Status == StallStatus.Closed);
+            var noContractStalls = unassigned.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
+
+            breakdown.Add(new SectionBreakdownDto(
+                "No Location",
+                actualRevenue,
+                percentage,
+                unassigned.Count,
+                activeStalls,
+                closedStalls,
+                noContractStalls
+            ));
+        }
+
         return breakdown;
     }
 

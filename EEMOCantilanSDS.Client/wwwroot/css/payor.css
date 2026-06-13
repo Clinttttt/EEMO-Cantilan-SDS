@@ -144,6 +144,9 @@
 .pp-rcpt-org { font-size: 14px; font-weight: 700; color: var(--navy); line-height: 1.2; margin-top: 2px; }
 .pp-rcpt-muni { font-size: 10px; color: var(--text-subtle); margin-top: 2px; }
 .pp-rcpt-doc { display: inline-block; margin-top: 9px; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #8a6d1b; background: rgba(200, 168, 75, 0.14); padding: 3px 10px; border-radius: 999px; }
+.pp-rcpt-tag { display: inline-block; margin-top: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; }
+.pp-rcpt-tag.provisional { color: var(--navy-3); background: var(--bg-icon); }
+.pp-rcpt-tag.official { color: var(--green); background: var(--green-bg); }
 .pp-rcpt-divider { height: 1px; background: var(--border); margin: 14px 0; }
 .pp-rcpt-divider.dashed { background: none; border-top: 1px dashed var(--border); }
 .pp-rcpt-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 12.5px; }
@@ -244,3 +247,16 @@
     .pp-overlay { align-items: center; }
     .pp-sheet { border-radius: 20px; }
 }
+
+
+/* ── Payor realtime "Official Receipt ready" toast ── */
+.pp-ortoast-stack { position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 60; display: flex; flex-direction: column; gap: 8px; width: calc(100% - 32px); max-width: 420px; }
+.pp-ortoast { display: flex; align-items: flex-start; gap: 11px; background: #fff; border: 1px solid var(--border); border-left: 4px solid var(--green); border-radius: 12px; padding: 12px 13px; box-shadow: 0 10px 30px rgba(13, 33, 55, 0.18); animation: pp-ortoast-in 0.25s ease; }
+@keyframes pp-ortoast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.pp-ortoast-icon { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--green-bg); display: flex; align-items: center; justify-content: center; }
+.pp-ortoast-icon svg { width: 17px; height: 17px; stroke: var(--green); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.pp-ortoast-body { flex: 1; min-width: 0; }
+.pp-ortoast-title { font-size: 13px; font-weight: 700; color: var(--navy); }
+.pp-ortoast-text { font-size: 12px; font-weight: 600; color: var(--green); margin-top: 1px; }
+.pp-ortoast-sub { font-size: 10.5px; color: var(--text-subtle); margin-top: 2px; line-height: 1.4; }
+.pp-ortoast-x { flex-shrink: 0; background: none; border: none; font-size: 18px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 2px; }

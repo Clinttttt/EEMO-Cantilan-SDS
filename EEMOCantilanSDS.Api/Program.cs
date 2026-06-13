@@ -67,5 +67,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.MapHub<EEMOCantilanSDS.Api.Hubs.OnlinePaymentHub>("/hubs/online-payments");
+app.MapHub<EEMOCantilanSDS.Api.Hubs.PayorNotificationHub>("/hubs/payor");
 
 app.Run();

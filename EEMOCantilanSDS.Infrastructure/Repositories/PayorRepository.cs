@@ -33,6 +33,17 @@ public class PayorRepository(AppDbContext context) : IPayorRepository
             .AnyAsync(c => c.Code == normalized, ct);
     }
 
+    public async Task<bool> ActiveCodeExistsForContactOnOtherStallAsync(string contactNumber, Guid stallId, CancellationToken ct = default)
+    {
+        var normalized = contactNumber.Trim();
+        var now = DateTime.UtcNow;
+        return await context.PayorActivationCodes
+            .AnyAsync(c => c.ContactNumber == normalized
+                && c.StallId != stallId
+                && !c.IsUsed
+                && c.ExpiresAt > now, ct);
+    }
+
     public async Task RevokeActiveCodesForStallAsync(Guid stallId, string revokedBy, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;

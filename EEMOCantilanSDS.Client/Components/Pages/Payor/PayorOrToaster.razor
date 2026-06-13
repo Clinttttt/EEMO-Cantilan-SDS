@@ -1,0 +1,97 @@
+@using EEMOCantilanSDS.Client.Utilities
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject EEMOCantilanSDS.Client.Securities.TokenService Tokens
+@inject IConfiguration Config
+@inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Securities.PayorRealtimeNotifier Realtime
+
+@* Active payor alert: when staff encode the OR, the paying payor gets a live "receipt is ready" toast. *@
+@if (_toasts.Count > 0)
+{
+    <div class="pp-ortoast-stack">
+        @foreach (var t in _toasts)
+        {
+            <div class="pp-ortoast" @key="t.Id">
+                <div class="pp-ortoast-icon">
+                    <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>
+                </div>
+                <div class="pp-ortoast-body">
+                    <div class="pp-ortoast-title">Official Receipt ready</div>
+                    <div class="pp-ortoast-text">OR @t.OrNumber · @t.Period</div>
+                    <div class="pp-ortoast-sub">Your digital receipt is now complete. Open History to view it.</div>
+                </div>
+                <button class="pp-ortoast-x" type="button" @onclick="() => Dismiss(t.Id)" aria-label="Dismiss">×</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private sealed record OrToast(Guid Id, string OrNumber, string Period);
+
+    private readonly List<OrToast> _toasts = new();
+    private DotNetObjectReference<PayorOrToaster>? _ref;
+    private bool _started;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _started) return;
+
+        // Token is rehydrated into the circuit from the payor auth cookie (see TokenCircuitHandler).
+        var token = Tokens.GetToken();
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        // Gate on the token's own claims — HttpContext is null in the interactive circuit, so AuthState
+        // can't be trusted here. Only payors connect to the payor hub.
+        var principal = JwtParser.ParseToken(token);
+        if (principal is null || !principal.IsInRole("Payor"))
+            return;
+
+        var baseUrl = (Config["ApiBaseUrl"] ?? string.Empty).TrimEnd('/');
+        if (string.IsNullOrEmpty(baseUrl))
+            return;
+
+        _started = true;
+        _ref = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeAsync<bool>("eemoPayorHub.start", $"{baseUrl}/hubs/payor", token, _ref);
+        }
+        catch
+        {
+            // Realtime is a non-critical enhancement; History still shows the receipt without it.
+        }
+    }
+
+    [JSInvokable]
+    public void OnOrIssued(string orNumber, string period, decimal amount, string reference)
+    {
+        var toast = new OrToast(Guid.NewGuid(), orNumber ?? string.Empty, period ?? string.Empty);
+        _toasts.Add(toast);
+        StateHasChanged();
+        _ = AutoDismissAsync(toast.Id);
+
+        // Tell any open payor page (e.g. History) to refresh so the receipt flips provisional → official.
+        Realtime.PublishOrIssued();
+    }
+
+    private async Task AutoDismissAsync(Guid id)
+    {
+        await Task.Delay(9000);
+        Dismiss(id);
+    }
+
+    private void Dismiss(Guid id)
+    {
+        if (_toasts.RemoveAll(t => t.Id == id) > 0)
+            InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("eemoPayorHub.stop"); } catch { /* ignore */ }
+        _ref?.Dispose();
+    }
+}

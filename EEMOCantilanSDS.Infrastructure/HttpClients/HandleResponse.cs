@@ -85,7 +85,7 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
                 HttpStatusCode.NoContent => Result<TResponse>.NoContent(),
                 HttpStatusCode.NotFound => Result<TResponse>.NotFound(),
                 HttpStatusCode.Unauthorized => Result<TResponse>.Unauthorized(),
-                HttpStatusCode.Conflict => Result<TResponse>.Conflict(),
+                HttpStatusCode.Conflict => await HandleConflictAsync<TResponse>(response),
                 HttpStatusCode.Forbidden => Result<TResponse>.Forbidden(),
                 HttpStatusCode.InternalServerError => await HandleErrorResponseAsync<TResponse>(response, 500),
                 _ => await HandleErrorResponseAsync<TResponse>(response, (int)response.StatusCode)
@@ -103,6 +103,17 @@ namespace EEMOCantilanSDS.Infrastructure.HttpClients
             var errorContent = await response.Content.ReadAsStringAsync();
             var message = TryExtractErrorMessage(errorContent);
             return Result<T>.Failure(message, statusCode);
+        }
+
+        // 409s may carry a meaningful server message (e.g. "This mobile number is already registered").
+        // Surface it when present; otherwise keep the generic Conflict so callers can show their own copy.
+        private async Task<Result<T>> HandleConflictAsync<T>(HttpResponseMessage response)
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            var message = TryExtractErrorMessage(content);
+            return string.IsNullOrWhiteSpace(message) || message == content
+                ? Result<T>.Conflict()
+                : Result<T>.Failure(message, 409);
         }
         private string TryExtractErrorMessage(string jsonContent)
         {

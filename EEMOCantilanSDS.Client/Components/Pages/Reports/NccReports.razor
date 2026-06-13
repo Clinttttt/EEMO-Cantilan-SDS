@@ -711,7 +711,7 @@ else
 
     record TrendPoint(string Label, decimal Amount, decimal ExpectedAmount, bool IsCurrent, int HeightPct, bool IsZero)
     {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
+        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000m:0.#}k" : Amount.ToString("N0");
     }
     IEnumerable<TrendPoint> TrendPoints
     {

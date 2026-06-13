@@ -38,6 +38,10 @@ public class GenerateStallActivationCodeCommandHandlerTests
 
         var payorRepo = new Mock<IPayorRepository>();
         payorRepo.Setup(r => r.ActivationCodeExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        // Defaults: number not registered and no pending code elsewhere — overridden per guard test.
+        payorRepo.Setup(r => r.GetByContactNumberAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync((PayorUser?)null);
+        payorRepo.Setup(r => r.LinkExistsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        payorRepo.Setup(r => r.ActiveCodeExistsForContactOnOtherStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.Role).Returns(role);
@@ -98,5 +102,37 @@ public class GenerateStallActivationCodeCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task NumberAlreadyRegisteredToAccount_IsConflict_AndIssuesNoCode()
+    {
+        // The bug's source: a number already owned by a payor must not get a new code, or activation
+        // would merge a second occupant's stall onto that account.
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, payorRepo) = Build(stall, collector: null, "Admin", collectorId: null);
+        payorRepo.Setup(r => r.GetByContactNumberAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PayorUser.Create("Diego Villafuerte", "09171234567", "Secret123!"));
+
+        var result = await handler.Handle(
+            new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);
+
+        Assert.Equal(409, result.StatusCode);
+        payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NumberHasPendingCodeForAnotherStall_IsConflict_AndIssuesNoCode()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, payorRepo) = Build(stall, collector: null, "Admin", collectorId: null);
+        payorRepo.Setup(r => r.ActiveCodeExistsForContactOnOtherStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var result = await handler.Handle(
+            new GenerateStallActivationCodeCommand(stall.Id, "09171234567", null), CancellationToken.None);
+
+        Assert.Equal(409, result.StatusCode);
+        payorRepo.Verify(r => r.AddActivationCodeAsync(It.IsAny<PayorActivationCode>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

@@ -15,6 +15,8 @@ namespace EEMOCantilanSDS.Api
             service.AddSignalR();
             service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IOnlinePaymentNotifier,
                 EEMOCantilanSDS.Api.Services.SignalROnlinePaymentNotifier>();
+            service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IPayorRealtimeNotifier,
+                EEMOCantilanSDS.Api.Services.SignalRPayorRealtimeNotifier>();
             service.AddControllers()
                    .AddJsonOptions(o =>
                    {

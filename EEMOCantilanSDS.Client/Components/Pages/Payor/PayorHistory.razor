@@ -9,6 +9,8 @@
 @inject IPayorApiClient PayorApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject EEMOCantilanSDS.Client.Securities.PayorRealtimeNotifier Realtime
+@implements IDisposable
 
 <PageTitle>EEMO — Payment History</PageTitle>
 
@@ -33,11 +35,19 @@ else
                         {
                             <span class="pp-hist-or">· OR @h.Item.ORNumber</span>
                         }
+                        else if (AwaitingOr(h.Item))
+                        {
+                            <span class="pp-hist-or">· awaiting OR</span>
+                        }
                     </div>
                 </div>
                 <div class="pp-hist-right">
                     <span class="pp-hist-amount">@PayorFormat.Currency(RowAmount(h.Item))</span>
                     <span class="pp-badge @PayorFormat.StatusClass(h.Item.Status)">@PayorFormat.StatusText(h.Item.Status)</span>
+                    @if (AwaitingOr(h.Item))
+                    {
+                        <span class="pp-badge badge-awaiting">OR pending</span>
+                    }
                 </div>
                 @if (paid)
                 {
@@ -68,12 +78,20 @@ else
                     <div class="pp-rcpt-org">Economic Enterprise &amp; Management Office</div>
                     <div class="pp-rcpt-muni">Municipality of Cantilan, Surigao del Sur</div>
                     <div class="pp-rcpt-doc">@PayorFormat.FacilityName(Selected.Facility)</div>
+                    @if (AwaitingOr(Selected.Item))
+                    {
+                        <div class="pp-rcpt-tag provisional">Provisional · Awaiting Official Receipt</div>
+                    }
+                    else
+                    {
+                        <div class="pp-rcpt-tag official">Official Receipt</div>
+                    }
                 </div>
 
                 <div class="pp-rcpt-divider"></div>
 
                 <div class="pp-rcpt-meta">
-                    <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.Item.ORNumber) ? "—" : Selected.Item.ORNumber)</strong></div>
+                    <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.Item.ORNumber) ? "Pending validation" : Selected.Item.ORNumber)</strong></div>
                     <div class="pp-rcpt-row"><span>Date</span><strong>@(Selected.Item.PaidAt?.ToString("MMMM d, yyyy") ?? "—")</strong></div>
                     <div class="pp-rcpt-row"><span>Payor</span><strong>@Name</strong></div>
                     <div class="pp-rcpt-row"><span>Account</span><strong>Stall @Selected.StallNo</strong></div>
@@ -90,7 +108,16 @@ else
                 <div class="pp-rcpt-divider dashed"></div>
 
                 <div class="pp-rcpt-foot">
-                    <div class="pp-rcpt-note">This acknowledges receipt of the amount stated above. Keep for your records.</div>
+                    <div class="pp-rcpt-note">
+                        @if (AwaitingOr(Selected.Item))
+                        {
+                            <text>Your payment has been received. The Official Receipt (OR) number will appear here once EEMO validates and encodes it. Keep this acknowledgment in the meantime.</text>
+                        }
+                        else
+                        {
+                            <text>This acknowledges receipt of the amount stated above. Keep for your records.</text>
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -112,6 +139,11 @@ else
     private static decimal RowAmount(PaymentHistoryDto h) =>
         h.Status == PaymentStatus.Unpaid ? h.TotalBill : h.AmountPaid;
 
+    // A paid record with no OR yet = online payment whose Official Receipt hasn't been encoded by staff.
+    // The receipt shows as a provisional acknowledgment until EEMO encodes the OR.
+    private static bool AwaitingOr(PaymentHistoryDto h) =>
+        h.Status == PaymentStatus.Paid && string.IsNullOrWhiteSpace(h.ORNumber);
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
@@ -123,6 +155,15 @@ else
 
         Name = state.User.FindFirst(ClaimTypes.Name)?.Value ?? "—";
 
+        // Refresh live when staff encode an OR for this payor (provisional → official) — no manual reload.
+        Realtime.OrIssued += OnOrIssued;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var rows = new List<Row>();
         var balances = await PayorApi.GetBalancesAsync();
         if (balances.IsSuccess && balances.Value is not null)
         {
@@ -130,13 +171,22 @@ else
             {
                 var history = await PayorApi.GetHistoryAsync(stall.StallId);
                 if (history.IsSuccess && history.Value is not null)
-                    Rows.AddRange(history.Value.Select(h => new Row(stall.Facility, stall.StallNo, h)));
+                    rows.AddRange(history.Value.Select(h => new Row(stall.Facility, stall.StallNo, h)));
             }
         }
 
         // Most recent first; records without a PaidAt (unpaid periods) sort last.
-        Rows = Rows.OrderByDescending(r => r.Item.PaidAt ?? DateTime.MinValue).ToList();
+        Rows = rows.OrderByDescending(r => r.Item.PaidAt ?? DateTime.MinValue).ToList();
         Loading = false;
+    }
+
+    private void OnOrIssued()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
     }
 
     private void OpenReceipt(Row row)
@@ -145,4 +195,6 @@ else
     }
 
     private void CloseReceipt() => Selected = null;
+
+    public void Dispose() => Realtime.OrIssued -= OnOrIssued;
 }

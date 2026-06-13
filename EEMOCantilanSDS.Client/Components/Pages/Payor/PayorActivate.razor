@@ -30,8 +30,8 @@
         <div class="pp-divider-soft"></div>
 
         <label class="pp-field">
-            <span class="pp-field-label">@PasswordLabel</span>
-            <input class="pp-input" type="password" placeholder="@PasswordPlaceholder" @bind="Password" />
+            <span class="pp-field-label">Create Password</span>
+            <input class="pp-input" type="password" placeholder="At least 8 characters" @bind="Password" />
         </label>
 
         @if (!string.IsNullOrEmpty(Error))
@@ -61,12 +61,6 @@
     private string Password = string.Empty;
     private string? Error;
     private bool Busy;
-    private bool MaybeReturning;
-
-    // The "existing account" hint is driven ONLY by the server's response (below), never guessed from
-    // the phone number — a first-time payor must see "Create Password", not "existing password".
-    private string PasswordLabel => MaybeReturning ? "Password (existing account)" : "Create Password";
-    private string PasswordPlaceholder => MaybeReturning ? "Your existing password" : "At least 8 characters";
 
     private async Task Activate()
     {
@@ -92,11 +86,8 @@
 
         if (!ok)
         {
-            // Surface the exact server message (e.g. wrong password for existing account, expired code).
+            // Surface the exact server message (e.g. invalid/expired code, or already activated -> sign in).
             Error = serverError ?? "Activation failed. Check your code and mobile number.";
-            // If it's the "existing account" message, adjust the hint.
-            if (serverError is not null && serverError.Contains("existing password", StringComparison.OrdinalIgnoreCase))
-                MaybeReturning = true;
         }
     }
 }

@@ -17,12 +17,11 @@ public class ActivatePayorAccountCommandHandlerTests
         PayorActivationCode.Create("ABCD-EFGH", Contact, StallId, DateTime.UtcNow.AddDays(1));
 
     private static (ActivatePayorAccountCommandHandler handler, Mock<IPayorRepository> repo, Mock<IUnitOfWork> uow)
-        Build(PayorActivationCode? code, PayorUser? existing, bool linkExists = false)
+        Build(PayorActivationCode? code, PayorUser? existing)
     {
         var repo = new Mock<IPayorRepository>();
         repo.Setup(r => r.GetActivationCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(code);
         repo.Setup(r => r.GetByContactNumberAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(existing);
-        repo.Setup(r => r.LinkExistsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(linkExists);
 
         var token = new Mock<ITokenService>();
         token.Setup(t => t.CreateTokenResponse(It.IsAny<BaseUser>()))
@@ -59,40 +58,17 @@ public class ActivatePayorAccountCommandHandlerTests
     }
 
     [Fact]
-    public async Task ExistingContact_CorrectPassword_LinksAdditionalStall_NoNewAccount()
+    public async Task ExistingContact_IsConflict_NeverMergesOrCreates()
     {
-        var existing = PayorUser.Create("Maria Dela Cruz", Contact, Password);
-        var (handler, repo, _) = Build(ValidCode(), existing, linkExists: false);
-
-        var result = await handler.Handle(Command(Password), CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        repo.Verify(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()), Times.Never);
-        repo.Verify(r => r.AddStallLinkAsync(It.IsAny<PayorStallLink>(), It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task ExistingContact_WrongPassword_IsConflict_AndDoesNotLink()
-    {
-        var existing = PayorUser.Create("Maria Dela Cruz", Contact, Password);
+        // The number already belongs to a payor. Activation must NOT link the code's stall onto that
+        // account (that merge was the bug) and must NOT create a duplicate — it directs them to sign in.
+        var existing = PayorUser.Create("Diego Villafuerte", Contact, Password);
         var (handler, repo, _) = Build(ValidCode(), existing);
 
-        var result = await handler.Handle(Command("WrongPass123!"), CancellationToken.None);
+        var result = await handler.Handle(Command(Password), CancellationToken.None);
 
         Assert.Equal(409, result.StatusCode);
         repo.Verify(r => r.AddStallLinkAsync(It.IsAny<PayorStallLink>(), It.IsAny<CancellationToken>()), Times.Never);
         repo.Verify(r => r.AddPayorAsync(It.IsAny<PayorUser>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task ExistingContact_CorrectPassword_AlreadyLinked_DoesNotDuplicateLink()
-    {
-        var existing = PayorUser.Create("Maria Dela Cruz", Contact, Password);
-        var (handler, repo, _) = Build(ValidCode(), existing, linkExists: true);
-
-        var result = await handler.Handle(Command(Password), CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        repo.Verify(r => r.AddStallLinkAsync(It.IsAny<PayorStallLink>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

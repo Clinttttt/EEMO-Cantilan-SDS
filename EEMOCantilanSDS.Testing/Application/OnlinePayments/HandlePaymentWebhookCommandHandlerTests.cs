@@ -29,7 +29,7 @@ public class HandlePaymentWebhookCommandHandlerTests
     private static PaymentGatewayEvent PaidEvent(decimal amount) =>
         new(PaymentGatewayEventType.Paid, GatewayRef, amount, "pay_1", "gcash", DateTime.UtcNow, "{\"raw\":true}");
 
-    private static (HandlePaymentWebhookCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPaymentGateway> gateway)
+    private static (HandlePaymentWebhookCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPaymentGateway> gateway, Mock<IOnlinePaymentNotifier> notifier)
         Build(OnlinePaymentTransaction? txn, PaymentRecord? record, PaymentGatewayEvent? evt, bool signatureValid = true)
     {
         var gateway = new Mock<IPaymentGateway>();
@@ -48,14 +48,14 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var notifier = new Mock<IOnlinePaymentNotifier>();
 
-        return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, paymentRepo.Object, notifier.Object, uow.Object), uow, gateway);
+        return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, paymentRepo.Object, notifier.Object, uow.Object), uow, gateway, notifier);
     }
 
     [Fact]
     public async Task InvalidSignature_FailsClosed_Unauthorized_AndDoesNotParse()
     {
         var (txn, record) = PendingPair();
-        var (handler, uow, gateway) = Build(txn, record, PaidEvent(Amount), signatureValid: false);
+        var (handler, uow, gateway, _) = Build(txn, record, PaidEvent(Amount), signatureValid: false);
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "bad-sig"), CancellationToken.None);
 
@@ -69,7 +69,7 @@ public class HandlePaymentWebhookCommandHandlerTests
     public async Task Paid_ClearsBalance_NoCollector_NoOrNumber()
     {
         var (txn, record) = PendingPair();
-        var (handler, uow, _) = Build(txn, record, PaidEvent(Amount));
+        var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount));
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
 
@@ -88,7 +88,7 @@ public class HandlePaymentWebhookCommandHandlerTests
     public async Task Paid_IsIdempotent_SecondEventIsNoOp()
     {
         var (txn, record) = PendingPair();
-        var (handler, uow, _) = Build(txn, record, PaidEvent(Amount));
+        var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount));
 
         var first = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
         var second = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
@@ -104,7 +104,7 @@ public class HandlePaymentWebhookCommandHandlerTests
     public async Task Paid_AmountMismatch_IsRejected_AndDoesNotSettle()
     {
         var (txn, record) = PendingPair();
-        var (handler, uow, _) = Build(txn, record, PaidEvent(Amount - 1m)); // underpayment
+        var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount - 1m)); // underpayment
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
 
@@ -117,11 +117,31 @@ public class HandlePaymentWebhookCommandHandlerTests
     [Fact]
     public async Task UnknownTransaction_IsAcknowledged_NoOp()
     {
-        var (handler, uow, _) = Build(txn: null, record: null, PaidEvent(Amount));
+        var (handler, uow, _, _) = Build(txn: null, record: null, PaidEvent(Amount));
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
 
         Assert.True(result.IsSuccess); // ack so the provider stops retrying
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Paid_PublishesNotification_WithStallAndPeriod()
+    {
+        // The realtime alert must identify which stall/period was paid so admin facility pages can
+        // refresh the exact row that flips Unpaid → Paid.
+        var (txn, record) = PendingPair();
+        var (handler, _, _, notifier) = Build(txn, record, PaidEvent(Amount));
+
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        notifier.Verify(n => n.NotifyPaymentReceivedAsync(
+            It.Is<OnlinePaymentNotification>(p =>
+                p.StallId == record.StallId &&
+                p.BillingYear == record.BillingYear &&
+                p.BillingMonth == record.BillingMonth &&
+                p.Amount == Amount),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

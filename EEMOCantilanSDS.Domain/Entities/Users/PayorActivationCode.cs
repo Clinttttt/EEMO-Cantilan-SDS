@@ -6,8 +6,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
     /// <summary>
     /// A single-use, expirable code issued to a stall payor so they can self-activate an online
     /// account. Activation requires BOTH the code and the payor's registered contact number to match
-    /// (the contact number is captured here when the code is issued). Grants access to one stall;
-    /// additional stalls are linked by activating additional codes against the same contact number.
+    /// (the contact number is captured here when the code is issued). A contact number maps to exactly
+    /// one payor account: a code may only be issued for a number that is not already registered or
+    /// pending on another stall, so activation never merges two different occupants.
     /// </summary>
     public class PayorActivationCode : AuditableEntity
     {

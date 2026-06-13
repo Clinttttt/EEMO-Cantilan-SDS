@@ -66,7 +66,10 @@ public class HandlePaymentWebhookCommandHandler(
                             transaction.Amount,
                             record.PeriodKey,
                             transaction.Method,
-                            transaction.PaidAt ?? DateTime.UtcNow),
+                            transaction.PaidAt ?? DateTime.UtcNow,
+                            record.StallId,
+                            record.BillingYear,
+                            record.BillingMonth),
                         cancellationToken);
                 }
                 catch { /* notification is non-critical; the payment is already recorded */ }

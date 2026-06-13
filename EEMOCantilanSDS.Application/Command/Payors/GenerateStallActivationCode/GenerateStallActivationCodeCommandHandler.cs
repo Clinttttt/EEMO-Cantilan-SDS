@@ -40,6 +40,24 @@ public class GenerateStallActivationCodeCommandHandler(
         var issuedBy = currentUser.Username ?? "Staff";
         var contactNumber = request.ContactNumber!.Trim();
 
+        // One mobile number = one payor. Refuse to issue a code that would later collide with another
+        // payor on activation. Without this, two different occupants given codes under the same number
+        // get merged into a single account (one ends up owning the other's stall).
+        var alreadyRegistered = await payorRepository.GetByContactNumberAsync(contactNumber, cancellationToken);
+        if (alreadyRegistered is not null)
+        {
+            var ownsThisStall = await payorRepository.LinkExistsAsync(alreadyRegistered.Id, stall.Id, cancellationToken);
+            return Result<StallActivationCodeDto>.Failure(
+                ownsThisStall
+                    ? "This stall is already linked to an activated payor account."
+                    : "This mobile number is already registered to a payor account. Use a different number.",
+                409);
+        }
+
+        if (await payorRepository.ActiveCodeExistsForContactOnOtherStallAsync(contactNumber, stall.Id, cancellationToken))
+            return Result<StallActivationCodeDto>.Failure(
+                "This mobile number already has a pending activation code for another stall.", 409);
+
         // Only one redeemable code per stall — void any prior unredeemed one.
         await payorRepository.RevokeActiveCodesForStallAsync(stall.Id, issuedBy, cancellationToken);
 

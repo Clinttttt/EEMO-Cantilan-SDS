@@ -42,6 +42,7 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<CircuitHandler, TokenCircuitHandler>();
             service.AddScoped<AuthService>();
             service.AddScoped<PayorAuthService>();
+            service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();
             service.AddScoped<RefreshTokenDelegatingHandler>();
             service.AddScoped<AuthStateProvider>();

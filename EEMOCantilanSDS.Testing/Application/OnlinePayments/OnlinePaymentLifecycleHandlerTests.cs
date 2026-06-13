@@ -192,7 +192,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         return (txn, record);
     }
 
-    private static (IssueOnlinePaymentOrNumberCommandHandler handler, Mock<IUnitOfWork> uow) Build(
+    private static (IssueOnlinePaymentOrNumberCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPayorRealtimeNotifier> notifier) Build(
         OnlinePaymentTransaction txn, PaymentRecord record)
     {
         var onlineRepo = new Mock<IOnlinePaymentRepository>();
@@ -204,15 +204,18 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.Username).Returns("admin");
 
+        var notifier = new Mock<IPayorRealtimeNotifier>();
+
         var uow = new Mock<IUnitOfWork>();
-        return (new IssueOnlinePaymentOrNumberCommandHandler(onlineRepo.Object, paymentRepo.Object, currentUser.Object, uow.Object), uow);
+        return (new IssueOnlinePaymentOrNumberCommandHandler(
+            onlineRepo.Object, paymentRepo.Object, currentUser.Object, notifier.Object, uow.Object), uow, notifier);
     }
 
     [Fact]
     public async Task StaffEncodeOr_CompletesTransaction_AndMirrorsOntoRecord()
     {
         var (txn, record) = PaidPair();
-        var (handler, uow) = Build(txn, record);
+        var (handler, uow, notifier) = Build(txn, record);
 
         var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-2026-0601"), CancellationToken.None);
 
@@ -221,6 +224,11 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         Assert.Equal("OR-2026-0601", txn.ORNumber);
         Assert.Equal("OR-2026-0601", record.ORNumber);   // mirrored onto the ledger record
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // The paying payor is alerted that their receipt is now official (with the OR).
+        notifier.Verify(n => n.NotifyOrIssuedAsync(
+            txn.PayorUserId,
+            It.Is<PayorOrIssuedNotification>(p => p.OrNumber == "OR-2026-0601" && p.StallId == record.StallId),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -229,12 +237,13 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, 2400m);
         var txn = OnlinePaymentTransaction.Create("EEMO-OP-20260613-ABCD1234", Guid.NewGuid(), record.Id, 2400m, "PayMongo");
         txn.SetPending("cs_test", "https://checkout.test/cs"); // still Pending, not Paid
-        var (handler, uow) = Build(txn, record);
+        var (handler, uow, notifier) = Build(txn, record);
 
         var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-1"), CancellationToken.None);
 
         Assert.Equal(409, result.StatusCode);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        notifier.Verify(n => n.NotifyOrIssuedAsync(It.IsAny<Guid>(), It.IsAny<PayorOrIssuedNotification>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

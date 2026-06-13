@@ -6,11 +6,14 @@
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Application.Dtos.Payors
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
+@using global::EEMOCantilanSDS.Application.Common.Payments
 @using global::EEMOCantilanSDS.Domain.Enums
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Mobile.Services.MobilePaymentHubService PaymentHub
 @inject IMobileApiClient MobileApi
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="page-shell">
     <div class="header">
@@ -598,8 +601,46 @@
         SelectedYear = today.Year;
         SelectedMonth = today.Month;
 
+        PaymentHub.PaymentReceived += OnOnlinePaymentReceived;
+
         await LoadCollectionAsync();
     }
+
+    // Realtime: when a payor pays online for a stall in THIS facility/month, refresh so the card flips
+    // Unpaid → Paid · Online (awaiting OR) live. The hub event fires off the UI thread — marshal onto it.
+    private void OnOnlinePaymentReceived(OnlinePaymentNotification n)
+    {
+        if (n.BillingYear != SelectedYear || n.BillingMonth != SelectedMonth)
+            return;
+        if (Collection?.Stalls is null || !Collection.Stalls.Any(s => s.StallId == n.StallId))
+            return;
+
+        _ = InvokeAsync(RefreshCollectionSoftlyAsync);
+    }
+
+    // A background refresh must NOT tear down the working list: unlike LoadCollectionAsync (initial
+    // load) it never flips IsLoading or shows the error screen. It swaps in fresh data only on success;
+    // on a transient failure it retries once, then silently keeps the current list (the toast already
+    // told the collector a payment came in).
+    private async Task RefreshCollectionSoftlyAsync()
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var result = await MobileApi.GetMonthlyCollectionAsync(FacilityCode, SelectedYear, SelectedMonth);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                Collection = result.Value;
+                StateHasChanged();
+                return;
+            }
+
+            if (attempt == 0)
+                await Task.Delay(800);
+        }
+        // Keep the existing list as-is — no error screen for a non-critical realtime refresh.
+    }
+
+    public void Dispose() => PaymentHub.PaymentReceived -= OnOnlinePaymentReceived;
 
     private async Task LoadCollectionAsync()
     {
