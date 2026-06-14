@@ -496,3 +496,11 @@
         font-size: 16px;
     }
 }
+
+/* Dashboard "Revenue by Facility" header actions (Month-End Report + View Full Report) */
+.section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}

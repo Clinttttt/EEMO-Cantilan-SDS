@@ -1,0 +1,298 @@
+@page "/reports/month-end"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@inject IFacilitiesApiClient FacilitiesApi
+@inject IJSRuntime JS
+
+<PageTitle>EEMO Admin — Month-End Report</PageTitle>
+
+<header class="topbar no-print">
+    <div class="topbar-left">
+        <div class="topbar-title">Month-End Report</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">EEMO Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Month-End Report</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-period">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            Collection Period: <strong>@PeriodLabel</strong>
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- Period nav + print -->
+    <div class="me-controls no-print">
+        <div class="me-period-nav">
+            <button class="me-nav-btn" type="button" @onclick="PrevMonth" aria-label="Previous month">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <span class="me-period">@PeriodLabel</span>
+            <button class="me-nav-btn" type="button" @onclick="NextMonth" aria-label="Next month">
+                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+        </div>
+        <button class="me-print-btn" type="button" disabled="@Loading" @onclick="Print">
+            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            Print
+        </button>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="me-state">Loading month-end report…</div>
+    }
+    else if (Report is null)
+    {
+        <div class="me-state me-state-error">
+            Unable to load the report.
+            <button class="me-retry" type="button" @onclick="Load">Try again</button>
+        </div>
+    }
+    else
+    {
+        <!-- Printable report -->
+        <section class="me-sheet">
+            <header class="me-rpt-head">
+                <img class="me-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+                <div class="me-gov">Republic of the Philippines</div>
+                <div class="me-org">Economic Enterprise &amp; Management Office</div>
+                <div class="me-muni">Municipality of Cantilan, Surigao del Sur</div>
+                <div class="me-doc">Comprehensive Month-End Collection Report — @Report.PeriodLabel</div>
+            </header>
+
+            <!-- Grand summary -->
+            <div class="me-summary">
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Money(Report.TotalCollected)</div>
+                    <div class="me-sum-lbl">Total Collected</div>
+                </div>
+                <div class="me-sum-card">
+                    <div class="me-sum-val me-red">@Money(Report.TotalOutstanding)</div>
+                    <div class="me-sum-lbl">Total Outstanding</div>
+                </div>
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Report.OverallCollectionRate%</div>
+                    <div class="me-sum-lbl">Collection Rate</div>
+                </div>
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Report.TotalPaidCount / @Report.TotalPartialCount / @Report.TotalUnpaidCount</div>
+                    <div class="me-sum-lbl">Paid / Partial / Unpaid</div>
+                </div>
+            </div>
+
+            @foreach (var f in Report.Facilities)
+            {
+                <div class="me-facility">
+                    <div class="me-fac-head">
+                        <div class="me-fac-title">
+                            <span class="me-fac-code">@f.Code</span>
+                            <span class="me-fac-name">@f.Name</span>
+                            @if (!f.IsRental)
+                            {
+                                <span class="me-tag">Transaction-based</span>
+                            }
+                        </div>
+                        <div class="me-fac-stats">
+                            <span><strong>@Money(f.Collected)</strong> collected</span>
+                            @if (f.IsRental)
+                            {
+                                <span class="me-red"><strong>@Money(f.Outstanding)</strong> outstanding</span>
+                            }
+                            <span><strong>@f.CollectionRate%</strong> rate</span>
+                        </div>
+                    </div>
+
+                    @if (f.IsRental && f.Payors.Count > 0)
+                    {
+                        <table class="me-table">
+                            <thead>
+                                <tr>
+                                    <th>Stall</th>
+                                    <th>Payor</th>
+                                    <th>Rate</th>
+                                    <th>Status</th>
+                                    <th>Amount Paid</th>
+                                    <th>Balance</th>
+                                    <th>OR No.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in f.Payors)
+                                {
+                                    <tr class="@RowClass(p.Status)">
+                                        <td>@p.StallNo</td>
+                                        <td>@p.Payor</td>
+                                        <td>@Money(p.MonthlyRate)</td>
+                                        <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
+                                        <td>@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
+                                        <td class="@(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4"><strong>Subtotal — @f.Name</strong></td>
+                                    <td><strong>@Money(f.Collected)</strong></td>
+                                    <td class="@(f.Outstanding > 0 ? "me-red" : "")"><strong>@(f.Outstanding > 0 ? Money(f.Outstanding) : "—")</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    }
+                    else if (!f.IsRental && f.TransactionPayors.Count > 0)
+                    {
+                        <table class="me-table">
+                            <thead>
+                                <tr>
+                                    <th>Payor</th>
+                                    <th>Records</th>
+                                    <th>Total Collected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tp in f.TransactionPayors)
+                                {
+                                    var key = $"{f.Code}|{tp.Payor}";
+                                    var expandable = tp.RecordCount > 1;
+                                    var isOpen = _expanded.Contains(key);
+                                    <tr class="me-txn-row @(expandable ? "me-expandable" : "")" @onclick="() => Toggle(key, expandable)">
+                                        <td>
+                                            @if (expandable)
+                                            {
+                                                <span class="me-caret @(isOpen ? "open" : "")">&#9654;</span>
+                                            }
+                                            <span class="me-txn-payor">@tp.Payor</span>
+                                            @if (expandable && !string.IsNullOrWhiteSpace(tp.Summary))
+                                            {
+                                                <span class="me-txn-inline">· @tp.Summary</span>
+                                            }
+                                            else if (!expandable && tp.Records.Count == 1)
+                                            {
+                                                <span class="me-txn-inline">@tp.Records[0].Date · @tp.Records[0].Description@(string.IsNullOrWhiteSpace(tp.Records[0].ORNumber) ? "" : " · OR " + tp.Records[0].ORNumber)</span>
+                                            }
+                                        </td>
+                                        <td>@tp.RecordCount</td>
+                                        <td>@Money(tp.TotalCollected)</td>
+                                    </tr>
+                                    @if (expandable && isOpen)
+                                    {
+                                        @foreach (var r in tp.Records)
+                                        {
+                                            <tr class="me-txn-detail">
+                                                <td>@r.Date · @r.Description@(string.IsNullOrWhiteSpace(r.ORNumber) ? "" : " · OR " + r.ORNumber)</td>
+                                                <td></td>
+                                                <td>@Money(r.Amount)</td>
+                                            </tr>
+                                        }
+                                    }
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2"><strong>Subtotal — @f.Name</strong></td>
+                                    <td><strong>@Money(f.Collected)</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    }
+                    else if (!f.IsRental)
+                    {
+                        <div class="me-fac-note">No records for @Report.PeriodLabel.</div>
+                    }
+                    else
+                    {
+                        <div class="me-fac-note">No active payors under contract for @Report.PeriodLabel.</div>
+                    }
+                </div>
+            }
+
+            <div class="me-rpt-foot">
+                <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private int Year = PhilippineTime.Now.Year;
+    private int Month = PhilippineTime.Now.Month;
+    private MonthEndReportDto? Report;
+    private bool Loading = true;
+    private readonly HashSet<string> _expanded = new();
+
+    private string PeriodLabel => new DateTime(Year, Month, 1).ToString("MMMM yyyy");
+
+    private void Toggle(string key, bool expandable)
+    {
+        if (!expandable) return;
+        if (!_expanded.Add(key)) _expanded.Remove(key);
+    }
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        Loading = true;
+        Report = null;
+
+        // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await FacilitiesApi.GetMonthEndReportAsync(Year, Month);
+            if (result.IsSuccess)
+            {
+                Report = result.Value;
+                break;
+            }
+            if (result.StatusCode is not (401 or 403))
+                break;
+            await Task.Delay(400);
+        }
+
+        Loading = false;
+    }
+
+    private async Task PrevMonth()
+    {
+        var d = new DateTime(Year, Month, 1).AddMonths(-1);
+        Year = d.Year; Month = d.Month;
+        await Load();
+    }
+
+    private async Task NextMonth()
+    {
+        var d = new DateTime(Year, Month, 1).AddMonths(1);
+        Year = d.Year; Month = d.Month;
+        await Load();
+    }
+
+    private async Task Print() => await JS.InvokeVoidAsync("print");
+
+    private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    private static string StatusClass(string status) => status switch
+    {
+        "Paid" => "me-paid",
+        "Partial" => "me-partial",
+        _ => "me-unpaid"
+    };
+
+    private static string RowClass(string status) => status switch
+    {
+        "Paid" => "",
+        "Partial" => "me-row-partial",
+        _ => "me-row-unpaid"
+    };
+}

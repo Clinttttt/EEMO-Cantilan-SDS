@@ -1,7 +1,9 @@
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
-using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
@@ -66,6 +68,15 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     {
         var query = new GetFacilityHistoryQuery(facilityCode, year);
         var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("month-end-report")]
+    public async Task<ActionResult<MonthEndReportDto>> GetMonthEndReport(
+        [FromQuery] int year,
+        [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetMonthEndReportQuery(year, month));
         return HandleResponse(result);
     }
 }

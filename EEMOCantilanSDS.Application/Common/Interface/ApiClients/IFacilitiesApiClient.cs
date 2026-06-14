@@ -18,4 +18,6 @@ public interface IFacilitiesApiClient
     Task<Result<FacilityHistoryDto>> GetFacilityHistoryAsync(
         FacilityCode facilityCode,
         int year);
+
+    Task<Result<MonthEndReportDto>> GetMonthEndReportAsync(int year, int month);
 }

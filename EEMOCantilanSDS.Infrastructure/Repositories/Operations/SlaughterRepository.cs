@@ -18,6 +18,7 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
     public async Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
     {
         return await context.SlaughterTransactions
+            .AsNoTracking()
             .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .OrderByDescending(x => x.TransactionDate)
             .Select(x => new SlaughterTransactionDto(

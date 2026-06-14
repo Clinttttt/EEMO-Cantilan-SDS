@@ -30,4 +30,7 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
 
     public async Task<Result<FacilityHistoryDto>> GetFacilityHistoryAsync(FacilityCode facilityCode, int year) =>
         await GetAsync<FacilityHistoryDto>($"api/Facilities/{facilityCode}/history?year={year}");
+
+    public async Task<Result<MonthEndReportDto>> GetMonthEndReportAsync(int year, int month) =>
+        await GetAsync<MonthEndReportDto>($"api/Facilities/month-end-report?year={year}&month={month}");
 }
