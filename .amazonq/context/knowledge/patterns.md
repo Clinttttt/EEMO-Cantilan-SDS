@@ -159,11 +159,20 @@ Rule: every data access goes through a repo — no exceptions.
 Handlers inject repo interfaces + IUnitOfWork. They never touch DbContext directly.
 
 Interface: Application/Common/Interface/Persistence/I{Feature}Repository.cs
-Implementation: Infrastructure/Repositories/{Feature}Repository.cs
+Implementation: Infrastructure/Repositories/{Area}/{Feature}Repository.cs
+
+Repository implementations are grouped into domain subfolders for readability:
+`Auth` (Auth/Admin/Collector/Payor), `Facilities` (Facility/Stall/Vendor/Setup),
+`Payments` (Payment/DailyCollection/OnlinePayment), `Reports` (FacilityReports/Dashboard/
+TransactionFeed), `Suggestions`, and `Operations` (Tpm/Trm/Slaughter).
+The namespace stays FLAT (`EEMOCantilanSDS.Infrastructure.Repositories`) regardless of the
+subfolder, so moving a repo between groups never changes its references or DI registration.
+`FacilityReportsRepository` is one class split across `FacilityReportsRepository.*.cs`
+`partial` files (a public entry file plus region helper files) — same type, same namespace.
 
 Implementation rules:
 - Primary constructor: AppDbContext context
-- Namespace: `EEMOCantilanSDS.Infrastructure.Repositories`
+- Namespace: `EEMOCantilanSDS.Infrastructure.Repositories` (flat — not folder-matched)
 - Use context.{DbSet} internally — DbContext lives only inside repos
 - Complex aggregations and projections belong inside the repo method, not the handler
 - Computed properties are not DB columns — recalculate from raw stored fields inline in the repo:
@@ -327,7 +336,7 @@ ValidationErrorResponse shape: { Errors: Dictionary<string, string[]> }
 
 ## EF Core Configuration Rules
 
-File: Infrastructure/Configuration/{Entity}Configuration.cs — IEntityTypeConfiguration<TEntity>
+File: Infrastructure/Persistence/Configuration/{Entity}Configuration.cs — IEntityTypeConfiguration<TEntity>
 - builder.ToTable("TableName") first
 - builder.HasKey(x => x.Id) + HasColumnType("uuid")
 - Strings: HasColumnType("text") or HasColumnType("character varying(n)")

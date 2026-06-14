@@ -1,6 +1,4 @@
-﻿using EEMOCantilanSDS.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+﻿using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
 namespace EEMOCantilanSDS.Api
@@ -32,10 +30,6 @@ namespace EEMOCantilanSDS.Api
                            .AllowAnyHeader()
                            .AllowCredentials();
                 });
-            });
-            service.AddDbContext<AppDbContext>(options =>
-            {
-                options.UseNpgsql(iconfiguration.GetConnectionString(""));
             });
             service.AddSwaggerGen(options =>
             {

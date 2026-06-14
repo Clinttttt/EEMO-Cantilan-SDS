@@ -1,6 +1,6 @@
 @page "/payor/balances"
 @layout PayorLayout
-@attribute [AllowAnonymous]
+@attribute [Authorize(Roles = "Payor")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate
 @using EEMOCantilanSDS.Application.Dtos.Payors

@@ -1,6 +1,6 @@
 @page "/tpm"
 @page "/facility/tpm"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket

@@ -1,6 +1,6 @@
 @page "/payor/history"
 @layout PayorLayout
-@attribute [AllowAnonymous]
+@attribute [Authorize(Roles = "Payor")]
 @rendermode InteractiveServer
 @using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Payments

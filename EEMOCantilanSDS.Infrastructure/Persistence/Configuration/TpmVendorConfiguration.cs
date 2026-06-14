@@ -1,8 +1,8 @@
-using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
+﻿using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EEMOCantilanSDS.Infrastructure.Configuration;
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration;
 
 public class TpmVendorConfiguration : IEntityTypeConfiguration<TpmVendor>
 {

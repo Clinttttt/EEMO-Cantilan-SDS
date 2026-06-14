@@ -1,6 +1,6 @@
 ﻿@page "/tcc"
 @page "/facility/tcc"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
 
 @using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall

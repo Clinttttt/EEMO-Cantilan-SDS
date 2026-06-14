@@ -63,9 +63,9 @@ EEMOCantilanSDS.sln
 - One `IEntityTypeConfiguration<T>` per entity
 - Soft-delete filtering is centralized in `AppDbContext`: every `AuditableEntity` is excluded by default through the global `IsDeleted == false` query filter
 - Repository implementations of Application interfaces
-- `UnitOfWork : IUnitOfWork` wraps DbContext + all repo instances
+- `UnitOfWork : IUnitOfWork` wraps only `AppDbContext` and exposes `SaveChangesAsync` — it does NOT hold or wrap repository instances
 - Migrations (auto-generated — never manually edited)
-- `DependencyInjection.cs` — registers DbContext, UnitOfWork
+- `DependencyInjection.cs` — registers DbContext, UnitOfWork, and each repository individually
 
 ### API
 - Controllers are thin — only `IMediator.Send()`, nothing else
@@ -87,7 +87,7 @@ EEMOCantilanSDS.sln
 - Application method: `AddApplicationService` (not `AddApplication`)
 - Always use `typeof(ApplicationAssemblyMarker).Assembly` — never `Assembly.GetExecutingAssembly()`
 - Behaviors registered via `AddOpenBehavior` inside `AddMediatR` — never via `AddTransient`
-- Repositories are wired inside `UnitOfWork` — do NOT register them individually in DI
+- Repositories are registered individually in `AddInfrastructureService` (e.g. `services.AddScoped<IPaymentRepository, PaymentRepository>()`) — they are NOT wired inside `UnitOfWork`
 - AutoMapper: optional — only uncomment when a profile actually exists
 
 ---

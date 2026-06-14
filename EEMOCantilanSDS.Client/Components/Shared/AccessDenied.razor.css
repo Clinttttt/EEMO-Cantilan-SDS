@@ -1,0 +1,49 @@
+.ad-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg, #f0f4f8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.ad-card {
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #dde4ea);
+    border-radius: 16px;
+    padding: 32px 28px;
+    box-shadow: 0 12px 32px rgba(13, 33, 55, 0.10);
+}
+
+.ad-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: var(--red-bg, #fdf0f0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ad-icon svg { width: 26px; height: 26px; stroke: var(--red, #8b3a3a); }
+.ad-title { font-size: 18px; font-weight: 700; color: var(--navy, #0d2137); }
+.ad-text { font-size: 13px; color: var(--text-subtle, #6a8aa0); margin: 8px 0 20px; line-height: 1.5; }
+
+.ad-btn {
+    background: var(--navy, #0d2137);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ad-btn:hover { background: var(--navy-2, #112d47); }

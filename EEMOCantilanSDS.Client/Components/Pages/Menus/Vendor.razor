@@ -1,7 +1,7 @@
 @page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Client.Components.Shared
-@attribute [Authorize]
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
 @inject NavigationManager Nav
@@ -435,7 +435,7 @@
                     {
                         <div class="detail-stat-card">
                             <div class="detail-stat-icon ds-icon-gold">
-                                <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                             </div>
                             <div>
                                 <div class="detail-stat-val">₱30 / day</div>
@@ -447,7 +447,7 @@
                     {
                         <div class="detail-stat-card">
                             <div class="detail-stat-icon ds-icon-gold">
-                                <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                             </div>
                             <div>
                                 <div class="detail-stat-val">₱@DetailVendor.MonthlyRate.ToString("N0")</div>
@@ -572,7 +572,7 @@
                     <!-- RIGHT: Fee Structure — Fish & Meat now separate -->
                     <div class="detail-section">
                         <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                             Fee Structure
                         </div>
 

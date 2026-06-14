@@ -1,8 +1,12 @@
 @inject NavigationManager Navigation
 
 @code {
+    // Sends unauthenticated visitors to the correct sign-in page for the area they tried to open:
+    // payor-portal routes go to the payor login, everything else to the admin/head login.
     protected override void OnInitialized()
     {
-        Navigation.NavigateTo("/login", true);
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        var target = path.StartsWith("/payor", StringComparison.OrdinalIgnoreCase) ? "/payor/login" : "/login";
+        Navigation.NavigateTo(target, forceLoad: true);
     }
 }

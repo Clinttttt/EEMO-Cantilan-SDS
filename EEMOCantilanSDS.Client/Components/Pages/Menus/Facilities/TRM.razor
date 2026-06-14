@@ -6,7 +6,7 @@
 @using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter
 
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
-@attribute [Authorize]
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
 @inject ITrmApiClient TrmApi

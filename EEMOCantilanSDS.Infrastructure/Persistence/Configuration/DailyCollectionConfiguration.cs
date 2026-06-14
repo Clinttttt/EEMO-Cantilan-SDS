@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace EEMOCantilanSDS.Infrastructure.Configuration
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 {
     public class DailyCollectionConfiguration : IEntityTypeConfiguration<DailyCollection>
     {

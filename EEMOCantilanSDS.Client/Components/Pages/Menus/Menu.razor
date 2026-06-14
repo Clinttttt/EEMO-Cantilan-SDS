@@ -1,5 +1,5 @@
 ﻿@page "/menu"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Dashboard
 @inject IDashboardApiClient DashboardApi
 <PageTitle>EEMO Admin — Dashboard</PageTitle>
@@ -225,9 +225,24 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
-        if (result.IsSuccess)
-            _data = result.Value;
+        // Cold-start resilience: right after login the Blazor circuit may not have attached the JWT yet
+        // when this first API call fires, yielding a transient 401/403 and an empty dashboard until a
+        // re-navigation. Re-attempt briefly until the circuit's token is ready. Only auth failures are
+        // retried; a genuine error (or success) returns immediately.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
+            if (result.IsSuccess)
+            {
+                _data = result.Value;
+                return;
+            }
+
+            if (result.StatusCode is not (401 or 403))
+                return;
+
+            await Task.Delay(400);
+        }
     }
 
     private decimal TotalCollected => _data?.TotalCollected ?? 0;

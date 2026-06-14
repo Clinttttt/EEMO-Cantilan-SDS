@@ -1,0 +1,27 @@
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Securities.TokenService Tokens
+@using EEMOCantilanSDS.Client.Utilities
+
+@* Full-screen denial shown when a signed-in user opens a page their role can't access. It is a fixed
+   overlay so no other role's layout/chrome shows through; the action returns them to their own home. *@
+<div class="ad-overlay">
+    <div class="ad-card">
+        <div class="ad-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+        </div>
+        <div class="ad-title">Access denied</div>
+        <div class="ad-text">You don't have permission to view this page with your current account.</div>
+        <button class="ad-btn" type="button" @onclick="GoHome">Go to your dashboard</button>
+    </div>
+</div>
+
+@code {
+    private void GoHome()
+    {
+        var token = Tokens.GetToken();
+        var principal = string.IsNullOrWhiteSpace(token) ? null : JwtParser.ParseToken(token);
+        Navigation.NavigateTo(principal?.IsInRole("Payor") == true ? "/payor" : "/menu", forceLoad: true);
+    }
+}

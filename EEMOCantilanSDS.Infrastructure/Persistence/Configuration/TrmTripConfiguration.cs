@@ -1,8 +1,8 @@
-using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
+﻿using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EEMOCantilanSDS.Infrastructure.Configuration;
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration;
 
 public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
 {

@@ -2,7 +2,7 @@ using EEMOCantilanSDS.Domain.Entities.Payments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EEMOCantilanSDS.Infrastructure.Configuration
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 {
     public class OnlinePaymentTransactionConfiguration : IEntityTypeConfiguration<OnlinePaymentTransaction>
     {
