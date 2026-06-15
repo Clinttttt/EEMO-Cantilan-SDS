@@ -1,12 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
 using EEMOCantilanSDS.Application.Dtos;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace EEMOCantilanSDS.Client.Securities;
 
 public class RefreshTokenDelegatingHandler(
     IHttpClientFactory httpClientFactory,
-    TokenService tokenService,
+    CircuitServicesAccessor circuitServices,
     IHttpContextAccessor httpContextAccessor) : DelegatingHandler
 {
     private readonly SemaphoreSlim _refreshSemaphore = new(1, 1);
@@ -21,10 +22,13 @@ public class RefreshTokenDelegatingHandler(
         await _refreshSemaphore.WaitAsync(cancellationToken);
         try
         {
-            // The refresh token lives as a claim in the auth cookie; the per-circuit TokenService is
-            // not shared with this handler's scope, so the cookie claim is the reliable source.
-            var refreshToken = httpContextAccessor.HttpContext?.User?.FindFirst("RefreshToken")?.Value
-                ?? tokenService.GetRefreshToken();
+            // Resolve the per-circuit TokenService (isolated per user) via the circuit accessor;
+            // handlers otherwise run in a separate, shared DI scope. The cookie claim is used only
+            // when there is no circuit (static prerender), never while a circuit is active.
+            var circuitTokens = circuitServices.Services?.GetService<TokenService>();
+            var refreshToken = circuitTokens?.GetRefreshToken();
+            if (string.IsNullOrWhiteSpace(refreshToken) && circuitServices.Services is null)
+                refreshToken = httpContextAccessor.HttpContext?.User?.FindFirst("RefreshToken")?.Value;
             if (string.IsNullOrWhiteSpace(refreshToken))
                 return response;
 
@@ -48,10 +52,11 @@ public class RefreshTokenDelegatingHandler(
                 return response;
 
             // No rotation: the refresh token is unchanged, only the access token is renewed.
-            tokenService.SetToken(tokens.AccessToken);
+            // Write it back to the per-circuit TokenService so the retry's authorization handler
+            // (which reads the same circuit token) reattaches the refreshed bearer.
+            circuitTokens?.SetToken(tokens.AccessToken);
 
-            // Retry the original request (a sent request cannot be reused, so clone it);
-            // the authorization handler reattaches the refreshed bearer token.
+            // Retry the original request (a sent request cannot be reused, so clone it).
             return await base.SendAsync(await CloneAsync(request), cancellationToken);
         }
         finally
