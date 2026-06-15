@@ -5,11 +5,11 @@ using System.Text.Json;
 
 namespace EEMOCantilanSDS.Api.Middleware
 {
-    public class ExceptionHandlingMIddleware
+    public class ExceptionHandlingMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly ILogger<ExceptionHandlingMIddleware> _logger;
-        public ExceptionHandlingMIddleware(RequestDelegate next, ILogger<ExceptionHandlingMIddleware> logger)
+        private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+        public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
             _logger = logger;
@@ -52,9 +52,7 @@ namespace EEMOCantilanSDS.Api.Middleware
             return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
         }
         public Task HandlingException(HttpContext context, Exception exception)
-        {
-            // Log the real exception (with stack trace) server-side for diagnosis.
-            // Never expose internal exception details to the client in a government system.
+        {   
             var traceId = context.TraceIdentifier;
             _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}. TraceId: {TraceId}",
                 context.Request?.Method, context.Request?.Path.Value, traceId);
@@ -67,7 +65,6 @@ namespace EEMOCantilanSDS.Api.Middleware
                 message = "An unexpected error occurred.",
                 title = "Internal Server Error",
                 status = 500,
-                // Generic, non-sensitive message. The traceId lets support correlate with server logs.
                 error = "An unexpected error occurred. Please try again, and contact support with the reference below if it persists.",
                 traceId
             };

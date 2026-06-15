@@ -8,7 +8,7 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Behaviors
 {
-    public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
+    public sealed class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>
     {
         private readonly IEnumerable<IValidator<TRequest>> _validators;
         public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
@@ -23,10 +23,10 @@ namespace EEMOCantilanSDS.Application.Behaviors
             }
             var context = new ValidationContext<TRequest>(request);
             var validationResults = await Task.WhenAll(_validators.Select(v => v.ValidateAsync(context, cancellationToken)));   
-            var listError = validationResults.SelectMany(s => s.Errors).Where(s => s != null).ToList();
-            if (listError.Any())
+            var error = validationResults.SelectMany(s => s.Errors).Where(s => s is not null).ToList();
+            if (error.Any())
             {
-                throw new ValidationException(listError);
+                throw new ValidationException(error);
             }
             return await next();
         }

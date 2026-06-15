@@ -1,4 +1,6 @@
-﻿using Microsoft.OpenApi.Models;
+﻿using EEMOCantilanSDS.Api.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
+using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 
 namespace EEMOCantilanSDS.Api
@@ -11,10 +13,8 @@ namespace EEMOCantilanSDS.Api
             service.AddHttpContextAccessor();
             service.AddAuthorization();
             service.AddSignalR();
-            service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IOnlinePaymentNotifier,
-                EEMOCantilanSDS.Api.Services.SignalROnlinePaymentNotifier>();
-            service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IPayorRealtimeNotifier,
-                EEMOCantilanSDS.Api.Services.SignalRPayorRealtimeNotifier>();
+            service.AddScoped<IOnlinePaymentNotifier,SignalROnlinePaymentNotifier>();
+            service.AddScoped<IPayorRealtimeNotifier,SignalRPayorRealtimeNotifier>();
             service.AddControllers()
                    .AddJsonOptions(o =>
                    {

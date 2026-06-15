@@ -58,10 +58,10 @@ app.UseRouting();
 
 app.UseCors("AllowBlazor");
 
-app.UseMiddleware<ExceptionHandlingMIddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Auth middleware
 app.UseAuthentication();
+
 app.UseAuthorization();
 
 app.MapControllers();

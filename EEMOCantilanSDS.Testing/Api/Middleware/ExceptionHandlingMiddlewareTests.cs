@@ -10,8 +10,8 @@ namespace EEMOCantilanSDS.Testing.Api.Middleware;
 
 public class ExceptionHandlingMiddlewareTests
 {
-    private static ExceptionHandlingMIddleware CreateSut() =>
-        new(_ => Task.CompletedTask, NullLogger<ExceptionHandlingMIddleware>.Instance);
+    private static ExceptionHandlingMiddleware CreateSut() =>
+        new(_ => Task.CompletedTask, NullLogger<ExceptionHandlingMiddleware>.Instance);
 
     private static async Task<(int status, string body)> InvokeHandlerAsync(Exception ex, string traceId = "trace-123")
     {
@@ -66,7 +66,7 @@ public class ExceptionHandlingMiddlewareTests
         context.Response.Body = new MemoryStream();
 
         var failures = new[] { new ValidationFailure("Name", "Name is required") };
-        await ExceptionHandlingMIddleware.HandlingValidationException(context, new ValidationException(failures));
+        await ExceptionHandlingMiddleware.HandlingValidationException(context, new ValidationException(failures));
 
         context.Response.Body.Seek(0, SeekOrigin.Begin);
         using var reader = new StreamReader(context.Response.Body, Encoding.UTF8);

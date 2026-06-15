@@ -34,9 +34,7 @@ namespace EEMOCantilanSDS.Api.Extensions
                     options.Events = new JwtBearerEvents
                     {
                         OnMessageReceived = context =>
-                        {
-                            // SignalR WebSocket clients can't set the Authorization header, so the hub
-                            // passes the JWT via ?access_token=…; everything else uses the auth cookie.
+                        {                     
                             var accessToken = context.Request.Query["access_token"];
                             var path = context.HttpContext.Request.Path;
                             if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
