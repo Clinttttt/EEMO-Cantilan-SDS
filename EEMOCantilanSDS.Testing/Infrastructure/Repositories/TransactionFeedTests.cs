@@ -134,4 +134,45 @@ public class TransactionFeedTests : RepositoryTestBase
 
         Assert.Empty(feed);
     }
+
+    [Fact]
+    public async Task GetRecent_CollapsesMultiAnimalSlaughterReceiptIntoOneRow()
+    {
+        var context = NewContext();
+        var slhFac = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        context.Facilities.Add(slhFac);
+
+        // One receipt (OR-651) for Ana Reyes covering a hog (₱250) and a cow (₱365) = ₱615.
+        var date = new DateOnly(2026, 6, 11);
+        context.SlaughterTransactions.Add(SlaughterTransaction.CreateHog(slhFac.Id, null, "Ana Reyes", 1, "OR-651", date));
+        context.SlaughterTransactions.Add(SlaughterTransaction.CreateLargeAnimal(slhFac.Id, null, "Ana Reyes", AnimalType.Cow, 1, "OR-651", date));
+        await context.SaveChangesAsync();
+
+        var repo = new TransactionFeedRepository(context);
+        var feed = await repo.GetRecentTransactionsAsync(FacilityCode.SLH, null, 100, CancellationToken.None);
+
+        var row = Assert.Single(feed);
+        Assert.Equal(FacilityCode.SLH, row.FacilityCode);
+        Assert.Equal("Ana Reyes", row.Party);
+        Assert.Equal("OR-651", row.ORNumber);
+        Assert.Equal(615m, row.Amount);
+    }
+
+    [Fact]
+    public async Task GetRecent_DistinctSlaughterReceipts_StayAsSeparateRows()
+    {
+        var context = NewContext();
+        var slhFac = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        context.Facilities.Add(slhFac);
+
+        var date = new DateOnly(2026, 6, 11);
+        context.SlaughterTransactions.Add(SlaughterTransaction.CreateHog(slhFac.Id, null, "Ana Reyes", 1, "OR-651", date));
+        context.SlaughterTransactions.Add(SlaughterTransaction.CreateHog(slhFac.Id, null, "Jinggoy Estrada", 1, "OR-652", date));
+        await context.SaveChangesAsync();
+
+        var repo = new TransactionFeedRepository(context);
+        var feed = await repo.GetRecentTransactionsAsync(FacilityCode.SLH, null, 100, CancellationToken.None);
+
+        Assert.Equal(2, feed.Count);
+    }
 }

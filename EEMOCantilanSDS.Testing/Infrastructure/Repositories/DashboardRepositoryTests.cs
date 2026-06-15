@@ -99,4 +99,28 @@ public class DashboardRepositoryTests : RepositoryTestBase
         Assert.Contains(FacilityCode.TPM, recentFacilities);   // market day
         Assert.Contains(overview.RecentTransactions, t => t.FacilityCode == FacilityCode.SLH && t.PayorName == "Pedro" && t.Amount == 250m);
     }
+
+    [Fact]
+    public async Task GetOverview_CollapsesMultiAnimalSlaughterReceiptIntoOneRecentRow()
+    {
+        var context = NewContext();
+        var date = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var slh = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        context.Facilities.Add(slh);
+
+        // One receipt (OR-651) for Ana Reyes: hog (₱250) + cow (₱365) = ₱615.
+        context.Add(EEMOCantilanSDS.Domain.Entities.Slaughterhouse.SlaughterTransaction
+            .CreateHog(slh.Id, null, "Ana Reyes", 1, "OR-651", date));
+        context.Add(EEMOCantilanSDS.Domain.Entities.Slaughterhouse.SlaughterTransaction
+            .CreateLargeAnimal(slh.Id, null, "Ana Reyes", AnimalType.Cow, 1, "OR-651", date));
+        await context.SaveChangesAsync();
+
+        var overview = await new DashboardRepository(context, new FacilityReportsRepository(context))
+            .GetOverviewAsync(date.Year, date.Month, CancellationToken.None);
+
+        var slhRows = overview.RecentTransactions.Where(t => t.FacilityCode == FacilityCode.SLH).ToList();
+        var row = Assert.Single(slhRows);
+        Assert.Equal("Ana Reyes", row.PayorName);
+        Assert.Equal(615m, row.Amount);
+    }
 }

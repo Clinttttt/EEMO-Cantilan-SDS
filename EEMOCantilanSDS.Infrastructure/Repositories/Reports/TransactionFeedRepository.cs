@@ -155,16 +155,24 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
             })
             .ToListAsync(ct);
 
-        return rows.Select(r =>
-        {
-            var animal = string.IsNullOrWhiteSpace(r.CustomAnimalType) ? r.AnimalType.ToString() : r.CustomAnimalType!;
-            return new TransactionFeedDto(
-                r.Id, FacilityCode.SLH, string.IsNullOrWhiteSpace(r.FacilityName) ? "Slaughterhouse" : r.FacilityName,
-                r.TransactionDate.ToDateTime(TimeOnly.MinValue), false,
-                r.OwnerName,
-                $"{animal} ×{r.NumberOfHeads}",
-                "Slaughter", r.RatePerHead * r.NumberOfHeads, r.ORNumber, "Paid");
-        }).ToList();
+        return rows
+            .GroupBy(r => new { r.ORNumber, r.OwnerName, r.TransactionDate })
+            .Select(g =>
+            {
+                // One receipt (OR) may cover multiple animal types — summarize them and sum the fees.
+                var animals = string.Join(", ", g.Select(x =>
+                {
+                    var name = string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType!;
+                    return $"{name} \u00d7{x.NumberOfHeads}";
+                }));
+                var first = g.First();
+                return new TransactionFeedDto(
+                    first.Id, FacilityCode.SLH, string.IsNullOrWhiteSpace(first.FacilityName) ? "Slaughterhouse" : first.FacilityName,
+                    first.TransactionDate.ToDateTime(TimeOnly.MinValue), false,
+                    first.OwnerName,
+                    animals,
+                    "Slaughter", g.Sum(x => x.RatePerHead * x.NumberOfHeads), first.ORNumber, "Paid");
+            }).ToList();
     }
 
     private async Task<List<TransactionFeedDto>> TripRowsAsync(DateOnly? onDate, int limit, CancellationToken ct)

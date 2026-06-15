@@ -176,13 +176,25 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .Select(d => new RecentRow(d.ORNumber ?? "", d.Occupant ?? "", d.Code,
                 d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo, d.CollectorId, d.CreatedBy, At: d.At)));
 
-        recentRows.AddRange((await context.SlaughterTransactions
+        // One slaughter receipt (OR) can cover several animal-type line-items, each stored as its
+        // own row. Collapse them into a single feed entry showing the receipt's total amount.
+        var slhRows = await context.SlaughterTransactions
             .AsNoTracking()
             .OrderByDescending(s => s.UpdatedAt ?? s.CreatedAt)
-            .Take(recentTake)
-            .Select(s => new { s.ORNumber, s.OwnerName, Amount = s.RatePerHead * s.NumberOfHeads, s.CollectorId, s.CreatedBy, At = s.UpdatedAt ?? s.CreatedAt })
-            .ToListAsync(ct))
-            .Select(s => new RecentRow(s.ORNumber ?? "", s.OwnerName, FacilityCode.SLH, s.Amount, s.CollectorId, s.CreatedBy, s.At)));
+            .Take(recentTake * 3)
+            .Select(s => new { s.ORNumber, s.OwnerName, s.TransactionDate, Amount = s.RatePerHead * s.NumberOfHeads, s.CollectorId, s.CreatedBy, At = s.UpdatedAt ?? s.CreatedAt })
+            .ToListAsync(ct);
+
+        recentRows.AddRange(slhRows
+            .GroupBy(s => new { s.ORNumber, s.OwnerName, s.TransactionDate })
+            .Select(g => new RecentRow(
+                g.Key.ORNumber ?? "",
+                g.Key.OwnerName,
+                FacilityCode.SLH,
+                g.Sum(x => x.Amount),
+                g.First().CollectorId,
+                g.First().CreatedBy,
+                g.Max(x => x.At))));
 
         recentRows.AddRange((await context.TrmTrips
             .AsNoTracking()
