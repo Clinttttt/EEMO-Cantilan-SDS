@@ -8,9 +8,11 @@ namespace EEMOCantilanSDS.Api.Middleware
     public class ExceptionHandlingMIddleware
     {
         private readonly RequestDelegate _next;
-        public ExceptionHandlingMIddleware(RequestDelegate next)
+        private readonly ILogger<ExceptionHandlingMIddleware> _logger;
+        public ExceptionHandlingMIddleware(RequestDelegate next, ILogger<ExceptionHandlingMIddleware> logger)
         {
             _next = next;
+            _logger = logger;
         }
         public async Task InvokeAsync(HttpContext context)
         {
@@ -49,8 +51,14 @@ namespace EEMOCantilanSDS.Api.Middleware
             };
             return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
         }
-        public static Task HandlingException(HttpContext context, Exception exception)
+        public Task HandlingException(HttpContext context, Exception exception)
         {
+            // Log the real exception (with stack trace) server-side for diagnosis.
+            // Never expose internal exception details to the client in a government system.
+            var traceId = context.TraceIdentifier;
+            _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}. TraceId: {TraceId}",
+                context.Request?.Method, context.Request?.Path.Value, traceId);
+
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             var response = new
@@ -59,9 +67,15 @@ namespace EEMOCantilanSDS.Api.Middleware
                 message = "An unexpected error occurred.",
                 title = "Internal Server Error",
                 status = 500,
-                error = exception.Message
+                // Generic, non-sensitive message. The traceId lets support correlate with server logs.
+                error = "An unexpected error occurred. Please try again, and contact support with the reference below if it persists.",
+                traceId
             };
-            return context.Response.WriteAsync(JsonSerializer.Serialize(response));
+            var options = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            return context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
         }
     }
 

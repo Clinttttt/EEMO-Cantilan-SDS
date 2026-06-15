@@ -27,6 +27,7 @@
     <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
     <ProjectReference Include="..\EEMOCantilanSDS.Domain\EEMOCantilanSDS.Domain.csproj" />
     <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
+    <ProjectReference Include="..\EEMOCantilanSDS.Api\EEMOCantilanSDS.Api.csproj" />
   </ItemGroup>
 
 </Project>
