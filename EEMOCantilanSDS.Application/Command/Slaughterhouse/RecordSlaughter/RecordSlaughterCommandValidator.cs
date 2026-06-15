@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
 
@@ -5,7 +6,7 @@ namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 
 public class RecordSlaughterCommandValidator : AbstractValidator<RecordSlaughterCommand>
 {
-    public RecordSlaughterCommandValidator()
+    public RecordSlaughterCommandValidator(ISlaughterRepository slaughterRepository)
     {
         RuleFor(x => x.OwnerName)
             .NotEmpty().WithMessage("Owner name is required.")
@@ -14,12 +15,17 @@ public class RecordSlaughterCommandValidator : AbstractValidator<RecordSlaughter
         RuleFor(x => x.TransactionDate)
             .NotEmpty().WithMessage("Transaction date is required.");
 
-        // NOTE: OR uniqueness is intentionally NOT enforced for slaughter transactions.
-        // A single official receipt (OR) covers a customer's whole visit, which is recorded
-        // as one row per animal type — so the same OR legitimately repeats across SLH rows.
+        // OR uniqueness for SLH is receipt-aware: the same OR may repeat across the animal-type
+        // lines of ONE receipt (same owner + same date), but may not be reused by a different
+        // owner/date or by any other module.
         RuleFor(x => x.ORNumber)
             .NotEmpty().WithMessage("OR number is required.")
-            .MaximumLength(50);
+            .MaximumLength(50)
+            .MustAsync(async (command, orNumber, ct) =>
+                await slaughterRepository.IsORNumberAvailableForReceiptAsync(
+                    orNumber, command.OwnerName, command.TransactionDate, ct))
+            .WithMessage("OR number already belongs to a different transaction.")
+            .When(x => !string.IsNullOrWhiteSpace(x.ORNumber));
 
         RuleFor(x => x.AnimalType)
             .IsInEnum().WithMessage("Invalid animal type.");

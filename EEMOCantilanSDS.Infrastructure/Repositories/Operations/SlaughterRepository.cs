@@ -301,6 +301,22 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
         return !existsInTrm;
     }
 
+    public async Task<bool> IsORNumberAvailableForReceiptAsync(string orNumber, string ownerName, DateOnly transactionDate, CancellationToken ct = default)
+    {
+        // OR numbers are global across modules — an OR used elsewhere can never be reused at SLH.
+        if (await context.PaymentRecords.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
+        if (await context.DailyCollections.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
+        if (await context.TpmAttendances.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
+        if (await context.TrmTrips.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
+
+        // Within SLH the same OR may repeat only inside one receipt (same owner + same date).
+        // Reject if it already belongs to a different owner or a different transaction date.
+        var usedByDifferentReceipt = await context.SlaughterTransactions
+            .AnyAsync(x => x.ORNumber == orNumber
+                        && (x.OwnerName != ownerName || x.TransactionDate != transactionDate), ct);
+        return !usedByDifferentReceipt;
+    }
+
     public async Task<IReadOnlyList<SlaughterTransaction>> GetTransactionsByOwnerDateORAsync(string ownerName, DateOnly date, string orNumber, CancellationToken ct = default)
         => await context.SlaughterTransactions
             .Where(x => x.OwnerName == ownerName && x.TransactionDate == date && x.ORNumber == orNumber)
