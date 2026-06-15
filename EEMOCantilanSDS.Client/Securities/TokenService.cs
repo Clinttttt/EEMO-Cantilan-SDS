@@ -10,4 +10,10 @@ public class TokenService
 
     public void SetRefreshToken(string refreshToken) => _refreshToken = refreshToken;
     public string? GetRefreshToken() => _refreshToken;
+
+    public void Clear()
+    {
+        _accessToken = null;
+        _refreshToken = null;
+    }
 }

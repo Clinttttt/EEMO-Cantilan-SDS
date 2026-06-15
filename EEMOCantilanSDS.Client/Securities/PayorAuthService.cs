@@ -8,7 +8,7 @@ namespace EEMOCantilanSDS.Client.Securities;
 
 /// <summary>Client-side payor auth: posts credentials to the payor cookie-proxy, then refreshes
 /// the Blazor auth state. Mirrors <see cref="AuthService"/> but for the /payor area.</summary>
-public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthStateProvider authStateProvider, ILogger<PayorAuthService> logger)
+public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthStateProvider authStateProvider, TokenService tokenService, ILogger<PayorAuthService> logger)
 {
     public async Task<(bool Ok, string? Error)> ActivateWithErrorAsync(ActivatePayorAccountCommand command)
     {
@@ -46,7 +46,11 @@ public class PayorAuthService(IJSRuntime js, NavigationManager navigation, AuthS
         {
             logger.LogError(ex, "Exception during payor logout");
         }
-        navigation.NavigateTo("/payor/login", forceLoad: true);
+        finally
+        {
+            tokenService.Clear();
+            navigation.NavigateTo("/payor/login", forceLoad: true);
+        }
     }
 
     private async Task<string?> PostCookieAsync<T>(string url, T payload)

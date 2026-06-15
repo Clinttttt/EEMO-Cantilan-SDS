@@ -1,11 +1,15 @@
-using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using System.Text.Json;
 
 namespace EEMOCantilanSDS.Client.Securities;
 
-public class AuthService(IJSRuntime js, NavigationManager navigation, AuthStateProvider authStateProvider, ILogger<AuthService> logger)
+public class AuthService(
+    IJSRuntime js,
+    NavigationManager navigation,
+    AuthStateProvider authStateProvider,
+    TokenService tokenService,
+    ILogger<AuthService> logger)
 {
     public async Task<bool> LoginAsync(string username, string password)
     {
@@ -13,10 +17,10 @@ public class AuthService(IJSRuntime js, NavigationManager navigation, AuthStateP
         {
             var loginData = new { username, password };
             var json = JsonSerializer.Serialize(loginData);
-            
-            var success = await js.InvokeAsync<bool>("loginWithCookies", "/api/authproxy/login", json);
-            
-            if (!success)
+
+            // loginWithCookies returns null on success, or an error message string on failure.
+            var error = await js.InvokeAsync<string?>("loginWithCookies", "/api/authproxy/login", json);
+            if (error is not null)
             {
                 logger.LogWarning("Login failed for user: {Username}", username);
                 return false;
@@ -38,13 +42,18 @@ public class AuthService(IJSRuntime js, NavigationManager navigation, AuthStateP
         try
         {
             await js.InvokeVoidAsync("fetch", "/api/authproxy/logout", new { method = "POST" });
-            await authStateProvider.MarkUserAsLoggedOut();
-            navigation.NavigateTo("/login");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Exception during logout");
-            throw;
+        }
+        finally
+        {
+            // Always complete the local logout even if the server call failed: drop the in-memory
+            // tokens and force a full reload so the circuit (and its TokenService) is torn down.
+            tokenService.Clear();
+            await authStateProvider.MarkUserAsLoggedOut();
+            navigation.NavigateTo("/login", forceLoad: true);
         }
     }
 }
