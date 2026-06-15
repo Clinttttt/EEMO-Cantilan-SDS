@@ -2,7 +2,10 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 
 namespace EEMOCantilanSDS.Client.Securities;
 
-public class TokenCircuitHandler(IHttpContextAccessor httpContextAccessor, TokenService tokenService) : CircuitHandler
+public class TokenCircuitHandler(
+    IHttpContextAccessor httpContextAccessor,
+    TokenService tokenService,
+    AuthStateProvider authStateProvider) : CircuitHandler
 {
     public override Task OnConnectionUpAsync(Circuit circuit, CancellationToken cancellationToken)
     {
@@ -20,6 +23,11 @@ public class TokenCircuitHandler(IHttpContextAccessor httpContextAccessor, Token
             {
                 tokenService.SetRefreshToken(refreshToken);
             }
+
+            // Pin the authenticated principal for this circuit so the auth state no longer depends on
+            // live IHttpContextAccessor reads during interactive execution (which can surface another
+            // user under concurrency). Captured here from the connection's own authenticated context.
+            authStateProvider.CaptureUser(httpContext.User);
         }
         return base.OnConnectionUpAsync(circuit, cancellationToken);
     }
