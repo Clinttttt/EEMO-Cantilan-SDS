@@ -25,13 +25,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                 filter: "\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
             migrationBuilder.CreateIndex(
-                name: "IX_SlaughterTransactions_ORNumber",
-                table: "SlaughterTransactions",
-                column: "ORNumber",
-                unique: true,
-                filter: "\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_PaymentRecords_ORNumber",
                 table: "PaymentRecords",
                 column: "ORNumber",
@@ -56,10 +49,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
             migrationBuilder.DropIndex(
                 name: "IX_TpmAttendances_ORNumber",
                 table: "TpmAttendances");
-
-            migrationBuilder.DropIndex(
-                name: "IX_SlaughterTransactions_ORNumber",
-                table: "SlaughterTransactions");
 
             migrationBuilder.DropIndex(
                 name: "IX_PaymentRecords_ORNumber",

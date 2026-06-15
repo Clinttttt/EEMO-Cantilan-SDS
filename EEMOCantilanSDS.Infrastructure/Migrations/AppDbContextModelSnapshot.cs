@@ -666,10 +666,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasIndex("FacilityId");
 
-                    b.HasIndex("ORNumber")
-                        .IsUnique()
-                        .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
-
                     b.ToTable("SlaughterTransactions", (string)null);
                 });
 

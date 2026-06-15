@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EEMOCantilanSDS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260615022659_AddOrNumberUniqueIndexes")]
+    [Migration("20260615030134_AddOrNumberUniqueIndexes")]
     partial class AddOrNumberUniqueIndexes
     {
         /// <inheritdoc />
@@ -668,10 +668,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("FacilityId");
-
-                    b.HasIndex("ORNumber")
-                        .IsUnique()
-                        .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
                     b.ToTable("SlaughterTransactions", (string)null);
                 });

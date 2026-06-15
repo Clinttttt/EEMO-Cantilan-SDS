@@ -45,11 +45,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s=> s.ORNumber)
                 .HasMaxLength(50);
 
-            // Same-table backstop for OR uniqueness (concurrency safety net).
-            // Global cross-table uniqueness is enforced in the application layer.
-            builder.HasIndex(s => s.ORNumber)
-                .IsUnique()
-                .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
+            // NOTE: no unique index on ORNumber here. One official receipt covers a customer's
+            // whole visit, recorded as one row per animal type, so the OR repeats across rows.
 
             builder.Property(s => s.TransactionDate);
 
