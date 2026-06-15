@@ -71,6 +71,12 @@ public class TpmAttendanceConfiguration : IEntityTypeConfiguration<TpmAttendance
         builder.HasIndex(a => new { a.VendorId, a.MarketDate })
             .IsUnique();
 
+        // Same-table backstop for OR uniqueness (concurrency safety net).
+        // Global cross-table uniqueness is enforced in the application layer.
+        builder.HasIndex(a => a.ORNumber)
+            .IsUnique()
+            .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
+
         // Navigation
         builder.HasOne(a => a.Vendor)
             .WithMany(v => v.Attendances)

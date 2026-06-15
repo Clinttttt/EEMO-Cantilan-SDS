@@ -44,6 +44,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.HasIndex(x => new { x.StallId, x.CollectionDate }).IsUnique();
 
+            // Same-table backstop for OR uniqueness (concurrency safety net).
+            // Global cross-table uniqueness is enforced in the application layer.
+            builder.HasIndex(x => x.ORNumber)
+                .IsUnique()
+                .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
+
             builder.HasOne(s => s.Stall)
                 .WithMany()
                 .HasForeignKey(s => s.StallId)

@@ -8,6 +8,7 @@ namespace EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollec
 
 public class RecordDailyCollectionCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
+    IPaymentRepository paymentRepository,
     IStallRepository stallRepository,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
@@ -34,6 +35,7 @@ public class RecordDailyCollectionCommandHandler(
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "System";
+        var orNumber = request.ORNumber?.Trim();
 
         var existing = await dailyCollectionRepository.GetByStallAndDateAsync(request.StallId, request.CollectionDate, ct);
 
@@ -41,8 +43,16 @@ public class RecordDailyCollectionCommandHandler(
         {
             if (request.IsPaid)
             {
+                if (!string.IsNullOrWhiteSpace(orNumber))
+                {
+                    // Permit re-marking with the OR already on this day; reject a new OR used elsewhere.
+                    var alreadyOnThisRecord = string.Equals(existing.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
+                    if (!alreadyOnThisRecord && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                        return Result<bool>.Failure("OR number already exists.", 409);
+                }
+
                 existing.MarkPaid(
-                    orNumber: request.ORNumber?.Trim() ?? string.Empty,
+                    orNumber: orNumber ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
                     updatedBy: recordedBy);
@@ -61,8 +71,11 @@ public class RecordDailyCollectionCommandHandler(
 
             if (request.IsPaid)
             {
+                if (!string.IsNullOrWhiteSpace(orNumber) && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                    return Result<bool>.Failure("OR number already exists.", 409);
+
                 newCollection.MarkPaid(
-                    orNumber: request.ORNumber?.Trim() ?? string.Empty,
+                    orNumber: orNumber ?? string.Empty,
                     collectorId: collectorId,
                     fishKilos: request.FishKilos,
                     updatedBy: recordedBy);

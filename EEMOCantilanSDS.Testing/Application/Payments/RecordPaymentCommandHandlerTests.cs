@@ -37,6 +37,7 @@ public class RecordPaymentCommandHandlerTests
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         paymentRepo.Setup(r => r.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((PaymentRecordDto?)null);
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         if (collector is not null)
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(c => c.Role).Returns(role);
@@ -88,5 +89,47 @@ public class RecordPaymentCommandHandlerTests
         Assert.Equal(PaymentStatus.Paid, captured!.Status);
         Assert.Equal("00123", captured.ORNumber);
         Assert.Equal(collector.Id, captured.CollectorId);
+    }
+
+    [Fact]
+    public async Task NewPayment_WithDuplicateOrNumber_ReturnsConflict()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var result = await handler.Handle(
+            new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "DUP-1"),
+            CancellationToken.None);
+
+        Assert.Equal(409, result.StatusCode);
+        paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ExistingPayment_ResavingTheSameOrNumber_IsAllowed()
+    {
+        // Careful case: partial -> full re-record keeps the OR already on the SAME record.
+        // A global uniqueness check would find that OR (it's this record) and must NOT reject it.
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+
+        var existing = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "tester");
+        existing.UpdateStatus(PaymentStatus.Partial, 1000m, null, "tester", null);
+        existing.SetOrNumber("00123", "tester");
+
+        var dtoId = Guid.NewGuid();
+        paymentRepo.Setup(r => r.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Partial, "00123", 2400m, null, null, null, 1000m, 1400m));
+        paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        // OR "exists" globally precisely because it is on this same record.
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var result = await handler.Handle(
+            new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "00123"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -34,9 +34,18 @@ public class MarkVendorPaidCommandHandler(
         var recordedBy = currentUser.Username ?? "Admin";
         if (request.IsPaid)
         {
+            var orNumber = request.ORNumber?.Trim();
+            if (!string.IsNullOrWhiteSpace(orNumber))
+            {
+                // Allow re-marking with the OR already on this attendance; reject a new OR used elsewhere.
+                var alreadyOnThisRecord = string.Equals(attendance.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
+                if (!alreadyOnThisRecord && !await tpmRepo.IsORNumberUniqueAsync(orNumber, ct))
+                    return Result<bool>.Failure("OR number already exists.", 409);
+            }
+
             attendance.MarkPaid(currentUser.CollectorId, updatedBy: recordedBy);
-            if (!string.IsNullOrWhiteSpace(request.ORNumber))
-                attendance.SetORNumber(request.ORNumber.Trim(), recordedBy);
+            if (!string.IsNullOrWhiteSpace(orNumber))
+                attendance.SetORNumber(orNumber, recordedBy);
         }
         else
         {

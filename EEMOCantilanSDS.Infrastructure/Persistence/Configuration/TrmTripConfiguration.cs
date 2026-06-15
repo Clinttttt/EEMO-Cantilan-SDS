@@ -42,6 +42,12 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
         builder.Property(t => t.ORNumber)
             .HasColumnType("character varying(50)");
 
+        // Same-table backstop for OR uniqueness (concurrency safety net).
+        // Global cross-table uniqueness is enforced in the application layer.
+        builder.HasIndex(t => t.ORNumber)
+            .IsUnique()
+            .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
+
         builder.Property(t => t.RecordedAt)
             .IsRequired()
             .HasColumnType("timestamp with time zone");
