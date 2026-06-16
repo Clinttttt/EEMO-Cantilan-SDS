@@ -43,7 +43,9 @@ public record MonthEndPayorDto(
     string Status,
     decimal AmountPaid,
     decimal Balance,
-    string? ORNumber
+    string? ORNumber,
+    // NPM is billed daily (not monthly); the report shows the daily rate for that facility.
+    decimal DailyRate = 0m
 );
 
 /// <summary>
@@ -56,7 +58,9 @@ public record MonthEndTxnPayorDto(
     int RecordCount,
     decimal TotalCollected,
     IReadOnlyList<MonthEndTxnRecordDto> Records,
-    string? Summary = null
+    string? Summary = null,
+    // Domain quantity for the facility's context column: SLH = total heads, TRM = trips, TPM = Fridays.
+    int Quantity = 0
 );
 
 public record MonthEndTxnRecordDto(

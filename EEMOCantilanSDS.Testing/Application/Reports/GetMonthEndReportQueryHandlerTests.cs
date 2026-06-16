@@ -128,11 +128,20 @@ public class GetMonthEndReportQueryHandlerTests
         Assert.Equal(500m, juan.TotalCollected);
         Assert.Equal(2, juan.Records.Count);
         Assert.Equal("2 Hog", juan.Summary);                            // animal-type summary
+        Assert.Equal(2, juan.Quantity);                                 // total heads (1 per hog)
         Assert.Equal(865m, slh.Collected);                             // reconciles to the sum of its payors
 
-        // TPM excludes the unpaid attendance.
+        // TRM: driver's route + trip count surface as the context columns.
+        var trm = report.Facilities.Single(f => f.Code == FacilityCode.TRM);
+        var diego = trm.TransactionPayors.Single(p => p.Payor == "Diego");
+        Assert.Equal("Cantilan-Surigao", diego.Summary);                // route(s)
+        Assert.Equal(2, diego.Quantity);                                // trips
+
+        // TPM excludes the unpaid attendance; goods + Fridays surface as context.
         var tpm = report.Facilities.Single(f => f.Code == FacilityCode.TPM);
-        Assert.Single(tpm.TransactionPayors);
+        var nena = Assert.Single(tpm.TransactionPayors);
+        Assert.Equal("Vegetables", nena.Summary);                       // goods
+        Assert.Equal(1, nena.Quantity);                                 // Fridays attended
         Assert.Equal(100m, tpm.Collected);
     }
 

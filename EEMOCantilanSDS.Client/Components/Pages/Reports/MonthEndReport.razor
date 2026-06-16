@@ -113,15 +113,16 @@
 
                     @if (f.IsRental && f.Payors.Count > 0)
                     {
+                        var isDaily = f.Code == FacilityCode.NPM;
                         <table class="me-table">
                             <thead>
                                 <tr>
                                     <th>Stall</th>
-                                    <th>Payor</th>
-                                    <th>Rate</th>
+                                    <th>@(isDaily ? "Vendor" : "Payor")</th>
+                                    <th class="me-num">@(isDaily ? "Daily Rate" : "Monthly Rate")</th>
                                     <th>Status</th>
-                                    <th>Amount Paid</th>
-                                    <th>Balance</th>
+                                    <th class="me-num">Collected</th>
+                                    <th class="me-num">Balance</th>
                                     <th>OR No.</th>
                                 </tr>
                             </thead>
@@ -131,10 +132,10 @@
                                     <tr class="@RowClass(p.Status)">
                                         <td>@p.StallNo</td>
                                         <td>@p.Payor</td>
-                                        <td>@Money(p.MonthlyRate)</td>
+                                        <td class="me-num">@Money(isDaily ? p.DailyRate : p.MonthlyRate)</td>
                                         <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
-                                        <td>@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
-                                        <td class="@(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
+                                        <td class="me-num">@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
+                                        <td class="me-num @(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
                                         <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
                                     </tr>
                                 }
@@ -142,8 +143,8 @@
                             <tfoot>
                                 <tr>
                                     <td colspan="4"><strong>Subtotal — @f.Name</strong></td>
-                                    <td><strong>@Money(f.Collected)</strong></td>
-                                    <td class="@(f.Outstanding > 0 ? "me-red" : "")"><strong>@(f.Outstanding > 0 ? Money(f.Outstanding) : "—")</strong></td>
+                                    <td class="me-num"><strong>@Money(f.Collected)</strong></td>
+                                    <td class="me-num @(f.Outstanding > 0 ? "me-red" : "")"><strong>@(f.Outstanding > 0 ? Money(f.Outstanding) : "—")</strong></td>
                                     <td></td>
                                 </tr>
                             </tfoot>
@@ -151,12 +152,24 @@
                     }
                     else if (!f.IsRental && f.TransactionPayors.Count > 0)
                     {
+                        // One table shape, context-labelled per facility:
+                        //   SLH → Owner | Animal Types | Heads | Total
+                        //   TRM → Driver | Route(s)     | Trips | Total
+                        //   TPM → Vendor | Goods        | Fridays | Total
+                        var (payorCol, detailCol, qtyCol) = f.Code switch
+                        {
+                            FacilityCode.SLH => ("Owner", "Animal Types", "Heads"),
+                            FacilityCode.TRM => ("Driver", "Route(s)", "Trips"),
+                            FacilityCode.TPM => ("Vendor", "Goods", "Fridays"),
+                            _ => ("Payor", "Detail", "Records")
+                        };
                         <table class="me-table">
                             <thead>
                                 <tr>
-                                    <th>Payor</th>
-                                    <th>Records</th>
-                                    <th>Total Collected</th>
+                                    <th>@payorCol</th>
+                                    <th>@detailCol</th>
+                                    <th class="me-num">@qtyCol</th>
+                                    <th class="me-num">Total Collected</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -165,6 +178,7 @@
                                     var key = $"{f.Code}|{tp.Payor}";
                                     var expandable = tp.RecordCount > 1;
                                     var isOpen = _expanded.Contains(key);
+                                    var only = tp.Records.Count == 1 ? tp.Records[0] : null;
                                     <tr class="me-txn-row @(expandable ? "me-expandable" : "")" @onclick="() => Toggle(key, expandable)">
                                         <td>
                                             @if (expandable)
@@ -172,26 +186,22 @@
                                                 <span class="me-caret @(isOpen ? "open" : "")">&#9654;</span>
                                             }
                                             <span class="me-txn-payor">@tp.Payor</span>
-                                            @if (expandable && !string.IsNullOrWhiteSpace(tp.Summary))
+                                            @if (only is not null)
                                             {
-                                                <span class="me-txn-inline">· @tp.Summary</span>
-                                            }
-                                            else if (!expandable && tp.Records.Count == 1)
-                                            {
-                                                <span class="me-txn-inline">@tp.Records[0].Date · @tp.Records[0].Description@(string.IsNullOrWhiteSpace(tp.Records[0].ORNumber) ? "" : " · OR " + tp.Records[0].ORNumber)</span>
+                                                <span class="me-txn-inline">· @only.Date@(string.IsNullOrWhiteSpace(only.ORNumber) ? "" : " · OR " + only.ORNumber)</span>
                                             }
                                         </td>
-                                        <td>@tp.RecordCount</td>
-                                        <td>@Money(tp.TotalCollected)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(tp.Summary) ? "—" : tp.Summary)</td>
+                                        <td class="me-num">@tp.Quantity</td>
+                                        <td class="me-num">@Money(tp.TotalCollected)</td>
                                     </tr>
                                     @if (expandable && isOpen)
                                     {
                                         @foreach (var r in tp.Records)
                                         {
                                             <tr class="me-txn-detail">
-                                                <td>@r.Date · @r.Description@(string.IsNullOrWhiteSpace(r.ORNumber) ? "" : " · OR " + r.ORNumber)</td>
-                                                <td></td>
-                                                <td>@Money(r.Amount)</td>
+                                                <td colspan="3">@r.Date · @r.Description@(string.IsNullOrWhiteSpace(r.ORNumber) ? "" : " · OR " + r.ORNumber)</td>
+                                                <td class="me-num">@Money(r.Amount)</td>
                                             </tr>
                                         }
                                     }
@@ -199,8 +209,8 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td colspan="2"><strong>Subtotal — @f.Name</strong></td>
-                                    <td><strong>@Money(f.Collected)</strong></td>
+                                    <td colspan="3"><strong>Subtotal — @f.Name</strong></td>
+                                    <td class="me-num"><strong>@Money(f.Collected)</strong></td>
                                 </tr>
                             </tfoot>
                         </table>

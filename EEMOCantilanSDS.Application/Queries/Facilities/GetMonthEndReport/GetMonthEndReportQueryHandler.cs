@@ -40,7 +40,7 @@ public class GetMonthEndReportQueryHandler(
 
             var payors = report.StallCompliance
                 .Select(s => new MonthEndPayorDto(
-                    s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber))
+                    s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate))
                 .ToList();
 
             facilities.Add(new MonthEndFacilityDto(
@@ -69,7 +69,7 @@ public class GetMonthEndReportQueryHandler(
                 t.RecordedAt.ToString("MMM d", CultureInfo.InvariantCulture),
                 $"Trip #{t.TripNumber}{(string.IsNullOrWhiteSpace(t.Route) ? "" : " · " + t.Route)}",
                 t.Fee,
-                t.ORNumber)))));
+                t.ORNumber), (string?)t.Route))));
 
         var attendance = await tpmRepository.GetMonthAttendanceAsync(request.Year, request.Month, ct);
         facilities.Add(BuildTransactionFacility(FacilityCode.TPM, attendance
@@ -79,7 +79,7 @@ public class GetMonthEndReportQueryHandler(
                 a.MarketDate.ToString("MMM d", CultureInfo.InvariantCulture),
                 string.IsNullOrWhiteSpace(a.Goods) ? "Friday market" : $"Friday market · {a.Goods}",
                 a.Fee,
-                a.ORNumber)))));
+                a.ORNumber), (string?)a.Goods))));
 
         var ordered = facilities.OrderBy(f => f.Code).ToList();
 
@@ -138,7 +138,8 @@ public class GetMonthEndReportQueryHandler(
                     RecordCount: g.Count(),
                     TotalCollected: g.Sum(x => x.TotalAmount),
                     Records: records,
-                    Summary: summary);
+                    Summary: summary,
+                    Quantity: g.Sum(x => x.NumberOfHeads));   // total heads slaughtered
             })
             .OrderByDescending(p => p.TotalCollected)
             .ThenBy(p => p.Payor)
@@ -162,7 +163,7 @@ public class GetMonthEndReportQueryHandler(
     }
 
     private static MonthEndFacilityDto BuildTransactionFacility(
-        FacilityCode code, IEnumerable<(string Payor, MonthEndTxnRecordDto Record)> rows)
+        FacilityCode code, IEnumerable<(string Payor, MonthEndTxnRecordDto Record, string? Detail)> rows)
     {
         // GroupBy preserves source order, so the date-sorted input keeps each payor's records chronological.
         var groups = rows
@@ -171,7 +172,9 @@ public class GetMonthEndReportQueryHandler(
                 Payor: g.Key,
                 RecordCount: g.Count(),
                 TotalCollected: g.Sum(x => x.Record.Amount),
-                Records: g.Select(x => x.Record).ToList()))
+                Records: g.Select(x => x.Record).ToList(),
+                Summary: DistinctDetails(g.Select(x => x.Detail)),   // TRM route(s) / TPM goods
+                Quantity: g.Count()))                                // TRM trips / TPM Fridays
             .OrderByDescending(p => p.TotalCollected)
             .ThenBy(p => p.Payor)
             .ToList();
@@ -195,6 +198,17 @@ public class GetMonthEndReportQueryHandler(
 
     private static string NameOrUnknown(string? name) =>
         string.IsNullOrWhiteSpace(name) ? "Unspecified" : name;
+
+    /// <summary>Distinct, non-empty detail labels for a payor (e.g. TPM goods, TRM route(s)).</summary>
+    private static string? DistinctDetails(IEnumerable<string?> details)
+    {
+        var distinct = details
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => d!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return distinct.Count == 0 ? null : string.Join(" · ", distinct);
+    }
 
     private static string AnimalLabel(SlaughterTransactionDto t) =>
         !string.IsNullOrWhiteSpace(t.CustomAnimalType) ? t.CustomAnimalType! : t.AnimalType.ToString();
