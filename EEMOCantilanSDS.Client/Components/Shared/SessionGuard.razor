@@ -1,0 +1,36 @@
+@implements IDisposable
+@using EEMOCantilanSDS.Client.Securities
+@inject SessionExpiredNotifier Notifier
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+@* No visible UI. Listens for an API-rejected token refresh (session truly over) and signs the user
+   out cleanly, redirecting to the login page instead of leaving a broken, data-less page that loops
+   401s. Place one in each authenticated layout (admin / payor) with the matching paths. *@
+
+@code {
+    [Parameter] public string LoginPath { get; set; } = "/login";
+    [Parameter] public string LogoutEndpoint { get; set; } = "/api/authproxy/logout";
+
+    private bool _redirecting;
+
+    protected override void OnInitialized() => Notifier.SessionExpired += OnSessionExpired;
+
+    private void OnSessionExpired()
+    {
+        // The notifier is raised from a background HTTP continuation; marshal to the circuit dispatcher.
+        _ = InvokeAsync(async () =>
+        {
+            if (_redirecting) return;
+            _redirecting = true;
+
+            // Best-effort: clear the auth cookie server-side so the reloaded page is anonymous.
+            try { await JS.InvokeVoidAsync("fetch", LogoutEndpoint, new { method = "POST" }); }
+            catch { /* redirect regardless */ }
+
+            Nav.NavigateTo($"{LoginPath}?expired=1", forceLoad: true);
+        });
+    }
+
+    public void Dispose() => Notifier.SessionExpired -= OnSessionExpired;
+}

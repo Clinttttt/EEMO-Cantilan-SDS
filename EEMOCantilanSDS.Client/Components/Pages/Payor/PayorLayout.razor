@@ -35,6 +35,11 @@
 
     @if (ShowNav)
     {
+        <EEMOCantilanSDS.Client.Components.Shared.SessionGuard LoginPath="/payor/login" LogoutEndpoint="/api/payorauthproxy/logout" />
+    }
+
+    @if (ShowNav)
+    {
         <nav class="pp-tabbar">
             <div class="pp-tabbar-inner">
                 <NavLink class="pp-tab" href="/payor" Match="NavLinkMatch.All">

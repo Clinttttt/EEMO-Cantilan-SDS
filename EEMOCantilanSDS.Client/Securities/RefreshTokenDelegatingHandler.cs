@@ -45,11 +45,20 @@ public class RefreshTokenDelegatingHandler(
                 refreshEndpoint, new { RefreshToken = refreshToken }, cancellationToken);
 
             if (!refreshResponse.IsSuccessStatusCode)
+            {
+                // Only a REJECTED refresh token (auth failure) means the session is over. Transient
+                // errors (5xx/network) must not force a logout — fail this request and let a retry recover.
+                if (refreshResponse.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
+                    NotifySessionExpired();
                 return response;
+            }
 
             var tokens = await refreshResponse.Content.ReadFromJsonAsync<TokenResponseDto>(cancellationToken: cancellationToken);
             if (tokens is null || string.IsNullOrWhiteSpace(tokens.AccessToken))
+            {
+                NotifySessionExpired();
                 return response;
+            }
 
             // No rotation: the refresh token is unchanged, only the access token is renewed.
             // Write it back to the per-circuit TokenService so the retry's authorization handler
@@ -64,6 +73,11 @@ public class RefreshTokenDelegatingHandler(
             _refreshSemaphore.Release();
         }
     }
+
+    // Resolve the circuit's notifier (handlers run in a separate scope, so reach it via the accessor)
+    // and signal once. No-op outside a circuit (e.g. static prerender).
+    private void NotifySessionExpired() =>
+        circuitServices.Services?.GetService<SessionExpiredNotifier>()?.NotifyExpired();
 
     private static async Task<HttpRequestMessage> CloneAsync(HttpRequestMessage request)
     {

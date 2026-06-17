@@ -40,6 +40,7 @@ namespace EEMOCantilanSDS.Client
             
             service.AddScoped<TokenService>();
             service.AddScoped<CircuitServicesAccessor>();
+            service.AddScoped<SessionExpiredNotifier>();
             service.AddScoped<CircuitHandler, TokenCircuitHandler>();
             service.AddScoped<CircuitHandler, ServicesAccessorCircuitHandler>();
             service.AddScoped<AuthService>();
