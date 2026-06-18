@@ -111,12 +111,17 @@
                                  OnEditClick="OpenEdit" />
         </div>
 
-<FacilityPaymentModal TStall="TStall"
-                      Facility="@FacilityShortCode"
-                      Stall="PaymentStall"
-                      Show="ShowPayment"
-                      OnClose="ClosePayment"
-                      OnSave="HandleSavePayment" />
+<CollectionReceiptModal Show="ShowPayment"
+                        FacilityName="@FacilityName"
+                        PeriodLabel="@DateTime.Now.ToString("MMMM yyyy")"
+                        StallNo="@(PaymentStall is null ? string.Empty : StallNoSelector(PaymentStall))"
+                        PayorName="@(PaymentStall is null ? string.Empty : ActualOccupantSelector(PaymentStall))"
+                        OrNumber="@(PaymentStall is null ? string.Empty : GetStallOr(PaymentStall))"
+                        Lines="MonthlyReceiptLines"
+                        TotalLabel="Total Paid"
+                        TotalValue="@($"₱{ReceiptPaidAmount:N2}")"
+                        NoteText="This acknowledges receipt of the monthly rental payment stated above. Keep for your records."
+                        OnClose="ClosePayment" />
 
 <PaymentHistoryModal TStall="TStall"
                      Show="ShowHistory"
@@ -307,6 +312,39 @@
             ShowPayment = false;
             PaymentStall = null;
         }
+    }
+
+    // The amount actually paid this month (Paid → full rent, Partial → partial, else 0).
+    private decimal ReceiptPaidAmount => PaymentStall is null ? 0m
+        : IsPaidSelector(PaymentStall) ? MonthlyRateSelector(PaymentStall)
+        : IsPartialSelector(PaymentStall) ? PartialAmountSelector(PaymentStall)
+        : 0m;
+
+    // Monthly-rental lines for the receipt (rate + remaining balance).
+    private IReadOnlyList<CollectionReceiptModal.ReceiptLine> MonthlyReceiptLines
+    {
+        get
+        {
+            if (PaymentStall is null) return Array.Empty<CollectionReceiptModal.ReceiptLine>();
+            var rate = MonthlyRateSelector(PaymentStall);
+            var balance = Math.Max(0m, rate - ReceiptPaidAmount);
+            return new List<CollectionReceiptModal.ReceiptLine>
+            {
+                new("Monthly Rental", $"₱{rate:N2}"),
+                new("Balance Due", $"₱{balance:N2}")
+            };
+        }
+    }
+
+    // Each facility's stall model exposes an OR property (OrNumber/ORNumber) — read it generically.
+    private static string GetStallOr(TStall stall)
+    {
+        var prop = stall?.GetType().GetProperty(
+            "OrNumber",
+            System.Reflection.BindingFlags.Public
+            | System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.IgnoreCase);
+        return prop?.GetValue(stall) as string ?? string.Empty;
     }
 
     private void OpenHistory(TStall s)

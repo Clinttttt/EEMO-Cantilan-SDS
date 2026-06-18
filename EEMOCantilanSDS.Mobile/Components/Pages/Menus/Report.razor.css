@@ -1,13 +1,13 @@
 /*
- * ─────────────────────────────────────────────
- *  Reports.razor.css
- *  Page: Reports.razor only
- *  Only the Per Payee view styles — everything
- *  else is already in eemo.css section 17
- * ─────────────────────────────────────────────
+ * Reports.razor.css
+ * Page-local refinements for the real collector-scoped reports screen.
  */
 
-/* ── Per Payee Row ── */
+.period-arrow.disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 .payee-row {
     background: var(--bg-card);
     border-radius: 12px;
@@ -22,12 +22,11 @@
     transition: all 0.18s ease;
 }
 
-    .payee-row:active {
-        background: var(--bg-page);
-        transform: scale(0.985);
-    }
+.payee-row:active {
+    background: var(--bg-page);
+    transform: scale(0.985);
+}
 
-/* left status dot — colored bar */
 .payee-status-dot {
     width: 3px;
     align-self: stretch;
@@ -35,22 +34,21 @@
     flex-shrink: 0;
 }
 
-    .status-consistent .payee-status-dot,
-    .payee-status-dot.status-consistent {
-        background: var(--paid-green);
-    }
+.status-consistent .payee-status-dot,
+.payee-status-dot.status-consistent {
+    background: var(--paid-green);
+}
 
-    .status-partial .payee-status-dot,
-    .payee-status-dot.status-partial {
-        background: #c8a84b;
-    }
+.status-partial .payee-status-dot,
+.payee-status-dot.status-partial {
+    background: #c8a84b;
+}
 
-    .status-delinquent .payee-status-dot,
-    .payee-status-dot.status-delinquent {
-        background: var(--error-red);
-    }
+.status-delinquent .payee-status-dot,
+.payee-status-dot.status-delinquent {
+    background: var(--error-red);
+}
 
-/* info section */
 .payee-info {
     flex: 1;
     min-width: 0;
@@ -71,6 +69,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 3px;
+    flex-wrap: wrap;
 }
 
 .payee-months {
@@ -78,32 +77,6 @@
     color: var(--text-muted);
 }
 
-/* month history dots — 12 months, small enough to all fit in one row */
-.payee-month-dots {
-    display: flex;
-    gap: 3px;
-    margin-top: 7px;
-    flex-wrap: nowrap;
-}
-
-.month-dot {
-    width: 14px;
-    height: 5px;
-    border-radius: 2px;
-    flex-shrink: 0;
-    transition: background 0.15s;
-}
-
-.dot-paid {
-    background: var(--paid-green);
-}
-
-.dot-unpaid {
-    background: var(--bg-icon);
-    border: 1px solid var(--border);
-}
-
-/* right column */
 .payee-amount-col {
     text-align: right;
     flex-shrink: 0;
@@ -113,16 +86,13 @@
     font-family: 'EB Garamond', serif;
     font-size: 15px;
     font-weight: 600;
-    color: var(--error-red); /* red = money owed */
+    color: var(--navy-primary);
 }
 
-    /* ₱0 due — green, no debt */
-    .payee-total.paid-total {
-        color: var(--paid-green);
-        font-size: 13px;
-    }
+.payee-total.paid-total {
+    color: var(--paid-green);
+}
 
-/* "3 mo. unpaid" sub-line */
 .payee-balance-sub {
     font-size: 9px;
     color: var(--text-muted);
@@ -130,7 +100,6 @@
     text-align: right;
 }
 
-/* last paid line */
 .payee-last-paid {
     margin-top: 5px;
 }
@@ -146,7 +115,6 @@
     color: var(--text-muted);
 }
 
-/* status label */
 .payee-status-label {
     font-size: 8px;
     font-weight: 600;
@@ -157,17 +125,17 @@
     letter-spacing: 0.3px;
 }
 
-    .payee-status-label.status-consistent {
-        background: var(--paid-green-bg);
-        color: var(--paid-green);
-    }
+.payee-status-label.status-consistent {
+    background: var(--paid-green-bg);
+    color: var(--paid-green);
+}
 
-    .payee-status-label.status-partial {
-        background: rgba(200,168,75,0.15);
-        color: #7a5c10;
-    }
+.payee-status-label.status-partial {
+    background: rgba(200,168,75,0.15);
+    color: #7a5c10;
+}
 
-    .payee-status-label.status-delinquent {
-        background: var(--error-red-bg);
-        color: var(--error-red);
-    }
+.payee-status-label.status-delinquent {
+    background: var(--error-red-bg);
+    color: var(--error-red);
+}

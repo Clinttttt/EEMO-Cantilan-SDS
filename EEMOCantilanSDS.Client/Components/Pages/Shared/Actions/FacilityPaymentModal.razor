@@ -70,7 +70,7 @@
                                    @bind:event="oninput"
                                    type="number"
                                    min="0"
-                                   max="@GetMonthlyRate(Stall)"
+                                   max="@GetPeriodBill(Stall)"
                                    step="0.01"
                                    placeholder="0.00"
                                    class="pay-input partial-input @(ShowValidation && PartialAmountInput <= 0 ? "input-error" : "")" />
@@ -79,10 +79,10 @@
                         {
                             <span class="input-error-msg">Partial amount must be greater than ₱0</span>
                         }
-                        @if (PartialAmountInput > 0 && PartialAmountInput < GetMonthlyRate(Stall))
+                        @if (PartialAmountInput > 0 && PartialAmountInput < GetPeriodBill(Stall))
                         {
                             <div class="partial-hint">
-                                Balance remaining: ₱@((GetMonthlyRate(Stall) - PartialAmountInput).ToString("N2"))
+                                Balance remaining: ₱@((GetPeriodBill(Stall) - PartialAmountInput).ToString("N2"))
                             </div>
                         }
                     </div>
@@ -162,7 +162,7 @@
                     <!-- Monthly Rental -->
                     <div class="breakdown-item breakdown-section-header">
                         <span>Monthly Rental</span>
-                        <span>₱@GetMonthlyRate(Stall).ToString("N0")</span>
+                        <span>₱@GetPeriodBill(Stall).ToString("N0")</span>
                     </div>
 
                     @if (GetIsPartial(Stall))
@@ -424,6 +424,9 @@
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
     private object? GetStallId(TStall stall) => GetPropertyValue<object>(stall, "Id");
     private decimal GetMonthlyRate(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyRate") ?? 0;
+    // The bill for THIS period. NPM stalls expose a "MonthlyExpected" (occupancy-prorated days × ₱30);
+    // monthly-rental facilities (TCC/NCC/BBQ/ICE) don't, so they fall back to the flat MonthlyRate.
+    private decimal GetPeriodBill(TStall stall) => GetPropertyValue<decimal?>(stall, "MonthlyExpected") ?? GetMonthlyRate(stall);
     private decimal GetPartialAmount(TStall stall) => GetPropertyValue<decimal?>(stall, "PartialAmount") ?? 0;
     private bool GetIsPaid(TStall stall) => GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
     private bool GetIsPartial(TStall stall) => GetPropertyValue<bool?>(stall, "IsPartial") ?? false;
@@ -464,7 +467,7 @@
     private decimal GetDisplayBalanceRemaining(TStall stall)
     {
         // Calculate balance based on the displayed partial amount
-        var monthlyRate = GetMonthlyRate(stall);
+        var monthlyRate = GetPeriodBill(stall);
         var partialAmount = GetDisplayPartialAmount(stall);
         return monthlyRate - partialAmount;
     }

@@ -10,6 +10,8 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
@@ -33,6 +35,22 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
     {
         var result = await Sender.Send(new GetCollectorMobileMenuQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpGet("records")]
+    public async Task<ActionResult<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(
+        [FromQuery] FacilityCode? facility, [FromQuery] DateOnly from, [FromQuery] DateOnly to)
+    {
+        var result = await Sender.Send(new GetCollectorRecordsQuery(facility, from, to));
+        return HandleResponse(result);
+    }
+
+    [HttpGet("reports")]
+    public async Task<ActionResult<MobileCollectorReportDto>> GetReportAsync(
+        [FromQuery] FacilityCode? facility, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetCollectorReportQuery(facility, year, month));
         return HandleResponse(result);
     }
 

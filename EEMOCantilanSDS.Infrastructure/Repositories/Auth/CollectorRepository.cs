@@ -1,7 +1,10 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -16,6 +19,569 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         return await context.CollectorUsers
             .Include(c => c.FacilityAssignments)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MobileCollectorRecordDto>> GetCollectorRecordsAsync(
+        Guid collectorId, FacilityCode? facility, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
+    {
+        // UTC window for timestamp-based sources (PaymentRecords/TrmTrips); DateOnly sources compare
+        // against the business date directly. FacilityName is filled by the handler from the canonical
+        // facility names, so a blank placeholder is fine here.
+        var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
+        var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
+
+        var all = facility is null;
+        var results = new List<MobileCollectorRecordDto>();
+
+        // ── Monthly stall rentals (TCC/NCC/BBQ/ICE) — collection event = PaidAt ──
+        if (all || facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE or FacilityCode.NPM)
+        {
+            var q = context.PaymentRecords.AsNoTracking()
+                .Where(p => p.CollectorId == collectorId && p.Status != PaymentStatus.Unpaid);
+            if (!all) q = q.Where(p => p.Stall!.Facility!.Code == facility);
+
+            var rows = await q
+                .Where(p => (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc
+                         && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
+                .Select(p => new
+                {
+                    p.ORNumber,
+                    Payor = p.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    Code = p.Stall.Facility!.Code,
+                    p.Stall.StallNo,
+                    p.Stall.Section,
+                    p.Status,
+                    p.BaseRentalAmount,
+                    p.ElecAmount,
+                    p.WaterAmount,
+                    p.FishKilos,
+                    p.PartialAmount,
+                    When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            results.AddRange(rows.Select(r =>
+            {
+                var full = r.BaseRentalAmount + (r.ElecAmount ?? 0) + (r.WaterAmount ?? 0)
+                           + ((r.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo);
+                var partial = r.Status == PaymentStatus.Partial;
+                return new MobileCollectorRecordDto(
+                    r.ORNumber ?? "—", r.Payor ?? "—", r.Code, string.Empty, r.StallNo,
+                    "Stall Rental", full, partial ? r.PartialAmount : full, partial, r.When, r.Section, r.FishKilos);
+            }));
+        }
+
+        // ── NPM daily collections — business date = CollectionDate ──
+        if (all || facility is FacilityCode.NPM)
+        {
+            var rows = await context.DailyCollections.AsNoTracking()
+                .Where(d => d.CollectorId == collectorId && d.IsPaid
+                         && d.CollectionDate >= fromDate && d.CollectionDate <= toDate)
+                .Select(d => new
+                {
+                    d.ORNumber,
+                    Payor = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    Code = d.Stall.Facility!.Code,
+                    d.Stall.StallNo,
+                    d.Stall.Section,
+                    d.DailyFee,
+                    d.FishKilos,
+                    When = d.UpdatedAt ?? d.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            results.AddRange(rows.Select(d => new MobileCollectorRecordDto(
+                d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
+                "Daily Fee", d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
+                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), false, d.When, d.Section, d.FishKilos)));
+        }
+
+        // ── Slaughterhouse — business date = TransactionDate ──
+        if (all || facility is FacilityCode.SLH)
+        {
+            var rows = await context.SlaughterTransactions.AsNoTracking()
+                .Where(s => s.CollectorId == collectorId
+                         && s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
+                .Select(s => new
+                {
+                    s.ORNumber,
+                    s.OwnerName,
+                    s.RatePerHead,
+                    s.NumberOfHeads,
+                    When = s.UpdatedAt ?? s.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            results.AddRange(rows.Select(s => new MobileCollectorRecordDto(
+                s.ORNumber ?? "—", s.OwnerName, FacilityCode.SLH, string.Empty, null,
+                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, s.When)));
+        }
+
+        // ── Transport terminal — collection event = RecordedAt ──
+        if (all || facility is FacilityCode.TRM)
+        {
+            var rows = await context.TrmTrips.AsNoTracking()
+                .Where(t => t.CollectorId == collectorId && t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
+                .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.RecordedAt })
+                .ToListAsync(cancellationToken);
+
+            results.AddRange(rows.Select(t => new MobileCollectorRecordDto(
+                t.ORNumber ?? "—", t.DriverName, FacilityCode.TRM, string.Empty, null,
+                "Terminal Trip", t.Fee, t.Fee, false, t.RecordedAt)));
+        }
+
+        // ── Tabo-an market — business date = MarketDate ──
+        if (all || facility is FacilityCode.TPM)
+        {
+            var rows = await context.TpmAttendances.AsNoTracking()
+                .Where(a => a.CollectorId == collectorId && a.IsPaid
+                         && a.MarketDate >= fromDate && a.MarketDate <= toDate)
+                .Select(a => new
+                {
+                    a.ORNumber,
+                    Vendor = a.Vendor!.VendorName,
+                    a.Fee,
+                    When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            results.AddRange(rows.Select(a => new MobileCollectorRecordDto(
+                a.ORNumber ?? "—", a.Vendor, FacilityCode.TPM, string.Empty, null,
+                "Market Day", a.Fee, a.Fee, false, a.When)));
+        }
+
+        return results.OrderByDescending(r => r.CollectedAt).ToList();
+    }
+
+    public async Task<MobileCollectorReportDto> GetCollectorReportAsync(
+        Guid collectorId, IReadOnlyCollection<FacilityCode> facilities, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
+    {
+        var selectedFacilities = facilities.Distinct().ToList();
+        var selectedSet = selectedFacilities.ToHashSet();
+        var year = fromDate.Year;
+        var month = fromDate.Month;
+        var dailyReportMode = selectedFacilities.Count > 0 && selectedFacilities.All(IsDailyReportFacility);
+
+        var facilityNames = await context.Facilities
+            .AsNoTracking()
+            .Where(f => selectedSet.Contains(f.Code))
+            .ToDictionaryAsync(f => f.Code, f => f.Name, cancellationToken);
+
+        var transactions = new List<CollectorReportTransaction>();
+        var payees = new List<MobileReportPayeeSummaryDto>();
+        var openItemsByDate = new Dictionary<DateOnly, int>();
+        var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
+        var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
+
+        if (selectedSet.Contains(FacilityCode.NPM))
+        {
+            var npmStalls = await context.Stalls
+                .AsNoTracking()
+                .Include(s => s.Contracts)
+                .Include(s => s.DailyCollections.Where(d => d.CollectionDate >= fromDate && d.CollectionDate <= toDate))
+                .Where(s => s.Facility!.Code == FacilityCode.NPM
+                    && s.Status == StallStatus.Active
+                    && s.Section.HasValue
+                    && s.Contracts.Any(c => c.IsActive))
+                .OrderBy(s => s.Section)
+                .ThenBy(s => s.StallNo)
+                .ToListAsync(cancellationToken);
+
+            var npmStallsById = npmStalls.ToDictionary(s => s.Id);
+            var npmStallIds = npmStallsById.Keys.ToList();
+            var npmPaymentRecords = await context.PaymentRecords
+                .AsNoTracking()
+                .Where(p => npmStallIds.Contains(p.StallId))
+                .ToListAsync(cancellationToken);
+
+            var periodNpmPaymentRecords = npmPaymentRecords
+                .Where(p => p.Status != PaymentStatus.Unpaid
+                    && IsPaymentInDateRange(p.BillingYear, p.BillingMonth, fromDate, toDate))
+                .ToList();
+
+            var stallsWithMonthlyPayments = periodNpmPaymentRecords
+                .Select(p => p.StallId)
+                .ToHashSet();
+            var monthlyPaymentStallIds = stallsWithMonthlyPayments.ToList();
+
+            var npmCollections = await context.DailyCollections
+                .AsNoTracking()
+                .Where(d => d.IsPaid
+                    && d.Stall!.Facility!.Code == FacilityCode.NPM
+                    && d.CollectionDate >= fromDate
+                    && d.CollectionDate <= toDate
+                    && !monthlyPaymentStallIds.Contains(d.StallId))
+                .Select(d => new
+                {
+                    d.ORNumber,
+                    Payor = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    d.StallId,
+                    d.Stall.StallNo,
+                    d.CollectionDate,
+                    d.DailyFee,
+                    d.FishKilos,
+                    When = d.UpdatedAt ?? d.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            transactions.AddRange(npmCollections.Select(d => new CollectorReportTransaction(
+                FacilityCode.NPM,
+                FacilityName(FacilityCode.NPM, facilityNames),
+                d.StallNo,
+                d.Payor ?? "No active occupant",
+                d.CollectionDate,
+                d.DailyFee + d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo,
+                false,
+                d.When,
+                d.ORNumber)));
+
+            transactions.AddRange(periodNpmPaymentRecords.Select(p =>
+            {
+                var stall = npmStallsById[p.StallId];
+                var contract = stall.Contracts
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .FirstOrDefault();
+                var collectedAt = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt;
+                var collectedDate = DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(collectedAt).Date);
+
+                return new CollectorReportTransaction(
+                    FacilityCode.NPM,
+                    FacilityName(FacilityCode.NPM, facilityNames),
+                    stall.StallNo,
+                    string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
+                    ClampDate(collectedDate, fromDate, toDate),
+                    RecognizedNpmPaymentRevenue(p, fromDate, toDate, stall),
+                    p.Status == PaymentStatus.Partial,
+                    collectedAt,
+                    p.ORNumber);
+            }).Where(t => t.Amount > 0m));
+
+            payees.AddRange(npmStalls.Select(s =>
+            {
+                var contract = s.Contracts
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .FirstOrDefault();
+
+                var dailyRate = s.DailyRate ?? FeeRates.NpmDailyFee;
+                var stallPayments = periodNpmPaymentRecords
+                    .Where(p => p.StallId == s.Id)
+                    .ToList();
+                var paidCollections = stallsWithMonthlyPayments.Contains(s.Id)
+                    ? new List<DailyCollection>()
+                    : s.DailyCollections
+                        .Where(d => d.IsPaid && d.CollectionDate >= fromDate && d.CollectionDate <= toDate)
+                        .ToList();
+
+                var collectableDays = CountNpmCollectableDays(s, fromDate, toDate);
+                var monthlyAmountPaid = stallPayments.Sum(p => RecognizedNpmPaymentRevenue(p, fromDate, toDate, s));
+                var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, fromDate, toDate, s));
+                var rentalPaid = monthlyRentalPaid + paidCollections.Count * dailyRate;
+                var fishCollected = (monthlyAmountPaid - monthlyRentalPaid)
+                    + paidCollections.Sum(d => d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo);
+                var assessed = collectableDays * dailyRate;
+                var balance = Math.Max(0m, assessed - rentalPaid);
+                var status = balance <= 0m && collectableDays > 0
+                    ? PaymentStatus.Paid
+                    : rentalPaid > 0m ? PaymentStatus.Partial : PaymentStatus.Unpaid;
+
+                return new MobileReportPayeeSummaryDto(
+                    string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
+                    contract?.NameOnContract,
+                    FacilityCode.NPM,
+                    FacilityName(FacilityCode.NPM, facilityNames),
+                    s.StallNo,
+                    GetSectionName(s.Section),
+                    status,
+                    assessed,
+                    rentalPaid + fishCollected,
+                    balance,
+                    0,
+                    0,
+                    null,
+                    stallPayments.OrderByDescending(p => p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt).Select(p => p.ORNumber).FirstOrDefault()
+                        ?? paidCollections.OrderByDescending(d => d.CollectionDate).Select(d => d.ORNumber).FirstOrDefault());
+            }));
+
+            for (var date = fromDate; date <= toDate; date = date.AddDays(1))
+            {
+                var openItems = npmStalls.Count(s => IsStallCollectableOn(s, date)
+                    && !s.DailyCollections.Any(d => d.IsPaid && d.CollectionDate == date)
+                    && !periodNpmPaymentRecords.Any(p => p.StallId == s.Id && NpmPaymentCoversDate(p, date, s)));
+
+                if (openItems > 0)
+                    openItemsByDate[date] = openItems;
+            }
+        }
+
+        var monthlyFacilities = selectedFacilities.Where(IsMonthlyRentalFacility).ToList();
+        if (monthlyFacilities.Count > 0)
+        {
+            var monthlyRows = await context.PaymentRecords
+                .AsNoTracking()
+                .Where(p => p.Status != PaymentStatus.Unpaid
+                    && p.Stall!.Facility != null
+                    && monthlyFacilities.Contains(p.Stall.Facility.Code)
+                    && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc
+                    && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
+                .Select(p => new
+                {
+                    p.ORNumber,
+                    Facility = p.Stall!.Facility!.Code,
+                    Payor = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    p.Stall.StallNo,
+                    p.Status,
+                    p.BaseRentalAmount,
+                    p.ElecAmount,
+                    p.WaterAmount,
+                    p.FishKilos,
+                    p.PartialAmount,
+                    When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            transactions.AddRange(monthlyRows.Select(p =>
+            {
+                var fullAmount = p.BaseRentalAmount
+                    + p.ElecAmount.GetValueOrDefault()
+                    + p.WaterAmount.GetValueOrDefault()
+                    + p.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo;
+                var paidAmount = p.Status == PaymentStatus.Partial ? p.PartialAmount : fullAmount;
+
+                return new CollectorReportTransaction(
+                    p.Facility,
+                    FacilityName(p.Facility, facilityNames),
+                    p.StallNo,
+                    p.Payor ?? "No active occupant",
+                    DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(p.When).Date),
+                    paidAmount,
+                    p.Status == PaymentStatus.Partial,
+                    p.When,
+                    p.ORNumber);
+            }));
+
+            var monthlyStalls = await context.Stalls
+                .AsNoTracking()
+                .Include(s => s.Facility)
+                .Include(s => s.Contracts)
+                .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
+                .Where(s => s.Facility != null
+                    && monthlyFacilities.Contains(s.Facility.Code)
+                    && s.Status == StallStatus.Active
+                    && s.Contracts.Any(c => c.IsActive))
+                .OrderBy(s => s.Facility!.Code)
+                .ThenBy(s => s.StallNo)
+                .ToListAsync(cancellationToken);
+
+            payees.AddRange(monthlyStalls.Select(s =>
+            {
+                var facility = s.Facility!.Code;
+                var contract = s.Contracts
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .FirstOrDefault();
+                var record = s.PaymentRecords.FirstOrDefault();
+                var status = record?.Status ?? PaymentStatus.Unpaid;
+                var amountPaid = record?.AmountPaid ?? 0m;
+                var balance = record is null ? s.MonthlyRate : record.BalanceDue;
+
+                return new MobileReportPayeeSummaryDto(
+                    string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
+                    contract?.NameOnContract,
+                    facility,
+                    FacilityName(facility, facilityNames),
+                    s.StallNo,
+                    GetAreaLabel(s),
+                    status,
+                    s.MonthlyRate,
+                    amountPaid,
+                    balance,
+                    0,
+                    0,
+                    null,
+                    record?.ORNumber);
+            }));
+        }
+
+        if (selectedSet.Contains(FacilityCode.SLH))
+        {
+            var slaughterRows = await context.SlaughterTransactions
+                .AsNoTracking()
+                .Where(s => s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
+                .Select(s => new { s.OwnerName, s.RatePerHead, s.NumberOfHeads, s.TransactionDate, When = s.UpdatedAt ?? s.CreatedAt, s.ORNumber })
+                .ToListAsync(cancellationToken);
+
+            transactions.AddRange(slaughterRows.Select(s => new CollectorReportTransaction(
+                FacilityCode.SLH,
+                FacilityName(FacilityCode.SLH, facilityNames),
+                null,
+                s.OwnerName,
+                s.TransactionDate,
+                s.RatePerHead * s.NumberOfHeads,
+                false,
+                s.When,
+                s.ORNumber)));
+        }
+
+        if (selectedSet.Contains(FacilityCode.TRM))
+        {
+            var tripRows = await context.TrmTrips
+                .AsNoTracking()
+                .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
+                .Select(t => new { t.DriverName, t.Fee, t.RecordedAt, t.ORNumber })
+                .ToListAsync(cancellationToken);
+
+            transactions.AddRange(tripRows.Select(t => new CollectorReportTransaction(
+                FacilityCode.TRM,
+                FacilityName(FacilityCode.TRM, facilityNames),
+                null,
+                t.DriverName,
+                DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(t.RecordedAt).Date),
+                t.Fee,
+                false,
+                t.RecordedAt,
+                t.ORNumber)));
+        }
+
+        if (selectedSet.Contains(FacilityCode.TPM))
+        {
+            var tpmRows = await context.TpmAttendances
+                .AsNoTracking()
+                .Where(a => a.IsPaid
+                    && a.MarketDate >= fromDate
+                    && a.MarketDate <= toDate)
+                .Select(a => new { Payor = a.Vendor!.VendorName, a.Fee, a.MarketDate, When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt, a.ORNumber })
+                .ToListAsync(cancellationToken);
+
+            transactions.AddRange(tpmRows.Select(a => new CollectorReportTransaction(
+                FacilityCode.TPM,
+                FacilityName(FacilityCode.TPM, facilityNames),
+                null,
+                a.Payor,
+                a.MarketDate,
+                a.Fee,
+                false,
+                a.When,
+                a.ORNumber)));
+        }
+
+        var transactionStats = transactions
+            .GroupBy(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName))
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    Count = g.Count(),
+                    PartialCount = g.Count(t => t.IsPartial),
+                    LastCollectedAt = g.Max(t => t.CollectedAt),
+                    ORNumber = g.OrderByDescending(t => t.CollectedAt).Select(t => t.ORNumber).FirstOrDefault()
+                });
+
+        payees = payees
+            .Select(p =>
+            {
+                var key = ReportPayeeKey(p.FacilityCode, p.StallNo, p.PayorName);
+                return transactionStats.TryGetValue(key, out var stats)
+                    ? p with
+                    {
+                        TransactionCount = stats.Count,
+                        PartialCount = stats.PartialCount,
+                        LastCollectedAt = stats.LastCollectedAt,
+                        ORNumber = string.IsNullOrWhiteSpace(p.ORNumber) ? stats.ORNumber : p.ORNumber
+                    }
+                    : p;
+            })
+            .ToList();
+
+        var existingPayeeKeys = payees.Select(p => ReportPayeeKey(p.FacilityCode, p.StallNo, p.PayorName)).ToHashSet();
+        payees.AddRange(transactions
+            .Where(t => !existingPayeeKeys.Contains(ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)))
+            .GroupBy(t => new { t.FacilityCode, t.FacilityName, t.StallNo, t.PayorName })
+            .Select(g => new MobileReportPayeeSummaryDto(
+                g.Key.PayorName,
+                null,
+                g.Key.FacilityCode,
+                g.Key.FacilityName,
+                g.Key.StallNo,
+                string.Empty,
+                PaymentStatus.Paid,
+                g.Sum(t => t.Amount),
+                g.Sum(t => t.Amount),
+                0m,
+                g.Count(),
+                g.Count(t => t.IsPartial),
+                g.Max(t => t.CollectedAt),
+                g.OrderByDescending(t => t.CollectedAt).Select(t => t.ORNumber).FirstOrDefault())));
+
+        var facilitySummaries = selectedFacilities
+            .Select(f =>
+            {
+                var facilityPayees = payees.Where(p => p.FacilityCode == f).ToList();
+                var facilityTransactions = transactions.Where(t => t.FacilityCode == f).ToList();
+
+                return new MobileReportFacilitySummaryDto(
+                    f,
+                    FacilityName(f, facilityNames),
+                    IsDailyReportFacility(f),
+                    facilityTransactions.Sum(t => t.Amount),
+                    facilityPayees.Sum(p => p.Balance),
+                    facilityTransactions.Count,
+                    facilityPayees.Count,
+                    facilityPayees.Count(p => p.Status == PaymentStatus.Paid),
+                    facilityPayees.Count(p => p.Status == PaymentStatus.Partial),
+                    facilityPayees.Count(p => p.Status == PaymentStatus.Unpaid));
+            })
+            .OrderBy(f => f.FacilityCode)
+            .ToList();
+
+        var periodSummaries = dailyReportMode
+            ? transactions
+                .GroupBy(t => t.PeriodDate)
+                .Select(g => new MobileReportPeriodSummaryDto(
+                    g.Key,
+                    g.Sum(t => t.Amount),
+                    g.Count(),
+                    g.Select(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)).Distinct().Count(),
+                    g.Count(t => t.IsPartial),
+                    openItemsByDate.GetValueOrDefault(g.Key)))
+                .OrderByDescending(p => p.PeriodDate)
+                .ToList()
+            : transactions.Count == 0
+                ? []
+                : [new MobileReportPeriodSummaryDto(
+                    new DateOnly(year, month, 1),
+                    transactions.Sum(t => t.Amount),
+                    transactions.Count,
+                    transactions.Select(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)).Distinct().Count(),
+                    transactions.Count(t => t.IsPartial),
+                    payees.Count(p => p.Balance > 0m))];
+
+        var totals = new MobileReportTotalsDto(
+            transactions.Sum(t => t.Amount),
+            payees.Sum(p => p.Balance),
+            transactions.Count,
+            payees.Count,
+            payees.Count(p => p.Status == PaymentStatus.Paid),
+            payees.Count(p => p.Status == PaymentStatus.Partial),
+            payees.Count(p => p.Status == PaymentStatus.Unpaid),
+            selectedFacilities.Count);
+
+        return new MobileCollectorReportDto(
+            year,
+            month,
+            fromDate,
+            toDate,
+            dailyReportMode,
+            totals,
+            facilitySummaries,
+            periodSummaries,
+            payees
+                .OrderBy(p => p.FacilityCode)
+                .ThenBy(p => p.AreaLabel)
+                .ThenBy(p => p.StallNo)
+                .ThenBy(p => p.PayorName)
+                .ToList());
     }
 
     public async Task<CollectorUser?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
@@ -345,4 +911,173 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
         return $"{prefix}{nextNumber:D3}";
     }
+
+    private static bool IsDailyReportFacility(FacilityCode facility) =>
+        facility is FacilityCode.NPM or FacilityCode.SLH or FacilityCode.TRM or FacilityCode.TPM;
+
+    private static bool IsMonthlyRentalFacility(FacilityCode facility) =>
+        facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE;
+
+    private static bool IsPaymentInDateRange(int billingYear, int billingMonth, DateOnly startDate, DateOnly endDate)
+    {
+        var billingDate = new DateOnly(billingYear, billingMonth, 1);
+        var rangeStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var rangeEnd = new DateOnly(endDate.Year, endDate.Month, 1);
+
+        return billingDate >= rangeStart && billingDate <= rangeEnd;
+    }
+
+    private static bool IsWholeBillingMonthSelected(PaymentRecord payment, DateOnly startDate, DateOnly endDate)
+    {
+        var monthStart = new DateOnly(payment.BillingYear, payment.BillingMonth, 1);
+        var monthEnd = new DateOnly(payment.BillingYear, payment.BillingMonth, DateTime.DaysInMonth(payment.BillingYear, payment.BillingMonth));
+        return startDate <= monthStart && endDate >= monthEnd;
+    }
+
+    private static decimal RecognizedNpmPaymentRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
+    {
+        if (payment.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(payment.BillingYear, payment.BillingMonth, startDate, endDate))
+            return 0m;
+
+        var dailyRevenue = RecognizedNpmDailyFeeRevenue(payment, startDate, endDate, stall);
+        if (!IsWholeBillingMonthSelected(payment, startDate, endDate) || payment.Status != PaymentStatus.Paid)
+            return dailyRevenue;
+
+        return dailyRevenue + payment.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo;
+    }
+
+    private static decimal RecognizedNpmDailyFeeRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
+    {
+        if (payment.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(payment.BillingYear, payment.BillingMonth, startDate, endDate))
+            return 0m;
+
+        var monthStart = new DateOnly(payment.BillingYear, payment.BillingMonth, 1);
+        var monthEnd = new DateOnly(payment.BillingYear, payment.BillingMonth, DateTime.DaysInMonth(payment.BillingYear, payment.BillingMonth));
+        var overlapStart = startDate > monthStart ? startDate : monthStart;
+        var overlapEnd = endDate < monthEnd ? endDate : monthEnd;
+
+        if (overlapEnd < overlapStart || CountNpmCollectableDays(stall, overlapStart, overlapEnd) == 0)
+            return 0m;
+
+        var paidTowardDailyFee = payment.Status == PaymentStatus.Paid
+            ? payment.BaseRentalAmount
+            : Math.Min(payment.PartialAmount, payment.BaseRentalAmount);
+
+        return AllocatePrepaidDailyAmountToCollectableRange(paidTowardDailyFee, stall, monthStart, overlapStart, overlapEnd);
+    }
+
+    private static bool NpmPaymentCoversDate(PaymentRecord payment, DateOnly date, Stall stall) =>
+        RecognizedNpmDailyFeeRevenue(payment, date, date, stall) > 0m;
+
+    private static decimal AllocatePrepaidDailyAmountToCollectableRange(
+        decimal prepaidAmount,
+        Stall stall,
+        DateOnly monthStart,
+        DateOnly rangeStart,
+        DateOnly rangeEnd)
+    {
+        if (prepaidAmount <= 0m || FeeRates.NpmDailyFee <= 0m || rangeEnd < rangeStart)
+            return 0m;
+
+        var monthEnd = new DateOnly(monthStart.Year, monthStart.Month, DateTime.DaysInMonth(monthStart.Year, monthStart.Month));
+        var collectableDays = new List<DateOnly>();
+        for (var date = monthStart; date <= monthEnd; date = date.AddDays(1))
+        {
+            if (IsStallCollectableOn(stall, date))
+                collectableDays.Add(date);
+        }
+
+        var fullCoveredDays = (int)Math.Floor(prepaidAmount / FeeRates.NpmDailyFee);
+        var remainder = prepaidAmount % FeeRates.NpmDailyFee;
+        var amount = collectableDays
+            .Take(fullCoveredDays)
+            .Where(d => d >= rangeStart && d <= rangeEnd)
+            .Sum(_ => FeeRates.NpmDailyFee);
+
+        if (remainder > 0m && collectableDays.Count > fullCoveredDays)
+        {
+            var remainderDay = collectableDays[fullCoveredDays];
+            if (remainderDay >= rangeStart && remainderDay <= rangeEnd)
+                amount += remainder;
+        }
+
+        return amount;
+    }
+
+    private static bool IsContractCollectableOn(Contract contract, DateOnly date) =>
+        contract.IsActive
+        && contract.EffectivityDate <= date
+        && date <= contract.ExpiryDate;
+
+    private static bool IsStallCollectableOn(Stall stall, DateOnly date) =>
+        stall.Status == StallStatus.Active
+        && stall.Contracts.Any(c => IsContractCollectableOn(c, date));
+
+    private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate)
+    {
+        if (endDate < startDate)
+            return 0;
+
+        var days = 0;
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
+        {
+            if (IsStallCollectableOn(stall, date))
+                days++;
+        }
+
+        return days;
+    }
+
+    private static DateOnly ClampDate(DateOnly value, DateOnly min, DateOnly max)
+    {
+        if (value < min)
+            return min;
+
+        return value > max ? max : value;
+    }
+
+    private static string FacilityName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
+        names.TryGetValue(code, out var name) && !string.IsNullOrWhiteSpace(name) ? name : code.ToString();
+
+    private static string ReportPayeeKey(FacilityCode facility, string? stallNo, string payorName) =>
+        $"{facility}|{stallNo?.Trim().ToUpperInvariant()}|{payorName.Trim().ToUpperInvariant()}";
+
+    private static int CountCollectableDays(DateOnly? contractStart, DateOnly monthStart, DateOnly effectiveEnd)
+    {
+        if (effectiveEnd < monthStart)
+            return 0;
+
+        var start = contractStart.HasValue && contractStart.Value > monthStart
+            ? contractStart.Value
+            : monthStart;
+
+        return start > effectiveEnd ? 0 : effectiveEnd.DayNumber - start.DayNumber + 1;
+    }
+
+    private static string GetAreaLabel(Domain.Entities.Facilities.Stall stall)
+    {
+        if (stall.AreaLocation.HasValue)
+            return stall.AreaLocation.Value.ToString();
+
+        return stall.Section.HasValue ? GetSectionName(stall.Section) : string.Empty;
+    }
+
+    private static string GetSectionName(MarketSection? section) => section switch
+    {
+        MarketSection.VegetableArea => "Vegetables",
+        MarketSection.FishSection => "Fish",
+        MarketSection.MeatSection => "Meat",
+        _ => string.Empty
+    };
+
+    private sealed record CollectorReportTransaction(
+        FacilityCode FacilityCode,
+        string FacilityName,
+        string? StallNo,
+        string PayorName,
+        DateOnly PeriodDate,
+        decimal Amount,
+        bool IsPartial,
+        DateTime CollectedAt,
+        string? ORNumber);
 }

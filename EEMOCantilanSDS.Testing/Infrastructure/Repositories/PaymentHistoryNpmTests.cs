@@ -123,4 +123,72 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         Assert.Equal(PaymentStatus.Paid, row.Status);
         Assert.Equal(1000m, row.AmountPaid);
     }
+
+    [Fact]
+    public async Task History_Npm_MonthlyPartialRecord_IsIgnoredInFavorOfDailyCollections()
+    {
+        // Reported bug: a flat monthly PaymentRecord (Partial, ₱900 base, ₱500 partial) was
+        // overriding the daily collections, so the 12-month modal showed ₱500 collected / ₱400
+        // balance instead of the daily reality (₱30/day). NPM money must always be daily-truth.
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", monthStart.AddMonths(-2), 3, 900m);
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+
+        // Two paid daily collections this month = ₱60.
+        var d1 = DailyCollection.Create(stall.Id, monthStart); d1.MarkPaid("OR-D1", collector.Id);
+        var d2 = DailyCollection.Create(stall.Id, monthStart.AddDays(1)); d2.MarkPaid("OR-D2", collector.Id);
+
+        // The anomalous monthly partial record that used to win.
+        var monthly = PaymentRecord.Create(stall.Id, today.Year, today.Month, 900m);
+        monthly.UpdateStatus(PaymentStatus.Partial, 500m);
+        monthly.SetOrNumber("MONTHLY-OR-500");
+
+        context.AddRange(facility, stall, contract, collector);
+        context.AddRange(d1, d2, monthly);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
+
+        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        Assert.Equal(2 * FeeRates.NpmDailyFee, row.AmountPaid);                  // ₱60 daily-truth, NOT ₱500
+        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee, row.TotalBill);         // full-month ₱30/day obligation
+        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee - 60m, row.BalanceDue);  // NOT 900 − 500 = 400
+        Assert.Equal(PaymentStatus.Partial, row.Status);
+        Assert.NotEqual("MONTHLY-OR-500", row.ORNumber);                         // OR comes from the daily collection
+    }
+
+    [Fact]
+    public async Task History_Npm_CountsDaysPaidInAdvanceWithinCurrentMonth()
+    {
+        // The modal must mirror the daily calendar, which counts every paid day of the month even
+        // if the date hasn't arrived yet. The window now runs to month-end, not today.
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var monthEnd = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", monthStart.AddMonths(-1), 3, 900m);
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+
+        // A collection dated the LAST day of the month (>= today): an advance payment.
+        var dc = DailyCollection.Create(stall.Id, monthEnd); dc.MarkPaid("OR-LAST", collector.Id);
+
+        context.AddRange(facility, stall, contract, collector, dc);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
+
+        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);   // the advance/last-day collection is counted
+    }
 }

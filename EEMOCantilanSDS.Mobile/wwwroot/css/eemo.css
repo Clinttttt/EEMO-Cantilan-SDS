@@ -586,7 +586,7 @@ html, body, #app {
 ───────────────────────────────────────────── */
 .filter-tabs {
     display: flex;
-    gap: 6px;
+    gap: 0;
     margin-bottom: 14px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -597,24 +597,50 @@ html, body, #app {
     }
 
 .filter-tab {
-    font-size: 10.5px;
-    font-weight: 500;
-    padding: 5px 14px;
-    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 0;
     border: 1px solid var(--border);
+    border-right-width: 0;          /* collapse between siblings */
     background: var(--bg-card);
-    color: var(--text-muted);
+    color: var(--text-subtle);
     white-space: nowrap;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
 }
+
+    /* Round only the first and last chip */
+    .filter-tabs .filter-tab:first-child { border-radius: 12px 0 0 12px; }
+    .filter-tabs .filter-tab:last-child  { border-radius: 0 12px 12px 0; border-right-width: 1px; }
+    .filter-tabs .filter-tab:only-child  { border-radius: 12px; border-right-width: 1px; }
+
+    .filter-tab:active {
+        background: var(--bg-page);
+        transform: scale(0.985);
+    }
 
     .filter-tab.active {
         background: var(--navy-primary);
         color: var(--gold-light);
         border-color: var(--navy-primary);
+        font-weight: 700;
+        /* Keep the right border on active so the next chip doesn't bleed into it */
+        border-right-width: 1px;
+        position: relative;
+        z-index: 1;
     }
+
+/* Divider between period chips and facility chips in the combined row */
+.filter-tab-sep {
+    width: 1px;
+    min-width: 1px;
+    background: var(--border);
+    align-self: stretch;
+    flex-shrink: 0;
+}
 
 
 /* ─────────────────────────────────────────────
@@ -1082,6 +1108,26 @@ html, body, #app {
     text-transform: uppercase;
     background: rgba(13,33,55,0.07);
     color: var(--navy-primary);
+}
+
+/* NPM market section badge e.g. Vegetable / Fish / Meat */
+.record-section {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: rgba(200, 168, 75, 0.16);
+    color: #8a6d1b;
+}
+
+/* Fish-section weight line under the meta */
+.record-fish {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--paid-green);
+    margin-top: 3px;
 }
 
 .record-time {

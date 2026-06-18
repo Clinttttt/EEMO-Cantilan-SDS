@@ -99,4 +99,38 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         Assert.Equal(0m, summary.TotalCollected);
         Assert.Equal(1000m, summary.TotalOutstanding);
     }
+
+    [Fact]
+    public async Task Summary_Npm_MonthlyPartialRecord_IsIgnoredInFavorOfDailyCollections()
+    {
+        // Same reported bug as the history modal: the flat ₱500 monthly partial must not win over
+        // the daily collections — the summary must reconcile with the history grid (daily-truth).
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", monthStart.AddMonths(-2), 3, 900m);
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
+
+        var d1 = DailyCollection.Create(stall.Id, monthStart); d1.MarkPaid("OR-D1", collector.Id);
+        var d2 = DailyCollection.Create(stall.Id, monthStart.AddDays(1)); d2.MarkPaid("OR-D2", collector.Id);
+
+        var monthly = PaymentRecord.Create(stall.Id, today.Year, today.Month, 900m);
+        monthly.UpdateStatus(PaymentStatus.Partial, 500m);
+        monthly.SetOrNumber("MONTHLY-OR-500");
+
+        context.AddRange(facility, stall, contract, collector);
+        context.AddRange(d1, d2, monthly);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        Assert.Equal(2 * FeeRates.NpmDailyFee, summary.TotalCollected);  // ₱60 daily-truth, NOT ₱500
+        Assert.Equal(0, summary.MonthsPaid);                             // current month only partially covered
+        Assert.Equal(3, summary.MonthsUnpaid);                           // 3 collectable months, none fully paid
+        Assert.True(summary.TotalOutstanding > 0m);
+    }
 }

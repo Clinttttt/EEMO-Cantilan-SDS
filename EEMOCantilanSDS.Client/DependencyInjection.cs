@@ -36,6 +36,24 @@ namespace EEMOCantilanSDS.Client
                     options.LoginPath = "/login";
                     options.AccessDeniedPath = "/login";
                     options.LogoutPath = "/api/authproxy/logout";
+
+                    // Area-aware challenge: a single cookie scheme serves both the admin and payor
+                    // areas, so the unauthenticated redirect must respect which area was requested —
+                    // otherwise a logged-out payor visiting /payor is bounced to the ADMIN sign-in.
+                    options.Events ??= new CookieAuthenticationEvents();
+                    options.Events.OnRedirectToLogin = context =>
+                    {
+                        var loginPath = context.Request.Path.StartsWithSegments("/payor") ? "/payor/login" : "/login";
+                        var returnUrl = Uri.EscapeDataString(context.Request.Path + context.Request.QueryString);
+                        context.Response.Redirect($"{loginPath}?ReturnUrl={returnUrl}");
+                        return Task.CompletedTask;
+                    };
+                    options.Events.OnRedirectToAccessDenied = context =>
+                    {
+                        var loginPath = context.Request.Path.StartsWithSegments("/payor") ? "/payor/login" : "/login";
+                        context.Response.Redirect(loginPath);
+                        return Task.CompletedTask;
+                    };
                 });
             
             service.AddScoped<TokenService>();
@@ -69,8 +87,6 @@ namespace EEMOCantilanSDS.Client
             {
                 client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
             });
-
-
 
             service.AddHttpClient<IPayorAuthApiClient, PayorAuthApiClient>("PayorAuthClient", client =>
             {

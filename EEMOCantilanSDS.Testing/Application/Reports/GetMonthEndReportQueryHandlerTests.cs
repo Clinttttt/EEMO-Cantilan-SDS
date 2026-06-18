@@ -19,7 +19,7 @@ namespace EEMOCantilanSDS.Testing.Application.Reports;
 public class GetMonthEndReportQueryHandlerTests
 {
     private static StallComplianceDto Payor(string stallNo, string occupant, decimal rate, string status, decimal paid, decimal balance, string? or) =>
-        new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", rate, 0m, status, paid, balance, or, 0, 0, null, 0);
+        new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", rate, 0m, status, paid, balance, or, 0, 0, null, 0, paid + balance);
 
     private static FacilityReportsDto Report(decimal collected, decimal outstanding, decimal rate, int paid, int partial, int unpaid, IReadOnlyList<StallComplianceDto> compliance) =>
         new(

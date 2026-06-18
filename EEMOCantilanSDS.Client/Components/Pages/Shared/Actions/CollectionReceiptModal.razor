@@ -1,0 +1,81 @@
+@* ══════════════════════════════════════════════════════════════════════
+   CollectionReceiptModal.razor — read-only collection/payment receipt.
+
+   Mirrors the mobile collector receipt and is shared by all facility pages:
+   NPM passes daily-collection lines (Days Collected / Daily Fee), the monthly
+   facilities (TCC/NCC/BBQ/ICE) pass monthly lines (Monthly Rental / Balance).
+══════════════════════════════════════════════════════════════════════ *@
+
+@if (Show)
+{
+    <div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
+        <div class="rcpt-wrap" @onclick:stopPropagation="true">
+            <div class="receipt">
+                <div class="receipt-head">
+                    <img src="/images/LGU_CANTILAN_LOGO.jpg" class="receipt-seal" alt="LGU Cantilan seal" />
+                    <div class="receipt-gov">Republic of the Philippines</div>
+                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
+                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-doc">@FacilityName</div>
+                </div>
+
+                <div class="receipt-divider"></div>
+
+                <div class="receipt-meta">
+                    <div class="receipt-meta-row"><span>Period</span><strong>@PeriodLabel</strong></div>
+                    <div class="receipt-meta-row"><span>Stall No.</span><strong>@StallNo</strong></div>
+                    <div class="receipt-meta-row"><span>Payor</span><strong>@PayorName</strong></div>
+                    @if (!string.IsNullOrWhiteSpace(Section))
+                    {
+                        <div class="receipt-meta-row"><span>Section</span><strong>@Section</strong></div>
+                    }
+                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(OrNumber) ? "—" : OrNumber)</strong></div>
+                </div>
+
+                @if (Lines.Count > 0)
+                {
+                    <div class="receipt-divider"></div>
+                    <div class="receipt-meta">
+                        @foreach (var line in Lines)
+                        {
+                            <div class="receipt-meta-row"><span>@line.Label</span><strong>@line.Value</strong></div>
+                        }
+                    </div>
+                }
+
+                <div class="receipt-divider"></div>
+
+                <div class="receipt-total-row receipt-grand">
+                    <span>@TotalLabel</span>
+                    <span>@TotalValue</span>
+                </div>
+
+                <div class="receipt-divider dashed"></div>
+
+                <div class="receipt-note">@NoteText</div>
+            </div>
+
+            <div class="receipt-close-row">
+                <button class="btn-receipt-close" @onclick="() => OnClose.InvokeAsync()">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string FacilityName { get; set; } = string.Empty;
+    [Parameter] public string PeriodLabel { get; set; } = string.Empty;
+    [Parameter] public string StallNo { get; set; } = string.Empty;
+    [Parameter] public string PayorName { get; set; } = string.Empty;
+    [Parameter] public string Section { get; set; } = string.Empty;
+    [Parameter] public string OrNumber { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<ReceiptLine> Lines { get; set; } = Array.Empty<ReceiptLine>();
+    [Parameter] public string TotalLabel { get; set; } = "Total Collected";
+    [Parameter] public string TotalValue { get; set; } = string.Empty;
+    [Parameter] public string NoteText { get; set; } =
+        "This acknowledges receipt of the fees stated above. Keep for your records.";
+
+    public sealed record ReceiptLine(string Label, string Value);
+}

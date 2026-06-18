@@ -155,14 +155,20 @@
 
 
 <!-- ══════════════════════════════════════════════
-     PAYMENT RECORD MODAL (Reusable Component)
+     COLLECTION RECEIPT MODAL (NPM is daily-only — no monthly payment to encode)
 ══════════════════════════════════════════════ -->
-<FacilityPaymentModal TStall="NpmStall"
-                      Facility="NPM"
-                      Stall="PaymentStall"
-                      Show="ShowPayment"
-                      OnClose="ClosePayment"
-                      OnSave="HandleSavePayment" />
+<CollectionReceiptModal Show="ShowPayment"
+                        FacilityName="New Public Market"
+                        PeriodLabel="@DateTime.Now.ToString("MMMM yyyy")"
+                        StallNo="@(PaymentStall?.StallNo ?? string.Empty)"
+                        PayorName="@(PaymentStall?.ActualOccupant ?? string.Empty)"
+                        Section="@(PaymentStall?.Section ?? string.Empty)"
+                        OrNumber="@(PaymentStall?.ORNumber ?? string.Empty)"
+                        Lines="NpmReceiptLines"
+                        TotalLabel="Total Collected"
+                        TotalValue="@($"₱{(PaymentStall?.PartialAmount ?? 0m):N2}")"
+                        NoteText="This acknowledges receipt of the daily stall fees collected for the period stated above. Keep for your records."
+                        OnClose="ClosePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -264,6 +270,10 @@
                 bool isPartial = false;
                 decimal partialAmount = 0;
                 string orNumber = dto.ORNumber ?? string.Empty;
+                // The period bill shown in the payment modal. For NPM this is occupancy-prorated
+                // (collectable days × ₱30 from the contract effectivity date), not the flat 30-day
+                // MonthlyRate. Defaults to the configured rate until compliance supplies the real one.
+                decimal monthlyExpected = dto.MonthlyRate;
 
                 // NPM is collected daily, so payment status must come from the daily-aware report
                 // compliance (a vendor who paid some days is Partial). The monthly PaymentRecord alone
@@ -275,6 +285,7 @@
                     isPaid = compliance.Status == "Paid";
                     isPartial = compliance.Status == "Partial";
                     partialAmount = compliance.AmountPaid;
+                    monthlyExpected = compliance.ExpectedBill;
                     if (!string.IsNullOrWhiteSpace(compliance.ORNumber))
                         orNumber = compliance.ORNumber!;
                 }
@@ -288,6 +299,11 @@
 
                 dailyStatus.TryGetValue(dto.Id, out var ds);
 
+                // NPM ORs live on the daily collections (no monthly record), so prefer the latest
+                // daily OR for display (the receipt's reference OR).
+                if (!string.IsNullOrWhiteSpace(ds?.LastORNumber))
+                    orNumber = ds!.LastORNumber!;
+
                 Stalls.Add(new NpmStall
                 {
                     Id = id++,
@@ -299,6 +315,7 @@
                     AreaSqm = dto.AreaSqm ?? 0,
                     ContractDate = dto.ContractDate,
                     MonthlyRate = dto.MonthlyRate,
+                    MonthlyExpected = monthlyExpected,
                     IsActive = dto.Status == StallStatus.Active,
                     ORNumber = orNumber,
                     IsPaid = isPaid,
@@ -403,6 +420,10 @@
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public decimal MonthlyRate { get; set; }
+        // Occupancy-prorated period bill (collectable days × ₱30) from the daily-aware report.
+        // Falls back to MonthlyRate when no compliance row exists. This — not the flat MonthlyRate —
+        // is what the payment modal bills against, so a mid-month payor isn't over-charged.
+        public decimal MonthlyExpected { get; set; }
         public bool HasElectricity { get; set; }
         public bool HasWater { get; set; }
         public bool IsPaid { get; set; }
@@ -421,7 +442,7 @@
         public decimal WaterAmount { get; set; }
         public decimal FishKilos { get; set; }
         public decimal FishFee => FishKilos;
-        public decimal TotalBill => MonthlyRate + ElecAmount + WaterAmount + FishFee;
+        public decimal TotalBill => MonthlyExpected + ElecAmount + WaterAmount + FishFee;
         public decimal TotalPaid => IsPaid ? TotalBill : IsPartial ? PartialAmount : 0;
         public decimal BalanceDue => TotalBill - TotalPaid;
         public Dictionary<string, bool> PaymentHistory { get; set; } = new();
@@ -488,21 +509,14 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
-    private async Task HandleSavePayment(FacilityPaymentModal<NpmStall>.PaymentSubmitDto payment)
-    {
-        if (PaymentStall != null)
+    // Daily-collection lines for the NPM receipt (days × ₱30).
+    private IReadOnlyList<CollectionReceiptModal.ReceiptLine> NpmReceiptLines => PaymentStall is null
+        ? Array.Empty<CollectionReceiptModal.ReceiptLine>()
+        : new List<CollectionReceiptModal.ReceiptLine>
         {
-            // Update the stall's OR Number
-            PaymentStall.ORNumber = payment.OrNumber;
-
-            // Reload the stall data from API to get updated payment status
-            await LoadStallsFromApi();
-
-            // Close the modal
-            ShowPayment = false;
-            PaymentStall = null;
-        }
-    }
+            new("Days Collected", $"{PaymentStall.DaysPaidThisMonth} day{(PaymentStall.DaysPaidThisMonth == 1 ? "" : "s")}"),
+            new("Daily Fee", "₱30.00")
+        };
 
     bool ShowHistory = false;
     NpmStall? HistoryStall = null;

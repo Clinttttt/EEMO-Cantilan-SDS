@@ -901,6 +901,23 @@
             _ => Domain.Enums.PaymentStatus.Unpaid
         };
 
+        // NPM is a daily-collection facility (₱30/day). It must NOT get a monthly PaymentRecord —
+        // that would diverge from the daily ledger (a ₱500 partial ≠ 16×₱30) and double-count in
+        // reports. Mark the daily calendar directly instead; the backend also rejects NPM monthly
+        // records as a safeguard. Non-NPM facilities keep the monthly RecordPayment flow below.
+        if (FacilityId.ToUpper() == "NPM")
+        {
+            if (status != Domain.Enums.PaymentStatus.Unpaid)
+                await AutoMarkDailyCollections(status, ConfirmOrNumber);
+
+            ShowConfirmModal = false;
+            PartialAmountInput = 0;
+            RemarksInput = string.Empty;
+            ConfirmOrNumber = string.Empty;
+            await LoadStallData();
+            return;
+        }
+
         var command = new EEMOCantilanSDS.Application.Command.Payments.RecordPayment.RecordPaymentCommand(
             StallGuid,
             DateTime.Now.Year,
@@ -928,15 +945,6 @@
                 }
             }
 
-            // ── Auto-mark Daily Collection Calendar (NPM only) ─────────
-            // Rule: ₱30/day.  Paid=30 days, Partial=floor(amount/30) days.
-            // Days are filled starting from ContractDate (clamped to current month).
-            // Fish kilos are intentionally left null — collectors enter those on mobile.
-            if (FacilityId.ToUpper() == "NPM" && status != Domain.Enums.PaymentStatus.Unpaid)
-            {
-                await AutoMarkDailyCollections(status);
-            }
-
             ShowConfirmModal = false;
             PartialAmountInput = 0;
             RemarksInput = string.Empty;
@@ -957,7 +965,7 @@
     /// so the vendor’s full coverage is always reflected on the calendar.
     /// Fish kilos are left null — collectors enter those on mobile.
     /// </summary>
-    async Task AutoMarkDailyCollections(Domain.Enums.PaymentStatus status)
+    async Task AutoMarkDailyCollections(Domain.Enums.PaymentStatus status, string? orNumber = null)
     {
         // Use the stall’s own DailyRate; fall back to ₱30 for legacy stalls
         // that pre-date the DailyRate field.
@@ -987,15 +995,19 @@
             .Select(i => DateOnly.FromDateTime(startDate.AddDays(i)))
             .ToList();
 
-        // Fire all requests in parallel — 30 concurrent calls is near-instant
-        await Task.WhenAll(datesToMark.Select(date =>
+        // Fire all requests in parallel — 30 concurrent calls is near-instant.
+        // The admin-entered OR (if any) is attached to the FIRST day only — each daily collection
+        // OR must stay globally unique, so it cannot be replicated across every covered day.
+        var trimmedOr = string.IsNullOrWhiteSpace(orNumber) ? null : orNumber.Trim();
+        await Task.WhenAll(datesToMark.Select((date, index) =>
             DailyCollectionApi.RecordDailyCollectionAsync(
                 new EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection
                     .RecordDailyCollectionCommand(
                         StallId: StallGuid,
                         CollectionDate: date,
                         IsPaid: true,
-                        FishKilos: null  // collector enters kilos on mobile
+                        FishKilos: null,  // collector enters kilos on mobile
+                        ORNumber: index == 0 ? trimmedOr : null
                     ))));
     }
 

@@ -132,4 +132,22 @@ public class RecordPaymentCommandHandlerTests
         Assert.True(result.IsSuccess);
         paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task NpmStall_IsRejected_NoMonthlyRecordCreated()
+    {
+        // NPM is collected daily (₱30/day). A monthly PaymentRecord must never be created for it —
+        // it would diverge from the daily ledger (a ₱500 partial ≠ 16×₱30) and double-count in reports.
+        var stall = StallInFacility(FacilityCode.NPM);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+
+        var result = await handler.Handle(
+            new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Partial, 500m, null, ORNumber: "3121212"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+        paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+        paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

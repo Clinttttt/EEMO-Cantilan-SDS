@@ -1,0 +1,145 @@
+/* Collection/payment receipt — mirrors the mobile collector receipt, using the web design tokens. */
+
+.rcpt-wrap {
+    width: 100%;
+    max-width: 380px;
+    margin: auto;
+}
+
+.receipt {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 20px;
+    margin-bottom: 14px;
+}
+
+.receipt-head {
+    text-align: center;
+}
+
+.receipt-seal {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 50%;
+    display: block;
+    margin: 0 auto 8px;
+}
+
+.receipt-gov {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.receipt-org {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-top: 2px;
+}
+
+.receipt-muni {
+    font-size: 10px;
+    color: var(--text-subtle);
+    margin-top: 2px;
+}
+
+.receipt-doc {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gold);
+    background: rgba(200, 168, 75, 0.14);
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+
+.receipt-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 14px 0;
+}
+
+.receipt-divider.dashed {
+    background: none;
+    border-top: 1px dashed var(--border);
+}
+
+.receipt-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+.receipt-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.receipt-meta-row span {
+    color: var(--text-muted);
+}
+
+.receipt-meta-row strong {
+    color: var(--navy);
+    font-weight: 600;
+}
+
+.receipt-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--navy);
+    padding: 2px 0;
+}
+
+.receipt-grand {
+    font-weight: 700;
+}
+
+    .receipt-grand span:last-child {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+.receipt-note {
+    font-size: 10.5px;
+    line-height: 1.5;
+    color: var(--text-subtle);
+    text-align: center;
+}
+
+.receipt-close-row {
+    display: flex;
+    justify-content: center;
+}
+
+.btn-receipt-close {
+    border: 0;
+    font: inherit;
+    min-height: 44px;
+    padding: 0 40px;
+    border-radius: 12px;
+    background: var(--navy);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+    .btn-receipt-close:hover {
+        background: var(--navy-2);
+    }

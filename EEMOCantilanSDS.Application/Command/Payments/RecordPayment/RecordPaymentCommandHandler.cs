@@ -20,6 +20,15 @@ public class RecordPaymentCommandHandler(
         if (stall == null)
             return Result<bool>.NotFound();
 
+        // NPM is a daily-collection facility (₱30/day). It must never carry a monthly PaymentRecord:
+        // a monthly partial (e.g. ₱500) cannot be expressed as whole ₱30 days (16 × ₱30 = ₱480) and
+        // ends up double-recorded against the daily ledger, so the history/calendar (daily-truth) and
+        // the reports (monthly-record) disagree. NPM payments must go through daily collections.
+        if (stall.Facility?.Code == FacilityCode.NPM)
+            return Result<bool>.Failure(
+                "New Public Market is collected daily — record payments via the daily collection calendar, not a monthly payment.",
+                400);
+
         // Collectors may only record against a facility they are assigned to. Admins/heads
         // (any non-Collector role) record from the web and are not assignment-restricted.
         if (currentUser.Role == "Collector")

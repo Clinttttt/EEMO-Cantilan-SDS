@@ -9,5 +9,8 @@ public record NpmStallDailyStatusDto(
     Guid StallId,
     bool PaidToday,
     int DaysPaidThisMonth,
-    DateOnly? LastPaidDate
+    DateOnly? LastPaidDate,
+    // OR number of the most recent paid daily collection this month (NPM ORs live on the daily
+    // collections, not a monthly record). Used to show a reference OR on the collection receipt.
+    string? LastORNumber = null
 );

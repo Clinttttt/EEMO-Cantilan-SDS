@@ -14,6 +14,20 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileMenuDto>> GetMenuAsync() =>
         await GetAsync<MobileMenuDto>("api/Mobile/menu");
 
+    public async Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to)
+    {
+        var facilityParam = facility.HasValue ? $"facility={facility}&" : string.Empty;
+        return await GetAsync<IReadOnlyList<MobileCollectorRecordDto>>(
+            $"api/Mobile/records?{facilityParam}from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
+    }
+
+    public async Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month)
+    {
+        var facilityParam = facility.HasValue ? $"facility={facility}&" : string.Empty;
+        return await GetAsync<MobileCollectorReportDto>(
+            $"api/Mobile/reports?{facilityParam}year={year}&month={month}");
+    }
+
     public async Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         await GetAsync<MobileNpmCollectionDto>($"api/Mobile/npm/collections?year={year}&month={month}");
 

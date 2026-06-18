@@ -103,6 +103,7 @@ public partial class FacilityReportsRepository
             var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
 
             decimal totalBill;
+            decimal rentBill;
             string? orNumber = null;
             decimal amountPaid;
 
@@ -111,7 +112,10 @@ public partial class FacilityReportsRepository
             if (includeFish)
             {
                 var npmPayments = periodPayments.GetValueOrDefault(s.Id) ?? new List<PaymentRecord>();
-                totalBill = CalculateNpmDailyObligation(s, complianceStart, complianceEnd)
+                // Occupancy-prorated rent: collectable days in the period × ₱30 (counts from the
+                // contract's effectivity date, so a payor who started mid-month owes only their days).
+                rentBill = CalculateNpmDailyObligation(s, complianceStart, complianceEnd);
+                totalBill = rentBill
                     + npmPayments.Sum(pr => CalculateNpmAdditionalCharges(pr, complianceStart, complianceEnd));
                 amountPaid = npmPayments.Sum(pr => RecognizedNpmPaymentRevenue(pr, complianceStart, complianceEnd, s))
                     + dailyByStall.GetValueOrDefault(s.Id);
@@ -127,7 +131,8 @@ public partial class FacilityReportsRepository
                 // due across every month the contract is effective in the period (so unpaid months
                 // without a record still count), plus any utilities actually billed on in-period
                 // records. The balance then reconciles with MissedMonths and the Collection Rate.
-                totalBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd)
+                rentBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
+                totalBill = rentBill
                     + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
                     ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0)
@@ -144,9 +149,10 @@ public partial class FacilityReportsRepository
                 // obligation that has come due across the period (every effective, started month —
                 // not just one). NPM has no monthly record here either, so its daily collections
                 // (dailyByStall) settle against its own daily obligation.
-                totalBill = includeFish
-                    ? s.MonthlyRate
+                rentBill = includeFish
+                    ? CalculateNpmDailyObligation(s, complianceStart, complianceEnd)
                     : CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
+                totalBill = rentBill;
                 amountPaid = dailyByStall.GetValueOrDefault(s.Id);
             }
 
@@ -172,7 +178,8 @@ public partial class FacilityReportsRepository
                 missedMonths,
                 s.AreaSqm ?? 0,
                 contract?.EffectivityDate,
-                contract?.DurationYears ?? 0));
+                contract?.DurationYears ?? 0,
+                rentBill));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();

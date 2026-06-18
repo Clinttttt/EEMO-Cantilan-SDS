@@ -67,7 +67,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 && dc.IsPaid
                 && dc.CollectionDate >= monthStart
                 && dc.CollectionDate <= monthEnd)
-            .Select(dc => new { dc.StallId, dc.CollectionDate })
+            .Select(dc => new { dc.StallId, dc.CollectionDate, dc.ORNumber })
             .ToListAsync(ct);
 
         return collections
@@ -76,14 +76,17 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 g.Key,
                 g.Any(x => x.CollectionDate == today),
                 g.Select(x => x.CollectionDate).Distinct().Count(),
-                g.Max(x => x.CollectionDate)))
+                g.Max(x => x.CollectionDate),
+                // Most recent paid day's OR (skipping blanks) — the receipt's reference OR.
+                g.OrderByDescending(x => x.CollectionDate)
+                    .Select(x => x.ORNumber)
+                    .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or))))
             .ToList();
     }
 
     public async Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct)
     {
         var now = PhilippineTime.Now;
-        var today = PhilippineTime.Today;
         var startDate = now.AddMonths(-11);
 
         var stall = await context.Stalls
@@ -112,11 +115,15 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
         // NPM is collected daily — fold each month's daily collections into the monthly ledger so
         // the history reflects reality (a stall paying ₱30/day is not "Unpaid" for the month).
+        // Window runs to the end of the CURRENT month (not clamped to today) so days paid in
+        // advance still count — this mirrors the daily collection calendar, which shows every
+        // paid day of the month regardless of whether the date has arrived yet.
         var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var windowEnd = new DateOnly(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month));
         var dailies = await context.DailyCollections
             .AsNoTracking()
             .Where(dc => dc.StallId == stallId && dc.IsPaid
-                && dc.CollectionDate >= windowStart && dc.CollectionDate <= today)
+                && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
             .Select(dc => new { dc.CollectionDate, dc.DailyFee, dc.CollectorId, dc.ORNumber })
             .ToListAsync(ct);
 
@@ -138,17 +145,11 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             var monthStart = new DateOnly(year, month, 1);
             var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
-            // A recorded monthly payment (admin-entered) takes precedence over daily aggregation.
-            var rec = payments.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
-            if (rec is not null && rec.Status != PaymentStatus.Unpaid)
-            {
-                result.Add(new PaymentHistoryDto(period, rec.Status, rec.TotalBill, rec.AmountPaid, rec.BalanceDue,
-                    rec.ORNumber, rec.PaidAt,
-                    rec.CollectorId is Guid rcid && collectorNames.TryGetValue(rcid, out var rn) ? rn : null));
-                continue;
-            }
-
-            // Obligation = collectable days that month × ₱30 (contract-aware, same basis as reports).
+            // NPM money is ALWAYS daily-truth: a flat monthly PaymentRecord (e.g. an admin-entered
+            // partial) must never override the day-by-day reality, because NPM is a ₱30/day facility.
+            // Obligation = collectable days that month × ₱30 (contract-aware, same basis as reports);
+            // collected = the sum of paid daily collections for the month. The monthly record's flat
+            // ₱900 base / raw partial is intentionally ignored here.
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
             var bill = collectableDays * FeeRates.NpmDailyFee;
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
@@ -181,15 +182,15 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
     /// <summary>
     /// Rolling 12-month ledger totals for a stall, daily-aware for NPM. For each month the stall is
-    /// under an effective contract: a non-Unpaid monthly record takes precedence; otherwise NPM folds
-    /// that month's paid daily collections against the contract-aware ₱30/day obligation, while other
-    /// facilities owe the full monthly rent. Mirrors <see cref="GetPaymentHistoryAsync"/> so the
-    /// profile summary reconciles with the history grid and the reports.
+    /// under an effective contract: NPM always folds that month's paid daily collections against the
+    /// contract-aware ₱30/day obligation (the flat monthly record is ignored); non-NPM facilities use
+    /// a non-Unpaid monthly record when present, otherwise owe the full monthly rent. Mirrors
+    /// <see cref="GetPaymentHistoryAsync"/> so the profile summary reconciles with the history grid
+    /// and the reports.
     /// </summary>
     public async Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct)
     {
         var now = PhilippineTime.Now;
-        var today = PhilippineTime.Today;
         var startDate = now.AddMonths(-11);
 
         var stall = await context.Stalls
@@ -210,11 +211,12 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var isNpm = stall.Facility?.Code == FacilityCode.NPM;
 
         var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
+        var windowEnd = new DateOnly(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month));
         var dailies = isNpm
             ? await context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => dc.StallId == stallId && dc.IsPaid
-                    && dc.CollectionDate >= windowStart && dc.CollectionDate <= today)
+                    && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
                 .Select(dc => new { dc.CollectionDate, dc.DailyFee })
                 .ToListAsync(ct)
             : new();
@@ -235,7 +237,20 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
             var rec = payments.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
 
-            // A recorded (non-Unpaid) monthly payment is authoritative for both NPM and others.
+            if (isNpm)
+            {
+                // NPM money is always daily-truth (₱30/day × contract-prorated days) — a flat monthly
+                // record never overrides it. Mirrors GetPaymentHistoryAsync so the profile summary,
+                // the 12-month history grid, and the reports all reconcile.
+                var bill = CountCollectableDays(stall, monthStart, monthEnd) * FeeRates.NpmDailyFee;
+                var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
+                totalCollected += paid;
+                totalOutstanding += Math.Max(0m, bill - paid);
+                if (bill > 0m && paid >= bill) monthsPaid++; else monthsUnpaid++;
+                continue;
+            }
+
+            // Non-NPM: a recorded (non-Unpaid) monthly payment is authoritative.
             if (rec is not null && rec.Status != PaymentStatus.Unpaid)
             {
                 totalCollected += rec.AmountPaid;
@@ -244,20 +259,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 continue;
             }
 
-            if (isNpm)
-            {
-                var bill = CountCollectableDays(stall, monthStart, monthEnd) * FeeRates.NpmDailyFee;
-                var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
-                totalCollected += paid;
-                totalOutstanding += Math.Max(0m, bill - paid);
-                if (bill > 0m && paid >= bill) monthsPaid++; else monthsUnpaid++;
-            }
-            else
-            {
-                // Monthly-billed facility with no record this month → full rent owed.
-                totalOutstanding += stall.MonthlyRate;
-                monthsUnpaid++;
-            }
+            // Monthly-billed facility with no record this month → full rent owed.
+            totalOutstanding += stall.MonthlyRate;
+            monthsUnpaid++;
         }
 
         return new StallLedgerSummaryDto(monthsPaid, monthsUnpaid, totalCollected, totalOutstanding);
