@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net9.0 so BOTH the net10.0 MAUI app and the net9.0 test project can reference it.
+         No MAUI dependency lives here — only platform-agnostic offline-sync logic. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EEMOCantilanSDS.Mobile</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
+  </ItemGroup>
+
+</Project>

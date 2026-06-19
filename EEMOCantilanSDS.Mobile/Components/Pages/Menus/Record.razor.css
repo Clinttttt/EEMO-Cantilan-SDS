@@ -1,0 +1,288 @@
+/* ─────────────────────────────────────────────
+   Record.razor — offline pending queue UI
+   (search row + pending button, review sheet)
+   Shared classes (.search-wrap, .sheet, .sheet-overlay,
+   .sheet-title, .sheet-sub, .sheet-btn-row, .btn-close)
+   live in wwwroot/css/eemo.css; these are page-only.
+───────────────────────────────────────────── */
+
+/* Search bar + pending button on one row */
+.search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+    /* Neutralize the shared .search-wrap bottom margin inside the row */
+    .search-row .search-wrap {
+        flex: 1;
+        margin-bottom: 0;
+    }
+
+.pending-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+    .pending-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: var(--text-subtle);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* When there are queued items, draw attention with the gold accent */
+    .pending-btn.has-pending {
+        border-color: var(--gold-primary);
+        background: #fffaf0;
+    }
+
+        .pending-btn.has-pending svg {
+            stroke: var(--gold-primary);
+        }
+
+.pending-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--error-red);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--bg-page);
+}
+
+/* Connectivity strip inside the sheet */
+.pending-conn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+    .pending-conn.online {
+        color: var(--paid-green);
+        background: var(--paid-green-bg);
+    }
+
+    .pending-conn.offline {
+        color: var(--error-red);
+        background: var(--error-red-bg);
+    }
+
+    .pending-conn .conn-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+    }
+
+/* Queue list */
+.pending-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 46vh;
+    overflow-y: auto;
+    margin-bottom: 6px;
+}
+
+.pending-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    background: var(--bg-card);
+}
+
+    .pending-item.pending {
+        border-left-color: var(--gold-primary);
+    }
+
+    .pending-item.failed {
+        border-left-color: var(--text-subtle);
+    }
+
+    .pending-item.rejected {
+        border-left-color: var(--error-red);
+        background: var(--error-red-bg);
+    }
+
+.pending-item-main {
+    min-width: 0;
+}
+
+.pending-item-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pending-item-detail {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+    margin-top: 2px;
+}
+
+.pending-item-msg {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11.5px;
+    color: var(--error-red);
+    margin-top: 4px;
+}
+
+.pending-item-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.pending-item-amount {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.pending-status {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+    .pending-status.pending {
+        color: #8a6d1f;
+        background: #fbf1d8;
+    }
+
+    .pending-status.failed {
+        color: var(--text-subtle);
+        background: var(--bg-icon);
+    }
+
+    .pending-status.rejected {
+        color: #fff;
+        background: var(--error-red);
+    }
+
+.pending-discard {
+    border: none;
+    background: transparent;
+    color: var(--error-red);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* Loading spinner (Records load / retry) */
+.load-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 24px;
+    gap: 14px;
+}
+
+.spinner-ring {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold-primary);
+    animation: record-spin 0.8s linear infinite;
+}
+
+@keyframes record-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+/* Centered retry action for the load-error state (reuses the shared .empty-state layout) */
+.retry-btn {
+    margin: 18px auto 0;
+    display: block;
+    border: none;
+    border-radius: 10px;
+    background: var(--navy-primary);
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 11px 30px;
+    cursor: pointer;
+}
+
+    .retry-btn:active {
+        opacity: 0.85;
+    }
+
+/* Sync-now action in the sheet footer */
+.btn-sync-now {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    background: var(--navy-primary);
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 12px;
+    cursor: pointer;
+}
+
+    .btn-sync-now:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }

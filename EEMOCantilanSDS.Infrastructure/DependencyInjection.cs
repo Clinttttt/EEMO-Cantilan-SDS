@@ -50,6 +50,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ISuggestionRepository, SuggestionRepository>();
             service.AddScoped<IPayorRepository, PayorRepository>();
             service.AddScoped<IOnlinePaymentRepository, OnlinePaymentRepository>();
+            service.AddScoped<ISyncRepository, SyncRepository>();
 
 
             // Services
@@ -62,9 +63,7 @@ namespace EEMOCantilanSDS.Infrastructure
             var payMongo = configuration.GetSection("PayMongo");
             service.AddHttpClient<IPaymentGateway, PayMongoPaymentGateway>(client =>
             {
-                var baseUrl = payMongo["BaseUrl"];
-                if (string.IsNullOrWhiteSpace(baseUrl))
-                    baseUrl = "https://api.paymongo.com/v1";
+                var baseUrl = payMongo["BaseUrl"] ?? throw new InvalidOperationException("PayMongo BaseUrl not configured");
 
                 // Ensure relative request paths (e.g. "checkout_sessions") resolve under the version segment.
                 client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");

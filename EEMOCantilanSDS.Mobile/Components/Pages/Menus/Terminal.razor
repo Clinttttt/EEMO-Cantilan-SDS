@@ -5,9 +5,12 @@
 @using global::EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 <div class="page-shell">
     <div class="header">
@@ -585,6 +588,31 @@
         IsSaving = true;
         QuickTripError = null;
 
+        // Offline: queue the ad-hoc trip; it syncs (idempotently) when connectivity returns.
+        if (!Sync.IsOnline)
+        {
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.Trip,
+                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+                OccurredAt = DateTime.UtcNow,
+                TransporterId = null,
+                DriverName = QuickDriverName.Trim(),
+                PlateNumber = QuickPlate.Trim(),
+                Route = QuickRoute.Trim(),
+                Organization = string.IsNullOrWhiteSpace(QuickOrg) ? "Non-associated" : QuickOrg.Trim(),
+                ORNumber = QuickORNumber.Trim(),
+                FacilityLabel = "TRM",
+                Title = QuickDriverName.Trim(),
+                Detail = $"{QuickPlate.Trim()} · {QuickRoute.Trim()}",
+                Amount = Collection?.TripFee ?? 30m
+            });
+
+            CloseQuickTripSheet();
+            IsSaving = false;
+            return;
+        }
+
         // Ad-hoc trip — no transporter registration (TransporterId stays null). The trip itself
         // carries the driver, plate and route, so nothing is added to the permanent roster.
         var result = await MobileApi.RecordTripAsync(new RecordMobileTripRequest(
@@ -689,6 +717,30 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Offline: queue the trip against the registered transporter; syncs when connectivity returns.
+        if (!Sync.IsOnline)
+        {
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.Trip,
+                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+                OccurredAt = DateTime.UtcNow,
+                TransporterId = SelectedTransporter.Id,
+                DriverName = DriverName.Trim(),
+                PlateNumber = PlateNumber.Trim(),
+                Route = Route.Trim(),
+                ORNumber = ORNumber.Trim(),
+                FacilityLabel = "TRM",
+                Title = DriverName.Trim(),
+                Detail = $"{PlateNumber.Trim()} · {Route.Trim()}",
+                Amount = Collection!.TripFee
+            });
+
+            CloseSheet();
+            IsSaving = false;
+            return;
+        }
 
         var request = new RecordMobileTripRequest(
             SelectedTransporter.Id,

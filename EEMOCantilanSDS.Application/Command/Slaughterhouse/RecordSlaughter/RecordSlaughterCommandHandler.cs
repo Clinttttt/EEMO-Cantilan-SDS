@@ -72,6 +72,9 @@ public class RecordSlaughterCommandHandler(
             _ => throw new InvalidOperationException("Invalid animal type")
         };
 
+        if (request.ClientOperationId is { } clientOpId)
+            transaction.SetClientOperationId(clientOpId);
+
         await slaughterRepository.AddAsync(transaction, ct);
         await unitOfWork.SaveChangesAsync(ct);
 

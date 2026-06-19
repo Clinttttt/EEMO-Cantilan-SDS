@@ -5,9 +5,12 @@
 @using global::EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 <div class="page-shell">
     <div class="header">
@@ -136,7 +139,7 @@
 
             <div class="or-number-wrap">
                 <div class="form-label">Vendor name</div>
-                <input class="form-input" type="text" maxlength="100" placeholder="Vendor name" @bind="VendorName" @bind:event="oninput" />
+                @PickerField(VendorName, "Select or type vendor", "Select Vendor", KnownVendorNames, OnVendorPicked, SuggestionType.TpmVendor)
 
                 <div class="form-label" style="margin-top:12px;">Goods</div>
                 @PickerField(Goods, "Select or type goods", "Select Goods", KnownGoods, v => Goods = v, SuggestionType.TpmGoods)
@@ -301,6 +304,8 @@
     private string AddORNumber = string.Empty;
 
     private IReadOnlyList<string> KnownGoods => Collection?.KnownGoods ?? Array.Empty<string>();
+    private IReadOnlyList<MobileTpmKnownVendorDto> KnownVendors => Collection?.KnownVendors ?? Array.Empty<MobileTpmKnownVendorDto>();
+    private IReadOnlyList<string> KnownVendorNames => KnownVendors.Select(v => v.Name).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -363,6 +368,19 @@
         ShowAddSheet = true;
     }
 
+    // Picking a returning vendor reuses them (matched by name on save) and prefills their usual goods
+    // when goods hasn't been chosen yet — so the same vendor needs no retyping.
+    private void OnVendorPicked(string name)
+    {
+        VendorName = name;
+        if (string.IsNullOrWhiteSpace(Goods))
+        {
+            var match = KnownVendors.FirstOrDefault(v => string.Equals(v.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (match is not null && !string.IsNullOrWhiteSpace(match.Goods))
+                Goods = match.Goods;
+        }
+    }
+
     // Clicking a card → receipt (view-only). Edit button inside receipt → pay sheet.
     private void OpenVendorAction(TpmVendorAttendanceDto attendance)
     {
@@ -406,6 +424,27 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Offline: queue the vendor entry (the ₱100 fee on entry); syncs when connectivity returns.
+        if (!Sync.IsOnline)
+        {
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.TpmVendor,
+                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+                VendorName = VendorName.Trim(),
+                Goods = Goods.Trim(),
+                ORNumber = string.IsNullOrWhiteSpace(AddORNumber) ? null : AddORNumber.Trim(),
+                FacilityLabel = "TPM",
+                Title = VendorName.Trim(),
+                Detail = Goods.Trim(),
+                Amount = Collection?.VendorFee ?? 100m
+            });
+
+            CloseSheets();
+            IsSaving = false;
+            return;
+        }
 
         var result = await MobileApi.AddTpmVendorAsync(new AddMobileTpmVendorRequest(
             VendorName.Trim(),

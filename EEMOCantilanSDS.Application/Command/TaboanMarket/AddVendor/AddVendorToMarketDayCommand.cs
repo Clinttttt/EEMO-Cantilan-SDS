@@ -8,5 +8,7 @@ public record AddVendorToMarketDayCommand(
     string VendorName,
     string Goods,
     DateOnly MarketDate,
-    string? ORNumber = null
+    string? ORNumber = null,
+    // Offline-sync idempotency key (set when replaying a queued offline attendance); null online.
+    Guid? ClientOperationId = null
 ) : IRequest<Result<TpmVendorAttendanceDto>>;

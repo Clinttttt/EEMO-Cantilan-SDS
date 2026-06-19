@@ -11,5 +11,9 @@ public record RecordTripCommand(
     string Route,
     string ORNumber,
     string? Remarks,
-    string? Organization = null
+    string? Organization = null,
+    // Offline-sync: the time the trip was actually recorded offline (null = now), and the client
+    // idempotency key (null online) so a replayed queued trip is created once.
+    DateTime? OccurredAt = null,
+    Guid? ClientOperationId = null
 ) : IRequest<Result<TrmTripDto>>;

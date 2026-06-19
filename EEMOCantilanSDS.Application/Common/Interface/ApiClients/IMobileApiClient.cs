@@ -11,6 +11,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IMobileApiClient
 {
     Task<Result<MobileMenuDto>> GetMenuAsync();
+    Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
+    Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
@@ -27,6 +29,10 @@ public interface IMobileApiClient
     Task<Result<TpmVendorAttendanceDto>> AddTpmVendorAsync(AddMobileTpmVendorRequest request);
     Task<Result<bool>> MarkTpmVendorPaidAsync(MarkMobileTpmVendorPaidRequest request);
     Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request);
+
+    /// <summary>Replays a batch of queued offline collections; returns a per-item sync outcome.</summary>
+    Task<Result<SyncOfflineCollectionsResultDto>> SyncOfflineCollectionsAsync(
+        EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections.SyncOfflineCollectionsCommand command);
 
     /// <summary>Issues a single-use payor activation code for a stall (collector-facility guarded server-side).</summary>
     Task<Result<StallActivationCodeDto>> GenerateActivationCodeAsync(GenerateStallActivationCodeCommand command);

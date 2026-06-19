@@ -8,10 +8,13 @@
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Application.Common.Payments
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Mobile.Services.MobilePaymentHubService PaymentHub
 @inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -746,6 +749,35 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Offline: queue Paid/Partial collections locally; "Unpaid" is a no-money state change needing the server.
+        if (!Sync.IsOnline)
+        {
+            if (SelectedStatus == PaymentStatus.Unpaid)
+            {
+                SheetError = "You're offline. Marking a stall 'Unpaid' needs a connection.";
+                IsSaving = false;
+                return;
+            }
+
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.MonthlyRental,
+                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+                StallId = SelectedStall.StallId,
+                Status = SelectedStatus,
+                PartialAmount = SelectedStatus == PaymentStatus.Partial ? PartialAmount : null,
+                ORNumber = !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
+                FacilityLabel = FacilityCodeUpper,
+                Title = SelectedStall.PayorName,
+                Detail = $"No. {SelectedStall.StallNo}",
+                Amount = SelectedStatus == PaymentStatus.Partial ? (PartialAmount ?? 0m) : SelectedStall.MonthlyRate
+            });
+
+            CloseSheet();
+            IsSaving = false;
+            return;
+        }
 
         var request = new RecordMobileMonthlyCollectionRequest(
             SelectedStall.StallId,

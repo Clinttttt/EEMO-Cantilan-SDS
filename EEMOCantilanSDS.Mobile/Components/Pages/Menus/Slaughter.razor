@@ -5,9 +5,12 @@
 @using global::EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 <div class="page-shell">
     <div class="header">
@@ -778,6 +781,44 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Offline: queue each animal line as its own idempotent operation (shared owner + OR).
+        if (!Sync.IsOnline)
+        {
+            var bizDate = DateOnly.FromDateTime(DateTime.Now);
+            foreach (var line in lines)
+            {
+                var rate = line.AnimalType switch
+                {
+                    AnimalType.Hog => HogRate,
+                    AnimalType.Carabao or AnimalType.Cow => LargeRate,
+                    _ => line.CustomRate ?? 0m
+                };
+                var animalLabel = line.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(line.CustomAnimalType)
+                    ? line.CustomAnimalType!
+                    : line.AnimalType.ToString();
+
+                await Sync.EnqueueAsync(new PendingOperation
+                {
+                    Kind = OfflineOperationKind.Slaughter,
+                    BusinessDate = bizDate,
+                    OwnerName = line.OwnerName,
+                    ORNumber = line.ORNumber,
+                    AnimalType = line.AnimalType,
+                    NumberOfHeads = line.NumberOfHeads,
+                    CustomAnimalType = line.CustomAnimalType,
+                    CustomRate = line.CustomRate,
+                    FacilityLabel = "SLH",
+                    Title = line.OwnerName,
+                    Detail = $"{animalLabel} ×{line.NumberOfHeads}",
+                    Amount = rate * line.NumberOfHeads
+                });
+            }
+
+            CloseSheet();
+            IsSaving = false;
+            return;
+        }
 
         // Record each line under the same owner + OR (mirrors the web admin's per-animal rows).
         // Submitted sequentially; stop on the first failure and surface the error.

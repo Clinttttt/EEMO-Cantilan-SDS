@@ -1,15 +1,18 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.Suggestions.HideSuggestion;
+using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
@@ -35,6 +38,21 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<MobileMenuDto>> GetMenuAsync()
     {
         var result = await Sender.Send(new GetCollectorMobileMenuQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpGet("profile")]
+    public async Task<ActionResult<MobileCollectorProfileDto>> GetProfileAsync()
+    {
+        var result = await Sender.Send(new GetCollectorProfileQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPut("profile")]
+    public async Task<ActionResult<bool>> UpdateProfileAsync([FromBody] UpdateMobileProfileRequest request)
+    {
+        var result = await Sender.Send(new UpdateCollectorProfileCommand(
+            request.FullName, request.ContactNumber, request.Email));
         return HandleResponse(result);
     }
 
@@ -190,6 +208,16 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<bool>> HideSuggestionAsync([FromBody] HideMobileSuggestionRequest request)
     {
         var result = await Sender.Send(new HideSuggestionCommand(request.Type, request.Value));
+        return HandleResponse(result);
+    }
+
+    // Offline-first: replay a batch of queued collections recorded while offline. Idempotent per
+    // operation (client operation id); returns a per-item Synced/Rejected/Failed outcome.
+    [HttpPost("sync")]
+    public async Task<ActionResult<SyncOfflineCollectionsResultDto>> SyncOfflineCollectionsAsync(
+        [FromBody] SyncOfflineCollectionsCommand command)
+    {
+        var result = await Sender.Send(command);
         return HandleResponse(result);
     }
 }

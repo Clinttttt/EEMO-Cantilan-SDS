@@ -43,7 +43,11 @@ public sealed class MobilePaymentHubService(MobileTokenStore tokenStore) : IAsyn
 
             try
             {
-                await connection.StartAsync();
+                // Bound the connect attempt: over a dead/flapping tunnel the negotiate can otherwise hang,
+                // holding the gate (and any awaiting caller) indefinitely. On timeout we treat it as a
+                // failed best-effort connect and move on.
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                await connection.StartAsync(cts.Token);
                 _connection = connection;
             }
             catch

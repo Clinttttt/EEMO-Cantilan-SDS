@@ -10,6 +10,11 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
     {
         builder.ToTable("TrmTrips");
 
+        // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop).
+        builder.HasIndex(x => x.ClientOperationId)
+            .IsUnique()
+            .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
         builder.HasKey(t => t.Id);
         builder.Property(t => t.Id).HasColumnType("uuid");
 

@@ -317,6 +317,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("CollectionDate")
                         .HasColumnType("date");
 
@@ -372,6 +375,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
                     b.HasIndex("ORNumber")
                         .IsUnique()
@@ -492,6 +499,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<int>("BillingYear")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CollectorId")
                         .HasColumnType("uuid");
 
@@ -560,6 +570,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
                     b.HasIndex("ORNumber")
                         .IsUnique()
                         .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
@@ -582,6 +596,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<decimal>("AntemortemFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("CollectorId")
                         .HasColumnType("uuid");
@@ -664,6 +681,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
                     b.HasIndex("FacilityId");
 
                     b.ToTable("SlaughterTransactions", (string)null);
@@ -717,6 +738,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CollectorId")
                         .HasColumnType("uuid");
 
@@ -763,6 +787,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
                     b.HasIndex("ORNumber")
                         .IsUnique()
@@ -883,6 +911,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("CollectorId")
                         .HasColumnType("uuid");
 
@@ -944,6 +975,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
                     b.HasIndex("ORNumber")
                         .IsUnique()

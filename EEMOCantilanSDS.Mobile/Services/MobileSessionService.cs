@@ -81,8 +81,10 @@ public sealed class MobileSessionService(
         }
 
         Menu = result.Value;
-        // Now authenticated with a working session — connect the realtime payment hub (idempotent, best-effort).
-        await paymentHub.StartAsync();
+        // Now authenticated with a working session — connect the realtime payment hub.
+        // Fire-and-forget + best-effort: the hub is a non-critical enhancement, so a slow/unreachable
+        // tunnel must never block (or hang) session/menu loading. It self-heals via its own retry.
+        _ = paymentHub.StartAsync();
         return null;
     }
 

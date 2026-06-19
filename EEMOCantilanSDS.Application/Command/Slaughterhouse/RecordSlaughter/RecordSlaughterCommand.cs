@@ -11,5 +11,7 @@ public record RecordSlaughterCommand(
     AnimalType AnimalType,
     string? CustomAnimalType,
     int NumberOfHeads,
-    decimal? CustomRate
+    decimal? CustomRate,
+    // Offline-sync idempotency key (set when replaying a queued offline transaction); null online.
+    Guid? ClientOperationId = null
 ) : IRequest<Result<bool>>;

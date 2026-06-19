@@ -46,6 +46,9 @@ public class AddVendorToMarketDayCommandHandler(
 
         var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate);
 
+        if (request.ClientOperationId is { } clientOpId)
+            attendance.SetClientOperationId(clientOpId);
+
         // At Tabo-an, paying the ₱100 is what grants the vendor their area, so recording a vendor
         // inherently means the fee was collected — the attendance is paid on creation.
         var recordedBy = currentUser.Username ?? "Admin";

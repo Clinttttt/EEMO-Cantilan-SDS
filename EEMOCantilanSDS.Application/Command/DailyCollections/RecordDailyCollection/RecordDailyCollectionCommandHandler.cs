@@ -69,6 +69,9 @@ public class RecordDailyCollectionCommandHandler(
                 collectionDate: request.CollectionDate,
                 createdBy: recordedBy);
 
+            if (request.ClientOperationId is { } clientOpId)
+                newCollection.SetClientOperationId(clientOpId);
+
             if (request.IsPaid)
             {
                 if (!string.IsNullOrWhiteSpace(orNumber) && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))

@@ -1122,6 +1122,18 @@ html, body, #app {
     color: #8a6d1b;
 }
 
+/* Office/Admin-recorded tag — distinguishes entries the collector did NOT personally collect */
+.record-admin-tag {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1.5px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    background: rgba(13, 33, 55, 0.10);
+    color: var(--navy-primary);
+}
+
 /* Fish-section weight line under the meta */
 .record-fish {
     font-size: 9.5px;

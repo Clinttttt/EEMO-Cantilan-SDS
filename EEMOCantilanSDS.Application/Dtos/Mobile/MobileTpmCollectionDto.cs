@@ -14,4 +14,9 @@ public sealed record MobileTpmCollectionDto(
     int VendorCount,
     decimal CollectedAmount,
     IReadOnlyList<TpmVendorAttendanceDto> Attendances,
-    IReadOnlyList<string> KnownGoods);
+    IReadOnlyList<string> KnownGoods,
+    IReadOnlyList<MobileTpmKnownVendorDto> KnownVendors);
+
+/// <summary>A previously-registered Tabo-an vendor, for the mobile "Vendor name" picker. Selecting
+/// one reuses the vendor (the Add handler matches by name) and prefills their usual goods.</summary>
+public sealed record MobileTpmKnownVendorDto(string Name, string Goods);

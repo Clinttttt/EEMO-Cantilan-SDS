@@ -27,21 +27,31 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddSingleton<MobileTokenStore>();
             builder.Services.AddSingleton<MobileSessionService>();
             builder.Services.AddSingleton<MobilePaymentHubService>();
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.IConnectivityMonitor, EEMOCantilanSDS.Mobile.Platform.MauiConnectivityMonitor>();
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.IPendingOperationStore>(
+                _ => new EEMOCantilanSDS.Mobile.Services.PendingOperationStore(FileSystem.AppDataDirectory));
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.MobileSyncService>();
             builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
             builder.Services.AddTransient<MobileAuthorizationDelegatingHandler>();
+            builder.Services.AddTransient<MobileRefreshTokenDelegatingHandler>();
 
             builder.Services.AddHttpClient<ICollectorAuthApiClient, CollectorAuthApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
+                // ngrok free tier shows an HTML interstitial to browser-like requests; this header skips it
+                // so JSON responses come through clean. Harmless on localhost (unknown header is ignored).
+                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
             builder.Services.AddHttpClient<IMobileApiClient, MobileApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
+                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             })
             .AddHttpMessageHandler<MobileLoopbackFallbackHandler>()
+            .AddHttpMessageHandler<MobileRefreshTokenDelegatingHandler>()
             .AddHttpMessageHandler<MobileAuthorizationDelegatingHandler>();
 
 #if DEBUG
@@ -54,6 +64,14 @@ namespace EEMOCantilanSDS.Mobile
 
         internal static string GetApiBaseUrl()
         {
+            // ── Physical-device testing over the internet (ngrok / dev tunnel) ──────────────
+            // Set this to your public HTTPS tunnel URL (WITH trailing slash) to run the app on a real
+            // phone pointed at your local API. Leave it "" for normal localhost dev (Windows + emulator).
+            // NOTE: the ngrok free plan gives a NEW URL every restart — update this each session.
+            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+            if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
+                return ApiBaseUrlOverride;
+
 #if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117
             var isEmulator = global::Android.OS.Build.Fingerprint?.Contains("generic") == true

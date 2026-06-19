@@ -50,6 +50,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsUnique()
                 .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
+            // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop
+            // so a replayed/duplicated offline collection is never created twice).
+            builder.HasIndex(x => x.ClientOperationId)
+                .IsUnique()
+                .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
             builder.HasOne(s => s.Stall)
                 .WithMany()
                 .HasForeignKey(s => s.StallId)

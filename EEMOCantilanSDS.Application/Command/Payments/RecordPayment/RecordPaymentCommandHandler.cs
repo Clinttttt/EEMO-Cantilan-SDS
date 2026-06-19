@@ -63,7 +63,10 @@ public class RecordPaymentCommandHandler(
                 stall.MonthlyRate,
                 recordedBy
             );
-            
+
+            if (request.ClientOperationId is { } clientOpId)
+                newPayment.SetClientOperationId(clientOpId);
+
             newPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
             if (newPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))
             {

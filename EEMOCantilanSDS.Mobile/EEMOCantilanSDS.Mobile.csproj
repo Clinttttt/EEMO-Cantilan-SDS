@@ -82,6 +82,7 @@
     <ItemGroup>
       <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
       <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
+      <ProjectReference Include="..\EEMOCantilanSDS.Mobile.Core\EEMOCantilanSDS.Mobile.Core.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -23,6 +23,12 @@ public interface ICollectorRepository
     Task<MobileCollectorReportDto> GetCollectorReportAsync(
         Guid collectorId, IReadOnlyCollection<FacilityCode> facilities, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The authenticated collector's own profile: account fields plus lifetime collection stats
+    /// (all-time recognized collected, distinct active days, assigned-facility count).
+    /// </summary>
+    Task<MobileCollectorProfileDto?> GetCollectorProfileAsync(Guid collectorId, CancellationToken cancellationToken = default);
+
     Task AddAsync(CollectorUser collector, CancellationToken cancellationToken = default);
     Task<bool> IsEmployeeIdUniqueAsync(string employeeId, CancellationToken cancellationToken = default);
     Task<bool> IsUsernameUniqueAsync(string username, CancellationToken cancellationToken = default);

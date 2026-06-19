@@ -14,6 +14,12 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<MobileMenuDto>> GetMenuAsync() =>
         await GetAsync<MobileMenuDto>("api/Mobile/menu");
 
+    public async Task<Result<MobileCollectorProfileDto>> GetProfileAsync() =>
+        await GetAsync<MobileCollectorProfileDto>("api/Mobile/profile");
+
+    public async Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request) =>
+        await PutAsync<UpdateMobileProfileRequest, bool>("api/Mobile/profile", request);
+
     public async Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to)
     {
         var facilityParam = facility.HasValue ? $"facility={facility}&" : string.Empty;
@@ -70,6 +76,11 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> HideSuggestionAsync(HideMobileSuggestionRequest request) =>
         await PostAsync<HideMobileSuggestionRequest, bool>("api/Mobile/suggestions/hide", request);
+
+    public async Task<Result<SyncOfflineCollectionsResultDto>> SyncOfflineCollectionsAsync(
+        EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections.SyncOfflineCollectionsCommand command) =>
+        await PostAsync<EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections.SyncOfflineCollectionsCommand,
+            SyncOfflineCollectionsResultDto>("api/Mobile/sync", command);
 
     public async Task<Result<Application.Dtos.Payors.StallActivationCodeDto>> GenerateActivationCodeAsync(
         Application.Command.Payors.GenerateStallActivationCode.GenerateStallActivationCodeCommand command) =>

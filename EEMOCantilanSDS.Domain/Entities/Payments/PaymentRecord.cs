@@ -19,6 +19,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public string? ORNumber { get; private set; }
         public DateTime? PaidAt { get; private set; }
 
+        // Offline-sync idempotency key from the mobile client (null for online records).
+        public Guid? ClientOperationId { get; private set; }
+
         // Fee breakdown
         public decimal BaseRentalAmount { get; private set; }
         public decimal PartialAmount { get; private set; }
@@ -134,6 +137,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
+
+        /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
+        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
 
         public void UpdateStatus(
             PaymentStatus status,

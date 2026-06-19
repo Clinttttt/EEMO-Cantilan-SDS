@@ -46,6 +46,18 @@ public sealed class GetMobileTpmCollectionQueryHandler(
         var hiddenGoods = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TpmGoods, ct);
         knownGoods = knownGoods.Where(g => !hiddenGoods.Contains(g)).ToList();
 
+        // Existing vendors (name + their usual goods) — feeds the mobile "Vendor name" picker so a
+        // returning vendor can be selected (reused by name) instead of retyped, prefilling their goods.
+        // Office-hidden vendor names are dropped from the suggestions.
+        var hiddenVendors = await suggestionRepository.GetHiddenValuesAsync(SuggestionType.TpmVendor, ct);
+        var knownVendors = allVendors
+            .Where(v => !string.IsNullOrWhiteSpace(v.VendorName))
+            .GroupBy(v => v.VendorName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => !hiddenVendors.Contains(g.Key))
+            .Select(g => new MobileTpmKnownVendorDto(g.Key, g.First().Goods?.Trim() ?? string.Empty))
+            .OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         return Result<MobileTpmCollectionDto>.Success(new MobileTpmCollectionDto(
             marketDate,
             isMarketDay,
@@ -53,7 +65,8 @@ public sealed class GetMobileTpmCollectionQueryHandler(
             attendances.Count,
             attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
             attendances,
-            knownGoods));
+            knownGoods,
+            knownVendors));
     }
 
     // Today if it is a Friday, otherwise the most recent past Friday.

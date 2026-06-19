@@ -12,5 +12,7 @@ public record RecordPaymentCommand(
     PaymentStatus Status,
     decimal? PartialAmount,
     string? Remarks,
-    string? ORNumber = null
+    string? ORNumber = null,
+    // Offline-sync idempotency key (set when replaying a queued offline payment); null online.
+    Guid? ClientOperationId = null
 ) : IRequest<Result<bool>>;

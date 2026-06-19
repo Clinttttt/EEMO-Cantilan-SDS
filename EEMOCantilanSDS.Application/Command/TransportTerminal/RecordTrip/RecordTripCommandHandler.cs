@@ -55,7 +55,11 @@ public class RecordTripCommandHandler(
             organization: organization,
             collectorId: currentUser.CollectorId,
             remarks: request.Remarks,
-            createdBy: currentUser.Username ?? "Admin");
+            createdBy: currentUser.Username ?? "Admin",
+            recordedAt: request.OccurredAt);
+
+        if (request.ClientOperationId is { } clientOpId)
+            trip.SetClientOperationId(clientOpId);
 
         await trmRepo.AddTripAsync(trip, ct);
         await uow.SaveChangesAsync(ct);

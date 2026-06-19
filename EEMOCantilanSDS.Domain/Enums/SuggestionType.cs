@@ -10,5 +10,6 @@ public enum SuggestionType
     TrmRoute = 2,
     TrmOrganization = 3,
     TpmGoods = 4,
-    SlhOwner = 5
+    SlhOwner = 5,
+    TpmVendor = 6
 }

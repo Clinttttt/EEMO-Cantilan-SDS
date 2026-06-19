@@ -10,6 +10,11 @@ public class TpmAttendanceConfiguration : IEntityTypeConfiguration<TpmAttendance
     {
         builder.ToTable("TpmAttendances");
 
+        // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop).
+        builder.HasIndex(x => x.ClientOperationId)
+            .IsUnique()
+            .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id)
             .HasColumnType("uuid");

@@ -1,6 +1,10 @@
 ﻿@page "/profile"
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Requests.Mobile
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
 
 <!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
@@ -48,7 +52,7 @@
                 <div class="summary-key">Days Active</div>
             </div>
             <div class="summary-item">
-                <div class="summary-value">@AssignedFacilities</div>
+                <div class="summary-value">@FacilityList.Count</div>
                 <div class="summary-key">Facilities</div>
             </div>
         </div>
@@ -227,9 +231,7 @@
 
             <div class="form-field">
                 <div class="form-label">Employee ID</div>
-                <input class="form-input" type="text"
-                       placeholder="e.g. EEMO-2024-001"
-                       @bind="EditEmployeeId" @bind:event="oninput" />
+                <input class="form-input" type="text" value="@EmployeeId" readonly disabled />
             </div>
 
             <div class="form-row">
@@ -254,7 +256,7 @@
 
             <div class="sheet-btn-row">
                 <div class="btn-cancel" @onclick="CloseEdit">Cancel</div>
-                <div class="btn-confirm" @onclick="SaveEdit">Save Changes</div>
+                <div class="btn-confirm" @onclick="SaveEdit">@(IsSavingEdit ? "Saving..." : "Save Changes")</div>
             </div>
         </div>
     </div>
@@ -266,33 +268,92 @@
     // ── Navigation ────────────────────────────────────────────────────────────
     void GoTo(string path) => Navigation.NavigateTo(path, forceLoad: false);
 
-    // ── Collector Info ────────────────────────────────────────────────────────
-    // Replace with real auth/session data when backend is ready
-    string CollectorName  = "Clint";
-    string EmployeeId     = "EEMO-2024-001";
-    string ContactNumber  = "+63 912 345 6789";
-    string Email          = "collector@cantilan.gov.ph";
-
-    // Set this to load a default photo — e.g. "images/clint.jpg"
-    // Leave empty to show initials instead
-    string AvatarSrc      = "images/clint.jpg";
+    // ── Collector Info (loaded from session menu + profile API) ──
+    string CollectorName  = "Collector";
+    string EmployeeId     = string.Empty;
+    string ContactNumber  = string.Empty;
+    string Email          = string.Empty;
+    string AvatarSrc      = string.Empty;   // initials unless a (local) photo is chosen
 
     // Derived initials for avatar
     string Initials => string.Concat(
-        CollectorName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                     .Take(2)
-                     .Select(w => w[0].ToString().ToUpper()));
+        (string.IsNullOrWhiteSpace(CollectorName) ? "C" : CollectorName)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Take(2)
+            .Select(w => w[0].ToString().ToUpper()));
 
-    // ── Stats ─────────────────────────────────────────────────────────────────
-    // Replace with real computed values from service
-    string TotalCollected    = "₱14,250";
-    int    TotalDays         = 22;
-    int    AssignedFacilities = 3;
+    // ── Stats (loaded) ──
+    decimal TotalCollectedAmount;
+    string  TotalCollected => $"₱{TotalCollectedAmount:N0}";
+    int     TotalDays;
 
-    // ── Settings ──────────────────────────────────────────────────────────────
+    // ── Settings ──
     bool NotificationsEnabled = true;
-
     void ToggleNotifications() => NotificationsEnabled = !NotificationsEnabled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Session.InitializeAsync();
+            if (Session.Menu is null)
+            {
+                Navigation.NavigateTo("/login", forceLoad: false);
+                return;
+            }
+
+            // Name, Employee ID and assigned facilities come straight from the session menu.
+            CollectorName = Session.Menu.CollectorName;
+            EmployeeId    = Session.Menu.EmployeeId;
+            BuildFacilityList();
+
+            await LoadProfileAsync();
+        }
+        catch (HttpRequestException)
+        {
+            // Offline — keep whatever the session already provided.
+        }
+    }
+
+    async Task LoadProfileAsync()
+    {
+        var result = await Api.GetProfileAsync();
+        if (result.IsSuccess && result.Value is { } p)
+        {
+            if (!string.IsNullOrWhiteSpace(p.FullName)) CollectorName = p.FullName;
+            if (!string.IsNullOrWhiteSpace(p.EmployeeId)) EmployeeId = p.EmployeeId;
+            ContactNumber        = p.ContactNumber;
+            Email                = p.Email;
+            TotalCollectedAmount = p.TotalCollected;
+            TotalDays            = p.DaysActive;
+        }
+        StateHasChanged();
+    }
+
+    void BuildFacilityList()
+    {
+        FacilityList = (Session.Menu?.Facilities ?? new List<MobileFacilityMenuItemDto>())
+            .Where(f => f.IsAssigned)
+            .OrderBy(f => f.Code)
+            .Select(f => new FacilityItem
+            {
+                Code = f.Code.ToString(),
+                Name = f.Name,
+                IconSvg = GetFacilityIcon(f.Code)
+            })
+            .ToList();
+    }
+
+    static string GetFacilityIcon(FacilityCode code) => code switch
+    {
+        FacilityCode.NPM => """<svg viewBox="0 0 24 24" class="profile-svg"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
+        FacilityCode.TCC or FacilityCode.BBQ or FacilityCode.ICE => """<svg viewBox="0 0 24 24" class="profile-svg"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>""",
+        FacilityCode.NCC => """<svg viewBox="0 0 24 24" class="profile-svg"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>""",
+        FacilityCode.TRM => """<svg viewBox="0 0 24 24" class="profile-svg"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
+        FacilityCode.SLH => """<svg viewBox="0 0 24 24" class="profile-svg"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>""",
+        FacilityCode.TPM => """<svg viewBox="0 0 24 24" class="profile-svg"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>""",
+        _ => """<svg viewBox="0 0 24 24" class="profile-svg"><circle cx="12" cy="12" r="10"/></svg>"""
+    };
 
     // ── Assigned Facilities Model ─────────────────────────────────────────────
     class FacilityItem
@@ -302,21 +363,7 @@
         public string IconSvg { get; set; } = string.Empty;
     }
 
-    List<FacilityItem> FacilityList = new()
-    {
-        new() {
-            Code = "NPM", Name = "New Public Market",
-            IconSvg = """<svg viewBox="0 0 24 24" class="profile-svg"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""
-        },
-        new() {
-            Code = "TCC", Name = "Town Center Commercial",
-            IconSvg = """<svg viewBox="0 0 24 24" class="profile-svg"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>"""
-        },
-        new() {
-            Code = "Terminal", Name = "Transport Terminal",
-            IconSvg = """<svg viewBox="0 0 24 24" class="profile-svg"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>"""
-        },
-    };
+    List<FacilityItem> FacilityList = new();
 
     // ── Sign Out ──────────────────────────────────────────────────────────────
     async Task SignOut()
@@ -329,8 +376,8 @@
 
     // ── Edit Profile Sheet ────────────────────────────────────────────────────
     bool   ShowEditSheet  = false;
+    bool   IsSavingEdit   = false;
     string EditName       = string.Empty;
-    string EditEmployeeId = string.Empty;
     string EditContact    = string.Empty;
     string EditEmail      = string.Empty;
     string EditAvatarSrc  = string.Empty;   // base64 preview or path
@@ -339,7 +386,6 @@
     void OpenEdit()
     {
         EditName       = CollectorName;
-        EditEmployeeId = EmployeeId;
         EditContact    = ContactNumber;
         EditEmail      = Email;
         EditAvatarSrc  = AvatarSrc;      // carry current photo into edit
@@ -375,23 +421,51 @@
         EditAvatarSrc = string.Empty;
     }
 
-    void SaveEdit()
+    async Task SaveEdit()
     {
         if (string.IsNullOrWhiteSpace(EditName))
         {
             EditError = "Full name is required.";
             return;
         }
+        if (string.IsNullOrWhiteSpace(EditEmail))
+        {
+            EditError = "Email is required.";
+            return;
+        }
 
-        // Apply all changes
-        CollectorName = EditName.Trim();
-        EmployeeId    = EditEmployeeId.Trim();
-        ContactNumber = EditContact.Trim();
-        Email         = EditEmail.Trim();
-        AvatarSrc     = EditAvatarSrc;   // commit photo
+        IsSavingEdit = true;
+        EditError = string.Empty;
 
-        CloseEdit();
-        // TODO: persist → await ProfileService.UpdateAsync(...)
+        try
+        {
+            var result = await Api.UpdateProfileAsync(new UpdateMobileProfileRequest(
+                EditName.Trim(), EditContact.Trim(), EditEmail.Trim()));
+
+            if (!result.IsSuccess)
+            {
+                EditError = result.Error ?? "Unable to save changes. Please try again.";
+                return;
+            }
+
+            // Apply locally so the page reflects the change immediately.
+            CollectorName = EditName.Trim();
+            ContactNumber = EditContact.Trim();
+            Email         = EditEmail.Trim();
+            AvatarSrc     = EditAvatarSrc;   // photo kept locally for now (persistence is a later feature)
+            CloseEdit();
+
+            // Best-effort: refresh the session menu so the name updates across the app.
+            try { await Session.LoadMenuAsync(); } catch { /* non-critical */ }
+        }
+        catch (Exception)
+        {
+            EditError = "Unable to save changes. Please check your connection and try again.";
+        }
+        finally
+        {
+            IsSavingEdit = false;
+        }
     }
 
     void CloseEdit()

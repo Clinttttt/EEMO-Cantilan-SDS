@@ -17,6 +17,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public bool IsPaid { get; private set; }
         public string? ORNumber { get; private set; }
 
+        // Offline-sync idempotency key from the mobile client (null for online records). Lets a queued
+        // offline collection be replayed safely on reconnect — a record with the same key is created once.
+        public Guid? ClientOperationId { get; private set; }
+
         public decimal? FishKilos { get; private set; }
         public decimal? FishFeeAmount => FishKilos.HasValue 
             ? FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0;
@@ -64,5 +68,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
+
+        /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
+        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
     }
 }

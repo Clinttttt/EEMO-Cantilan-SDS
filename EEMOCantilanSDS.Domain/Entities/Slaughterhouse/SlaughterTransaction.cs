@@ -23,6 +23,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
         public string? ORNumber { get; private set; }
         public DateOnly TransactionDate { get; private set; }
 
+        // Offline-sync idempotency key from the mobile client (null for online records).
+        public Guid? ClientOperationId { get; private set; }
+
         // Fee breakdown (stored for audit transparency)
         public decimal SlaughterFee { get; private set; }
         public decimal? SlaughterPermit { get; private set; }  // Carabao/Cow only
@@ -126,5 +129,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 CreatedBy = createdBy
             };
         }
+
+        /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
+        public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
     }
 }

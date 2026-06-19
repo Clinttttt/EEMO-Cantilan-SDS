@@ -67,7 +67,7 @@
             @if (ActiveReportType == PrimaryReportTab)
             {
                 <div class="section-label">
-                    @(DailyReportMode ? "Breakdown by Day" : "Breakdown by Month")
+                    @(WeeklyReportMode ? "Breakdown by Market Day" : DailyReportMode ? "Breakdown by Day" : "Breakdown by Month")
                     <span class="section-total">&#8369;@GrandTotal.ToString("N0")</span>
                 </div>
 
@@ -305,7 +305,11 @@
         ReportData?.DailyReportMode
         ?? (AssignedFacilities.Count > 0 && AssignedFacilities.All(code => DailyFacilities.Contains(code)));
 
-    string PrimaryReportTab => DailyReportMode ? "By Day" : "By Month";
+    string PrimaryReportTab => WeeklyReportMode ? "By Market Day" : DailyReportMode ? "By Day" : "By Month";
+
+    // Tabo-an (TPM) trades only on Fridays — its breakdown reads as market days, not generic days.
+    bool WeeklyReportMode =>
+        AssignedFacilities.Count > 0 && AssignedFacilities.All(code => code == FacilityCode.TPM);
 
     IReadOnlyList<string> ReportTypes => new[] { PrimaryReportTab, "Per Payee", "Summary" };
 

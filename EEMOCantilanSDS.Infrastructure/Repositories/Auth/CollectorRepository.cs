@@ -30,6 +30,15 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
         var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
 
+        // The Records feed shows the collector's OWN collections plus admin/office-recorded entries
+        // (CollectorId == null) at the facilities they're assigned to — the latter are tagged so
+        // attribution stays clear. Admin entries outside their assignments are never shown.
+        var assignedCodes = await context.CollectorFacilityAssignments
+            .Where(a => a.CollectorId == collectorId)
+            .Select(a => a.FacilityCode)
+            .ToListAsync(cancellationToken);
+        var assignedSet = assignedCodes.ToHashSet();
+
         var all = facility is null;
         var results = new List<MobileCollectorRecordDto>();
 
@@ -37,7 +46,9 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         if (all || facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE or FacilityCode.NPM)
         {
             var q = context.PaymentRecords.AsNoTracking()
-                .Where(p => p.CollectorId == collectorId && p.Status != PaymentStatus.Unpaid);
+                .Where(p => p.Status != PaymentStatus.Unpaid
+                    && (p.CollectorId == collectorId
+                        || (p.CollectorId == null && assignedCodes.Contains(p.Stall!.Facility!.Code))));
             if (!all) q = q.Where(p => p.Stall!.Facility!.Code == facility);
 
             var rows = await q
@@ -56,6 +67,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     p.WaterAmount,
                     p.FishKilos,
                     p.PartialAmount,
+                    IsAdmin = p.CollectorId == null,
                     When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
@@ -67,16 +79,19 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 var partial = r.Status == PaymentStatus.Partial;
                 return new MobileCollectorRecordDto(
                     r.ORNumber ?? "—", r.Payor ?? "—", r.Code, string.Empty, r.StallNo,
-                    "Stall Rental", full, partial ? r.PartialAmount : full, partial, r.When, r.Section, r.FishKilos);
+                    "Stall Rental", full, partial ? r.PartialAmount : full, partial, r.When, r.Section, r.FishKilos,
+                    r.IsAdmin);
             }));
         }
 
         // ── NPM daily collections — business date = CollectionDate ──
         if (all || facility is FacilityCode.NPM)
         {
+            var npmAssigned = assignedSet.Contains(FacilityCode.NPM);
             var rows = await context.DailyCollections.AsNoTracking()
-                .Where(d => d.CollectorId == collectorId && d.IsPaid
-                         && d.CollectionDate >= fromDate && d.CollectionDate <= toDate)
+                .Where(d => d.IsPaid
+                         && d.CollectionDate >= fromDate && d.CollectionDate <= toDate
+                         && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null)))
                 .Select(d => new
                 {
                     d.ORNumber,
@@ -86,6 +101,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     d.Stall.Section,
                     d.DailyFee,
                     d.FishKilos,
+                    IsAdmin = d.CollectorId == null,
                     When = d.UpdatedAt ?? d.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
@@ -93,14 +109,16 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             results.AddRange(rows.Select(d => new MobileCollectorRecordDto(
                 d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
                 "Daily Fee", d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
-                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), false, d.When, d.Section, d.FishKilos)));
+                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), false, d.When, d.Section, d.FishKilos,
+                d.IsAdmin)));
         }
 
         // ── Slaughterhouse — business date = TransactionDate ──
         if (all || facility is FacilityCode.SLH)
         {
+            var slhAssigned = assignedSet.Contains(FacilityCode.SLH);
             var rows = await context.SlaughterTransactions.AsNoTracking()
-                .Where(s => s.CollectorId == collectorId
+                .Where(s => (s.CollectorId == collectorId || (slhAssigned && s.CollectorId == null))
                          && s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
                 .Select(s => new
                 {
@@ -108,46 +126,55 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     s.OwnerName,
                     s.RatePerHead,
                     s.NumberOfHeads,
+                    IsAdmin = s.CollectorId == null,
                     When = s.UpdatedAt ?? s.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
 
             results.AddRange(rows.Select(s => new MobileCollectorRecordDto(
                 s.ORNumber ?? "—", s.OwnerName, FacilityCode.SLH, string.Empty, null,
-                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, s.When)));
+                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, s.When,
+                IsAdminRecorded: s.IsAdmin)));
         }
 
         // ── Transport terminal — collection event = RecordedAt ──
         if (all || facility is FacilityCode.TRM)
         {
+            var trmAssigned = assignedSet.Contains(FacilityCode.TRM);
             var rows = await context.TrmTrips.AsNoTracking()
-                .Where(t => t.CollectorId == collectorId && t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
-                .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.RecordedAt })
+                .Where(t => (t.CollectorId == collectorId || (trmAssigned && t.CollectorId == null))
+                         && t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
+                .Select(t => new { t.ORNumber, t.DriverName, t.Fee, t.RecordedAt, IsAdmin = t.CollectorId == null })
                 .ToListAsync(cancellationToken);
 
             results.AddRange(rows.Select(t => new MobileCollectorRecordDto(
                 t.ORNumber ?? "—", t.DriverName, FacilityCode.TRM, string.Empty, null,
-                "Terminal Trip", t.Fee, t.Fee, false, t.RecordedAt)));
+                "Terminal Trip", t.Fee, t.Fee, false, t.RecordedAt,
+                IsAdminRecorded: t.IsAdmin)));
         }
 
         // ── Tabo-an market — business date = MarketDate ──
         if (all || facility is FacilityCode.TPM)
         {
+            var tpmAssigned = assignedSet.Contains(FacilityCode.TPM);
             var rows = await context.TpmAttendances.AsNoTracking()
-                .Where(a => a.CollectorId == collectorId && a.IsPaid
+                .Where(a => (a.CollectorId == collectorId || (tpmAssigned && a.CollectorId == null))
+                         && a.IsPaid
                          && a.MarketDate >= fromDate && a.MarketDate <= toDate)
                 .Select(a => new
                 {
                     a.ORNumber,
                     Vendor = a.Vendor!.VendorName,
                     a.Fee,
+                    IsAdmin = a.CollectorId == null,
                     When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
 
             results.AddRange(rows.Select(a => new MobileCollectorRecordDto(
                 a.ORNumber ?? "—", a.Vendor, FacilityCode.TPM, string.Empty, null,
-                "Market Day", a.Fee, a.Fee, false, a.When)));
+                "Market Day", a.Fee, a.Fee, false, a.When,
+                IsAdminRecorded: a.IsAdmin)));
         }
 
         return results.OrderByDescending(r => r.CollectedAt).ToList();
@@ -173,12 +200,18 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
         var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
 
+        // Obligation/open-items are assessed only up to the caller's end (today for the current month
+        // = toDate). COLLECTED money, however, must include every paid collection in the month — even
+        // days paid in advance (CollectionDate after today). So daily collections range to month-end.
+        var collectionEnd = new DateOnly(fromDate.Year, fromDate.Month, DateTime.DaysInMonth(fromDate.Year, fromDate.Month));
+
         if (selectedSet.Contains(FacilityCode.NPM))
         {
             var npmStalls = await context.Stalls
                 .AsNoTracking()
                 .Include(s => s.Contracts)
-                .Include(s => s.DailyCollections.Where(d => d.CollectionDate >= fromDate && d.CollectionDate <= toDate))
+                .Include(s => s.DailyCollections.Where(d => d.CollectionDate >= fromDate && d.CollectionDate <= collectionEnd
+                    && (d.CollectorId == collectorId || d.CollectorId == null)))
                 .Where(s => s.Facility!.Code == FacilityCode.NPM
                     && s.Status == StallStatus.Active
                     && s.Section.HasValue
@@ -191,7 +224,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             var npmStallIds = npmStallsById.Keys.ToList();
             var npmPaymentRecords = await context.PaymentRecords
                 .AsNoTracking()
-                .Where(p => npmStallIds.Contains(p.StallId))
+                .Where(p => npmStallIds.Contains(p.StallId)
+                    && (p.CollectorId == collectorId || p.CollectorId == null))
                 .ToListAsync(cancellationToken);
 
             var periodNpmPaymentRecords = npmPaymentRecords
@@ -209,8 +243,9 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .Where(d => d.IsPaid
                     && d.Stall!.Facility!.Code == FacilityCode.NPM
                     && d.CollectionDate >= fromDate
-                    && d.CollectionDate <= toDate
-                    && !monthlyPaymentStallIds.Contains(d.StallId))
+                    && d.CollectionDate <= collectionEnd
+                    && !monthlyPaymentStallIds.Contains(d.StallId)
+                    && (d.CollectorId == collectorId || d.CollectorId == null))
                 .Select(d => new
                 {
                     d.ORNumber,
@@ -271,15 +306,17 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 var paidCollections = stallsWithMonthlyPayments.Contains(s.Id)
                     ? new List<DailyCollection>()
                     : s.DailyCollections
-                        .Where(d => d.IsPaid && d.CollectionDate >= fromDate && d.CollectionDate <= toDate)
+                        .Where(d => d.IsPaid && d.CollectionDate >= fromDate && d.CollectionDate <= collectionEnd)
                         .ToList();
 
-                var collectableDays = CountNpmCollectableDays(s, fromDate, toDate);
-                var monthlyAmountPaid = stallPayments.Sum(p => RecognizedNpmPaymentRevenue(p, fromDate, toDate, s));
-                var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, fromDate, toDate, s));
+                // Obligation + collected are assessed over the FULL month — matching the web reports
+                // (FacilityReportsRepository) and dashboard — so balances and Partial status reconcile
+                // across web and mobile. Fish fees (₱/kg) are NOT part of the rental obligation, so the
+                // per-payee Amount Paid is rental-only (like the web's per-stall column); fish revenue
+                // still appears in the Total Collection.
+                var collectableDays = CountNpmCollectableDays(s, fromDate, collectionEnd);
+                var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, fromDate, collectionEnd, s));
                 var rentalPaid = monthlyRentalPaid + paidCollections.Count * dailyRate;
-                var fishCollected = (monthlyAmountPaid - monthlyRentalPaid)
-                    + paidCollections.Sum(d => d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo);
                 var assessed = collectableDays * dailyRate;
                 var balance = Math.Max(0m, assessed - rentalPaid);
                 var status = balance <= 0m && collectableDays > 0
@@ -295,7 +332,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     GetSectionName(s.Section),
                     status,
                     assessed,
-                    rentalPaid + fishCollected,
+                    rentalPaid,
                     balance,
                     0,
                     0,
@@ -323,6 +360,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .Where(p => p.Status != PaymentStatus.Unpaid
                     && p.Stall!.Facility != null
                     && monthlyFacilities.Contains(p.Stall.Facility.Code)
+                    && (p.CollectorId == collectorId || p.CollectorId == null)
                     && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc
                     && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
                 .Select(p => new
@@ -365,7 +403,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .AsNoTracking()
                 .Include(s => s.Facility)
                 .Include(s => s.Contracts)
-                .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
+                .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month
+                    && (p.CollectorId == collectorId || p.CollectorId == null)))
                 .Where(s => s.Facility != null
                     && monthlyFacilities.Contains(s.Facility.Code)
                     && s.Status == StallStatus.Active
@@ -408,7 +447,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         {
             var slaughterRows = await context.SlaughterTransactions
                 .AsNoTracking()
-                .Where(s => s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
+                .Where(s => (s.CollectorId == collectorId || s.CollectorId == null)
+                    && s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
                 .Select(s => new { s.OwnerName, s.RatePerHead, s.NumberOfHeads, s.TransactionDate, When = s.UpdatedAt ?? s.CreatedAt, s.ORNumber })
                 .ToListAsync(cancellationToken);
 
@@ -428,7 +468,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         {
             var tripRows = await context.TrmTrips
                 .AsNoTracking()
-                .Where(t => t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
+                .Where(t => (t.CollectorId == collectorId || t.CollectorId == null)
+                    && t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
                 .Select(t => new { t.DriverName, t.Fee, t.RecordedAt, t.ORNumber })
                 .ToListAsync(cancellationToken);
 
@@ -449,6 +490,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             var tpmRows = await context.TpmAttendances
                 .AsNoTracking()
                 .Where(a => a.IsPaid
+                    && (a.CollectorId == collectorId || a.CollectorId == null)
                     && a.MarketDate >= fromDate
                     && a.MarketDate <= toDate)
                 .Select(a => new { Payor = a.Vendor!.VendorName, a.Fee, a.MarketDate, When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt, a.ORNumber })
@@ -474,8 +516,11 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 {
                     Count = g.Count(),
                     PartialCount = g.Count(t => t.IsPartial),
-                    LastCollectedAt = g.Max(t => t.CollectedAt),
-                    ORNumber = g.OrderByDescending(t => t.CollectedAt).Select(t => t.ORNumber).FirstOrDefault()
+                    // "Last collection" is the latest business date (collection/payment date), NOT the
+                    // record timestamp — bulk-marked rows share a CreatedAt, so the timestamp would
+                    // wrongly pin the date to when the batch was entered.
+                    LastCollectedAt = g.Max(t => t.PeriodDate).ToDateTime(TimeOnly.MinValue),
+                    ORNumber = g.OrderByDescending(t => t.PeriodDate).Select(t => t.ORNumber).FirstOrDefault()
                 });
 
         payees = payees
@@ -511,8 +556,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 0m,
                 g.Count(),
                 g.Count(t => t.IsPartial),
-                g.Max(t => t.CollectedAt),
-                g.OrderByDescending(t => t.CollectedAt).Select(t => t.ORNumber).FirstOrDefault())));
+                g.Max(t => t.PeriodDate).ToDateTime(TimeOnly.MinValue),
+                g.OrderByDescending(t => t.PeriodDate).Select(t => t.ORNumber).FirstOrDefault())));
 
         var facilitySummaries = selectedFacilities
             .Select(f =>
@@ -588,6 +633,64 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
     {
         return await context.CollectorUsers
             .FirstOrDefaultAsync(c => c.Username == username, cancellationToken);
+    }
+
+    public async Task<MobileCollectorProfileDto?> GetCollectorProfileAsync(Guid collectorId, CancellationToken cancellationToken = default)
+    {
+        var collector = await context.CollectorUsers
+            .AsNoTracking()
+            .Include(c => c.FacilityAssignments)
+            .FirstOrDefaultAsync(c => c.Id == collectorId, cancellationToken);
+
+        if (collector is null)
+            return null;
+
+        // ── Lifetime collected (recognized) across every facility type this collector handled ──
+        var monthlyTotal = await context.PaymentRecords
+            .Where(p => p.CollectorId == collectorId)
+            .SumAsync(p => p.Status == PaymentStatus.Paid
+                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken);
+        var dailyTotal = await context.DailyCollections
+            .Where(d => d.CollectorId == collectorId && d.IsPaid)
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), cancellationToken);
+        var slaughterTotal = await context.SlaughterTransactions
+            .Where(s => s.CollectorId == collectorId)
+            .SumAsync(s => s.RatePerHead * s.NumberOfHeads, cancellationToken);
+        var tripTotal = await context.TrmTrips
+            .Where(t => t.CollectorId == collectorId)
+            .SumAsync(t => t.Fee, cancellationToken);
+        var tpmTotal = await context.TpmAttendances
+            .Where(a => a.CollectorId == collectorId && a.IsPaid)
+            .SumAsync(a => a.Fee, cancellationToken);
+        var totalCollected = monthlyTotal + dailyTotal + slaughterTotal + tripTotal + tpmTotal;
+
+        // ── Distinct active days (PH business dates) the collector recorded a collection ──
+        var dates = new HashSet<DateOnly>();
+        foreach (var d in await context.DailyCollections.Where(x => x.CollectorId == collectorId && x.IsPaid)
+                     .Select(x => x.CollectionDate).Distinct().ToListAsync(cancellationToken))
+            dates.Add(d);
+        foreach (var d in await context.SlaughterTransactions.Where(x => x.CollectorId == collectorId)
+                     .Select(x => x.TransactionDate).Distinct().ToListAsync(cancellationToken))
+            dates.Add(d);
+        foreach (var d in await context.TpmAttendances.Where(x => x.CollectorId == collectorId && x.IsPaid)
+                     .Select(x => x.MarketDate).Distinct().ToListAsync(cancellationToken))
+            dates.Add(d);
+        foreach (var ts in await context.PaymentRecords.Where(x => x.CollectorId == collectorId && x.Status != PaymentStatus.Unpaid)
+                     .Select(x => x.PaidAt ?? x.UpdatedAt ?? x.CreatedAt).ToListAsync(cancellationToken))
+            dates.Add(DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(ts).Date));
+        foreach (var ts in await context.TrmTrips.Where(x => x.CollectorId == collectorId)
+                     .Select(x => x.RecordedAt).ToListAsync(cancellationToken))
+            dates.Add(DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(ts).Date));
+
+        return new MobileCollectorProfileDto(
+            collector.FullName ?? "Collector",
+            collector.EmployeeId ?? string.Empty,
+            collector.ContactNumber ?? string.Empty,
+            collector.Email ?? string.Empty,
+            totalCollected,
+            dates.Count,
+            collector.FacilityAssignments.Count);
     }
 
     public async Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, CancellationToken cancellationToken = default)

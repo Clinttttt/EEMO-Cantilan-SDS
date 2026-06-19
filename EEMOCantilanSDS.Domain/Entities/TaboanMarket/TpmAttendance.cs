@@ -18,6 +18,9 @@ public class TpmAttendance : AuditableEntity
     public DateTime? PaidAt { get; private set; }
     public string? Remarks { get; private set; }
 
+    // Offline-sync idempotency key from the mobile client (null for online records).
+    public Guid? ClientOperationId { get; private set; }
+
     // Navigation
     public TpmVendor? Vendor { get; private set; }
 
@@ -81,4 +84,7 @@ public class TpmAttendance : AuditableEntity
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }
+
+    /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
+    public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
 }

@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -156,6 +157,147 @@ public class CollectorRecordsTests : RepositoryTestBase
         var period = Assert.Single(report.Periods, p => p.PeriodDate == reportDay);
         Assert.Equal(30m, period.CollectedAmount);
         Assert.Equal(1, period.OpenItemCount);
+    }
+
+    [Fact]
+    public async Task IncludesAdminRecordedAtAssignedFacility_AndFlagsThem()
+    {
+        // The Records feed shows the collector's own collections PLUS admin/office-recorded entries
+        // (CollectorId == null) at the facilities they're assigned to, tagged via IsAdminRecorded.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall1 = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract1 = Contract.Create(stall1.Id, "Pedro", "Pedro", Today.AddMonths(-1), 3, 900m);
+        var stall2 = Stall.Create(npm.Id, "2", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var contract2 = Contract.Create(stall2.Id, "Maria", "Maria", Today.AddMonths(-1), 3, 900m);
+
+        var assignment = CollectorFacilityAssignment.Create(me, npm.Id, FacilityCode.NPM);
+
+        var mine = DailyCollection.Create(stall1.Id, Today);
+        mine.MarkPaid("OR-MINE", me);                 // collected by this collector
+
+        var adminDaily = DailyCollection.Create(stall2.Id, Today);
+        adminDaily.MarkPaid("", null);                // recorded by office/admin → CollectorId null
+
+        ctx.AddRange(npm, stall1, stall2, contract1, contract2, assignment, mine, adminDaily);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var records = await repo.GetCollectorRecordsAsync(me, FacilityCode.NPM, Today, Today, CancellationToken.None);
+
+        Assert.Equal(2, records.Count);
+        Assert.Contains(records, r => r.PayorName == "Pedro" && !r.IsAdminRecorded);
+        Assert.Contains(records, r => r.PayorName == "Maria" && r.IsAdminRecorded);
+    }
+
+    [Fact]
+    public async Task ExcludesAdminRecordedAtUnassignedFacility()
+    {
+        // Admin-recorded entries are only surfaced at the collector's ASSIGNED facilities — an
+        // office-recorded NPM collection must not leak to a collector not assigned to NPM.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        var contract = Contract.Create(stall.Id, "Pedro", "Pedro", Today.AddMonths(-1), 3, 900m);
+
+        // Assigned to TRM only — not NPM.
+        var assignment = CollectorFacilityAssignment.Create(me, Guid.NewGuid(), FacilityCode.TRM);
+
+        var adminDaily = DailyCollection.Create(stall.Id, Today);
+        adminDaily.MarkPaid("", null);
+
+        ctx.AddRange(npm, stall, contract, assignment, adminDaily);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var npmRecords = await repo.GetCollectorRecordsAsync(me, FacilityCode.NPM, Today, Today, CancellationToken.None);
+
+        Assert.Empty(npmRecords);
+    }
+
+    [Fact]
+    public async Task Report_Npm_CountsAdvancePaidDays_AndUsesBusinessLastCollectionDate()
+    {
+        // Obligation is assessed only to "today", but collected money includes advance-paid days;
+        // "last collection" must be the latest business CollectionDate, not the record timestamp.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+        var monthStart = new DateOnly(2026, 6, 1);
+        var simulatedToday = new DateOnly(2026, 6, 19);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(stall, facility);
+        var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", new DateOnly(2026, 6, 5), 3, 900m);
+        stall.Contracts.Add(contract);
+
+        var collections = new List<DailyCollection>();
+        for (var day = 5; day <= 20; day++) // Jun 5–20: 16 paid days; day 20 is AFTER "today" (advance)
+        {
+            var dc = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, day));
+            dc.MarkPaid($"OR-{day}", me);
+            stall.DailyCollections.Add(dc);
+            collections.Add(dc);
+        }
+
+        ctx.AddRange(facility, stall, contract);
+        ctx.AddRange(collections);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var report = await repo.GetCollectorReportAsync(me, [FacilityCode.NPM], monthStart, simulatedToday, CancellationToken.None);
+
+        var payee = Assert.Single(report.Payees);
+        Assert.Equal(16, payee.TransactionCount);                  // advance day 20 counted
+        Assert.Equal(480m, payee.AmountPaid);                      // 16 × ₱30 rental
+        Assert.Equal(780m, payee.AssessedAmount);                  // FULL month obligation (Jun 5–30 = 26 × ₱30), matches web
+        Assert.Equal(300m, payee.Balance);                         // 780 − 480
+        Assert.Equal(PaymentStatus.Partial, payee.Status);         // still owes → Partial (counts toward Partial Payors)
+        Assert.Equal(new DateOnly(2026, 6, 20), DateOnly.FromDateTime(payee.LastCollectedAt!.Value)); // business date
+    }
+
+    [Fact]
+    public async Task Report_Npm_ExcludesOtherCollectors_IncludesOfficeAdmin()
+    {
+        // Collector-own report: the collector's own + office/admin (null) collections count; another
+        // collector's collections at the same stall are excluded.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var monthStart = new DateOnly(2026, 6, 1);
+        var simulatedToday = new DateOnly(2026, 6, 19);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(stall, facility);
+        var contract = Contract.Create(stall.Id, "Pantom Dant", "Pantom Dant", new DateOnly(2026, 6, 5), 3, 900m);
+        stall.Contracts.Add(contract);
+
+        var officeDay = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, 5));
+        officeDay.MarkPaid("OR-OFFICE", null);            // office/admin → included
+        var myDay = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, 6));
+        myDay.MarkPaid("OR-ME", me);                       // mine → included
+        var otherDay = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, 7));
+        otherDay.MarkPaid("OR-OTHER", other);              // another collector → EXCLUDED
+        stall.DailyCollections.Add(officeDay);
+        stall.DailyCollections.Add(myDay);
+        stall.DailyCollections.Add(otherDay);
+
+        ctx.AddRange(facility, stall, contract, officeDay, myDay, otherDay);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var report = await repo.GetCollectorReportAsync(me, [FacilityCode.NPM], monthStart, simulatedToday, CancellationToken.None);
+
+        var payee = Assert.Single(report.Payees);
+        Assert.Equal(2, payee.TransactionCount);           // office + mine; other-collector excluded
+        Assert.Equal(60m, payee.AmountPaid);               // 2 × ₱30
+        Assert.Equal(2, report.Totals.TransactionCount);
+        Assert.Equal(60m, report.Totals.CollectedAmount);
     }
 
 }

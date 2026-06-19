@@ -21,6 +21,9 @@ public class TrmTrip : AuditableEntity
     public DateTime RecordedAt { get; private set; }
     public string? Remarks { get; private set; }
 
+    // Offline-sync idempotency key from the mobile client (null for online records).
+    public Guid? ClientOperationId { get; private set; }
+
     // Navigation
     public TrmTransporter? Transporter { get; private set; }
 
@@ -36,7 +39,8 @@ public class TrmTrip : AuditableEntity
         string? organization = null,
         Guid? collectorId = null,
         string? remarks = null,
-        string createdBy = "System")
+        string createdBy = "System",
+        DateTime? recordedAt = null)
     {
         if (string.IsNullOrWhiteSpace(driverName))
             throw new ArgumentException("Driver name is required.", nameof(driverName));
@@ -59,7 +63,7 @@ public class TrmTrip : AuditableEntity
             Route = route.Trim(),
             Fee = FeeRates.TrmTripFee,
             ORNumber = orNumber.Trim(),
-            RecordedAt = DateTime.UtcNow,
+            RecordedAt = recordedAt ?? DateTime.UtcNow,
             Remarks = remarks?.Trim(),
             CreatedAt = DateTime.UtcNow,
             CreatedBy = createdBy
@@ -75,4 +79,7 @@ public class TrmTrip : AuditableEntity
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }
+
+    /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
+    public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
 }

@@ -16,6 +16,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
         {
             builder.ToTable("PaymentRecords");
 
+            // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop).
+            builder.HasIndex(x => x.ClientOperationId)
+                .IsUnique()
+                .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
             builder.HasKey(s => s.Id);
 
             builder.Property(s => s.StallId)

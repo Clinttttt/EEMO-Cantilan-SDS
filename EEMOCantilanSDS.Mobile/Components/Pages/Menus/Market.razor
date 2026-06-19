@@ -4,9 +4,12 @@
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 <div class="page-shell">
     <div class="header">
@@ -422,6 +425,36 @@
 
         IsSaving = true;
         SheetError = null;
+
+        // Offline: queue the collection locally and let it sync when connectivity returns. Only an actual
+        // collection is queued — "Not collected" is a no-money state change that needs the server.
+        if (!Sync.IsOnline)
+        {
+            if (!SelectedIsPaid)
+            {
+                SheetError = "You're offline. Marking a stall 'Not collected' needs a connection.";
+                IsSaving = false;
+                return;
+            }
+
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.NpmDaily,
+                BusinessDate = DateOnly.FromDateTime(DateTime.Now),
+                StallId = SelectedStall.StallId,
+                IsPaid = true,
+                FishKilos = SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
+                ORNumber = string.IsNullOrWhiteSpace(ORNumber) ? null : ORNumber.Trim(),
+                FacilityLabel = "NPM",
+                Title = SelectedStall.PayorName,
+                Detail = $"No. {SelectedStall.StallNo}",
+                Amount = SelectedStall.DailyRate
+            });
+
+            CloseCollectionSheet();
+            IsSaving = false;
+            return;
+        }
 
         var request = new RecordMobileNpmCollectionRequest(
             SelectedStall.StallId,

@@ -1,9 +1,13 @@
 @page "/records"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@implements IDisposable
 
 <!-- ░░ PAGE SHELL ░░ -->
 <div class="page-shell">
@@ -29,13 +33,25 @@
             </div>
         </div>
 
-        <!-- Search -->
-        <div class="search-wrap">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input type="text"
-                   placeholder="Search name, OR no., stall…"
-                   @bind="SearchQuery"
-                   @bind:event="oninput" />
+        <!-- Search + Pending -->
+        <div class="search-row">
+            <div class="search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text"
+                       placeholder="Search name, OR no., stall…"
+                       @bind="SearchQuery"
+                       @bind:event="oninput" />
+            </div>
+            <button class="pending-btn @(Sync.PendingCount > 0 ? "has-pending" : "")"
+                    type="button"
+                    @onclick="OpenPendingSheetAsync"
+                    aria-label="Pending offline collections">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg>
+                @if (Sync.PendingCount > 0)
+                {
+                    <span class="pending-badge">@Sync.PendingCount</span>
+                }
+            </button>
         </div>
 
         <!-- Combined period + facility chips in one scrollable row -->
@@ -60,13 +76,20 @@
 
         @if (IsLoading)
         {
-            <div class="menu-state-card">Loading your collection records…</div>
+            <div class="load-spinner">
+                <div class="spinner-ring"></div>
+                <div class="spinner-text">Loading collection records…</div>
+            </div>
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))
         {
-            <div class="menu-state-card error">
-                @ErrorMessage
-                <div style="margin-top:10px;"><span class="filter-tab active" @onclick="LoadRecordsAsync">Try again</span></div>
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23" /><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" /><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" /><path d="M10.71 5.05A16 16 0 0 1 22.58 9" /><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></svg>
+                </div>
+                <div class="empty-title">Couldn't load records</div>
+                <div class="empty-sub">@ErrorMessage</div>
+                <button class="retry-btn" type="button" @onclick="LoadRecordsAsync">Try again</button>
             </div>
         }
         else if (!FilteredRecords.Any())
@@ -108,6 +131,10 @@
                                 @if (rec.Section is not null)
                                 {
                                     <span class="record-section">@SectionLabel(rec.Section.Value)</span>
+                                }
+                                @if (rec.IsAdminRecorded)
+                                {
+                                    <span class="record-admin-tag">Office</span>
                                 }
                                 <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt") · OR #@rec.ORNumber</span>
                             </div>
@@ -151,6 +178,7 @@
                 <div class="detail-row"><span class="detail-key">Fish Weight</span><span class="detail-val">@SelectedRecord.FishKilos.Value.ToString("0.##") kg</span></div>
             }
             <div class="detail-row"><span class="detail-key">Nature</span><span class="detail-val">@SelectedRecord.Nature</span></div>
+            <div class="detail-row"><span class="detail-key">Recorded by</span><span class="detail-val">@(SelectedRecord.IsAdminRecorded ? "Office / Admin" : Session.CollectorName)</span></div>
             <div class="detail-row"><span class="detail-key">Date &amp; Time</span><span class="detail-val">@SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt")</span></div>
             <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="record-status-pill @PillClass(SelectedRecord)">@StatusLabel(SelectedRecord)</span></span></div>
             <div class="detail-row"><span class="detail-key">Amount</span><span class="detail-val amount-val">₱@SelectedRecord.Amount.ToString("N0")</span></div>
@@ -167,12 +195,80 @@
     </div>
 }
 
+@if (ShowPendingSheet)
+{
+    <div class="sheet-overlay" @onclick="ClosePendingSheet">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Pending Sync</div>
+            <div class="sheet-sub">
+                @if (PendingOps.Count == 0)
+                {
+                    <text>No offline collections are waiting to sync.</text>
+                }
+                else
+                {
+                    <text>@PendingOps.Count collection@(PendingOps.Count == 1 ? "" : "s") queued on this device.</text>
+                }
+            </div>
+
+            <div class="pending-conn @(Sync.IsOnline ? "online" : "offline")">
+                <span class="conn-dot"></span>
+                @(Sync.IsOnline ? "Online" : "Offline — items sync automatically when you reconnect")
+            </div>
+
+            @if (PendingOps.Count > 0)
+            {
+                <div class="pending-list">
+                    @foreach (var op in PendingOps)
+                    {
+                        <div class="pending-item @PendingItemClass(op)">
+                            <div class="pending-item-main">
+                                <div class="pending-item-title">@op.Title</div>
+                                <div class="pending-item-detail">
+                                    @op.FacilityLabel@(string.IsNullOrWhiteSpace(op.Detail) ? "" : " · " + op.Detail)@(string.IsNullOrWhiteSpace(op.ORNumber) ? "" : " · OR " + op.ORNumber)
+                                </div>
+                                @if (op.LocalStatus == PendingLocalStatus.Rejected && !string.IsNullOrWhiteSpace(op.ResultMessage))
+                                {
+                                    <div class="pending-item-msg">@op.ResultMessage</div>
+                                }
+                            </div>
+                            <div class="pending-item-right">
+                                <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
+                                <span class="pending-status @PendingItemClass(op)">@PendingStatusLabel(op)</span>
+                                @if (op.LocalStatus == PendingLocalStatus.Rejected)
+                                {
+                                    <button class="pending-discard" type="button" @onclick="() => DiscardPendingAsync(op.ClientOperationId)">Discard</button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="sheet-btn-row">
+                <div class="btn-close" @onclick="ClosePendingSheet">Close</div>
+                @if (HasRetryable)
+                {
+                    <button class="btn-sync-now" type="button" @onclick="SyncPendingNowAsync" disabled="@(Sync.IsSyncing || !Sync.IsOnline)">
+                        @(Sync.IsSyncing ? "Syncing…" : "Sync now")
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     // ── Daily-context facilities (per-transaction / per-day). The rest are monthly rentals. ──
     static readonly HashSet<FacilityCode> DailyFacilities = new()
     {
         FacilityCode.NPM, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
     };
+
+    // Tabo-an Public Market trades only on Fridays (₱100/vendor/market day), so its Records show
+    // market-day (Friday) chips instead of consecutive-day chips.
+    static readonly HashSet<FacilityCode> WeeklyFacilities = new() { FacilityCode.TPM };
 
     bool IsLoading = true;
     string ErrorMessage = string.Empty;
@@ -186,32 +282,54 @@
         Session.Menu?.Facilities.Where(f => f.IsAssigned).Select(f => f.Code).OrderBy(c => c).ToList()
         ?? new List<FacilityCode>();
 
+    // Tabo-an (TPM) is a weekly Friday market — its chips are market days (Fridays), and it takes
+    // precedence over daily mode (TPM is also listed under DailyFacilities for the mixed-facility case).
+    bool WeeklyMode => ActiveFacility is { } wf
+        ? WeeklyFacilities.Contains(wf)
+        : AssignedFacilities.Count > 0 && AssignedFacilities.All(c => WeeklyFacilities.Contains(c));
+
     // Daily mode when a per-day facility is selected, or when "All" is shown but every assigned
     // facility is daily-type (e.g. a collector assigned only to NPM). Monthly facilities use months.
-    bool DailyMode => ActiveFacility is { } f
+    bool DailyMode => !WeeklyMode && (ActiveFacility is { } f
         ? DailyFacilities.Contains(f)
-        : AssignedFacilities.Count > 0 && AssignedFacilities.All(c => DailyFacilities.Contains(c));
+        : AssignedFacilities.Count > 0 && AssignedFacilities.All(c => DailyFacilities.Contains(c)));
 
     record Chip(string Key, string Label);
 
-    IReadOnlyList<Chip> PeriodChips => DailyMode
-        ? Enumerable.Range(0, 7).Select(i =>
+    // Recent market days (Fridays), most recent first — for the weekly (TPM) chips.
+    static IReadOnlyList<DateTime> RecentMarketDays()
+    {
+        var today = DateTime.Now.Date;
+        var delta = ((int)today.DayOfWeek - (int)DayOfWeek.Friday + 7) % 7;
+        var lastFriday = today.AddDays(-delta);
+        return Enumerable.Range(0, 6).Select(i => lastFriday.AddDays(-7 * i)).ToList();
+    }
+
+    IReadOnlyList<Chip> PeriodChips => WeeklyMode
+        ? RecentMarketDays().Select(fri =>
             {
-                var d = DateTime.Now.Date.AddDays(-i);
-                var label = i == 0 ? "Today" : i == 1 ? "Yesterday" : d.ToString("M/d");
-                return new Chip(i.ToString(), label);
+                var label = fri == DateTime.Now.Date ? "Today" : fri.ToString("MMM d");
+                return new Chip(fri.ToString("yyyy-MM-dd"), label);
             }).ToList()
-        : new List<Chip>
-            {
-                new("0", $"This Month ({DateTime.Now:MMM})"),
-                new("1", $"Last Month ({DateTime.Now.AddMonths(-1):MMM})"),
-                new("2", $"{DateTime.Now.AddMonths(-2):MMM}")
-            };
+        : DailyMode
+            ? Enumerable.Range(0, 7).Select(i =>
+                {
+                    var d = DateTime.Now.Date.AddDays(-i);
+                    var label = i == 0 ? "Today" : i == 1 ? "Yesterday" : d.ToString("M/d");
+                    return new Chip(i.ToString(), label);
+                }).ToList()
+            : new List<Chip>
+                {
+                    new("0", $"This Month ({DateTime.Now:MMM})"),
+                    new("1", $"Last Month ({DateTime.Now.AddMonths(-1):MMM})"),
+                    new("2", $"{DateTime.Now.AddMonths(-2):MMM}")
+                };
 
     string ActivePeriodLabel => PeriodChips.FirstOrDefault(c => c.Key == ActivePeriodKey)?.Label ?? "this period";
 
-    // Single-day selections (daily chips Today/Yesterday/6/16): hide the date group header.
-    bool SingleDayMode => DailyMode && int.TryParse(ActivePeriodKey, out _);
+    // Single-day selections (daily chips Today/Yesterday/6/16, or a weekly market-day Friday):
+    // hide the date group header.
+    bool SingleDayMode => WeeklyMode || (DailyMode && int.TryParse(ActivePeriodKey, out _));
 
     string EmptyMessage =>
         "No collections you recorded for " + ActivePeriodLabel
@@ -227,7 +345,15 @@
                 Navigation.NavigateTo("/login", forceLoad: false);
                 return;
             }
+            // Assigned facilities are now known, so the period mode (daily/weekly/monthly) is resolved —
+            // seed the active period with the first valid chip key for that mode.
+            ActivePeriodKey = PeriodChips.FirstOrDefault()?.Key ?? "0";
             await LoadRecordsAsync();
+
+            // Offline queue: show the pending badge and best-effort flush anything captured offline.
+            Sync.Changed += OnSyncChanged;
+            await Sync.InitializeAsync();
+            _ = InitialFlushAsync();
         }
         catch (HttpRequestException)
         {
@@ -236,9 +362,27 @@
         }
     }
 
+    // Best-effort sync on entry; refresh the server list only if something was actually accepted.
+    private async Task InitialFlushAsync()
+    {
+        var summary = await Sync.SyncNowAsync();
+        if (summary.Synced > 0)
+            await InvokeAsync(LoadRecordsAsync);
+    }
+
     (DateOnly From, DateOnly To) CurrentRange()
     {
         var today = DateOnly.FromDateTime(DateTime.Now);
+        if (WeeklyMode)
+        {
+            // Each weekly chip is a single market day (Friday); key = "yyyy-MM-dd".
+            if (DateOnly.TryParseExact(ActivePeriodKey, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var fri))
+                return (fri, fri);
+            var mostRecent = DateOnly.FromDateTime(RecentMarketDays().First());
+            return (mostRecent, mostRecent);
+        }
         if (DailyMode)
         {
             // Each daily chip is a single day in the past week (key = days-back offset).
@@ -261,24 +405,35 @@
         ErrorMessage = string.Empty;
         StateHasChanged();
 
-        var (from, to) = CurrentRange();
-        var result = await Api.GetRecordsAsync(ActiveFacility, from, to);
+        try
+        {
+            var (from, to) = CurrentRange();
+            var result = await Api.GetRecordsAsync(ActiveFacility, from, to);
 
-        if (result.IsSuccess && result.Value is not null)
-            Records = result.Value;
-        else
-            ErrorMessage = result.Error ?? "Unable to load your collection records.";
-
-        IsLoading = false;
-        StateHasChanged();
+            if (result.IsSuccess && result.Value is not null)
+                Records = result.Value;
+            else
+                ErrorMessage = result.Error ?? "Unable to load your collection records.";
+        }
+        catch
+        {
+            // The HTTP layer throws on a connection failure/timeout (it doesn't return a Result). Catch it
+            // here so the retry path (which calls this directly) can never throw or get stuck loading.
+            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     async Task SetFacilityAsync(FacilityCode? code)
     {
-        var wasDaily = DailyMode;
         ActiveFacility = code;
-        // Switching between daily/monthly modes invalidates the period key — reset to the first chip.
-        if (wasDaily != DailyMode) ActivePeriodKey = "0";
+        // Switching facilities can change the period mode (daily/weekly/monthly) — reset to the
+        // first chip of the new mode so the active key is always valid.
+        ActivePeriodKey = PeriodChips.FirstOrDefault()?.Key ?? "0";
         await LoadRecordsAsync();
     }
 
@@ -316,6 +471,80 @@
     MobileCollectorRecordDto? SelectedRecord;
     void OpenDetail(MobileCollectorRecordDto rec) { SelectedRecord = rec; ShowDetailSheet = true; }
     void CloseDetail() { ShowDetailSheet = false; SelectedRecord = null; }
+
+    // ── Offline pending queue (button right of the search bar) ──────────────
+    bool ShowPendingSheet = false;
+    IReadOnlyList<PendingOperation> PendingOps = Array.Empty<PendingOperation>();
+
+    bool HasRetryable => PendingOps.Any(o => o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
+
+    async Task OpenPendingSheetAsync()
+    {
+        PendingOps = await Sync.GetAllAsync();
+        ShowPendingSheet = true;
+    }
+
+    void ClosePendingSheet() => ShowPendingSheet = false;
+
+    async Task SyncPendingNowAsync()
+    {
+        var summary = await Sync.SyncNowAsync();
+        PendingOps = await Sync.GetAllAsync();
+        if (summary.Synced > 0)
+            await LoadRecordsAsync();
+    }
+
+    async Task DiscardPendingAsync(Guid clientOperationId)
+    {
+        await Sync.DiscardAsync(clientOperationId);
+        PendingOps = await Sync.GetAllAsync();
+    }
+
+    static string PendingStatusLabel(PendingOperation op) => op.LocalStatus switch
+    {
+        PendingLocalStatus.Pending => "Pending",
+        PendingLocalStatus.Failed => "Retry",
+        PendingLocalStatus.Rejected => "Rejected",
+        PendingLocalStatus.Synced => "Synced",
+        _ => string.Empty
+    };
+
+    static string PendingItemClass(PendingOperation op) => op.LocalStatus switch
+    {
+        PendingLocalStatus.Rejected => "rejected",
+        PendingLocalStatus.Failed => "failed",
+        _ => "pending"
+    };
+
+    // Sync events fire off the UI thread — marshal before touching component state.
+    private bool _disposed;
+
+    private async void OnSyncChanged()
+    {
+        if (_disposed)
+            return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (_disposed)
+                    return;
+                if (ShowPendingSheet)
+                    PendingOps = await Sync.GetAllAsync();
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+            // Component is tearing down (navigated away) — ignore.
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Sync.Changed -= OnSyncChanged;
+    }
 
     static string PillClass(MobileCollectorRecordDto r) =>
         r.IsPartial ? "record-status-pill pill-partial" : "record-status-pill pill-paid";
