@@ -44,7 +44,13 @@
     <div class="section-card">
         @if (Loading)
         {
-            <div class="op-empty">Loading…</div>
+            <div class="sk-stack">
+                <Skeleton Height="38px" Radius="8px" />
+                @for (var i = 0; i < 6; i++)
+                {
+                    <Skeleton Height="52px" Radius="8px" />
+                }
+            </div>
         }
         else if (Items.Count == 0)
         {

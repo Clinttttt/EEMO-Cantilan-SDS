@@ -2,7 +2,10 @@
 
 @inject NavigationManager Navigation
 @inject ISetupApiClient SetupApi
-@rendermode InteractiveServer
+@* Prerendering disabled: these admin/payor pages are authenticated, so the prerender pass runs without
+   the circuit's JWT (causing 401s + an empty first render, then a second interactive render = the
+   "double render"). Rendering interactive-only makes OnInitializedAsync run exactly once, with auth ready. *@
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 
 
 <CascadingAuthenticationState>

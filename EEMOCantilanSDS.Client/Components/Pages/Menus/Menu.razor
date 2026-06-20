@@ -1,4 +1,4 @@
-﻿@page "/menu"
+@page "/menu"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Dashboard
 @inject IDashboardApiClient DashboardApi
@@ -28,7 +28,7 @@
 
         <div class="content-area">
 
-            <!-- Dashboard Hero Banner -->
+            <!-- Dashboard Hero Banner (always visible — fixed banner, not skeletoned) -->
             <div class="vs-hero">
                 <div class="vs-hero-left">
                     <div class="vs-hero-icon">
@@ -87,142 +87,197 @@
                 </div>
             </div>
 
-            <div class="facility-grid">
-                @foreach (var fac in Facilities)
-                {
-                    <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
-                        <div class="facility-card-header">
-                            <div class="facility-card-icon">
-                                @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? string.Empty))
+            @if (_loading)
+            {
+                <div class="facility-grid">
+                    @for (var i = 0; i < 8; i++)
+                    {
+                        <div class="facility-card">
+                            <div class="sk-stack">
+                                <div class="sk-inline">
+                                    <Skeleton Width="42px" Height="42px" Radius="10px" />
+                                    <div class="sk-grow sk-stack-sm">
+                                        <Skeleton Width="48px" Height="11px" />
+                                        <Skeleton Width="75%" Height="14px" Radius="6px" />
+                                    </div>
+                                </div>
+                                <div class="sk-grid-3">
+                                    <Skeleton Height="40px" Radius="8px" />
+                                    <Skeleton Height="40px" Radius="8px" />
+                                    <Skeleton Height="40px" Radius="8px" />
+                                </div>
+                                <Skeleton Height="8px" Radius="999px" />
+                                <Skeleton Height="38px" Radius="10px" />
                             </div>
-                            <div class="facility-card-meta">
-                                <div class="facility-card-code">@fac.Code</div>
-                                <div class="facility-card-name">@fac.Name</div>
-                            </div>
-                            @if (fac.UnpaidCount > 0)
+                        </div>
+                    }
+                </div>
+
+                <div class="bottom-row">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <Skeleton Width="180px" Height="16px" Radius="6px" />
+                        </div>
+                        <div class="sk-stack">
+                            <Skeleton Height="34px" Radius="6px" />
+                            @for (var i = 0; i < 6; i++)
                             {
-                                <div class="facility-alert-dot" title="Has unpaid vendors"></div>
+                                <Skeleton Height="22px" Radius="6px" />
                             }
                         </div>
-
-                        <div class="facility-card-stats">
-                            <div class="fac-stat">
-                                <div class="fac-stat-val">₱@fac.Collected.ToString("N0")</div>
-                                <div class="fac-stat-key">Collected</div>
-                            </div>
-                            <div class="fac-stat">
-                                @if (fac.Code == FacilityCode.NPM)
-                                {
-                                    <div class="fac-stat-val partial-val">@fac.PartialCount</div>
-                                    <div class="fac-stat-key">Partial</div>
-                                }
-                                else
-                                {
-                                    <div class="fac-stat-val paid-val">@fac.PaidCount</div>
-                                    <div class="fac-stat-key">Paid</div>
-                                }
-                            </div>
-                            <div class="fac-stat">
-                                <div class="fac-stat-val">@fac.TotalVendors</div>
-                                <div class="fac-stat-key">Vendors</div>
-                            </div>
-                        </div>
-
-                        <div class="facility-progress-wrap">
-                            <div class="facility-progress-bar">
-                                <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
-                            </div>
-                            <span class="facility-progress-pct">@fac.CollectionRate%</span>
-                        </div>
-
-                       
-
-                        <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
-                            Manage Stalls
-                            <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
-                        </a>
                     </div>
-                }
-            </div>
 
-            <!-- Bottom Row -->
-            <div class="bottom-row">
-
-                <div class="panel">
-                    <div class="panel-header">
-                        <div class="panel-title">Recent Transactions</div>
-                        <a href="/audit" class="panel-link">View All</a>
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>OR #</th>
-                                <th>Payor</th>
-                                <th>Facility</th>
-                                <th>Amount</th>
-                                <th>Recorded By</th>
-                                <th>Time</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var tx in RecentTransactions)
+                    <div class="panel panel-narrow">
+                        <div class="panel-header">
+                            <Skeleton Width="150px" Height="16px" Radius="6px" />
+                        </div>
+                        <div class="sk-stack">
+                            @for (var i = 0; i < 4; i++)
                             {
+                                <Skeleton Height="46px" Radius="8px" />
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="facility-grid">
+                    @foreach (var fac in Facilities)
+                    {
+                        <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
+                            <div class="facility-card-header">
+                                <div class="facility-card-icon">
+                                    @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? string.Empty))
+                                </div>
+                                <div class="facility-card-meta">
+                                    <div class="facility-card-code">@fac.Code</div>
+                                    <div class="facility-card-name">@fac.Name</div>
+                                </div>
+                                @if (fac.UnpaidCount > 0)
+                                {
+                                    <div class="facility-alert-dot" title="Has unpaid vendors"></div>
+                                }
+                            </div>
+
+                            <div class="facility-card-stats">
+                                <div class="fac-stat">
+                                    <div class="fac-stat-val">₱@fac.Collected.ToString("N0")</div>
+                                    <div class="fac-stat-key">Collected</div>
+                                </div>
+                                <div class="fac-stat">
+                                    @if (fac.Code == FacilityCode.NPM)
+                                    {
+                                        <div class="fac-stat-val partial-val">@fac.PartialCount</div>
+                                        <div class="fac-stat-key">Partial</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="fac-stat-val paid-val">@fac.PaidCount</div>
+                                        <div class="fac-stat-key">Paid</div>
+                                    }
+                                </div>
+                                <div class="fac-stat">
+                                    <div class="fac-stat-val">@fac.TotalVendors</div>
+                                    <div class="fac-stat-key">Vendors</div>
+                                </div>
+                            </div>
+
+                            <div class="facility-progress-wrap">
+                                <div class="facility-progress-bar">
+                                    <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
+                                </div>
+                                <span class="facility-progress-pct">@fac.CollectionRate%</span>
+                            </div>
+
+                            <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
+                                Manage Stalls
+                                <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
+                            </a>
+                        </div>
+                    }
+                </div>
+
+                <!-- Bottom Row -->
+                <div class="bottom-row">
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">Recent Transactions</div>
+                            <a href="/audit" class="panel-link">View All</a>
+                        </div>
+                        <table class="data-table">
+                            <thead>
                                 <tr>
-                                    <td>#@tx.ORNumber</td>
-                                    <td>@tx.PayorName</td>
-                                    <td><span>@tx.FacilityCode</span></td>
-                                    <td>₱@tx.Amount.ToString("N0")</td>
-                                    <td>@tx.RecordedBy</td>
-                                    <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
+                                    <th>OR #</th>
+                                    <th>Payor</th>
+                                    <th>Facility</th>
+                                    <th>Amount</th>
+                                    <th>Recorded By</th>
+                                    <th>Time</th>
                                 </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tx in RecentTransactions)
+                                {
+                                    <tr>
+                                        <td>#@tx.ORNumber</td>
+                                        <td>@tx.PayorName</td>
+                                        <td><span>@tx.FacilityCode</span></td>
+                                        <td>₱@tx.Amount.ToString("N0")</td>
+                                        <td>@tx.RecordedBy</td>
+                                        <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="panel panel-narrow">
+                        <div class="panel-header">
+                            <div class="panel-title">⚠ Overdue Vendors</div>
+                            <a href="/vendors?filter=delinquent" class="panel-link">View All</a>
+                        </div>
+                        <div class="delinquent-list">
+                            @if (!DelinquentVendors.Any())
+                            {
+                                <div class="delinquent-empty">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+                                        <polyline points="22 4 12 14.01 9 11.01"/>
+                                    </svg>
+                                    <div class="delinquent-empty-title">All accounts up to date</div>
+                                    <div class="delinquent-empty-sub">No overdue balances from previous months.</div>
+                                </div>
                             }
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="panel panel-narrow">
-                    <div class="panel-header">
-                        <div class="panel-title">⚠ Overdue Vendors</div>
-                        <a href="/vendors?filter=delinquent" class="panel-link">View All</a>
-                    </div>
-                    <div class="delinquent-list">
-                        @if (!DelinquentVendors.Any())
-                        {
-                            <div class="delinquent-empty">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                                    <polyline points="22 4 12 14.01 9 11.01"/>
-                                </svg>
-                                <div class="delinquent-empty-title">All accounts up to date</div>
-                                <div class="delinquent-empty-sub">No overdue balances from previous months.</div>
-                            </div>
-                        }
-                        @foreach (var v in DelinquentVendors)
-                        {
-                            <div class="delinquent-item">
-                                <div class="delinquent-info">
-                                    <div class="delinquent-name">@v.Name</div>
-                                    <div class="delinquent-meta">
-                                        <span class="code-badge">@v.FacilityCode</span>
-                                        Stall @v.StallNo
+                            @foreach (var v in DelinquentVendors)
+                            {
+                                <div class="delinquent-item">
+                                    <div class="delinquent-info">
+                                        <div class="delinquent-name">@v.Name</div>
+                                        <div class="delinquent-meta">
+                                            <span class="code-badge">@v.FacilityCode</span>
+                                            Stall @v.StallNo
+                                        </div>
+                                    </div>
+                                    <div class="delinquent-right">
+                                        <div class="delinquent-amount">₱@v.Balance.ToString("N0")</div>
+                                        <div class="delinquent-months @(v.MonthsUnpaid >= 3 ? "text-red" : "text-gold")">
+                                            @v.MonthsUnpaid mo. unpaid
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="delinquent-right">
-                                    <div class="delinquent-amount">₱@v.Balance.ToString("N0")</div>
-                                    <div class="delinquent-months @(v.MonthsUnpaid >= 3 ? "text-red" : "text-gold")">
-                                        @v.MonthsUnpaid mo. unpaid
-                                    </div>
-                                </div>
-                            </div>
-                        }
+                            }
+                        </div>
                     </div>
-                </div>
 
-            </div>
+                </div>
+            }
         </div>
 
 
 @code {
+    private bool _loading = true;
     private DashboardOverviewDto? _data;
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
 
@@ -232,19 +287,26 @@
         // when this first API call fires, yielding a transient 401/403 and an empty dashboard until a
         // re-navigation. Re-attempt briefly until the circuit's token is ready. Only auth failures are
         // retried; a genuine error (or success) returns immediately.
-        for (var attempt = 0; attempt < 5; attempt++)
+        try
         {
-            var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
-            if (result.IsSuccess)
+            for (var attempt = 0; attempt < 5; attempt++)
             {
-                _data = result.Value;
-                return;
+                var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
+                if (result.IsSuccess)
+                {
+                    _data = result.Value;
+                    return;
+                }
+
+                if (result.StatusCode is not (401 or 403))
+                    return;
+
+                await Task.Delay(400);
             }
-
-            if (result.StatusCode is not (401 or 403))
-                return;
-
-            await Task.Delay(400);
+        }
+        finally
+        {
+            _loading = false;
         }
     }
 

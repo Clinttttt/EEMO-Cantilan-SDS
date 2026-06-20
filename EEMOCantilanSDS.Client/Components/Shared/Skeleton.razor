@@ -1,0 +1,22 @@
+@* Reusable shimmer placeholder. Fills its container by default; pass Width/Height/Radius to size it.
+   Use inside an @if (loading) branch to mirror the real layout while data is being fetched. *@
+<div class="skeleton @Class" style="@Style" aria-hidden="true"></div>
+
+@code {
+    [Parameter] public string? Width { get; set; }
+    [Parameter] public string? Height { get; set; }
+    [Parameter] public string? Radius { get; set; }
+    [Parameter] public string? Class { get; set; }
+
+    private string Style
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrWhiteSpace(Width)) sb.Append($"width:{Width};");
+            if (!string.IsNullOrWhiteSpace(Height)) sb.Append($"height:{Height};");
+            if (!string.IsNullOrWhiteSpace(Radius)) sb.Append($"border-radius:{Radius};");
+            return sb.ToString();
+        }
+    }
+}

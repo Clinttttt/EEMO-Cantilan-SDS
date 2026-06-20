@@ -87,7 +87,13 @@
     <div class="section-card txn-card">
         @if (IsLoading)
         {
-            <div class="txn-empty">Loading transactions…</div>
+            <div class="sk-stack">
+                <Skeleton Height="38px" Radius="8px" />
+                @for (var i = 0; i < 7; i++)
+                {
+                    <Skeleton Height="48px" Radius="8px" />
+                }
+            </div>
         }
         else if (!Feed.Any())
         {
