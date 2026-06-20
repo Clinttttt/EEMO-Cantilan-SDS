@@ -1,5 +1,5 @@
-using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients;
-using global::EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients;
+﻿using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using global::EEMOCantilanSDS.HttpClients.ApiClients;
 using EEMOCantilanSDS.Mobile.Security;
 using EEMOCantilanSDS.Mobile.Services;
 using Microsoft.Extensions.Logging;
@@ -27,9 +27,12 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddSingleton<MobileTokenStore>();
             builder.Services.AddSingleton<MobileSessionService>();
             builder.Services.AddSingleton<MobilePaymentHubService>();
-            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.IConnectivityMonitor, EEMOCantilanSDS.Mobile.Platform.MauiConnectivityMonitor>();
-            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.IPendingOperationStore>(
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor, EEMOCantilanSDS.Mobile.Platform.MauiConnectivityMonitor>();
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IPendingOperationStore>(
                 _ => new EEMOCantilanSDS.Mobile.Services.PendingOperationStore(FileSystem.AppDataDirectory));
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache>(
+                _ => new EEMOCantilanSDS.Mobile.Services.JsonOfflineReadCache(FileSystem.AppDataDirectory));
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.ICurrentCollectorProvider, EEMOCantilanSDS.Mobile.Platform.MauiCurrentCollectorProvider>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.MobileSyncService>();
             builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
             builder.Services.AddTransient<MobileAuthorizationDelegatingHandler>();
@@ -44,7 +47,9 @@ namespace EEMOCantilanSDS.Mobile
                 client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
-            builder.Services.AddHttpClient<IMobileApiClient, MobileApiClient>(client =>
+            // Inner HTTP client (concrete) — the real network calls. IMobileApiClient is exposed as the
+            // caching decorator below, so every consumer transparently gets offline read-through caching.
+            builder.Services.AddHttpClient<MobileApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
@@ -53,6 +58,12 @@ namespace EEMOCantilanSDS.Mobile
             .AddHttpMessageHandler<MobileLoopbackFallbackHandler>()
             .AddHttpMessageHandler<MobileRefreshTokenDelegatingHandler>()
             .AddHttpMessageHandler<MobileAuthorizationDelegatingHandler>();
+
+            builder.Services.AddSingleton<IMobileApiClient>(sp =>
+                new EEMOCantilanSDS.Mobile.Services.CachingMobileApiClient(
+                    sp.GetRequiredService<MobileApiClient>(),
+                    sp.GetRequiredService<EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache>(),
+                    sp.GetRequiredService<EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor>()));
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -68,9 +79,9 @@ namespace EEMOCantilanSDS.Mobile
             // Set this to your public HTTPS tunnel URL (WITH trailing slash) to run the app on a real
             // phone pointed at your local API. Leave it "" for normal localhost dev (Windows + emulator).
             // NOTE: the ngrok free plan gives a NEW URL every restart — update this each session.
-            /*   const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+             const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
                if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
-                   return ApiBaseUrlOverride;*/
+                   return ApiBaseUrlOverride;
 
 #if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117

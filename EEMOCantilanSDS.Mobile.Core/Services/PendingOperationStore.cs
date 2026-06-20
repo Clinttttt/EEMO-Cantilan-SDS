@@ -1,4 +1,5 @@
 using System.Text.Json;
+using EEMOCantilanSDS.Mobile.Abstractions;
 using EEMOCantilanSDS.Mobile.Models;
 
 namespace EEMOCantilanSDS.Mobile.Services;
@@ -130,8 +131,8 @@ public sealed class PendingOperationStore : IPendingOperationStore
         _cache = items;
         try
         {
-            await using var stream = File.Create(_filePath);
-            await JsonSerializer.SerializeAsync(stream, items, JsonOptions);
+            var json = JsonSerializer.Serialize(items, JsonOptions);
+            await JsonOfflineReadCache.WriteDurableAsync(_filePath, json);
         }
         catch
         {

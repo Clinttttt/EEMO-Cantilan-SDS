@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net9.0 so both the net10.0 web Client and the net10.0 mobile app can reference it.
+         Depends only on Application (DTOs + API-client interfaces) — deliberately NO EF Core / Npgsql,
+         so consumers (web + mobile) don't ship the server's database stack. -->
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EEMOCantilanSDS.HttpClients</RootNamespace>
+    <!-- Explicit (this is the SDK default) so the IDE always includes the .cs files in this project. -->
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
+  </ItemGroup>
+
+</Project>

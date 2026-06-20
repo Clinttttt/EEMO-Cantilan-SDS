@@ -124,7 +124,14 @@
                                         </span>
                                     </div>
                                     <div class="tx-col-right">
-                                        <span class="tx-badge @GetBadgeClass(stall)">@GetStatusLabel(stall)</span>
+                                        @if (IsQueuedOffline(stall))
+                                        {
+                                            <span class="tx-badge queued">Queued · Offline</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tx-badge @GetBadgeClass(stall)">@GetStatusLabel(stall)</span>
+                                        }
                                         <span class="tx-amount">@FormatCurrency(stall.DailyRate)</span>
                                     </div>
                                 </div>
@@ -273,6 +280,8 @@
 
 @code {
     private MobileNpmCollectionDto? Collection;
+    // Stall ids with a locally-queued (not-yet-synced) offline collection for the shown day.
+    private HashSet<Guid> QueuedOfflineStalls = new();
     private bool IsLoading = true;
     private bool IsSaving;
     private string? ErrorMessage;
@@ -340,6 +349,8 @@
                 if (currentMonthResult.IsSuccess && currentMonthResult.Value is not null)
                     Collection = currentMonthResult.Value;
             }
+
+            await RefreshQueuedOfflineAsync();
         }
         catch
         {
@@ -352,6 +363,28 @@
             StateHasChanged();
         }
     }
+
+    // Stalls collected offline for the shown day → show "Queued · Offline" instead of "Pending".
+    private async Task RefreshQueuedOfflineAsync()
+    {
+        if (Collection is null)
+        {
+            QueuedOfflineStalls = new();
+            return;
+        }
+
+        var pending = await Sync.GetAllAsync();
+        QueuedOfflineStalls = pending
+            .Where(o => o.Kind == OfflineOperationKind.NpmDaily
+                     && o.StallId is not null
+                     && string.Equals(o.FacilityLabel, "NPM", StringComparison.OrdinalIgnoreCase)
+                     && o.BusinessDate == Collection.CollectionDate
+                     && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
+            .Select(o => o.StallId!.Value)
+            .ToHashSet();
+    }
+
+    private bool IsQueuedOffline(MobileNpmStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
 
     private IEnumerable<MobileNpmStallCollectionDto> FilteredStalls =>
         (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>())
@@ -455,6 +488,7 @@
                 Amount = SelectedStall.DailyRate
             });
 
+            QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
             CloseCollectionSheet();
             IsSaving = false;
             return;

@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Mobile.Services;
+using EEMOCantilanSDS.Mobile.Abstractions;
 using Microsoft.Maui.Networking;
 
 namespace EEMOCantilanSDS.Mobile.Platform;

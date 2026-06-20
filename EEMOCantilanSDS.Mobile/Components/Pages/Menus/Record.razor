@@ -212,21 +212,26 @@
                 <div class="pending-list">
                     @foreach (var op in PendingOps)
                     {
-                        <div class="pending-item @PendingItemClass(op)">
+                        var orphaned = op.OwnerKey is null;
+                        <div class="pending-item @(orphaned ? "rejected" : PendingItemClass(op))">
                             <div class="pending-item-main">
                                 <div class="pending-item-title">@op.Title</div>
                                 <div class="pending-item-detail">
                                     @op.FacilityLabel@(string.IsNullOrWhiteSpace(op.Detail) ? "" : " · " + op.Detail)@(string.IsNullOrWhiteSpace(op.ORNumber) ? "" : " · OR " + op.ORNumber)
                                 </div>
-                                @if (op.LocalStatus == PendingLocalStatus.Rejected && !string.IsNullOrWhiteSpace(op.ResultMessage))
+                                @if (orphaned)
+                                {
+                                    <div class="pending-item-msg">Unassigned — captured in a previous session. Discard if it isn't yours.</div>
+                                }
+                                else if (op.LocalStatus == PendingLocalStatus.Rejected && !string.IsNullOrWhiteSpace(op.ResultMessage))
                                 {
                                     <div class="pending-item-msg">@op.ResultMessage</div>
                                 }
                             </div>
                             <div class="pending-item-right">
                                 <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
-                                <span class="pending-status @PendingItemClass(op)">@PendingStatusLabel(op)</span>
-                                @if (op.LocalStatus == PendingLocalStatus.Rejected)
+                                <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
+                                @if (orphaned || op.LocalStatus == PendingLocalStatus.Rejected)
                                 {
                                     <button class="pending-discard" type="button" @onclick="() => DiscardPendingAsync(op.ClientOperationId)">Discard</button>
                                 }
@@ -466,7 +471,7 @@
     bool ShowPendingSheet = false;
     IReadOnlyList<PendingOperation> PendingOps = Array.Empty<PendingOperation>();
 
-    bool HasRetryable => PendingOps.Any(o => o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
+    bool HasRetryable => PendingOps.Any(o => o.OwnerKey is not null && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
 
     async Task OpenPendingSheetAsync()
     {

@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
+    <ProjectReference Include="..\EEMOCantilanSDS.HttpClients\EEMOCantilanSDS.HttpClients.csproj" />
   </ItemGroup>
 
 </Project>

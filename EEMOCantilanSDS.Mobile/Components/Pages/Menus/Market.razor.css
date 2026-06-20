@@ -319,6 +319,11 @@
     background: var(--bg-icon);
 }
 
+.tx-badge.queued {
+    color: var(--gold-light);
+    background: var(--navy-primary);
+}
+
 .tx-amount {
     color: var(--navy-primary);
     font-family: "EB Garamond", serif;

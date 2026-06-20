@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Mobile.Abstractions;
 using EEMOCantilanSDS.Mobile.Models;
 
 namespace EEMOCantilanSDS.Mobile.Services;
@@ -27,18 +28,35 @@ public sealed class MobileSyncService
     private readonly IPendingOperationStore _store;
     private readonly IMobileApiClient _api;
     private readonly IConnectivityMonitor _connectivity;
+    private readonly ICurrentCollectorProvider _collector;
     private readonly SemaphoreSlim _syncGate = new(1, 1);
 
     private static readonly TimeSpan ConnectivityDebounce = TimeSpan.FromSeconds(3);
     private DateTime _lastConnectivityTriggerUtc = DateTime.MinValue;
 
-    public MobileSyncService(IPendingOperationStore store, IMobileApiClient api, IConnectivityMonitor connectivity)
+    public MobileSyncService(
+        IPendingOperationStore store,
+        IMobileApiClient api,
+        IConnectivityMonitor connectivity,
+        ICurrentCollectorProvider collector)
     {
         _store = store;
         _api = api;
         _connectivity = connectivity;
+        _collector = collector;
         _connectivity.ConnectivityRestored += OnConnectivityRestored;
     }
+
+    // An op belongs to the current collector only when someone is signed in AND the keys match. This is
+    // what stops a different collector on the same device from syncing (and mis-attributing) A's captures.
+    private bool IsOwnedByCurrent(PendingOperation op) =>
+        _collector.CollectorKey is { } key && op.OwnerKey == key;
+
+    // Visible (and discardable) to the current collector = their own ops, plus any orphaned (owner-less)
+    // rows so they can never be silently hidden/lost. Orphans are still excluded from sync (see
+    // IsOwnedByCurrent) so they can't be mis-attributed to whoever happens to be signed in.
+    private bool IsVisibleToCurrent(PendingOperation op) =>
+        op.OwnerKey is null || IsOwnedByCurrent(op);
 
     /// <summary>Raised (off the UI thread) whenever the queue or sync state changes.</summary>
     public event Action? Changed;
@@ -59,8 +77,13 @@ public sealed class MobileSyncService
         NotifyChanged();
     }
 
-    /// <summary>Returns the full queue (newest first) for the review sheet.</summary>
-    public Task<IReadOnlyList<PendingOperation>> GetAllAsync() => _store.GetAllAsync();
+    /// <summary>Returns the current collector's queued rows (newest first) for the review sheet. Includes
+    /// owner-less (orphaned) rows so they are recoverable rather than hidden.</summary>
+    public async Task<IReadOnlyList<PendingOperation>> GetAllAsync()
+    {
+        var all = await _store.GetAllAsync();
+        return all.Where(IsVisibleToCurrent).ToList();
+    }
 
     /// <summary>
     /// Queues a captured collection and kicks a best-effort background sync. Always succeeds locally —
@@ -70,6 +93,7 @@ public sealed class MobileSyncService
     {
         operation.LocalStatus = PendingLocalStatus.Pending;
         operation.ResultMessage = null;
+        operation.OwnerKey = _collector.CollectorKey; // tag the capturing collector
         await _store.AddAsync(operation);
         await RefreshCountAsync();
         NotifyChanged();
@@ -100,10 +124,9 @@ public sealed class MobileSyncService
         var started = false;
         try
         {
-            // Nothing retryable → return WITHOUT flipping state or notifying. This keeps the frequent
-            // connectivity-restored / post-capture triggers from churning the UI when the queue is empty.
+            // Nothing retryable for THIS collector → return WITHOUT flipping state or notifying.
             var initial = await _store.GetAllAsync().ConfigureAwait(false);
-            if (!initial.Any(o => o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed) || !IsOnline)
+            if (!initial.Any(o => IsOwnedByCurrent(o) && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed) || !IsOnline)
                 return SyncSummary.Empty;
 
             started = true;
@@ -116,7 +139,7 @@ public sealed class MobileSyncService
             {
                 var all = await _store.GetAllAsync().ConfigureAwait(false);
                 var batch = all
-                    .Where(o => o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
+                    .Where(o => IsOwnedByCurrent(o) && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
                     .OrderBy(o => o.CreatedAt)
                     .Take(MaxBatchSize)
                     .ToList();
@@ -221,7 +244,7 @@ public sealed class MobileSyncService
     private async Task RefreshCountAsync()
     {
         var all = await _store.GetAllAsync();
-        PendingCount = all.Count(o => o.LocalStatus != PendingLocalStatus.Synced);
+        PendingCount = all.Count(o => IsVisibleToCurrent(o) && o.LocalStatus != PendingLocalStatus.Synced);
     }
 
     private async Task TrySyncInBackgroundAsync()

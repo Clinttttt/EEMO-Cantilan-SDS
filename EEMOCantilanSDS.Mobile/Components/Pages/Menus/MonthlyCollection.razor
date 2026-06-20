@@ -135,7 +135,14 @@
 
                             <div class="tx-statusrow">
                                 <div class="tx-statuschips">
-                                    <span class="tx-badge @GetBadgeClass(stall)">@stall.Status</span>
+                                    @if (IsQueuedOffline(stall))
+                                    {
+                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tx-badge @GetBadgeClass(stall)">@stall.Status</span>
+                                    }
                                     @if (stall.PaidOnline)
                                     {
                                         <span class="tx-online">
@@ -148,7 +155,8 @@
                                         <span class="tx-pending">OR pending</span>
                                     }
                                 </div>
-                                <span class="tx-key" role="button" tabindex="0" title="Payor activation code"
+                                <span class="tx-key @(Sync.IsOnline ? "" : "tx-key-locked")" role="button" tabindex="0"
+                                      title="@(Sync.IsOnline ? "Payor activation code" : "Available online only")"
                                       @onclick="() => OpenActivation(stall)" @onclick:stopPropagation="true">
                                     <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
                                 </span>
@@ -427,6 +435,8 @@
 
     private FacilityCode FacilityCode;
     private MobileMonthlyCollectionDto? Collection;
+    // Stall ids with a locally-queued (not-yet-synced) offline payment for this facility/period.
+    private HashSet<Guid> QueuedOfflineStalls = new();
     private bool IsLoading = true;
     private bool IsSaving;
     private string? ErrorMessage;
@@ -462,7 +472,8 @@
     // dedicated command, not generic record-payment); everything else opens the record-payment sheet.
     private void OnCardTap(MobileMonthlyStallCollectionDto stall)
     {
-        if (stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue)
+        // Encoding an OR for an online payment needs the server, so offline we just open the read-only view.
+        if (Sync.IsOnline && stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue)
             OpenEncodeOr(stall);
         else
             OpenStall(stall);
@@ -493,24 +504,42 @@
             return;
         }
 
-        EncodeBusy = true;
-        var result = await MobileApi.IssueOnlinePaymentOrNumberAsync(txnId, EncodeOrInput.Trim());
-        EncodeBusy = false;
-
-        if (result.IsSuccess)
+        if (!Sync.IsOnline)
         {
-            ShowEncodeOr = false;
-            EncodeStall = null;
-            await LoadCollectionAsync();
+            EncodeError = "You're offline. Encoding the OR for an online payment needs a connection.";
+            return;
         }
-        else
+
+        EncodeBusy = true;
+        try
         {
-            EncodeError = result.Error ?? "Could not save the OR. It may already be in use.";
+            var result = await MobileApi.IssueOnlinePaymentOrNumberAsync(txnId, EncodeOrInput.Trim());
+            if (result.IsSuccess)
+            {
+                ShowEncodeOr = false;
+                EncodeStall = null;
+                await LoadCollectionAsync();
+            }
+            else
+            {
+                EncodeError = result.Error ?? "Could not save the OR. It may already be in use.";
+            }
+        }
+        catch
+        {
+            EncodeError = "Couldn't reach the server. Please check your connection and try again.";
+        }
+        finally
+        {
+            EncodeBusy = false;
         }
     }
 
     private void OpenActivation(MobileMonthlyStallCollectionDto stall)
     {
+        if (!Sync.IsOnline)
+            return; // activation needs the server to issue a one-time code — locked offline
+
         ActivationStall = stall;
         ActivationContact = string.Empty;
         ActivationError = null;
@@ -532,6 +561,12 @@
         if (ActivationStall is null) return;
         ActivationError = null;
 
+        if (!Sync.IsOnline)
+        {
+            ActivationError = "You're offline. Activation codes can only be generated online.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(ActivationContact))
         {
             ActivationError = "Enter the payor's mobile number.";
@@ -539,14 +574,24 @@
         }
 
         IsGenerating = true;
-        var result = await MobileApi.GenerateActivationCodeAsync(
-            new GenerateStallActivationCodeCommand(ActivationStall.StallId, ActivationContact.Trim(), null));
-        IsGenerating = false;
+        try
+        {
+            var result = await MobileApi.GenerateActivationCodeAsync(
+                new GenerateStallActivationCodeCommand(ActivationStall.StallId, ActivationContact.Trim(), null));
 
-        if (result.IsSuccess && result.Value is not null)
-            ActivationResult = result.Value;
-        else
-            ActivationError = result.Error ?? "Could not generate the code. Please try again.";
+            if (result.IsSuccess && result.Value is not null)
+                ActivationResult = result.Value;
+            else
+                ActivationError = result.Error ?? "Could not generate the code. Please try again.";
+        }
+        catch
+        {
+            ActivationError = "Couldn't reach the server. Please check your connection and try again.";
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
     }
 
     private async Task CopyCodeAsync()
@@ -626,6 +671,7 @@
             if (result.IsSuccess && result.Value is not null)
             {
                 Collection = result.Value;
+                await RefreshQueuedOfflineAsync();
                 StateHasChanged();
                 return;
             }
@@ -654,6 +700,7 @@
             }
 
             Collection = result.Value;
+            await RefreshQueuedOfflineAsync();
         }
         catch
         {
@@ -666,6 +713,23 @@
             StateHasChanged();
         }
     }
+
+    // Build the set of stalls that already have a locally-queued offline payment for this facility/period,
+    // so the card can show "Queued · Offline" instead of a misleading "Unpaid".
+    private async Task RefreshQueuedOfflineAsync()
+    {
+        var pending = await Sync.GetAllAsync();
+        QueuedOfflineStalls = pending
+            .Where(o => o.Kind == OfflineOperationKind.MonthlyRental
+                     && o.StallId is not null
+                     && string.Equals(o.FacilityLabel, FacilityCodeUpper, StringComparison.OrdinalIgnoreCase)
+                     && o.BusinessDate.Year == SelectedYear && o.BusinessDate.Month == SelectedMonth
+                     && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
+            .Select(o => o.StallId!.Value)
+            .ToHashSet();
+    }
+
+    private bool IsQueuedOffline(MobileMonthlyStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
 
     private IEnumerable<MobileMonthlyStallCollectionDto> FilteredStalls =>
         (Collection?.Stalls ?? Array.Empty<MobileMonthlyStallCollectionDto>())
@@ -779,6 +843,7 @@
                 Amount = SelectedStatus == PaymentStatus.Partial ? (PartialAmount ?? 0m) : SelectedStall.MonthlyRate
             });
 
+            QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card
             CloseSheet();
             IsSaving = false;
             return;

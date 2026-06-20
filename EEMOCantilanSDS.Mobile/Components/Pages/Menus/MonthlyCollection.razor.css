@@ -255,6 +255,7 @@
 .tx-badge.badge-paid { color: var(--paid-green); background: var(--paid-green-bg); }
 .tx-badge.badge-partial { color: #8a6d1b; background: rgba(200,168,75,.16); }
 .tx-badge.badge-unpaid { color: var(--error-red); background: var(--error-red-bg); }
+.tx-badge.badge-queued { color: var(--gold-light); background: var(--navy-primary); }
 
 .tx-pending {
     font-size: 9.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
@@ -509,6 +510,16 @@
 .tx-key:active {
     background: rgba(200, 168, 75, 0.28);
 }
+
+/* Offline: activation needs the server, so the key is visibly disabled. */
+.tx-key.tx-key-locked {
+    opacity: 0.35;
+    cursor: default;
+}
+
+    .tx-key.tx-key-locked:active {
+        background: rgba(200, 168, 75, 0.14);
+    }
 
 .tx-key svg {
     width: 14px;

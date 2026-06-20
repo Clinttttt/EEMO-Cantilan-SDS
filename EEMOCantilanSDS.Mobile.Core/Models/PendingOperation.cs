@@ -37,6 +37,10 @@ public sealed class PendingOperation
     public DateOnly BusinessDate { get; set; }
     public string? ORNumber { get; set; }
 
+    /// <summary>Key of the collector who captured this op. Only this collector may sync it (prevents
+    /// a different collector on the same device from syncing it under their own identity).</summary>
+    public string? OwnerKey { get; set; }
+
     // ── NPM daily ──
     public Guid? StallId { get; set; }
     public bool? IsPaid { get; set; }

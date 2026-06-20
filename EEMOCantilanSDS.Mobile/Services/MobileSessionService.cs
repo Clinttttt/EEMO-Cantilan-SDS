@@ -9,7 +9,8 @@ public sealed class MobileSessionService(
     MobileTokenStore tokenStore,
     ICollectorAuthApiClient collectorAuthApiClient,
     IMobileApiClient mobileApiClient,
-    MobilePaymentHubService paymentHub)
+    MobilePaymentHubService paymentHub,
+    EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache readCache)
 {
     public MobileMenuDto? Menu { get; private set; }
     public bool IsAuthenticated => tokenStore.HasAccessToken && Menu is not null;
@@ -54,6 +55,10 @@ public sealed class MobileSessionService(
             return result.Error ?? "Unable to sign in. Please check your username and password.";
         }
 
+        // Clear any previous collector's cached reads BEFORE persisting the new token. If the app dies in
+        // this window, the next startup finds an empty cache (safe) rather than the new token paired with
+        // the old collector's cached menu/records.
+        await readCache.ClearAsync();
         await tokenStore.SaveAsync(result.Value);
 
         var menuError = await LoadMenuAsync(allowRefresh: true);
@@ -71,12 +76,9 @@ public sealed class MobileSessionService(
                 return await LoadMenuAsync(allowRefresh: false);
             }
 
-            if (result.StatusCode == 401)
-            {
-                tokenStore.Clear();
-                Menu = null;
-            }
-
+            // Do NOT clear tokens here on a 401. RefreshSessionAsync already clears them only on a
+            // DEFINITIVE rejection (400/401). Clearing here too would also wipe the session on a transient
+            // refresh failure (5xx/timeout/offline), locking the collector out and destroying offline access.
             return result.Error ?? "Unable to load assigned collection facilities.";
         }
 
@@ -97,20 +99,35 @@ public sealed class MobileSessionService(
             return false;
         }
 
-        var result = await collectorAuthApiClient.RefreshTokenAsync(new RefreshTokenCommand
+        try
         {
-            RefreshToken = tokenStore.RefreshToken!
-        });
+            var result = await collectorAuthApiClient.RefreshTokenAsync(new RefreshTokenCommand
+            {
+                RefreshToken = tokenStore.RefreshToken!
+            });
 
-        if (!result.IsSuccess || result.Value is null)
-        {
-            tokenStore.Clear();
-            Menu = null;
+            if (result.IsSuccess && result.Value is not null)
+            {
+                await tokenStore.SaveAsync(result.Value);
+                return true;
+            }
+
+            // Only a DEFINITIVE rejection (refresh token invalid/expired) ends the session. Transient
+            // server errors (5xx, etc.) must NOT wipe it, or the collector is locked out AND loses access
+            // to their cached offline data until they can reach the server again.
+            if (result.StatusCode is 400 or 401)
+            {
+                tokenStore.Clear();
+                Menu = null;
+            }
+
             return false;
         }
-
-        await tokenStore.SaveAsync(result.Value);
-        return true;
+        catch
+        {
+            // Network/transient/offline error → keep the session intact so cached offline data stays usable.
+            return false;
+        }
     }
 
     public async Task LogoutAsync()
@@ -125,6 +142,8 @@ public sealed class MobileSessionService(
             });
         }
 
+        // Clear cached reads first so they can never outlive the session/token.
+        await readCache.ClearAsync();
         tokenStore.Clear();
         Menu = null;
         await paymentHub.StopAsync();

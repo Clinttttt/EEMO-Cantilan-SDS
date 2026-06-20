@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Mobile.Abstractions;
 using EEMOCantilanSDS.Mobile.Models;
 using EEMOCantilanSDS.Mobile.Services;
 
@@ -49,4 +50,43 @@ public sealed class FakeConnectivityMonitor : IConnectivityMonitor
     public event Action? ConnectivityRestored;
 
     public void RaiseRestored() => ConnectivityRestored?.Invoke();
+}
+
+/// <summary>Settable current-collector key for queue-ownership tests.</summary>
+public sealed class FakeCurrentCollectorProvider : ICurrentCollectorProvider
+{
+    public string? CollectorKey { get; set; } = "collector-A";
+}
+
+/// <summary>In-memory <see cref="IOfflineReadCache"/> for caching-decorator tests (no disk, no serialization).</summary>
+public sealed class FakeOfflineReadCache : IOfflineReadCache
+{
+    private readonly Dictionary<string, object?> _map = new();
+
+    public Task SetAsync<T>(string key, T value)
+    {
+        _map[key] = value;
+        return Task.CompletedTask;
+    }
+
+    public Task<T?> GetAsync<T>(string key) =>
+        Task.FromResult(_map.TryGetValue(key, out var v) && v is T typed ? typed : default);
+
+    public Task ClearAsync()
+    {
+        _map.Clear();
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveByPrefixAsync(params string[] prefixes)
+    {
+        var keys = _map.Keys
+            .Where(k => prefixes.Any(p => k.StartsWith(p, StringComparison.Ordinal)))
+            .ToList();
+        foreach (var k in keys)
+            _map.Remove(k);
+        return Task.CompletedTask;
+    }
+
+    public bool Has(string key) => _map.ContainsKey(key);
 }

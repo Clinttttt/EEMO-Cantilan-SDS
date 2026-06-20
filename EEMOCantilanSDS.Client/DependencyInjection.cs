@@ -1,7 +1,7 @@
-using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Client.Extensions;
 using EEMOCantilanSDS.Client.Securities;
-using EEMOCantilanSDS.Infrastructure.HttpClients.ApiClients;
+using EEMOCantilanSDS.HttpClients.ApiClients;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;

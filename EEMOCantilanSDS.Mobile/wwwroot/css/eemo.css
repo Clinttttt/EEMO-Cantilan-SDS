@@ -590,6 +590,9 @@ html, body, #app {
     margin-bottom: 14px;
     overflow-x: auto;
     scrollbar-width: none;
+    /* Without pan-x the WebView page-scroll gesture swallows horizontal swipes before the tab row sees them. */
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
 }
 
     .filter-tabs::-webkit-scrollbar {
