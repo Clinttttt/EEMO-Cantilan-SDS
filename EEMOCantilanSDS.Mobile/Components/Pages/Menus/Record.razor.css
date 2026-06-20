@@ -218,56 +218,6 @@
     padding: 0;
 }
 
-/* Loading spinner (Records load / retry) */
-.load-spinner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 56px 24px;
-    gap: 14px;
-}
-
-.spinner-ring {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 3px solid var(--border);
-    border-top-color: var(--gold-primary);
-    animation: record-spin 0.8s linear infinite;
-}
-
-@keyframes record-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-.spinner-text {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 12.5px;
-    color: var(--text-muted);
-}
-
-/* Centered retry action for the load-error state (reuses the shared .empty-state layout) */
-.retry-btn {
-    margin: 18px auto 0;
-    display: block;
-    border: none;
-    border-radius: 10px;
-    background: var(--navy-primary);
-    color: var(--gold-light);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13.5px;
-    font-weight: 600;
-    padding: 11px 30px;
-    cursor: pointer;
-}
-
-    .retry-btn:active {
-        opacity: 0.85;
-    }
-
 /* Sync-now action in the sheet footer */
 .btn-sync-now {
     flex: 1;

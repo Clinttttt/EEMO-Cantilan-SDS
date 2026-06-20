@@ -68,9 +68,9 @@ namespace EEMOCantilanSDS.Mobile
             // Set this to your public HTTPS tunnel URL (WITH trailing slash) to run the app on a real
             // phone pointed at your local API. Leave it "" for normal localhost dev (Windows + emulator).
             // NOTE: the ngrok free plan gives a NEW URL every restart — update this each session.
-            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
-            if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
-                return ApiBaseUrlOverride;
+            /*   const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+               if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
+                   return ApiBaseUrlOverride;*/
 
 #if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117

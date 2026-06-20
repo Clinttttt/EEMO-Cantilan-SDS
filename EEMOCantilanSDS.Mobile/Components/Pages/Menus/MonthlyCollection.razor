@@ -43,18 +43,11 @@
     <div class="content">
         @if (IsLoading)
         {
-            <div class="state-card">
-                <div class="state-title">Loading collections</div>
-                <div class="state-text">Please wait while the assigned stalls are loaded.</div>
-            </div>
+            <LoadingState Text="Loading collections…" />
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))
         {
-            <div class="state-card error">
-                <div class="state-title">Unable to load collections</div>
-                <div class="state-text">@ErrorMessage</div>
-                <button class="primary-action" type="button" @onclick="LoadCollectionAsync">Try Again</button>
-            </div>
+            <ErrorState Title="Couldn't load collections" Message="@ErrorMessage" OnRetry="LoadCollectionAsync" />
         }
         else if (Collection is not null)
         {
@@ -649,17 +642,29 @@
     {
         IsLoading = true;
         ErrorMessage = null;
+        StateHasChanged();
 
-        var result = await MobileApi.GetMonthlyCollectionAsync(FacilityCode, SelectedYear, SelectedMonth);
-        if (!result.IsSuccess || result.Value is null)
+        try
         {
-            ErrorMessage = result.Error ?? "Unable to load assigned stalls.";
-            IsLoading = false;
-            return;
-        }
+            var result = await MobileApi.GetMonthlyCollectionAsync(FacilityCode, SelectedYear, SelectedMonth);
+            if (!result.IsSuccess || result.Value is null)
+            {
+                ErrorMessage = result.Error ?? "Unable to load assigned stalls.";
+                return;
+            }
 
-        Collection = result.Value;
-        IsLoading = false;
+            Collection = result.Value;
+        }
+        catch
+        {
+            // The HTTP layer throws on a connection failure/timeout; keep the retry path safe and unstuck.
+            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     private IEnumerable<MobileMonthlyStallCollectionDto> FilteredStalls =>

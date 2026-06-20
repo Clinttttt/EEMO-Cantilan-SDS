@@ -905,6 +905,61 @@ html, body, #app {
 }
 
 
+/* ─────────────────────────────────────────────
+   LOADING SPINNER (shared)
+   Pages: Records + all facility collection screens
+   Centered gold ring + muted caption
+───────────────────────────────────────────── */
+.eemo-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 24px;
+    gap: 14px;
+}
+
+.eemo-loader-ring {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--gold-primary);
+    animation: eemo-spin 0.8s linear infinite;
+}
+
+@keyframes eemo-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.eemo-loader-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+/* Centered retry action for the load-error state (pairs with .empty-state) */
+.retry-btn {
+    margin: 18px auto 0;
+    display: block;
+    border: none;
+    border-radius: 10px;
+    background: var(--navy-primary);
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 11px 30px;
+    cursor: pointer;
+}
+
+    .retry-btn:active {
+        opacity: 0.85;
+    }
+
+
 /* ════════════════════════════════════════════════════════════════
    ★ PAGE-SPECIFIC — only used in their respective page
 ════════════════════════════════════════════════════════════════ */

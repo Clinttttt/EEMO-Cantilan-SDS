@@ -15,6 +15,13 @@
     <!-- Scrollable Content -->
     <div class="content">
 
+        @if (IsLoading)
+        {
+            <LoadingState Text="Loading your profile…" />
+        }
+        else
+        {
+
         <!-- Profile Card -->
         <div class="profile-card">
             <div class="profile-avatar" @onclick="OpenEdit">
@@ -169,6 +176,7 @@
             Economic Enterprise &amp; Management Office
         </div>
 
+        }
     </div>
     <!-- end .content -->
 
@@ -291,6 +299,9 @@
     bool NotificationsEnabled = true;
     void ToggleNotifications() => NotificationsEnabled = !NotificationsEnabled;
 
+    // Gate the page on the initial profile load so it shows a spinner instead of half-empty fields.
+    bool IsLoading = true;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -311,23 +322,35 @@
         }
         catch (HttpRequestException)
         {
-            // Offline — keep whatever the session already provided.
+            // Offline — keep whatever the session already provided; still show the page.
+            IsLoading = false;
         }
     }
 
     async Task LoadProfileAsync()
     {
-        var result = await Api.GetProfileAsync();
-        if (result.IsSuccess && result.Value is { } p)
+        try
         {
-            if (!string.IsNullOrWhiteSpace(p.FullName)) CollectorName = p.FullName;
-            if (!string.IsNullOrWhiteSpace(p.EmployeeId)) EmployeeId = p.EmployeeId;
-            ContactNumber        = p.ContactNumber;
-            Email                = p.Email;
-            TotalCollectedAmount = p.TotalCollected;
-            TotalDays            = p.DaysActive;
+            var result = await Api.GetProfileAsync();
+            if (result.IsSuccess && result.Value is { } p)
+            {
+                if (!string.IsNullOrWhiteSpace(p.FullName)) CollectorName = p.FullName;
+                if (!string.IsNullOrWhiteSpace(p.EmployeeId)) EmployeeId = p.EmployeeId;
+                ContactNumber        = p.ContactNumber;
+                Email                = p.Email;
+                TotalCollectedAmount = p.TotalCollected;
+                TotalDays            = p.DaysActive;
+            }
         }
-        StateHasChanged();
+        catch
+        {
+            // Offline/failed — keep the session-provided info; the page stays usable.
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     void BuildFacilityList()

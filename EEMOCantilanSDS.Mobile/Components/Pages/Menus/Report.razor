@@ -36,14 +36,11 @@
 
         @if (IsLoading)
         {
-            <div class="menu-state-card">Loading your reports...</div>
+            <LoadingState Text="Loading your reports…" />
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))
         {
-            <div class="menu-state-card error">
-                @ErrorMessage
-                <div style="margin-top:10px;"><span class="filter-tab active" @onclick="LoadReportAsync">Try again</span></div>
-            </div>
+            <ErrorState Title="Couldn't load reports" Message="@ErrorMessage" OnRetry="LoadReportAsync" />
         }
         else
         {
@@ -361,18 +358,28 @@
         ErrorMessage = string.Empty;
         StateHasChanged();
 
-        var result = await Api.GetReportAsync(RequestFacility, PeriodDate.Year, PeriodDate.Month);
+        try
+        {
+            var result = await Api.GetReportAsync(RequestFacility, PeriodDate.Year, PeriodDate.Month);
 
-        if (result.IsSuccess && result.Value is not null)
-            ReportData = result.Value;
-        else
-            ErrorMessage = result.Error ?? "Unable to load your report.";
+            if (result.IsSuccess && result.Value is not null)
+                ReportData = result.Value;
+            else
+                ErrorMessage = result.Error ?? "Unable to load your report.";
 
-        if (!ReportTypes.Contains(ActiveReportType))
-            ActiveReportType = PrimaryReportTab;
-
-        IsLoading = false;
-        StateHasChanged();
+            if (!ReportTypes.Contains(ActiveReportType))
+                ActiveReportType = PrimaryReportTab;
+        }
+        catch
+        {
+            // The HTTP layer throws on a connection failure/timeout; keep period nav + retry safe and unstuck.
+            ErrorMessage = "Unable to connect to the EEMO server. Please check the connection and try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
     }
 
     async Task PrevPeriod()

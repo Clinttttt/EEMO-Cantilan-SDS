@@ -1,0 +1,10 @@
+@* Shared centered loading spinner. Styles live in wwwroot/css/eemo.css (.eemo-loader*). *@
+<div class="eemo-loader">
+    <div class="eemo-loader-ring"></div>
+    <div class="eemo-loader-text">@Text</div>
+</div>
+
+@code {
+    /// <summary>Caption shown under the spinner.</summary>
+    [Parameter] public string Text { get; set; } = "Loading…";
+}
