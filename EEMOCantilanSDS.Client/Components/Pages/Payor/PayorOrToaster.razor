@@ -49,7 +49,9 @@
         if (principal is null || !principal.IsInRole("Payor"))
             return;
 
-        var baseUrl = (Config["ApiBaseUrl"] ?? string.Empty).TrimEnd('/');
+        // Browser JavaScript cannot resolve Docker's internal "api" DNS name. In normal local
+        // development BrowserApiBaseUrl is unset, so this continues to use ApiBaseUrl.
+        var baseUrl = (Config["BrowserApiBaseUrl"] ?? Config["ApiBaseUrl"] ?? string.Empty).TrimEnd('/');
         if (string.IsNullOrEmpty(baseUrl))
             return;
 

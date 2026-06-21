@@ -1,0 +1,65 @@
+name: eemocantilansds
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eemocantilansds-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-EEMOCantilanSDS.DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: EEMOCantilanSDS.Api/Dockerfile
+    container_name: eemocantilansds-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=${POSTGRES_DB:-EEMOCantilanSDS.DB};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: ${JWT_ISSUER:-EEMOCantilanSDS}
+      Jwt__Audience: ${JWT_AUDIENCE:-EEMOCantilanSDS.Client}
+      PayMongo__BaseUrl: https://api.paymongo.com/v1
+      PayMongo__SecretKey: ${PAYMONGO_SECRET_KEY:-}
+      PayMongo__PublicKey: ${PAYMONGO_PUBLIC_KEY:-}
+      PayMongo__WebhookSecret: ${PAYMONGO_WEBHOOK_SECRET:-}
+      OnlinePayments__PortalBaseUrl: http://localhost:8081
+      Cors__AllowedOrigins__0: http://localhost:8081
+      Database__ApplyMigrationsAtStartup: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  client:
+    build:
+      context: .
+      dockerfile: EEMOCantilanSDS.Client/Dockerfile
+    container_name: eemocantilansds-client
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      # The Blazor server uses Docker's internal service name for its HTTP API clients.
+      ApiBaseUrl: http://api:8080
+      # Browser-side SignalR cannot resolve Docker service names, so it uses the host-published API URL.
+      BrowserApiBaseUrl: http://localhost:8080
+    ports:
+      - "8081:8080"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  postgres_data:

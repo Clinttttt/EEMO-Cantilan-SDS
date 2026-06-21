@@ -4,7 +4,9 @@ using EEMOCantilanSDS.Api.Middleware;
 using EEMOCantilanSDS.Application;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Infrastructure;
+using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Seeders;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,8 +20,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazor", policy =>
     {
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>()
+            ?? ["http://localhost:5173", "https://localhost:5173", "https://localhost:7167", "http://localhost:5198", "http://localhost:8081"];
+
         policy
-            .WithOrigins("http://localhost:5173", "https://localhost:5173", "https://localhost:7167", "http://localhost:5198")
+            .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -28,9 +35,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
+if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsAtStartup"))
 {
-    var context = scope.ServiceProvider.GetRequiredService<IAppDbContext>();
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await context.Database.MigrateAsync();
     await FacilitySeeder.SeedAsync(context);
 }
 
@@ -65,6 +74,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.MapHub<EEMOCantilanSDS.Api.Hubs.OnlinePaymentHub>("/hubs/online-payments");
 app.MapHub<EEMOCantilanSDS.Api.Hubs.PayorNotificationHub>("/hubs/payor");
