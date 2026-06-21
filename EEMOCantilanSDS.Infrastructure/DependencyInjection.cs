@@ -51,6 +51,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IPayorRepository, PayorRepository>();
             service.AddScoped<IOnlinePaymentRepository, OnlinePaymentRepository>();
             service.AddScoped<ISyncRepository, SyncRepository>();
+            service.AddScoped<IAuditRepository, AuditRepository>();
 
 
             // Services

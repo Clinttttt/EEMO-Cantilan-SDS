@@ -1,8 +1,12 @@
 @page "/audit-trail"
 @using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Audit
 @using EEMOCantilanSDS.Client.Components.Shared
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+@inject IAuditApiClient AuditApi
+@implements IDisposable
 <PageTitle>EEMO Admin — Audit Trail</PageTitle>
 
 <header class="topbar">
@@ -17,7 +21,7 @@
     <div class="topbar-right">
         <div class="topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @DateTime.Now.ToString("MMMM d, yyyy")
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
         </div>
         <AccountChip />
     </div>
@@ -25,135 +29,498 @@
 
 <div class="content-area">
 
-    <!-- Audit Trail Hero Banner -->
-    <FacilityHero Eyebrow="EEMO Admin · System"
-                  Title="Audit Trail"
-                  Subtitle="System activity log and change history"
-                  Icon="@AuditIcon"
-                  Stats="HeroStats" />
+    <!-- ── Stat cards ── -->
+    <div class="audit-stats">
+        <button type="button" class="audit-stat @(_action is null ? "is-active" : "")" @onclick="() => SetAction(null)">
+            <div class="audit-stat-icon stat-total">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+            </div>
+            <div class="audit-stat-body">
+                <div class="audit-stat-val">@(_data?.TotalEvents ?? 0)</div>
+                <div class="audit-stat-key">Total Events</div>
+                <div class="audit-stat-sub">All recorded activity</div>
+            </div>
+        </button>
 
-    <!-- Toolbar -->
-    <Toolbar SearchQuery="@SearchQuery"
-             OnSearch="OnSearchInput"
-             ActiveFilter="@ActiveFilter"
-             OnFilterChanged="OnFilterChange"
-             Filters="@FilterOptions"
-             ShowSearch="true"
-             SearchPlaceholder="Search actor, entity, action…"
-             Actions="@ToolbarActions">
-    </Toolbar>
+        <button type="button" class="audit-stat @(_action == "Created" ? "is-active" : "")" @onclick='() => SetAction("Created")'>
+            <div class="audit-stat-icon stat-created">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            </div>
+            <div class="audit-stat-body">
+                <div class="audit-stat-val">@(_data?.CreatedCount ?? 0)</div>
+                <div class="audit-stat-key">Created</div>
+                <div class="audit-stat-sub">New records created</div>
+            </div>
+        </button>
 
-    <!-- Audit Log Table -->
-    <div class="section-card">
-        <table class="audit-table">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Actor</th>
-                    <th>Action</th>
-                    <th>Entity</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var log in FilteredLogs)
-                {
-                    <tr>
-                        <td class="timestamp-cell">
-                            <div class="timestamp">@log.Timestamp.ToString("MMM dd, yyyy")</div>
-                            <div class="time">@log.Timestamp.ToString("hh:mm tt")</div>
-                        </td>
-                        <td>
-                            <div class="actor-cell">
-                                <div class="actor-avatar">@log.ActorInitials</div>
-                                <div>
-                                    <div class="actor-name">@log.Actor</div>
-                                    <div class="actor-role">@log.ActorRole</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <span class="action-badge @log.ActionClass">@log.Action</span>
-                        </td>
-                        <td>
-                            <div class="entity-cell">
-                                <div class="entity-name">@log.EntityName</div>
-                                <div class="entity-id">@log.EntityId</div>
-                            </div>
-                        </td>
-                        <td class="details-cell">@log.Details</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <button type="button" class="audit-stat @(_action == "Updated" ? "is-active" : "")" @onclick='() => SetAction("Updated")'>
+            <div class="audit-stat-icon stat-updated">
+                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+            </div>
+            <div class="audit-stat-body">
+                <div class="audit-stat-val">@(_data?.UpdatedCount ?? 0)</div>
+                <div class="audit-stat-key">Updated</div>
+                <div class="audit-stat-sub">Records modified</div>
+            </div>
+        </button>
+
+        <button type="button" class="audit-stat @(_action == "Deleted" ? "is-active" : "")" @onclick='() => SetAction("Deleted")'>
+            <div class="audit-stat-icon stat-deleted">
+                <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>
+            </div>
+            <div class="audit-stat-body">
+                <div class="audit-stat-val">@(_data?.DeletedCount ?? 0)</div>
+                <div class="audit-stat-key">Deleted</div>
+                <div class="audit-stat-sub">Records removed</div>
+            </div>
+        </button>
     </div>
 
+    <!-- ── Filter bar ── -->
+    <div class="audit-filters">
+        <div class="af-field af-search">
+            <label>Search</label>
+            <div class="af-search-box">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" placeholder="Search actor, entity, action…"
+                       value="@_search" @oninput="OnSearchInput" />
+            </div>
+        </div>
+
+        <div class="af-field">
+            <label>Period</label>
+            <select class="af-input af-period" value="@_rangePreset" @onchange="OnRangeChanged">
+                <option value="all">All time</option>
+                <option value="today">Today</option>
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="custom">Custom range…</option>
+            </select>
+        </div>
+
+        @if (_rangePreset == "custom")
+        {
+            <div class="af-field">
+                <label>From</label>
+                <input type="date" class="af-input" value="@_fromDate?.ToString("yyyy-MM-dd")" @onchange="OnFromChanged" max="@_todayIso" />
+            </div>
+            <div class="af-field">
+                <label>To</label>
+                <input type="date" class="af-input" value="@_toDate?.ToString("yyyy-MM-dd")" @onchange="OnToChanged" max="@_todayIso" />
+            </div>
+        }
+
+        <div class="af-field">
+            <label>Actor</label>
+            <select class="af-input" value="@_actor" @onchange="OnActorChanged">
+                <option value="">All Actors</option>
+                @foreach (var a in _actorOptions)
+                {
+                    <option value="@a.Value">@a.Label</option>
+                }
+            </select>
+        </div>
+
+        <div class="af-field">
+            <label>Entity</label>
+            <select class="af-input" value="@_entity" @onchange="OnEntityChanged">
+                <option value="">All Entities</option>
+                @foreach (var e in _entityTypes)
+                {
+                    <option value="@e">@EntityLabel(e)</option>
+                }
+            </select>
+        </div>
+
+        <div class="af-actions">
+            @if (_hasActiveFilters)
+            {
+                <button type="button" class="af-clear" @onclick="ClearFilters" title="Clear all filters">Clear</button>
+            }
+            <a class="af-export @(CanExport ? "" : "is-disabled")" download="audit-trail.csv" href="@_csvHref" title="Export current results to CSV">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Export
+            </a>
+        </div>
+    </div>
+
+    <!-- ── Table ── -->
+    <div class="audit-panel">
+        <div class="audit-row audit-row-head">
+            <div class="ac-time">Timestamp</div>
+            <div class="ac-actor">Actor</div>
+            <div class="ac-action">Action</div>
+            <div class="ac-entity">Entity</div>
+            <div class="ac-details">Details</div>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="audit-skeleton">
+                @for (var i = 0; i < 8; i++)
+                {
+                    <div class="audit-row">
+                        <div class="ac-time"><Skeleton Width="120px" Height="14px" /></div>
+                        <div class="ac-actor sk-inline">
+                            <Skeleton Width="32px" Height="32px" Radius="999px" />
+                            <div class="sk-grow sk-stack-sm">
+                                <Skeleton Width="120px" Height="13px" />
+                                <Skeleton Width="60px" Height="10px" />
+                            </div>
+                        </div>
+                        <div class="ac-action"><Skeleton Width="74px" Height="22px" Radius="999px" /></div>
+                        <div class="ac-entity"><Skeleton Width="130px" Height="14px" /></div>
+                        <div class="ac-details"><Skeleton Width="80%" Height="13px" /></div>
+                    </div>
+                }
+            </div>
+        }
+        else if (_error is not null)
+        {
+            <div class="audit-state">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                <div class="audit-state-title">Couldn't load the audit trail</div>
+                <div class="audit-state-sub">@_error</div>
+                <button class="af-clear" @onclick="() => ReloadAsync()">Try again</button>
+            </div>
+        }
+        else if (_data is null || _data.Items.Count == 0)
+        {
+            <div class="audit-state">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                <div class="audit-state-title">No audit entries found</div>
+                <div class="audit-state-sub">Nothing matches the current filters. Adjust or clear them to see more.</div>
+            </div>
+        }
+        else
+        {
+            @foreach (var group in GroupedItems)
+            {
+                <div class="audit-daygroup">@group.Key</div>
+                @foreach (var log in group.Value)
+                {
+                    var ph = ToPh(log.LoggedAtUtc);
+                    <div class="audit-row">
+                        <div class="ac-time">
+                            <div class="ac-time-main">@ph.ToString("hh:mm tt")</div>
+                            <div class="ac-time-sub">@ph.ToString("MMM d, yyyy")</div>
+                        </div>
+                        <div class="ac-actor">
+                            <div class="ac-avatar">@Initials(log.ActorDisplayName)</div>
+                            <div class="ac-actor-text">
+                                <div class="ac-actor-name">@log.ActorDisplayName</div>
+                                <div class="ac-actor-role">@log.ActorRole</div>
+                            </div>
+                        </div>
+                        <div class="ac-action">
+                            <span class="ac-badge ac-badge-@log.Action.ToLower()">@log.Action.ToUpper()</span>
+                        </div>
+                        <div class="ac-entity">
+                            <div class="ac-entity-name">@EntityLabel(log.EntityType)</div>
+                            <div class="ac-entity-code">@ShortId(log.EntityId)</div>
+                        </div>
+                        <div class="ac-details">@DetailsText(log)</div>
+                    </div>
+                }
+            }
+
+            <!-- ── Footer / pagination ── -->
+            <div class="audit-foot">
+                <div class="audit-foot-info">@RangeLabel</div>
+                <div class="audit-foot-pager">
+                    <label class="audit-pagesize">
+                        Rows
+                        <select value="@_pageSize" @onchange="OnPageSizeChanged">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </label>
+                    <div class="audit-pages">
+                        <button class="pg-btn" disabled="@(_page <= 1)" @onclick="() => GoToPage(1)" title="First">«</button>
+                        <button class="pg-btn" disabled="@(_page <= 1)" @onclick="() => GoToPage(_page - 1)" title="Previous">‹</button>
+                        <span class="pg-current">Page @_page of @Math.Max(1, _data.TotalPages)</span>
+                        <button class="pg-btn" disabled="@(_page >= _data.TotalPages)" @onclick="() => GoToPage(_page + 1)" title="Next">›</button>
+                        <button class="pg-btn" disabled="@(_page >= _data.TotalPages)" @onclick="() => GoToPage(_data.TotalPages)" title="Last">»</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 </div>
 
 @code {
-    private RenderFragment AuditIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>;
+    private AuditTrailDto? _data;
+    private bool _loading = true;
+    private string? _error;
 
-    private List<FacilityHero.HeroStat> HeroStats => new()
+    // Filter-dropdown options, cached across pages so pagination doesn't re-scan them server-side.
+    private IReadOnlyList<AuditActorOptionDto> _actorOptions = Array.Empty<AuditActorOptionDto>();
+    private IReadOnlyList<string> _entityTypes = Array.Empty<string>();
+
+    private string _search = string.Empty;
+    private string? _action;                 // null = All
+    private string _entity = string.Empty;   // "" = All
+    private string _actor = string.Empty;    // "" = All
+    private DateOnly? _fromDate;
+    private DateOnly? _toDate;
+    private string _rangePreset = "all";
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    private string _csvHref = string.Empty;
+    private readonly string _todayIso = PhilippineTime.Today.ToString("yyyy-MM-dd");
+    private System.Threading.CancellationTokenSource? _searchDebounce;
+
+    // Any non-default filter active (used to show the Clear button).
+    private bool _hasActiveFilters =>
+        !string.IsNullOrEmpty(_search) || _action is not null
+        || !string.IsNullOrEmpty(_entity) || !string.IsNullOrEmpty(_actor)
+        || _fromDate is not null || _toDate is not null;
+
+    private bool CanExport => _data is not null && _data.Items.Count > 0;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync(bool includeOptions = true)
     {
-        new() { Value = AuditLogs.Count.ToString(), Label = "Total Events" },
-        new() { Value = AuditLogs.Count(a => a.Action == "Create").ToString(), Label = "Created" },
-        new() { Value = AuditLogs.Count(a => a.Action == "Update").ToString(), Label = "Updated" },
-        new() { Value = AuditLogs.Count(a => a.Action == "Delete").ToString(), Label = "Deleted" },
-    };
+        _loading = true;
+        _error = null;
+        StateHasChanged();
 
-    private string SearchQuery { get; set; } = string.Empty;
-    private string ActiveFilter { get; set; } = "All";
+        // PH date range → UTC bounds (stored timestamps are UTC; PH = UTC+8, no DST).
+        DateTime? fromUtc = _fromDate is { } f ? f.ToDateTime(TimeOnly.MinValue).AddHours(-8) : null;
+        DateTime? toUtc = _toDate is { } t ? t.ToDateTime(TimeOnly.MaxValue).AddHours(-8) : null;
 
-    private record AuditLogEntry(
-        DateTime Timestamp,
-        string Actor,
-        string ActorInitials,
-        string ActorRole,
-        string Action,
-        string ActionClass,
-        string EntityName,
-        string EntityId,
-        string Details
-    );
+        var result = await AuditApi.GetAuditTrailAsync(
+            string.IsNullOrWhiteSpace(_search) ? null : _search,
+            _action,
+            string.IsNullOrWhiteSpace(_entity) ? null : _entity,
+            string.IsNullOrWhiteSpace(_actor) ? null : _actor,
+            fromUtc, toUtc, _page, _pageSize, includeOptions);
 
-    private List<AuditLogEntry> AuditLogs = new()
-    {
-        new(DateTime.Now.AddHours(-1), "Juan Dela Cruz", "JD", "Head", "Create", "create", "PaymentRecord", "PR-2026-0245", "Recorded payment for NPM Stall A-12"),
-        new(DateTime.Now.AddHours(-2), "Maria Santos", "MS", "Admin", "Update", "update", "Stall", "NPM-A-15", "Updated monthly rate from ₱900 to ₱950"),
-        new(DateTime.Now.AddHours(-3), "Juan Dela Cruz", "JD", "Head", "Create", "create", "Collector", "COLL-001", "Created new collector account: Pedro Reyes"),
-        new(DateTime.Now.AddHours(-5), "Maria Santos", "MS", "Admin", "Update", "update", "Contract", "CNT-2026-089", "Extended contract duration for TCC Stall 08"),
-        new(DateTime.Now.AddHours(-6), "Juan Dela Cruz", "JD", "Head", "Delete", "delete", "Stall", "BBQ-05", "Soft deleted BBQ Stand Unit 5"),
-        new(DateTime.Now.AddDays(-1).AddHours(-2), "Pedro Reyes", "PR", "Collector", "Create", "create", "DailyCollection", "DC-2026-0156", "Recorded daily collection for NPM Fish Section"),
-        new(DateTime.Now.AddDays(-1).AddHours(-4), "Maria Santos", "MS", "Admin", "Update", "update", "Facility", "NCC", "Updated facility description"),
-        new(DateTime.Now.AddDays(-1).AddHours(-6), "Juan Dela Cruz", "JD", "Head", "Create", "create", "SlaughterTransaction", "SLH-2026-042", "Recorded slaughter: 3 Hogs for Farmer Jose"),
-        new(DateTime.Now.AddDays(-2).AddHours(-1), "Maria Santos", "MS", "Admin", "Update", "update", "PaymentRecord", "PR-2026-0240", "Updated payment status to Paid"),
-        new(DateTime.Now.AddDays(-2).AddHours(-3), "Juan Dela Cruz", "JD", "Head", "Create", "create", "Stall", "NCC-12-C", "Created new stall in NCC Extension"),
-        new(DateTime.Now.AddDays(-2).AddHours(-5), "Pedro Reyes", "PR", "Collector", "Create", "create", "TrmTrip", "TRM-2026-0089", "Recorded transport trip: Route Cantilan-Tandag"),
-        new(DateTime.Now.AddDays(-3).AddHours(-2), "Maria Santos", "MS", "Admin", "Update", "update", "Stall", "TCC-09", "Updated stall occupant information"),
-        new(DateTime.Now.AddDays(-3).AddHours(-4), "Juan Dela Cruz", "JD", "Head", "Delete", "delete", "Contract", "CNT-2025-156", "Terminated expired contract"),
-        new(DateTime.Now.AddDays(-4).AddHours(-1), "Pedro Reyes", "PR", "Collector", "Create", "create", "TpmAttendance", "TPM-2026-0034", "Recorded Tabo-an market day attendance"),
-        new(DateTime.Now.AddDays(-4).AddHours(-3), "Maria Santos", "MS", "Admin", "Update", "update", "Collector", "COLL-002", "Updated collector facility assignments"),
-    };
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _data = result.Value;
+            // Options are only returned when requested; cache them so paging keeps the dropdowns filled.
+            if (includeOptions)
+            {
+                _actorOptions = _data.Actors;
+                _entityTypes = _data.EntityTypes;
+            }
+            BuildCsv();
+        }
+        else
+        {
+            _error = result.Error ?? "The audit service is unavailable right now.";
+        }
 
-    private readonly List<string> FilterOptions = new() { "All", "Create", "Update", "Delete" };
-    private List<Toolbar.ToolbarAction> ToolbarActions = new();
-
-    private void OnSearchInput(string query)
-    {
-        SearchQuery = query;
+        _loading = false;
+        StateHasChanged();
     }
 
-    private void OnFilterChange(string filter)
+    private async Task OnSearchInput(ChangeEventArgs e)
     {
-        ActiveFilter = filter;
+        _search = e.Value?.ToString() ?? string.Empty;
+        // Debounce: only reload ~350ms after typing stops.
+        _searchDebounce?.Cancel();
+        _searchDebounce = new System.Threading.CancellationTokenSource();
+        var token = _searchDebounce.Token;
+        try
+        {
+            await Task.Delay(350, token);
+            _page = 1;
+            await ReloadAsync();
+        }
+        catch (TaskCanceledException) { }
     }
 
-    private List<AuditLogEntry> FilteredLogs => AuditLogs
-        .Where(log => ActiveFilter == "All" || log.Action == ActiveFilter)
-        .Where(log => string.IsNullOrEmpty(SearchQuery) ||
-                     log.Actor.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
-                     log.EntityName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
-                     log.Details.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
-        .OrderByDescending(log => log.Timestamp)
-        .ToList();
+    private async Task SetAction(string? action)
+    {
+        _action = action;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnActorChanged(ChangeEventArgs e)
+    {
+        _actor = e.Value?.ToString() ?? string.Empty;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnEntityChanged(ChangeEventArgs e)
+    {
+        _entity = e.Value?.ToString() ?? string.Empty;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnRangeChanged(ChangeEventArgs e)
+    {
+        _rangePreset = e.Value?.ToString() ?? "all";
+        var today = PhilippineTime.Today;
+        switch (_rangePreset)
+        {
+            case "today": _fromDate = today; _toDate = today; break;
+            case "7d": _fromDate = today.AddDays(-6); _toDate = today; break;
+            case "30d": _fromDate = today.AddDays(-29); _toDate = today; break;
+            case "month": _fromDate = new DateOnly(today.Year, today.Month, 1); _toDate = today; break;
+            case "all": _fromDate = null; _toDate = null; break;
+            case "custom": break; // keep current dates; reveal the manual pickers
+        }
+        _page = 1;
+
+        if (_rangePreset == "custom")
+            StateHasChanged();
+        else
+            await ReloadAsync();
+    }
+
+    private async Task OnFromChanged(ChangeEventArgs e)
+    {
+        _fromDate = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnToChanged(ChangeEventArgs e)
+    {
+        _toDate = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        _pageSize = int.TryParse(e.Value?.ToString(), out var n) ? n : 25;
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        if (_data is null) return;
+        var target = Math.Clamp(page, 1, Math.Max(1, _data.TotalPages));
+        if (target == _page) return;
+        _page = target;
+        await ReloadAsync(includeOptions: false);
+    }
+
+    private async Task ClearFilters()
+    {
+        _search = string.Empty;
+        _action = null;
+        _entity = string.Empty;
+        _actor = string.Empty;
+        _fromDate = null;
+        _toDate = null;
+        _rangePreset = "all";
+        _page = 1;
+        await ReloadAsync();
+    }
+
+    // Group the current page's items by their PH calendar day (already date-desc from the server).
+    private IEnumerable<KeyValuePair<string, List<AuditLogDto>>> GroupedItems
+    {
+        get
+        {
+            var groups = new List<KeyValuePair<string, List<AuditLogDto>>>();
+            foreach (var item in _data!.Items)
+            {
+                var key = ToPh(item.LoggedAtUtc).ToString("MMMM d, yyyy");
+                if (groups.Count == 0 || groups[^1].Key != key)
+                    groups.Add(new(key, new List<AuditLogDto>()));
+                groups[^1].Value.Add(item);
+            }
+            return groups;
+        }
+    }
+
+    private string RangeLabel
+    {
+        get
+        {
+            if (_data is null || _data.TotalCount == 0) return "No results";
+            var first = (_page - 1) * _pageSize + 1;
+            var last = Math.Min(_page * _pageSize, _data.TotalCount);
+            return $"Showing {first} to {last} of {_data.TotalCount} results";
+        }
+    }
+
+    private void BuildCsv()
+    {
+        if (_data is null || _data.Items.Count == 0) { _csvHref = string.Empty; return; }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Timestamp (PH),Actor,Role,Action,Entity,EntityId,Details");
+        foreach (var log in _data.Items)
+        {
+            var ph = ToPh(log.LoggedAtUtc).ToString("yyyy-MM-dd HH:mm");
+            sb.AppendLine(string.Join(",",
+                Csv(ph), Csv(log.ActorDisplayName), Csv(log.ActorRole), Csv(log.Action),
+                Csv(EntityLabel(log.EntityType)), Csv(log.EntityId?.ToString() ?? ""), Csv(DetailsText(log))));
+        }
+        _csvHref = "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
+    }
+
+    private static string Csv(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        var needsQuote = value.Contains(',') || value.Contains('"') || value.Contains('\n');
+        var escaped = value.Replace("\"", "\"\"");
+        return needsQuote ? $"\"{escaped}\"" : escaped;
+    }
+
+    // Stored audit timestamps are UTC; the UI shows Philippine time (UTC+8, no DST).
+    private static DateTime ToPh(DateTime utc) => utc.AddHours(8);
+
+    private static string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpper();
+        return string.Concat(parts[0][0], parts[^1][0]).ToUpper();
+    }
+
+    // Brief, professional labels for the audited entity types (the filter value stays the class name).
+    private static readonly Dictionary<string, string> EntityLabels = new()
+    {
+        ["PaymentRecord"] = "Payment Record",
+        ["DailyCollection"] = "Daily Collection",
+        ["OnlinePaymentTransaction"] = "Online Payment",
+        ["SlaughterTransaction"] = "Slaughter",
+        ["TpmAttendance"] = "Tabo-an Attendance",
+        ["TrmTrip"] = "Terminal Trip",
+        ["AdminUser"] = "Admin Account",
+        ["CollectorUser"] = "Collector Account",
+        ["PayorUser"] = "Payor Account",
+        ["PayorActivationCode"] = "Payor Activation",
+        ["PayorStallLink"] = "Payor Link",
+        ["Stall"] = "Stall",
+    };
+
+    private static string EntityLabel(string entityType) =>
+        EntityLabels.TryGetValue(entityType, out var label) ? label : Humanize(entityType);
+
+    // "PaymentRecord" → "Payment Record"
+    private static string Humanize(string pascal)
+    {
+        if (string.IsNullOrEmpty(pascal)) return pascal;
+        return System.Text.RegularExpressions.Regex.Replace(pascal, "(?<=[a-z0-9])([A-Z])", " $1");
+    }
+
+    private static string ShortId(Guid? id) => id is null ? "—" : $"#{id.Value.ToString("N")[..8]}";
+
+    // No human description is stored; surface the note if present, else a generated summary.
+    private static string DetailsText(AuditLogDto log) =>
+        !string.IsNullOrWhiteSpace(log.Notes) ? log.Notes! : $"{log.Action} {EntityLabel(log.EntityType)}";
+
+    public void Dispose()
+    {
+        _searchDebounce?.Cancel();
+        _searchDebounce?.Dispose();
+    }
 }
