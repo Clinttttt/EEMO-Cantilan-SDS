@@ -39,7 +39,7 @@
 <!-- ══ Period Selector ══ -->
 <div class="rpt-period-bar">
     <div class="rpt-period-tabs">
-        @foreach (var p in new[] { "Monthly", "Yearly" })
+        @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
         {
             <button type="button" class="rpt-period-tab @(!ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
                     aria-pressed="@(!ShowPrintReport && !ShowHistory && ActivePeriod == p)"
@@ -361,7 +361,7 @@ else
                 <div class="chart-header">
                     <div class="chart-header-left">
                         <h3 class="chart-title">Fee Collection Trend</h3>
-                        <p class="chart-subtitle">@(ActivePeriod == "Yearly" ? "Collected fees by month" : "Collected fees by transaction day")</p>
+                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => "Collected fees by day", _ => "Collected fees by month" })</p>
                     </div>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
@@ -615,6 +615,9 @@ else
     private SlaughterHistoryDto? Hist;            // yearly + history
     private bool HistoryLoading;
 
+    // Trailing 6-month collected totals for the Monthly trend chart (oldest → newest).
+    private List<(int Year, int Month, decimal Collected)> _trendMonthly = new();
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     async Task LoadAsync()
@@ -649,7 +652,39 @@ else
         PrevOverview = prev.IsSuccess ? prev.Value : null;
 
         var tx = await SlaughterApi.GetTransactionsAsync(CurrentDate.Year, CurrentDate.Month);
-        MonthTxns = tx.IsSuccess && tx.Value != null ? tx.Value.ToList() : new();
+        var txns = tx.IsSuccess && tx.Value != null ? tx.Value.ToList() : new();
+
+        // Weekly view: narrow the month's transactions to the selected week-of-month (mirrors NPM).
+        if (ActivePeriod == "Weekly" && !ShowPrintReport)
+        {
+            var (fromDay, toDay) = WeekDayRange();
+            txns = txns.Where(t => t.TransactionDate.Day >= fromDay && t.TransactionDate.Day <= toDay).ToList();
+        }
+        MonthTxns = txns;
+
+        // The Monthly view's trend is a trailing 6-month window (like NPM), sourced from history.
+        if (ActivePeriod == "Monthly" && !ShowPrintReport)
+            _trendMonthly = await BuildMonthlyTrendHistoryAsync();
+    }
+
+    // Trailing 6-month collected totals (oldest → newest) ending at the selected month, from history.
+    async Task<List<(int Year, int Month, decimal Collected)>> BuildMonthlyTrendHistoryAsync()
+    {
+        var anchor = new DateTime(CurrentDate.Year, CurrentDate.Month, 1);
+        var targets = Enumerable.Range(0, 6).Select(i => anchor.AddMonths(i - 5)).ToList();
+
+        var collectedByMonth = new Dictionary<(int Year, int Month), decimal>();
+        foreach (var year in targets.Select(d => d.Year).Distinct())
+        {
+            var h = await SlaughterApi.GetHistoryAsync(year);
+            if (h.IsSuccess && h.Value is not null)
+                foreach (var m in h.Value.Monthly.Where(m => m.Month.HasValue))
+                    collectedByMonth[(m.Year, m.Month!.Value)] = m.TotalCollected;
+        }
+
+        return targets
+            .Select(d => (d.Year, d.Month, collectedByMonth.TryGetValue((d.Year, d.Month), out var c) ? c : 0m))
+            .ToList();
     }
 
     async Task SetPeriod(string p) { ShowPrintReport = false; ShowHistory = false; ActivePeriod = p; await LoadAsync(); }
@@ -661,35 +696,63 @@ else
     {
         if (ShowHistory) { CurrentDate = CurrentDate.AddYears(-1); await LoadAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(-1); await LoadAsync(); return; }
-        CurrentDate = ActivePeriod == "Yearly" ? CurrentDate.AddYears(-1) : CurrentDate.AddMonths(-1);
+        CurrentDate = ActivePeriod switch
+        {
+            "Weekly" => CurrentDate.AddDays(-7),
+            "Yearly" => CurrentDate.AddYears(-1),
+            _        => CurrentDate.AddMonths(-1)
+        };
         await LoadAsync();
     }
     async Task NextPeriod()
     {
         if (ShowHistory) { CurrentDate = CurrentDate.AddYears(1); await LoadAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(1); await LoadAsync(); return; }
-        CurrentDate = ActivePeriod == "Yearly" ? CurrentDate.AddYears(1) : CurrentDate.AddMonths(1);
+        CurrentDate = ActivePeriod switch
+        {
+            "Weekly" => CurrentDate.AddDays(7),
+            "Yearly" => CurrentDate.AddYears(1),
+            _        => CurrentDate.AddMonths(1)
+        };
         await LoadAsync();
     }
 
-    string GetPeriodLabel() => ActivePeriod == "Yearly" ? CurrentDate.ToString("yyyy") : CurrentDate.ToString("MMMM yyyy");
+    string GetPeriodLabel() => ActivePeriod switch
+    {
+        "Weekly" => $"Week of {WeekStartDate:MMM d}\u2013{WeekEndDate:%d}, {WeekStartDate:yyyy}",
+        "Yearly" => CurrentDate.ToString("yyyy"),
+        _        => CurrentDate.ToString("MMMM yyyy")
+    };
+
+    // Week-of-month model (days 1-7, 8-14, …) — mirrors NPM so a week stays within one month.
+    int WeekIndex => ((CurrentDate.Day - 1) / 7) + 1;
+    (int FromDay, int ToDay) WeekDayRange()
+    {
+        var daysInMonth = DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+        return ((WeekIndex - 1) * 7 + 1, Math.Min(WeekIndex * 7, daysInMonth));
+    }
+    DateTime WeekStartDate => new(CurrentDate.Year, CurrentDate.Month, WeekDayRange().FromDay);
+    DateTime WeekEndDate => new(CurrentDate.Year, CurrentDate.Month, WeekDayRange().ToDay);
     string PrintReportPeriodLabel => $"Status Report — {CurrentDate:MMMM yyyy}";
     string HistoryPeriodLabel => $"History — {CurrentDate.Year}";
 
     bool IsYearly => ActivePeriod == "Yearly";
+    bool IsWeekly => ActivePeriod == "Weekly";
 
     // The aggregated row for the selected year (yearly KPIs/donut/animal breakdown).
     private SlaughterPeriodSummaryDto? YearRow => Hist?.Yearly.FirstOrDefault(y => y.Year == CurrentDate.Year);
 
     // ── KPI values (period-aware) ─────────────────────────────────
-    decimal TotalCollected => IsYearly ? (YearRow?.TotalCollected ?? 0m) : (Overview?.TotalCollected ?? 0m);
-    int     TotalHeads      => IsYearly ? (YearRow?.TotalHeads ?? 0) : (Overview?.TotalHeads ?? 0);
+    // Monthly KPIs come from the server Overview; the Weekly view computes them from the
+    // week-filtered transaction list (Overview is month-scoped and can't answer a single week).
+    decimal TotalCollected => IsYearly ? (YearRow?.TotalCollected ?? 0m) : IsWeekly ? MonthTxns.Sum(t => t.TotalAmount) : (Overview?.TotalCollected ?? 0m);
+    int     TotalHeads      => IsYearly ? (YearRow?.TotalHeads ?? 0) : IsWeekly ? MonthTxns.Sum(t => t.NumberOfHeads) : (Overview?.TotalHeads ?? 0);
     int     TransactionCount => IsYearly ? (YearRow?.Receipts ?? 0) : MonthGroups.Count;
     int     OwnersServed    => IsYearly ? (YearRow?.OwnersServed ?? 0) : MonthTxns.Select(t => t.OwnerName).Distinct().Count();
-    int     HogHeads        => IsYearly ? (YearRow?.HogHeads ?? 0) : (Overview?.HogCount ?? 0);
-    int     CarabaoHeads    => IsYearly ? (YearRow?.CarabaoHeads ?? 0) : (Overview?.CarabaoCount ?? 0);
-    int     CowHeads        => IsYearly ? (YearRow?.CowHeads ?? 0) : (Overview?.CowCount ?? 0);
-    int     OtherHeads      => IsYearly ? (YearRow?.OtherHeads ?? 0) : (Overview?.OthersCount ?? 0);
+    int     HogHeads        => IsYearly ? (YearRow?.HogHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Hog).Sum(t => t.NumberOfHeads) : (Overview?.HogCount ?? 0);
+    int     CarabaoHeads    => IsYearly ? (YearRow?.CarabaoHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Carabao).Sum(t => t.NumberOfHeads) : (Overview?.CarabaoCount ?? 0);
+    int     CowHeads        => IsYearly ? (YearRow?.CowHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Cow).Sum(t => t.NumberOfHeads) : (Overview?.CowCount ?? 0);
+    int     OtherHeads      => IsYearly ? (YearRow?.OtherHeads ?? 0) : IsWeekly ? MonthTxns.Where(t => t.AnimalType == AnimalType.Other).Sum(t => t.NumberOfHeads) : (Overview?.OthersCount ?? 0);
     decimal AvgPerHead      => TotalHeads > 0 ? TotalCollected / TotalHeads : 0m;
 
     string RevenueGrowthText
@@ -697,6 +760,7 @@ else
         get
         {
             if (IsYearly) return $"{CurrentDate.Year} total";
+            if (IsWeekly) return "weekly total";
             var prev = PrevOverview?.TotalCollected ?? 0m;
             var growth = prev > 0 ? (TotalCollected - prev) / prev * 100 : 0m;
             return $"{growth:+0.0;-0.0;0}% vs previous month";
@@ -757,22 +821,40 @@ else
             List<(string Label, decimal Amount, bool IsCurrent)> pts;
             if (IsYearly)
             {
-                // Highlight the current month only when viewing the current year.
-                pts = (Hist?.Monthly ?? new List<SlaughterPeriodSummaryDto>())
-                    .Select(m => (
-                        Label: new DateOnly(m.Year, m.Month ?? 1, 1).ToString("MMM"),
-                        Amount: m.TotalCollected,
-                        IsCurrent: m.Year == today.Year && (m.Month ?? 0) == today.Month))
+                // Yearly: trailing years (rolling last-5-years window), like NPM.
+                pts = (Hist?.Yearly ?? new List<SlaughterPeriodSummaryDto>())
+                    .OrderBy(y => y.Year)
+                    .Select(y => (
+                        Label: y.Year.ToString(),
+                        Amount: y.TotalCollected,
+                        IsCurrent: y.Year == today.Year))
                     .ToList();
+            }
+            else if (IsWeekly)
+            {
+                // Weekly: every day of the selected week, zero-filled into a clean 7-day strip.
+                var (fromDay, toDay) = WeekDayRange();
+                var feeByDay = MonthTxns
+                    .GroupBy(t => t.TransactionDate.Day)
+                    .ToDictionary(g => g.Key, g => g.Sum(t => t.TotalAmount));
+                pts = new List<(string Label, decimal Amount, bool IsCurrent)>();
+                for (var day = fromDay; day <= toDay; day++)
+                {
+                    var date = new DateTime(CurrentDate.Year, CurrentDate.Month, day);
+                    pts.Add((
+                        date.ToString("MMM d"),
+                        feeByDay.TryGetValue(day, out var amt) ? amt : 0m,
+                        DateOnly.FromDateTime(date) == today));
+                }
             }
             else
             {
-                // Highlight the bar only if it is actually today.
-                pts = MonthTxns.GroupBy(t => t.TransactionDate).OrderBy(g => g.Key)
-                    .Select(g => (
-                        Label: g.Key.ToString("MMM d"),
-                        Amount: g.Sum(t => t.TotalAmount),
-                        IsCurrent: g.Key == today))
+                // Monthly: trailing 6 months ending at the selected month (from history), like NPM.
+                pts = _trendMonthly
+                    .Select(m => (
+                        Label: new DateOnly(m.Year, m.Month, 1).ToString("MMM yyyy"),
+                        Amount: m.Collected,
+                        IsCurrent: m.Year == today.Year && m.Month == today.Month))
                     .ToList();
             }
             var max = pts.Any() ? pts.Max(x => x.Amount) : 0m;

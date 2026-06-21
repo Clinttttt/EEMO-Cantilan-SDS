@@ -37,7 +37,7 @@
 <!-- ══ Period Selector ══ -->
 <div class="rpt-period-bar">
     <div class="rpt-period-tabs">
-        @foreach (var p in new[] { "Monthly", "Yearly" })
+        @foreach (var p in new[] { "Weekly", "Monthly", "Yearly" })
         {
             <button type="button" class="rpt-period-tab @(!ShowPrintReport && !ShowHistory && ActivePeriod == p ? "active" : "")"
                     aria-pressed="@(!ShowPrintReport && !ShowHistory && ActivePeriod == p)"
@@ -273,7 +273,7 @@ else
                 <div class="chart-header">
                     <div class="chart-header-left">
                         <h3 class="chart-title">Fee Collection Trend</h3>
-                        <p class="chart-subtitle">@(ActivePeriod == "Yearly" ? "Collected fees by month" : "Collected fees by trip day")</p>
+                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => "Collected fees by day", _ => "Collected fees by month" })</p>
                     </div>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
@@ -497,6 +497,9 @@ else
     private TrmHistoryDto? Hist;
     private bool HistoryLoading;
 
+    // Trailing 6-month collected totals for the Monthly trend chart (oldest → newest).
+    private List<(int Year, int Month, decimal Collected)> _trendMonthly = new();
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     async Task LoadAsync()
@@ -515,9 +518,30 @@ else
         }
         else
         {
-            // Monthly (Phase 1) and the Status Report both need the month's trips.
+            // Monthly/Weekly (Phase 1) and the Status Report all start from the month's trips.
             var r = await TrmApi.GetTripsAsync(CurrentDate.Year, CurrentDate.Month);
-            MonthTrips = r.IsSuccess && r.Value != null ? r.Value.ToList() : new();
+            var trips = r.IsSuccess && r.Value != null ? r.Value.ToList() : new();
+
+            // Weekly view: narrow the month's trips to the selected week-of-month (days 1-7, 8-14, …),
+            // mirroring NPM's weekly model so each week stays within one month. The Status Report
+            // remains a full-month official snapshot.
+            if (ActivePeriod == "Weekly" && !ShowPrintReport)
+            {
+                var (fromDay, toDay) = WeekDayRange();
+                trips = trips
+                    .Where(t =>
+                    {
+                        var day = PhilippineTime.ToPhilippineTime(t.RecordedAt).Day;
+                        return day >= fromDay && day <= toDay;
+                    })
+                    .ToList();
+            }
+
+            MonthTrips = trips;
+
+            // The Monthly view's trend is a trailing 6-month window (like NPM), sourced from history.
+            if (ActivePeriod == "Monthly" && !ShowPrintReport)
+                _trendMonthly = await BuildMonthlyTrendHistoryAsync();
         }
 
         RecomputeDerived();
@@ -535,6 +559,27 @@ else
         _routeSegments = BuildRouteSegments(_routeBreakdown);
     }
 
+    // Builds the trailing 6-month collected totals (oldest → newest) ending at the selected month,
+    // pulling per-month collected from history. Spans at most two years, so it loads 1-2 history calls.
+    async Task<List<(int Year, int Month, decimal Collected)>> BuildMonthlyTrendHistoryAsync()
+    {
+        var anchor = new DateTime(CurrentDate.Year, CurrentDate.Month, 1);
+        var targets = Enumerable.Range(0, 6).Select(i => anchor.AddMonths(i - 5)).ToList();
+
+        var collectedByMonth = new Dictionary<(int Year, int Month), decimal>();
+        foreach (var year in targets.Select(d => d.Year).Distinct())
+        {
+            var h = await TrmApi.GetHistoryAsync(year);
+            if (h.IsSuccess && h.Value is not null)
+                foreach (var m in h.Value.Monthly.Where(m => m.Month.HasValue))
+                    collectedByMonth[(m.Year, m.Month!.Value)] = m.Collected;
+        }
+
+        return targets
+            .Select(d => (d.Year, d.Month, collectedByMonth.TryGetValue((d.Year, d.Month), out var c) ? c : 0m))
+            .ToList();
+    }
+
     async Task SetPeriod(string p) { ShowPrintReport = false; ShowHistory = false; ActivePeriod = p; await LoadAsync(); }
     async Task ShowPrintReportView() { ShowPrintReport = true; ShowHistory = false; await LoadAsync(); }
     async Task ShowHistoryView() { ShowHistory = true; ShowPrintReport = false; await LoadAsync(); }
@@ -544,23 +589,48 @@ else
     {
         if (ShowHistory) { CurrentDate = CurrentDate.AddYears(-1); await LoadAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(-1); await LoadAsync(); return; }
-        CurrentDate = ActivePeriod == "Yearly" ? CurrentDate.AddYears(-1) : CurrentDate.AddMonths(-1);
+        CurrentDate = ActivePeriod switch
+        {
+            "Weekly" => CurrentDate.AddDays(-7),
+            "Yearly" => CurrentDate.AddYears(-1),
+            _        => CurrentDate.AddMonths(-1)
+        };
         await LoadAsync();
     }
     async Task NextPeriod()
     {
         if (ShowHistory) { CurrentDate = CurrentDate.AddYears(1); await LoadAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(1); await LoadAsync(); return; }
-        CurrentDate = ActivePeriod == "Yearly" ? CurrentDate.AddYears(1) : CurrentDate.AddMonths(1);
+        CurrentDate = ActivePeriod switch
+        {
+            "Weekly" => CurrentDate.AddDays(7),
+            "Yearly" => CurrentDate.AddYears(1),
+            _        => CurrentDate.AddMonths(1)
+        };
         await LoadAsync();
     }
 
-    string GetPeriodLabel() => ActivePeriod == "Yearly" ? CurrentDate.ToString("yyyy") : CurrentDate.ToString("MMMM yyyy");
+    string GetPeriodLabel() => ActivePeriod switch
+    {
+        "Weekly" => $"Week of {WeekStartDate:MMM d}\u2013{WeekEndDate:%d}, {WeekStartDate:yyyy}",
+        "Yearly" => CurrentDate.ToString("yyyy"),
+        _        => CurrentDate.ToString("MMMM yyyy")
+    };
+
+    // Week-of-month model (days 1-7, 8-14, 15-21, 22-28, 29-end) — mirrors NPM so a week stays in one month.
+    int WeekIndex => ((CurrentDate.Day - 1) / 7) + 1;
+    (int FromDay, int ToDay) WeekDayRange()
+    {
+        var daysInMonth = DateTime.DaysInMonth(CurrentDate.Year, CurrentDate.Month);
+        return ((WeekIndex - 1) * 7 + 1, Math.Min(WeekIndex * 7, daysInMonth));
+    }
+    DateTime WeekStartDate => new(CurrentDate.Year, CurrentDate.Month, WeekDayRange().FromDay);
+    DateTime WeekEndDate => new(CurrentDate.Year, CurrentDate.Month, WeekDayRange().ToDay);
     string PrintReportPeriodLabel => $"Status Report — {CurrentDate:MMMM yyyy}";
     string HistoryPeriodLabel => $"History — {CurrentDate.Year}";
 
     bool IsYearly => ActivePeriod == "Yearly";
-    string PeriodNoun => IsYearly ? "year" : "month";
+    string PeriodNoun => ActivePeriod switch { "Yearly" => "year", "Weekly" => "week", _ => "month" };
     private TrmPeriodSummaryDto? YearRow => Hist?.Yearly.FirstOrDefault(y => y.Year == CurrentDate.Year);
 
     // ── KPI values (period-aware) ─────────────────────────────────
@@ -633,26 +703,43 @@ else
     {
         var today = PhilippineTime.Today;
         List<(string Label, decimal Amount, bool IsCurrent)> pts;
-        if (IsYearly)
+        if (ActivePeriod == "Yearly")
         {
-            // Highlight the current month only when viewing the current year.
-            pts = (Hist?.Monthly ?? new List<TrmPeriodSummaryDto>())
-                .Select(m => (
-                    Label: new DateOnly(m.Year, m.Month ?? 1, 1).ToString("MMM"),
-                    Amount: m.Collected,
-                    IsCurrent: m.Year == today.Year && (m.Month ?? 0) == today.Month))
+            // Yearly: trailing years (server returns a rolling last-5-years window), like NPM.
+            pts = (Hist?.Yearly ?? new List<TrmPeriodSummaryDto>())
+                .OrderBy(y => y.Year)
+                .Select(y => (
+                    Label: y.Year.ToString(),
+                    Amount: y.Collected,
+                    IsCurrent: y.Year == today.Year))
                 .ToList();
+        }
+        else if (ActivePeriod == "Weekly")
+        {
+            // Weekly: show every day of the selected week, zero-filling days with no trips so the
+            // chart reads as a full, clean 7-day strip.
+            var (fromDay, toDay) = WeekDayRange();
+            var feeByDay = MonthTrips
+                .GroupBy(t => PhilippineTime.ToPhilippineTime(t.RecordedAt).Day)
+                .ToDictionary(g => g.Key, g => g.Sum(t => t.Fee));
+            pts = new List<(string Label, decimal Amount, bool IsCurrent)>();
+            for (var day = fromDay; day <= toDay; day++)
+            {
+                var date = new DateTime(CurrentDate.Year, CurrentDate.Month, day);
+                pts.Add((
+                    date.ToString("MMM d"),
+                    feeByDay.TryGetValue(day, out var amt) ? amt : 0m,
+                    DateOnly.FromDateTime(date) == today));
+            }
         }
         else
         {
-            // Group by Philippine-time day; highlight the bar only if it is actually today.
-            pts = MonthTrips
-                .GroupBy(t => PhilippineTime.ToPhilippineTime(t.RecordedAt).Date)
-                .OrderBy(g => g.Key)
-                .Select(g => (
-                    Label: g.Key.ToString("MMM d"),
-                    Amount: g.Sum(t => t.Fee),
-                    IsCurrent: DateOnly.FromDateTime(g.Key) == today))
+            // Monthly: trailing 6 months ending at the selected month (from history), like NPM.
+            pts = _trendMonthly
+                .Select(m => (
+                    Label: new DateOnly(m.Year, m.Month, 1).ToString("MMM yyyy"),
+                    Amount: m.Collected,
+                    IsCurrent: m.Year == today.Year && m.Month == today.Month))
                 .ToList();
         }
         var max = pts.Any() ? pts.Max(x => x.Amount) : 0m;

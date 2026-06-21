@@ -179,7 +179,7 @@
 .bar3d-face { position: absolute; }
 .bar3d-front { bottom: 0; left: 10%; width: 80%; background: linear-gradient(180deg, #3fa07a 0%, #2d7a5f 100%); border-radius: 9px 9px 4px 4px; transition: height .4s cubic-bezier(.4,0,.2,1), transform .15s ease, filter .15s ease; min-height: 6px; }
 .rpt-bar-group.current .bar3d-front { background: linear-gradient(180deg, #d4b45e 0%, #c8a84b 100%); }
-.rpt-bar-group.is-zero .bar3d-front { min-height: 0; background: none; filter: none; }
+.rpt-bar-group.is-zero .bar3d-front { min-height: 10px; background: #e6ebf1; filter: none; }
 .rpt-bar-group.is-zero .rpt-bar-3d { filter: none; }
 .bar3d-top, .bar3d-side { display: none; }
 .rpt-bar-group:hover .bar3d-front { transform: translateY(-2px); filter: brightness(1.04); }
