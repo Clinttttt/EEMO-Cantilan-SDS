@@ -105,6 +105,7 @@
             <FacilityStallsTable TStall="TStall"
                                  Facility="@FacilityShortCode"
                                  ColumnSet="MonthlyCard"
+                                 IsLoading="_loading"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -172,6 +173,7 @@
     private bool ShowReports = false;
     
     private List<TStall> Stalls = new();
+    private bool _loading = true;
     private bool ShowPayment = false;
     private TStall? PaymentStall = null;
     private bool ShowHistory = false;
@@ -184,7 +186,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadStallsFromApi();
+        try { await LoadStallsFromApi(); }
+        finally { _loading = false; }
     }
 
     private async Task LoadStallsFromApi()

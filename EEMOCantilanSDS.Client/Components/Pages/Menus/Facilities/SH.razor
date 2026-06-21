@@ -7,7 +7,7 @@
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 <PageTitle>EEMO Admin — Slaughterhouse</PageTitle>
@@ -38,12 +38,6 @@
 
 <div class="content-area">
 
-    @if (isLoading)
-    {
-        <div class="spinner">Loading...</div>
-    }
-    else
-    {
         <!-- -- SLH Hero Banner -- -->
         <FacilityHero Eyebrow="FACILITY · SLH"
                       Title="Slaughterhouse"
@@ -203,6 +197,18 @@
 
         <!-- -- Transactions Table -- -->
         <div class="panel">
+            @if (isLoading)
+            {
+                <div class="sk-stack">
+                    <Skeleton Height="40px" Radius="8px" />
+                    @for (var _i = 0; _i < 8; _i++)
+                    {
+                        <Skeleton Height="46px" Radius="8px" />
+                    }
+                </div>
+            }
+            else
+            {
             <table class="data-table">
                 <thead>
                     <tr>
@@ -398,8 +404,8 @@
                     <span>No transactions found</span>
                 </div>
             }
+            }
         </div>
-    }
 
 </div>
 

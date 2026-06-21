@@ -21,7 +21,42 @@
 @inject NavigationManager Navigation
 
 <div class="panel">
-    @if (!FilteredStalls.Any())
+    @if (IsLoading)
+    {
+        @if (ColumnSet == "Operational" || ColumnSet == "MonthlyCard")
+        {
+            <div class="sk-grid-2">
+                @for (var _i = 0; _i < 6; _i++)
+                {
+                    <div class="sk-card">
+                        <div class="sk-inline">
+                            <Skeleton Width="58px" Height="22px" Radius="6px" />
+                            <span class="sk-grow"></span>
+                            <Skeleton Width="76px" Height="24px" Radius="999px" />
+                        </div>
+                        <Skeleton Width="60%" Height="16px" Radius="6px" />
+                        <Skeleton Width="85%" Height="12px" />
+                        <div class="sk-inline">
+                            <Skeleton Width="32px" Height="32px" Radius="8px" />
+                            <Skeleton Width="32px" Height="32px" Radius="8px" />
+                            <Skeleton Width="32px" Height="32px" Radius="8px" />
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="sk-stack">
+                <Skeleton Height="40px" Radius="8px" />
+                @for (var _i = 0; _i < 8; _i++)
+                {
+                    <Skeleton Height="46px" Radius="8px" />
+                }
+            </div>
+        }
+    }
+    else if (!FilteredStalls.Any())
     {
         <div class="empty-state">
             <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
@@ -221,6 +256,9 @@
     [Parameter] public EventCallback<TStall> OnPaymentClick { get; set; }
     [Parameter] public EventCallback<TStall> OnHistoryClick { get; set; }
     [Parameter] public EventCallback<TStall> OnEditClick { get; set; }
+
+    /// <summary>When true, render shimmer placeholders instead of the stalls (initial load).</summary>
+    [Parameter] public bool IsLoading { get; set; }
 
     /// <summary>Optional text shown in the trailing placeholder when the card grid has an odd count.</summary>
     [Parameter] public string EmptySlotLabel { get; set; } = "No other vendors";

@@ -1849,3 +1849,5 @@ a.topbar-admin.account-chip {
 .sk-inline > .sk-grow { flex: 1; }
 .sk-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
 .sk-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.sk-grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1rem; }
+.sk-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; }

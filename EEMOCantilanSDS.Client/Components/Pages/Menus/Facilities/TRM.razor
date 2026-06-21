@@ -7,7 +7,7 @@
 
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ITrmApiClient TrmApi
 
@@ -39,12 +39,6 @@
 
 <div class="content-area">
 
-    @if (isLoading)
-    {
-        <div class="spinner">Loading...</div>
-    }
-    else
-    {
         <!-- ── Hero Banner ── -->
         <FacilityHero Eyebrow="FACILITY · TRM"
                       Title="Transport Terminal"
@@ -52,6 +46,31 @@
                       Stats="@HeroStats"
                       ShowProgress="false" />
 
+    @if (isLoading)
+    {
+        <div class="trm-columns">
+            <div class="trm-panel">
+                <div class="trm-panel-header"><Skeleton Width="200px" Height="20px" Radius="6px" /></div>
+                <div class="sk-stack">
+                    @for (var _i = 0; _i < 6; _i++)
+                    {
+                        <Skeleton Height="48px" Radius="8px" />
+                    }
+                </div>
+            </div>
+            <div class="trm-panel">
+                <div class="trm-panel-header"><Skeleton Width="160px" Height="20px" Radius="6px" /></div>
+                <div class="sk-stack">
+                    @for (var _i = 0; _i < 6; _i++)
+                    {
+                        <Skeleton Height="48px" Radius="8px" />
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
 
     <!-- ── Two-column layout ── -->
     <div class="trm-columns">

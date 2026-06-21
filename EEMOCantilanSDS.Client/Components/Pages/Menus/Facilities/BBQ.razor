@@ -3,7 +3,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 
 <PageTitle>EEMO Admin — BBQ Stand</PageTitle>
 

@@ -4,7 +4,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
@@ -146,6 +146,7 @@
             <FacilityStallsTable TStall="NpmStall"
                                  Facility="NPM"
                                  ColumnSet="Operational"
+                                 IsLoading="_loading"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -223,11 +224,14 @@
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
+    private bool _loading = true;
+
     protected override async Task OnInitializedAsync()
     {
         ResetState();
         InitializeToolbarActions();
-        await LoadStallsFromApi();
+        try { await LoadStallsFromApi(); }
+        finally { _loading = false; }
     }
 
     private async Task LoadStallsFromApi()

@@ -10,7 +10,7 @@
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
 <PageTitle>EEMO Admin — Tampak Commercial Center</PageTitle>
@@ -93,6 +93,7 @@
             <FacilityStallsTable TStall="TccStall"
                                  Facility="TCC"
                                  ColumnSet="MonthlyCard"
+                                 IsLoading="_loading"
                                  FilteredStalls="FilteredStalls"
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
@@ -139,6 +140,7 @@
 
 @code {
 
+    private bool _loading = true;
     string SearchQuery = string.Empty;
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
@@ -159,7 +161,8 @@
     protected override async Task OnInitializedAsync()
     {
         ResetState();
-        await LoadStallsFromApi();
+        try { await LoadStallsFromApi(); }
+        finally { _loading = false; }
     }
 
     private async Task LoadStallsFromApi()

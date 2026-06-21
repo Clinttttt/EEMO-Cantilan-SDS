@@ -6,7 +6,7 @@
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
 @using EEMOCantilanSDS.Client.Components.Shared
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject ITpmApiClient TpmApi
 @inject NavigationManager Navigation
 
@@ -163,7 +163,13 @@
             }
             else if (isLoadingAttendance)
             {
-                <div class="tpm-empty"><span>Loading...</span></div>
+                <div class="sk-stack">
+                    <Skeleton Height="56px" Radius="10px" />
+                    @for (var _i = 0; _i < 8; _i++)
+                    {
+                        <Skeleton Height="46px" Radius="8px" />
+                    }
+                </div>
             }
             else
             {
