@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
@@ -13,4 +14,8 @@ public interface IPayorApiClient
     Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetHistoryAsync(Guid stallId);
     Task<Result<IReadOnlyList<PayorPayableItemDto>>> GetPayableItemsAsync();
     Task<Result<InitiateOnlinePaymentResultDto>> InitiatePaymentAsync(InitiateOnlinePaymentCommand command);
+
+    /// <summary>Reconciliation fallback after returning from hosted checkout: verifies + settles the
+    /// payment for the given reference directly with the provider (webhook stays primary).</summary>
+    Task<Result<ConfirmOnlinePaymentResultDto>> ConfirmPaymentAsync(string reference);
 }

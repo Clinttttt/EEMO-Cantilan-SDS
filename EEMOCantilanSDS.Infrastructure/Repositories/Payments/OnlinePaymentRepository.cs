@@ -20,6 +20,12 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             .FirstOrDefaultAsync(t => t.GatewayReference == gatewayReference, ct);
     }
 
+    public async Task<OnlinePaymentTransaction?> GetByReferenceAsync(string reference, CancellationToken ct = default)
+    {
+        return await context.OnlinePaymentTransactions
+            .FirstOrDefaultAsync(t => t.Reference == reference, ct);
+    }
+
     public async Task<bool> ReferenceExistsAsync(string reference, CancellationToken ct = default)
     {
         return await context.OnlinePaymentTransactions

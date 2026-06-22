@@ -29,4 +29,16 @@ public interface IPaymentGateway
 
     /// <summary>Parses a raw webhook payload into a normalized <see cref="PaymentGatewayEvent"/>.</summary>
     Result<PaymentGatewayEvent> ParseEvent(string payload);
+
+    /// <summary>
+    /// Reconciliation fallback: queries the provider directly for the live status of a previously
+    /// created checkout session (by its gateway reference) and returns it as a normalized
+    /// <see cref="PaymentGatewayEvent"/>. Used when a webhook never arrived — the payor's return,
+    /// or a staff reconcile, verifies the real payment state with the server secret key.
+    /// Returns <see cref="PaymentGatewayEventType.Paid"/> when settled, <c>Expired</c> when the
+    /// session expired, or <c>Unknown</c> when still pending/unpaid.
+    /// </summary>
+    Task<Result<PaymentGatewayEvent>> RetrievePaymentStatusAsync(
+        string gatewayReference,
+        CancellationToken cancellationToken = default);
 }

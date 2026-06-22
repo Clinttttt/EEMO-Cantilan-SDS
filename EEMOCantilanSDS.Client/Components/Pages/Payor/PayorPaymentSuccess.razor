@@ -2,25 +2,117 @@
 @layout PayorLayout
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject IPayorApiClient PayorApi
+@inject NavigationManager Nav
 
 <PageTitle>EEMO — Payment Received</PageTitle>
 
 <div class="pp-page-title">Payment received</div>
 
 <section class="pp-hero pp-hero-compact">
-    <div class="pp-hero-label">Thank you</div>
-    <div class="pp-hero-amount">✓</div>
-    <div class="pp-hero-meta">We're confirming your payment with GCash.</div>
+    <div class="pp-hero-label">@HeroLabel</div>
+    <div class="pp-hero-amount">@HeroIcon</div>
+    <div class="pp-hero-meta">@HeroMeta</div>
 </section>
 
 <div class="pp-card pp-detail-card">
-    <p style="margin:0;color:var(--text-subtle);">
-        Your balance updates automatically once GCash confirms the payment — this is usually immediate
-        but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in
-        your payment history.
-    </p>
+    <p style="margin:0;color:var(--text-subtle);">@DetailText</p>
 </div>
 
 <a class="pp-pay-cta" href="/payor">Back to portal</a>
 
 <div class="pp-foot">EEMO Revenue Collection · Municipality of Cantilan, Surigao del Sur</div>
+
+@code {
+    private enum ConfirmState { Confirming, Paid, Pending, Failed }
+    private ConfirmState _state = ConfirmState.Confirming;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var reference = GetReference();
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            _state = ConfirmState.Pending;
+            return;
+        }
+
+        // Reconciliation fallback: verify + settle directly with the provider. The payment is usually
+        // already reflected by the time the payor returns, but retry briefly to cover the rare race
+        // where the gateway hasn't surfaced the payment on the session yet. Webhooks remain primary.
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                var result = await PayorApi.ConfirmPaymentAsync(reference);
+                if (result.IsSuccess && result.Value is not null)
+                {
+                    if (result.Value.Settled) { _state = ConfirmState.Paid; return; }
+
+                    var status = result.Value.Status;
+                    if (status.Equals("Failed", StringComparison.OrdinalIgnoreCase)
+                        || status.Equals("Expired", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _state = ConfirmState.Failed;
+                        return;
+                    }
+                    // Still pending — wait briefly and re-verify.
+                }
+                else
+                {
+                    // Could not verify right now (e.g. session not authenticated). Leave it to the
+                    // webhook / staff reconcile; show the reassuring pending message.
+                    _state = ConfirmState.Pending;
+                    return;
+                }
+            }
+            catch
+            {
+                _state = ConfirmState.Pending;
+                return;
+            }
+
+            if (attempt < 2)
+            {
+                _state = ConfirmState.Confirming;
+                StateHasChanged();
+                await Task.Delay(1500);
+            }
+        }
+
+        _state = ConfirmState.Pending;
+    }
+
+    private string? GetReference()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .TryGetValue("ref", out var v) ? v.ToString() : null;
+    }
+
+    private string HeroIcon => _state switch { ConfirmState.Paid => "✓", ConfirmState.Failed => "!", _ => "…" };
+
+    private string HeroLabel => _state switch
+    {
+        ConfirmState.Paid => "Payment confirmed",
+        ConfirmState.Failed => "Payment not completed",
+        _ => "Thank you"
+    };
+
+    private string HeroMeta => _state switch
+    {
+        ConfirmState.Paid => "Your payment has been received.",
+        ConfirmState.Failed => "We couldn't confirm this payment.",
+        _ => "We're confirming your payment with GCash…"
+    };
+
+    private string DetailText => _state switch
+    {
+        ConfirmState.Paid =>
+            "Your balance has been updated. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history.",
+        ConfirmState.Failed =>
+            "If you were charged, please contact the EEMO office — your payment will be reconciled. You can also try paying again from the portal.",
+        _ =>
+            "Your balance updates automatically once GCash confirms the payment — this is usually immediate but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history."
+    };
+}

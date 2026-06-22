@@ -9,8 +9,7 @@ namespace EEMOCantilanSDS.Application.Command.OnlinePayments.HandleWebhook;
 public class HandlePaymentWebhookCommandHandler(
     IPaymentGateway paymentGateway,
     IOnlinePaymentRepository onlinePaymentRepository,
-    IPaymentRepository paymentRepository,
-    IOnlinePaymentNotifier notifier,
+    IOnlinePaymentSettlementService settlementService,
     IUnitOfWork unitOfWork) : IRequestHandler<HandlePaymentWebhookCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(HandlePaymentWebhookCommand request, CancellationToken cancellationToken)
@@ -37,44 +36,8 @@ public class HandlePaymentWebhookCommandHandler(
         switch (evt.Type)
         {
             case PaymentGatewayEventType.Paid:
-                // 3) Idempotency — if we already recorded this as paid, do nothing.
-                if (transaction.IsSettled)
-                    return Result<bool>.Success(true);
-
-                // 4) Amount integrity — never settle on a mismatch.
-                if (Math.Round(evt.Amount, 2) != Math.Round(transaction.Amount, 2))
-                    return Result<bool>.Failure("Webhook amount does not match the initiated amount.", 409);
-
-                transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
-
-                var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId, cancellationToken);
-                if (record is null)
-                    return Result<bool>.Failure("Linked payment record not found.", 500);
-
-                // Money received: clear the balance (delinquency recomputes as cleared) — OR stays
-                // null until staff encode it; CollectorId stays null (online has no collector).
-                record.MarkPaidOnline($"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}");
-                await paymentRepository.UpdateAsync(record, cancellationToken);
-                await unitOfWork.SaveChangesAsync(cancellationToken);
-
-                // Best-effort realtime alert for staff — must never affect payment processing.
-                try
-                {
-                    await notifier.NotifyPaymentReceivedAsync(
-                        new OnlinePaymentNotification(
-                            transaction.Reference,
-                            transaction.Amount,
-                            record.PeriodKey,
-                            transaction.Method,
-                            transaction.PaidAt ?? DateTime.UtcNow,
-                            record.StallId,
-                            record.BillingYear,
-                            record.BillingMonth),
-                        cancellationToken);
-                }
-                catch { /* notification is non-critical; the payment is already recorded */ }
-
-                return Result<bool>.Success(true);
+                // Single, idempotent settle path shared with the confirmation/reconciliation fallback.
+                return await settlementService.SettleAsync(transaction, evt, cancellationToken);
 
             case PaymentGatewayEventType.Failed:
                 transaction.MarkFailed(evt.RawPayload);

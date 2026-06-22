@@ -1,4 +1,5 @@
-﻿using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
+﻿using EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
+using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
@@ -19,4 +20,8 @@ public class PayorApiClient(HttpClient http) : HandleResponse(http), IPayorApiCl
 
     public async Task<Result<InitiateOnlinePaymentResultDto>> InitiatePaymentAsync(InitiateOnlinePaymentCommand command) =>
         await PostAsync<InitiateOnlinePaymentCommand, InitiateOnlinePaymentResultDto>("api/onlinepayments/initiate", command);
+
+    public async Task<Result<ConfirmOnlinePaymentResultDto>> ConfirmPaymentAsync(string reference) =>
+        await PostAsync<ConfirmOnlinePaymentCommand, ConfirmOnlinePaymentResultDto>(
+            "api/onlinepayments/confirm", new ConfirmOnlinePaymentCommand(reference));
 }

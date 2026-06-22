@@ -49,6 +49,12 @@ namespace EEMOCantilanSDS.Api.Controllers
                     Error = result.Error
                 }),
 
+                502 => StatusCode(502, new
+                {
+                    IsSuccess = false,
+                    Error = result.Error
+                }),
+
                 _ => BadRequest()
             };
         }

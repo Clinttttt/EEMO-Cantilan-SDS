@@ -26,6 +26,10 @@ namespace EEMOCantilanSDS.Application
                 cfg.AddProfile<AutomapperProfile>();
             });
 
+            services.AddScoped<
+                Common.Interface.Services.IOnlinePaymentSettlementService,
+                Common.Payments.OnlinePaymentSettlementService>();
+
             return services;
         }
     }

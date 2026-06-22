@@ -1,4 +1,5 @@
 using System.Text;
+using EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.HandleWebhook;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.IssueOrNumber;
@@ -37,6 +38,32 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
         var signature = Request.Headers["Paymongo-Signature"].FirstOrDefault();
 
         var result = await Sender.Send(new HandlePaymentWebhookCommand(payload, signature));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Reconciliation fallback (payor return). After GCash redirects the payor back, the success page
+    /// calls this to verify the payment directly with PayMongo and settle it idempotently when paid —
+    /// the safety net for when a webhook never arrives. The payor may only confirm their own payment.
+    /// </summary>
+    [HttpPost("confirm")]
+    [Authorize(Roles = "Payor")]
+    public async Task<ActionResult<ConfirmOnlinePaymentResultDto>> ConfirmAsync([FromBody] ConfirmOnlinePaymentCommand request)
+    {
+        var result = await Sender.Send(request);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Staff reconcile a specific online payment by reference — recovers a transaction that was paid at
+    /// the gateway but is still Pending in our DB (e.g. the webhook never fired). Verifies with PayMongo
+    /// and settles idempotently; never edits state blindly.
+    /// </summary>
+    [HttpPost("{reference}/reconcile")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<ConfirmOnlinePaymentResultDto>> ReconcileAsync(string reference)
+    {
+        var result = await Sender.Send(new ConfirmOnlinePaymentCommand(reference));
         return HandleResponse(result);
     }
 

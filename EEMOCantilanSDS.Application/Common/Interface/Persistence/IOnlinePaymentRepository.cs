@@ -10,6 +10,10 @@ public interface IOnlinePaymentRepository
     /// <summary>Looks up a transaction by its gateway (checkout session) reference — the webhook dedupe key.</summary>
     Task<OnlinePaymentTransaction?> GetByGatewayReferenceAsync(string gatewayReference, CancellationToken ct = default);
 
+    /// <summary>Looks up a transaction by its internal <c>Reference</c> (the value carried on the payor
+    /// success/return URL) — used by the reconciliation/confirm fallback.</summary>
+    Task<OnlinePaymentTransaction?> GetByReferenceAsync(string reference, CancellationToken ct = default);
+
     Task<bool> ReferenceExistsAsync(string reference, CancellationToken ct = default);
 
     /// <summary>

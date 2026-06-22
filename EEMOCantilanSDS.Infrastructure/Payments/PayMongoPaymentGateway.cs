@@ -205,6 +205,84 @@ public sealed class PayMongoPaymentGateway(
         }
     }
 
+    /// <summary>
+    /// Reconciliation fallback: retrieves the checkout session directly from PayMongo and maps it to a
+    /// normalized event. A session whose <c>payments[]</c> contains a <c>paid</c> payment is reported as
+    /// Paid (with that payment's id/amount/method/paid_at); an <c>expired</c> session as Expired;
+    /// everything else (still active/unpaid) as Unknown. Read-only — never mutates the provider.
+    /// </summary>
+    public async Task<Result<PaymentGatewayEvent>> RetrievePaymentStatusAsync(
+        string gatewayReference,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(gatewayReference))
+            return Result<PaymentGatewayEvent>.Failure("Missing gateway reference.", 400);
+
+        try
+        {
+            using var response = await httpClient.GetAsync($"checkout_sessions/{gatewayReference}", cancellationToken);
+            var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogError("PayMongo checkout session retrieve failed ({Status}): {Payload}",
+                    (int)response.StatusCode, payload);
+                return Result<PaymentGatewayEvent>.Failure(
+                    $"Payment provider returned {(int)response.StatusCode} while verifying the payment.", 502);
+            }
+
+            using var doc = JsonDocument.Parse(payload);
+            var data = doc.RootElement.GetProperty("data");
+            var sessionId = data.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? gatewayReference : gatewayReference;
+            var attrs = data.GetProperty("attributes");
+
+            // Look for a settled payment in the session's payments[] array.
+            if (attrs.TryGetProperty("payments", out var payments) && payments.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var payment in payments.EnumerateArray())
+                {
+                    if (!payment.TryGetProperty("attributes", out var pa) || pa.ValueKind != JsonValueKind.Object)
+                        continue;
+                    if (!pa.TryGetProperty("status", out var statusEl)
+                        || !string.Equals(statusEl.GetString(), "paid", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var paymentId = payment.TryGetProperty("id", out var payIdEl) ? payIdEl.GetString() : null;
+
+                    decimal amount = 0m;
+                    if (pa.TryGetProperty("amount", out var amtEl) && amtEl.ValueKind == JsonValueKind.Number)
+                        amount = amtEl.GetInt64() / 100m;
+
+                    string? method = null;
+                    if (pa.TryGetProperty("source", out var srcEl) && srcEl.ValueKind == JsonValueKind.Object
+                        && srcEl.TryGetProperty("type", out var methodEl))
+                        method = methodEl.GetString();
+
+                    DateTime? paidAt = null;
+                    if (pa.TryGetProperty("paid_at", out var paidAtEl) && paidAtEl.ValueKind == JsonValueKind.Number)
+                        paidAt = DateTimeOffset.FromUnixTimeSeconds(paidAtEl.GetInt64()).UtcDateTime;
+
+                    return Result<PaymentGatewayEvent>.Success(
+                        new PaymentGatewayEvent(PaymentGatewayEventType.Paid, sessionId, amount, paymentId, method, paidAt, payload));
+                }
+            }
+
+            // No paid payment — expired session vs still-pending.
+            var sessionStatus = attrs.TryGetProperty("status", out var sStatusEl) ? sStatusEl.GetString() : null;
+            var type = string.Equals(sessionStatus, "expired", StringComparison.OrdinalIgnoreCase)
+                ? PaymentGatewayEventType.Expired
+                : PaymentGatewayEventType.Unknown;
+
+            return Result<PaymentGatewayEvent>.Success(
+                new PaymentGatewayEvent(type, sessionId, 0m, null, null, null, payload));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            logger.LogError(ex, "PayMongo checkout session retrieve threw.");
+            return Result<PaymentGatewayEvent>.Failure("Unable to reach the payment provider.", 502);
+        }
+    }
+
     private static bool SignatureMatches(string computedHex, string? providedHex)
     {
         if (string.IsNullOrWhiteSpace(providedHex) || computedHex.Length != providedHex.Length)
