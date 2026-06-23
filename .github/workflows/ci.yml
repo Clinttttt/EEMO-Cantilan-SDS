@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Restore deployable projects and tests
+        run: dotnet restore EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+
+      - name: Build API
+        run: dotnet build EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj --configuration Release --no-restore
+
+      - name: Build portal
+        run: dotnet build EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj --configuration Release --no-restore
+
+      - name: Run unit tests
+        run: >-
+          dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+          --configuration Release
+          --no-restore
+          --logger "trx;LogFileName=tests.trx"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+          retention-days: 14

@@ -1,0 +1,128 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-stalltrack-prod
+  ACR_NAME: acrstalltrackclint2026
+  ACR_LOGIN_SERVER: acrstalltrackclint2026.azurecr.io
+  API_APP_NAME: stalltrack-api-clint-2026
+  PORTAL_APP_NAME: stalltrack-web-clint-2026
+  API_HEALTH_URL: https://api.stalltrack.site/health
+  PORTAL_URL: https://eemo.stalltrack.site/login
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Restore tests
+        run: dotnet restore EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+
+      - name: Run unit tests
+        run: >-
+          dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+          --configuration Release
+          --no-restore
+
+  deploy:
+    name: Build and deploy production images
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://eemo.stalltrack.site
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign in to Azure Container Registry
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push API image
+        run: |
+          docker build \
+            --file EEMOCantilanSDS.Api/Dockerfile \
+            --tag "$ACR_LOGIN_SERVER/stalltrack-api:${GITHUB_SHA}" \
+            .
+          docker push "$ACR_LOGIN_SERVER/stalltrack-api:${GITHUB_SHA}"
+
+      - name: Build and push portal image
+        run: |
+          docker build \
+            --file EEMOCantilanSDS.Client/Dockerfile \
+            --tag "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}" \
+            .
+          docker push "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}"
+
+      - name: Deploy API image
+        run: |
+          az webapp config container set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$API_APP_NAME" \
+            --container-image-name "$ACR_LOGIN_SERVER/stalltrack-api:${GITHUB_SHA}"
+          az webapp restart --resource-group "$RESOURCE_GROUP" --name "$API_APP_NAME"
+
+      - name: Wait for API health
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error "$API_HEALTH_URL"; then
+              exit 0
+            fi
+            echo "API is not ready yet (attempt $attempt/30). Waiting 10 seconds..."
+            sleep 10
+          done
+          echo "API did not become healthy after 5 minutes. Check the App Service log stream."
+          exit 1
+
+      - name: Deploy portal image
+        run: |
+          az webapp config container set \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$PORTAL_APP_NAME" \
+            --container-image-name "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}"
+          az webapp restart --resource-group "$RESOURCE_GROUP" --name "$PORTAL_APP_NAME"
+
+      - name: Wait for portal
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --output /dev/null "$PORTAL_URL"; then
+              exit 0
+            fi
+            echo "Portal is not ready yet (attempt $attempt/30). Waiting 10 seconds..."
+            sleep 10
+          done
+          echo "Portal did not become available after 5 minutes. Check the App Service log stream."
+          exit 1
