@@ -12,8 +12,6 @@ public class ResetAdminPasswordCommandHandler(
 {
     public async Task<Result<bool>> Handle(ResetAdminPasswordCommand request, CancellationToken cancellationToken)
     {
-        // Re-authenticate the acting Head: resetting another account's password is sensitive and
-        // must not be possible from an unattended session without re-entering the Head's password.
         if (currentUser.UserId is not { } actingId)
             return Result<bool>.Unauthorized();
 

@@ -75,11 +75,8 @@ namespace EEMOCantilanSDS.Mobile
 
         internal static string GetApiBaseUrl()
         {
-            // ── Physical-device testing over the internet (ngrok / dev tunnel) ──────────────
-            // Set this to your public HTTPS tunnel URL (WITH trailing slash) to run the app on a real
-            // phone pointed at your local API. Leave it "" for normal localhost dev (Windows + emulator).
-            // NOTE: the ngrok free plan gives a NEW URL every restart — update this each session.
-             const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+            /*https://api.stalltrack.site*/
+            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
                if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
                    return ApiBaseUrlOverride;
 

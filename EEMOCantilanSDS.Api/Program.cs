@@ -10,28 +10,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddApi(builder.Configuration);
+builder.Services.AddApi(builder.Environment,builder.Configuration);
 builder.Services.AddInfrastructureService(builder.Configuration);
 builder.Services.AddApplicationService(builder.Configuration);
 builder.ConfigureServices();
 
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowBlazor", policy =>
-    {
-        var allowedOrigins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>()
-            ?? ["http://localhost:5173", "https://localhost:5173", "https://localhost:7167", "http://localhost:5198", "http://localhost:8081"];
-
-        policy
-            .WithOrigins(allowedOrigins)
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
-    });
-});
 
 var app = builder.Build();
 
@@ -64,8 +48,7 @@ app.UseCookiePolicy(new CookiePolicyOptions
 
 app.UseRouting();
 
-
-app.UseCors("AllowBlazor");
+app.UseCors("AllowClient");
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 

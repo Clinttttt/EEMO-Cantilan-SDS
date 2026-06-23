@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -38,9 +39,16 @@ public class GetMonthEndReportQueryHandler(
             var report = await reportsRepository.GetFacilityReportsAsync(
                 code, ReportPeriod.Monthly, request.Year, request.Month, null, ct);
 
+            // NPM is billed daily; surface the fixed full-month (30-day) coverage reference (₱900) and the
+            // remaining balance toward it alongside the existing daily-based figures. Additive only — every
+            // other facility keeps these at 0 and is unaffected.
+            var isNpm = code == FacilityCode.NPM;
+
             var payors = report.StallCompliance
                 .Select(s => new MonthEndPayorDto(
-                    s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate))
+                    s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,
+                    MonthlyCoverage: isNpm ? FeeRates.NpmMonthlyFee : 0m,
+                    MonthlyCoverageBalance: isNpm ? Math.Max(0m, FeeRates.NpmMonthlyFee - s.AmountPaid) : 0m))
                 .ToList();
 
             facilities.Add(new MonthEndFacilityDto(

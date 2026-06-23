@@ -45,7 +45,13 @@ public record MonthEndPayorDto(
     decimal Balance,
     string? ORNumber,
     // NPM is billed daily (not monthly); the report shows the daily rate for that facility.
-    decimal DailyRate = 0m
+    decimal DailyRate = 0m,
+    // NPM-only, additive: the fixed full-month (30-day) coverage reference (₱900) and the remaining
+    // balance toward it (coverage − amount paid, never below zero). These are display-only extras shown
+    // alongside the existing daily-based Balance — they do not alter any existing collection logic and
+    // stay 0 for every non-NPM facility.
+    decimal MonthlyCoverage = 0m,
+    decimal MonthlyCoverageBalance = 0m
 );
 
 /// <summary>

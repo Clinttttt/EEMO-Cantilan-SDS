@@ -44,6 +44,30 @@ public class GetMonthEndReportQueryHandlerTests
     private static SlaughterTransactionDto Slaughter(string owner, decimal amount, int day, string? or) =>
         new(Guid.NewGuid(), owner, AnimalType.Hog, null, 1, amount, amount, or, new DateOnly(2026, 6, day));
 
+    private static ISlaughterRepository EmptySlaughterRepo()
+    {
+        var m = new Mock<ISlaughterRepository>();
+        m.Setup(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
+        return m.Object;
+    }
+
+    private static ITrmRepository EmptyTrmRepo()
+    {
+        var m = new Mock<ITrmRepository>();
+        m.Setup(t => t.GetTripsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrmTripDto>());
+        return m.Object;
+    }
+
+    private static ITpmRepository EmptyTpmRepo()
+    {
+        var m = new Mock<ITpmRepository>();
+        m.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
+        return m.Object;
+    }
+
     private static (GetMonthEndReportQueryHandler handler, Mock<IFacilityReportsRepository> reportsRepo) Build()
     {
         var reportsRepo = new Mock<IFacilityReportsRepository>();
@@ -160,5 +184,76 @@ public class GetMonthEndReportQueryHandlerTests
         // 3455 / (3455 + 600) = 85.2% -> 85
         Assert.Equal(85, report.OverallCollectionRate);
         Assert.Equal("June 2026", report.PeriodLabel);
+    }
+
+    [Fact]
+    public async Task Npm_AddsFullMonthCoverageAndRemainingBalance_WithoutTouchingExistingFigures()
+    {
+        // NPM payor who has paid ₱510 toward the fixed ₱900 (30-day) coverage, with the existing
+        // daily-based balance left at ₱270 (a different, unaffected figure).
+        var reportsRepo = new Mock<IFacilityReportsRepository>();
+        var npm = Report(510m, 270m, 65m, paid: 0, partial: 1, unpaid: 0, new[]
+        {
+            Payor("1", "Pantom Dant", 0m, "Partial", 510m, 270m, null)
+        });
+        var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
+        reportsRepo.Setup(r => r.GetFacilityReportsAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                code == FacilityCode.NPM ? npm : empty);
+
+        var handler = new GetMonthEndReportQueryHandler(
+            reportsRepo.Object,
+            EmptySlaughterRepo(),
+            EmptyTrmRepo(),
+            EmptyTpmRepo());
+
+        var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
+
+        var npmFacility = report.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        var pantom = Assert.Single(npmFacility.Payors);
+
+        // Existing figures are untouched.
+        Assert.Equal(510m, pantom.AmountPaid);
+        Assert.Equal(270m, pantom.Balance);
+
+        // New additive figures: the fixed ₱900 coverage and the remaining toward it (900 - 510 = 390).
+        Assert.Equal(900m, pantom.MonthlyCoverage);
+        Assert.Equal(390m, pantom.MonthlyCoverageBalance);
+
+        // Non-NPM rental facilities never carry the coverage extras.
+        var tcc = report.Facilities.Single(f => f.Code == FacilityCode.TCC);
+        Assert.All(tcc.Payors, p =>
+        {
+            Assert.Equal(0m, p.MonthlyCoverage);
+            Assert.Equal(0m, p.MonthlyCoverageBalance);
+        });
+    }
+
+    [Fact]
+    public async Task Npm_MonthlyCoverageBalance_NeverGoesNegative_WhenOverpaid()
+    {
+        var reportsRepo = new Mock<IFacilityReportsRepository>();
+        var npm = Report(1000m, 0m, 100m, paid: 1, partial: 0, unpaid: 0, new[]
+        {
+            Payor("1", "Over Payer", 0m, "Paid", 1000m, 0m, "OR-9001")   // paid beyond the ₱900 coverage
+        });
+        var empty = Report(0m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>());
+        reportsRepo.Setup(r => r.GetFacilityReportsAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                code == FacilityCode.NPM ? npm : empty);
+
+        var handler = new GetMonthEndReportQueryHandler(
+            reportsRepo.Object,
+            EmptySlaughterRepo(),
+            EmptyTrmRepo(),
+            EmptyTpmRepo());
+
+        var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
+        var payor = Assert.Single(report.Facilities.Single(f => f.Code == FacilityCode.NPM).Payors);
+
+        Assert.Equal(900m, payor.MonthlyCoverage);
+        Assert.Equal(0m, payor.MonthlyCoverageBalance);   // clamped at zero, never negative
     }
 }

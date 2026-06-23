@@ -497,10 +497,75 @@
     }
 }
 
-/* Dashboard "Revenue by Facility" header actions (Month-End Report + View Full Report) */
+/* Dashboard "Revenue by Facility" report-action tabs */
 .section-header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
     flex-shrink: 0;
+}
+
+.dashboard-report-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+}
+
+.dashboard-report-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+a.dashboard-report-tab {
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+
+a.dashboard-report-tab:hover {
+    color: var(--navy);
+    background: rgba(255,255,255,.68);
+}
+
+.dashboard-report-tab.active {
+    background: var(--navy);
+    color: #fff;
+    box-shadow: 0 3px 9px rgba(13,33,55,.18);
+}
+
+.dashboard-report-tab:disabled {
+    cursor: not-allowed;
+    opacity: .62;
+}
+
+.dashboard-report-soon {
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(200,168,75,.18);
+    color: #8a6d1b;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+@media (max-width: 600px) {
+    .section-header-actions { width: 100%; }
+    .dashboard-report-tabs { width: 100%; }
+    .dashboard-report-tab { flex: 1; padding: 0 10px; }
 }

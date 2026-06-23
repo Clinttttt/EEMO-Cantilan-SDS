@@ -82,8 +82,13 @@
                     <div class="section-heading">Revenue by Facility — @_now.ToString("MMMM yyyy")</div>
                 </div>
                 <div class="section-header-actions">
-                    <a href="/reports/month-end" class="btn-primary">Month-End Report</a>
-                    <a href="/reports" class="btn-outline">View Full Report</a>
+                    <div class="dashboard-report-tabs" role="group" aria-label="Dashboard report actions">
+                        <a href="/reports/month-end" class="dashboard-report-tab active">Month-End Report</a>
+                        <button type="button" class="dashboard-report-tab" disabled title="Follow-up Queue is coming soon">
+                            Follow-up Queue
+                            <span class="dashboard-report-soon">Soon</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 

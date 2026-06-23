@@ -1,41 +1,43 @@
-﻿/* ══════════════════════════════════════════════════════════════════════
-   AccountSetupAdmin.razor.css — First Run Setup Page
-   Government-grade: restrained, professional, trustworthy
-══════════════════════════════════════════════════════════════════════ */
+/*
+   EEMO first-time administrator setup.
+   Shares the visual language of the login page (same branding panel, card,
+   inputs, and button) while keeping the setup-specific pieces: step indicator,
+   password-strength meter, and the two-column password row.
+*/
 
-/* ── Root Layout ── */
 .setup-root {
     display: flex;
-    height: 100vh; /* full viewport height */
-    overflow: hidden; /* prevent root from scrolling */
-    background: var(--bg);
+    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
+    background: #f5f7fb;
     font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
-/* ══════════════════════════════════════════════════════
-   LEFT PANEL — Branding (fixed, never scrolls)
-══════════════════════════════════════════════════════ */
+/* ── Civic identity panel ─────────────────────────────────────────────── */
 .setup-left {
-    width: 360px;
-    height: 100vh; /* exact viewport height */
-    background: var(--navy);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: clamp(355px, 38.2vw, 580px);
     flex-shrink: 0;
-    position: sticky; /* stays in place */
-    top: 0;
-    left: 0;
+    position: relative;
     overflow: hidden;
+    background-color: #0b2846;
+    background-image:
+        linear-gradient(180deg, rgba(6, 27, 49, 0.84) 0%, rgba(7, 31, 56, 0.91) 58%, rgba(5, 24, 44, 0.97) 100%),
+        url('/images/eemo_image.png');
+    background-position: center;
+    background-size: cover;
 }
 
-    /* Subtle background pattern */
-    .setup-left::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image: repeating-linear-gradient( 45deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 40px );
-    }
+.setup-left::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(212, 175, 55, 0.13), transparent 34%),
+        linear-gradient(115deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 44px);
+    background-size: auto, 62px 62px;
+}
 
 .setup-left-inner {
     position: relative;
@@ -43,136 +45,183 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 28px;
-    padding: 48px 32px;
     text-align: center;
+    width: min(100%, 395px);
+    min-height: 100%;
+    margin: 0 auto;
+    justify-content: center;
+    gap: 24px;
+    padding: 48px 38px 34px;
+    box-sizing: border-box;
 }
 
-/* Seal */
-.setup-seal {
-    position: relative;
-    width: 110px;
-    height: 110px;
+.government-seals {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 18px;
+    margin-top: auto;
+    margin-bottom: 10px;
 }
 
-.seal-ring {
-    position: absolute;
+.government-logo-card {
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(212, 175, 55, 0.4);
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06), 0 14px 30px rgba(0, 0, 0, 0.22);
 }
 
-    .seal-ring.outer {
-        inset: 0;
-    }
+.government-logo-card img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
 
-    .seal-ring.inner {
-        inset: 10px;
-        border-color: rgba(212, 175, 55, 0.2);
-    }
-
-/* Image inside seal */
-.setup-seal img {
-    width: 80px;
-    height: 80px;
+.bagong-pilipinas-logo img {
     object-fit: contain;
-    position: relative;
-    z-index: 1;
-    border-radius: 50%;
 }
 
-/* Brand text */
 .setup-brand {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 7px;
 }
 
 .setup-brand-label {
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.73);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.17em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.45);
 }
 
 .setup-brand-city {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    font-weight: 400;
-    margin-bottom: 4px;
+    color: rgba(255, 255, 255, 0.93);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 13px;
 }
 
 .setup-brand-title {
-    font-size: 48px;
-    font-weight: 700;
-    color: var(--gold);
-    letter-spacing: 4px;
+    color: #e4bf52;
+    font-size: clamp(52px, 5vw, 68px);
+    font-weight: 800;
+    letter-spacing: 0.1em;
     line-height: 1;
+    margin-left: 0.1em;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.22);
 }
 
 .setup-brand-sub {
-    font-size: 11.5px;
-    color: rgba(255, 255, 255, 0.5);
-    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 16px;
     font-weight: 400;
+    line-height: 1.55;
 }
 
-/* Left footer */
+.login-secure-access {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 11px;
+    width: min(100%, 320px);
+    text-align: center;
+    margin: 4px auto 0;
+}
+
+.login-secure-icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    place-items: center;
+    color: #dce8f4;
+    border: 1px solid rgba(220, 232, 244, 0.45);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.login-secure-icon svg { width: 24px; height: 24px; }
+
+.login-secure-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.login-secure-access p {
+    margin: 0;
+    color: rgba(235, 242, 249, 0.75);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .setup-left-footer {
-    margin-top: 16px;
-    padding-top: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: auto;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255, 255, 255, 0.17);
     width: 100%;
 }
 
 .setup-system-name {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.55);
-    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
+    font-weight: 600;
 }
 
-.setup-version {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.3);
-    margin-top: 4px;
-}
+.setup-version { color: rgba(255, 255, 255, 0.62); font-size: 12px; margin-top: 8px; }
 
-/* ══════════════════════════════════════════════════════
-   RIGHT PANEL — Form (scrollable)
-══════════════════════════════════════════════════════ */
+/* ── Form surface ────────────────────────────────────────────────────── */
 .setup-right {
-    flex: 1;
-    height: 100vh;
-    overflow-y: auto;
+    position: relative;
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 40px 32px 32px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;
+    flex: 1;
+    min-width: 0;
+    height: 100vh;
+    padding: clamp(28px, 5vh, 60px) clamp(26px, 5.2vw, 92px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    background-color: #eef2f7;
+    background-image: linear-gradient(135deg, #fbfcfe 0%, #e9edf3 100%);
 }
 
 .setup-form-wrap {
+    position: relative;
+    z-index: 1;
     width: 100%;
-    max-width: 560px;
+    max-width: 640px;
 }
 
-/* ── Step Indicator ── */
+.login-card {
+    display: block;
+    padding: clamp(28px, 3.4vw, 44px);
+    background: #ffffff;
+    border: 1px solid rgba(13, 42, 71, 0.10);
+    border-radius: 18px;
+    box-shadow: 0 24px 50px rgba(13, 42, 71, 0.10), 0 2px 6px rgba(13, 42, 71, 0.04);
+}
+
+/* ── Step indicator ── */
 .setup-step-row {
     display: flex;
     align-items: center;
-    gap: 0;
-    margin-bottom: 40px;
+    margin-bottom: 28px;
 }
 
-.setup-step {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
+.setup-step { display: flex; align-items: center; gap: 8px; }
 
 .step-dot {
     width: 10px;
@@ -190,6 +239,8 @@
     box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.12);
 }
 
+.setup-step.completed .step-dot { background: var(--navy); border-color: var(--navy); }
+
 .step-label {
     font-size: 12px;
     font-weight: 500;
@@ -197,10 +248,8 @@
     white-space: nowrap;
 }
 
-.setup-step.active .step-label {
-    color: var(--navy);
-    font-weight: 600;
-}
+.setup-step.active .step-label,
+.setup-step.completed .step-label { color: var(--navy); font-weight: 600; }
 
 .setup-step-line {
     flex: 1;
@@ -210,353 +259,253 @@
     min-width: 24px;
 }
 
-/* ── Form Header ── */
+/* ── Header ── */
 .setup-form-header {
+    position: relative;
+    min-height: 64px;
     margin-bottom: 24px;
+    padding: 2px 0 24px 84px;
+    border-bottom: 1px solid rgba(13, 42, 71, 0.10);
 }
 
-.setup-form-eyebrow {
-    font-size: 11.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--gold);
-    margin-bottom: 8px;
+.login-header-icon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: 64px;
+    height: 64px;
+    place-items: center;
+    color: #6b89ab;
+    border: 1px solid rgba(25, 63, 100, 0.1);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f8fafc, #eef2f7);
 }
+
+.login-header-icon svg { width: 32px; height: 32px; }
 
 .setup-form-title {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--navy);
+    color: #102d4e;
+    font-size: clamp(25px, 1.9vw, 30px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
     line-height: 1.2;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
 }
 
 .setup-form-desc {
-    font-size: 13.5px;
-    color: var(--text-muted);
-    line-height: 1.6;
+    color: #637895;
+    font-size: 15px;
+    line-height: 1.55;
 }
 
-/* ── Notice Banner ── */
+/* ── Notice ── */
 .setup-notice {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    background: rgba(13, 33, 55, 0.04);
-    border: 1px solid rgba(13, 33, 55, 0.12);
-    border-left: 3px solid var(--navy);
-    border-radius: 6px;
-    margin-bottom: 28px;
-    font-size: 12.5px;
-    color: var(--text-subtle);
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    color: #536c8e;
+    border: 1px solid #d7e2ef;
+    border-left: 3px solid #355d87;
+    border-radius: 9px;
+    background: #f8fbff;
+    font-size: 13.5px;
     line-height: 1.5;
 }
 
-    .setup-notice svg {
-        width: 15px;
-        height: 15px;
-        flex-shrink: 0;
-        margin-top: 1px;
-        color: var(--navy);
-        opacity: 0.6;
-    }
+.setup-notice svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; stroke: #496789; }
 
-/* ── Form Fields ── */
-.setup-form {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
+/* ── Form fields ── */
+.setup-form { display: flex; flex-direction: column; gap: 18px; }
 
-.form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
+.form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 0; }
 
 .form-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-subtle);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    color: #1b3859;
+    font-size: 13px;
+    font-weight: 700;
 }
 
-.form-required {
-    color: var(--red);
-    margin-left: 2px;
-}
-
-.form-hint {
-    font-size: 11.5px;
-    color: var(--text-muted);
-    margin-top: 2px;
-}
+.form-hint { font-size: 12px; color: #8193ae; margin-top: 2px; }
 
 .form-input-wrap {
     position: relative;
-    display: flex;
-    align-items: center;
+    display: block;
+    width: 100%;
+    min-width: 0;
 }
 
-.form-input-icon {
-    position: absolute;
-    left: 12px;
-    width: 15px;
-    height: 15px;
-    color: var(--text-muted);
-    pointer-events: none;
+.form-input-wrap-password { width: 100%; }
+
+.form-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 52px;
+    padding-left: 48px;
+    border: 1.5px solid #dde3ec;
+    border-radius: 10px;
+    background: #fff;
+    color: #173755;
+    font-size: 15px;
+    outline: none;
+}
+
+.form-input::placeholder { color: #8193ae; }
+.form-input:focus { border-color: #315f8d; box-shadow: 0 0 0 4px rgba(49, 95, 141, 0.12); }
+
+.form-input-icon { position: absolute; top: 50%; left: 16px; width: 20px; height: 20px; transform: translateY(-50%); stroke: #7287a2; pointer-events: none; }
+.form-input-password { padding-right: 54px; }
+.form-eye-btn { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; padding: 4px; background: none; border: none; cursor: pointer; color: #7287a2; }
+.form-eye-btn svg { width: 20px; height: 20px; pointer-events: none; }
+.form-eye-btn:hover, .form-eye-btn:focus-visible { color: #173755; }
+.form-eye-btn:focus-visible { outline: 2px solid #315f8d; outline-offset: 2px; border-radius: 4px; }
+
+.form-input-error { border-color: var(--red) !important; background: var(--red-bg) !important; }
+.form-input-error:focus { border-color: var(--red) !important; box-shadow: 0 0 0 4px rgba(139, 58, 58, 0.11) !important; }
+
+.form-error { font-size: 12.5px; color: var(--red); }
+
+/* ── Password strength ── */
+.pw-strength { display: flex; align-items: center; gap: 10px; margin-top: -4px; }
+.pw-strength-bars { display: flex; gap: 4px; flex: 1; }
+.pw-bar { height: 4px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.2s; }
+.pw-bar-fill.pw-weak { background: var(--red); }
+.pw-bar-fill.pw-fair { background: #b87333; }
+.pw-bar-fill.pw-good { background: #4a7c59; }
+.pw-bar-fill.pw-strong { background: var(--green); }
+.pw-strength-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.pw-strength-label.pw-weak { color: var(--red); }
+.pw-strength-label.pw-fair { color: #b87333; }
+.pw-strength-label.pw-good { color: #4a7c59; }
+.pw-strength-label.pw-strong { color: var(--green); }
+
+/* ── Error ── */
+.setup-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--red);
+    border-radius: 9px;
+    background: var(--red-bg);
+    color: var(--red);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.setup-error svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ── Submit ── */
+.setup-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 54px;
+    margin-top: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1c3252 0%, #16263c 100%);
+    box-shadow: 0 7px 16px rgba(13, 42, 71, 0.16);
+    color: #fff;
+    font-size: 15.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.setup-submit svg { width: 20px; height: 20px; flex-shrink: 0; }
+.setup-submit:hover:not(:disabled) { background: linear-gradient(180deg, #16263c 0%, #0f1d30 100%); box-shadow: 0 10px 22px rgba(13, 42, 71, 0.23); }
+.setup-submit:focus-visible { outline: 3px solid #e4bf52; outline-offset: 3px; }
+.setup-submit:disabled { opacity: 0.7; cursor: not-allowed; }
+.setup-submit-loading { opacity: 0.75; }
+
+.setup-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
     flex-shrink: 0;
 }
 
-.form-input {
-        width: 100%;
-        height: 48px;
-        padding: 0 16px 0 42px;
-        border: 1.5px solid rgba(13, 33, 55, 0.13);
-        border-radius: 8px;
-        background: #fff;
-        font-size: 14px;
-        color: var(--navy);
-        outline: none;
-        box-sizing: border-box;
-        transition: border-color 0.18s, box-shadow 0.18s;
-    }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-    .form-input:focus {
-        border-color: rgba(13, 33, 55, 0.4);
-        box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.07);
-    }
+/* ── Footer ── */
+.setup-form-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0 11px;
+    margin-top: 26px;
+    color: #7c8fa8;
+    font-size: 12px;
+}
 
-    .form-input::placeholder {
-        color: var(--text-muted);
-        font-weight: 400;
-    }
-    /* Eye toggle */
-    .form-eye-btn {
-        position: absolute;
-        right: 10px;
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 6px;
-        color: var(--text-muted);
-        display: flex;
-        align-items: center;
-        transition: color 0.15s;
-        z-index: 10;
-    }
+.setup-form-footer svg { width: 16px; height: 16px; color: #617d9e; }
 
-        .form-eye-btn:hover {
-            color: var(--navy);
-        }
+/* ── Responsive ── */
+@media (max-height: 820px) and (min-width: 769px) {
+    .setup-left-inner { gap: 17px; padding-top: 28px; padding-bottom: 24px; }
+    .government-logo-card { width: 82px; height: 82px; }
+    .setup-brand-city { margin-bottom: 6px; }
+    .setup-brand-title { font-size: 48px; }
+    .setup-brand-sub { font-size: 14px; }
+    .login-secure-access { margin-top: 10px; }
+    .setup-left-footer { padding-top: 18px; }
+    .login-card { padding-top: 28px; padding-bottom: 28px; }
+    .setup-step-row { margin-bottom: 20px; }
+    .setup-form-header { margin-bottom: 18px; padding-bottom: 18px; }
+    .setup-form { gap: 14px; }
+}
 
-        .form-eye-btn svg {
-            width: 16px;
-            height: 16px;
-            pointer-events: none;
-        }
+@media (max-width: 940px) {
+    .setup-left { width: clamp(300px, 35vw, 360px); }
+    .government-logo-card { width: 82px; height: 82px; }
+    .setup-left-inner { padding-right: 24px; padding-left: 24px; }
+    .setup-brand-city { font-size: 15px; }
+    .setup-brand-title { font-size: 48px; }
+    .setup-brand-sub { font-size: 14px; }
+    .login-secure-access { width: 100%; }
+    .setup-right { padding-right: 32px; padding-left: 32px; }
+    .login-card { padding: 34px; }
+}
 
-        .form-eye-btn span {
-            pointer-events: none;
-            user-select: none;
-        }
-    /* ── Password Strength ── */
-    .pw-strength {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: -6px;
-    }
+@media (max-width: 768px) {
+    .setup-root { display: block; height: auto; min-height: 100vh; overflow-x: hidden; }
+    .setup-left { width: 100%; height: auto; min-height: 235px; position: relative; }
+    .setup-left-inner { width: 100%; min-height: 235px; justify-content: center; gap: 12px; padding: 28px 22px; }
+    .government-seals { gap: 13px; margin: 0; }
+    .government-logo-card { width: 62px; height: 62px; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.05); }
+    .setup-brand { gap: 3px; }
+    .setup-brand-label { font-size: 9px; }
+    .setup-brand-city { font-size: 13px; margin-bottom: 5px; }
+    .setup-brand-title { font-size: 39px; }
+    .setup-brand-sub { font-size: 12px; }
+    .login-secure-access, .setup-left-footer { display: none; }
+    .setup-step-row { display: none; }
+    .setup-right { height: auto; min-height: auto; padding: 28px 20px 32px; overflow: visible; }
+    .login-card { padding: clamp(24px, 7vw, 36px); border-radius: 12px; }
+    .form-row { grid-template-columns: 1fr; }
+}
 
-    .pw-strength-bars {
-        display: flex;
-        gap: 4px;
-        flex: 1;
-    }
-
-    .pw-bar {
-        height: 3px;
-        flex: 1;
-        border-radius: 2px;
-        background: var(--border);
-        transition: background 0.2s;
-    }
-
-    .pw-bar-fill.pw-weak {
-        background: var(--red);
-    }
-
-    .pw-bar-fill.pw-fair {
-        background: #b87333;
-    }
-
-    .pw-bar-fill.pw-good {
-        background: #4a7c59;
-    }
-
-    .pw-bar-fill.pw-strong {
-        background: var(--green);
-    }
-
-    .pw-strength-label {
-        font-size: 11px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        white-space: nowrap;
-    }
-
-        .pw-strength-label.pw-weak {
-            color: var(--red);
-        }
-
-        .pw-strength-label.pw-fair {
-            color: #b87333;
-        }
-
-        .pw-strength-label.pw-good {
-            color: #4a7c59;
-        }
-
-        .pw-strength-label.pw-strong {
-            color: var(--green);
-        }
-    /* ── Error ── */
-    .setup-error {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 14px;
-        background: var(--red-bg);
-        border: 1px solid var(--red);
-        border-radius: 7px;
-        font-size: 13px;
-        color: var(--red);
-        font-weight: 500;
-    }
-
-        .setup-error svg {
-            width: 15px;
-            height: 15px;
-            flex-shrink: 0;
-        }
-    /* ── Submit Button ── */
-    .setup-submit {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        width: 100%;
-        padding: 13px 24px;
-        background: var(--navy);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.15s ease, transform 0.1s ease;
-        letter-spacing: 0.3px;
-        margin-top: 4px;
-    }
-
-        .setup-submit svg {
-            width: 16px;
-            height: 16px;
-            flex-shrink: 0;
-        }
-
-        .setup-submit:hover:not(:disabled) {
-            background: #162840;
-            transform: translateY(-1px);
-        }
-
-        .setup-submit:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        .setup-submit:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-    .setup-submit-loading {
-        opacity: 0.75;
-    }
-    /* Spinner */
-    .setup-spinner {
-        width: 15px;
-        height: 15px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-        display: inline-block;
-        flex-shrink: 0;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-    /* ── Form Footer ── */
-    .setup-form-footer {
-        margin-top: 24px;
-        padding-top: 16px;
-        border-top: 1px solid var(--border);
-        font-size: 11px;
-        color: var(--text-muted);
-        text-align: center;
-        letter-spacing: 0.3px;
-    }
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-        .setup-root {
-            flex-direction: column;
-        }
-
-        .setup-left {
-            width: 100%;
-            min-height: auto;
-            padding: 32px;
-        }
-
-        .setup-left-inner {
-            flex-direction: row;
-            text-align: left;
-            gap: 20px;
-            padding: 0;
-        }
-
-        .setup-seal {
-            width: 60px;
-            height: 60px;
-            flex-shrink: 0;
-        }
-
-        .setup-brand-title {
-            font-size: 32px;
-        }
-
-        .setup-left-footer {
-            display: none;
-        }
-
-        .setup-right {
-            padding: 32px 20px;
-        }
-
-        .form-row {
-            grid-template-columns: 1fr;
-        }
-    }
+@media (max-width: 480px) {
+    .setup-right { padding: 16px 12px 24px; }
+    .login-card { padding: 23px 18px; border-radius: 10px; }
+    .setup-form-header { min-height: 0; margin-bottom: 22px; padding: 0 0 21px; text-align: center; }
+    .login-header-icon { position: static; width: 60px; height: 60px; margin: 0 auto 13px; }
+    .setup-form-title { font-size: 26px; }
+    .setup-form-desc { font-size: 14px; }
+    .setup-form { gap: 16px; }
+    .setup-form-footer { gap: 0 7px; font-size: 10.5px; line-height: 1.8; }
+}

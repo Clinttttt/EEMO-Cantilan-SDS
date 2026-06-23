@@ -35,15 +35,68 @@
             <button class="me-nav-btn" type="button" @onclick="PrevMonth" aria-label="Previous month">
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
-            <span class="me-period">@PeriodLabel</span>
+            <div class="me-period-picker">
+                <button class="me-period-btn" type="button" @onclick="TogglePicker" aria-haspopup="true" aria-expanded="@_pickerOpen">
+                    <span class="me-period">@PeriodLabel</span>
+                    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
+                @if (_pickerOpen)
+                {
+                    <div class="me-picker-backdrop" @onclick="ClosePicker"></div>
+                    <div class="me-picker">
+                        <div class="me-picker-head">
+                            <button class="me-picker-yr-btn" type="button" @onclick="PickerPrevYear" aria-label="Previous year">
+                                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                            </button>
+                            <span class="me-picker-year">@_pickerYear</span>
+                            <button class="me-picker-yr-btn" type="button" @onclick="PickerNextYear" aria-label="Next year">
+                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                            </button>
+                        </div>
+                        <div class="me-picker-grid">
+                            @for (var m = 1; m <= 12; m++)
+                            {
+                                var month = m;
+                                var isSelected = _pickerYear == Year && month == Month;
+                                var isCurrent = _pickerYear == PhilippineTime.Now.Year && month == PhilippineTime.Now.Month;
+                                <button type="button"
+                                        class="me-picker-month @(isSelected ? "selected" : "") @(isCurrent && !isSelected ? "current" : "")"
+                                        @onclick="() => SelectMonth(month)">
+                                    @MonthAbbr(month)
+                                </button>
+                            }
+                        </div>
+                        <div class="me-picker-foot">
+                            <button class="me-picker-today" type="button" @onclick="JumpToCurrentMonth">Go to current month</button>
+                        </div>
+                    </div>
+                }
+            </div>
             <button class="me-nav-btn" type="button" @onclick="NextMonth" aria-label="Next month">
                 <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
         </div>
-        <button class="me-print-btn" type="button" disabled="@Loading" @onclick="Print">
-            <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-            Print
-        </button>
+        <div class="me-filter">
+            <button class="me-chip @(_facility is null ? "me-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
+            @foreach (var fc in AllFacilities)
+            {
+                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+            }
+        </div>
+        <div class="me-actions">
+            <div class="me-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search payor, stall, or OR no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search the report" />
+                @if (HasSearch)
+                {
+                    <button class="me-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
+                }
+            </div>
+            <button class="me-print-btn" type="button" disabled="@Loading" @onclick="Print">
+                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print
+            </button>
+        </div>
     </div>
 
     @if (Loading)
@@ -69,28 +122,54 @@
                 <div class="me-doc">Comprehensive Month-End Collection Report — @Report.PeriodLabel</div>
             </header>
 
-            <!-- Grand summary -->
+            @{
+                var visibleFacilities = VisibleFacilities().ToList();
+                var sumCollected = visibleFacilities.Sum(ShownCollected);
+                var sumOutstanding = visibleFacilities.Sum(ShownOutstanding);
+                var sumRate = RateOf(sumCollected, sumOutstanding);
+                var (sumPaid, sumPartial, sumUnpaid) = ShownStatusCounts(visibleFacilities);
+            }
+
+            @if (_facility is not null || HasSearch)
+            {
+                <div class="me-scope-row">
+                    <span class="me-scope">Filtered view — <strong>@ScopeLabel</strong></span>
+                </div>
+            }
+
+            <!-- Grand summary (reflects the active facility/search scope) -->
             <div class="me-summary">
                 <div class="me-sum-card">
-                    <div class="me-sum-val">@Money(Report.TotalCollected)</div>
-                    <div class="me-sum-lbl">Total Collected</div>
+                    <div class="me-sum-val">@Money(sumCollected)</div>
+                    <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Collected" : "Collected")</div>
                 </div>
                 <div class="me-sum-card">
-                    <div class="me-sum-val me-red">@Money(Report.TotalOutstanding)</div>
-                    <div class="me-sum-lbl">Total Outstanding</div>
+                    <div class="me-sum-val me-red">@Money(sumOutstanding)</div>
+                    <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Outstanding" : "Outstanding")</div>
                 </div>
                 <div class="me-sum-card">
-                    <div class="me-sum-val">@Report.OverallCollectionRate%</div>
+                    <div class="me-sum-val">@sumRate%</div>
                     <div class="me-sum-lbl">Collection Rate</div>
                 </div>
                 <div class="me-sum-card">
-                    <div class="me-sum-val">@Report.TotalPaidCount / @Report.TotalPartialCount / @Report.TotalUnpaidCount</div>
+                    <div class="me-sum-val">@sumPaid / @sumPartial / @sumUnpaid</div>
                     <div class="me-sum-lbl">Paid / Partial / Unpaid</div>
                 </div>
             </div>
 
-            @foreach (var f in Report.Facilities)
+            @if (visibleFacilities.Count == 0)
             {
+                <div class="me-state">No facilities match your current filter@(HasSearch ? " and search" : "").</div>
+            }
+            @foreach (var f in visibleFacilities)
+            {
+                var payors = VisiblePayors(f);
+                var txnPayors = VisibleTxnPayors(f);
+                var collectedShown = f.IsRental
+                    ? (HasSearch ? payors.Sum(p => p.AmountPaid) : f.Collected)
+                    : (HasSearch ? txnPayors.Sum(p => p.TotalCollected) : f.Collected);
+                var outstandingShown = HasSearch ? payors.Sum(p => p.Balance) : f.Outstanding;
+                var rateShown = HasSearch ? RateOf(collectedShown, outstandingShown) : f.CollectionRate;
                 <div class="me-facility">
                     <div class="me-fac-head">
                         <div class="me-fac-title">
@@ -102,16 +181,16 @@
                             }
                         </div>
                         <div class="me-fac-stats">
-                            <span><strong>@Money(f.Collected)</strong> collected</span>
+                            <span><strong>@Money(collectedShown)</strong> collected</span>
                             @if (f.IsRental)
                             {
-                                <span class="me-red"><strong>@Money(f.Outstanding)</strong> outstanding</span>
+                                <span class="me-red"><strong>@Money(outstandingShown)</strong> outstanding</span>
                             }
-                            <span><strong>@f.CollectionRate%</strong> rate</span>
+                            <span><strong>@rateShown%</strong> rate</span>
                         </div>
                     </div>
 
-                    @if (f.IsRental && f.Payors.Count > 0)
+                    @if (f.IsRental && payors.Count > 0)
                     {
                         var isDaily = f.Code == FacilityCode.NPM;
                         <table class="me-table">
@@ -122,12 +201,20 @@
                                     <th class="me-num">@(isDaily ? "Daily Rate" : "Monthly Rate")</th>
                                     <th>Status</th>
                                     <th class="me-num">Collected</th>
-                                    <th class="me-num">Balance</th>
-                                    <th>OR No.</th>
+                                    <th class="me-num">@(isDaily ? "Due to Date" : "Balance")</th>
+                                    @if (isDaily)
+                                    {
+                                        <th class="me-num">Monthly Coverage</th>
+                                        <th class="me-num">Monthly Balance</th>
+                                    }
+                                    @if (!isDaily)
+                                    {
+                                        <th>OR No.</th>
+                                    }
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var p in f.Payors)
+                                @foreach (var p in payors)
                                 {
                                     <tr class="@RowClass(p.Status)">
                                         <td>@p.StallNo</td>
@@ -136,21 +223,39 @@
                                         <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>
                                         <td class="me-num">@(p.AmountPaid > 0 ? Money(p.AmountPaid) : "—")</td>
                                         <td class="me-num @(p.Balance > 0 ? "me-red" : "")">@(p.Balance > 0 ? Money(p.Balance) : "—")</td>
-                                        <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
+                                        @if (isDaily)
+                                        {
+                                            <td class="me-num">@Money(p.MonthlyCoverage)</td>
+                                            <td class="me-num @(p.MonthlyCoverageBalance > 0 ? "me-red" : "")">@(p.MonthlyCoverageBalance > 0 ? Money(p.MonthlyCoverageBalance) : "—")</td>
+                                        }
+                                        @if (!isDaily)
+                                        {
+                                            <td>@(string.IsNullOrWhiteSpace(p.ORNumber) ? "—" : p.ORNumber)</td>
+                                        }
                                     </tr>
                                 }
                             </tbody>
                             <tfoot>
                                 <tr>
                                     <td colspan="4"><strong>Subtotal — @f.Name</strong></td>
-                                    <td class="me-num"><strong>@Money(f.Collected)</strong></td>
-                                    <td class="me-num @(f.Outstanding > 0 ? "me-red" : "")"><strong>@(f.Outstanding > 0 ? Money(f.Outstanding) : "—")</strong></td>
-                                    <td></td>
+                                    <td class="me-num"><strong>@Money(collectedShown)</strong></td>
+                                    <td class="me-num @(outstandingShown > 0 ? "me-red" : "")"><strong>@(outstandingShown > 0 ? Money(outstandingShown) : "—")</strong></td>
+                                    @if (isDaily)
+                                    {
+                                        var coverageTotal = payors.Sum(p => p.MonthlyCoverage);
+                                        var coverageBalanceTotal = payors.Sum(p => p.MonthlyCoverageBalance);
+                                        <td class="me-num"><strong>@Money(coverageTotal)</strong></td>
+                                        <td class="me-num @(coverageBalanceTotal > 0 ? "me-red" : "")"><strong>@(coverageBalanceTotal > 0 ? Money(coverageBalanceTotal) : "—")</strong></td>
+                                    }
+                                    @if (!isDaily)
+                                    {
+                                        <td></td>
+                                    }
                                 </tr>
                             </tfoot>
                         </table>
                     }
-                    else if (!f.IsRental && f.TransactionPayors.Count > 0)
+                    else if (!f.IsRental && txnPayors.Count > 0)
                     {
                         // One table shape, context-labelled per facility:
                         //   SLH → Owner | Animal Types | Heads | Total
@@ -173,7 +278,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var tp in f.TransactionPayors)
+                                @foreach (var tp in txnPayors)
                                 {
                                     var key = $"{f.Code}|{tp.Payor}";
                                     var expandable = tp.RecordCount > 1;
@@ -210,7 +315,7 @@
                             <tfoot>
                                 <tr>
                                     <td colspan="3"><strong>Subtotal — @f.Name</strong></td>
-                                    <td class="me-num"><strong>@Money(f.Collected)</strong></td>
+                                    <td class="me-num"><strong>@Money(collectedShown)</strong></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -241,6 +346,101 @@
     private MonthEndReportDto? Report;
     private bool Loading = true;
     private readonly HashSet<string> _expanded = new();
+
+    // ── Facility filter + search (client-side view filtering; never alters the underlying figures) ──
+    private static readonly FacilityCode[] AllFacilities =
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    private FacilityCode? _facility;     // null = all facilities
+    private string _search = "";
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+
+    private void SelectFacility(FacilityCode? code) => _facility = code;
+    private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+    private void ClearSearch() => _search = "";
+
+    private IEnumerable<MonthEndFacilityDto> VisibleFacilities()
+    {
+        if (Report is null) return Array.Empty<MonthEndFacilityDto>();
+        var facilities = Report.Facilities.AsEnumerable();
+        if (_facility is not null)
+            facilities = facilities.Where(f => f.Code == _facility);
+        if (HasSearch)
+            facilities = facilities.Where(f => VisiblePayors(f).Count > 0 || VisibleTxnPayors(f).Count > 0);
+        return facilities;
+    }
+
+    private List<MonthEndPayorDto> VisiblePayors(MonthEndFacilityDto f) =>
+        (HasSearch ? f.Payors.Where(MatchesPayor) : f.Payors).ToList();
+
+    private List<MonthEndTxnPayorDto> VisibleTxnPayors(MonthEndFacilityDto f) =>
+        (HasSearch ? f.TransactionPayors.Where(MatchesTxnPayor) : f.TransactionPayors).ToList();
+
+    private bool MatchesPayor(MonthEndPayorDto p) =>
+        Match(p.Payor) || Match(p.StallNo) || Match(p.ORNumber);
+
+    private bool MatchesTxnPayor(MonthEndTxnPayorDto p) =>
+        Match(p.Payor) || Match(p.Summary) || p.Records.Any(r => Match(r.Description) || Match(r.ORNumber));
+
+    private bool Match(string? value) =>
+        !string.IsNullOrEmpty(value) && value.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static int RateOf(decimal collected, decimal outstanding)
+    {
+        var billed = collected + outstanding;
+        return billed > 0m ? (int)Math.Round(collected / billed * 100m) : 0;
+    }
+
+    // Per-facility figures for the current view: the true DTO totals when unfiltered, recomputed from the
+    // visible rows when a search is active. Summed across the visible facilities they drive the summary cards.
+    private decimal ShownCollected(MonthEndFacilityDto f) =>
+        !HasSearch ? f.Collected
+        : f.IsRental ? VisiblePayors(f).Sum(p => p.AmountPaid)
+        : VisibleTxnPayors(f).Sum(p => p.TotalCollected);
+
+    private decimal ShownOutstanding(MonthEndFacilityDto f) =>
+        !HasSearch ? f.Outstanding
+        : f.IsRental ? VisiblePayors(f).Sum(p => p.Balance)
+        : 0m;
+
+    private (int paid, int partial, int unpaid) ShownStatusCounts(IEnumerable<MonthEndFacilityDto> facilities)
+    {
+        if (!HasSearch)
+            return (
+                facilities.Where(f => f.IsRental).Sum(f => f.PaidCount),
+                facilities.Where(f => f.IsRental).Sum(f => f.PartialCount),
+                facilities.Where(f => f.IsRental).Sum(f => f.UnpaidCount));
+
+        var rows = facilities.Where(f => f.IsRental).SelectMany(VisiblePayors).ToList();
+        return (
+            rows.Count(p => p.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase)),
+            rows.Count(p => p.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)),
+            rows.Count(p => !p.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase)
+                         && !p.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private string ScopeLabel
+    {
+        get
+        {
+            var scope = _facility is null ? "All facilities" : $"{_facility} — {FacilityName(_facility.Value)}";
+            return HasSearch ? $"{scope} · matching “{_search.Trim()}”" : scope;
+        }
+    }
+
+    private static string FacilityName(FacilityCode code) => code switch
+    {
+        FacilityCode.NPM => "New Public Market",
+        FacilityCode.TCC => "Tampak Commercial Center",
+        FacilityCode.NCC => "New Commercial Center",
+        FacilityCode.BBQ => "Barbecue Stand",
+        FacilityCode.ICE => "Iceplant",
+        FacilityCode.SLH => "Slaughterhouse",
+        FacilityCode.TRM => "Transport Terminal",
+        FacilityCode.TPM => "Tabo-an Public Market",
+        _ => code.ToString()
+    };
 
     private string PeriodLabel => new DateTime(Year, Month, 1).ToString("MMMM yyyy");
 
@@ -287,6 +487,40 @@
         Year = d.Year; Month = d.Month;
         await Load();
     }
+
+    // ── Custom month/year picker ──
+    private bool _pickerOpen;
+    private int _pickerYear;   // the year currently browsed in the picker (independent of the selected Year)
+
+    private void TogglePicker()
+    {
+        _pickerOpen = !_pickerOpen;
+        if (_pickerOpen) _pickerYear = Year;   // open on the currently selected year
+    }
+
+    private void ClosePicker() => _pickerOpen = false;
+    private void PickerPrevYear() => _pickerYear--;
+    private void PickerNextYear() => _pickerYear++;
+
+    private async Task SelectMonth(int month)
+    {
+        _pickerOpen = false;
+        if (Year == _pickerYear && Month == month) return;   // no change
+        Year = _pickerYear;
+        Month = month;
+        await Load();
+    }
+
+    private async Task JumpToCurrentMonth()
+    {
+        _pickerOpen = false;
+        var now = PhilippineTime.Now;
+        if (Year == now.Year && Month == now.Month) return;
+        Year = now.Year; Month = now.Month;
+        await Load();
+    }
+
+    private static string MonthAbbr(int month) => new DateTime(2000, month, 1).ToString("MMM");
 
     private async Task Print() => await JS.InvokeVoidAsync("print");
 

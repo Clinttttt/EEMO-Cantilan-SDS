@@ -9,6 +9,7 @@
 @inject AuthService AuthService
 @inject ISetupApiClient SetupApi
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <PageTitle>EEMO — Administrator Login</PageTitle>
 
@@ -31,7 +32,20 @@
                 <div class="setup-brand-label">Republic of the Philippines</div>
                 <div class="setup-brand-city">Municipality of Cantilan</div>
                 <div class="setup-brand-title">EEMO</div>
-                <div class="setup-brand-sub">Economic Enterprise &amp;<br />Management Office</div>
+                <div class="setup-brand-sub">Economic Enterprise and Management Office</div>
+            </div>
+            <div class="login-secure-access">
+                <div class="login-secure-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <rect x="9" y="10" width="6" height="5" rx="1" />
+                        <path d="M10.5 10V8.5a1.5 1.5 0 013 0V10" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="login-secure-title">Secure Access Portal</div>
+                    <p>This system is for authorized EEMO personnel only.</p>
+                </div>
             </div>
             <div class="setup-left-footer">
                 <div class="setup-system-name">Revenue Collection System</div>
@@ -45,6 +59,8 @@
     ═══════════════════════════════════════ -->
     <div class="setup-right">
         <div class="setup-form-wrap">
+
+            <section class="login-card" aria-labelledby="login-title">
 
             <!-- ── Step Indicator ──
                  Only visible when redirected from first-time setup
@@ -73,42 +89,28 @@
 
             <!-- ── Header ── -->
             <div class="setup-form-header">
-                <div class="setup-form-eyebrow">
-                    @(IsFromSetup ? "Step 2 of 3" : "Administrator Access")
+                <div class="login-header-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                        <circle cx="12" cy="8" r="3.5" />
+                        <path d="M5.5 20c.5-3.5 2.8-5.5 6.5-5.5s6 2 6.5 5.5" />
+                    </svg>
                 </div>
-                <div class="setup-form-title">
-                    @(IsFromSetup ? "Sign In to Continue" : "Sign In")
+                <div class="setup-form-title" id="login-title">
+                    @(IsFromSetup ? "Sign In to Continue" : "Welcome Back")
                 </div>
                 <div class="setup-form-desc">
-                    @if (IsFromSetup)
-                    {
-                        @("Your administrator account has been created. Sign in to access the EEMO Revenue Collection System.")
-                    }
-                    else
-                    {
-                        @("Enter your credentials to access the EEMO Revenue Collection System. Authorized personnel only.")
-                    }
+                    @(IsFromSetup
+                        ? "Your administrator account has been created. Sign in to access the EEMO Revenue Collection System."
+                        : "Sign in to access the EEMO Revenue Collection System")
                 </div>
             </div>
-
-            <!-- ── Security notice — only on normal login (not first-time setup) ── -->
-            @if (!IsFromSetup)
-            {
-                <div class="setup-notice login-notice">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0110 0v4" />
-                    </svg>
-                    <span>This portal is restricted to authorized EEMO personnel only. Unauthorized access is prohibited.</span>
-                </div>
-            }
 
             <!-- ── Login Form ── -->
             <div class="setup-form">
 
                 <!-- Username -->
                 <div class="form-group">
-                    <label class="form-label">Username <span class="form-required">*</span></label>
+                    <label class="form-label">Username</label>
                     <div class="form-input-wrap @(GetFieldError("Username") != string.Empty ? "form-input-error" : "")">
                         <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
@@ -131,7 +133,7 @@
 
                 <!-- Password -->
                 <div class="form-group">
-                    <label class="form-label">Password <span class="form-required">*</span></label>
+                    <label class="form-label">Password</label>
                     <div class="form-input-wrap @(GetFieldError("Password") != string.Empty ? "form-input-error" : "")">
                         <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -172,6 +174,21 @@
                         <span class="form-error">@GetFieldError("Password")</span>
                     }
                 </div>
+
+                <!-- Remember me + forgot password -->
+                <div class="login-options">
+                    <label class="login-remember">
+                        <input type="checkbox" @bind="RememberMe" disabled="@IsLocked" />
+                        <span>Remember me</span>
+                    </label>
+                    <button type="button" class="login-forgot" @onclick="ToggleForgotHint">Forgot password?</button>
+                </div>
+                @if (ShowForgotHint)
+                {
+                    <div class="login-forgot-hint">
+                        Password resets are handled by your system administrator. Please contact the EEMO Head to restore access.
+                    </div>
+                }
 
                 <!-- Failed attempts warning (shows after 1st fail, before lockout) -->
                 @if (FailedAttempts > 0 && FailedAttempts < 5 && !IsLocked)
@@ -242,18 +259,39 @@
                     else
                     {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
-                            <polyline points="10 17 15 12 10 7" />
-                            <line x1="15" y1="12" x2="3" y2="12" />
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0110 0v4" />
                         </svg>
                         <span>Sign In to System</span>
                     }
                 </button>
 
             </div><!-- end setup-form -->
+
+            @if (!IsFromSetup)
+            {
+                <div class="login-divider"><span>or</span></div>
+                <div class="login-monitoring-notice">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <path d="m9 12 2 2 4-4" />
+                    </svg>
+                    <span>
+                        Unauthorized access is prohibited.<br />
+                        All access attempts are monitored and recorded.
+                    </span>
+                </div>
+            }
+
+            </section>
+
             <!-- ── Footer ── -->
             <div class="setup-form-footer">
-                Republic of the Philippines &middot; Municipality of Cantilan &middot; EEMO
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="10" rx="2" />
+                    <path d="M8 11V8a4 4 0 018 0v3" />
+                </svg>
+                <span>Republic of the Philippines</span><span aria-hidden="true">•</span><span>Municipality of Cantilan</span><span aria-hidden="true">•</span><span>EEMO</span>
             </div>
 
         </div>
@@ -278,6 +316,11 @@
     // Redirect URL from AccountSetup should be: Navigation.NavigateTo("/login?setup=true")
     bool IsFromSetup = false;
 
+    // ── Convenience controls (UI only; do not affect the auth flow) ───────────
+    bool RememberMe = false;       // persists the username (never the password) in localStorage
+    bool ShowForgotHint = false;
+    const string RememberKey = "eemo_remember_username";
+
     protected override async Task OnInitializedAsync()
     {
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
@@ -297,6 +340,29 @@
             IsFromSetup = true;
         }
     }
+
+    // Prefill the remembered username (stored locally on a prior "Remember me" sign-in).
+    // Runs only after the interactive render, where localStorage is available.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var saved = await JS.InvokeAsync<string?>("localStorage.getItem", RememberKey);
+            if (!string.IsNullOrWhiteSpace(saved) && string.IsNullOrEmpty(Username))
+            {
+                Username = saved;
+                RememberMe = true;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // localStorage unavailable (e.g. during prerender) — ignore.
+        }
+    }
+
+    void ToggleForgotHint() => ShowForgotHint = !ShowForgotHint;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     void TogglePassword(MouseEventArgs _)
@@ -319,6 +385,17 @@
 
         IsLoading = true;
         StateHasChanged();
+
+        // Persist the username (never the password) per the Remember me choice, before
+        // authenticating — a successful sign-in navigates away immediately.
+        try
+        {
+            if (RememberMe)
+                await JS.InvokeVoidAsync("localStorage.setItem", RememberKey, Username);
+            else
+                await JS.InvokeVoidAsync("localStorage.removeItem", RememberKey);
+        }
+        catch { /* localStorage unavailable — non-fatal */ }
 
         try
         {

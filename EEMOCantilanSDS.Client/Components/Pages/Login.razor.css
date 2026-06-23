@@ -1,451 +1,509 @@
-﻿/* ══════════════════════════════════════════════════════════════════════
-   Login.razor.css — Admin Login Page
-   Extends app.css shared setup styles.
-   Only Login-specific overrides go here.
-   Government-grade: restrained, professional, trustworthy.
-══════════════════════════════════════════════════════════════════════ */
+/*
+   EEMO administrator login
+   Purposefully scoped to this page: existing login events, validation, and
+   authentication flow remain untouched while the visual hierarchy is renewed.
+*/
 
-/* ── Step indicator — completed step (Administrator Setup ✓) ── */
-.setup-step.completed .step-dot {
-    background: var(--navy);
-    border-color: var(--navy);
-    position: relative;
+.setup-root {
+    min-height: 100vh;
+    height: 100vh;
+    background: #f5f7fb;
 }
 
-    .setup-step.completed .step-dot::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: var(--navy);
-        border-radius: 50%;
-    }
-
-.setup-step.completed .step-label {
-    color: var(--navy);
-    font-weight: 500;
-    opacity: 0.6;
+/* ── Civic identity panel ─────────────────────────────────────────────── */
+.setup-left {
+    width: clamp(355px, 38.2vw, 580px);
+    background-color: #0b2846;
+    background-image:
+        linear-gradient(180deg, rgba(6, 27, 49, 0.84) 0%, rgba(7, 31, 56, 0.91) 58%, rgba(5, 24, 44, 0.97) 100%),
+        url('/images/eemo_image.png');
+    background-position: center;
+    background-size: cover;
 }
 
-/* Completed step connector line — filled */
-.setup-step-line-done {
-    background: var(--navy) !important;
-    opacity: 0.35;
+.setup-left::before {
+    z-index: 0;
+    background:
+        radial-gradient(circle at 50% 18%, rgba(212, 175, 55, 0.13), transparent 34%),
+        linear-gradient(115deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 44px);
+    background-size: auto, 62px 62px;
 }
 
-/* ── Input error state ── */
-.form-input-error {
-    border-color: var(--red) !important;
-    background: var(--red-bg) !important;
+.setup-left-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: min(100%, 395px);
+    min-height: 100%;
+    margin: 0 auto;
+    justify-content: center;
+    gap: 24px;
+    padding: 48px 38px 34px;
+    box-sizing: border-box;
 }
 
-    .form-input-error:focus {
-        border-color: var(--red) !important;
-        box-shadow: 0 0 0 3px rgba(139, 58, 58, 0.1) !important;
-    }
-
-/* ── Login-specific security notice ── */
-.login-notice {
-    border-left-color: rgba(13, 33, 55, 0.5);
-    background: rgba(13, 33, 55, 0.03);
-}
-
-/* ── Government seal pair ── */
 .government-seals {
-    width: 174px;
-    height: 92px;
-    gap: 14px;
-}
-
-.government-logo-card {
-    width: 78px;
-    height: 78px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(212, 175, 55, 0.65);
-    background: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    box-shadow: 0 0 0 9px rgba(212, 175, 55, 0.06);
+    width: auto;
+    height: auto;
+    gap: 18px;
+    margin-top: auto;
+    margin-bottom: 10px;
 }
 
-    .government-logo-card img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        border-radius: 50%;
-    }
+.government-logo-card {
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.06), 0 14px 30px rgba(0, 0, 0, 0.22);
+}
+
+.government-logo-card img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
 
 .bagong-pilipinas-logo img {
-    width: 82%;
-    height: 82%;
+    object-fit: contain;
 }
 
-/* ── Failed attempts warning ── */
+.setup-brand {
+    gap: 7px;
+}
+
+.setup-brand-label {
+    color: rgba(255, 255, 255, 0.73);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.17em;
+}
+
+.setup-brand-city {
+    color: rgba(255, 255, 255, 0.93);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin: 0 0 13px;
+}
+
+.setup-brand-title {
+    color: #e4bf52;
+    font-size: clamp(52px, 5vw, 68px);
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    margin-left: 0.1em;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.22);
+}
+
+.setup-brand-sub {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.55;
+}
+
+.login-panel-divider {
+    width: 112px;
+    height: 2px;
+    margin: 12px 0 2px;
+    background: #d6ac37;
+    border-radius: 99px;
+}
+
+.login-secure-access {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 11px;
+    width: min(100%, 320px);
+    text-align: center;
+    margin: 4px auto 0;
+}
+
+.login-secure-icon {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    place-items: center;
+    color: #dce8f4;
+    border: 1px solid rgba(220, 232, 244, 0.45);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.login-secure-icon svg { width: 24px; height: 24px; }
+
+.login-secure-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.login-secure-access p {
+    margin: 0;
+    color: rgba(235, 242, 249, 0.75);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.setup-left-footer {
+    margin-top: auto;
+    padding-top: 26px;
+    border-top-color: rgba(255, 255, 255, 0.17);
+}
+
+.setup-system-name {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+}
+
+.setup-version { color: rgba(255, 255, 255, 0.62); font-size: 12px; margin-top: 8px; }
+
+/* ── Login surface ───────────────────────────────────────────────────── */
+.setup-right {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: safe center;
+    min-width: 0;
+    height: 100vh;
+    padding: clamp(28px, 5vh, 60px) clamp(26px, 5.2vw, 92px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    background-color: #eef2f7;
+    background-image: linear-gradient(135deg, #fbfcfe 0%, #e9edf3 100%);
+}
+
+.setup-right::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: none;
+}
+
+.setup-form-wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 640px;
+}
+
+.login-card {
+    padding: clamp(28px, 3.4vw, 44px);
+    background: #ffffff;
+    border: 1px solid rgba(13, 42, 71, 0.10);
+    border-radius: 18px;
+    box-shadow: 0 24px 50px rgba(13, 42, 71, 0.10), 0 2px 6px rgba(13, 42, 71, 0.04);
+}
+
+/* Step indicator only appears in the first-time setup journey. */
+.setup-step-row { margin-bottom: 32px; }
+.setup-step.completed .step-dot { background: var(--navy); border-color: var(--navy); }
+.setup-step.completed .step-label { color: var(--navy); font-weight: 600; }
+.setup-step-line-done { background: var(--navy) !important; opacity: 0.4; }
+
+.setup-form-header {
+    position: relative;
+    min-height: 64px;
+    margin-bottom: 26px;
+    padding: 2px 0 0 84px;
+    border-bottom: 1px solid rgba(13, 42, 71, 0.10);
+    padding-bottom: 24px;
+}
+
+.login-header-icon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: grid;
+    width: 64px;
+    height: 64px;
+    place-items: center;
+    color: #6b89ab;
+    border: 1px solid rgba(25, 63, 100, 0.1);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f8fafc, #eef2f7);
+}
+
+.login-header-icon svg { width: 32px; height: 32px; }
+
+.setup-form-eyebrow {
+    color: #bd8f18;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    margin-bottom: 7px;
+}
+
+.setup-form-title {
+    color: #102d4e;
+    font-size: clamp(25px, 1.9vw, 30px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 5px;
+}
+
+.setup-form-desc {
+    color: #637895;
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.setup-notice {
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 14px 16px;
+    color: #536c8e;
+    border: 1px solid #d7e2ef;
+    border-left: 3px solid #355d87;
+    border-radius: 9px;
+    background: #f8fbff;
+    font-size: 14px;
+}
+
+.setup-notice svg { width: 18px; height: 18px; stroke: #496789; opacity: 1; }
+
+.setup-form { gap: 18px; }
+.form-group { gap: 8px; margin-bottom: 0; }
+
+.form-label {
+    color: #1b3859;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.form-required { color: #ad3939; }
+
+.form-input-wrap {
+    position: relative;
+    display: block;
+    width: 100%;
+    min-width: 0;
+}
+
+.form-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    height: 52px;
+    padding-left: 48px;
+    border: 1.5px solid #dde3ec;
+    border-radius: 10px;
+    background: #fff;
+    color: #173755;
+    font-size: 15px;
+}
+
+.form-input::placeholder { color: #8193ae; }
+.form-input:focus { border-color: #315f8d; box-shadow: 0 0 0 4px rgba(49, 95, 141, 0.12); }
+.form-input:disabled { background: #f3f6f9; }
+
+.form-input-icon { position: absolute; top: 50%; left: 16px; width: 20px; height: 20px; transform: translateY(-50%); stroke: #7287a2; pointer-events: none; }
+.form-input-password { padding-right: 54px; }
+.form-eye-btn { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; padding: 4px; background: none; border: none; cursor: pointer; color: #7287a2; }
+.form-eye-btn svg { width: 20px; height: 20px; }
+.form-eye-btn:hover, .form-eye-btn:focus-visible { color: #173755; }
+.form-eye-btn:focus-visible { outline: 2px solid #315f8d; outline-offset: 2px; border-radius: 4px; }
+
+.form-input-error { border-color: var(--red) !important; background: var(--red-bg) !important; }
+.form-input-error:focus { border-color: var(--red) !important; box-shadow: 0 0 0 4px rgba(139, 58, 58, 0.11) !important; }
+
+.setup-submit {
+    min-height: 54px;
+    margin-top: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1c3252 0%, #16263c 100%);
+    box-shadow: 0 7px 16px rgba(13, 42, 71, 0.16);
+    font-size: 15.5px;
+    font-weight: 700;
+}
+
+.setup-submit svg { width: 20px; height: 20px; }
+.setup-submit:hover:not(:disabled) { background: linear-gradient(180deg, #16263c 0%, #0f1d30 100%); box-shadow: 0 10px 22px rgba(13, 42, 71, 0.23); }
+.setup-submit:focus-visible { outline: 3px solid #e4bf52; outline-offset: 3px; }
+.setup-submit-locked { background: rgba(139, 58, 58, 0.14) !important; color: var(--red) !important; box-shadow: none; }
+.setup-submit-locked svg { stroke: var(--red) !important; }
+
+.setup-error, .login-attempts-warn, .login-locked-banner { border-radius: 9px; }
+
 .login-attempts-warn {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 11px 14px;
-    background: rgba(184, 115, 51, 0.06);
+    padding: 12px 14px;
+    color: #7a4a18;
     border: 1px solid rgba(184, 115, 51, 0.25);
     border-left: 3px solid #b87333;
-    border-radius: 7px;
+    border-radius: 8px;
+    background: rgba(184, 115, 51, 0.06);
     font-size: 13px;
-    color: #7a4a18;
     line-height: 1.5;
 }
 
-    .login-attempts-warn svg {
-        width: 15px;
-        height: 15px;
-        flex-shrink: 0;
-        margin-top: 1px;
-        stroke: #b87333;
-    }
+.login-attempts-warn svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; stroke: #b87333; }
+.login-attempts-warn strong { color: #5a3010; }
 
-    .login-attempts-warn strong {
-        font-weight: 700;
-        color: #5a3010;
-    }
+.login-locked-banner { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border: 1.5px solid rgba(139, 58, 58, 0.25); border-left: 4px solid var(--red); background: var(--red-bg); }
+.login-locked-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 8px; background: rgba(139, 58, 58, 0.1); }
+.login-locked-icon svg { width: 17px; height: 17px; stroke: var(--red); }
+.login-locked-title { margin-bottom: 3px; color: var(--red); font-size: 13.5px; font-weight: 700; }
+.login-locked-sub { color: rgba(139, 58, 58, 0.8); font-size: 12.5px; line-height: 1.5; }
+.login-locked-sub strong { color: var(--red); }
 
-/* ── Account locked banner ── */
-.login-locked-banner {
+.login-monitoring-notice {
     display: flex;
     align-items: flex-start;
     gap: 14px;
-    padding: 16px;
-    background: var(--red-bg);
-    border: 1.5px solid rgba(139, 58, 58, 0.25);
-    border-left: 4px solid var(--red);
-    border-radius: 8px;
-}
-
-.login-locked-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: rgba(139, 58, 58, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-    .login-locked-icon svg {
-        width: 17px;
-        height: 17px;
-        stroke: var(--red);
-        flex-shrink: 0;
-    }
-
-.login-locked-title {
-    font-size: 13.5px;
-    font-weight: 700;
-    color: var(--red);
-    margin-bottom: 3px;
-}
-
-.login-locked-sub {
-    font-size: 12.5px;
-    color: rgba(139, 58, 58, 0.8);
+    margin-top: 28px;
+    padding: 17px 19px;
+    color: #4f6788;
+    border: 1px solid #d5e4f5;
+    border-radius: 9px;
+    background: linear-gradient(90deg, #f8fbff, #fdfefe);
+    font-size: 14px;
     line-height: 1.5;
 }
 
-    .login-locked-sub strong {
-        font-weight: 700;
-        color: var(--red);
-    }
-
-/* ── Locked submit button variant ── */
-.setup-submit-locked {
-    background: rgba(139, 58, 58, 0.15) !important;
-    color: var(--red) !important;
-    cursor: not-allowed !important;
-    transform: none !important;
-}
-
-    .setup-submit-locked:hover {
-        background: rgba(139, 58, 58, 0.15) !important;
-        transform: none !important;
-    }
-
-    .setup-submit-locked svg {
-        stroke: var(--red) !important;
-    }
-
-/* ══════════════════════════════════════════════════════════════════════
-   Layout — right panel fills full height, no scroll, top-aligned
-   Matches AccountSetup.razor spacing/sizing exactly
-══════════════════════════════════════════════════════════════════════ */
-
-/* Right panel: full height, no overflow, top-aligned */
-.setup-right {
+.login-monitoring-notice {
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 44px 72px 32px 72px;
-    box-sizing: border-box;
-    overflow: hidden;
-    height: 100%;
-}
-
-/* Form wrap: same width as AccountSetup, no scroll */
-.setup-form-wrap {
-    width: 100%;
-    max-width: 620px;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-/* ── Header — same sizes as AccountSetup header ── */
-.setup-form-header {
-    margin-bottom: 20px;
-}
-
-.setup-form-eyebrow {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--gold);
-    margin-bottom: 8px;
-}
-
-/* Title — matches AccountSetup: weight 800, same visual size */
-.setup-form-title {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--navy);
-    line-height: 1.2;
-    margin-bottom: 8px;
-}
-
-.setup-form-desc {
-    font-size: 14px;
-    color: rgba(13, 33, 55, 0.45);
-    line-height: 1.6;
-}
-
-/* ── Notice box — rounded bordered card, same as AccountSetup ── */
-.setup-notice {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
-    background: rgba(13, 33, 55, 0.025);
-    border: 1px solid rgba(13, 33, 55, 0.1);
-    border-left: 3px solid rgba(13, 33, 55, 0.2);
-    border-radius: 9px;
-    font-size: 13px;
-    color: rgba(13, 33, 55, 0.55);
+    align-items: center;
+    gap: 14px;
+    margin-top: 6px;
+    padding: 16px 18px;
+    color: #5b6f8c;
+    border: 1px solid #e2eaf3;
+    border-radius: 10px;
+    background: #f4f8fc;
+    font-size: 13.5px;
     line-height: 1.55;
-    margin-bottom: 22px;
-    width: 100%;
-    box-sizing: border-box;
 }
 
-    .setup-notice svg {
-        width: 15px;
-        height: 15px;
-        flex-shrink: 0;
-        margin-top: 1px;
-        stroke: rgba(13, 33, 55, 0.3);
-    }
+.login-monitoring-notice svg { width: 24px; height: 24px; flex: 0 0 auto; stroke: #5f86ad; }
 
-/* ── Form fields ── */
-.setup-form {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    width: 100%;
+/* Remember me + forgot password */
+.login-options { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.login-remember { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13.5px; font-weight: 500; color: #44597a; user-select: none; }
+.login-remember input {
+    appearance: none; -webkit-appearance: none;
+    width: 18px; height: 18px; flex: 0 0 auto; position: relative;
+    border: 1.5px solid #c7d2e0; border-radius: 5px; background: #fff; cursor: pointer;
+    transition: background .12s ease, border-color .12s ease;
 }
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    width: 100%;
+.login-remember input:checked { background: #173e67; border-color: #173e67; }
+.login-remember input:checked::after {
+    content: ''; position: absolute; left: 5px; top: 1px; width: 5px; height: 9px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
+.login-remember input:focus-visible { outline: 2px solid #315f8d; outline-offset: 2px; }
+.login-forgot { padding: 2px 2px; border: none; background: none; cursor: pointer; font-size: 13.5px; font-weight: 600; color: #2f6db5; }
+.login-forgot:hover { color: #173e67; text-decoration: underline; }
+.login-forgot:focus-visible { outline: 2px solid #315f8d; outline-offset: 2px; border-radius: 4px; }
+.login-forgot-hint { padding: 11px 14px; border: 1px solid #d7e4f1; border-radius: 8px; background: #f1f6fb; color: #4f6788; font-size: 13px; line-height: 1.5; }
 
-.form-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--navy);
-    opacity: 0.7;
-}
+/* Divider between the action and the security notice */
+.login-divider { display: flex; align-items: center; gap: 14px; margin: 22px 0 0; color: #9aa9bd; font-size: 13px; font-weight: 500; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; height: 1px; background: rgba(13, 42, 71, 0.1); }
 
-.form-required {
-    color: var(--red);
-    margin-left: 2px;
-}
-
-/* Input wrapper */
-.form-input-wrap {
-    position: relative;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.form-input-icon {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 15px;
-    height: 15px;
-    stroke: rgba(13, 33, 55, 0.3);
-    pointer-events: none;
-}
-
-/* Inputs — same height/style as AccountSetup */
-.form-input {
-    width: 100%;
-    height: 48px;
-    padding: 0 16px 0 42px;
-    border: 1.5px solid rgba(13, 33, 55, 0.13);
-    border-radius: 8px;
-    background: #fff;
-    font-size: 14px;
-    color: var(--navy);
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.18s, box-shadow 0.18s;
-}
-
-    .form-input::placeholder {
-        color: rgba(13, 33, 55, 0.28);
-    }
-
-    .form-input:focus {
-        border-color: rgba(13, 33, 55, 0.4);
-        box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.07);
-    }
-
-    .form-input:disabled {
-        background: rgba(13, 33, 55, 0.04);
-        color: rgba(13, 33, 55, 0.35);
-        cursor: not-allowed;
-    }
-
-/* Password right padding for eye icon */
-.form-input-password {
-    padding-right: 46px;
-}
-
-/* Eye toggle */
-.form-eye-btn {
-    position: absolute;
-    right: 13px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(13, 33, 55, 0.32);
-    transition: color 0.15s;
-}
-
-    .form-eye-btn svg {
-        width: 16px;
-        height: 16px;
-        stroke: currentColor;
-    }
-
-    .form-eye-btn:hover {
-        color: var(--navy);
-    }
-
-/* Submit button — same as AccountSetup button */
-.setup-submit {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    width: 100%;
-    padding: 13px 24px;
-    background: var(--navy);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
-    letter-spacing: 0.3px;
-    margin-top: 4px;
-}
-
-    .setup-submit svg {
-        width: 17px;
-        height: 17px;
-        stroke: #fff;
-        flex-shrink: 0;
-    }
-
-    .setup-submit:hover:not(:disabled) {
-        background: #122944;
-        transform: translateY(-1px);
-        box-shadow: 0 5px 18px rgba(13, 33, 55, 0.2);
-    }
-
-    .setup-submit:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-        transform: none;
-    }
-
-/* Loading spinner */
-.setup-spinner {
-    width: 15px;
-    height: 15px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Footer */
 .setup-form-footer {
-    margin-top: 28px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(13, 33, 55, 0.08);
-    text-align: center;
-    font-size: 11.5px;
-    color: rgba(13, 33, 55, 0.3);
-    letter-spacing: 0.01em;
-}
-
-/* Error block */
-.setup-error {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 13px;
-    background: var(--red-bg);
-    border: 1px solid rgba(139, 58, 58, 0.2);
-    border-radius: 7px;
-    font-size: 13px;
-    color: var(--red);
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0 11px;
+    margin-top: 26px;
+    padding-top: 0;
+    border: 0;
+    color: #7c8fa8;
+    font-size: 12px;
 }
 
-    .setup-error svg {
-        width: 14px;
-        height: 14px;
-        flex-shrink: 0;
-        stroke: var(--red);
-    }
+.setup-form-footer svg { width: 16px; height: 16px; color: #617d9e; }
+
+/* ── Responsive, including compact laptop heights ─────────────────────── */
+@media (max-height: 820px) and (min-width: 769px) {
+    .setup-left-inner { gap: 17px; padding-top: 28px; padding-bottom: 24px; }
+    .government-logo-card { width: 82px; height: 82px; }
+    .setup-brand-city { margin-bottom: 6px; }
+    .setup-brand-title { font-size: 48px; }
+    .setup-brand-sub { font-size: 14px; }
+    .login-secure-access { margin-top: 10px; }
+    .setup-left-footer { padding-top: 18px; }
+    .login-card { padding-top: 30px; padding-bottom: 30px; }
+    .setup-form-header { margin-bottom: 20px; padding-bottom: 20px; }
+    .setup-form { gap: 15px; }
+    .login-monitoring-notice { margin-top: 20px; padding: 13px 16px; }
+}
+
+@media (max-width: 940px) {
+    .setup-left { width: clamp(300px, 35vw, 360px); }
+    .government-logo-card { width: 82px; height: 82px; }
+    .setup-left-inner { padding-right: 24px; padding-left: 24px; }
+    .setup-brand-city { font-size: 15px; }
+    .setup-brand-title { font-size: 48px; }
+    .setup-brand-sub { font-size: 14px; }
+    .login-secure-access { width: 100%; }
+    .setup-right { padding-right: 32px; padding-left: 32px; }
+    .login-card { padding: 34px; }
+}
+
+@media (max-width: 768px) {
+    .setup-root { display: block; height: auto; min-height: 100vh; overflow-x: hidden; }
+    .setup-left { width: 100%; height: auto; min-height: 235px; position: relative; }
+    .setup-left-inner { width: 100%; min-height: 235px; justify-content: center; gap: 12px; padding: 28px 22px; }
+    .government-seals { gap: 13px; margin: 0; }
+    .government-logo-card { width: 62px; height: 62px; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.05); }
+    .setup-brand { gap: 3px; }
+    .setup-brand-label { font-size: 9px; }
+    .setup-brand-city { font-size: 13px; margin-bottom: 5px; }
+    .setup-brand-title { font-size: 39px; }
+    .setup-brand-sub { font-size: 12px; }
+    .login-panel-divider, .login-secure-access, .setup-left-footer { display: none; }
+    .setup-step-row { display: none; }
+    .setup-right { height: auto; min-height: calc(100vh - 235px); padding: 28px 20px 32px; overflow: visible; }
+    .setup-right::before { background: rgba(246, 248, 252, 0.88); }
+    .login-card { padding: clamp(24px, 7vw, 36px); border-radius: 12px; }
+}
+
+@media (max-width: 480px) {
+    .setup-left { min-height: 210px; }
+    .setup-left-inner { min-height: 210px; padding-top: 23px; padding-bottom: 23px; }
+    .setup-right { min-height: calc(100vh - 210px); padding: 16px 12px 24px; }
+    .login-card { padding: 23px 18px; border-radius: 10px; }
+    .setup-form-header { min-height: 0; margin-bottom: 22px; padding: 0 0 21px; text-align: center; }
+    .login-header-icon { position: static; width: 60px; height: 60px; margin: 0 auto 13px; }
+    .login-header-icon svg { width: 32px; height: 32px; }
+    .setup-form-title { font-size: 29px; }
+    .setup-form-desc { font-size: 14px; }
+    .setup-notice { padding: 12px; font-size: 13px; }
+    .setup-form { gap: 18px; }
+    .form-input { height: 54px; }
+    .setup-submit { min-height: 55px; font-size: 15px; }
+    .login-monitoring-notice { gap: 10px; margin-top: 22px; padding: 13px; font-size: 13px; }
+    .login-monitoring-notice svg { width: 23px; height: 23px; }
+    .setup-form-footer { gap: 0 7px; font-size: 10.5px; line-height: 1.8; }
+}
+
+@media (max-width: 370px) {
+    .government-logo-card { width: 54px; height: 54px; }
+    .setup-brand-title { font-size: 34px; }
+    .setup-brand-city { font-size: 12px; }
+}

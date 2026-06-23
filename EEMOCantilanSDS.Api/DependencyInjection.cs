@@ -7,7 +7,8 @@ namespace EEMOCantilanSDS.Api
 {
     public static class DependencyInjection
     {
-        public static IServiceCollection AddApi(this IServiceCollection service, IConfiguration iconfiguration)
+      
+        public static IServiceCollection AddApi(this IServiceCollection service, IWebHostEnvironment environment, IConfiguration configuration)
         {
 
             service.AddHttpContextAccessor();
@@ -21,11 +22,18 @@ namespace EEMOCantilanSDS.Api
                        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()); 
                    });
 
+
             service.AddCors(options =>
             {
-                options.AddPolicy("AllowAll", builder =>
+                options.AddPolicy("AllowClient", builder =>
                 {
-                    builder.WithOrigins("http://localhost:5173", "https://localhost:5173")
+                    var allowedOrigins = environment.IsDevelopment() 
+                    ? configuration.GetSection("Developmemt_Cors:AllowedOriginsDevelopment").Get<string[]>()
+                    : configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+
+                    allowedOrigins ??= Array.Empty<string>();
+
+                    builder.WithOrigins("allowedOrigins")
                            .AllowAnyMethod()
                            .AllowAnyHeader()
                            .AllowCredentials();
@@ -59,7 +67,6 @@ namespace EEMOCantilanSDS.Api
                 options.CustomSchemaIds(s => s.FullName);
                 ; 
             });
-
 
 
             return service;
