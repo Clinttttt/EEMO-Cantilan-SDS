@@ -26,7 +26,13 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Restore deployable projects and tests
+      - name: Restore API
+        run: dotnet restore EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj
+
+      - name: Restore portal
+        run: dotnet restore EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj
+
+      - name: Restore tests
         run: dotnet restore EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
 
       - name: Build API
