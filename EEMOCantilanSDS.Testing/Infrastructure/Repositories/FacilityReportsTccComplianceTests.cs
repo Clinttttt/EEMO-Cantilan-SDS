@@ -139,8 +139,9 @@ public class FacilityReportsTccComplianceTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.TCC, ReportPeriod.Yearly, today.Year, null, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
-        // Only months Jan..currentMonth are due → exactly today.Month missed, not 12.
-        Assert.Equal(today.Month, row.MissedMonths);
+        // Only fully-elapsed past months are due (Jan..currentMonth-1); the current in-progress month
+        // and future months are excluded → today.Month - 1 missed, not 12.
+        Assert.Equal(today.Month - 1, row.MissedMonths);
     }
 
     [Fact]

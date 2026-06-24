@@ -96,6 +96,45 @@
     line-height: 1.2;
 }
 
+.fac-model-tag {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--bg-icon, #eef2f6);
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .2px;
+}
+
+/* Paid-on-service indicator (SLH/TRM/TPM) replaces the rate progress bar — kept slim so it doesn't
+   bloat the card relative to the stall cards' thin progress row. */
+.facility-onservice {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    background: var(--green-bg, #e9f5ee);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .2px;
+}
+
+    .facility-onservice svg {
+        width: 12px;
+        height: 12px;
+        stroke: var(--green);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
 .facility-alert-dot {
     width: 8px;
     height: 8px;

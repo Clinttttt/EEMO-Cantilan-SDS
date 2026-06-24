@@ -31,4 +31,17 @@ public interface IFacilityReportsRepository
         int month,
         CancellationToken ct
     );
+
+    /// <summary>
+    /// Stalls behind on payments over the rolling 12-month window ending at (and excluding) the given
+    /// month — the shared delinquency/arrears source for both the dashboard and the Financial Reports
+    /// attention list. <paramref name="facility"/> null = all facilities. Returns cumulative balance and
+    /// unpaid-month count per stall, ordered by months unpaid then balance (descending).
+    /// </summary>
+    Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility,
+        int year,
+        int month,
+        CancellationToken ct
+    );
 }

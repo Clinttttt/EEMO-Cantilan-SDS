@@ -158,6 +158,7 @@
                                 <div class="facility-card-meta">
                                     <div class="facility-card-code">@fac.Code</div>
                                     <div class="facility-card-name">@fac.Name</div>
+                                    <div class="fac-model-tag">@ModelLabel(fac.Code)</div>
                                 </div>
                                 @if (fac.UnpaidCount > 0)
                                 {
@@ -179,24 +180,34 @@
                                     else
                                     {
                                         <div class="fac-stat-val paid-val">@fac.PaidCount</div>
-                                        <div class="fac-stat-key">Paid</div>
+                                        <div class="fac-stat-key">@CountLabel(fac.Code)</div>
                                     }
                                 </div>
                                 <div class="fac-stat">
                                     <div class="fac-stat-val">@fac.TotalVendors</div>
-                                    <div class="fac-stat-key">Vendors</div>
+                                    <div class="fac-stat-key">@VendorLabel(fac.Code)</div>
                                 </div>
                             </div>
 
-                            <div class="facility-progress-wrap">
-                                <div class="facility-progress-bar">
-                                    <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
+                            @if (PaidOnService(fac.Code))
+                            {
+                                <div class="facility-onservice" title="Collected at the point of service — no recurring balance">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                                    Paid on service
                                 </div>
-                                <span class="facility-progress-pct">@fac.CollectionRate%</span>
-                            </div>
+                            }
+                            else
+                            {
+                                <div class="facility-progress-wrap">
+                                    <div class="facility-progress-bar">
+                                        <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
+                                    </div>
+                                    <span class="facility-progress-pct">@fac.CollectionRate%</span>
+                                </div>
+                            }
 
                             <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
-                                Manage Stalls
+                                @ActionLabel(fac.Code)
                                 <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
                             </a>
                         </div>
@@ -325,6 +336,42 @@
     private IReadOnlyList<DashboardFacilityDto> Facilities => _data?.Facilities ?? [];
     private IReadOnlyList<DashboardTransactionDto> RecentTransactions => _data?.RecentTransactions ?? [];
     private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => _data?.DelinquentVendors ?? [];
+
+    // ── Model-aware card presentation (derived from the facility code) ──
+    private static string ModelLabel(FacilityCode c) => c switch
+    {
+        FacilityCode.NPM => "Daily stall",
+        FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE => "Monthly rental",
+        FacilityCode.SLH => "Per-head",
+        FacilityCode.TRM => "Per-trip",
+        FacilityCode.TPM => "Weekly market",
+        _ => ""
+    };
+
+    // Per-head (SLH) / per-trip (TRM) / weekly-market (TPM) are paid on service — no recurring balance/rate.
+    private static bool PaidOnService(FacilityCode c) => c is FacilityCode.SLH or FacilityCode.TRM or FacilityCode.TPM;
+
+    private static string CountLabel(FacilityCode c) => c switch
+    {
+        FacilityCode.SLH => "Records",
+        FacilityCode.TRM => "Trips",
+        _ => "Paid"
+    };
+
+    private static string VendorLabel(FacilityCode c) => c switch
+    {
+        FacilityCode.SLH => "Owners",
+        FacilityCode.TRM => "Drivers",
+        _ => "Vendors"
+    };
+
+    private static string ActionLabel(FacilityCode c) => c switch
+    {
+        FacilityCode.SLH => "View Slaughterhouse",
+        FacilityCode.TRM => "View Terminal",
+        FacilityCode.TPM => "View Market",
+        _ => "Manage Stalls"
+    };
 
     // Presentation only: facility icon per code (data comes from the API).
     private static readonly Dictionary<FacilityCode, string> Icons = new()

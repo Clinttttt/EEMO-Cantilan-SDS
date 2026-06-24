@@ -3,6 +3,7 @@ using global::EEMOCantilanSDS.HttpClients.ApiClients;
 using EEMOCantilanSDS.Mobile.Security;
 using EEMOCantilanSDS.Mobile.Services;
 using Microsoft.Extensions.Logging;
+using EEMOCantilanSDS.Mobile.Abstractions;
 
 namespace EEMOCantilanSDS.Mobile
 {
@@ -60,10 +61,10 @@ namespace EEMOCantilanSDS.Mobile
             .AddHttpMessageHandler<MobileAuthorizationDelegatingHandler>();
 
             builder.Services.AddSingleton<IMobileApiClient>(sp =>
-                new EEMOCantilanSDS.Mobile.Services.CachingMobileApiClient(
+                new CachingMobileApiClient(
                     sp.GetRequiredService<MobileApiClient>(),
-                    sp.GetRequiredService<EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache>(),
-                    sp.GetRequiredService<EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor>()));
+                    sp.GetRequiredService<IOfflineReadCache>(),
+                    sp.GetRequiredService<IConnectivityMonitor>()));
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();

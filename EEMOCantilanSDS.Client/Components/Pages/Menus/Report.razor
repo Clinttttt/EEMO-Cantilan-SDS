@@ -1,255 +1,248 @@
 ﻿@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
 @rendermode InteractiveServer
+@inject IReportsApiClient ReportsApi
 
 <PageTitle>Financial Reports — EEMO Admin</PageTitle>
 
 <header class="topbar">
-            <div class="topbar-left">
-                <div class="topbar-title">Financial Reports</div>
-                <div class="topbar-breadcrumb">
-                    <span>EEMO Admin</span>
-                    <span class="breadcrumb-sep">/</span>
-                    <span class="breadcrumb-active">Reports</span>
-                </div>
-            </div>
-            <div class="topbar-right">
-                <div class="topbar-date">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
-                </div>
-                <div class="topbar-period">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                    Collection Period: <strong>@DateTime.Now.ToString("MMMM yyyy")</strong>
-                </div>
-                <AccountChip />
-            </div>
-        </header>
+    <div class="topbar-left">
+        <div class="topbar-title">Financial Reports</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Reports</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            Generated @GeneratedOn.ToString("MMM d, yyyy · h:mm tt")
+        </div>
+        <AccountChip />
+    </div>
+</header>
 
-        <div class="content-area">
+<div class="content-area">
 
-            <!-- ══════════════════════════════════════════════════
-                 FILTER PANEL v3
-                 Row 1: Period pills · Year dropdown · Month dropdown · Export
-                 Row 2: Facility chips (scrollable) · Active summary badge
-                 ══════════════════════════════════════════════════ -->
-            <div class="rpt-filter-panel">
+    <!-- REPORT IDENTITY & SCOPE -->
+    <div class="rpt-scope">
+        <div class="rpt-scope-main">
+            <span class="rpt-scope-item">Reporting period <strong>@PeriodLabel</strong></span>
+            <span class="rpt-scope-sep"></span>
+            <span class="rpt-scope-item">Scope <strong>@ScopeLabel</strong></span>
+            <span class="rpt-scope-sep"></span>
+            <span class="rpt-scope-item">Frequency <strong>@FrequencyLabel</strong></span>
+        </div>
+        <div class="rpt-scope-coverage" title="All EEMO facilities are included; collection cycles differ by facility model">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+            <strong>@(Model?.FacilityCount ?? 8) facilities</strong>&nbsp;· mixed collection cycles
+        </div>
+    </div>
 
-                <div class="rfp-top">
-
-                    <!-- Period — pills (only 3, compact) -->
-                    <div class="rfp-ctrl">
-                        <div class="rfp-label">Period</div>
-                        <div class="rfp-period-pills">
-                            <button class="rpp @(ActiveTab == "Monthly"   ? "on" : "")" @onclick='() => SetTab("Monthly")'>Monthly</button>
-                            <button class="rpp @(ActiveTab == "Quarterly" ? "on" : "")" @onclick='() => SetTab("Quarterly")'>Quarterly</button>
-                            <button class="rpp @(ActiveTab == "Annual"    ? "on" : "")" @onclick='() => SetTab("Annual")'>Annual</button>
-                        </div>
-                    </div>
-
-                    <!-- Year — dropdown -->
-                    <div class="rfp-ctrl">
-                        <div class="rfp-label">Year</div>
-                        <div class="rfp-sel-wrap">
-                            <select class="rfp-select" @bind="SelectedYear">
-                                <option value="2024">2024</option>
-                                <option value="2025">2025</option>
-                                <option value="2026">2026</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Month — dropdown, Monthly mode only -->
-                    @if (ActiveTab == "Monthly")
-                    {
-                        <div class="rfp-ctrl">
-                            <div class="rfp-label">Month</div>
-                            <div class="rfp-sel-wrap">
-                                <select class="rfp-select" @bind="SelectedMonth">
-                                    @foreach (var m in Months)
-                                    {
-                                        <option value="@m">@m</option>
-                                    }
-                                </select>
-                            </div>
-                        </div>
-                    }
-
-                    <!-- Export — pushed right -->
-                    <div class="rfp-export">
-                        <button class="rpt-btn-pdf" @onclick="ExportPdf">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                                <line x1="9" y1="13" x2="15" y2="13" />
-                                <line x1="9" y1="17" x2="15" y2="17" />
-                            </svg>
-                            Export PDF
-                        </button>
-                        <button class="rpt-btn-excel" @onclick="ExportExcel">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                            Export Excel
-                        </button>
-                    </div>
-                </div>
-
-                <div class="rfp-divider"></div>
-
-                <!-- Row 2 — Facility + badge -->
-                <div class="rfp-bottom">
-                    <div class="rfp-fac-row">
-                        <div class="rfp-label rfp-label-inline">Facility</div>
-                        <div class="rfp-chips">
-                            @foreach (var (codes, label) in FacilityOptions)
-                            {
-                                var fc = codes;
-                                var lbl = label;
-                                <button class="rfp-chip @(SelectedFacility == fc ? "on" : "")"
-                                        @onclick='() => SelectedFacility = fc'>
-                                    @if (codes != "All")
-                                    {
-                                        <span class="rfp-chip-code">@codes</span>
-                                    }
-                                    @lbl
-                                </button>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="rfp-badge">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        <strong>@(SelectedFacility == "All" ? "All Facilities" : SelectedFacility)</strong>
-                        &nbsp;·&nbsp;
-                        <strong>@(ActiveTab == "Monthly" ? SelectedMonth + " " : "")@SelectedYear</strong>
-                        &nbsp;·&nbsp; @ActiveTab
-                    </div>
-                </div>
-
-            </div>
-            <!-- END FILTER PANEL -->
-
-            <!-- KPI ROW -->
-            <div class="kpi-row">
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrap green">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">₱242,170</div>
-                        <div class="kpi-label">Total Collected</div>
-                        <div class="kpi-sub"><span class="up">↑ 8.4%</span> vs Feb 2026</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrap red">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <line x1="12" y1="8" x2="12" y2="12" />
-                            <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">₱63,750</div>
-                        <div class="kpi-label">Pending / Unpaid</div>
-                        <div class="kpi-sub"><span class="down">42 vendors</span> overdue</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrap gold">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                        </svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">80%</div>
-                        <div class="kpi-label">Collection Rate</div>
-                        <div class="kpi-sub"><span class="up">↑ 2.1%</span> vs Feb 2026</div>
-                    </div>
-                </div>
-                <div class="kpi-card">
-                    <div class="kpi-icon-wrap navy">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="9 11 12 14 22 4" />
-                            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-                        </svg>
-                    </div>
-                    <div class="kpi-body">
-                        <div class="kpi-value">168</div>
-                        <div class="kpi-label">Paid Transactions</div>
-                        <div class="kpi-sub">6 facilities covered</div>
-                    </div>
+    <!-- FILTER PANEL -->
+    <div class="rpt-filter-panel">
+        <div class="rfp-top">
+            <div class="rfp-ctrl">
+                <div class="rfp-label">Period</div>
+                <div class="rfp-period-pills">
+                    <button class="rpp @(ActiveTab == "Monthly" ? "on" : "")" @onclick='() => SetTab("Monthly")'>Monthly</button>
+                    <button class="rpp @(ActiveTab == "Annual" ? "on" : "")" @onclick='() => SetTab("Annual")'>Annual</button>
                 </div>
             </div>
 
-            <!-- CHART + DELINQUENCY -->
-            <div class="two-col">
-                <div class="section-card">
-                    <div class="section-header">
-                        <div>
-                            <div class="section-title">Monthly Revenue Trend</div>
-                            <div class="section-sub">All facilities · Jan – Mar 2026</div>
-                        </div>
-                        <button class="section-action">View History</button>
-                    </div>
-                    <div class="chart-wrap">
-                        <div class="chart-legend">
-                            <div class="legend-item"><div class="legend-dot" style="background:var(--navy)"></div> Collected</div>
-                            <div class="legend-item"><div class="legend-dot" style="background:#dde4ea"></div> Unpaid</div>
-                        </div>
-                        <div class="bar-chart">
-                            @foreach (var m in MonthlyTrend)
-                            {
-                                <div class="bar-group">
-                                    <div class="bar-wrap">
-                                        <div class="bar @(m.IsCurrent ? "gold-bar" : "collected")" style="height:@(m.CollectedPct)%"></div>
-                                        <div class="bar unpaid" style="height:@(m.UnpaidPct)%"></div>
-                                    </div>
-                                    <div class="bar-month" style="@(m.IsCurrent ? "color:var(--gold);font-weight:700" : "")">
-                                        @m.Label@(m.IsCurrent ? " ●" : "")
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                        <div class="rpt-chart-summary">
-                            @foreach (var m in MonthlyTrend)
-                            {
-                                <div class="rpt-chart-summary-col @(m.IsCurrent ? "current" : "")">
-                                    <div class="mono-num rpt-chart-val @(m.IsCurrent ? "gold-text" : "")">@m.CollectedFormatted</div>
-                                    <div class="rpt-chart-sublabel">@m.Label Collected</div>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-
-                <div class="section-card">
-                    <div class="section-header">
-                        <div>
-                            <div class="section-title">Top Delinquents</div>
-                            <div class="section-sub">Highest unpaid balances</div>
-                        </div>
-                        <button class="section-action">Full List</button>
-                    </div>
-                    <div class="delinq-list">
-                        @foreach (var d in TopDelinquents)
+            <div class="rfp-ctrl">
+                <div class="rfp-label">Year</div>
+                <div class="rfp-sel-wrap">
+                    <select class="rfp-select" @bind="SelectedYear" @bind:after="Load">
+                        @foreach (var y in Years)
                         {
-                            <a href="@GetProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (ActiveTab == "Monthly")
+            {
+                <div class="rfp-ctrl">
+                    <div class="rfp-label">Month</div>
+                    <div class="rfp-sel-wrap">
+                        <select class="rfp-select" @bind="SelectedMonth" @bind:after="Load">
+                            @foreach (var m in Months)
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+            }
+
+            <div class="rfp-export">
+                <span class="rfp-export-note">Export uses the active scope above</span>
+                <button class="rpt-btn-pdf" @onclick="ExportPdf" disabled="@(Model is null)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
+                    Export PDF
+                </button>
+                <button class="rpt-btn-excel" @onclick="ExportExcel" disabled="@(Model is null)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    Export Excel
+                </button>
+            </div>
+        </div>
+
+        <div class="rfp-divider"></div>
+
+        <div class="rfp-bottom">
+            <div class="rfp-fac-row">
+                <div class="rfp-label rfp-label-inline">Facility</div>
+                <div class="rfp-chips">
+                    @foreach (var (codes, label) in FacilityOptions)
+                    {
+                        var fc = codes;
+                        <button class="rfp-chip @(SelectedFacility == fc ? "on" : "")" title="@label" @onclick='() => SelectFacility(fc)'>
+                            @(codes == "All" ? "All" : codes)
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="rfp-badge">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <strong>@ScopeLabel</strong>&nbsp;·&nbsp;<strong>@PeriodLabel</strong>
+            </div>
+        </div>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="rpt-state">Loading report…</div>
+    }
+    else if (Model is null)
+    {
+        <div class="rpt-state rpt-state-error">
+            Unable to load the report for @PeriodLabel.
+            <button class="rpt-retry" @onclick="Load">Try again</button>
+        </div>
+    }
+    else
+    {
+        <!-- FINANCIAL POSITION — KPIs -->
+        <div class="kpi-row">
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap green">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-value">@Money(Model.Collected)</div>
+                    <div class="kpi-label">Collected — @PeriodLabel</div>
+                    @if (Model.CollectedPreviousPeriod is decimal prev && Model.PreviousPeriodLabel is not null && prev > 0)
+                    {
+                        var delta = (Model.Collected - prev) / prev * 100m;
+                        <div class="kpi-sub"><span class="@(delta >= 0 ? "up" : "down")">@(delta >= 0 ? "↑" : "↓") @Math.Abs(delta).ToString("0.0")%</span> vs @Model.PreviousPeriodLabel</div>
+                    }
+                    else
+                    {
+                        <div class="kpi-sub">Recorded collections this period</div>
+                    }
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap red">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-value">@Money(Model.CurrentPeriodUnpaid)</div>
+                    <div class="kpi-label">Current-period unpaid balance</div>
+                    <div class="kpi-sub">Billed but uncollected for @PeriodLabel</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap gold">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-value">@Model.CollectionRatePct%</div>
+                    <div class="kpi-label">Collection rate (by amount)</div>
+                    <div class="kpi-sub">@Money(Model.Collected) of @Money(Model.Billed) billed</div>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon-wrap navy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-value">@Model.PaidRecords</div>
+                    <div class="kpi-label">Paid collection records</div>
+                    <div class="kpi-sub">@Model.PaidRecords of @Model.ExpectedRecords expected · @Model.FacilityCount facilities</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ATTENTION & FOLLOW-UP -->
+        <div class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Attention &amp; Follow-up</div>
+                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) outstanding</div>
+                </div>
+            </div>
+            <div class="rpt-attention">
+                <div class="attn-col">
+                    <div class="attn-col-head">
+                        <span class="attn-col-title attn-delinquent">Delinquent accounts</span>
+                        <span class="attn-count attn-count-red">@Model.Delinquent.Count</span>
+                    </div>
+                    <div class="attn-col-note">3 or more unpaid months</div>
+                    <div class="delinq-list">
+                        @if (Model.Delinquent.Count == 0)
+                        {
+                            <div class="rpt-empty">No delinquent accounts for @PeriodLabel.</div>
+                        }
+                        @foreach (var d in Model.Delinquent)
+                        {
+                            <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
                                 <div class="delinq-item">
-                                    <div class="delinq-avatar">@d.Initials</div>
+                                    <div class="delinq-avatar">@Initials(d.Name)</div>
                                     <div class="delinq-info">
                                         <div class="delinq-name">@d.Name</div>
                                         <div class="delinq-loc">@d.Location</div>
                                     </div>
                                     <div class="delinq-amount">
-                                        <div class="delinq-amt-val">@d.Amount</div>
-                                        <div class="delinq-months">@d.Duration</div>
+                                        <div class="delinq-amt-val">@Money(d.Balance)</div>
+                                        <div class="delinq-months attn-age-red">@MonthsLabel(d.UnpaidMonths)</div>
+                                    </div>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                </div>
+                <div class="attn-col">
+                    <div class="attn-col-head">
+                        <span class="attn-col-title attn-arrears">Accounts in arrears</span>
+                        <span class="attn-count attn-count-amber">@Model.Arrears.Count</span>
+                    </div>
+                    <div class="attn-col-note">1–2 unpaid months</div>
+                    <div class="delinq-list">
+                        @if (Model.Arrears.Count == 0)
+                        {
+                            <div class="rpt-empty">No accounts in arrears for @PeriodLabel.</div>
+                        }
+                        @foreach (var d in Model.Arrears)
+                        {
+                            <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
+                                <div class="delinq-item">
+                                    <div class="delinq-avatar">@Initials(d.Name)</div>
+                                    <div class="delinq-info">
+                                        <div class="delinq-name">@d.Name</div>
+                                        <div class="delinq-loc">@d.Location</div>
+                                    </div>
+                                    <div class="delinq-amount">
+                                        <div class="delinq-amt-val amber">@Money(d.Balance)</div>
+                                        <div class="delinq-months attn-age-amber">@MonthsLabel(d.UnpaidMonths)</div>
                                     </div>
                                 </div>
                             </a>
@@ -257,160 +250,237 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- FACILITY TABLE -->
-            <div class="section-card" style="margin-bottom:20px;">
-                <div class="section-header">
-                    <div>
-                        <div class="section-title">Revenue by Facility — @SelectedMonth @SelectedYear</div>
-                        <div class="section-sub">Collection status per facility</div>
-                    </div>
-                    <button class="section-action">Export Table</button>
+        <!-- REVENUE TREND -->
+        <div class="section-card" style="margin-bottom:20px;">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Revenue Trend</div>
+                    <div class="section-sub">@ScopeLabel · amounts in ₱</div>
                 </div>
+            </div>
+            <div class="chart-wrap">
+                @if (TrendBars.Count == 0)
+                {
+                    <div class="rpt-empty">No trend data for @PeriodLabel.</div>
+                }
+                else
+                {
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-dot" style="background:var(--navy)"></div> Collected</div>
+                        <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div> Selected period</div>
+                        <div class="legend-item"><div class="legend-dot" style="background:#dde4ea"></div> Current-period unpaid balance</div>
+                    </div>
+                    <div class="rpt-trend-plot">
+                        <div class="rpt-yaxis" aria-hidden="true">
+                            @foreach (var lbl in AxisLabels)
+                            {
+                                <span>@lbl</span>
+                            }
+                        </div>
+                        <div class="rpt-plot">
+                            <div class="rpt-grid" aria-hidden="true">
+                                @foreach (var _ in AxisLabels)
+                                {
+                                    <div class="rpt-grid-line"></div>
+                                }
+                            </div>
+                            <div class="bar-chart">
+                                @{ var bi = 0; }
+                                @foreach (var m in TrendBars)
+                                {
+                                    var delay = $"{bi * 70}ms";
+                                    <div class="bar-group" @key="(_renderEpoch, bi)">
+                                        <div class="bar-wrap" aria-label="@m.Label — collected @Money(m.Collected), unpaid @Money(m.Unpaid)">
+                                            <div class="bar @(m.IsSelected ? "gold-bar" : "collected")" style="height:@Pct(m.Collected)%;animation-delay:@delay"></div>
+                                            <div class="bar unpaid" style="height:@Pct(m.Unpaid)%;animation-delay:@delay"></div>
+                                            <div class="bar-tip" role="tooltip">
+                                                <div class="bar-tip-title">@m.Label</div>
+                                                <div class="bar-tip-row"><span class="bar-tip-dot tip-collected"></span><span class="bar-tip-key">Collected</span><span class="bar-tip-val">@Money(m.Collected)</span></div>
+                                                <div class="bar-tip-row"><span class="bar-tip-dot tip-unpaid"></span><span class="bar-tip-key">Unpaid</span><span class="bar-tip-val">@Money(m.Unpaid)</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="bar-month" style="@(m.IsSelected ? "color:var(--gold);font-weight:700" : "")">@m.Label@(m.IsSelected ? " ●" : "")</div>
+                                    </div>
+                                    bi++;
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="rpt-ytd-note">
+                        Collected across shown periods: <strong>@Money(Model.YtdCollected)</strong>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- REVENUE BY FACILITY -->
+        <div class="section-card" style="margin-bottom:20px;">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Revenue by Facility — @PeriodLabel</div>
+                    <div class="section-sub">Collection differs by facility model; unpaid/rate apply only to billed cycles</div>
+                </div>
+            </div>
+            <div class="rpt-table-scroll">
                 <table class="fac-table">
                     <thead>
                         <tr>
-                            <th>Facility</th><th>Vendors</th><th>Collected</th>
-                            <th>Unpaid</th><th>Progress</th><th>Rate</th><th>Status</th>
+                            <th scope="col">Facility</th>
+                            <th scope="col">Collection model</th>
+                            <th scope="col">Collected</th>
+                            <th scope="col">Unpaid (period)</th>
+                            <th scope="col">Paid records</th>
+                            <th scope="col">Rate</th>
+                            <th scope="col">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var f in FacilityRows)
+                        @foreach (var f in Model.Facilities)
                         {
-                            <tr>
+                            var expandable = f.Detail is not null;
+                            var open = expandable && _expandedFacilities.Contains(f.Code);
+                            <tr class="@(expandable ? "fac-expandable" : "")" @onclick="@(() => ToggleFacility(f.Code, expandable))">
                                 <td>
                                     <div class="fac-name">
-                                        <span class="fac-code-badge">@f.Code</span>
-                                        @f.Name
+                                        @if (expandable)
+                                        {
+                                            <span class="fac-caret @(open ? "open" : "")">&#9654;</span>
+                                        }
+                                        <span class="fac-code-badge">@f.Code</span> @f.Name
                                     </div>
                                 </td>
-                                <td>@(f.Vendors > 0 ? f.Vendors.ToString() : "—")</td>
-                                <td class="mono-num">@f.Collected</td>
-                                <td class="mono-num" style="color:var(--red);">@f.Unpaid</td>
-                                <td class="progress-cell">
-                                    <div class="progress-bar-bg">
-                                        <div class="progress-bar-fill" style="width:@(f.Rate)%"></div>
-                                    </div>
-                                    <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">@f.PaidLabel</div>
-                                </td>
-                                <td style="font-weight:700;color:var(--navy);">@(f.Rate)%</td>
-                                <td><span class="status-pill @f.StatusClass">@f.StatusLabel</span></td>
+                                <td><span class="fac-model">@f.Model</span></td>
+                                <td class="mono-num">@Money(f.Collected)</td>
+                                <td class="mono-num" style="@(f.Unpaid.HasValue && f.Unpaid > 0 ? "color:var(--red);" : "color:var(--text-muted);")">@(f.Unpaid.HasValue ? Money(f.Unpaid.Value) : "—")</td>
+                                <td class="mono-num">@f.PaidRecords</td>
+                                <td style="font-weight:700;color:@(f.RatePct.HasValue ? "var(--navy)" : "var(--text-muted)");">@(f.RatePct.HasValue ? f.RatePct + "%" : "—")</td>
+                                <td><span class="status-pill @StatusClass(f.Status)">@f.Status</span></td>
                             </tr>
+                            @if (open && f.Detail is { } nd)
+                            {
+                                var other = f.Collected - nd.DailyFeeCollected - nd.FishCollected;
+                                <tr class="fac-detail-row">
+                                    <td colspan="7">
+                                        <div class="fac-detail">
+                                            <div class="fac-detail-group">
+                                                <div class="fac-detail-heading">Collected breakdown</div>
+                                                <div class="fac-detail-item"><span>Daily stall fee</span><strong>@Money(nd.DailyFeeCollected)</strong></div>
+                                                <div class="fac-detail-item"><span>Fish KG</span><strong>@Money(nd.FishCollected)</strong></div>
+                                                @if (other > 0)
+                                                {
+                                                    <div class="fac-detail-item"><span>Utilities / other</span><strong>@Money(other)</strong></div>
+                                                }
+                                                <div class="fac-detail-item fac-detail-total"><span>Total collected</span><strong>@Money(f.Collected)</strong></div>
+                                            </div>
+                                            <div class="fac-detail-group">
+                                                <div class="fac-detail-heading">Outstanding</div>
+                                                <div class="fac-detail-item"><span>Unpaid this period (assessed − collected)</span><strong class="fac-detail-red">@Money(nd.PeriodBalance)</strong></div>
+                                                @if (nd.FullMonthCoverage > 0)
+                                                {
+                                                    <div class="fac-detail-item"><span>Full-month coverage (stalls × ₱900)</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
+                                                    <div class="fac-detail-item"><span>Full-month coverage balance</span><strong class="fac-detail-red">@Money(nd.FullMonthCoverageBalance)</strong></div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
+                    <tfoot>
+                        <tr class="fac-foot">
+                            <td colspan="2"><strong>Total — @ScopeLabel</strong></td>
+                            <td class="mono-num"><strong>@Money(Model.Collected)</strong></td>
+                            <td class="mono-num" style="color:var(--red);"><strong>@Money(Model.CurrentPeriodUnpaid)</strong></td>
+                            <td class="mono-num"><strong>@Model.PaidRecords</strong></td>
+                            <td style="font-weight:700;color:var(--navy);"><strong>@Model.CollectionRatePct%</strong></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
+            <div class="rpt-legend-note">
+                <span class="rpt-legend-dot"></span>
+                All EEMO facilities are included regardless of collection model.
+                Per-head (SLH), per-trip (TRM) and weekly-market (TPM) facilities are paid on service at the point of collection, so they carry no recurring unpaid balance and show a 100% rate.
+            </div>
+        </div>
 
-            <!-- RECENT TRANSACTIONS -->
-            <div class="section-card" style="margin-bottom:20px;">
-                <div class="section-header">
-                    <div>
-                        <div class="section-title">Recent Transactions</div>
-                        <div class="section-sub">Last 10 recorded payments · @SelectedMonth @SelectedYear</div>
-                    </div>
-                    <button class="section-action">View All</button>
+        <!-- RECENT COLLECTION RECORDS -->
+        <div class="section-card" style="margin-bottom:20px;">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Recent Collection Records</div>
+                    <div class="section-sub">Latest recorded payments · @ScopeLabel</div>
                 </div>
+            </div>
+            <div class="rpt-table-scroll">
                 <table class="tx-table">
                     <thead>
                         <tr>
-                            <th>Ref #</th><th>Vendor / Stall</th><th>Facility</th>
-                            <th>Date</th><th>Collector</th><th>Method</th><th>Amount</th>
+                            <th scope="col">OR / Ref #</th>
+                            <th scope="col">Payor / Stall</th>
+                            <th scope="col">Facility</th>
+                            <th scope="col">Date</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Amount</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var tx in RecentTransactions)
+                        @if (Model.RecentRecords.Count == 0)
+                        {
+                            <tr><td colspan="6"><div class="rpt-empty">No records for @ScopeLabel.</div></td></tr>
+                        }
+                        @foreach (var tx in Model.RecentRecords)
                         {
                             <tr>
-                                <td class="tx-id">@tx.RefNo</td>
-                                <td>
-                                    <a href="@GetProfileUrl(tx.FacilityCode, tx.StallNo)" class="vendor-link">@tx.Vendor</a>
-                                </td>
+                                <td class="tx-id">@tx.Reference</td>
+                                <td><a href="@ProfileUrl(tx.FacilityCode, tx.StallNo)" class="vendor-link">@tx.Payor</a></td>
                                 <td><span class="fac-code-badge">@tx.FacilityCode</span></td>
-                                <td style="color:var(--text-muted);font-size:12.5px;">@tx.Date</td>
-                                <td style="font-size:12.5px;">@tx.Collector</td>
+                                <td style="color:var(--text-muted);font-size:12.5px;">@tx.RecordedAt.ToString("MMM d, yyyy")</td>
                                 <td><span class="pay-method">@tx.Method</span></td>
-                                <td class="amount-green">₱ @tx.Amount</td>
+                                <td class="amount-green">@Money(tx.Amount)</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
-
-            <!-- SUMMARY BOTTOM 3 CARDS -->
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <div class="summary-card-title">Collection Rate Breakdown</div>
-                    <div class="donut-row">
-                        <div class="donut-wrap">
-                            <svg viewBox="0 0 80 80">
-                                <circle cx="40" cy="40" r="32" fill="none" stroke="#eef2f6" stroke-width="12" />
-                                <circle cx="40" cy="40" r="32" fill="none" stroke="#c8a84b" stroke-width="12"
-                                        stroke-dasharray="200 51" stroke-dashoffset="63" stroke-linecap="round" />
-                            </svg>
-                            <div class="donut-center">80%</div>
-                        </div>
-                        <div class="donut-legend">
-                            <div class="donut-legend-item">
-                                <div class="donut-legend-label"><div class="donut-dot" style="background:var(--gold)"></div> Collected</div>
-                                <div class="donut-legend-val">₱242,170</div>
-                            </div>
-                            <div class="donut-legend-item">
-                                <div class="donut-legend-label"><div class="donut-dot" style="background:#dde4ea"></div> Unpaid</div>
-                                <div class="donut-legend-val" style="color:var(--red)">₱63,750</div>
-                            </div>
-                            <div class="donut-legend-item">
-                                <div class="donut-legend-label"><div class="donut-dot" style="background:#eef2f6"></div> Total</div>
-                                <div class="donut-legend-val">₱305,920</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="summary-card">
-                    <div class="summary-card-title">Year-to-Date · @SelectedYear</div>
-                    <div class="mini-list">
-                        @foreach (var ytd in YtdItems)
-                        {
-                            <div class="mini-list-item" style="@ytd.BorderStyle">
-                                <div class="mini-list-label" style="@ytd.LabelStyle">@ytd.Month</div>
-                                <div class="mini-list-val" style="@ytd.ValStyle">@ytd.Amount</div>
-                            </div>
-                        }
-                    </div>
-                </div>
-
-                <div class="summary-card">
-                    <div class="summary-card-title">Monthly Target Progress</div>
-                    @foreach (var (cr, i) in CollectionRates.Select((x, i) => (x, i)))
-                    {
-                        <div class="collection-rate-bar" style="@(i > 0 ? "margin-top:12px;" : "")">
-                            <div class="cr-row">
-                                <span>@cr.Label</span>
-                                <span class="cr-val" style="@(cr.Rate < 70 ? "color:var(--red)" : "")">@(cr.Rate)%</span>
-                            </div>
-                            <div class="cr-bar-bg">
-                                <div class="cr-bar-fill" style="width:@(cr.Rate)%;@(cr.Rate < 70 ? "background:var(--red)" : "")"></div>
-                            </div>
-                        </div>
-                    }
-                </div>
-            </div>
-
         </div>
+    }
+
+</div>
 
 @code {
+    // ── Filter selection ── (defaults to the current Philippine month/year)
     private string ActiveTab = "Monthly";
-    private string SelectedYear = "2026";
-    private string SelectedMonth = "March";
+    private string SelectedYear = PhilippineTime.Today.Year.ToString();
+    private string SelectedMonth = PhilippineTime.Today.ToString("MMMM", System.Globalization.CultureInfo.InvariantCulture);
     private string SelectedFacility = "All";
 
-    private void SetTab(string tab) { ActiveTab = tab; }
+    private FinancialReportDto? Model;
+    private bool Loading = true;
+
+    private readonly HashSet<FacilityCode> _expandedFacilities = new();
+
+    private void ToggleFacility(FacilityCode code, bool expandable)
+    {
+        if (!expandable) return;
+        if (!_expandedFacilities.Add(code)) _expandedFacilities.Remove(code);
+    }
+
+    private DateTime GeneratedOn => DateTime.Now;
 
     private static readonly List<string> Months = new()
     {
         "January","February","March","April","May","June",
         "July","August","September","October","November","December"
     };
+
+    // Year options: the current Philippine year and the two prior years. Computed per render so it
+    // always includes the current year (the default), even across a year rollover without a restart.
+    private List<int> Years => Enumerable.Range(PhilippineTime.Today.Year - 2, 3).ToList();
 
     private static readonly List<(string Code, string Label)> FacilityOptions = new()
     {
@@ -425,88 +495,148 @@
         ("TPM", "Tabo-an Market"),
     };
 
-    private record MonthData(string Label, int CollectedPct, int UnpaidPct, string CollectedFormatted, bool IsCurrent);
-    private List<MonthData> MonthlyTrend = new()
+    // Authoritative scope labels (fall back to selection before/while loading).
+    private string PeriodLabel => Model?.PeriodLabel
+        ?? (ActiveTab == "Monthly" ? $"{SelectedMonth} {SelectedYear}" : SelectedYear);
+    private string ScopeLabel => Model?.ScopeLabel
+        ?? (SelectedFacility == "All" ? "All facilities" : FacilityOptions.First(o => o.Code == SelectedFacility).Label);
+    private string FrequencyLabel => Model?.Frequency ?? ActiveTab;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task SetTab(string tab)
     {
-        new("Jan", 68, 32, "₱223,440", false),
-        new("Feb", 74, 26, "₱233,800", false),
-        new("Mar", 80, 20, "₱242,170", true),
-    };
-
-    private record DelinquentEntry(string Initials, string Name, string Location, string FacilityCode, string StallNo, string Amount, string Duration);
-    private List<DelinquentEntry> TopDelinquents = new()
-    {
-        new("RM", "Rosa Magbanua",   "TCC · Stall 04",          "tcc", "04",      "₱4,800", "3 months"),
-        new("JD", "Jose Dalumpines", "NCC · Stall 11-B",        "ncc", "11-B",    "₱3,600", "2 months"),
-        new("MV", "Maria Velasco",   "NPM · Stall 22 (Fish)",   "npm", "22",      "₱3,150", "1 month + arrears"),
-        new("EB", "Eduardo Briones", "BBQ Stand · Unit 2",      "bbq", "2",       "₱2,700", "3 months"),
-        new("NL", "Nelly Lumabas",   "TCC · Stall 09 (Corner)", "tcc", "09",      "₱2,400", "2 months"),
-    };
-
-    private record FacilityRow(string Code, string Name, int Vendors, string Collected, string Unpaid, int Rate, string PaidLabel, string StatusClass, string StatusLabel);
-    private List<FacilityRow> FacilityRows = new()
-    {
-        new("NPM", "New Public Market",        100, "₱62,400", "₱15,600", 80, "80 / 100 paid",  "warn", "On Track"),
-        new("TCC", "Tampak Commercial Center",  43, "₱48,600", "₱9,600",  81, "35 / 43 paid",   "warn", "On Track"),
-        new("NCC", "New Commercial Center",     28, "₱56,520", "₱12,480", 82, "23 / 28 paid",   "good", "Good"),
-        new("BBQ", "Barbecue Stand",             8, "₱5,600",  "₱1,400",  88, "7 / 8 paid",     "good", "Good"),
-        new("ICE", "Iceplant",                   5, "₱40,650", "₱8,130",  60, "3 / 5 paid",     "bad",  "Behind"),
-        new("SLH", "Slaughterhouse",             0, "₱28,400", "₱16,540", 63, "Per-head basis", "bad",  "Behind"),
-        new("TRM", "Transport Terminal",         0, "₱12,300", "₱0",      100, "Per-trip basis", "good", "Good"),
-        new("TPM", "Tabo-an Public Market",     35, "₱18,750", "₱3,250",  85, "30 / 35 paid",   "good", "Good"),
-    };
-
-    private record Transaction(string RefNo, string Vendor, string FacilityCode, string StallNo, string Date, string Collector, string Method, string Amount);
-    private List<Transaction> RecentTransactions = new()
-    {
-        new("#TX-2026-0168", "Luzviminda Cano · Stall 5",   "npm", "5",   "Mar 25, 2026", "Dela Cruz, J.", "Cash", "930"),
-        new("#TX-2026-0167", "Hernando Aguilar · Stall 11", "tcc", "11",  "Mar 25, 2026", "Santos, M.",    "Cash", "1,800"),
-        new("#TX-2026-0166", "Perla Macaraeg · Unit 1",     "bbq", "1",   "Mar 24, 2026", "Reyes, A.",     "Cash", "700"),
-        new("#TX-2026-0165", "Carmelita Ebo · Stall 3-B",   "ncc", "3-B", "Mar 24, 2026", "Dela Cruz, J.", "Cash", "2,400"),
-        new("#TX-2026-0164", "Slaughter · 4 Hogs",          "slh", "04",  "Mar 24, 2026", "Gomez, R.",     "Cash", "1,000"),
-        new("#TX-2026-0163", "Florentina Cruz · Stall 8",   "npm", "8",   "Mar 23, 2026", "Santos, M.",    "Cash", "960"),
-    };
-
-    private record YtdItem(string Month, string Amount, string BorderStyle, string LabelStyle, string ValStyle);
-    private List<YtdItem> YtdItems = new()
-    {
-        new("January",         "₱223,440", "", "", ""),
-        new("February",        "₱233,800", "", "", ""),
-        new("March (current)", "₱242,170", "", "color:var(--gold);font-weight:600", "color:var(--gold)"),
-        new("YTD Total",       "₱699,410", "border-top:2px solid var(--border);padding-top:10px;margin-top:4px;",
-            "font-weight:700;color:var(--navy)", "color:var(--green);font-size:15px"),
-    };
-
-    private record CollectionRate(string Label, int Rate);
-    private List<CollectionRate> CollectionRates = new()
-    {
-        new("New Public Market", 80),
-        new("Tampak Comm.",      81),
-        new("New Comm. Center",  82),
-        new("Slaughterhouse",    63),
-        new("Iceplant",          60),
-    };
-
-    private void ExportPdf()   { /* TODO */ }
-    private void ExportExcel() { /* TODO */ }
-
-    /// <summary>
-    /// Generates a profile URL with facility and stall parameters
-    /// </summary>
-    private string GetProfileUrl(string facilityCode, string stallNo)
-    {
-        // Map facility codes to URL-friendly IDs
-        var facilityId = facilityCode.ToLower() switch
-        {
-            "npm" => "npm",
-            "tcc" => "tcc",
-            "ncc" => "ncc",
-            "bbq" => "bbq",
-            "ice" => "ice",
-            "slh" => "slh",
-            _ => facilityCode.ToLower()
-        };
-
-        return $"/profile/{facilityId}/{stallNo}";
+        ActiveTab = tab;
+        await Load();
     }
+
+    private async Task SelectFacility(string code)
+    {
+        SelectedFacility = code;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        Loading = true;
+        Model = null;
+        StateHasChanged();
+
+        var period = ActiveTab == "Annual" ? ReportPeriod.Yearly : ReportPeriod.Monthly;
+        var year = int.Parse(SelectedYear);
+        int? month = period == ReportPeriod.Monthly ? Months.IndexOf(SelectedMonth) + 1 : null;
+        FacilityCode? facility = SelectedFacility == "All" ? null : Enum.Parse<FacilityCode>(SelectedFacility);
+
+        // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await ReportsApi.GetFinancialReportAsync(period, year, month, facility);
+            if (result.IsSuccess)
+            {
+                Model = result.Value;
+                break;
+            }
+            if (result.StatusCode is not (401 or 403))
+                break;
+            await Task.Delay(400);
+        }
+
+        // Recompute the y-axis scale for the new data and bump the epoch so bars re-animate.
+        var trendMax = TrendBars.Count == 0 ? 0m : TrendBars.Max(t => Math.Max(t.Collected, t.Unpaid));
+        _scale = ComputeTrendScale(trendMax);
+        _renderEpoch++;
+
+        Loading = false;
+        StateHasChanged();
+    }
+
+    // ── Trend scaling (nice round axis + tight ceiling so bars stay tall) ──
+    private List<ReportTrendPointDto> TrendBars =>
+        (Model?.Trend ?? new List<ReportTrendPointDto>()).TakeLast(6).ToList();
+
+    private int _renderEpoch;                                   // bumped each load → bar-grow animation replays
+    private (decimal Ceiling, decimal Step) _scale = (1000m, 250m);
+
+    // Smallest "nice" step (1 / 2 / 2.5 / 5 × 10ⁿ) whose ceiling needs ≤ 5 intervals. Produces round
+    // labels (₱100k, ₱200k, …) and a ceiling just above the data, so bars stay tall instead of stubby.
+    private static (decimal Ceiling, decimal Step) ComputeTrendScale(decimal max)
+    {
+        if (max <= 0) return (1000m, 250m);
+        decimal[] mantissas = { 1m, 2m, 2.5m, 5m };
+        for (var e = 0; e <= 12; e++)
+        {
+            var pow = (decimal)Math.Pow(10, e);
+            foreach (var man in mantissas)
+            {
+                var step = man * pow;
+                var intervals = (int)Math.Ceiling(max / step);
+                if (intervals <= 5)
+                {
+                    var ceiling = step * intervals;
+                    // Headroom: keep the tallest bar off the top gridline (never above ~90% of the ceiling).
+                    while (max > 0.9m * ceiling)
+                        ceiling += step;
+                    return (ceiling, step);
+                }
+            }
+        }
+        return (max, max);
+    }
+
+    private int Pct(decimal v)
+    {
+        var ceiling = _scale.Ceiling;
+        if (ceiling <= 0) return 0;
+        return Math.Clamp((int)Math.Round(v / ceiling * 100m), 0, 100);
+    }
+
+    // Axis labels top → bottom: ceiling, ceiling − step, … , ₱0 (one gridline per label).
+    private List<string> AxisLabels
+    {
+        get
+        {
+            var (ceiling, step) = _scale;
+            if (step <= 0) return new List<string> { AxisFmt(ceiling), "₱0" };
+            var labels = new List<string>();
+            for (var v = ceiling; v >= 0; v -= step)
+                labels.Add(AxisFmt(v));
+            return labels;
+        }
+    }
+
+    private static string AxisFmt(decimal v)
+    {
+        if (v <= 0) return "₱0";
+        if (v >= 1_000_000m) return "₱" + (v / 1_000_000m).ToString("0.##") + "M";
+        if (v >= 1_000m) return "₱" + (v / 1_000m).ToString("0.#") + "k";
+        return "₱" + v.ToString("0");
+    }
+
+    private static string Money(decimal v) => "₱" + v.ToString("N0");
+
+    private static string MonthsLabel(int months) => $"{months} unpaid month{(months == 1 ? "" : "s")}";
+
+    private static string Initials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "—";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1
+            ? parts[0][..1].ToUpper()
+            : (parts[0][..1] + parts[^1][..1]).ToUpper();
+    }
+
+    private static string StatusClass(string status) => status switch
+    {
+        "Good" => "good",
+        "On track" => "warn",
+        "Behind" => "bad",
+        "Paid on service" => "good",
+        _ => "muted"
+    };
+
+    private static string ProfileUrl(FacilityCode code, string stallNo) =>
+        $"/profile/{code.ToString().ToLower()}/{stallNo}";
+
+    private void ExportPdf() { /* TODO: server-side export scoped to the active filters */ }
+    private void ExportExcel() { /* TODO: server-side export scoped to the active filters */ }
 }

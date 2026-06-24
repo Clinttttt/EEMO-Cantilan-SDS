@@ -246,13 +246,14 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 5px 11px 5px 7px;
+    padding: 6px 14px;
     border-radius: 8px;
     border: 1px solid var(--border);
     background: var(--bg-card);
     color: var(--text-muted);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: .3px;
     font-family: 'DM Sans', sans-serif;
     cursor: pointer;
     white-space: nowrap;
@@ -881,6 +882,15 @@
     .summary-grid {
         grid-template-columns: 1fr 1fr;
     }
+
+    .rpt-attention {
+        grid-template-columns: 1fr;
+    }
+
+    .attn-col:first-child {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
 }
 
 @media (max-width: 900px) {
@@ -914,3 +924,473 @@
         display: none;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   REPORT SCOPE BANNER
+   ══════════════════════════════════════════════════════════════ */
+.rpt-scope {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--navy);
+    border-radius: 14px;
+    padding: 13px 18px;
+    margin-bottom: 18px;
+}
+
+.rpt-scope-main {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.rpt-scope-item strong {
+    color: var(--navy);
+    font-weight: 700;
+    margin-left: 4px;
+}
+
+.rpt-scope-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+}
+
+.rpt-scope-coverage {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--green-bg, #e9f5ee);
+    border: 1px solid rgba(45, 122, 95, .25);
+    border-radius: 999px;
+    padding: 5px 12px;
+    white-space: nowrap;
+}
+
+    .rpt-scope-coverage svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--green);
+        flex-shrink: 0;
+    }
+
+    .rpt-scope-coverage strong {
+        color: var(--green);
+    }
+
+/* Export note ties controls to scope */
+.rfp-export-note {
+    align-self: center;
+    font-size: 10.5px;
+    color: var(--text-subtle);
+    font-style: italic;
+    margin-right: 2px;
+    white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ATTENTION & FOLLOW-UP
+   ══════════════════════════════════════════════════════════════ */
+.rpt-attention {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.attn-col {
+    padding: 6px 0 8px;
+}
+
+    .attn-col:first-child {
+        border-right: 1px solid var(--border);
+    }
+
+.attn-col-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 22px 2px;
+}
+
+.attn-col-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+    .attn-col-title.attn-delinquent {
+        color: var(--red);
+    }
+
+    .attn-col-title.attn-arrears {
+        color: #a9791b;
+    }
+
+.attn-count {
+    font-size: 11px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 1px 8px;
+    line-height: 1.6;
+}
+
+.attn-count-red {
+    color: var(--red);
+    background: var(--red-bg, #fdecec);
+}
+
+.attn-count-amber {
+    color: #a9791b;
+    background: rgba(200, 168, 75, .16);
+}
+
+.attn-col-note {
+    font-size: 11px;
+    color: var(--text-subtle);
+    padding: 0 22px 8px;
+}
+
+.attn-age-red {
+    color: var(--red) !important;
+}
+
+.attn-age-amber {
+    color: #a9791b !important;
+}
+
+.delinq-amt-val.amber {
+    color: #a9791b;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TREND — y-axis scale + ytd note
+   ══════════════════════════════════════════════════════════════ */
+.rpt-trend-plot {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.rpt-yaxis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 160px;
+    font-size: 9.5px;
+    font-weight: 500;
+    color: var(--text-subtle);
+    text-align: right;
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+}
+
+/* Plot area: bars sit above a gridline overlay that always matches the y-axis labels. */
+.rpt-plot {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.rpt-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.rpt-grid-line {
+    width: 100%;
+    height: 1px;
+    background: #eef2f6;
+}
+
+.rpt-plot .bar-chart {
+    position: relative;
+    z-index: 1;
+}
+
+/* Bars grow upward on load/filter (GPU-friendly transform, not height). */
+@keyframes rpt-bar-grow {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+}
+
+.rpt-plot .bar {
+    transform-origin: bottom;
+    animation: rpt-bar-grow .55s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rpt-plot .bar { animation: none; }
+}
+
+.rpt-ytd-note {
+    margin-top: 14px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+    .rpt-ytd-note strong {
+        color: var(--green);
+        font-family: 'DM Mono', monospace;
+    }
+
+/* ══════════════════════════════════════════════════════════════
+   FACILITY TABLE — model badge, inactive rows, footer, legend
+   ══════════════════════════════════════════════════════════════ */
+.rpt-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.fac-model {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--bg-icon, #eef2f6);
+    border-radius: 6px;
+    padding: 3px 9px;
+    white-space: nowrap;
+}
+
+.fac-row-inactive td {
+    background: #fafbfc;
+    color: var(--text-subtle);
+}
+
+.fac-table tfoot .fac-foot td {
+    border-top: 2px solid var(--border);
+    border-bottom: none;
+    background: #f8fafb;
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+.status-pill.muted {
+    background: var(--bg-icon, #eef2f6);
+    color: var(--text-muted);
+}
+
+.rpt-legend-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 22px 16px;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+    line-height: 1.5;
+}
+
+.rpt-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #fafbfc;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LOADING / ERROR / EMPTY STATES
+   ══════════════════════════════════════════════════════════════ */
+.rpt-state {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-subtle);
+    font-size: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+
+.rpt-state-error {
+    color: var(--red);
+}
+
+.rpt-retry {
+    margin-left: 10px;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.rpt-empty {
+    padding: 20px 22px;
+    font-size: 12.5px;
+    color: var(--text-subtle);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   EXPANDABLE FACILITY DETAIL (NPM)
+   ══════════════════════════════════════════════════════════════ */
+.fac-expandable {
+    cursor: pointer;
+}
+
+.fac-expandable:hover td {
+    background: #fafcfd;
+}
+
+.fac-caret {
+    display: inline-block;
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-right: 7px;
+    transition: transform .12s ease;
+}
+
+.fac-caret.open {
+    transform: rotate(90deg);
+}
+
+.fac-detail-row td {
+    background: #f8fafb;
+    padding: 0;
+    border-bottom: 1px solid #f0f4f8;
+}
+
+.fac-detail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 48px;
+    padding: 16px 22px 16px 44px;
+}
+
+.fac-detail-group {
+    min-width: 240px;
+}
+
+.fac-detail-heading {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 8px;
+}
+
+.fac-detail-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 18px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    padding: 3px 0;
+}
+
+.fac-detail-item strong {
+    color: var(--navy);
+    font-family: 'DM Mono', monospace;
+}
+
+.fac-detail-item.fac-detail-total {
+    border-top: 1px solid var(--border);
+    margin-top: 5px;
+    padding-top: 7px;
+}
+
+.fac-detail-red {
+    color: var(--red) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TREND BAR HOVER TOOLTIP
+   ══════════════════════════════════════════════════════════════ */
+.rpt-plot .bar-wrap {
+    position: relative;
+}
+
+.bar-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    z-index: 30;
+    min-width: 160px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: var(--navy);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(9, 31, 52, .28);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .14s ease, transform .14s ease;
+}
+
+.bar-wrap:hover .bar-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* little pointer */
+.bar-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--navy);
+}
+
+.bar-tip-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    color: var(--gold-light, #e8cc76);
+    margin-bottom: 6px;
+}
+
+.bar-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    line-height: 1.7;
+}
+
+.bar-tip-key {
+    color: rgba(255, 255, 255, .8);
+}
+
+.bar-tip-val {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-weight: 600;
+}
+
+.bar-tip-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.bar-tip-dot.tip-collected { background: var(--gold); }
+.bar-tip-dot.tip-unpaid { background: #dde4ea; }

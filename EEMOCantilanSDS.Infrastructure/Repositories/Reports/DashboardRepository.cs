@@ -18,22 +18,6 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .Select(f => new { f.Id, f.Code, f.Name })
             .ToListAsync(ct);
 
-        // Active, occupied stalls (rate + occupant + facility) — soft-deletes excluded by global filters.
-        var stalls = await context.Stalls
-            .AsNoTracking()
-            .Where(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive))
-            .Select(s => new
-            {
-                s.Id,
-                s.FacilityId,
-                s.StallNo,
-                s.MonthlyRate,
-                Occupant = s.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? ""
-            })
-            .ToListAsync(ct);
-
-        var stallIds = stalls.Select(s => s.Id).ToList();
-
         // ── Context-aware revenue for non-stall facilities (their data lives in their own tables) ──
         // SLH — per-head slaughter transactions (all are receipted/paid on creation).
         var slaughter = await context.SlaughterTransactions
@@ -85,19 +69,19 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                     TotalVendors: transporters, CollectionRate: trips.Count > 0 ? 100 : 0));
                 continue;
             }
-            // Tabo-an Market — Friday vendor attendance, paid vs unpaid.
+            // Tabo-an Market — Friday vendor attendance. Paid on service (pay to participate): only the
+            // paid attendances are revenue, and unpaid attendances are NOT a recurring balance — so TPM
+            // contributes no pending and shows a 100% rate, consistent with the Financial Reports page.
             if (f.Code == FacilityCode.TPM)
             {
                 var paidTpm = tpm.Count(x => x.IsPaid);
                 var collectedTpm = tpm.Where(x => x.IsPaid).Sum(x => x.Fee);
-                var pendingTpm = tpm.Where(x => !x.IsPaid).Sum(x => x.Fee);
-                var vendorsTpm = tpm.Select(x => x.VendorId).Distinct().Count();
-                totalPending += pendingTpm;
+                var vendorsTpm = tpm.Where(x => x.IsPaid).Select(x => x.VendorId).Distinct().Count();
                 facilityCards.Add(new DashboardFacilityDto(
                     f.Code, f.Name, collectedTpm,
-                    UnpaidCount: tpm.Count - paidTpm, PaidCount: paidTpm, PartialCount: 0,
+                    UnpaidCount: 0, PaidCount: paidTpm, PartialCount: 0,
                     TotalVendors: vendorsTpm,
-                    CollectionRate: tpm.Count == 0 ? 0 : (int)((double)paidTpm / tpm.Count * 100)));
+                    CollectionRate: paidTpm > 0 ? 100 : 0));
                 continue;
             }
 
@@ -117,7 +101,6 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
         // Hero vendor KPIs stay stall-based (vendor = stallholder); SLH/TRM/TPM counts are
         // contextual participants and would distort a "collection rate of vendors".
         var stallCards = facilityCards.Where(c => stallCodes.Contains(c.Code)).ToList();
-        var totalVendors = stallCards.Sum(c => c.TotalVendors);
         var paidCount = stallCards.Sum(c => c.PaidCount);
         var heroUnpaidCount = stallCards.Sum(c => c.UnpaidCount);
 
@@ -225,37 +208,25 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 r.At))
             .ToList();
 
-        // Delinquents = recorded unpaid/partial months in the rolling window, EXCLUDING the current
-        // billing month (the current period isn't "overdue" yet — only past unpaid months count).
-        var since = new DateOnly(year, month, 1).AddMonths(-11);
-        var unpaidWindow = await context.PaymentRecords
-            .AsNoTracking()
-            .Where(p => stallIds.Contains(p.StallId)
-                && p.Status != PaymentStatus.Paid
-                && (p.BillingYear > since.Year || (p.BillingYear == since.Year && p.BillingMonth >= since.Month))
-                && (p.BillingYear < year || (p.BillingYear == year && p.BillingMonth < month)))
-            .ToListAsync(ct);
-
-        var facilityCodeById = facilities.ToDictionary(f => f.Id, f => f.Code);
-        var stallById = stalls.ToDictionary(s => s.Id);
-        var delinquents = unpaidWindow
-            .GroupBy(p => p.StallId)
-            .Where(g => stallById.ContainsKey(g.Key))
-            .Select(g =>
-            {
-                var s = stallById[g.Key];
-                return new DashboardDelinquentDto(s.Occupant, s.StallNo, facilityCodeById[s.FacilityId], g.Count(), g.Sum(p => p.BalanceDue));
-            })
-            .OrderByDescending(d => d.MonthsUnpaid).ThenByDescending(d => d.Balance)
+        // Delinquents come from the shared rolling-window computation (excludes the current month),
+        // so the dashboard and the Financial Reports attention list agree.
+        var delinquents = (await facilityReports.GetDelinquentStallsAsync(null, year, month, ct))
             .Take(5)
+            .Select(d => new DashboardDelinquentDto(d.Occupant, d.StallNo, d.FacilityCode, d.MonthsUnpaid, d.OutstandingBalance))
             .ToList();
 
+        // Hero collection rate is AMOUNT-based (collected ÷ billed), matching the Financial Reports
+        // page and the dashboard's own per-facility cards. Count-based "fully-paid stalls" understated
+        // it (e.g. NPM stalls that paid most of their daily fees but aren't a fully-Paid monthly record).
+        var totalCollected = facilityCards.Sum(c => c.Collected);
+        var billed = totalCollected + totalPending;
+
         return new DashboardOverviewDto(
-            TotalCollected: facilityCards.Sum(c => c.Collected),
+            TotalCollected: totalCollected,
             TotalPending: totalPending,
             UnpaidCount: heroUnpaidCount,
             PaidCount: paidCount,
-            CollectionRate: totalVendors == 0 ? 0 : (int)((double)paidCount / totalVendors * 100),
+            CollectionRate: billed <= 0m ? 0 : (int)Math.Round(totalCollected / billed * 100m),
             ActiveFacilitiesCount: facilityCards.Count(c => c.Collected > 0),
             TotalCollectors: totalCollectors,
             Facilities: facilityCards,

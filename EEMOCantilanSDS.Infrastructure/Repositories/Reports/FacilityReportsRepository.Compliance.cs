@@ -185,6 +185,73 @@ public partial class FacilityReportsRepository
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// Shared delinquency source (dashboard + Financial Reports): occupied stalls behind on payments
+    /// over the rolling 12-month window ending at, and EXCLUDING, the given month. Counts unpaid/partial
+    /// billing months and sums their balance due (cumulative). Optionally scoped to one facility.
+    /// </summary>
+    public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility, int year, int month, CancellationToken ct)
+    {
+        var facilities = await _context.Facilities
+            .AsNoTracking()
+            .Select(f => new { f.Id, f.Code })
+            .ToListAsync(ct);
+        var codeById = facilities.ToDictionary(f => f.Id, f => f.Code);
+
+        var stallQuery = _context.Stalls
+            .AsNoTracking()
+            .Where(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
+
+        if (facility.HasValue)
+        {
+            var fid = facilities.FirstOrDefault(f => f.Code == facility.Value)?.Id;
+            if (fid is null)
+                return Array.Empty<DelinquentStallDto>();
+            stallQuery = stallQuery.Where(s => s.FacilityId == fid);
+        }
+
+        var stalls = await stallQuery
+            .Select(s => new
+            {
+                s.Id,
+                s.StallNo,
+                s.FacilityId,
+                Occupant = s.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? ""
+            })
+            .ToListAsync(ct);
+
+        if (stalls.Count == 0)
+            return Array.Empty<DelinquentStallDto>();
+
+        var stallIds = stalls.Select(s => s.Id).ToList();
+        var since = new DateOnly(year, month, 1).AddMonths(-11);
+
+        // Unpaid/partial billing months in the rolling window, EXCLUDING the current (in-progress) month.
+        var unpaidWindow = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => stallIds.Contains(p.StallId)
+                && p.Status != PaymentStatus.Paid
+                && (p.BillingYear > since.Year || (p.BillingYear == since.Year && p.BillingMonth >= since.Month))
+                && (p.BillingYear < year || (p.BillingYear == year && p.BillingMonth < month)))
+            .ToListAsync(ct);
+
+        var stallById = stalls.ToDictionary(s => s.Id);
+
+        return unpaidWindow
+            .GroupBy(p => p.StallId)
+            .Where(g => stallById.ContainsKey(g.Key))
+            .Select(g =>
+            {
+                var s = stallById[g.Key];
+                return new DelinquentStallDto(
+                    codeById[s.FacilityId], s.StallNo, s.Occupant, g.Count(), g.Sum(p => p.BalanceDue));
+            })
+            .OrderByDescending(d => d.MonthsUnpaid)
+            .ThenByDescending(d => d.OutstandingBalance)
+            .ToList();
+    }
+
     // Orders stall numbers naturally so "2" precedes "10" (and "A2" precedes "A10"): each run of
     // digits is zero-padded to a fixed width before an ordinal compare. Plain string ordering put
     // "10" before "2" across the reports' All Stalls / Status Report tables.
@@ -239,9 +306,10 @@ public partial class FacilityReportsRepository
             var monthStart = new DateOnly(endDate.Year, m, 1);
             var monthEnd = new DateOnly(endDate.Year, m, DateTime.DaysInMonth(endDate.Year, m));
 
-            // Skip months that have not started yet (not yet due) — e.g. the Yearly view runs to
-            // December, but Jul–Dec of the current year are not delinquent until they arrive.
-            if (monthStart > today)
+            // Count only fully-elapsed PAST months. The current, in-progress month is never "missed"
+            // yet (a payor is not in arrears for a month still underway), and future months are not due
+            // (e.g. the Yearly view runs to December). Arrears/delinquency count from past months only.
+            if (monthEnd >= today)
                 continue;
 
             // Skip months the stall was not under an active contract (pre-effectivity / post-expiry).

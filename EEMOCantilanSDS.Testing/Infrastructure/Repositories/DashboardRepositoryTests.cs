@@ -123,4 +123,65 @@ public class DashboardRepositoryTests : RepositoryTestBase
         Assert.Equal("Ana Reyes", row.PayorName);
         Assert.Equal(615m, row.Amount);
     }
+
+    [Fact]
+    public async Task GetOverview_CollectionRate_IsAmountBased_NotCountOfFullyPaidStalls()
+    {
+        // TCC, current month: one stall fully paid (₱1,000), one partial (₱300 of ₱1,000).
+        // Amount-based rate = collected ₱1,300 / billed ₱2,000 = 65%.
+        // The old count-based rate would have been 1 fully-paid of 2 stalls = 50% — proving the basis.
+        var context = NewContext();
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+
+        var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var paidStall = Stall.Create(tcc.Id, "1", 1000m, ApplicableFees.BaseRental);
+        var partialStall = Stall.Create(tcc.Id, "2", 1000m, ApplicableFees.BaseRental);
+        var paidContract = Contract.Create(paidStall.Id, "Full Payer", null, new DateOnly(today.Year, 1, 1), 3, 1000m);
+        var partialContract = Contract.Create(partialStall.Id, "Partial Payer", null, new DateOnly(today.Year, 1, 1), 3, 1000m);
+
+        var paid = PaymentRecord.Create(paidStall.Id, today.Year, today.Month, 1000m);
+        paid.UpdateStatus(PaymentStatus.Paid);
+        var partial = PaymentRecord.Create(partialStall.Id, today.Year, today.Month, 1000m);
+        partial.UpdateStatus(PaymentStatus.Partial, 300m);
+
+        context.AddRange(tcc, paidStall, partialStall, paidContract, partialContract, paid, partial);
+        await context.SaveChangesAsync();
+
+        var overview = await new DashboardRepository(context, new FacilityReportsRepository(context))
+            .GetOverviewAsync(today.Year, today.Month, CancellationToken.None);
+
+        Assert.Equal(1300m, overview.TotalCollected);
+        Assert.Equal(700m, overview.TotalPending);
+        Assert.Equal(65, overview.CollectionRate);   // amount-based (1300/2000), not 50 (count-based)
+    }
+
+    [Fact]
+    public async Task GetOverview_TpmIsPaidOnService_UnpaidAttendanceAddsNoPending()
+    {
+        // TPM: one paid (₱100) and one unpaid (₱100) Friday attendance. Paid on service → TPM
+        // contributes no pending and reads a 100% rate; only the paid ₱100 is revenue.
+        var context = NewContext();
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var friday = new DateOnly(today.Year, today.Month, 1);
+        while (friday.DayOfWeek != DayOfWeek.Friday) friday = friday.AddDays(1);
+
+        var tpm = Facility.Create(FacilityCode.TPM, "Tabo-an Public Market", "TPM");
+        var v1 = EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor.Create("Vendor One", "Vegetables");
+        var v2 = EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmVendor.Create("Vendor Two", "Fish");
+        var paid = EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmAttendance.Create(v1.Id, friday);
+        paid.MarkPaid(null);
+        var unpaid = EEMOCantilanSDS.Domain.Entities.TaboanMarket.TpmAttendance.Create(v2.Id, friday);
+
+        context.AddRange(tpm, v1, v2, paid, unpaid);
+        await context.SaveChangesAsync();
+
+        var overview = await new DashboardRepository(context, new FacilityReportsRepository(context))
+            .GetOverviewAsync(today.Year, today.Month, CancellationToken.None);
+
+        var tpmCard = overview.Facilities.Single(f => f.Code == FacilityCode.TPM);
+        Assert.Equal(100m, tpmCard.Collected);     // only the paid attendance is revenue
+        Assert.Equal(0, tpmCard.UnpaidCount);      // unpaid attendance is not a recurring balance
+        Assert.Equal(100, tpmCard.CollectionRate); // paid on service
+        Assert.Equal(0m, overview.TotalPending);   // the unpaid ₱100 does NOT inflate pending
+    }
 }
