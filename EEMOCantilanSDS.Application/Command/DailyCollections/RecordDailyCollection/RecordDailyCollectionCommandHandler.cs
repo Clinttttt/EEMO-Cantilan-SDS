@@ -41,7 +41,11 @@ public class RecordDailyCollectionCommandHandler(
 
         if (existing is not null)
         {
-            if (request.IsPaid)
+            if (request.IsAbsent)
+            {
+                existing.MarkAbsent(recordedBy);
+            }
+            else if (request.IsPaid)
             {
                 if (!string.IsNullOrWhiteSpace(orNumber))
                 {
@@ -72,7 +76,11 @@ public class RecordDailyCollectionCommandHandler(
             if (request.ClientOperationId is { } clientOpId)
                 newCollection.SetClientOperationId(clientOpId);
 
-            if (request.IsPaid)
+            if (request.IsAbsent)
+            {
+                newCollection.MarkAbsent(recordedBy);
+            }
+            else if (request.IsPaid)
             {
                 if (!string.IsNullOrWhiteSpace(orNumber) && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
                     return Result<bool>.Failure("OR number already exists.", 409);

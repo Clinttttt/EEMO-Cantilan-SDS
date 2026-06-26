@@ -302,7 +302,7 @@
     string ActiveSection = "All";
     bool IsLoading = true;
 
-    readonly string[] SectionKeys = ["All", "Vegetable Area", "Fish Section", "Meat Section"];
+    readonly string[] SectionKeys = ["All", "Vegetable Area", "Fish Area", "Meat Area"];
 
     // Facility detection
     string FacilityCode => Facility?.ToUpper() ?? "NPM";
@@ -322,7 +322,7 @@
     bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
 
     IEnumerable<string> VisibleSections => ActiveSection == "All"
-        ? new[] { "Vegetable Area", "Fish Section", "Meat Section" }
+        ? new[] { "Vegetable Area", "Fish Area", "Meat Area" }
         : new[] { ActiveSection };
 
     IEnumerable<NpmStall> GetSectionStalls(string sec) =>
@@ -330,8 +330,8 @@
 
     IEnumerable<NpmStall> AllActiveStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.IsActive);
     IEnumerable<NpmStall> VegetableStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Vegetable Area");
-    IEnumerable<NpmStall> FishStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Fish Section");
-    IEnumerable<NpmStall> MeatStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Meat Section");
+    IEnumerable<NpmStall> FishStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Fish Area");
+    IEnumerable<NpmStall> MeatStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Meat Area");
 
     IEnumerable<NpmStall> FilteredNonNpmStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && MatchSearch(s)).OrderBy(s => s.StallNo);
 
@@ -398,8 +398,8 @@
                     var sectionName = IsFacility("npm") ? section.SectionName switch
                     {
                         "VegetableArea" => "Vegetable Area",
-                        "FishSection" => "Fish Section",
-                        "MeatSection" => "Meat Section",
+                        "FishSection" => "Fish Area",
+                        "MeatSection" => "Meat Area",
                         _ => section.SectionName
                     } : section.SectionName;
                     

@@ -15,6 +15,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateOnly CollectionDate { get; private set; }
         public decimal DailyFee { get; private set; } = FeeRates.NpmDailyFee;
         public bool IsPaid { get; private set; }
+
+        // Excused/absent day: the payor was legitimately not operating (e.g. sick). It is NOT owed —
+        // ₱0 due, no later payment — so financial recognition treats the day as non-collectable.
+        // An absent record is always IsPaid=false (the two are mutually exclusive).
+        public bool IsAbsent { get; private set; }
+
         public string? ORNumber { get; private set; }
 
         // Offline-sync idempotency key from the mobile client (null for online records). Lets a queued
@@ -53,6 +59,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             string updatedBy = "System")
         {
             IsPaid = true;
+            IsAbsent = false;
             ORNumber = orNumber;
             CollectorId = collectorId;
             FishKilos = fishKilos;
@@ -61,6 +68,22 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
         public void MarkUnpaid(string updatedBy = "System")
         {
+            IsPaid = false;
+            IsAbsent = false;
+            ORNumber = null;
+            CollectorId = null;
+            FishKilos = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
+        /// Marks the day as excused/absent: ₱0 owed, no collection, no fish, no OR. Clears any prior
+        /// paid state. Phase 2 makes the financial layer treat this date as non-collectable.
+        /// </summary>
+        public void MarkAbsent(string updatedBy = "System")
+        {
+            IsAbsent = true;
             IsPaid = false;
             ORNumber = null;
             CollectorId = null;

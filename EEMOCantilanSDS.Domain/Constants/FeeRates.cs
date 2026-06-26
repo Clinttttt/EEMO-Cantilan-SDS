@@ -11,7 +11,7 @@ namespace EEMOCantilanSDS.Domain.Constants
         // NPM — FIXED
         public const decimal NpmDailyFee = 30.00m;   // per day, all sections
         public const decimal NpmMonthlyFee = 900.00m;  // 30 days reference
-        public const decimal NpmFishFeePerKilo = 1.00m;    // Fish Section only
+        public const decimal NpmFishFeePerKilo = 1.00m;    // Fish Area only
 
         // TCC — RANGE (actual rate from Stall.MonthlyRate)
         public const decimal TccMonthlyMin = 2_400.00m;

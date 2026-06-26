@@ -98,7 +98,10 @@ public record NpmFacilityDetailDto(
     decimal FishKilos,
     decimal PeriodBalance,
     decimal FullMonthCoverage,
-    decimal FullMonthCoverageBalance
+    decimal FullMonthCoverageBalance,
+    // Total excused/absent amount for the period (Σ absent days × ₱30). Absent days are not owed, so
+    // they reduce the full-month coverage; this line makes that deduction explicit. 0 = none.
+    decimal ExcusedAmount = 0m
 );
 
 public record FinancialRecordDto(

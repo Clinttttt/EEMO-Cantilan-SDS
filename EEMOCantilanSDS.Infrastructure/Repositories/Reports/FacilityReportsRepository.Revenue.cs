@@ -59,7 +59,7 @@ public partial class FacilityReportsRepository
         => stall.Status == StallStatus.Active
             && stall.Contracts.Any(c => IsContractCollectableOn(c, date));
 
-    private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate)
+    private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
     {
         if (endDate < startDate)
             return 0;
@@ -67,15 +67,17 @@ public partial class FacilityReportsRepository
         var days = 0;
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            if (IsStallCollectableOn(stall, date))
+            // Excused/absent days are not collectable — the payor owes nothing for a day they were
+            // legitimately not operating, so they drop out of the obligation just like a pre-contract day.
+            if (IsStallCollectableOn(stall, date) && (absentDates is null || !absentDates.Contains(date)))
                 days++;
         }
 
         return days;
     }
 
-    private static decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate)
-        => CountNpmCollectableDays(stall, startDate, endDate) * FeeRates.NpmDailyFee;
+    private static decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
+        => CountNpmCollectableDays(stall, startDate, endDate, absentDates) * FeeRates.NpmDailyFee;
 
     private async Task<List<Stall>> LoadNpmCollectableStallsAsync(Guid facilityId, CancellationToken ct)
     {

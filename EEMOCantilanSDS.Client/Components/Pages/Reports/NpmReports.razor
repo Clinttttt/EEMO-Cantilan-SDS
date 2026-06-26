@@ -119,7 +119,7 @@
             }
 
             @{
-                var sections = new[] { "Fish Section", "Meat Section", "Vegetable Area" };
+                var sections = new[] { "Fish Area", "Meat Area", "Vegetable Area" };
             }
             @foreach (var sec in sections)
             {
@@ -459,7 +459,11 @@ else
                 <div class="chart-legend">
                     <div class="legend-item">
                         <span class="legend-dot" style="background:#2d7a5f"></span>
-                        <span class="legend-label">Collected</span>
+                        <span class="legend-label">Daily rent</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot" style="background:#4a9eff"></span>
+                        <span class="legend-label">Fish fee</span>
                     </div>
                     <div class="legend-item">
                         <span class="legend-dot" style="background:#c8a84b"></span>
@@ -467,35 +471,9 @@ else
                     </div>
                 </div>
             </div>
-            <div class="rpt-bar-chart">
-                @if (TrendPoints.Any(p => p.Amount > 0))
-                {
-                    @foreach (var pt in TrendPoints)
-                    {
-                        <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "") @(pt.IsZero ? "is-zero" : "")" title="@pt.Label — ₱@pt.Amount.ToString("N2")">
-                            <div class="rpt-bar-wrap">
-                                <div class="rpt-bar-3d">
-                                    <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
-                                    <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
-                                    <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
-                                </div>
-                            </div>
-                            <div class="rpt-bar-label">@pt.Label</div>
-                            <div class="rpt-bar-val">₱@pt.ShortValue</div>
-                        </div>
-                    }
-                }
-                else
-                {
-                    <div class="rpt-empty">
-                        <div class="rpt-empty-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
-                        </div>
-                        <div class="rpt-empty-title">No collections recorded</div>
-                        <div class="rpt-empty-text">No revenue was collected for @GetPeriodLabel().</div>
-                    </div>
-                }
-            </div>
+            <CollectionTrendChart Trend="R?.RevenueTrend"
+                                  RentLabel="Daily rent"
+                                  EmptyPeriodLabel="@GetPeriodLabel()" />
         </div>
 
         <!-- Status Donut -->
@@ -506,52 +484,7 @@ else
                     <p class="chart-subtitle">Payor count by payment status</p>
                 </div>
             </div>
-            <div class="rpt-donut-wrap">
-                <div class="rpt-donut-container">
-                    <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                        <!-- background ring -->
-                        <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
-                        <!-- single path segments — no inter-segment gaps -->
-                        @{ var arcs = BuildDonutArcs(new[] {
-                                (PaidCount,    "#2d7a5f"),
-                                (PartialCount, "#c8a84b"),
-                                (UnpaidCount,  "#8b3a3a")
-                            }, 46, 60, 60);
-                        }
-                        @foreach (var arc in arcs)
-                        {
-                            <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                        }
-                        <!-- center hole -->
-                        <circle cx="60" cy="60" r="35" fill="white" />
-                        <text x="60" y="55" class="donut-center-value">@Total</text>
-                        <text x="60" y="69" class="donut-center-lbl">PAYORS</text>
-                    </svg>
-                </div>
-                <div class="rpt-donut-legend">
-                    <div class="donut-leg-item">
-                        <div class="donut-leg-left">
-                            <span class="donut-leg-dot paid"></span>
-                            <span class="donut-leg-label">Fully Paid</span>
-                        </div>
-                        <strong class="donut-leg-value">@PaidCount <span>@PaidPct%</span></strong>
-                    </div>
-                    <div class="donut-leg-item">
-                        <div class="donut-leg-left">
-                            <span class="donut-leg-dot partial"></span>
-                            <span class="donut-leg-label">Partial Payment</span>
-                        </div>
-                        <strong class="donut-leg-value">@PartialCount <span>@PartialPct%</span></strong>
-                    </div>
-                    <div class="donut-leg-item">
-                        <div class="donut-leg-left">
-                            <span class="donut-leg-dot unpaid"></span>
-                            <span class="donut-leg-label">Unpaid</span>
-                        </div>
-                        <strong class="donut-leg-value">@UnpaidCount <span>@UnpaidPct%</span></strong>
-                    </div>
-                </div>
-            </div>
+            <PayorStatusDonut PaidCount="@PaidCount" PartialCount="@PartialCount" UnpaidCount="@UnpaidCount" />
         </div>
 
     </div>
@@ -577,13 +510,30 @@ else
                 <div class="audit-donut-row">
                     <div class="audit-donut-container">
                         <svg class="audit-donut" viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="42" fill="none" stroke="#f0f2f5" stroke-width="20" />
-                            @{ var auditSecArcs = BuildDonutArcs(SectionData.Select(s => ((int)Math.Round(s.Revenue), s.Color)).ToArray(), 42, 60, 60); }
-                            @foreach (var arc in auditSecArcs)
-                            {
-                                <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="20" stroke-linecap="butt" class="donut-segment" />
-                            }
-                            <circle cx="60" cy="60" r="28" fill="white" />
+                            <defs>
+                                @foreach (var c in SectionData.Where(s => s.Revenue > 0).Select(s => s.Color).Distinct())
+                                {
+                                    <linearGradient id="@SecGradId(c)" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="@c" /><stop offset="100%" stop-color="@Darken(c)" />
+                                    </linearGradient>
+                                }
+                                <radialGradient id="audit-hole" cx="50%" cy="40%" r="62%">
+                                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
+                                </radialGradient>
+                                <filter id="audit-depth" x="-30%" y="-30%" width="160%" height="160%">
+                                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
+                                </filter>
+                            </defs>
+                            <circle cx="60" cy="60" r="42" fill="none" stroke="#eef2f6" stroke-width="20" />
+                            @{ var auditSecArcs = BuildDonutArcs(SectionData.Select(s => ((int)Math.Round(s.Revenue), $"url(#{SecGradId(s.Color)})")).ToArray(), 42, 60, 60); }
+                            <g filter="url(#audit-depth)">
+                                @foreach (var arc in auditSecArcs)
+                                {
+                                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="20" stroke-linecap="butt" class="donut-segment" />
+                                }
+                            </g>
+                            <circle cx="60" cy="60" r="28" fill="url(#audit-hole)" />
+                            <circle cx="60" cy="60" r="28" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
                             <text x="60" y="54" class="audit-donut-label">TOTAL</text>
                             <text x="60" y="71" class="audit-donut-value">&#8369;@SectionRevenueTotal.ToString("N0")</text>
                         </svg>
@@ -592,7 +542,7 @@ else
                         @foreach (var s in SectionData)
                         {
                             <div class="audit-section-item">
-                                <span class="audit-dot" style="background:@s.Color"></span>
+                                <span class="audit-dot" style="background:linear-gradient(180deg, @s.Color 0%, @Darken(s.Color) 100%)"></span>
                                 <div class="audit-section-info">
                                     <span class="audit-section-name">@s.ShortName</span>
                                     <strong class="audit-section-value">&#8369;@s.Revenue.ToString("N0")</strong>
@@ -635,9 +585,19 @@ else
                                 <div class="audit-payor-stack @(b.IsZero ? "is-zero" : "")">
                                     @if (b.FishHeightPct > 0)
                                     {
-                                        <span class="audit-seg seg-fish" style="height:@b.FishHeightPct%" title="Fish-kilo fee &#183; &#8369;@b.FishAmount.ToString("N0")"></span>
+                                        <div class="audit-seg3d seg-fish" style="height:@b.FishHeightPct%" title="Fish-kilo fee &#183; &#8369;@b.FishAmount.ToString("N0")">
+                                            <span class="aud-face-top"></span><span class="aud-face-side"></span>
+                                        </div>
+                                        <div class="audit-seg3d seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")">
+                                            <span class="aud-face-side"></span>
+                                        </div>
                                     }
-                                    <span class="audit-seg seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")"></span>
+                                    else
+                                    {
+                                        <div class="audit-seg3d seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")">
+                                            <span class="aud-face-top"></span><span class="aud-face-side"></span>
+                                        </div>
+                                    }
                                 </div>
                             </div>
                             <span class="audit-payor-label">@GetShort(NormalizeSectionName(b.Section))</span>
@@ -829,13 +789,30 @@ else
                 <div class="rpt-donut-wrap">
                     <div class="rpt-donut-container">
                         <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
-                            @{ var secArcs = BuildDonutArcs(SectionData.Select(s => ((int)s.Revenue, s.Color)).ToArray(), 46, 60, 60); }
-                            @foreach (var arc in secArcs)
-                            {
-                                <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                            }
-                            <circle cx="60" cy="60" r="35" fill="white" />
+                            <defs>
+                                @foreach (var c in SectionData.Where(s => s.Revenue > 0).Select(s => s.Color).Distinct())
+                                {
+                                    <linearGradient id="@SecGradId(c, "sgb")" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="@c" /><stop offset="100%" stop-color="@Darken(c)" />
+                                    </linearGradient>
+                                }
+                                <radialGradient id="secrev-hole" cx="50%" cy="40%" r="62%">
+                                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
+                                </radialGradient>
+                                <filter id="secrev-depth" x="-30%" y="-30%" width="160%" height="160%">
+                                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
+                                </filter>
+                            </defs>
+                            <circle cx="60" cy="60" r="46" fill="none" stroke="#eef2f6" stroke-width="18" />
+                            @{ var secArcs = BuildDonutArcs(SectionData.Select(s => ((int)s.Revenue, $"url(#{SecGradId(s.Color, "sgb")})")).ToArray(), 46, 60, 60); }
+                            <g filter="url(#secrev-depth)">
+                                @foreach (var arc in secArcs)
+                                {
+                                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
+                                }
+                            </g>
+                            <circle cx="60" cy="60" r="35" fill="url(#secrev-hole)" />
+                            <circle cx="60" cy="60" r="35" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
                             <text x="60" y="55" class="donut-center-lbl">REVENUE</text>
                             <text x="60" y="72" class="donut-center-sub">₱@SectionData.Sum(s => s.Revenue).ToString("N0")</text>
                         </svg>
@@ -846,7 +823,7 @@ else
                         {
                             <div class="donut-leg-item">
                                 <div class="donut-leg-left">
-                                    <span class="donut-leg-dot" style="background:@s.Color"></span>
+                                    <span class="donut-leg-dot" style="background:linear-gradient(180deg, @s.Color 0%, @Darken(s.Color) 100%)"></span>
                                     <span class="donut-leg-label">@s.Name</span>
                                 </div>
                                 <strong class="donut-leg-value">₱@s.Revenue.ToString("N0") · @(secTotal > 0 ? (int)Math.Round(s.Revenue / secTotal * 100) : 0)%</strong>
@@ -948,6 +925,10 @@ else
             <div class="cov-chips">
                 <div class="cov-chip"><strong class="cov-collected">@CollectedDays</strong><span>Collected</span></div>
                 <div class="cov-chip"><strong class="cov-missed">@MissedDays</strong><span>Missed</span></div>
+                @if (AbsentDays > 0)
+                {
+                    <div class="cov-chip"><strong class="cov-absent">@AbsentDays</strong><span>Absent</span></div>
+                }
                 <div class="cov-chip"><strong class="cov-streak">@CurrentStreak</strong><span>Day Streak</span></div>
             </div>
 
@@ -1004,18 +985,22 @@ else
             <div class="streak-legend">
                 <span><i class="leg-swatch collected"></i>Collected (@CollectedDays)</span>
                 <span><i class="leg-swatch missed"></i>Missed (@MissedDays)</span>
+                @if (AbsentDays > 0)
+                {
+                    <span><i class="leg-swatch absent"></i>Absent (@AbsentDays)</span>
+                }
                 <span><i class="leg-swatch future"></i>Upcoming</span>
             </div>
         </div>
 
     </div>
 
-    <!-- ══ Fish Section Kilo Tracker (only when fish-section stalls exist) ══ -->
+    <!-- ══ Fish Area Kilo Tracker (only when fish-section stalls exist) ══ -->
     @if (FishStallCount > 0)
     {
     <div class="rpt-section-heading">
         <span class="rpt-section-rule"></span>
-        <h2>Fish Section — Kilo Tracking</h2>
+        <h2>Fish Area — Kilo Tracking</h2>
     </div>
 
     <div class="rpt-fish-panel">
@@ -1068,7 +1053,7 @@ else
         {
             <div class="rpt-empty">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/></svg>
-                <div class="rpt-empty-title">No fish section activity</div>
+                <div class="rpt-empty-title">No fish area activity</div>
                 <div class="rpt-empty-text">No fish kilos were recorded for @GetPeriodLabel().</div>
             </div>
         }
@@ -1144,7 +1129,7 @@ else
             <tbody>
                 @foreach (var s in AllStalls)
                 {
-                    <tr class="@(s.IsPaid ? "" : s.IsPartial ? "row-partial" : "row-unpaid")">
+                    <tr class="@(s.IsAbsent ? "row-absent" : s.IsPaid ? "" : s.IsPartial ? "row-partial" : "row-unpaid")">
                         <td class="stall-no">@s.StallNo</td>
                         <td>@s.Occupant</td>
                         <td class="text-muted">@s.ContractName</td>
@@ -1374,9 +1359,9 @@ else
     IReadOnlyList<UtilityBillingRow> UtilityRows => new List<UtilityBillingRow>
     {
         new("1", "Ana Villanueva", "Vegetable Area", 1200m, 1248m, 384m, 320m, 328m, 96m, "Unpaid", "End-of-month billing pending"),
-        new("2", "Lorna Guevarra", "Fish Section", 880m, 936m, 448m, 210m, 223m, 156m, "Partial", "Water paid, electricity pending"),
+        new("2", "Lorna Guevarra", "Fish Area", 880m, 936m, 448m, 210m, 223m, 156m, "Partial", "Water paid, electricity pending"),
         new("3", "Riki Buenades", "Vegetable Area", 1440m, 1502m, 496m, 415m, 426m, 132m, "Unpaid", "Requires follow-up"),
-        new("4", "Pantom Goth", "Meat Section", 690m, 724m, 272m, 188m, 195m, 84m, "Paid", "Settled for the period")
+        new("4", "Pantom Goth", "Meat Area", 690m, 724m, 272m, 188m, 195m, 84m, "Paid", "Settled for the period")
     };
 
     decimal UtilityTotalDue => UtilityRows.Sum(r => r.TotalDue);
@@ -1433,7 +1418,7 @@ else
 
     // ── Fish tracker (from API) ───────────────────────────────────
     decimal TotalFishKilos => R?.FishKiloTrend?.Sum(f => f.Kilos) ?? 0m;
-    int     FishStallCount => R?.SectionBreakdown?.FirstOrDefault(s => s.SectionName == "Fish Section")?.ActiveStalls ?? 0;
+    int     FishStallCount => R?.SectionBreakdown?.FirstOrDefault(s => s.SectionName == "Fish Area")?.ActiveStalls ?? 0;
     string? FishComparison => R?.FeeTypeBreakdown?.FishKiloComparison;
     int     FishActiveDays => (R?.FishKiloTrend ?? new List<FishKiloTrendDto>()).Count(f => f.Kilos > 0m);
     decimal FishAvgPerActiveDay => FishActiveDays > 0 ? TotalFishKilos / FishActiveDays : 0m;
@@ -1461,36 +1446,6 @@ else
     }
 
     // ── Collection trend bar chart (from API) ─────────────────────
-    record TrendPoint(string Label, decimal Amount, decimal ExpectedAmount, bool IsCurrent, int HeightPct, bool IsZero)
-    {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
-    }
-    IEnumerable<TrendPoint> TrendPoints
-    {
-        get
-        {
-            var t = R?.RevenueTrend ?? new List<RevenueTrendDto>();
-            var maxCollected = t.Any() ? t.Max(x => x.Revenue) : 0m;
-            var maxExpected  = t.Any() ? t.Max(x => x.ExpectedRevenue) : 0m;
-            // Scale every bar against the LARGER of peak collected or peak expected, plus ~15%
-            // headroom. Including expected is what fixes the "partial period looks full" artifact:
-            // a Yearly/Monthly view that is only a few weeks in (e.g. ₱790 collected against a
-            // ₱25,200 annual target) now renders as a short bar proportional to its full target,
-            // matching the collection-rate KPI — instead of filling the plot just because it is
-            // the only non-zero bar. Including collected guarantees a fish-heavy day (collected >
-            // rent-expected) still never clips. Non-zero bars are floored to a thin visible sliver.
-            var ceiling = Math.Max(maxCollected, maxExpected);
-            ceiling = ceiling > 0m ? ceiling * 1.15m : 0m;
-            return t.Select(x => new TrendPoint(
-                x.PeriodLabel,
-                x.Revenue,
-                x.ExpectedRevenue,
-                x.IsCurrentPeriod,
-                x.Revenue > 0m && ceiling > 0m ? Math.Max(3, NormalizeBarHeightPct(x.Revenue, ceiling, 100m)) : 0,
-                x.Revenue <= 0m));
-        }
-    }
-
     // ── Section breakdown (from API) ──────────────────────────────
     record SectionRow(string Name, string ShortName, decimal Revenue, int Pct, string Color);
     IEnumerable<SectionRow> SectionData => (R?.SectionBreakdown ?? new List<SectionBreakdownDto>())
@@ -1510,18 +1465,30 @@ else
     static string NormalizeSectionName(string n) => n switch
     {
         "VegetableArea" => "Vegetable Area",
-        "FishSection" => "Fish Section",
-        "MeatSection" => "Meat Section",
+        "FishSection" => "Fish Area",
+        "MeatSection" => "Meat Area",
         _ => n
     };
     static string GetShort(string n) => n.Replace(" Section", "").Replace(" Area", "");
     static string SectionColor(string n) => NormalizeSectionName(n) switch
     {
         "Vegetable Area" => "#2d7a5f",
-        "Fish Section"   => "#4a9eff",
-        "Meat Section"   => "#c8a84b",
+        "Fish Area"   => "#4a9eff",
+        "Meat Area"   => "#c8a84b",
         _                => "#2d7a5f"
     };
+
+    // Section-donut 3D helpers: a per-colour gradient id + a darker bottom stop for depth.
+    static string SecGradId(string color, string prefix = "sg") => prefix + "-" + color.TrimStart('#');
+    static string Darken(string hex, double f = 0.68)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length != 6) return "#" + hex;
+        var r = (int)(Convert.ToInt32(hex.Substring(0, 2), 16) * f);
+        var g = (int)(Convert.ToInt32(hex.Substring(2, 2), 16) * f);
+        var b = (int)(Convert.ToInt32(hex.Substring(4, 2), 16) * f);
+        return $"#{r:X2}{g:X2}{b:X2}";
+    }
 
     int AuditPayorCollectedCount => SectionData.Count(s => s.Revenue > 0m);
     int AuditPayorShownCount => SectionData.Count();
@@ -1539,13 +1506,13 @@ else
                 .ThenBy(s => s.Name)
                 .ToList();
             var maxRevenue = rows.Any() ? rows.Max(s => s.Revenue) : 0m;
-            // The fish-kilo fee only ever comes from the Fish Section, so the whole
+            // The fish-kilo fee only ever comes from the Fish Area, so the whole
             // FeeTypeBreakdown.FishFeeAmount is attributed to that section's bar. Each bar splits
             // into the stall-rent base (what the collection-rate % describes) and the separate
             // fish-kilo fee cap, so a tall bar can no longer be mistaken for a high collection rate.
             return rows.Select(s =>
             {
-                var fishAmount = s.Name == "Fish Section" ? Math.Min(FishFeeTotal, s.Revenue) : 0m;
+                var fishAmount = s.Name == "Fish Area" ? Math.Min(FishFeeTotal, s.Revenue) : 0m;
                 var rentAmount = s.Revenue - fishAmount;
                 return new AuditPayorBar(
                     s.ShortName,
@@ -1698,12 +1665,14 @@ else
     int MissedDays    => R?.DailyCollectionStreak?.MissedDays ?? 0;
     int CurrentStreak => R?.DailyCollectionStreak?.CurrentStreakDays ?? 0;
     int CoverageRate  => R?.DailyCollectionStreak?.CoverageRate ?? 0;
+    int AbsentDays    => R?.DailyCollectionStreak?.AbsentDays ?? 0;
 
     static string DayCss(string status) => status.ToLowerInvariant() switch
     {
         "collected" => "collected",
         "partial"   => "partial",
         "missed"    => "missed",
+        "absent"    => "absent",
         _           => "future"
     };
 
@@ -1739,15 +1708,19 @@ else
 
     // ── Full stalls compliance table (from API) ───────────────────
     record StallRow(string StallNo, string Occupant, string ContractName, string Section,
-                    decimal DailyRate, bool IsPaid, bool IsPartial,
+                    decimal DailyRate, string Status,
                     decimal AmountPaid, decimal Balance, string ORNumber)
     {
-        public string StatusLabel => IsPaid ? "Paid" : IsPartial ? "Partial" : "Unpaid";
-        public string StatusCss   => IsPaid ? "paid" : IsPartial ? "partial" : "unpaid";
+        public bool IsPaid => Status.Equals("Paid", StringComparison.OrdinalIgnoreCase);
+        public bool IsPartial => Status.Equals("Partial", StringComparison.OrdinalIgnoreCase);
+        public bool IsAbsent => Status.Equals("Absent", StringComparison.OrdinalIgnoreCase);
+        // Server emits Paid / Partial / Unpaid / Absent — surface it verbatim with a matching css class.
+        public string StatusLabel => Status;
+        public string StatusCss   => Status.ToLowerInvariant();
     }
     IEnumerable<StallRow> AllStalls => (R?.StallCompliance ?? new List<StallComplianceDto>())
         .Select(s => new StallRow(s.StallNo, s.Occupant, s.ContractName, s.Section, s.DailyRate,
-            s.Status == "Paid", s.Status == "Partial", s.AmountPaid, s.Balance, s.ORNumber ?? ""));
+            s.Status, s.AmountPaid, s.Balance, s.ORNumber ?? ""));
 
     // ── Stallholder register (mirrors the LGU paper roster) ───────
     // Rentals follow the official ledger: ₱30/day → ₱900/month (flat 30 days) → ₱10,800/year.

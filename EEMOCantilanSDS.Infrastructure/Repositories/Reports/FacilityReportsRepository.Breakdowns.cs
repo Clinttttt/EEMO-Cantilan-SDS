@@ -188,6 +188,18 @@ public partial class FacilityReportsRepository
             .GroupBy(x => x.StallId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
+        // Excused/absent dates per stall — a stall absent on a date is not expected to be collected,
+        // so it drops out of that day's "should collect" set (and never counts as a missed day).
+        var absentDatesByStall = (await _context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => stallIds.Contains(dc.StallId) && dc.CollectionDate >= monthStart && dc.CollectionDate <= monthEnd && dc.IsAbsent)
+                .Select(dc => new { dc.StallId, dc.CollectionDate })
+                .ToListAsync(ct))
+            .GroupBy(x => x.StallId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
+
+        bool AbsentOn(Stall s, DateOnly d) => absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d);
+
         bool CollectableOn(Stall s, DateOnly d) => s.Contracts.Any(c =>
             c.IsActive && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));
 
@@ -209,6 +221,7 @@ public partial class FacilityReportsRepository
         var statusByDate = new Dictionary<DateOnly, string>();
         var collectedDays = 0;
         var missedDays = 0;
+        var absentDays = 0;
         var inScopeDays = 0;
 
         for (var date = monthStart; date <= monthEnd; date = date.AddDays(1))
@@ -219,12 +232,20 @@ public partial class FacilityReportsRepository
             {
                 status = "OutOfScope";
             }
+            else if (collectable.All(s => AbsentOn(s, date)))
+            {
+                // Every payor under contract this day was excused/absent — the day is excused, not missed,
+                // and is excluded from the coverage denominator.
+                status = "Absent";
+                absentDays++;
+            }
             else
             {
                 inScopeDays++;
-                // A day is collected once it is covered (a payor paid/prepaid that day). Unpaid payors are
-                // surfaced via Payor Compliance + Delinquency Analytics, not by blanking the calendar.
-                if (collectable.Any(s => CoveredOn(s, date))) { status = "Collected"; collectedDays++; }
+                // Payors excused that day are dropped from the "should collect" set so an absence never
+                // reads as a miss. A day is collected once any still-expected payor covered it.
+                var expected = collectable.Where(s => !AbsentOn(s, date)).ToList();
+                if (expected.Any(s => CoveredOn(s, date))) { status = "Collected"; collectedDays++; }
                 else if (date > lastAuditableDay) status = "Future";
                 else { status = "Missed"; missedDays++; }
             }
@@ -237,7 +258,7 @@ public partial class FacilityReportsRepository
         var currentStreak = 0;
         for (var date = streakEndDate; date >= startDate && date >= monthStart; date = date.AddDays(-1))
         {
-            if (!statusByDate.TryGetValue(date, out var st) || st == "OutOfScope") continue;
+            if (!statusByDate.TryGetValue(date, out var st) || st == "OutOfScope" || st == "Absent") continue;
             if (st == "Collected") currentStreak++;
             else break;
         }
@@ -251,7 +272,8 @@ public partial class FacilityReportsRepository
             CurrentStreakDays: currentStreak,
             Days: days,
             PartialDays: 0,
-            CoverageRate: coverageRate
+            CoverageRate: coverageRate,
+            AbsentDays: absentDays
         );
     }
 
@@ -261,13 +283,14 @@ public partial class FacilityReportsRepository
 
     private static PaymentStatusDistributionDto BuildPaymentDistribution(IReadOnlyList<StallComplianceDto> stallCompliance)
     {
-        var total = stallCompliance.Count;
-        if (total == 0)
-            return new PaymentStatusDistributionDto(0, 0m, 0, 0m, 0, 0m);
-
         var paid = stallCompliance.Count(s => s.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase));
         var partial = stallCompliance.Count(s => s.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase));
-        var unpaid = total - paid - partial;
+        var unpaid = stallCompliance.Count(s => s.Status.Equals("Unpaid", StringComparison.OrdinalIgnoreCase));
+
+        // Excused/absent stalls are neither paid nor owing — they are excluded from the distribution.
+        var total = paid + partial + unpaid;
+        if (total == 0)
+            return new PaymentStatusDistributionDto(0, 0m, 0, 0m, 0, 0m);
 
         return new PaymentStatusDistributionDto(
             paid,
@@ -282,7 +305,8 @@ public partial class FacilityReportsRepository
     {
         var paid = stallCompliance.Count(s => s.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase));
         var partial = stallCompliance.Count(s => s.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase));
-        var unpaid = stallCompliance.Count - paid - partial;
+        // Count Unpaid explicitly so excused/absent stalls are not mistaken for unpaid.
+        var unpaid = stallCompliance.Count(s => s.Status.Equals("Unpaid", StringComparison.OrdinalIgnoreCase));
 
         return new CollectionPerformanceDto(paid, partial, unpaid);
     }

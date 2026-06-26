@@ -12,5 +12,7 @@ public record NpmStallDailyStatusDto(
     DateOnly? LastPaidDate,
     // OR number of the most recent paid daily collection this month (NPM ORs live on the daily
     // collections, not a monthly record). Used to show a reference OR on the collection receipt.
-    string? LastORNumber = null
+    string? LastORNumber = null,
+    // True when today's daily record marks the payor excused/absent (₱0 owed for the day).
+    bool AbsentToday = false
 );

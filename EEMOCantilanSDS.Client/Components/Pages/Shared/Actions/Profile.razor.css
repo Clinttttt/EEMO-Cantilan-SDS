@@ -523,6 +523,11 @@
     border-color: #d9b0b0;
 }
 
+.hist-absent {
+    background: rgba(200, 168, 75, 0.14);
+    border-color: #c8a84b;
+}
+
 .hist-na {
     background: #f5f7f9;
     border-color: #dde4ea;

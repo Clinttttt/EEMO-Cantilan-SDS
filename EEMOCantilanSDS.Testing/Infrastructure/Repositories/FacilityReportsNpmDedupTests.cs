@@ -127,7 +127,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         Assert.Equal(910m, compliance.AmountPaid);
         Assert.Equal(0m, compliance.Balance);
 
-        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Section");
+        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Area");
         Assert.Equal(910m, fishSection.Revenue);
 
         Assert.NotNull(report.FeeTypeBreakdown);
@@ -183,7 +183,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         Assert.Equal(30m, compliance.AmountPaid);
         Assert.Equal(180m, compliance.Balance);
 
-        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Section");
+        var fishSection = report.SectionBreakdown.Single(s => s.SectionName == "Fish Area");
         Assert.Equal(80m, fishSection.Revenue);
         Assert.Equal(Math.Round(30m / 210m * 100m, 2), Math.Round(fishSection.Percentage, 2));
     }
@@ -483,8 +483,8 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 6, null, CancellationToken.None);
 
         Assert.Contains(report.SectionBreakdown, s => s.SectionName == "Vegetable Area");
-        Assert.Contains(report.SectionBreakdown, s => s.SectionName == "Fish Section");
-        Assert.Contains(report.SectionBreakdown, s => s.SectionName == "Meat Section");
+        Assert.Contains(report.SectionBreakdown, s => s.SectionName == "Fish Area");
+        Assert.Contains(report.SectionBreakdown, s => s.SectionName == "Meat Area");
         Assert.DoesNotContain(report.SectionBreakdown, s => s.SectionName.Contains("Section", StringComparison.Ordinal) && !s.SectionName.Contains(' '));
     }
 }

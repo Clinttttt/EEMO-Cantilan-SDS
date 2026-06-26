@@ -215,7 +215,7 @@
                                         <span class="prof-field-val mono">₱@Stall.WaterAmount.ToString("N0")</span>
                                     </div>
                                 }
-                                @if (Stall.Section == "Fish Section")
+                                @if (Stall.Section == "Fish Area")
                                 {
                                     <div class="prof-field">
                                         <span class="prof-field-label">Fish Fee (₱1/kg)</span>
@@ -232,7 +232,7 @@
                                 <div class="prof-bill-sub">
                                     @if (FacilityId.ToUpper() == "NPM")
                                     {
-                                        @("Rental + Electricity + Water" + (Stall.Section == "Fish Section" ? " + Fish Fee" : ""))
+                                        @("Rental + Electricity + Water" + (Stall.Section == "Fish Area" ? " + Fish Fee" : ""))
                                     }
                                     else
                                     {
@@ -330,7 +330,7 @@
                                 var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
                                 var status = isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
                                 var isCurrent = i == 0;
-                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
                                     <div class="prof-hist-month-name">@month.ToString("MMM")</div>
                                     <div class="prof-hist-month-year">@month.ToString("yy")</div>
                                     @if (isBeforeContract)
@@ -349,6 +349,10 @@
                                                 <path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/>
                                             </svg>
                                         </div>
+                                    }
+                                    else if (status == "Absent")
+                                    {
+                                        <div class="prof-hist-icon">–</div>
                                     }
                                     else
                                     {
@@ -651,7 +655,7 @@
         public decimal WaterReading { get; set; }
         public decimal WaterAmount { get; set; }
         public decimal FishKilos { get; set; }
-        public decimal FishFee => Section == "Fish Section" ? FishKilos : 0;
+        public decimal FishFee => Section == "Fish Area" ? FishKilos : 0;
         public decimal TotalBill => MonthlyRate + ElecAmount + WaterAmount + FishFee;
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
@@ -712,7 +716,8 @@
                 {
                     foreach (var payment in historyResult.Value)
                     {
-                        paymentHistory[payment.Period] = payment.Status == Domain.Enums.PaymentStatus.Paid ? "Paid" 
+                        paymentHistory[payment.Period] = payment.IsExcused ? "Absent"
+                            : payment.Status == Domain.Enums.PaymentStatus.Paid ? "Paid" 
                             : payment.Status == Domain.Enums.PaymentStatus.Partial ? "Partial" 
                             : "Unpaid";
                     }
@@ -765,8 +770,8 @@
                 var section = stallDto.Section switch
                 {
                     Domain.Enums.MarketSection.VegetableArea => "Vegetable Area",
-                    Domain.Enums.MarketSection.FishSection => "Fish Section",
-                    Domain.Enums.MarketSection.MeatSection => "Meat Section",
+                    Domain.Enums.MarketSection.FishSection => "Fish Area",
+                    Domain.Enums.MarketSection.MeatSection => "Meat Area",
                     _ => stallDto.AreaLocation switch
                     {
                         Domain.Enums.NccAreaLocation.Extension => "Extension",
@@ -848,7 +853,7 @@
         var fees = Domain.Enums.ApplicableFees.BaseRental;
         if (Stall.HasElectricity) fees |= Domain.Enums.ApplicableFees.Electricity;
         if (Stall.HasWater) fees |= Domain.Enums.ApplicableFees.Water;
-        if (Stall.Section == "Fish Section") fees |= Domain.Enums.ApplicableFees.FishFee;
+        if (Stall.Section == "Fish Area") fees |= Domain.Enums.ApplicableFees.FishFee;
         
         var command = new UpdateStallCommand(
             StallGuid,

@@ -52,35 +52,107 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .ToList();
     }
 
+    public async Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct)
+    {
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        // Online payments also leave ORNumber null until staff encode it, but they have their own
+        // awaiting-OR queue (keyed by an OnlinePaymentTransaction). Exclude them here so a payment is
+        // never listed under both "online awaiting OR" and "cash awaiting OR".
+        var onlineRecordIds = context.OnlinePaymentTransactions.Select(t => t.PaymentRecordId);
+
+        // ── Monthly: fully-Paid records with a blank OR (cash/field), for the selected billing period ──
+        // Restricted to Paid (not Partial) so this never overlaps the current-period "Partial" follow-up.
+        var monthlyRaw = await context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.BillingYear == year && p.BillingMonth == month
+                && p.Status == PaymentStatus.Paid
+                && (p.ORNumber == null || p.ORNumber == "")
+                && !onlineRecordIds.Contains(p.Id))
+            .Select(p => new
+            {
+                Code = p.Stall!.Facility!.Code,
+                p.Stall.StallNo,
+                Occupant = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                p.BaseRentalAmount,
+                p.ElecAmount,
+                p.WaterAmount,
+                p.FishKilos
+            })
+            .ToListAsync(ct);
+
+        var monthly = monthlyRaw.Select(p => new UnreceiptedPaymentDto(
+            p.Code,
+            p.StallNo,
+            string.IsNullOrWhiteSpace(p.Occupant) ? string.Empty : p.Occupant!,
+            p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0)
+                + (p.FishKilos.HasValue ? p.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+            1,
+            IsDaily: false));
+
+        // ── NPM daily: paid daily collections with a blank OR, grouped per stall for the period ──
+        var dailyRaw = await context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.IsPaid
+                && (dc.ORNumber == null || dc.ORNumber == "")
+                && dc.CollectionDate >= monthStart && dc.CollectionDate <= monthEnd)
+            .Select(dc => new
+            {
+                Code = dc.Stall!.Facility!.Code,
+                dc.Stall.StallNo,
+                Occupant = dc.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                dc.DailyFee,
+                dc.FishKilos
+            })
+            .ToListAsync(ct);
+
+        var daily = dailyRaw
+            .GroupBy(d => new { d.Code, d.StallNo, d.Occupant })
+            .Select(g => new UnreceiptedPaymentDto(
+                g.Key.Code,
+                g.Key.StallNo,
+                string.IsNullOrWhiteSpace(g.Key.Occupant) ? string.Empty : g.Key.Occupant!,
+                g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)),
+                g.Count(),
+                IsDaily: true));
+
+        return monthly.Concat(daily).ToList();
+    }
+
     public async Task<IReadOnlyList<NpmStallDailyStatusDto>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var today = PhilippineTime.Today;
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
-        // Paid daily collections for the facility in the selected month. NPM operational status is
-        // derived from daily collections (not monthly payment records) because the market is
-        // collected day-by-day at ₱30/day.
+        // Daily collections for the facility this month — paid days drive the operational stats, and
+        // today's absent marker drives the "Absent" pill. NPM status is daily (not monthly records).
         var collections = await context.DailyCollections
             .AsNoTracking()
             .Where(dc => dc.Stall!.Facility!.Code == facilityCode
-                && dc.IsPaid
+                && (dc.IsPaid || dc.IsAbsent)
                 && dc.CollectionDate >= monthStart
                 && dc.CollectionDate <= monthEnd)
-            .Select(dc => new { dc.StallId, dc.CollectionDate, dc.ORNumber })
+            .Select(dc => new { dc.StallId, dc.CollectionDate, dc.ORNumber, dc.IsPaid, dc.IsAbsent })
             .ToListAsync(ct);
 
         return collections
             .GroupBy(c => c.StallId)
-            .Select(g => new NpmStallDailyStatusDto(
-                g.Key,
-                g.Any(x => x.CollectionDate == today),
-                g.Select(x => x.CollectionDate).Distinct().Count(),
-                g.Max(x => x.CollectionDate),
-                // Most recent paid day's OR (skipping blanks) — the receipt's reference OR.
-                g.OrderByDescending(x => x.CollectionDate)
-                    .Select(x => x.ORNumber)
-                    .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or))))
+            .Select(g =>
+            {
+                var paid = g.Where(x => x.IsPaid).ToList();
+                return new NpmStallDailyStatusDto(
+                    g.Key,
+                    paid.Any(x => x.CollectionDate == today),
+                    paid.Select(x => x.CollectionDate).Distinct().Count(),
+                    paid.Count > 0 ? paid.Max(x => x.CollectionDate) : (DateOnly?)null,
+                    // Most recent paid day's OR (skipping blanks) — the receipt's reference OR.
+                    paid.OrderByDescending(x => x.CollectionDate)
+                        .Select(x => x.ORNumber)
+                        .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or)),
+                    g.Any(x => x.IsAbsent && x.CollectionDate == today));
+            })
             .ToList();
     }
 
@@ -127,6 +199,16 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .Select(dc => new { dc.CollectionDate, dc.DailyFee, dc.CollectorId, dc.ORNumber })
             .ToListAsync(ct);
 
+        // Excused/absent dates — these days are not owed, so they reduce each month's ₱30/day bill
+        // (and a month entirely absent becomes a ₱0 "Absent" row instead of an Unpaid one).
+        var absentDates = (await context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.StallId == stallId && dc.IsAbsent
+                && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
+            .Select(dc => dc.CollectionDate)
+            .ToListAsync(ct))
+            .ToHashSet();
+
         var collectorIds = dailies.Where(d => d.CollectorId.HasValue).Select(d => d.CollectorId!.Value)
             .Concat(payments.Where(p => p.CollectorId.HasValue).Select(p => p.CollectorId!.Value))
             .Distinct().ToList();
@@ -151,7 +233,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             // collected = the sum of paid daily collections for the month. The monthly record's flat
             // ₱900 base / raw partial is intentionally ignored here.
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
-            var bill = collectableDays * FeeRates.NpmDailyFee;
+            var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
+            var billableDays = Math.Max(0, collectableDays - absentDays);
+            var bill = billableDays * FeeRates.NpmDailyFee;
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -160,7 +244,17 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             // greyed out as "N/A", and collectable-but-unpaid months show as Unpaid. Emitting a
             // zero row here would defeat the modal's before-contract detection.
             if (amountPaid <= 0m)
+            {
+                // Exception: a month that was under contract but fully excused (every collectable day
+                // absent) is emitted as a distinct ₱0 "Absent" row — it is not owed, so it must not
+                // fall through to the modal's Unpaid default.
+                if (collectableDays > 0 && billableDays == 0 && absentDays > 0)
+                {
+                    result.Add(new PaymentHistoryDto(
+                        period, PaymentStatus.Paid, 0m, 0m, 0m, null, null, null, IsExcused: true));
+                }
                 continue;
+            }
 
             var status = amountPaid >= bill && bill > 0m ? PaymentStatus.Paid : PaymentStatus.Partial;
             var balance = Math.Max(0m, bill - amountPaid);
@@ -221,6 +315,17 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 .ToListAsync(ct)
             : new();
 
+        // Excused/absent dates reduce the NPM obligation (a fully-absent month is not owed at all).
+        var absentDates = isNpm
+            ? (await context.DailyCollections
+                .AsNoTracking()
+                .Where(dc => dc.StallId == stallId && dc.IsAbsent
+                    && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
+                .Select(dc => dc.CollectionDate)
+                .ToListAsync(ct))
+                .ToHashSet()
+            : new HashSet<DateOnly>();
+
         int monthsPaid = 0, monthsUnpaid = 0;
         decimal totalCollected = 0m, totalOutstanding = 0m;
 
@@ -240,13 +345,17 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             if (isNpm)
             {
                 // NPM money is always daily-truth (₱30/day × contract-prorated days) — a flat monthly
-                // record never overrides it. Mirrors GetPaymentHistoryAsync so the profile summary,
-                // the 12-month history grid, and the reports all reconcile.
-                var bill = CountCollectableDays(stall, monthStart, monthEnd) * FeeRates.NpmDailyFee;
+                // record never overrides it. Excused/absent days are not owed, so they reduce the bill;
+                // a month entirely excused is skipped (not paid, not unpaid, nothing owed).
+                var npmAbsent = absentDates.Count(d => d >= monthStart && d <= monthEnd);
+                var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmAbsent);
+                var bill = billableDays * FeeRates.NpmDailyFee;
+                if (bill <= 0m)
+                    continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
                 totalCollected += paid;
                 totalOutstanding += Math.Max(0m, bill - paid);
-                if (bill > 0m && paid >= bill) monthsPaid++; else monthsUnpaid++;
+                if (paid >= bill) monthsPaid++; else monthsUnpaid++;
                 continue;
             }
 

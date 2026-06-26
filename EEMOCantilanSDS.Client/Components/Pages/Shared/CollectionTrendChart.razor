@@ -1,0 +1,135 @@
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+
+@*
+    Shared 3D Collection Trend chart — daily/monthly rent (green) base + optional fish-kilo fee
+    (blue) cap, a nice-scaled Y-axis, gridlines, a hover breakdown tooltip, and a gold current-period
+    cue. Used by every facility report (NPM/TCC/NCC/BBQ/ICE) so they share one style.
+*@
+
+<div class="rpt-chart-area">
+    <div class="rpt-yaxis">
+        @foreach (var lbl in YAxisLabels)
+        {
+            <span class="rpt-ytick">@lbl.ToString("N0")</span>
+        }
+    </div>
+    <div class="rpt-bar-chart">
+        @if (Points.Any(p => p.Amount > 0))
+        {
+            @foreach (var pt in Points)
+            {
+                <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "") @(pt.IsZero ? "is-zero" : "")">
+                    <div class="rpt-bar-wrap">
+                        <div class="rpt-bar-tip">
+                            <div class="tip-title">@pt.Label</div>
+                            <div class="tip-total">₱@pt.Amount.ToString("N2")</div>
+                            <div class="tip-row"><span class="tip-dot rent"></span>@RentLabel<strong>₱@pt.RentAmount.ToString("N0")</strong></div>
+                            @if (pt.FishAmount > 0m)
+                            {
+                                <div class="tip-row"><span class="tip-dot fish"></span>Fish fee (₱1/kg)<strong>₱@pt.FishAmount.ToString("N0")</strong></div>
+                            }
+                            @if (pt.IsZero)
+                            {
+                                <div class="tip-empty">No collection recorded</div>
+                            }
+                            else if (pt.IsCurrent)
+                            {
+                                <div class="tip-current">Current period</div>
+                            }
+                        </div>
+                        <div class="bar3d" style="height:@pt.HeightPct%">
+                            @if (pt.FishAmount > 0m)
+                            {
+                                <div class="seg3d seg-fish" style="height:@pt.FishPct%"><span class="face-top"></span><span class="face-side"></span></div>
+                                <div class="seg3d seg-rent" style="height:@pt.RentPct%"><span class="face-side"></span></div>
+                            }
+                            else
+                            {
+                                <div class="seg3d seg-rent" style="height:100%"><span class="face-top"></span><span class="face-side"></span></div>
+                            }
+                        </div>
+                    </div>
+                    <div class="rpt-bar-label">@pt.Label</div>
+                    <div class="rpt-bar-val">₱@pt.ShortValue</div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="rpt-empty">
+                <div class="rpt-empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+                </div>
+                <div class="rpt-empty-title">No collections recorded</div>
+                <div class="rpt-empty-text">No revenue was collected for @EmptyPeriodLabel.</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The facility report's revenue trend (one point per reporting period).</summary>
+    [Parameter] public IReadOnlyList<RevenueTrendDto>? Trend { get; set; }
+
+    /// <summary>Tooltip label for the rent segment, e.g. "Daily rent" (NPM) or "Monthly rent".</summary>
+    [Parameter] public string RentLabel { get; set; } = "Daily rent";
+
+    /// <summary>Period label used in the empty-state text (e.g. "March 2026").</summary>
+    [Parameter] public string EmptyPeriodLabel { get; set; } = "this period";
+
+    private IReadOnlyList<RevenueTrendDto> Data => Trend ?? Array.Empty<RevenueTrendDto>();
+
+    // ── Y-axis nice scale (shared by the bars and the axis labels so they align exactly) ──
+    private (decimal Max, IReadOnlyList<decimal> Ticks) Axis
+    {
+        get
+        {
+            var rawMax = Data.Any() ? Math.Max(Data.Max(x => x.Revenue), Data.Max(x => x.ExpectedRevenue)) : 0m;
+            if (rawMax <= 0m)
+                return (100m, new List<decimal> { 0m, 20m, 40m, 60m, 80m, 100m });
+
+            var rough = (double)rawMax / 5.0;
+            var mag = Math.Pow(10, Math.Floor(Math.Log10(rough)));
+            var norm = rough / mag;
+            var niceUnit = norm <= 1 ? 1.0 : norm <= 2 ? 2.0 : norm <= 5 ? 5.0 : 10.0;
+            var step = (decimal)(niceUnit * mag);
+            var max = Math.Ceiling(rawMax / step) * step;
+            var ticks = new List<decimal>();
+            for (var v = 0m; v <= max + 0.0001m; v += step) ticks.Add(v);
+            return (max, ticks);
+        }
+    }
+    private IEnumerable<decimal> YAxisLabels => Axis.Ticks.Reverse();
+
+    private record TrendPoint(string Label, decimal Amount, decimal FishAmount, decimal RentAmount, bool IsCurrent, int HeightPct, int RentPct, int FishPct, bool IsZero)
+    {
+        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
+    }
+
+    private IEnumerable<TrendPoint> Points
+    {
+        get
+        {
+            var ceiling = Axis.Max;
+            return Data.Select(x =>
+            {
+                var fish = Math.Min(Math.Max(0m, x.FishFeeRevenue), x.Revenue);
+                var rent = x.Revenue - fish;
+                var rentPct = x.Revenue > 0m ? (int)Math.Round(rent / x.Revenue * 100m) : 0;
+                var fishPct = x.Revenue > 0m ? 100 - rentPct : 0;
+                return new TrendPoint(
+                    x.PeriodLabel,
+                    x.Revenue,
+                    fish,
+                    rent,
+                    x.IsCurrentPeriod,
+                    x.Revenue > 0m && ceiling > 0m ? Math.Max(3, ClampPct(x.Revenue / ceiling * 100m)) : 0,
+                    rentPct,
+                    fishPct,
+                    x.Revenue <= 0m);
+            });
+        }
+    }
+
+    private static int ClampPct(decimal value) => (int)Math.Clamp(Math.Round(value), 0m, 100m);
+}

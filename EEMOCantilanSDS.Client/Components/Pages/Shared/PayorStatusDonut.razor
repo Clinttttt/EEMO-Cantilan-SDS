@@ -1,0 +1,99 @@
+@*
+    Shared 3D Payor Status donut — gradient segments, a ring depth shadow, and a beveled center,
+    matching the Collection Trend chart. Used by every facility report (NPM/TCC/NCC/BBQ/ICE).
+    Gradient/filter ids are instance-unique so multiple donuts on one page never collide.
+*@
+
+<div class="rpt-donut-wrap">
+    <div class="rpt-donut-container">
+        <svg class="rpt-donut-svg" viewBox="0 0 120 120">
+            <defs>
+                <linearGradient id="@(_uid)-paid" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3fa07a" /><stop offset="100%" stop-color="#256b53" />
+                </linearGradient>
+                <linearGradient id="@(_uid)-partial" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#e8cc76" /><stop offset="100%" stop-color="#b8902f" />
+                </linearGradient>
+                <linearGradient id="@(_uid)-unpaid" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#a85454" /><stop offset="100%" stop-color="#6f2a2a" />
+                </linearGradient>
+                <radialGradient id="@(_uid)-hole" cx="50%" cy="40%" r="62%">
+                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
+                </radialGradient>
+                <filter id="@(_uid)-depth" x="-30%" y="-30%" width="160%" height="160%">
+                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
+                </filter>
+            </defs>
+            <circle cx="60" cy="60" r="46" fill="none" stroke="#eef2f6" stroke-width="18" />
+            @{
+                var arcs = BuildDonutArcs(new[]
+                {
+                    (PaidCount,    $"url(#{_uid}-paid)"),
+                    (PartialCount, $"url(#{_uid}-partial)"),
+                    (UnpaidCount,  $"url(#{_uid}-unpaid)")
+                }, 46, 60, 60);
+            }
+            <g filter="url(#@(_uid)-depth)">
+                @foreach (var arc in arcs)
+                {
+                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
+                }
+            </g>
+            <circle cx="60" cy="60" r="35" fill="url(#@(_uid)-hole)" />
+            <circle cx="60" cy="60" r="35" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
+            <text x="60" y="55" class="donut-center-value">@Total</text>
+            <text x="60" y="69" class="donut-center-lbl">PAYORS</text>
+        </svg>
+    </div>
+    <div class="rpt-donut-legend">
+        <div class="donut-leg-item">
+            <div class="donut-leg-left"><span class="donut-leg-dot paid"></span><span class="donut-leg-label">Fully Paid</span></div>
+            <strong class="donut-leg-value">@PaidCount <span>@PaidPct%</span></strong>
+        </div>
+        <div class="donut-leg-item">
+            <div class="donut-leg-left"><span class="donut-leg-dot partial"></span><span class="donut-leg-label">Partial Payment</span></div>
+            <strong class="donut-leg-value">@PartialCount <span>@PartialPct%</span></strong>
+        </div>
+        <div class="donut-leg-item">
+            <div class="donut-leg-left"><span class="donut-leg-dot unpaid"></span><span class="donut-leg-label">Unpaid</span></div>
+            <strong class="donut-leg-value">@UnpaidCount <span>@UnpaidPct%</span></strong>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int PaidCount { get; set; }
+    [Parameter] public int PartialCount { get; set; }
+    [Parameter] public int UnpaidCount { get; set; }
+
+    private readonly string _uid = "d" + Guid.NewGuid().ToString("N").Substring(0, 8);
+
+    private int Total => PaidCount + PartialCount + UnpaidCount;
+    private int PaidPct => Total > 0 ? (int)Math.Round((double)PaidCount / Total * 100) : 0;
+    private int PartialPct => Total > 0 ? (int)Math.Round((double)PartialCount / Total * 100) : 0;
+    private int UnpaidPct => Total > 0 ? Math.Max(0, 100 - PaidPct - PartialPct) : 0;
+
+    private record ArcSegment(string D, string Color);
+
+    // Explicit SVG arc paths — single stroke per segment, no inter-segment gaps.
+    private static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
+    {
+        var total = segments.Sum(s => s.Count);
+        if (total == 0) yield break;
+
+        var startAngle = -Math.PI / 2; // top
+        foreach (var (count, color) in segments)
+        {
+            if (count == 0) continue;
+            var sweep = 2 * Math.PI * count / total;
+            var endAngle = startAngle + Math.Min(sweep, 2 * Math.PI - 0.0001);
+            var x1 = cx + r * Math.Cos(startAngle);
+            var y1 = cy + r * Math.Sin(startAngle);
+            var x2 = cx + r * Math.Cos(endAngle);
+            var y2 = cy + r * Math.Sin(endAngle);
+            var largeArc = sweep > Math.PI ? 1 : 0;
+            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {largeArc} 1 {x2:F3} {y2:F3}", color);
+            startAngle = endAngle;
+        }
+    }
+}

@@ -53,8 +53,21 @@ public class GetFinancialReportQueryHandler(
             collected += report.TotalRevenue;
             unpaid += report.PendingPaymentAmount;
 
-            var paid = report.CollectionPerformance.FullyPaidCount + report.CollectionPerformance.PartiallyPaidCount;
-            var expected = report.StallCompliance.Count;
+            // "Paid records" counts actual collection transactions. NPM is collected per day, so each
+            // ₱30 daily collection is one record, and "expected" is the collectable stall-days (the daily
+            // obligation ÷ ₱30, already absent-adjusted via ExpectedBill). Monthly-billed facilities keep
+            // one record per occupied stall (counted when paid or partially paid).
+            int paid, expected;
+            if (code == FacilityCode.NPM)
+            {
+                paid = (int)Math.Round((report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m) / FeeRates.NpmDailyFee);
+                expected = (int)Math.Round(report.StallCompliance.Sum(s => s.ExpectedBill) / FeeRates.NpmDailyFee);
+            }
+            else
+            {
+                paid = report.CollectionPerformance.FullyPaidCount + report.CollectionPerformance.PartiallyPaidCount;
+                expected = report.StallCompliance.Count;
+            }
             paidRecords += paid;
             expectedRecords += expected;
 
@@ -71,10 +84,16 @@ public class GetFinancialReportQueryHandler(
                 // is a monthly concept, so it is only produced for the Monthly period (0 = hidden otherwise).
                 var coverage = 0m;
                 var coverageBalance = 0m;
+                var excusedAmount = 0m;
                 if (request.Period == ReportPeriod.Monthly)
                 {
-                    coverage = report.StallCompliance.Count * FeeRates.NpmMonthlyFee;
-                    coverageBalance = report.StallCompliance.Sum(s => Math.Max(0m, FeeRates.NpmMonthlyFee - s.AmountPaid));
+                    // Mirror the Month-End report: each NPM stall's ₱900 full-month reference LESS its
+                    // excused/absent days (₱30/day), and the balance against that absent-adjusted
+                    // reference — so the Financial and Month-End reports reconcile stall-for-stall.
+                    coverage = report.StallCompliance.Sum(s => Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee));
+                    coverageBalance = report.StallCompliance.Sum(s =>
+                        Math.Max(0m, Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee) - s.AmountPaid));
+                    excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * FeeRates.NpmDailyFee);
                 }
                 detail = new NpmFacilityDetailDto(
                     DailyFeeCollected: dailyFee,
@@ -82,7 +101,8 @@ public class GetFinancialReportQueryHandler(
                     FishKilos: fishKilos,
                     PeriodBalance: report.PendingPaymentAmount,
                     FullMonthCoverage: coverage,
-                    FullMonthCoverageBalance: coverageBalance);
+                    FullMonthCoverageBalance: coverageBalance,
+                    ExcusedAmount: excusedAmount);
             }
 
             facilityRows.Add(new FinancialFacilityRowDto(

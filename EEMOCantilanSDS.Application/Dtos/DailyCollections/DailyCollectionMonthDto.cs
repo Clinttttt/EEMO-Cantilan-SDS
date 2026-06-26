@@ -11,11 +11,13 @@ public sealed record DailyCollectionMonthDto(
     decimal TotalFishFee,
     decimal GrandTotal,
     bool IsFullyPaid,
-    Dictionary<string, DailyCollectionDayDto> Collections
+    Dictionary<string, DailyCollectionDayDto> Collections,
+    int DaysAbsent = 0
 );
 
 public sealed record DailyCollectionDayDto(
     DateOnly Date,
     bool IsPaid,
-    decimal? FishKilos
+    decimal? FishKilos,
+    bool IsAbsent = false
 );

@@ -61,6 +61,7 @@ public partial class FacilityReportsRepository
             var dayLabel = date.ToString("ddd d"); // e.g. "Mon 8" — weekday + day-of-month (unambiguous across weeks)
             decimal revenue = 0m;
             decimal expectedRevenue = 0m;
+            decimal fishRevenue = 0m;
 
             if (facilityCode == FacilityCode.NPM)
             {
@@ -96,10 +97,16 @@ public partial class FacilityReportsRepository
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
+                // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
+                fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
+                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                        ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
+                        : 0m);
+
                 revenue = monthlyRevenue + dailyRevenue;
             }
 
-            trends.Add(new RevenueTrendDto(dayLabel, revenue, expectedRevenue, date == today));
+            trends.Add(new RevenueTrendDto(dayLabel, revenue, expectedRevenue, date == today, fishRevenue));
         }
 
         return trends;
@@ -133,6 +140,7 @@ public partial class FacilityReportsRepository
 
             decimal revenue = 0m;
             decimal expectedRevenue = 0m;
+            decimal fishRevenue = 0m;
 
             if (facilityCode == FacilityCode.NPM)
             {
@@ -173,6 +181,12 @@ public partial class FacilityReportsRepository
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
+                // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
+                fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
+                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                        ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
+                        : 0m);
+
                 revenue = dailyRevenue + monthlyRevenue;
             }
             else
@@ -193,7 +207,7 @@ public partial class FacilityReportsRepository
                 expectedRevenue = CalculateMonthlyRentalObligation(occupiedStalls, oblStart, oblEnd);
             }
 
-            trends.Add(new RevenueTrendDto(monthLabel, revenue, expectedRevenue, targetYear == today.Year && targetMonth == today.Month));
+            trends.Add(new RevenueTrendDto(monthLabel, revenue, expectedRevenue, targetYear == today.Year && targetMonth == today.Month, fishRevenue));
         }
 
         return trends;
@@ -224,6 +238,7 @@ public partial class FacilityReportsRepository
 
             decimal revenue = 0m;
             decimal expectedRevenue = 0m;
+            decimal fishRevenue = 0m;
 
             if (facilityCode == FacilityCode.NPM)
             {
@@ -263,6 +278,12 @@ public partial class FacilityReportsRepository
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
+                // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
+                fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
+                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                        ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
+                        : 0m);
+
                 revenue = dailyRevenue + monthlyRevenue;
             }
             else
@@ -281,7 +302,7 @@ public partial class FacilityReportsRepository
                 expectedRevenue = CalculateMonthlyRentalObligation(occupiedStalls, oblStart, oblEnd);
             }
 
-            trends.Add(new RevenueTrendDto(yearLabel, revenue, expectedRevenue, targetYear == today.Year));
+            trends.Add(new RevenueTrendDto(yearLabel, revenue, expectedRevenue, targetYear == today.Year, fishRevenue));
         }
 
         return trends;

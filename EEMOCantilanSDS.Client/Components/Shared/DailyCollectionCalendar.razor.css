@@ -164,6 +164,12 @@
     border-color: var(--border);
 }
 
+/* ── Absent (excused) — amber tint, distinct from missed/collected ── */
+.cal-cell.cal-absent {
+    background: rgba(200, 168, 75, 0.12);
+    border-color: rgba(200, 168, 75, 0.5);
+}
+
 /* ── Empty (blank offset cells) ── */
 .cal-cell.cal-empty {
     background: transparent;
@@ -268,6 +274,20 @@
     .cal-icon-no svg {
         stroke: #8b3a3a;
     }
+
+/* Absent (excused) — amber circle with a dash */
+.cal-icon-absent {
+    background: rgba(200, 168, 75, 0.14);
+    border: 1.5px solid rgba(200, 168, 75, 0.55);
+}
+
+    .cal-icon-absent svg {
+        stroke: #b5872a;
+    }
+
+.cal-sum-amber {
+    color: #b5872a;
+}
 
 .cal-checkmark-corner {
     position: static;

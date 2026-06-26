@@ -1,0 +1,160 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Export Data report — scoped styles (ex-)
+   Document/paper language consistent with the Month-End & Stall Holder reports.
+   Colour is restrained; the sheet is the print artifact (controls are .no-print).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Controls ── */
+.ex-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+}
+.ex-control-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end; }
+.ex-control-block { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.ex-control-grow { flex: 1 1 auto; align-items: flex-end; }
+.ex-control-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-subtle); }
+
+.ex-filter {
+    display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 9px; padding: 4px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
+}
+.ex-chip {
+    min-height: 32px; padding: 6px 15px; border-radius: 6px;
+    border: 1px solid transparent; background: transparent;
+    font: inherit; font-size: 12.5px; font-weight: 650; letter-spacing: .2px; line-height: 1;
+    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.ex-chip:hover { color: var(--navy); }
+.ex-chip-active, .ex-chip-active:hover {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
+}
+
+.ex-period { display: inline-flex; align-items: center; gap: 10px; }
+.ex-nav-btn {
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--bg-card); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.ex-nav-btn:hover { background: var(--bg); }
+.ex-nav-btn svg { width: 16px; height: 16px; stroke: var(--navy); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ex-period-label { font-size: 14px; font-weight: 700; color: var(--navy); min-width: 120px; text-align: center; }
+
+.ex-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.ex-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px; padding: 0 16px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg-card);
+    font: inherit; font-size: 13px; font-weight: 650; color: var(--navy);
+    text-decoration: none; cursor: pointer;
+    transition: background .14s, border-color .14s, color .14s;
+}
+.ex-btn:hover { background: var(--bg); border-color: var(--gold); }
+.ex-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ex-btn-primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+.ex-btn-primary:hover { background: var(--navy-2, #112d47); border-color: var(--navy-2, #112d47); color: #fff; }
+
+/* ── Document sheet ── */
+.ex-state { padding: 44px; text-align: center; color: var(--text-subtle); font-size: 14px; }.ex-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
+
+/* Frame table — invisible on screen; its thead/tfoot repeat a blank spacer on every printed
+   page so continued pages get top/bottom whitespace without re-introducing the browser header. */
+.ex-frame { width: 100%; border-collapse: collapse; }
+.ex-frame > thead > tr > td, .ex-frame > tfoot > tr > td, .ex-frame > tbody > tr > td { padding: 0; border: none; }
+.ex-frame-space { height: 0; }
+.ex-rpt-head { text-align: center; margin-bottom: 20px; }
+.ex-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
+.ex-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.ex-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
+.ex-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
+.ex-doc { margin-top: 12px; font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--navy); }
+.ex-doc-scope { margin-top: 3px; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #8a6d1b; }
+.ex-doc-period { margin-top: 4px; font-size: 11px; color: var(--text-subtle); }
+
+.ex-summary { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 24px; }
+.ex-sum-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; background: var(--bg); }
+.ex-sum-val { font-size: 19px; font-weight: 800; color: var(--navy); }
+.ex-sum-lbl { font-size: 11px; color: var(--text-subtle); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.ex-red { color: var(--red); }
+
+/* ── Facility block ── */
+.ex-facility { margin-bottom: 26px; }
+.ex-fac-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-bottom: 10px; margin-bottom: 12px; border-bottom: 2px solid var(--border); flex-wrap: wrap;
+}
+.ex-fac-title { display: flex; align-items: center; gap: 10px; }
+.ex-fac-code { font-size: 12px; font-weight: 800; color: #fff; background: var(--navy); padding: 3px 9px; border-radius: 6px; letter-spacing: .3px; }
+.ex-fac-name { font-size: 15px; font-weight: 700; color: var(--navy); }
+.ex-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-subtle); background: var(--bg-icon); padding: 3px 8px; border-radius: 999px; }
+.ex-fac-stats { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-subtle); }
+.ex-fac-stats strong { color: var(--navy); }
+
+.ex-section-label {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--navy); background: var(--bg); border-radius: 7px; padding: 7px 12px; margin: 14px 0 8px;
+}
+.ex-section-label span { color: var(--text-subtle); font-weight: 600; letter-spacing: normal; text-transform: none; }
+
+/* ── Tables ── */
+.ex-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; }
+.ex-table th, .ex-table td {
+    text-align: center;
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+.ex-table th {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+    color: var(--text-subtle); background: var(--bg);
+}
+.ex-c, .ex-r { text-align: center; }   /* values centered within the gridded cells */
+.ex-l { text-align: left; }
+.ex-table tfoot td { color: var(--navy); }
+.ex-subtotal td { font-weight: 600; }
+.ex-subtotal td:first-child { text-align: left; }
+
+/* In-table section divider (NPM: Vegetable / Fish / Meat) — header printed once */
+.ex-sec-row td {
+    background: var(--bg);
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--navy); padding: 7px 10px; text-align: left;
+}
+.ex-sec-count { float: right; font-weight: 600; text-transform: none; letter-spacing: normal; color: var(--text-subtle); }
+
+.ex-txn-detail td { color: var(--text-subtle); font-size: 11.5px; }
+
+/* ── Footer signatures ── */
+.ex-rpt-foot { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+.ex-rpt-foot div { text-align: center; flex: 1; }
+.ex-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
+.ex-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
+
+/* ── Responsive ── */
+@media (max-width: 760px) {
+    .ex-summary { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
+    .ex-actions { justify-content: flex-start; }
+    .ex-table { font-size: 11.5px; }
+}
+
+/* ── Print: only the sheet, full width ── */
+@media print {
+    .no-print { display: none !important; }
+    .ex-sheet { border: none; border-radius: 0; padding: 0 12mm; }
+    .ex-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
+    .content-area { padding: 0 !important; }
+    .ex-table tbody tr:hover { background: transparent; }
+}

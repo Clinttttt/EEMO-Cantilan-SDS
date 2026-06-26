@@ -1,0 +1,318 @@
+@page "/stall-holders"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.StallHolders
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@inject IStallsApiClient StallsApi
+@inject IJSRuntime JS
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   All-facilities Stall Holder List. Only the rental/stall facilities have stall
+   holders — NPM, TCC, NCC, BBQ, ICE. SLH (per-head), TRM (per-trip) and TPM (weekly
+   market) are NOT stall-based and are intentionally excluded.
+
+   Per-facility shape differs: NPM is grouped by market section; NCC carries an
+   Area Location column; the rest are a flat list. Data reuses the existing
+   GetStallHoldersListAsync (one call per stall facility); facility filter + search
+   are client-side over the loaded data.
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>EEMO Admin — Stall Holder List</PageTitle>
+
+<header class="topbar no-print">
+    <div class="topbar-left">
+        <div class="topbar-title">Stall Holder List</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">EEMO Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Stall Holder List</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-period">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            As of <strong>@PhilippineTime.Today.ToString("MMM d, yyyy")</strong>
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- Facility filter + search + print -->
+    <div class="sh-controls no-print">
+        <div class="sh-filter">
+            <button class="sh-chip @(_facility is null ? "sh-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
+            @foreach (var fc in StallFacilities)
+            {
+                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+            }
+        </div>
+        <div class="sh-actions">
+            <div class="sh-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search occupant, contract, or stall no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search stall holders" />
+                @if (HasSearch)
+                {
+                    <button class="sh-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
+                }
+            </div>
+            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="Print">
+                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="sh-state">Loading stall holders…</div>
+    }
+    else if (_data.Count == 0)
+    {
+        <div class="sh-state sh-state-error">
+            Unable to load the stall holder list.
+            <button class="sh-retry" type="button" @onclick="Load">Try again</button>
+        </div>
+    }
+    else
+    {
+        var visible = VisibleFacilities();
+
+        <section class="sh-sheet">
+            <header class="sh-rpt-head">
+                <img class="sh-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+                <div class="sh-gov">Republic of the Philippines</div>
+                <div class="sh-org">Economic Enterprise &amp; Management Office</div>
+                <div class="sh-muni">Municipality of Cantilan, Surigao del Sur</div>
+                <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityName(_facility.Value))</div>
+            </header>
+
+            @{
+                var allRows = visible.SelectMany(RowsFor).ToList();
+                var activeRows = allRows.Where(r => !r.IsClosed).ToList();
+            }
+
+            <!-- Grand summary (reflects facility/search scope) -->
+            <div class="sh-summary">
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@activeRows.Count</div>
+                    <div class="sh-sum-lbl">Active Stalls</div>
+                </div>
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
+                    <div class="sh-sum-lbl">Total Monthly Rate</div>
+                </div>
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
+                    <div class="sh-sum-lbl">Total Whole-Year Rental</div>
+                </div>
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@visible.Count(f => RowsFor(f).Any())</div>
+                    <div class="sh-sum-lbl">Facilities</div>
+                </div>
+            </div>
+
+            @if (allRows.Count == 0)
+            {
+                <div class="sh-state">No stall holders match your current filter@(HasSearch ? " and search" : "").</div>
+            }
+
+            @foreach (var fc in visible)
+            {
+                var facRows = RowsFor(fc).ToList();
+                if (facRows.Count == 0) continue;
+                var facActive = facRows.Where(r => !r.IsClosed).ToList();
+
+                <div class="sh-facility">
+                    <div class="sh-fac-head">
+                        <div class="sh-fac-title">
+                            <span class="sh-fac-code">@fc</span>
+                            <span class="sh-fac-name">@FacilityName(fc)</span>
+                            <span class="sh-tag">@Model(fc)</span>
+                        </div>
+                        <div class="sh-fac-stats">
+                            <span><strong>@facActive.Count</strong> active</span>
+                            <span><strong>@Money(facActive.Sum(r => r.MonthlyRentalRate))</strong> monthly</span>
+                        </div>
+                    </div>
+
+                    @if (fc == FacilityCode.NPM)
+                    {
+                        @foreach (var section in _data[fc].Sections)
+                        {
+                            var secRows = section.Rows.Where(MatchSearch).ToList();
+                            if (secRows.Count == 0) continue;
+                            <div class="sh-section-label">@SectionDisplay(section.SectionName) <span>@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span></div>
+                            @HolderTable(fc, secRows)
+                        }
+                    }
+                    else
+                    {
+                        @HolderTable(fc, facRows)
+                    }
+                </div>
+            }
+
+            <div class="sh-rpt-foot no-print">
+                <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly FacilityCode[] StallFacilities =
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+
+    private readonly Dictionary<FacilityCode, StallHoldersListDto> _data = new();
+    private bool _loading = true;
+    private FacilityCode? _facility;   // null = all
+    private string _search = "";
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+
+    private void SelectFacility(FacilityCode? code) => _facility = code;
+    private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+    private void ClearSearch() => _search = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _data.Clear();
+
+        // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var loaded = new Dictionary<FacilityCode, StallHoldersListDto>();
+            var authPending = false;
+
+            foreach (var code in StallFacilities)
+            {
+                var result = await StallsApi.GetStallHoldersListAsync(code, null, null);
+                if (result.IsSuccess && result.Value is not null)
+                    loaded[code] = result.Value;
+                else if (result.StatusCode is 401 or 403)
+                {
+                    authPending = true;
+                    break;
+                }
+            }
+
+            if (!authPending)
+            {
+                foreach (var kvp in loaded) _data[kvp.Key] = kvp.Value;
+                break;
+            }
+            await Task.Delay(400);
+        }
+
+        _loading = false;
+    }
+
+    private IReadOnlyList<FacilityCode> VisibleFacilities() =>
+        StallFacilities.Where(c => (_facility is null || _facility == c) && _data.ContainsKey(c)).ToList();
+
+    private IEnumerable<StallHolderRowDto> RowsFor(FacilityCode code) =>
+        _data.TryGetValue(code, out var dto)
+            ? dto.Sections.SelectMany(s => s.Rows).Where(MatchSearch)
+            : Enumerable.Empty<StallHolderRowDto>();
+
+    private bool MatchSearch(StallHolderRowDto r)
+    {
+        if (!HasSearch) return true;
+        var q = _search.Trim();
+        return Contains(r.ActualOccupant, q) || Contains(r.NameOnContract, q) || Contains(r.StallNo, q);
+    }
+
+    private static bool Contains(string? value, string q) =>
+        !string.IsNullOrEmpty(value) && value.Contains(q, StringComparison.OrdinalIgnoreCase);
+
+    private async Task Print() => await JS.InvokeVoidAsync("print");
+
+    private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    private static string SectionDisplay(string name) => name switch
+    {
+        "VegetableArea" => "Vegetable Area",
+        "FishSection" => "Fish Area",
+        "MeatSection" => "Meat Area",
+        _ => string.IsNullOrWhiteSpace(name) ? "All Stalls" : name
+    };
+
+    private static string FacilityName(FacilityCode code) => code switch
+    {
+        FacilityCode.NPM => "New Public Market",
+        FacilityCode.TCC => "Tampak Commercial Center",
+        FacilityCode.NCC => "New Commercial Center",
+        FacilityCode.BBQ => "Barbecue Stand",
+        FacilityCode.ICE => "Iceplant",
+        _ => code.ToString()
+    };
+
+    private static string Model(FacilityCode code) => code == FacilityCode.NPM ? "Daily stall" : "Monthly rental";
+
+    // Shared per-facility table. NCC adds an Area Location column; NPM rows are passed per section.
+    private RenderFragment HolderTable(FacilityCode code, IReadOnlyList<StallHolderRowDto> rows) => __builder =>
+    {
+        var isNcc = code == FacilityCode.NCC;
+        var activeRows = rows.Where(r => !r.IsClosed).ToList();
+        <table class="sh-table">
+            <thead>
+                <tr>
+                    <th class="sh-c">#</th>
+                    <th>Name of Lessee <span class="sh-th-sub">(Actual Occupant)</span></th>
+                    <th>Name per Signed Contract</th>
+                    <th class="sh-c">Stall / Space</th>
+                    <th class="sh-c">Effectivity</th>
+                    <th class="sh-c">Yrs</th>
+                    <th class="sh-c">Area</th>
+                    <th class="sh-r">Monthly Rate</th>
+                    <th class="sh-r">Whole-Year Rental</th>
+                    @if (isNcc)
+                    {
+                        <th class="sh-c">Area Loc.</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @{ var n = 1; }
+                @foreach (var r in rows)
+                {
+                    <tr class="@(r.IsClosed ? "sh-row-closed" : "")">
+                        <td class="sh-c">@n</td>
+                        <td class="sh-fw">@r.ActualOccupant</td>
+                        <td class="sh-muted">@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
+                        <td class="sh-c">@r.StallNo</td>
+                        <td class="sh-c">@(r.EffectivityDate == default ? "—" : r.EffectivityDate.ToString("M/d/yyyy"))</td>
+                        <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
+                        <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
+                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.MonthlyRentalRate))</td>
+                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.MonthlyRentalRate * 12))</td>
+                        @if (isNcc)
+                        {
+                            <td class="sh-c">@(string.IsNullOrWhiteSpace(r.AreaLocation) ? "—" : r.AreaLocation)</td>
+                        }
+                    </tr>
+                    n++;
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="7"><strong>Subtotal — @activeRows.Count active stall@(activeRows.Count != 1 ? "s" : "")</strong></td>
+                    <td class="sh-r"><strong>@Money(activeRows.Sum(r => r.MonthlyRentalRate))</strong></td>
+                    <td class="sh-r"><strong>@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</strong></td>
+                    @if (isNcc)
+                    {
+                        <td></td>
+                    }
+                </tr>
+            </tfoot>
+        </table>
+    };
+}

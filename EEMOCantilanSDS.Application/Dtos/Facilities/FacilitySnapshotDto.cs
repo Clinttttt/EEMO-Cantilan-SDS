@@ -12,5 +12,9 @@ public sealed record FacilitySnapshotDto(
     int PartialCount,
     int UnpaidCount,
     int OccupiedStalls,
-    int CollectionRate
+    int CollectionRate,
+    // Actual paid collection transactions this month: NPM = paid daily collections (daily-fee ÷ ₱30),
+    // monthly facilities = paid + partially-paid stalls. Lets the dashboard's "Paid transactions" KPI
+    // match the Financial Reports' "paid collection records" exactly.
+    int PaidTransactions = 0
 );

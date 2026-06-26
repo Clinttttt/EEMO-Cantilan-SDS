@@ -153,8 +153,8 @@
                                         @bind:after="HandleSectionChanged">
                                     <option value="">-- Select Section --</option>
                                     <option value="Vegetable">Vegetable Area</option>
-                                    <option value="Fish">Fish Section</option>
-                                    <option value="Meat">Meat Section</option>
+                                    <option value="Fish">Fish Area</option>
+                                    <option value="Meat">Meat Area</option>
                                 </select>
                                 @if (GetFieldError("Section") != string.Empty)
                                 {
@@ -405,7 +405,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Fish fee — Fish section only -->
+                                <!-- Fish fee — Fish Area only -->
                                 @if (Form.SelectedSection == "Fish")
                                 {
                                     <div class="avm-util-divider"></div>
@@ -419,7 +419,7 @@
                                         </div>
                                         <div class="avm-fish-text">
                                             <div class="avm-fish-title">Fish Fee</div>
-                                            <div class="avm-fish-sub">₱1.00 per kilo of fish sold — Fish Section only</div>
+                                            <div class="avm-fish-sub">₱1.00 per kilo of fish sold — Fish Area only</div>
                                         </div>
                                         <span class="avm-fish-badge">✓ Always included</span>
                                     </div>

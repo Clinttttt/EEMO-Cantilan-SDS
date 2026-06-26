@@ -70,6 +70,7 @@
 /* Left-border status indicator — same token as the row tints */
 .ops-card.row-paid    { border-left: 3px solid var(--green); }
 .ops-card.row-unpaid  { border-left: 3px solid var(--red); }
+.ops-card.row-absent  { border-left: 3px solid #c8a84b; }
 .ops-card.row-partial { border-left: 3px solid #b87333; }
 .ops-card.row-inactive { border-left: 3px solid var(--border); opacity: .6; }
 
@@ -152,6 +153,19 @@
 .today-partial {
     color: #b87333;
     background: color-mix(in srgb, #b87333 12%, transparent);
+}
+.today-absent {
+    color: #8a6d1a;
+    background: color-mix(in srgb, #c8a84b 16%, transparent);
+}
+/* The Operational today-pill (Not yet / Absent) is clickable to toggle the day's absent state. */
+.today-pending[role="button"],
+.today-absent[role="button"] {
+    cursor: pointer;
+}
+.today-pending[role="button"]:hover,
+.today-absent[role="button"]:hover {
+    filter: brightness(0.96);
 }
 .days-paid {
     font-weight: 700;

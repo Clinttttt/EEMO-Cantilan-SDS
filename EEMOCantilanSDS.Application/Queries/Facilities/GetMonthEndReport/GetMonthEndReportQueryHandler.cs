@@ -45,10 +45,18 @@ public class GetMonthEndReportQueryHandler(
             var isNpm = code == FacilityCode.NPM;
 
             var payors = report.StallCompliance
-                .Select(s => new MonthEndPayorDto(
-                    s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,
-                    MonthlyCoverage: isNpm ? FeeRates.NpmMonthlyFee : 0m,
-                    MonthlyCoverageBalance: isNpm ? Math.Max(0m, FeeRates.NpmMonthlyFee - s.AmountPaid) : 0m))
+                .Select(s =>
+                {
+                    // Excused/absent days are not owed, so they lower the full-month (₱900) reference:
+                    // coverage = ₱900 − (absent days × ₱30). A fully-absent month references ₱0.
+                    var coverage = isNpm
+                        ? Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee)
+                        : 0m;
+                    return new MonthEndPayorDto(
+                        s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,
+                        MonthlyCoverage: coverage,
+                        MonthlyCoverageBalance: isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m);
+                })
                 .ToList();
 
             facilities.Add(new MonthEndFacilityDto(

@@ -40,12 +40,15 @@
             var isToday = DateOnly.FromDateTime(day) == today;
             var isBeforeContract = ContractDate.HasValue && day.Date < ContractDate.Value.Date;
             var isMarked = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
+            var isAbsent = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsAbsent;
             // A future day that has already been pre-paid by admin should show as
             // collected (green), not as "Soon". Only unmark future days are out-of-scope.
             var isOutOfScope = (isFuture && !isMarked) || isBeforeContract;
             var cellClass = isBeforeContract ? "cal-before-contract"
                           : (isFuture && !isMarked) ? "cal-future"
-                          : isMarked ? "cal-paid" : "cal-miss";
+                          : isMarked ? "cal-paid"
+                          : isAbsent ? "cal-absent"
+                          : "cal-miss";
             var dailyKilo = MonthData?.Collections.ContainsKey(dayKey) == true ? MonthData.Collections[dayKey].FishKilos ?? 0 : 0;
 
             <div class="cal-cell @cellClass @(isToday ? "cal-today" : "") @(IsFishSection ? "cal-cell-fish" : "")">
@@ -64,10 +67,14 @@
                     <span class="cal-num">@d</span>
                     @if (!isOutOfScope)
                     {
-                        <span class="cal-status-icon @(isMarked ? "cal-icon-yes" : "cal-icon-no")">
+                        <span class="cal-status-icon @(isMarked ? "cal-icon-yes" : isAbsent ? "cal-icon-absent" : "cal-icon-no")">
                             @if (isMarked)
                             {
                                 <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                            }
+                            else if (isAbsent)
+                            {
+                                <svg viewBox="0 0 24 24"><line x1="6" y1="12" x2="18" y2="12" /></svg>
                             }
                             else
                             {
@@ -115,6 +122,13 @@
             <span class="cal-sum-val cal-sum-green">@(MonthData?.DaysCollected ?? 0)</span>
             <span class="cal-sum-key">Days Collected</span>
         </div>
+        @if ((MonthData?.DaysAbsent ?? 0) > 0)
+        {
+            <div class="cal-sum-item">
+                <span class="cal-sum-val cal-sum-amber">@(MonthData?.DaysAbsent ?? 0)</span>
+                <span class="cal-sum-key">Days Absent (excused)</span>
+            </div>
+        }
         <div class="cal-sum-item">
             <span class="cal-sum-val">₱@((MonthData?.TotalDailyFee ?? 0).ToString("N0"))</span>
             <span class="cal-sum-key">Daily Collected @CurrentMonth.ToString("MMM yyyy")</span>
@@ -208,16 +222,22 @@
     private async Task ToggleDay(DateTime date)
     {
         var dayKey = date.ToString("yyyy-MM-dd");
-        var currentStatus = MonthData?.Collections.ContainsKey(dayKey) == true && MonthData.Collections[dayKey].IsPaid;
-        var newStatus = !currentStatus;
+        var entry = MonthData?.Collections.GetValueOrDefault(dayKey);
+        var fishKilos = entry?.FishKilos;
 
-        var fishKilos = MonthData?.Collections.ContainsKey(dayKey) == true ? MonthData.Collections[dayKey].FishKilos : null;
+        // Cycle the day's status: Unpaid → Collected → Absent → Unpaid. "Absent" excuses the day
+        // (₱0 owed) for a payor who was legitimately not operating.
+        bool nextPaid, nextAbsent;
+        if (entry?.IsPaid == true)        { nextPaid = false; nextAbsent = true; }   // Collected → Absent
+        else if (entry?.IsAbsent == true) { nextPaid = false; nextAbsent = false; }  // Absent → Unpaid
+        else                              { nextPaid = true;  nextAbsent = false; }  // Unpaid → Collected
 
         var command = new Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand(
             StallId: StallId,
             CollectionDate: DateOnly.FromDateTime(date),
-            IsPaid: newStatus,
-            FishKilos: newStatus ? fishKilos : null
+            IsPaid: nextPaid,
+            FishKilos: nextPaid ? fishKilos : null,
+            IsAbsent: nextAbsent
         );
 
         var result = await DailyCollectionApi.RecordDailyCollectionAsync(command);

@@ -81,9 +81,16 @@
                                     Paid today
                                 </span>
                             }
+                            else if (GetAbsentToday(s))
+                            {
+                                <span class="today-pill today-absent" role="button" title="Excused/absent today — click to clear" @onclick="() => OnTodayStatusClick.InvokeAsync(s)">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
+                                    Absent
+                                </span>
+                            }
                             else
                             {
-                                <span class="today-pill today-pending">
+                                <span class="today-pill today-pending" role="button" title="Not collected yet — click to mark absent" @onclick="() => OnTodayStatusClick.InvokeAsync(s)">
                                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><line x1="12" y1="7" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                                     Not yet
                                 </span>
@@ -257,6 +264,9 @@
     [Parameter] public EventCallback<TStall> OnHistoryClick { get; set; }
     [Parameter] public EventCallback<TStall> OnEditClick { get; set; }
 
+    /// <summary>Operational (NPM) only: clicking the today-status pill toggles the day's Absent state.</summary>
+    [Parameter] public EventCallback<TStall> OnTodayStatusClick { get; set; }
+
     /// <summary>When true, render shimmer placeholders instead of the stalls (initial load).</summary>
     [Parameter] public bool IsLoading { get; set; }
 
@@ -282,6 +292,7 @@
 
     // ── Operational (NPM daily) accessors ──
     private bool GetPaidToday(TStall stall) => GetPropertyValue<bool?>(stall, "PaidToday") ?? false;
+    private bool GetAbsentToday(TStall stall) => GetPropertyValue<bool?>(stall, "AbsentToday") ?? false;
     private int GetDaysPaid(TStall stall) => GetPropertyValue<int?>(stall, "DaysPaidThisMonth") ?? 0;
 
     // ── Monthly card accessors (TCC/NCC/BBQ/ICE monthly rental) ──
@@ -315,7 +326,7 @@
 
         // Operational (NPM daily) mode: tint reflects whether today's ₱30 was collected.
         if (ColumnSet == "Operational")
-            return GetPaidToday(stall) ? "row-paid" : "row-unpaid";
+            return GetPaidToday(stall) ? "row-paid" : GetAbsentToday(stall) ? "row-absent" : "row-unpaid";
 
         var isPaid = GetPropertyValue<bool?>(stall, "IsPaid") ?? false;
         var isPartial = GetPropertyValue<bool?>(stall, "IsPartial") ?? false;

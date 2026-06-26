@@ -578,7 +578,6 @@ a.dashboard-report-tab {
 
 a.dashboard-report-tab:hover {
     color: var(--navy);
-    background: rgba(255,255,255,.68);
 }
 
 .dashboard-report-tab.active {

@@ -92,4 +92,28 @@ public class PaymentRepositoryNpmDailyStatusTests : RepositoryTestBase
         Assert.Equal(earlier, row.LastPaidDate);
         Assert.Equal(1, row.DaysPaidThisMonth);
     }
+
+    [Fact]
+    public async Task DailyStatus_MarkedAbsentToday_ReportsAbsentToday_NotPaid()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Ana Reyes", "Ana Reyes", new DateOnly(2026, 1, 1), 3, 900m);
+
+        var today = PhilippineTime.Today;
+        var absent = DailyCollection.Create(stall.Id, today);
+        absent.MarkAbsent();
+
+        context.AddRange(facility, stall, contract, absent);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var status = await repo.GetNpmDailyStatusAsync(FacilityCode.NPM, today.Year, today.Month, CancellationToken.None);
+
+        var row = Assert.Single(status);
+        Assert.True(row.AbsentToday);
+        Assert.False(row.PaidToday);
+        Assert.Equal(0, row.DaysPaidThisMonth);
+    }
 }

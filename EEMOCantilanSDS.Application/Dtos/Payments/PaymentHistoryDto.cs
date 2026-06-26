@@ -11,5 +11,8 @@ public record PaymentHistoryDto(
     decimal BalanceDue,
     string? ORNumber,
     DateTime? PaidAt,
-    string? CollectorName = null
+    string? CollectorName = null,
+    // NPM only: the month was fully excused/absent (every collectable day marked absent) — ₱0 owed,
+    // shown as a distinct "Absent" row rather than Unpaid.
+    bool IsExcused = false
 );

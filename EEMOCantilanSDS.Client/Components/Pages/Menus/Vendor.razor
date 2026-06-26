@@ -740,8 +740,8 @@
             var sectionDisplay = item.SectionDisplay switch
             {
                 "VegetableArea" => "Vegetable Area",
-                "FishSection" => "Fish Section",
-                "MeatSection" => "Meat Section",
+                "FishSection" => "Fish Area",
+                "MeatSection" => "Meat Area",
                 _ => item.SectionDisplay ?? item.AreaLocationDisplay ?? item.FacilityName
             };
 
@@ -888,8 +888,8 @@
     .OrderBy(v => v.Section switch
     {
         "Vegetable Area" => 0,
-        "Fish Section" => 1,
-        "Meat Section" => 2,
+        "Fish Area" => 1,
+        "Meat Area" => 2,
         _ => 3
     })
     .ThenBy(v => v.StallNo.PadLeft(10, '0'));

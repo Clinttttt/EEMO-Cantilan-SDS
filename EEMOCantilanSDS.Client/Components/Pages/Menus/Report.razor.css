@@ -416,27 +416,66 @@
 }
 
 .bar {
+    --depth: 6px;
     flex: 1;
-    border-radius: 5px 5px 0 0;
-    transition: opacity .2s;
+    position: relative;
+    border-radius: 4px 4px 0 0;
     cursor: pointer;
+    transition: transform .15s ease, filter .15s ease;
+    filter: drop-shadow(3px 6px 8px color-mix(in srgb, var(--navy) 8%, transparent));
 }
 
     .bar:hover {
-        opacity: .8;
+        transform: translateY(-2px);
+        filter: drop-shadow(5px 9px 11px color-mix(in srgb, var(--navy) 13%, transparent)) brightness(1.04);
+    }
+
+    /* Top face (leans up-right by --depth) */
+    .bar::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 100%;
+        width: 100%;
+        height: var(--depth);
+        transform-origin: left bottom;
+        transform: skewX(-45deg);
+        pointer-events: none;
+    }
+    /* Right side face (leans up-right by --depth) */
+    .bar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 100%;
+        width: var(--depth);
+        height: 100%;
+        transform-origin: left top;
+        transform: skewY(-45deg);
+        pointer-events: none;
     }
 
     .bar.collected {
-        background: var(--navy);
+        background: linear-gradient(180deg, #1e3a5f 0%, #0d2137 100%);
+        z-index: 1;
     }
-
-    .bar.unpaid {
-        background: #dde4ea;
-    }
+    .bar.collected::before { background: #2e4d6e; }
+    .bar.collected::after  { background: #081626; }
 
     .bar.gold-bar {
-        background: var(--gold);
+        background: linear-gradient(180deg, #d8bc63 0%, #c8a84b 100%);
+        z-index: 1;
     }
+    .bar.gold-bar::before { background: #e6cd78; }
+    .bar.gold-bar::after  { background: #a8842f; }
+
+    /* Current-period unpaid sits "in front" so the side faces layer cleanly */
+    .bar.unpaid {
+        background: linear-gradient(180deg, #e7edf2 0%, #d3dbe3 100%);
+        z-index: 2;
+    }
+    .bar.unpaid::before { background: #f1f5f8; }
+    .bar.unpaid::after  { background: #b9c4ce; }
 
 .bar-month {
     font-size: 10.5px;
@@ -1317,6 +1356,10 @@
     color: var(--red) !important;
 }
 
+.fac-detail-amber {
+    color: #b5872a !important;
+}
+
 /* ══════════════════════════════════════════════════════════════
    TREND BAR HOVER TOOLTIP
    ══════════════════════════════════════════════════════════════ */
@@ -1394,3 +1437,12 @@
 
 .bar-tip-dot.tip-collected { background: var(--gold); }
 .bar-tip-dot.tip-unpaid { background: #dde4ea; }
+
+/* Clarification note under the Paid-collection-records KPI */
+.kpi-note {
+    margin-top: 6px;
+    font-size: 10.5px;
+    line-height: 1.45;
+    color: var(--text-muted);
+    max-width: 300px;
+}

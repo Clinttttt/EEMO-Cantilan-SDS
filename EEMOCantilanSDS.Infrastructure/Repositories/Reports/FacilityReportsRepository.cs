@@ -175,6 +175,19 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
         var rate = await CalculateCollectionRateAsync(facilityCode, facilityId, start, end, ct);
         var occupied = await CalculateOccupiedStallsAsync(facilityId, start, end, ct);
 
+        // Paid transactions — NPM is per-day, so each ₱30 daily collection is one transaction (daily-fee
+        // ÷ ₱30, same basis as the Financial Reports). Monthly facilities count paid + partial stalls.
+        int paidTransactions;
+        if (facilityCode == FacilityCode.NPM)
+        {
+            var breakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, start, end, ct);
+            paidTransactions = (int)Math.Round((breakdown?.DailyFeeAmount ?? 0m) / FeeRates.NpmDailyFee);
+        }
+        else
+        {
+            paidTransactions = perf.FullyPaidCount + perf.PartiallyPaidCount;
+        }
+
         return new FacilitySnapshotDto(
             collected,
             pending,
@@ -182,7 +195,8 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
             perf.PartiallyPaidCount,
             perf.UnpaidCount,
             occupied,
-            (int)Math.Round(rate));
+            (int)Math.Round(rate),
+            paidTransactions);
     }
 
     /// <summary>

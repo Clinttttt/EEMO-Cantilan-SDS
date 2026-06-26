@@ -44,4 +44,16 @@ public interface IFacilityReportsRepository
         int month,
         CancellationToken ct
     );
+
+    /// <summary>
+    /// Per-stall recognized fish kilos for NPM in the given billing month — the volume behind the
+    /// ₱1/kg fish fee. Mirrors the fee-type breakdown rule (a stall's whole-month paid monthly record
+    /// FishKilos, otherwise its collectable paid daily-collection kilos). Key = StallId; stalls with
+    /// no fish activity are omitted.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, decimal>> GetNpmFishKilosByStallAsync(
+        int year,
+        int month,
+        CancellationToken ct
+    );
 }

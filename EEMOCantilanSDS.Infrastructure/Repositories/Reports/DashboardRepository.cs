@@ -45,6 +45,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
 
         var facilityCards = new List<DashboardFacilityDto>();
         var totalPending = 0m;
+        var paidTransactions = 0;   // actual paid collection transactions across all 8 facilities
         foreach (var f in facilities)
         {
             // Slaughterhouse — owners served, total fees collected.
@@ -52,6 +53,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             {
                 var collectedSlh = slaughter.Sum(x => x.Amount);
                 var owners = slaughter.Select(x => x.OwnerName).Distinct().Count();
+                paidTransactions += slaughter.Count;
                 facilityCards.Add(new DashboardFacilityDto(
                     f.Code, f.Name, collectedSlh,
                     UnpaidCount: 0, PaidCount: slaughter.Count, PartialCount: 0,
@@ -63,6 +65,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             {
                 var collectedTrm = trips.Sum(x => x.Fee);
                 var transporters = trips.Where(x => x.TransporterId.HasValue).Select(x => x.TransporterId).Distinct().Count();
+                paidTransactions += trips.Count;
                 facilityCards.Add(new DashboardFacilityDto(
                     f.Code, f.Name, collectedTrm,
                     UnpaidCount: 0, PaidCount: trips.Count, PartialCount: 0,
@@ -77,6 +80,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 var paidTpm = tpm.Count(x => x.IsPaid);
                 var collectedTpm = tpm.Where(x => x.IsPaid).Sum(x => x.Fee);
                 var vendorsTpm = tpm.Where(x => x.IsPaid).Select(x => x.VendorId).Distinct().Count();
+                paidTransactions += paidTpm;
                 facilityCards.Add(new DashboardFacilityDto(
                     f.Code, f.Name, collectedTpm,
                     UnpaidCount: 0, PaidCount: paidTpm, PartialCount: 0,
@@ -89,6 +93,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             // facility-reports aggregation so the dashboard matches the facility page and reports.
             var snap = await facilityReports.GetFacilitySnapshotAsync(f.Code, year, month, ct);
             totalPending += snap.Pending;
+            paidTransactions += snap.PaidTransactions;
             facilityCards.Add(new DashboardFacilityDto(
                 f.Code, f.Name, snap.Collected,
                 UnpaidCount: snap.UnpaidCount,
@@ -101,8 +106,15 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
         // Hero vendor KPIs stay stall-based (vendor = stallholder); SLH/TRM/TPM counts are
         // contextual participants and would distort a "collection rate of vendors".
         var stallCards = facilityCards.Where(c => stallCodes.Contains(c.Code)).ToList();
-        var paidCount = stallCards.Sum(c => c.PaidCount);
-        var heroUnpaidCount = stallCards.Sum(c => c.UnpaidCount);
+        // "Paid transactions" = actual collections across all 8 facilities, counted on the same basis as
+        // the Financial Reports' "paid collection records": NPM per daily collection, monthly facilities
+        // per paid/partial stall, service facilities per transaction.
+        var paidCount = paidTransactions;
+        // "Pending / Unpaid" vendors = everyone still carrying a balance — BOTH partially-paid and
+        // fully-unpaid stalls — so the count matches TotalPending (which sums those same balances).
+        // Counting only fully-unpaid stalls under-reported it (e.g. ₱2,160 pending but "1 vendor"
+        // when 4 partially-paid NPM stalls also owed part of that total).
+        var heroUnpaidCount = stallCards.Sum(c => c.UnpaidCount + c.PartialCount);
 
         var totalCollectors = await context.CollectorUsers.CountAsync(c => c.IsActive, ct);
         var collectorNames = await context.CollectorUsers

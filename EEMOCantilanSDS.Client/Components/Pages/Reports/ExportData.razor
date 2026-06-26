@@ -1,0 +1,605 @@
+@page "/export"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@using System.Text
+@inject IReportsApiClient ReportsApi
+@inject IJSRuntime JS
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   Export Data — a clean, paper-ready collection report per facility (or all), for the
+   selected month. Built for documentation/export: Print, Save as PDF (browser print),
+   and Download CSV. This is HARDCODED placeholder data for layout approval; the real
+   version will bind GetMonthEndReportAsync(year, month) and select the chosen facility.
+
+   Per-facility shapes: rental facilities (NPM/TCC/NCC/BBQ/ICE) show per-payor
+   compliance (NPM grouped by section; NCC adds Area Location); transaction facilities
+   (SLH/TRM/TPM) show grouped collected records (no recurring balance).
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>EEMO Admin — Export Data</PageTitle>
+
+<header class="topbar no-print">
+    <div class="topbar-left">
+        <div class="topbar-title">Export Data</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">EEMO Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Export Data</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-period">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            Collection Period: <strong>@PeriodLabel</strong>
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- Controls -->
+    <div class="ex-controls no-print">
+        <div class="ex-control-block">
+            <span class="ex-control-label">Facility</span>
+            <div class="ex-filter">
+                <button class="ex-chip @(_facility is null ? "ex-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
+                @foreach (var fc in AllFacilities)
+                {
+                    <button class="ex-chip @(_facility == fc ? "ex-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                }
+            </div>
+        </div>
+
+        @if (_facility == FacilityCode.NPM)
+        {
+            <div class="ex-control-block">
+                <span class="ex-control-label">NPM Section</span>
+                <div class="ex-filter">
+                    @foreach (var sec in NpmSections)
+                    {
+                        <button class="ex-chip @(_npmSection == sec ? "ex-chip-active" : "")" type="button" @onclick="@(() => _npmSection = sec)">@sec</button>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="ex-control-row">
+            <div class="ex-control-block">
+                <span class="ex-control-label">Period</span>
+                <div class="ex-period">
+                    <button class="ex-nav-btn" type="button" @onclick="PrevMonth" aria-label="Previous month">
+                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                    </button>
+                    <span class="ex-period-label">@PeriodLabel</span>
+                    <button class="ex-nav-btn" type="button" @onclick="NextMonth" aria-label="Next month">
+                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="ex-control-block ex-control-grow">
+                <span class="ex-control-label">Export</span>
+                <div class="ex-actions">
+                    <button class="ex-btn ex-btn-primary" type="button" @onclick="Print">
+                        <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                        Print
+                    </button>
+                    <button class="ex-btn" type="button" @onclick="SaveAsPdf">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                        Save as PDF
+                    </button>
+                    <a class="ex-btn" download="@CsvFileName" href="@CsvHref">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Download CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="ex-state no-print">Loading report…</div>
+    }
+    else if (_data is null)
+    {
+        <div class="ex-state no-print">Unable to load the report. <button class="ex-btn" type="button" @onclick="Load">Try again</button></div>
+    }
+    else
+    {
+        var visible = VisibleFacilities();
+        var rentals = visible.Where(f => f.IsRental).SelectMany(VisibleRentals).ToList();
+        var collected = visible.Sum(f => VisibleRentals(f).Sum(r => r.Collected) + f.Txns.Sum(t => t.Amount));
+        var outstanding = rentals.Sum(r => r.Balance);
+        var rate = collected + outstanding > 0 ? (int)Math.Round(collected / (collected + outstanding) * 100m) : 0;
+        var paid = rentals.Count(r => r.Status == "Paid");
+        var partial = rentals.Count(r => r.Status == "Partial");
+        var unpaid = rentals.Count(r => r.Status == "Unpaid");
+
+    <!-- Quick-glance KPIs (screen only — excluded from print / PDF) -->
+    <div class="ex-summary no-print">
+        <div class="ex-sum-card">
+            <div class="ex-sum-val">@Money(collected)</div>
+            <div class="ex-sum-lbl">Total Collected</div>
+        </div>
+        <div class="ex-sum-card">
+            <div class="ex-sum-val ex-red">@Money(outstanding)</div>
+            <div class="ex-sum-lbl">Total Outstanding</div>
+        </div>
+        <div class="ex-sum-card">
+            <div class="ex-sum-val">@rate%</div>
+            <div class="ex-sum-lbl">Collection Rate</div>
+        </div>
+        <div class="ex-sum-card">
+            <div class="ex-sum-val">@paid / @partial / @unpaid</div>
+            <div class="ex-sum-lbl">Paid / Partial / Unpaid</div>
+        </div>
+        @if (_facility == FacilityCode.NPM && _npmSection == "Fish Area")
+        {
+            <div class="ex-sum-card">
+                <div class="ex-sum-val">@Money(collected + rentals.Sum(r => r.FishFee))</div>
+                <div class="ex-sum-lbl">Overall Total</div>
+            </div>
+        }
+    </div>
+
+    <!-- Printable document -->
+    <section class="ex-sheet">
+        <table class="ex-frame">
+            <thead><tr><td><div class="ex-frame-space"></div></td></tr></thead>
+            <tfoot><tr><td><div class="ex-frame-space"></div></td></tr></tfoot>
+            <tbody><tr><td>
+        <header class="ex-rpt-head">
+            <img class="ex-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+            <div class="ex-gov">Republic of the Philippines</div>
+            <div class="ex-org">Economic Enterprise &amp; Management Office</div>
+            <div class="ex-muni">Municipality of Cantilan, Surigao del Sur</div>
+            <div class="ex-doc">Collection Report</div>
+            <div class="ex-doc-scope">@ScopeName</div>
+            <div class="ex-doc-period">For the month of @PeriodLabel</div>
+        </header>
+
+        @foreach (var f in visible)
+        {
+            var facRentals = VisibleRentals(f).ToList();
+            if (f.IsRental && facRentals.Count == 0 && _facility == FacilityCode.NPM) { /* section filtered out all */ }
+
+            <div class="ex-facility">
+                <div class="ex-fac-head">
+                    <div class="ex-fac-title">
+                        <span class="ex-fac-code">@f.Code</span>
+                        <span class="ex-fac-name">@f.Name</span>
+                        <span class="ex-tag">@f.Model</span>
+                    </div>
+                    <div class="ex-fac-stats">
+                        @if (f.IsRental)
+                        {
+                            <span><strong>@Money(facRentals.Sum(r => r.Collected))</strong> collected</span>
+                            <span class="ex-red"><strong>@Money(facRentals.Sum(r => r.Balance))</strong> outstanding</span>
+                        }
+                        else
+                        {
+                            <span><strong>@Money(f.Txns.Sum(t => t.Amount))</strong> collected</span>
+                        }
+                    </div>
+                </div>
+
+                @if (f.IsRental)
+                {
+                    if (f.Code == FacilityCode.NPM)
+                    {
+                        @NpmTable(f, facRentals, _facility == FacilityCode.NPM && _npmSection == "Fish Area")
+                    }
+                    else
+                    {
+                        @RentalTable(f, facRentals)
+                    }
+                }
+                else
+                {
+                    @TxnTable(f)
+                }
+            </div>
+        }
+
+        <div class="ex-rpt-foot">
+            <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+            <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+            <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+        </div>
+            </td></tr></tbody>
+        </table>
+    </section>
+    }
+</div>
+
+@code {
+    private CollectionReportDto? _data;
+    private bool _loading = true;
+    private readonly List<ExFacility> _facilities = new();
+
+    private FacilityCode? _facility;   // null = all facilities
+    private string _npmSection = "All Sections";
+    private int _year = PhilippineTime.Now.Year;
+    private int _month = PhilippineTime.Now.Month;
+
+    private static readonly string[] NpmSections = { "All Sections", "Vegetable Area", "Fish Area", "Meat Area" };
+    private static readonly FacilityCode[] AllFacilities =
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    private string PeriodLabel => _data?.PeriodLabel ?? new DateTime(_year, _month, 1).ToString("MMMM yyyy");
+    private string ScopeName =>
+        _facility is null ? "All Facilities"
+        : _facility == FacilityCode.NPM && _npmSection != "All Sections" ? _npmSection
+        : FacilityName(_facility.Value);
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await ReportsApi.GetCollectionReportAsync(_year, _month);
+            if (result.IsSuccess) { _data = result.Value; Map(); break; }
+            _data = null;
+            if (result.StatusCode is not (401 or 403)) break;
+            await Task.Delay(400);
+        }
+        _loading = false;
+    }
+
+    // Map the API DTO to the render records. NPM rows carry their market section (for grouping);
+    // NCC rows carry the area location in its own column; both come from the DTO's Section field.
+    private void Map()
+    {
+        _facilities.Clear();
+        if (_data is null) return;
+        foreach (var f in _data.Facilities)
+        {
+            var isNpm = f.Code == FacilityCode.NPM;
+            var isNcc = f.Code == FacilityCode.NCC;
+            var rentals = f.Rentals.Select(r => new ExRental(
+                r.StallNo,
+                isNpm ? r.Section : null,
+                r.Occupant, r.Rate, r.Status, r.Collected, r.Balance, r.ORNumber,
+                AreaLoc: isNcc ? r.Section : null,
+                Coverage: r.Coverage, CoverageBalance: r.CoverageBalance,
+                FishKilos: r.FishKilos, FishFee: r.FishFee)).ToList();
+            var txns = f.Transactions.Select(t =>
+                new ExTxnRow(t.Payor, t.Date, t.Ref, t.Detail, t.Heads, t.Rate, t.ORNumber, t.Amount)).ToList();
+            _facilities.Add(new ExFacility(f.Code, f.Name, f.Model, f.IsRental, rentals, txns));
+        }
+    }
+
+    private void SelectFacility(FacilityCode? code)
+    {
+        _facility = code;
+        if (code != FacilityCode.NPM) _npmSection = "All Sections";
+    }
+
+    private async Task PrevMonth() { var d = new DateTime(_year, _month, 1).AddMonths(-1); _year = d.Year; _month = d.Month; await Load(); }
+    private async Task NextMonth() { var d = new DateTime(_year, _month, 1).AddMonths(1); _year = d.Year; _month = d.Month; await Load(); }
+
+    private IReadOnlyList<ExFacility> VisibleFacilities() =>
+        _facility is null ? _facilities : _facilities.Where(f => f.Code == _facility).ToList();
+
+    private IEnumerable<ExRental> VisibleRentals(ExFacility f)
+    {
+        if (!f.IsRental) return Enumerable.Empty<ExRental>();
+        if (f.Code == FacilityCode.NPM && _facility == FacilityCode.NPM && _npmSection != "All Sections")
+            return f.Rentals.Where(r => r.Section == _npmSection);
+        return f.Rentals;
+    }
+
+    private static string FacilityName(FacilityCode code) => code switch
+    {
+        FacilityCode.NPM => "New Public Market",
+        FacilityCode.TCC => "Tampak Commercial Center",
+        FacilityCode.NCC => "New Commercial Center",
+        FacilityCode.BBQ => "Barbecue Stand",
+        FacilityCode.ICE => "Iceplant",
+        FacilityCode.SLH => "Slaughterhouse",
+        FacilityCode.TRM => "Transport Terminal",
+        FacilityCode.TPM => "Tabo-an Public Market",
+        _ => code.ToString()
+    };
+
+    private async Task Print() => await JS.InvokeVoidAsync("print");
+    private async Task SaveAsPdf() => await JS.InvokeVoidAsync("print");   // browser print dialog → "Save as PDF"
+
+    private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    private string CsvFileName => $"collection-report_{(_facility?.ToString() ?? "all")}_{_year}-{_month:00}.csv";
+
+    // CSV reflects the current scope (facility + NPM section + period). Unified flat schema across
+    // rental and transaction facilities; balances are blank for paid-on-service rows.
+    private string CsvHref
+    {
+        get
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Facility,Type,Identifier,Detail,Qty,Rate/Fee,Status,Collected,Balance,Fish Kg,Fish Fee,OR No.");
+            foreach (var f in VisibleFacilities())
+            {
+                if (f.IsRental)
+                {
+                    foreach (var r in VisibleRentals(f))
+                        sb.AppendLine(Csv(f.Code.ToString(), f.Model, r.StallNo,
+                            f.Code == FacilityCode.NPM ? r.Section ?? "" : (r.AreaLoc ?? ""),
+                            "", r.Rate.ToString("0.00"), r.Status, r.Collected.ToString("0.00"),
+                            r.Balance.ToString("0.00"),
+                            r.FishKilos > 0 ? r.FishKilos.ToString("0.0") : "",
+                            r.FishFee > 0 ? r.FishFee.ToString("0.00") : "",
+                            r.Or ?? ""));
+                }
+                else
+                {
+                    foreach (var t in f.Txns)
+                    {
+                        var detail = f.Code == FacilityCode.TRM && !string.IsNullOrEmpty(t.Ref)
+                            ? $"{t.Ref} · {t.Detail}" : t.Detail;
+                        sb.AppendLine(Csv(f.Code.ToString(), f.Model, t.Payor,
+                            $"{t.Date} · {detail}",
+                            f.Code == FacilityCode.SLH ? t.Heads.ToString() : "",
+                            (t.Rate > 0 ? t.Rate : t.Amount).ToString("0.00"), "Paid",
+                            t.Amount.ToString("0.00"), "", "", "", t.Or ?? ""));
+                    }
+                }
+            }
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
+        }
+    }
+
+    private static string Csv(params string[] fields) =>
+        string.Join(",", fields.Select(f => f.Contains(',') || f.Contains('"') ? $"\"{f.Replace("\"", "\"\"")}\"" : f));
+
+    // ── Models ──
+    private sealed record ExRental(string StallNo, string? Section, string Vendor, decimal Rate, string Status,
+        decimal Collected, decimal Balance, string? Or, string? AreaLoc = null,
+        decimal Coverage = 0m, decimal CoverageBalance = 0m, decimal FishKilos = 0m, decimal FishFee = 0m);
+
+    private sealed record ExTxnRow(string Payor, string Date, string Ref, string Detail, int Heads, decimal Rate, string? Or, decimal Amount);
+
+    private sealed record ExFacility(FacilityCode Code, string Name, string Model, bool IsRental,
+        List<ExRental> Rentals, List<ExTxnRow> Txns);
+
+    // NPM: one table, sections shown as in-table divider rows (headers printed once). Plain cells.
+    // When showFish is true (Fish Area selected) one extra "Fish (kg)" column is shown per stall, and a
+    // dedicated "Total Fish Fees" line totals the ₱1/kg charge — kept cleanly separate from rent/coverage.
+    private RenderFragment NpmTable(ExFacility f, IReadOnlyList<ExRental> rows, bool showFish) => __builder =>
+    {
+        var span = showFish ? 11 : 10;   // total columns (for divider rows)
+        <table class="ex-table">
+            <thead>
+                <tr>
+                    <th class="ex-c">#</th>
+                    <th>Stall</th>
+                    <th class="ex-l">Vendor</th>
+                    <th class="ex-r">Daily Rate</th>
+                    <th>Status</th>
+                    <th class="ex-r">Collected</th>
+                    <th class="ex-r">Due to Date</th>
+                    <th class="ex-r">Mo. Coverage</th>
+                    <th class="ex-r">Coverage Bal.</th>
+                    @if (showFish)
+                    {
+                        <th class="ex-r">Fish (kg)</th>
+                    }
+                    <th>OR No.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var n = 1; }
+                @foreach (var sec in NpmSections.Skip(1))
+                {
+                    var secRows = rows.Where(r => r.Section == sec).ToList();
+                    if (secRows.Count == 0) continue;
+                    <tr class="ex-sec-row"><td colspan="@span">@sec<span class="ex-sec-count">@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span></td></tr>
+                    @foreach (var r in secRows)
+                    {
+                        <tr>
+                            <td class="ex-c">@n</td>
+                            <td class="ex-c">@r.StallNo</td>
+                            <td class="ex-l">@r.Vendor</td>
+                            <td class="ex-r">@Money(r.Rate)</td>
+                            <td>@r.Status</td>
+                            <td class="ex-r">@(r.Collected > 0 ? Money(r.Collected) : "—")</td>
+                            <td class="ex-r">@(r.Balance > 0 ? Money(r.Balance) : "—")</td>
+                            <td class="ex-r">@Money(r.Coverage)</td>
+                            <td class="ex-r">@(r.CoverageBalance > 0 ? Money(r.CoverageBalance) : "—")</td>
+                            @if (showFish)
+                            {
+                                <td class="ex-r">@(r.FishKilos > 0 ? r.FishKilos.ToString("N1") : "—")</td>
+                            }
+                            <td>@(string.IsNullOrWhiteSpace(r.Or) ? "—" : r.Or)</td>
+                        </tr>
+                        n++;
+                    }
+                }
+            </tbody>
+            <tfoot>
+                <tr class="ex-subtotal">
+                    <td colspan="5">Subtotal</td>
+                    <td class="ex-r">@Money(rows.Sum(r => r.Collected))</td>
+                    <td class="ex-r">@(rows.Sum(r => r.Balance) > 0 ? Money(rows.Sum(r => r.Balance)) : "—")</td>
+                    <td class="ex-r">@Money(rows.Sum(r => r.Coverage))</td>
+                    <td class="ex-r">@Money(rows.Sum(r => r.CoverageBalance))</td>
+                    @if (showFish)
+                    {
+                        <td class="ex-r">@(rows.Sum(r => r.FishKilos).ToString("N1"))</td>
+                    }
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+
+    // Monthly rental compliance (TCC/NCC/BBQ/ICE). NCC adds Area Location. Plain cells.
+    private RenderFragment RentalTable(ExFacility f, IReadOnlyList<ExRental> rows) => __builder =>
+    {
+        var isNcc = f.Code == FacilityCode.NCC;
+        <table class="ex-table">
+            <thead>
+                <tr>
+                    <th class="ex-c">#</th>
+                    <th>Stall</th>
+                    <th class="ex-l">Lessee</th>
+                    <th class="ex-r">Monthly Rate</th>
+                    <th>Status</th>
+                    <th class="ex-r">Collected</th>
+                    <th class="ex-r">Balance</th>
+                    @if (isNcc)
+                    {
+                        <th class="ex-c">Area Loc.</th>
+                    }
+                    <th>OR No.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var n = 1; }
+                @foreach (var r in rows)
+                {
+                    <tr>
+                        <td class="ex-c">@n</td>
+                        <td class="ex-c">@r.StallNo</td>
+                        <td class="ex-l">@r.Vendor</td>
+                        <td class="ex-r">@Money(r.Rate)</td>
+                        <td>@r.Status</td>
+                        <td class="ex-r">@(r.Collected > 0 ? Money(r.Collected) : "—")</td>
+                        <td class="ex-r">@(r.Balance > 0 ? Money(r.Balance) : "—")</td>
+                        @if (isNcc)
+                        {
+                            <td class="ex-c">@(r.AreaLoc ?? "—")</td>
+                        }
+                        <td>@(string.IsNullOrWhiteSpace(r.Or) ? "—" : r.Or)</td>
+                    </tr>
+                    n++;
+                }
+            </tbody>
+            <tfoot>
+                <tr class="ex-subtotal">
+                    <td colspan="5">Subtotal</td>
+                    <td class="ex-r">@Money(rows.Sum(r => r.Collected))</td>
+                    <td class="ex-r">@(rows.Sum(r => r.Balance) > 0 ? Money(rows.Sum(r => r.Balance)) : "—")</td>
+                    @if (isNcc)
+                    {
+                        <td></td>
+                    }
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    };
+
+    // Transaction facility table — one row per record, columns tailored to the facility's context.
+    private RenderFragment TxnTable(ExFacility f) => __builder =>
+    {
+        <table class="ex-table">
+            @if (f.Code == FacilityCode.SLH)
+            {
+                <thead>
+                    <tr>
+                        <th class="ex-c">#</th>
+                        <th class="ex-l">Owner</th>
+                        <th class="ex-c">Date</th>
+                        <th class="ex-l">Animal Type</th>
+                        <th class="ex-c">Heads</th>
+                        <th class="ex-r">Rate / Head</th>
+                        <th class="ex-c">OR No.</th>
+                        <th class="ex-r">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var n = 1; }
+                    @foreach (var t in f.Txns)
+                    {
+                        <tr>
+                            <td class="ex-c">@n</td>
+                            <td class="ex-l">@t.Payor</td>
+                            <td class="ex-c">@t.Date</td>
+                            <td class="ex-l">@t.Detail</td>
+                            <td class="ex-c">@t.Heads</td>
+                            <td class="ex-r">@Money(t.Rate)</td>
+                            <td class="ex-c">@(string.IsNullOrWhiteSpace(t.Or) ? "—" : t.Or)</td>
+                            <td class="ex-r">@Money(t.Amount)</td>
+                        </tr>
+                        n++;
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="ex-subtotal"><td colspan="7">Subtotal</td><td class="ex-r">@Money(f.Txns.Sum(t => t.Amount))</td></tr>
+                </tfoot>
+            }
+            else if (f.Code == FacilityCode.TRM)
+            {
+                <thead>
+                    <tr>
+                        <th class="ex-c">#</th>
+                        <th class="ex-l">Driver</th>
+                        <th class="ex-c">Date</th>
+                        <th class="ex-c">Trip No.</th>
+                        <th class="ex-l">Route</th>
+                        <th class="ex-c">OR No.</th>
+                        <th class="ex-r">Fee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var n = 1; }
+                    @foreach (var t in f.Txns)
+                    {
+                        <tr>
+                            <td class="ex-c">@n</td>
+                            <td class="ex-l">@t.Payor</td>
+                            <td class="ex-c">@t.Date</td>
+                            <td class="ex-c">@t.Ref</td>
+                            <td class="ex-l">@t.Detail</td>
+                            <td class="ex-c">@(string.IsNullOrWhiteSpace(t.Or) ? "—" : t.Or)</td>
+                            <td class="ex-r">@Money(t.Amount)</td>
+                        </tr>
+                        n++;
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="ex-subtotal"><td colspan="6">Subtotal</td><td class="ex-r">@Money(f.Txns.Sum(t => t.Amount))</td></tr>
+                </tfoot>
+            }
+            else
+            {
+                <thead>
+                    <tr>
+                        <th class="ex-c">#</th>
+                        <th class="ex-l">Vendor</th>
+                        <th class="ex-c">Market Date</th>
+                        <th class="ex-l">Goods</th>
+                        <th class="ex-c">OR No.</th>
+                        <th class="ex-r">Fee</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var n = 1; }
+                    @foreach (var t in f.Txns)
+                    {
+                        <tr>
+                            <td class="ex-c">@n</td>
+                            <td class="ex-l">@t.Payor</td>
+                            <td class="ex-c">@t.Date</td>
+                            <td class="ex-l">@t.Detail</td>
+                            <td class="ex-c">@(string.IsNullOrWhiteSpace(t.Or) ? "—" : t.Or)</td>
+                            <td class="ex-r">@Money(t.Amount)</td>
+                        </tr>
+                        n++;
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="ex-subtotal"><td colspan="5">Subtotal</td><td class="ex-r">@Money(f.Txns.Sum(t => t.Amount))</td></tr>
+                </tfoot>
+            }
+        </table>
+    };
+}

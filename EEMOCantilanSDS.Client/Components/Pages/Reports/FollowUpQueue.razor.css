@@ -1,0 +1,255 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Follow-up Queue — scoped styles (fq-)
+   Government-restrained: neutral white surfaces, generous spacing, one quiet accent
+   per row. Colour appears ONLY on the thin priority rail, the small reason badge,
+   and the amount. Reuses the app design tokens and the Month-End interaction
+   patterns (search field, dropdown-with-backdrop) for consistency.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero strip ── */
+.fq-intro {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    color: #fff;
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    box-shadow: 0 6px 18px rgba(13, 33, 55, .16);
+}
+.fq-intro-title { font-size: 17px; font-weight: 800; letter-spacing: .2px; }
+.fq-intro-sub { font-size: 12.5px; color: rgba(255, 255, 255, .76); margin-top: 3px; max-width: 560px; }
+.fq-intro-scope { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.fq-scope-pill {
+    background: rgba(200, 168, 75, .22); color: var(--gold-light);
+    border: 1px solid rgba(200, 168, 75, .4); border-radius: 999px;
+    padding: 5px 14px; font-size: 12px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase;
+}
+.fq-scope-note { font-size: 10.5px; color: rgba(255, 255, 255, .6); letter-spacing: .04em; text-transform: uppercase; }
+
+/* ── Filter choices header (chips) + search ── */
+.fq-filterbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.fq-toolrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.fq-filters {
+    display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 10px; padding: 4px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
+}
+.fq-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    min-height: 34px; padding: 6px 13px; border-radius: 7px;
+    border: 1px solid transparent; background: transparent;
+    font: inherit; font-size: 12.5px; font-weight: 650; letter-spacing: .2px; line-height: 1;
+    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
+    cursor: pointer; transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.fq-chip:hover:not(:disabled) { color: var(--navy); }
+.fq-chip:disabled { opacity: .42; cursor: not-allowed; }
+.fq-chip-count {
+    min-width: 18px; padding: 1px 6px; border-radius: 999px;
+    background: var(--bg-icon); color: var(--text-subtle);
+    font-size: 10.5px; font-weight: 800; text-align: center;
+}
+.fq-chip-active, .fq-chip-active:hover {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
+}
+.fq-chip-active .fq-chip-count { background: rgba(255, 255, 255, .22); color: #fff; }
+
+.fq-search {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    height: 42px;
+    padding: 0 14px;
+    flex: 1 1 240px;
+    min-width: 0;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+.fq-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.fq-search svg { width: 16px; height: 16px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.fq-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13.5px; color: var(--navy); }
+.fq-search input::placeholder { color: var(--text-muted); }
+.fq-search input::-webkit-search-cancel-button { display: none; }
+.fq-search-clear { border: none; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
+.fq-search-clear:hover { color: var(--navy); }
+
+/* ── Section header card ── */
+.fq-section { margin-bottom: 26px; }
+
+.fq-sec-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+}
+.fq-sec-icon {
+    width: 40px; height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.fq-sec-icon svg { width: 19px; height: 19px; stroke: var(--navy); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fq-sec-num {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1;
+    min-width: 24px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.fq-sec-info { min-width: 0; }
+.fq-sec-title { font-size: 14.5px; font-weight: 750; color: var(--navy); letter-spacing: .2px; }
+.fq-sec-sub { font-size: 12px; color: var(--text-subtle); margin-top: 3px; }
+
+/* Quiet per-section cue: a faint tint on the icon box only (keeps the page calm) */
+.fq-sec-critical .fq-sec-icon { background: var(--red-bg); }
+.fq-sec-critical .fq-sec-icon svg { stroke: var(--red); }
+.fq-sec-high .fq-sec-icon { background: rgba(200, 168, 75, .15); }
+.fq-sec-high .fq-sec-icon svg { stroke: #8a6d1b; }
+.fq-sec-review .fq-sec-icon { background: var(--green-bg); }
+.fq-sec-review .fq-sec-icon svg { stroke: var(--green); }
+
+/* ── Item row ── */
+.fq-list { display: flex; flex-direction: column; gap: 10px; }
+
+.fq-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 12px;
+    padding: 14px 18px;
+    transition: box-shadow .14s ease, border-color .14s ease;
+}
+.fq-item:hover { box-shadow: 0 4px 14px rgba(13, 33, 55, .07); }
+
+/* Thin priority rail — the page's main use of colour */
+.fq-item.fq-pri-critical { border-left-color: var(--red); }
+.fq-item.fq-pri-high { border-left-color: var(--gold); }
+.fq-item.fq-pri-normal { border-left-color: #cdd6df; }
+.fq-item.fq-pri-review { border-left-color: var(--green); }
+
+/* Neutral icon avatar (no per-row colour — keeps it restrained) */
+.fq-avatar {
+    width: 40px; height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.fq-avatar svg { width: 19px; height: 19px; stroke: var(--text-subtle); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.fq-item-main { flex: 1; min-width: 0; }
+
+.fq-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-bottom: 5px; }
+.fq-reason {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    padding: 3px 9px;
+    border-radius: 6px;
+}
+.fq-rb-critical { background: var(--red-bg); color: var(--red); }
+.fq-rb-high { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
+.fq-rb-normal { background: var(--bg-icon); color: var(--text-subtle); }
+.fq-rb-review { background: var(--green-bg); color: var(--green); }
+
+.fq-facility { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: .02em; }
+
+.fq-person { font-size: 14.5px; font-weight: 700; color: var(--text); }
+.fq-ident { font-weight: 500; color: var(--text-muted); font-size: 13px; }
+
+.fq-meta { display: flex; align-items: center; gap: 7px; margin-top: 5px; font-size: 12px; color: var(--text-subtle); }
+.fq-meta svg { width: 13px; height: 13px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.fq-dot { color: var(--border); }
+
+.fq-item-side { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; flex-shrink: 0; }
+.fq-amount { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.fq-amount-red { color: var(--red); }
+.fq-amount-excused { color: #8a6d1b; font-size: 13px; font-weight: 700; }
+.fq-amount-muted { color: var(--text-muted); font-size: 13px; font-weight: 700; }
+
+.fq-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: var(--navy);
+    text-decoration: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    white-space: nowrap;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.fq-action:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
+.fq-action-arrow { font-size: 13px; transition: transform .14s ease; }
+.fq-action:hover .fq-action-arrow { transform: translateX(2px); }
+
+/* ── Empty state ── */
+.fq-state { padding: 44px; text-align: center; color: var(--text-subtle); font-size: 14px; }
+.fq-state-error { color: var(--red); }
+.fq-retry { margin-left: 10px; background: var(--navy); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.fq-retry:hover { background: var(--navy-2, #112d47); }
+
+.fq-empty { text-align: center; padding: 60px 24px; }
+.fq-empty-icon { width: 52px; height: 52px; margin: 0 auto 14px; color: var(--green); }
+.fq-empty-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fq-empty-title { font-size: 15px; font-weight: 700; color: var(--navy); }
+.fq-empty-sub { font-size: 12.5px; color: var(--text-subtle); margin-top: 4px; }
+
+/* ── Footer legend ── */
+.fq-foot-note {
+    margin-top: 10px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-subtle);
+    line-height: 2;
+}
+.fq-legend {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    padding: 2px 7px;
+    border-radius: 6px;
+    margin: 0 2px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+    .fq-item { flex-wrap: wrap; }
+    .fq-item-side { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; padding-left: 55px; }
+    .fq-intro-scope { align-items: flex-start; }
+    .fq-search { flex-basis: 100%; }
+}

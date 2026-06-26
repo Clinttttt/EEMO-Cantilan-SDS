@@ -43,6 +43,8 @@ public class GetDailyCollectionMonthQueryHandler(
         var validDays = Math.Max(0, maxDay - contractStartDay + 1);
         var daysCollected = 0;
         var daysCollectedPast = 0;   // only days up to today, for DaysMissed calculation
+        var daysAbsentPast = 0;      // excused/absent days up to today — excluded from DaysMissed
+        var daysAbsentAll = 0;       // excused/absent days in the whole month (display + fully-paid)
         var totalFishKilos = 0m;
 
         var collectionDict = new Dictionary<string, DailyCollectionDayDto>();
@@ -53,7 +55,8 @@ public class GetDailyCollectionMonthQueryHandler(
             collectionDict[key] = new DailyCollectionDayDto(
                 collection.CollectionDate,
                 collection.IsPaid,
-                collection.FishKilos
+                collection.FishKilos,
+                collection.IsAbsent
             );
 
             if (collection.IsPaid && collection.CollectionDate.Day >= contractStartDay)
@@ -68,15 +71,22 @@ public class GetDailyCollectionMonthQueryHandler(
                 if (collection.FishKilos.HasValue)
                     totalFishKilos += collection.FishKilos.Value;
             }
+            else if (collection.IsAbsent && collection.CollectionDate.Day >= contractStartDay)
+            {
+                // Excused/absent: nothing owed for the day — it leaves the missed/expected denominator.
+                daysAbsentAll++;
+                if (collection.CollectionDate.Day <= maxDay)
+                    daysAbsentPast++;
+            }
         }
 
-        var daysMissed    = Math.Max(0, validDays - daysCollectedPast);
+        var daysMissed    = Math.Max(0, validDays - daysCollectedPast - daysAbsentPast);
         var totalDailyFee = daysCollected * FeeRates.NpmDailyFee;
         var totalFishFee  = totalFishKilos * FeeRates.NpmFishFeePerKilo;
         var grandTotal    = totalDailyFee + totalFishFee;
-        // Fully paid when the entire month's days (from contract start) are covered
+        // Fully settled when every collectable day from contract start is either collected or excused.
         var fullMonthDays = Math.Max(0, daysInMonth - contractStartDay + 1);
-        var isFullyPaid   = fullMonthDays > 0 && daysCollected >= fullMonthDays;
+        var isFullyPaid   = fullMonthDays > 0 && (daysCollected + daysAbsentAll) >= fullMonthDays;
 
         return Result<DailyCollectionMonthDto>.Success(new DailyCollectionMonthDto(
             request.Year,
@@ -89,7 +99,8 @@ public class GetDailyCollectionMonthQueryHandler(
             totalFishFee,
             grandTotal,
             isFullyPaid,
-            collectionDict
+            collectionDict,
+            daysAbsentAll
         ));
     }
 }

@@ -889,8 +889,8 @@
     private string GetSectionColor(string sectionName) => sectionName switch
     {
         "Vegetable Area" or "Corner Stalls" => "#2d7a5f",
-        "Fish Section" or "Extension Area" => "#4a9eff",
-        "Meat Section" => "#c8a84b",
+        "Fish Area" or "Extension Area" => "#4a9eff",
+        "Meat Area" => "#c8a84b",
         _ => "#2d7a5f"
     };
 
@@ -899,8 +899,8 @@
         "NPM" => new()
         {
             new() { Name = "Vegetable Area", Revenue = 45200.00m, Percentage = 94, TotalStalls = 6, ActiveStalls = 5, ClosedStalls = 0, NoContractStalls = 1, Color = "#2d7a5f" },
-            new() { Name = "Fish Section", Revenue = 52150.00m, Percentage = 88, TotalStalls = 8, ActiveStalls = 7, ClosedStalls = 1, NoContractStalls = 0, Color = "#4a9eff" },
-            new() { Name = "Meat Section", Revenue = 28100.00m, Percentage = 78, TotalStalls = 6, ActiveStalls = 6, ClosedStalls = 0, NoContractStalls = 0, Color = "#c8a84b" }
+            new() { Name = "Fish Area", Revenue = 52150.00m, Percentage = 88, TotalStalls = 8, ActiveStalls = 7, ClosedStalls = 1, NoContractStalls = 0, Color = "#4a9eff" },
+            new() { Name = "Meat Area", Revenue = 28100.00m, Percentage = 78, TotalStalls = 6, ActiveStalls = 6, ClosedStalls = 0, NoContractStalls = 0, Color = "#c8a84b" }
         },
         "NCC" => new()
         {

@@ -417,7 +417,8 @@
             rows.Count(p => p.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase)),
             rows.Count(p => p.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)),
             rows.Count(p => !p.Status.Equals("Paid", StringComparison.OrdinalIgnoreCase)
-                         && !p.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)));
+                         && !p.Status.Equals("Partial", StringComparison.OrdinalIgnoreCase)
+                         && !p.Status.Equals("Absent", StringComparison.OrdinalIgnoreCase)));
     }
 
     private string ScopeLabel

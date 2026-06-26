@@ -1,0 +1,104 @@
+/* ══ Shared 3D Payor Status donut ══ */
+
+.rpt-donut-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+
+.rpt-donut-container {
+    position: relative;
+}
+.rpt-donut-container svg {
+    filter: drop-shadow(0 6px 11px rgba(13, 33, 55, 0.05));
+}
+
+.rpt-donut-svg {
+    width: 140px;
+    height: 140px;
+}
+
+.donut-segment {
+    transition: opacity 0.2s ease;
+}
+.donut-segment:hover {
+    opacity: 0.88;
+}
+
+.donut-center-value {
+    font-size: 23px;
+    font-weight: 800;
+    fill: var(--navy);
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: -0.02em;
+}
+.donut-center-lbl {
+    font-size: 8px;
+    font-weight: 700;
+    fill: var(--text-muted);
+    text-anchor: middle;
+    letter-spacing: 0.1em;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.rpt-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.donut-leg-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: var(--bg);
+    transition: background 0.2s ease;
+}
+.donut-leg-item:hover {
+    background: rgba(13, 33, 55, 0.05);
+}
+
+.donut-leg-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.donut-leg-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.donut-leg-dot.paid { background: linear-gradient(180deg, #3fa07a 0%, #256b53 100%); }
+.donut-leg-dot.partial { background: linear-gradient(180deg, #e8cc76 0%, #b8902f 100%); }
+.donut-leg-dot.unpaid { background: linear-gradient(180deg, #a85454 0%, #6f2a2a 100%); }
+
+.donut-leg-label {
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+.donut-leg-value {
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+}
+.donut-leg-value span {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 700;
+}

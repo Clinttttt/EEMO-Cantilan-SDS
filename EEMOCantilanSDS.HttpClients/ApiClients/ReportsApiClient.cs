@@ -23,4 +23,10 @@ public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsA
 
         return await GetAsync<FinancialReportDto>(query);
     }
+
+    public async Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month) =>
+        await GetAsync<FollowUpQueueDto>($"api/Reports/follow-up?year={year}&month={month}");
+
+    public async Task<Result<CollectionReportDto>> GetCollectionReportAsync(int year, int month) =>
+        await GetAsync<CollectionReportDto>($"api/Reports/collection-report?year={year}&month={month}");
 }

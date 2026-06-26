@@ -1,0 +1,214 @@
+/* ══ Shared Collection Trend chart (3D bars + nice Y-axis + tooltip) ══ */
+
+.rpt-chart-area {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    flex: 1;
+    overflow: visible;
+}
+
+/* Y-axis labels — top (max) → bottom (0), aligned to the bar plot region */
+.rpt-yaxis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px 0 50px;
+    min-width: 30px;
+    text-align: right;
+}
+.rpt-ytick {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    line-height: 1;
+}
+
+.rpt-bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    flex: 1;
+    min-height: 250px;
+    padding: 14px 18px 10px;
+    position: relative;
+    overflow: visible;
+    background: linear-gradient(to top, rgba(13, 33, 55, 0.02) 0%, transparent 100%);
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+/* Gridlines + L-shaped axis, confined to the exact region the bars rise in (top:14px, bottom:50px) */
+.rpt-bar-chart::before {
+    content: "";
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    right: 18px;
+    bottom: 50px;
+    border-left: 1.5px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border-bottom: 1.5px solid color-mix(in srgb, var(--border) 85%, transparent);
+    background: repeating-linear-gradient(
+        to top,
+        color-mix(in srgb, var(--border) 50%, transparent) 0,
+        color-mix(in srgb, var(--border) 50%, transparent) 1px,
+        transparent 1px,
+        transparent 20%
+    );
+    pointer-events: none;
+}
+
+.rpt-bar-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    justify-content: flex-end;
+}
+
+/* Fixed-height area that holds the 3D bar, anchored to bottom */
+.rpt-bar-wrap {
+    width: 100%;
+    height: calc(100% - 40px);
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* ── 3D stacked bar: rent (green) base + fish-kilo (blue) cap, with top & side faces ── */
+.bar3d {
+    --depth: 13px;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(calc(-50% - (var(--depth) / 2)));
+    width: min(58%, 74px);
+    display: flex;
+    flex-direction: column;
+    transition: height 0.45s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s ease, filter 0.18s ease;
+    min-height: 4px;
+    filter: drop-shadow(6px 10px 12px color-mix(in srgb, var(--navy) 10%, transparent));
+}
+.seg3d { position: relative; width: 100%; }
+
+/* Front faces */
+.seg-rent { background: linear-gradient(180deg, #3a9970 0%, #2d7a5f 100%); }
+.seg-fish { background: linear-gradient(180deg, #5fb0ff 0%, #4a9eff 100%); }
+
+/* Right side face (leans up-right by --depth) */
+.face-side {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    width: var(--depth);
+    height: 100%;
+    transform-origin: left top;
+    transform: skewY(-45deg);
+}
+.seg-rent .face-side { background: #1f5d47; }
+.seg-fish .face-side { background: #356fb8; }
+
+/* Top face (leans up-right by --depth) — only on the topmost segment */
+.face-top {
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    width: 100%;
+    height: var(--depth);
+    transform-origin: left bottom;
+    transform: skewX(-45deg);
+}
+.seg-rent .face-top { background: #50b88c; }
+.seg-fish .face-top { background: #84c4ff; }
+
+.bar3d > .seg3d:first-child { border-radius: 4px 4px 0 0; }
+
+/* Current period — warm gold glow + gold label & value (no extra row element) */
+.rpt-bar-group.current .bar3d { filter: drop-shadow(4px 9px 13px rgba(200, 168, 75, 0.42)); }
+.rpt-bar-group.current .rpt-bar-label { color: #b5872a; font-weight: 700; }
+.rpt-bar-group.current .rpt-bar-val { color: #b5872a; }
+
+/* Zero-value period — small muted baseline platform so the period still reads (not blank) */
+.rpt-bar-group.is-zero .bar3d { height: 11px !important; filter: none; }
+.rpt-bar-group.is-zero .seg-rent { background: color-mix(in srgb, var(--border) 88%, #fff); }
+.rpt-bar-group.is-zero .seg-rent .face-side { background: color-mix(in srgb, var(--border) 60%, #9aa7b3); }
+.rpt-bar-group.is-zero .seg-rent .face-top { background: color-mix(in srgb, var(--border) 95%, #fff); }
+.rpt-bar-group.is-zero .rpt-bar-val { color: var(--text-muted); }
+
+.rpt-bar-group:hover .bar3d {
+    transform: translateX(calc(-50% - (var(--depth) / 2))) translateY(-3px);
+    filter: drop-shadow(8px 14px 16px color-mix(in srgb, var(--navy) 14%, transparent)) brightness(1.03);
+}
+.rpt-bar-group:hover .rpt-bar-label { color: var(--navy); }
+
+/* Hover tooltip — meaningful breakdown (total + rent/fish split) */
+.rpt-bar-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    min-width: 150px;
+    background: var(--navy);
+    color: #fff;
+    border-radius: 10px;
+    padding: 9px 11px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 6;
+    box-shadow: 0 12px 26px rgba(13, 33, 55, 0.24);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.rpt-bar-group:hover .rpt-bar-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+.rpt-bar-tip .tip-title {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gold-light);
+}
+.rpt-bar-tip .tip-total { font-size: 16px; font-weight: 800; margin: 2px 0 6px; }
+.rpt-bar-tip .tip-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: #dce6f0;
+    margin-top: 3px;
+}
+.rpt-bar-tip .tip-row strong { margin-left: auto; color: #fff; }
+.rpt-bar-tip .tip-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.rpt-bar-tip .tip-dot.rent { background: #2d7a5f; }
+.rpt-bar-tip .tip-dot.fish { background: #4a9eff; }
+.rpt-bar-tip .tip-current { margin-top: 6px; font-size: 10px; color: var(--gold-light); }
+.rpt-bar-tip .tip-empty { margin-top: 4px; font-size: 11px; color: var(--text-subtle); }
+
+.rpt-bar-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin-top: 6px;
+    font-weight: 500;
+}
+.rpt-bar-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+/* Empty state */
+.rpt-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--text-muted);
+    padding: 30px 0;
+}
+.rpt-empty-icon svg { width: 40px; height: 40px; stroke: var(--text-subtle); opacity: 0.6; }
+.rpt-empty-title { font-size: 14px; font-weight: 700; color: var(--text-subtle); }
+.rpt-empty-text { font-size: 12px; color: var(--text-muted); }

@@ -33,6 +33,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasDefaultValue(false);
 
+            builder.Property(s => s.IsAbsent)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             builder.Property(s => s.ORNumber)
                 .HasMaxLength(50);
 

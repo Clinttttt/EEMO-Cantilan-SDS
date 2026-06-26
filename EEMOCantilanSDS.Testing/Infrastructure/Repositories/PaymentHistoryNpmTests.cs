@@ -191,4 +191,82 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
         Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);   // the advance/last-day collection is counted
     }
+
+    [Fact]
+    public async Task History_Npm_AbsentDays_ReduceMonthlyBill()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Ana Reyes", "Ana Reyes", monthStart.AddMonths(-2), 3, 900m);
+
+        // Three excused days + one paid day this month.
+        var a1 = DailyCollection.Create(stall.Id, monthStart); a1.MarkAbsent();
+        var a2 = DailyCollection.Create(stall.Id, monthStart.AddDays(1)); a2.MarkAbsent();
+        var a3 = DailyCollection.Create(stall.Id, monthStart.AddDays(2)); a3.MarkAbsent();
+        var p1 = DailyCollection.Create(stall.Id, monthStart.AddDays(3)); p1.MarkPaid("OR-P1", Guid.NewGuid());
+
+        context.AddRange(facility, stall, contract, a1, a2, a3, p1);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
+
+        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        Assert.Equal((daysInMonth - 3) * FeeRates.NpmDailyFee, row.TotalBill);  // 3 excused days drop out of the bill
+        Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);                      // 1 paid day
+        Assert.False(row.IsExcused);
+    }
+
+    [Fact]
+    public async Task History_Npm_FullyAbsentMonth_EmitsExcusedRow_NotUnpaid()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthEnd = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        // Effective only the last day → exactly one collectable day this month, and it is excused.
+        var contract = Contract.Create(stall.Id, "Ben Cruz", "Ben Cruz", monthEnd, 3, 900m);
+        var absent = DailyCollection.Create(stall.Id, monthEnd); absent.MarkAbsent();
+
+        context.AddRange(facility, stall, contract, absent);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
+
+        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        Assert.True(row.IsExcused);          // shown as "Absent", not Unpaid
+        Assert.Equal(0m, row.TotalBill);
+        Assert.Equal(0m, row.AmountPaid);
+        Assert.Equal(0m, row.BalanceDue);
+    }
+
+    [Fact]
+    public async Task LedgerSummary_Npm_FullyAbsentMonth_OwesNothing_NotUnpaid()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthEnd = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Ben Cruz", "Ben Cruz", monthEnd, 3, 900m);
+        var absent = DailyCollection.Create(stall.Id, monthEnd); absent.MarkAbsent();
+
+        context.AddRange(facility, stall, contract, absent);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        Assert.Equal(0m, summary.TotalOutstanding);  // fully excused → nothing owed
+        Assert.Equal(0, summary.MonthsUnpaid);        // and not counted as an unpaid month
+    }
 }

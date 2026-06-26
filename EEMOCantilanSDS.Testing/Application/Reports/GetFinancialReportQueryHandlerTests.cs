@@ -178,14 +178,16 @@ public class GetFinancialReportQueryHandlerTests
         var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
         var npm = r.Facilities.Single(f => f.Code == FacilityCode.NPM);
+        Assert.Equal(27, npm.PaidRecords);               // ₱810 daily fee ÷ ₱30 = 27 daily collections (not stall count)
         var d = npm.Detail!;
         Assert.NotNull(d);
         Assert.Equal(810m, d.DailyFeeCollected);
         Assert.Equal(346m, d.FishCollected);
         Assert.Equal(346m, d.FishKilos);                 // ₱1/kg → kilos == fish amount
         Assert.Equal(20_000m, d.PeriodBalance);          // selected-period assessed − collected
-        Assert.Equal(2_700m, d.FullMonthCoverage);       // 3 occupied stalls × ₱900
+        Assert.Equal(2_700m, d.FullMonthCoverage);       // 3 occupied stalls × ₱900 (no absent days)
         Assert.Equal(1_300m, d.FullMonthCoverageBalance);// per stall: max(0,900-0)+max(0,900-500)+max(0,900-900)=1,300
+        Assert.Equal(0m, d.ExcusedAmount);               // no absent days → nothing excused
 
         // Non-NPM facilities carry no detail.
         Assert.Null(r.Facilities.Single(f => f.Code == FacilityCode.TRM).Detail);

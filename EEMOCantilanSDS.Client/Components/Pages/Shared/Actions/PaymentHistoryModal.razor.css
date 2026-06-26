@@ -217,13 +217,14 @@
 .ph-row-paid { border-left: 3px solid var(--green); }
 .ph-row-partial { border-left: 3px solid #b87333; }
 .ph-row-unpaid { border-left: 3px solid var(--border); }
+.ph-row-absent { border-left: 3px solid #c8a84b; }
 .ph-row-before-contract { opacity: .55; background: var(--bg) !important; }
 .ph-row-current { outline: 1px solid color-mix(in srgb, var(--gold) 40%, var(--border)); outline-offset: -1px; }
 
 /* Period cell */
 .ph-cell-period { display: flex; align-items: center; gap: 8px; }
 .ph-period-dot { width: 0; height: 0; display: none; }
-.ph-dot-paid,.ph-dot-unpaid,.ph-dot-partial,.ph-dot-gray { display: none; }
+.ph-dot-paid,.ph-dot-unpaid,.ph-dot-partial,.ph-dot-gray,.ph-dot-absent { display: none; }
 .ph-period-month { font-size: 13px; font-weight: 500; color: var(--navy); }
 .ph-period-year { font-size: 13px; color: var(--text-muted); }
 .ph-current-tag {
@@ -254,6 +255,7 @@
 .ph-pill-paid { color: var(--green); }
 .ph-pill-partial { color: #b87333; }
 .ph-pill-unpaid { color: var(--text-muted); }
+.ph-pill-absent { color: #8a6d1a; }
 .ph-pill-gray { color: var(--text-muted); opacity: .6; }
 
 /* Cells */

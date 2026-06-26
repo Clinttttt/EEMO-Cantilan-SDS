@@ -32,7 +32,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public decimal? WaterReading { get; private set; }
         public decimal? WaterAmount { get; private set; }
 
-        // Fish fee — NPM Fish Section only (₱1/kg)
+        // Fish fee — NPM Fish Area only (₱1/kg)
         public decimal? FishKilos { get; private set; }
         public decimal? FishFeeAmount => FishKilos.HasValue ? FishKilos.Value * 1.00m : null;
 

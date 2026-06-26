@@ -162,7 +162,7 @@
                 </div>
             </div>
 
-            <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectedIsPaid = true">
+            <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SetStatus(true, false)">
                 <div class="status-option-icon paid-icon-sm">
                     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
@@ -202,7 +202,7 @@
                 </div>
             }
 
-            <button class="status-option @(!SelectedIsPaid ? "status-option-active unpaid" : "")" type="button" @onclick="() => SelectedIsPaid = false">
+            <button class="status-option @(!SelectedIsPaid && !SelectedIsAbsent ? "status-option-active unpaid" : "")" type="button" @onclick="() => SetStatus(false, false)">
                 <div class="status-option-icon unpaid-icon-sm">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 </div>
@@ -210,7 +210,21 @@
                     <div class="status-option-label">Not Collected</div>
                     <div class="status-option-sub">Mark this stall as unpaid for the day.</div>
                 </div>
-                @if (!SelectedIsPaid)
+                @if (!SelectedIsPaid && !SelectedIsAbsent)
+                {
+                    <div class="status-option-check">✓</div>
+                }
+            </button>
+
+            <button class="status-option @(SelectedIsAbsent ? "status-option-active absent" : "")" type="button" @onclick="() => SetStatus(false, true)">
+                <div class="status-option-icon absent-icon-sm">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="8" y1="12" x2="16" y2="12" /></svg>
+                </div>
+                <div class="status-option-info">
+                    <div class="status-option-label">Absent</div>
+                    <div class="status-option-sub">Vendor not operating today — nothing owed for this day.</div>
+                </div>
+                @if (SelectedIsAbsent)
                 {
                     <div class="status-option-check">✓</div>
                 }
@@ -294,6 +308,7 @@
     private bool ShowReceipt;
     private MobileNpmStallCollectionDto? SelectedStall;
     private bool SelectedIsPaid;
+    private bool SelectedIsAbsent;
     private decimal? FishKilos;
     private string ORNumber = string.Empty;
 
@@ -449,10 +464,18 @@
     {
         SelectedStall = stall;
         SelectedIsPaid = stall.IsCollectedToday;
+        SelectedIsAbsent = stall.IsAbsentToday;
         FishKilos = stall.FishKilosToday;
         ORNumber = stall.ORNumberToday ?? string.Empty;
         SheetError = null;
         ShowCollectionSheet = true;
+    }
+
+    // Tri-state selection in the record sheet: Collected (paid), Not Collected (neither), Absent (excused).
+    private void SetStatus(bool paid, bool absent)
+    {
+        SelectedIsPaid = paid;
+        SelectedIsAbsent = absent;
     }
 
     private async Task ConfirmCollectionAsync()
@@ -469,7 +492,9 @@
         {
             if (!SelectedIsPaid)
             {
-                SheetError = "You're offline. Marking a stall 'Not collected' needs a connection.";
+                SheetError = SelectedIsAbsent
+                    ? "You're offline. Marking a stall 'Absent' needs a connection."
+                    : "You're offline. Marking a stall 'Not collected' needs a connection.";
                 IsSaving = false;
                 return;
             }
@@ -498,7 +523,8 @@
             SelectedStall.StallId,
             SelectedIsPaid,
             SelectedIsPaid ? ORNumber : null,
-            SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null);
+            SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
+            SelectedIsAbsent);
 
         var result = await MobileApi.RecordNpmCollectionAsync(request);
         if (!result.IsSuccess)
@@ -524,6 +550,7 @@
         ShowCollectionSheet = false;
         SelectedStall = null;
         SelectedIsPaid = false;
+        SelectedIsAbsent = false;
         FishKilos = null;
         ORNumber = string.Empty;
         SheetError = null;
@@ -549,16 +576,19 @@
 
     private static string GetBarClass(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "bar-paid" :
+        stall.IsAbsentToday ? "bar-absent" :
         stall.IsMarkedToday ? "bar-unpaid" :
         string.Empty;
 
     private static string GetBadgeClass(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "collected" :
+        stall.IsAbsentToday ? "absent" :
         stall.IsMarkedToday ? "notcollected" :
         "pending";
 
     private static string GetStatusLabel(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "Collected" :
+        stall.IsAbsentToday ? "Absent" :
         stall.IsMarkedToday ? "Not collected" :
         "Pending";
 }

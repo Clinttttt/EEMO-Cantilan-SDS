@@ -87,7 +87,8 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
             PhilippineTime.Today,
             request.IsPaid,
             request.FishKilos,
-            request.ORNumber);
+            request.ORNumber,
+            IsAbsent: request.IsAbsent);
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

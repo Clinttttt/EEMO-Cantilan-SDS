@@ -31,4 +31,5 @@ public sealed record MobileNpmStallCollectionDto(
     int DaysCollected,
     int DaysMissed,
     int CollectableDays,
-    decimal MonthCollectedAmount);
+    decimal MonthCollectedAmount,
+    bool IsAbsentToday = false);

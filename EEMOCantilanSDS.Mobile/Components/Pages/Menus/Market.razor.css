@@ -390,6 +390,29 @@
     stroke: var(--error-red);
 }
 
+/* Absent (excused) — amber/gold tone, distinct from paid-green and unpaid-red. */
+.tx-left-bar.bar-absent {
+    background: var(--gold, #c8a84b);
+}
+
+.tx-badge.absent {
+    color: #8a6516;
+    background: rgba(200, 168, 75, 0.16);
+}
+
+.status-option-active.absent {
+    border-color: rgba(200, 168, 75, 0.38);
+    background: rgba(200, 168, 75, 0.12);
+}
+
+.absent-icon-sm {
+    background: #fff;
+}
+
+.absent-icon-sm svg {
+    stroke: #b5872a;
+}
+
 .status-option-info {
     flex: 1;
     min-width: 0;

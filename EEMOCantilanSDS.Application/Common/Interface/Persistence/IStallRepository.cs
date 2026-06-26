@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -15,6 +16,11 @@ public interface IStallRepository
     Task<MobileNpmCollectionDto> GetMobileNpmCollectionAsync(int year, int month, DateOnly collectionDate, CancellationToken ct);
     Task<MobileMonthlyCollectionDto> GetMobileMonthlyCollectionAsync(FacilityCode facilityCode, int year, int month, DateOnly collectionDate, CancellationToken ct);
     Task<Dictionary<MarketSection, StallSummaryDto>> GetSectionSummariesAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
+    /// <summary>
+    /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>
+    /// — the contract-attention source for the Follow-up Queue. Expired rows are returned first.
+    /// </summary>
+    Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);
     Task AddAsync(Stall stall, CancellationToken ct);

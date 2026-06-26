@@ -54,6 +54,34 @@ public class GetDailyCollectionMonthQueryHandlerTests
         Assert.Equal(today.Day, dto.DaysMissed);
     }
 
+    [Fact]
+    public async Task Handle_AbsentDay_IsExcused_NotCountedAsMissed()
+    {
+        var month = PhilippineTime.Today.AddMonths(-1);
+        var contractDate = new DateOnly(month.Year, month.Month, 1);
+        var stall = CreateNpmStallWithContract(contractDate);
+        var absentDate = new DateOnly(month.Year, month.Month, 5);
+        var absent = DailyCollection.Create(stall.Id, absentDate);
+        absent.MarkAbsent();
+
+        var handler = CreateHandler(stall, [absent]);
+
+        var result = await handler.Handle(
+            new GetDailyCollectionMonthQuery(stall.Id, month.Year, month.Month),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var dto = result.Value!;
+        var key = absentDate.ToString("yyyy-MM-dd");
+        Assert.True(dto.Collections[key].IsAbsent);
+        Assert.False(dto.Collections[key].IsPaid);
+        Assert.Equal(0, dto.DaysCollected);
+        Assert.Equal(1, dto.DaysAbsent);
+        // The excused day is removed from the missed count: a fully-elapsed month with N valid days and
+        // one excused day has N−1 missed (not N), since nothing was owed on the absent day.
+        Assert.Equal(dto.TotalDays - 1, dto.DaysMissed);
+    }
+
     private static GetDailyCollectionMonthQueryHandler CreateHandler(
         Stall stall,
         IReadOnlyList<DailyCollection> collections)

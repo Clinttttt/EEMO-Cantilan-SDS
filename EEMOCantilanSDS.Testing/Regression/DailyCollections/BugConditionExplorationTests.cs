@@ -20,7 +20,7 @@ namespace EEMOCantilanSDS.Testing;
 /// **Counterexamples Documented:**
 /// 1. NPM stall with only daily collections: TotalPaid = ₱0 (should be ₱150)
 /// 2. NPM stall with partial + daily: TotalPaid = ₱600 (should be ₱900, auto-upgrade to Paid)
-/// 3. NPM Fish Section with all fees: TotalPaid = ₱500 (should be ₱1,000, overpaid)
+/// 3. NPM Fish Area with all fees: TotalPaid = ₱500 (should be ₱1,000, overpaid)
 /// 
 /// **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5**
 /// </summary>
@@ -142,7 +142,7 @@ public class BugConditionExplorationTests
     /// <summary>
     /// **Property 1: Bug Condition** - NPM Daily Collections Excluded from Payment Calculations
     /// 
-    /// Test Scenario 3: NPM Fish Section with partial (₱500) + daily collections (₱450) + fish fee (₱50)
+    /// Test Scenario 3: NPM Fish Area with partial (₱500) + daily collections (₱450) + fish fee (₱50)
     /// 
     /// **COUNTEREXAMPLE (Bug Exists):**
     /// - Input: NPM Fish stall, MonthlyRate = ₱900, FishFee = ₱50, TotalBill = ₱950
@@ -152,7 +152,7 @@ public class BugConditionExplorationTests
     /// 
     /// **Root Cause:** Profile.razor does NOT call GetDailyCollectionMonthAsync for NPM facilities
     /// 
-    /// This test simulates the current Profile.razor behavior for Fish Section with all fees.
+    /// This test simulates the current Profile.razor behavior for Fish Area with all fees.
     /// </summary>
     [Fact]
     public void BugCondition_Scenario3_NPMFishSectionWithAllFees_ComplexCalculationWrong()

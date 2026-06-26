@@ -314,37 +314,13 @@ else
                         <p class="chart-subtitle">Recorded collections by reporting period</p>
                     </div>
                     <div class="chart-legend">
-                        <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
+                        <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Monthly rent</span></div>
                         <div class="legend-item"><span class="legend-dot" style="background:#c8a84b"></span><span class="legend-label">Current Period</span></div>
                     </div>
                 </div>
-                <div class="rpt-bar-chart">
-                    @if (TrendPoints.Any(p => p.Amount > 0))
-                    {
-                        @foreach (var pt in TrendPoints)
-                        {
-                            <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "") @(pt.IsZero ? "is-zero" : "")" title="@pt.Label — ₱@pt.Amount.ToString("N2")">
-                                <div class="rpt-bar-wrap">
-                                    <div class="rpt-bar-3d">
-                                        <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
-                                        <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
-                                        <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
-                                    </div>
-                                </div>
-                                <div class="rpt-bar-label">@pt.Label</div>
-                                <div class="rpt-bar-val">&#8369;@pt.ShortValue</div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="rpt-empty">
-                            <div class="rpt-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
-                            <div class="rpt-empty-title">No collections recorded</div>
-                            <div class="rpt-empty-text">No revenue was collected for @GetPeriodLabel().</div>
-                        </div>
-                    }
-                </div>
+                <CollectionTrendChart Trend="R?.RevenueTrend"
+                                      RentLabel="Monthly rent"
+                                      EmptyPeriodLabel="@GetPeriodLabel()" />
             </div>
 
             <!-- Payor Status Donut -->
@@ -355,40 +331,7 @@ else
                         <p class="chart-subtitle">Payor count by payment status</p>
                     </div>
                 </div>
-                <div class="rpt-donut-wrap">
-                    <div class="rpt-donut-container">
-                        <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
-                            @{ var arcs = BuildDonutArcs(new[] {
-                                    (PaidCount,    "#2d7a5f"),
-                                    (PartialCount, "#c8a84b"),
-                                    (UnpaidCount,  "#8b3a3a")
-                                }, 46, 60, 60);
-                            }
-                            @foreach (var arc in arcs)
-                            {
-                                <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                            }
-                            <circle cx="60" cy="60" r="35" fill="white" />
-                            <text x="60" y="56" class="donut-center-val">@(PaidCount + PartialCount + UnpaidCount)</text>
-                            <text x="60" y="70" class="donut-center-lbl">PAYORS</text>
-                        </svg>
-                    </div>
-                    <div class="rpt-donut-legend">
-                        <div class="donut-leg-item">
-                            <div class="donut-leg-left"><span class="donut-leg-dot" style="background:#2d7a5f"></span><span class="donut-leg-label">Fully Paid</span></div>
-                            <strong class="donut-leg-value">@PaidCount</strong>
-                        </div>
-                        <div class="donut-leg-item">
-                            <div class="donut-leg-left"><span class="donut-leg-dot" style="background:#c8a84b"></span><span class="donut-leg-label">Partial Payment</span></div>
-                            <strong class="donut-leg-value">@PartialCount</strong>
-                        </div>
-                        <div class="donut-leg-item">
-                            <div class="donut-leg-left"><span class="donut-leg-dot" style="background:#8b3a3a"></span><span class="donut-leg-label">Unpaid</span></div>
-                            <strong class="donut-leg-value">@UnpaidCount</strong>
-                        </div>
-                    </div>
-                </div>
+                <PayorStatusDonut PaidCount="@PaidCount" PartialCount="@PartialCount" UnpaidCount="@UnpaidCount" />
             </div>
         </div>
 
@@ -649,49 +592,7 @@ else
     int PartialPct => Total > 0 ? (int)Math.Round((double)PartialCount / Total * 100) : 0;
     int UnpaidPct  => Total > 0 ? Math.Max(0, 100 - PaidPct - PartialPct) : 0;
 
-    // ── Donut arc builder ─────────────────────────────────────────
-    record ArcSegment(string D, string Color);
-    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
-    {
-        int total = segments.Sum(s => s.Count);
-        if (total == 0) yield break;
-        double start = -Math.PI / 2;
-        foreach (var (count, color) in segments)
-        {
-            if (count == 0) continue;
-            double sweep = 2 * Math.PI * count / total;
-            double end = start + Math.Min(sweep, 2 * Math.PI - 0.0001);
-            double x1 = cx + r * Math.Cos(start), y1 = cy + r * Math.Sin(start);
-            double x2 = cx + r * Math.Cos(end),   y2 = cy + r * Math.Sin(end);
-            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {(sweep > Math.PI ? 1 : 0)} 1 {x2:F3} {y2:F3}", color);
-            start = end;
-        }
-    }
-
-    // ── Collection trend ─────────────────────────────────────────
     static int ClampPct(decimal v) => (int)Math.Clamp(Math.Round(v), 0m, 100m);
-    static int NormalizeBarHeightPct(decimal value, decimal maxValue)
-        => value <= 0 || maxValue <= 0 ? 0 : ClampPct(value / maxValue * 100m);
-
-    record TrendPoint(string Label, decimal Amount, decimal ExpectedAmount, bool IsCurrent, int HeightPct, bool IsZero)
-    {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N0}k" : Amount.ToString("N0");
-    }
-    IEnumerable<TrendPoint> TrendPoints
-    {
-        get
-        {
-            var t = R?.RevenueTrend ?? new List<RevenueTrendDto>();
-            var maxCollected = t.Any() ? t.Max(x => x.Revenue) : 0m;
-            var maxExpected  = t.Any() ? t.Max(x => x.ExpectedRevenue) : 0m;
-            var ceiling = Math.Max(maxCollected, maxExpected);
-            ceiling = ceiling > 0m ? ceiling * 1.15m : 0m;
-            return t.Select(x => new TrendPoint(
-                x.PeriodLabel, x.Revenue, x.ExpectedRevenue, x.IsCurrentPeriod,
-                x.Revenue > 0m && ceiling > 0m ? Math.Max(3, NormalizeBarHeightPct(x.Revenue, ceiling)) : 0,
-                x.Revenue <= 0m));
-        }
-    }
 
     decimal TotalBilled => (R?.StallCompliance ?? new List<StallComplianceDto>()).Sum(s => s.AmountPaid + s.Balance);
     // Rent actually collected for the period, from the same compliance rows as billed/open, so the

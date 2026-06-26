@@ -96,11 +96,25 @@ public partial class FacilityReportsRepository
                 .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate.Month).ToHashSet())
             : new Dictionary<Guid, HashSet<int>>();
 
+        // Excused/absent dates per stall (this year, up to the report month) — used to drop absent days
+        // out of the NPM obligation and to skip fully-absent months in the missed-months count.
+        var absentDatesByStall = includeFish
+            ? (await _context.DailyCollections
+                    .AsNoTracking()
+                    .Where(dc => stallIds.Contains(dc.StallId) && dc.IsAbsent
+                        && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
+                    .Select(dc => new { dc.StallId, dc.CollectionDate })
+                    .ToListAsync(ct))
+                .GroupBy(x => x.StallId)
+                .ToDictionary(g => g.Key, g => (IReadOnlySet<DateOnly>)g.Select(x => x.CollectionDate).ToHashSet())
+            : new Dictionary<Guid, IReadOnlySet<DateOnly>>();
+
         var rows = new List<StallComplianceDto>();
 
         foreach (var s in stalls)
         {
             var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+            var absentSet = includeFish ? absentDatesByStall.GetValueOrDefault(s.Id) : null;
 
             decimal totalBill;
             decimal rentBill;
@@ -114,7 +128,7 @@ public partial class FacilityReportsRepository
                 var npmPayments = periodPayments.GetValueOrDefault(s.Id) ?? new List<PaymentRecord>();
                 // Occupancy-prorated rent: collectable days in the period × ₱30 (counts from the
                 // contract's effectivity date, so a payor who started mid-month owes only their days).
-                rentBill = CalculateNpmDailyObligation(s, complianceStart, complianceEnd);
+                rentBill = CalculateNpmDailyObligation(s, complianceStart, complianceEnd, absentSet);
                 totalBill = rentBill
                     + npmPayments.Sum(pr => CalculateNpmAdditionalCharges(pr, complianceStart, complianceEnd));
                 amountPaid = npmPayments.Sum(pr => RecognizedNpmPaymentRevenue(pr, complianceStart, complianceEnd, s))
@@ -150,17 +164,28 @@ public partial class FacilityReportsRepository
                 // not just one). NPM has no monthly record here either, so its daily collections
                 // (dailyByStall) settle against its own daily obligation.
                 rentBill = includeFish
-                    ? CalculateNpmDailyObligation(s, complianceStart, complianceEnd)
+                    ? CalculateNpmDailyObligation(s, complianceStart, complianceEnd, absentSet)
                     : CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
                 totalBill = rentBill;
                 amountPaid = dailyByStall.GetValueOrDefault(s.Id);
             }
 
             var balance = Math.Max(0m, totalBill - amountPaid);
-            var status = balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
+
+            // Distinct "Absent" status: the stall WAS under contract this period (had collectable days)
+            // but every one of them was excused/absent, so nothing is owed and nothing was paid.
+            var absentDays = absentSet is null
+                ? 0
+                : absentSet.Count(d => d >= complianceStart && d <= complianceEnd);
+            var hadRawCollectableDays = includeFish && CountNpmCollectableDays(s, complianceStart, complianceEnd) > 0;
+            var allDaysExcused = includeFish && absentDays > 0 && rentBill <= 0m && amountPaid <= 0m && hadRawCollectableDays;
+
+            var status = allDaysExcused
+                ? "Absent"
+                : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
             var missedMonths = CountMissedMonths(
-                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id));
+                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet);
 
             rows.Add(new StallComplianceDto(
                 s.Id,
@@ -179,7 +204,8 @@ public partial class FacilityReportsRepository
                 s.AreaSqm ?? 0,
                 contract?.EffectivityDate,
                 contract?.DurationYears ?? 0,
-                rentBill));
+                rentBill,
+                absentDays));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();
@@ -279,7 +305,8 @@ public partial class FacilityReportsRepository
         Stall stall,
         DateOnly endDate,
         bool isNpm,
-        HashSet<int>? dailyPaidMonths)
+        HashSet<int>? dailyPaidMonths,
+        IReadOnlySet<DateOnly>? absentDates = null)
     {
         dailyPaidMonths ??= new HashSet<int>();
 
@@ -312,8 +339,9 @@ public partial class FacilityReportsRepository
             if (monthEnd >= today)
                 continue;
 
-            // Skip months the stall was not under an active contract (pre-effectivity / post-expiry).
-            if (CountNpmCollectableDays(stall, monthStart, monthEnd) == 0)
+            // Skip months the stall was not under an active contract (pre-effectivity / post-expiry),
+            // or months whose every collectable day was excused/absent (nothing was owed → not missed).
+            if (CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates) == 0)
                 continue;
 
             var covered = isNpm
@@ -330,8 +358,8 @@ public partial class FacilityReportsRepository
     private static string SectionLabel(MarketSection? section) => section switch
     {
         MarketSection.VegetableArea => "Vegetable Area",
-        MarketSection.FishSection => "Fish Section",
-        MarketSection.MeatSection => "Meat Section",
+        MarketSection.FishSection => "Fish Area",
+        MarketSection.MeatSection => "Meat Area",
         _ => string.Empty
     };
 

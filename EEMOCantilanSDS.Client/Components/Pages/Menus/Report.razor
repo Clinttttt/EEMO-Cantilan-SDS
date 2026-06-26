@@ -178,6 +178,7 @@
                     <div class="kpi-value">@Model.PaidRecords</div>
                     <div class="kpi-label">Paid collection records</div>
                     <div class="kpi-sub">@Model.PaidRecords of @Model.ExpectedRecords expected · @Model.FacilityCount facilities</div>
+                   
                 </div>
             </div>
         </div>
@@ -379,7 +380,11 @@
                                                 <div class="fac-detail-item"><span>Unpaid this period (assessed − collected)</span><strong class="fac-detail-red">@Money(nd.PeriodBalance)</strong></div>
                                                 @if (nd.FullMonthCoverage > 0)
                                                 {
-                                                    <div class="fac-detail-item"><span>Full-month coverage (stalls × ₱900)</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
+                                                    <div class="fac-detail-item"><span>Full-month coverage (₱900/stall, less absent)</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
+                                                    @if (nd.ExcusedAmount > 0)
+                                                    {
+                                                        <div class="fac-detail-item"><span>Excused (absent days)</span><strong class="fac-detail-amber">@Money(nd.ExcusedAmount)</strong></div>
+                                                    }
                                                     <div class="fac-detail-item"><span>Full-month coverage balance</span><strong class="fac-detail-red">@Money(nd.FullMonthCoverageBalance)</strong></div>
                                                 }
                                             </div>

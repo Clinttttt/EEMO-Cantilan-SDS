@@ -1,0 +1,15 @@
+/* ══════════════════════════════════════════════════════════════════════
+   print.css — loaded LAST (after the scoped-component bundle) so it wins the
+   cascade. Blazor CSS-isolation does NOT scope @page, so each report page's
+   "@page { margin: 12mm }" leaks globally; this single rule overrides them all.
+   margin:0 leaves the browser no margin box to draw its automatic date / URL /
+   page-number header & footer — so the printed document is clean. Each printable
+   sheet supplies its own inner padding for whitespace.
+   ══════════════════════════════════════════════════════════════════════ */
+@page { size: auto; margin: 0; }
+
+@media print {
+    /* Facility report sheets zero their own padding in print and relied on the old
+       @page margin for whitespace — restore it now that the page margin is 0. */
+    .print-report-sheet { padding: 12mm !important; }
+}

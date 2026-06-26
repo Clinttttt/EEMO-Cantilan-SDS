@@ -11,4 +11,8 @@ public interface IReportsApiClient
         int year,
         int? month = null,
         FacilityCode? facility = null);
+
+    Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
+
+    Task<Result<CollectionReportDto>> GetCollectionReportAsync(int year, int month);
 }

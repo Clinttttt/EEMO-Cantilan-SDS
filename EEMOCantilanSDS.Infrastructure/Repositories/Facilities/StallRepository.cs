@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Extensions;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -14,6 +15,54 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 public class StallRepository(AppDbContext context) : IStallRepository
 {
+    /// <summary>
+    /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>.
+    /// Expiry (= effectivity + duration years) is a domain-computed value, so the active contracts are
+    /// projected then filtered in memory; expired rows sort first, then by nearest expiry.
+    /// </summary>
+    public async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct)
+    {
+        var today = PhilippineTime.Today;
+        var horizon = today.AddMonths(withinMonths);
+
+        var rows = await context.Stalls
+            .AsNoTracking()
+            .Where(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive))
+            .Select(s => new
+            {
+                s.StallNo,
+                Code = s.Facility!.Code,
+                Contract = s.Contracts
+                    .Where(c => c.IsActive)
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .Select(c => new { c.ActualOccupant, c.EffectivityDate, c.DurationYears })
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        var attention = new List<ContractAttentionDto>();
+        foreach (var s in rows)
+        {
+            if (s.Contract is null) continue;
+            var expiry = s.Contract.EffectivityDate.AddYears(s.Contract.DurationYears);
+            var expired = today > expiry;
+            var expiringSoon = !expired && expiry <= horizon;
+            if (!expired && !expiringSoon) continue;
+
+            attention.Add(new ContractAttentionDto(
+                s.Code,
+                s.StallNo,
+                string.IsNullOrWhiteSpace(s.Contract.ActualOccupant) ? string.Empty : s.Contract.ActualOccupant,
+                expiry,
+                expired));
+        }
+
+        return attention
+            .OrderByDescending(a => a.IsExpired)
+            .ThenBy(a => a.ExpiryDate)
+            .ToList();
+    }
+
     public async Task<MobileNpmCollectionDto> GetMobileNpmCollectionAsync(int year, int month, DateOnly collectionDate, CancellationToken ct)
     {
         var monthStart = new DateOnly(year, month, 1);
@@ -49,7 +98,10 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
             var collectableDays = CountCollectableDays(contract?.EffectivityDate, monthStart, effectiveEnd);
             var daysCollected = paidCollections.Count;
-            var daysMissed = Math.Max(0, collectableDays - daysCollected);
+            // Excused/absent days are not owed, so they leave the missed-day count.
+            var absentDays = s.DailyCollections.Count(d => d.IsAbsent
+                && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd);
+            var daysMissed = Math.Max(0, collectableDays - daysCollected - absentDays);
             var monthCollectedAmount = paidCollections.Sum(d =>
                 d.DailyFee + (d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo));
 
@@ -69,7 +121,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 daysCollected,
                 daysMissed,
                 collectableDays,
-                monthCollectedAmount);
+                monthCollectedAmount,
+                todayCollection?.IsAbsent == true);
         }).ToList();
 
         var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
@@ -81,9 +134,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
             collectionDate,
             rows.Count,
             collectedToday.Count,
-            pendingToday.Count(r => !r.IsCollectedToday),
+            pendingToday.Count(r => !r.IsCollectedToday && !r.IsAbsentToday),
             collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo)),
-            pendingToday.Where(r => !r.IsCollectedToday).Sum(r => r.DailyRate),
+            pendingToday.Where(r => !r.IsCollectedToday && !r.IsAbsentToday).Sum(r => r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),
             rows);
@@ -237,7 +290,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 Rows = g.Select((s, idx) =>
                 {
                     var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
-                    var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
+                    var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {
                         RowNumber = idx + 1,
@@ -250,14 +303,14 @@ public class StallRepository(AppDbContext context) : IStallRepository
                         MonthlyRentalRate = s.MonthlyRate,
                         ActualMonthlyRental = s.MonthlyRate,
                         WholeYearRental = s.MonthlyRate * 12,
-                        FishFeeTotal = g.Key == MarketSection.FishSection ? s.MonthlyRate * 12 : null,
+                        FishFeeTotal = null,   // List of Stallholders is base rental only — no fish/elec/water
                         IsClosed = s.Status == StallStatus.Closed
                     };
                 }).ToList(),
-                SectionMonthlyTotal = g.Sum(s => s.MonthlyRate),
-                SectionActualMonthly = g.Sum(s => s.MonthlyRate),
-                SectionWholeYearTotal = g.Sum(s => s.MonthlyRate * 12),
-                SectionFishFeeTotal = g.Key == MarketSection.FishSection ? g.Sum(s => s.MonthlyRate * 12) : 0
+                SectionMonthlyTotal = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionActualMonthly = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionWholeYearTotal = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
+                SectionFishFeeTotal = 0   // base rental only — additional fees (fish/elec/water) are not part of this list
             }).ToList();
 
         // Handle stalls without sections (TCC, NCC, BBQ, ICE, SLH)
@@ -271,7 +324,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 Rows = stallsWithoutSection.Select((s, idx) =>
                 {
                     var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
-                    var durationYears = contract != null ? PhilippineTime.Today.Year - contract.EffectivityDate.Year : 0;
+                    var durationYears = contract?.DurationYears ?? 0;
                     return new StallHolderRowDto
                     {
                         RowNumber = idx + 1,
@@ -289,9 +342,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
                         AreaLocation = s.AreaLocation?.ToString()
                     };
                 }).ToList(),
-                SectionMonthlyTotal = stallsWithoutSection.Sum(s => s.MonthlyRate),
-                SectionActualMonthly = stallsWithoutSection.Sum(s => s.MonthlyRate),
-                SectionWholeYearTotal = stallsWithoutSection.Sum(s => s.MonthlyRate * 12),
+                SectionMonthlyTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionActualMonthly = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionWholeYearTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
                 SectionFishFeeTotal = 0
             });
         }
@@ -304,8 +357,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
             MeatCount = stalls.Count(s => s.Section == MarketSection.MeatSection),
             Sections = sectionsWithSection,
             GrandTotalActiveStalls = stalls.Count(s => s.Status == StallStatus.Active),
-            GrandTotalMonthlyRate = stalls.Sum(s => s.MonthlyRate),
-            GrandTotalWholeYearRental = stalls.Sum(s => s.MonthlyRate * 12)
+            GrandTotalMonthlyRate = stalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+            GrandTotalWholeYearRental = stalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12)
         };
     }
 
@@ -338,8 +391,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
     private static string GetSectionName(MarketSection? section) => section switch
     {
         MarketSection.VegetableArea => "Vegetable Area",
-        MarketSection.FishSection => "Fish Section",
-        MarketSection.MeatSection => "Meat Section",
+        MarketSection.FishSection => "Fish Area",
+        MarketSection.MeatSection => "Meat Area",
         _ => "Unassigned Section"
     };
 

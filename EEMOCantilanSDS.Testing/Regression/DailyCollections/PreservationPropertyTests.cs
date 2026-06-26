@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Testing;
 /// - NCC facility stalls with various payment states
 /// - BBQ, ICE, SLH facility stalls with various payment states
 /// - NPM stalls with zero daily collections
-/// - Fish Section stalls with fish fee calculations
+/// - Fish Area stalls with fish fee calculations
 /// 
 /// **Expected Outcome:** Tests PASS on unfixed code (baseline behavior)
 /// **After Fix:** Tests MUST STILL PASS (preservation guarantee)
@@ -242,15 +242,15 @@ public class PreservationPropertyTests
     }
     
     /// <summary>
-    /// **Property 2: Preservation** - Fish Section Stalls Fish Fee Calculation
+    /// **Property 2: Preservation** - Fish Area Stalls Fish Fee Calculation
     /// 
-    /// Tests that Fish Section stalls continue to calculate fish fees correctly
+    /// Tests that Fish Area stalls continue to calculate fish fees correctly
     /// from monthly payment records.
     /// 
     /// **Observation Examples:**
-    /// - Fish Section stall with FishKilos = 50, MonthlyRate = ₱900
+    /// - Fish Area stall with FishKilos = 50, MonthlyRate = ₱900
     ///   Observed: FishFee = ₱50, TotalBill = ₱950
-    /// - Fish Section stall with FishKilos = 0, MonthlyRate = ₱900
+    /// - Fish Area stall with FishKilos = 0, MonthlyRate = ₱900
     ///   Observed: FishFee = ₱0, TotalBill = ₱900
     /// 
     /// **Validates: Requirements 3.4**
@@ -260,16 +260,16 @@ public class PreservationPropertyTests
         decimal monthlyRate,
         decimal fishKilos)
     {
-        // Arrange - Fish Section stall
-        var section = "Fish Section";
+        // Arrange - Fish Area stall
+        var section = "Fish Area";
         
         // Current behavior (UNFIXED code)
-        // public decimal FishFee => Section == "Fish Section" ? FishKilos : 0;
-        var currentFishFee = section == "Fish Section" ? fishKilos * 1.00m : 0m;
+        // public decimal FishFee => Section == "Fish Area" ? FishKilos : 0;
+        var currentFishFee = section == "Fish Area" ? fishKilos * 1.00m : 0m;
         var currentTotalBill = monthlyRate + currentFishFee;
         
         // Expected behavior after fix (MUST BE IDENTICAL)
-        var expectedFishFee = section == "Fish Section" ? fishKilos * 1.00m : 0m;
+        var expectedFishFee = section == "Fish Area" ? fishKilos * 1.00m : 0m;
         var expectedTotalBill = monthlyRate + expectedFishFee;
         
         // Assert - Verify preservation
@@ -516,7 +516,7 @@ public static class StallProfileGenerators
     }
     
     /// <summary>
-    /// Generator for fish kilos (Fish Section).
+    /// Generator for fish kilos (Fish Area).
     /// Generates amounts between 0 and 200 kg.
     /// </summary>
     public static Arbitrary<decimal> FishKilosGenerator()

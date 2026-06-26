@@ -28,7 +28,9 @@ public class DashboardRepositoryTests : RepositoryTestBase
         var overview = await new DashboardRepository(context, new FacilityReportsRepository(context)).GetOverviewAsync(2026, 6, CancellationToken.None);
 
         Assert.Equal(900m, overview.TotalCollected);
-        Assert.Equal(1, overview.PaidCount);
+        // Paid transactions are counted per-day for NPM: a full month paid (₱900) = 30 daily-equivalent
+        // collections (₱900 ÷ ₱30), matching the Financial Reports' "paid collection records".
+        Assert.Equal(30, overview.PaidCount);
 
         var npm = Assert.Single(overview.Facilities, f => f.Code == FacilityCode.NPM);
         Assert.Equal(900m, npm.Collected);
@@ -43,6 +45,37 @@ public class DashboardRepositoryTests : RepositoryTestBase
         var delinquent = Assert.Single(overview.DelinquentVendors);
         Assert.Equal("Maria Santos", delinquent.Name);
         Assert.Equal(1, delinquent.MonthsUnpaid);
+    }
+
+    [Fact]
+    public async Task GetOverview_HeroPendingVendors_CountsPartialAndUnpaid_NotJustFullyUnpaid()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+
+        var partialStall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental);
+        var unpaidStall = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental);
+        var c1 = Contract.Create(partialStall.Id, "Ana Reyes", null, new DateOnly(2026, 1, 1), 3, 900m);
+        var c2 = Contract.Create(unpaidStall.Id, "Ben Cruz", null, new DateOnly(2026, 1, 1), 3, 900m);
+
+        // Partial: one paid daily collection in June (₱30 of the full-month obligation) → balance remains.
+        var paidDay = DailyCollection.Create(partialStall.Id, new DateOnly(2026, 6, 2));
+        paidDay.MarkPaid("OR-1", Guid.NewGuid());
+        // unpaidStall: no collection at all → fully unpaid.
+
+        context.AddRange(facility, partialStall, unpaidStall, c1, c2, paidDay);
+        await context.SaveChangesAsync();
+
+        var overview = await new DashboardRepository(context, new FacilityReportsRepository(context)).GetOverviewAsync(2026, 6, CancellationToken.None);
+
+        var npm = Assert.Single(overview.Facilities, f => f.Code == FacilityCode.NPM);
+        Assert.Equal(1, npm.PartialCount);
+        Assert.Equal(1, npm.UnpaidCount);
+
+        // Hero "Pending / Unpaid" vendors must count BOTH the partial and the unpaid stall (2), matching
+        // TotalPending which sums both their balances — not just the fully-unpaid one.
+        Assert.Equal(2, overview.UnpaidCount);
+        Assert.True(overview.TotalPending > 0m);
     }
 
     [Fact]

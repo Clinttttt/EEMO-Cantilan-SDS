@@ -28,16 +28,18 @@
             experiencedMonths.Add(month);
     }
 
-    int monthsPaid = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Paid);
+    int monthsExcused = PaymentHistory.Count(p => p.IsExcused);
+    int monthsPaid = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Paid && !p.IsExcused);
     int monthsPartial = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Partial);
-    int monthsUnpaid = experiencedMonths.Count - monthsPaid - monthsPartial;
+    int monthsUnpaid = experiencedMonths.Count - monthsPaid - monthsPartial - monthsExcused;
     decimal collected = PaymentHistory
-        .Where(p => p.Status == Domain.Enums.PaymentStatus.Paid || p.Status == Domain.Enums.PaymentStatus.Partial)
+        .Where(p => !p.IsExcused && (p.Status == Domain.Enums.PaymentStatus.Paid || p.Status == Domain.Enums.PaymentStatus.Partial))
         .Sum(p => p.AmountPaid);
     decimal balance = experiencedMonths.Sum(m =>
     {
         var rec = PaymentHistory.FirstOrDefault(p => p.Period == m.ToString("yyyy-MM"));
         return rec is null ? rate
+             : rec.IsExcused ? 0m
              : rec.Status == Domain.Enums.PaymentStatus.Paid ? 0m
              : rec.Status == Domain.Enums.PaymentStatus.Partial ? rec.BalanceDue
              : rate;
@@ -168,14 +170,15 @@
                         var hasRecord = apiRecord != null;
                         var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
                         var payStatus = hasRecord ? apiRecord!.Status : Domain.Enums.PaymentStatus.Unpaid;
-                        var isPaid = payStatus == Domain.Enums.PaymentStatus.Paid;
+                        var isExcused = hasRecord && apiRecord!.IsExcused;
+                        var isPaid = !isExcused && payStatus == Domain.Enums.PaymentStatus.Paid;
                         var isPartial = payStatus == Domain.Enums.PaymentStatus.Partial;
                         var tx = transactions.FirstOrDefault(t => t.PeriodKey == key);
                         var isCurr = month.Month == now.Month && month.Year == now.Year;
 
                         // Calculate balance for this row
                         decimal rowBalance = 0;
-                        if (!isBeforeContract)
+                        if (!isBeforeContract && !isExcused)
                         {
                             if (isPaid)
                             {
@@ -191,11 +194,11 @@
                             }
                         }
 
-                        <div class="ph-ledger-row @(isBeforeContract ? "ph-row-before-contract" : isPaid ? "ph-row-paid" : isPartial ? "ph-row-partial" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
+                        <div class="ph-ledger-row @(isBeforeContract ? "ph-row-before-contract" : isExcused ? "ph-row-absent" : isPaid ? "ph-row-paid" : isPartial ? "ph-row-partial" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
 
                             <!-- Period -->
                             <div class="ph-cell-period">
-                                <div class="ph-period-dot @(isBeforeContract ? "ph-dot-gray" : isPaid ? "ph-dot-paid" : isPartial ? "ph-dot-partial" : "ph-dot-unpaid")"></div>
+                                <div class="ph-period-dot @(isBeforeContract ? "ph-dot-gray" : isExcused ? "ph-dot-absent" : isPaid ? "ph-dot-paid" : isPartial ? "ph-dot-partial" : "ph-dot-unpaid")"></div>
                                 <div>
                                     <div class="ph-period-month">@month.ToString("MMMM")</div>
                                     <div class="ph-period-year">@month.Year</div>
@@ -213,6 +216,13 @@
                                     <span class="ph-pay-pill ph-pill-gray">
                                         <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                                         N/A
+                                    </span>
+                                }
+                                else if (isExcused)
+                                {
+                                    <span class="ph-pay-pill ph-pill-absent">
+                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="8" y1="12" x2="16" y2="12" /></svg>
+                                        Absent
                                     </span>
                                 }
                                 else if (isPaid)
@@ -288,7 +298,7 @@
 
                             <!-- Amount -->
                             <div>
-                                @if (isBeforeContract)
+                                @if (isBeforeContract || isExcused)
                                 {
                                     <span class="ph-cell-empty">—</span>
                                 }
