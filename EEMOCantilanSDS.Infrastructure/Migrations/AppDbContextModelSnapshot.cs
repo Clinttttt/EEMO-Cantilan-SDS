@@ -395,6 +395,57 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("DailyCollections", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.NpmMarketClosure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("ClosureDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClosureDate")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("NpmMarketClosures", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.OnlinePaymentTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -587,6 +638,63 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("PaymentRecords", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.StallMonthlyException", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BillingMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BillingYear")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("StallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StallId", "BillingYear", "BillingMonth")
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
+
+                    b.ToTable("StallMonthlyExceptions", (string)null);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Slaughterhouse.SlaughterTransaction", b =>
@@ -1289,6 +1397,17 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                 {
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
                         .WithMany("PaymentRecords")
+                        .HasForeignKey("StallId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Stall");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.StallMonthlyException", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
+                        .WithMany()
                         .HasForeignKey("StallId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

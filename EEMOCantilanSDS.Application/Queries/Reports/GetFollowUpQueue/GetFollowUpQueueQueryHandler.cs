@@ -80,15 +80,16 @@ public class GetFollowUpQueueQueryHandler(
 
             foreach (var s in report.StallCompliance)
             {
-                // Excused / absent worth a review: a fully-excused month, or repeated absence.
-                if (s.Status == "Absent" || s.AbsentDays >= RepeatedAbsentThreshold)
+                // Excused / absent worth a review: a fully-excused month (NPM "Absent" or monthly
+                // "Excused"), or repeated NPM absence.
+                if (s.Status is "Absent" or "Excused" || s.AbsentDays >= RepeatedAbsentThreshold)
                 {
                     items.Add(new FollowUpItemDto(
                         SecVerify, "Review", "Excused / Absent", "excused",
                         code, Model(code), Named(s.Occupant),
                         s.StallNo.StartsWith("Stall", StringComparison.OrdinalIgnoreCase) ? s.StallNo : $"Stall {s.StallNo}",
                         0m, true, periodLabel,
-                        s.Status == "Absent" ? "Excused · full month" : $"Excused · {s.AbsentDays} days",
+                        s.Status is "Absent" or "Excused" ? "Excused · full period" : $"Excused · {s.AbsentDays} days",
                         "Verify absence", ProfileLink(code, s.StallNo)));
                     continue;
                 }

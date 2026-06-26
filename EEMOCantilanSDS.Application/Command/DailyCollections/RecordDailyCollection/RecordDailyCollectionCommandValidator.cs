@@ -23,10 +23,7 @@ public class RecordDailyCollectionCommandValidator : AbstractValidator<RecordDai
             .When(x => x.IsAbsent)
             .WithMessage("A day cannot be both paid and absent.");
 
-        // Absent can only be recorded for today or a past day (never the future).
-        RuleFor(x => x.CollectionDate)
-            .Must(d => d <= PhilippineTime.Today)
-            .When(x => x.IsAbsent)
-            .WithMessage("Absent can only be marked for today or a past day.");
+        // Note: a future date MAY be marked Absent — this records an admin-approved *scheduled*
+        // excused absence (e.g. a planned closure). It is ₱0 owed and never counts as unpaid/missed.
     }
 }

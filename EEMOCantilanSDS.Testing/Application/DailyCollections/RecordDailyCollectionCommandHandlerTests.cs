@@ -340,13 +340,15 @@ public class RecordDailyCollectionCommandHandlerTests
     }
 
     [Fact]
-    public void Validator_RejectsAbsentForFutureDate()
+    public void Validator_AllowsAbsentForFutureDate_ScheduledExcused()
     {
+        // Future "Absent" is now permitted — it records an admin-approved scheduled excused
+        // absence (e.g. a planned closure). It is ₱0 owed and never counts as unpaid/missed.
         var validator = new RecordDailyCollectionCommandValidator();
         var future = PhilippineTime.Today.AddDays(3);
         var result = validator.Validate(
             new RecordDailyCollectionCommand(Guid.NewGuid(), future, IsPaid: false, IsAbsent: true));
-        Assert.False(result.IsValid);
+        Assert.True(result.IsValid);
     }
 
     [Fact]

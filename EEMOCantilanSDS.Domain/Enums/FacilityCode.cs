@@ -68,4 +68,21 @@ namespace EEMOCantilanSDS.Domain.Enums
         Monthly = 2,
         Yearly = 3,
     }
+    // Reason an admin excused a monthly-rental stall for a billing month (TCC/NCC/BBQ/ICE).
+    public enum MonthlyExceptionReason
+    {
+        VendorNotOperating = 1,
+        TemporaryClosure = 2,
+        ApprovedByEemo = 3,
+        Other = 99,
+    }
+    // Reason the whole NPM market was closed for a day (excuses every NPM payor that date).
+    public enum MarketClosureReason
+    {
+        Holiday = 1,
+        MaintenanceOrFumigation = 2,
+        Weather = 3,
+        ApprovedByEemo = 4,
+        Other = 99,
+    }
 }

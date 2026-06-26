@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
+@using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject ITrmApiClient TrmApi
 @inject IJSRuntime JS
 
@@ -280,33 +281,7 @@ else
                         <div class="legend-item"><span class="legend-dot" style="background:#c8a84b"></span><span class="legend-label">Current Period</span></div>
                     </div>
                 </div>
-                <div class="rpt-bar-chart">
-                    @if (TrendPoints.Any(p => p.Amount > 0))
-                    {
-                        @foreach (var pt in TrendPoints)
-                        {
-                            <div class="rpt-bar-group @(pt.IsCurrent ? "current" : "") @(pt.IsZero ? "is-zero" : "")" title="@pt.Label — ₱@pt.Amount.ToString("N2")">
-                                <div class="rpt-bar-wrap">
-                                    <div class="rpt-bar-3d">
-                                        <div class="bar3d-face bar3d-front" style="height:@pt.HeightPct%"></div>
-                                        <div class="bar3d-face bar3d-top"   style="bottom:@pt.HeightPct%"></div>
-                                        <div class="bar3d-face bar3d-side"  style="height:@pt.HeightPct%"></div>
-                                    </div>
-                                </div>
-                                <div class="rpt-bar-label">@pt.Label</div>
-                                <div class="rpt-bar-val">&#8369;@pt.ShortValue</div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="rpt-empty">
-                            <div class="rpt-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
-                            <div class="rpt-empty-title">No fees recorded</div>
-                            <div class="rpt-empty-text">No terminal fees were collected for @GetPeriodLabel().</div>
-                        </div>
-                    }
-                </div>
+                <CollectionTrendChart Trend="_revenueTrend" RentLabel="Collected" EmptyPeriodLabel="@GetPeriodLabel()" />
             </div>
 
             <!-- Trips by Route donut -->
@@ -320,13 +295,31 @@ else
                 <div class="rpt-donut-wrap">
                     <div class="rpt-donut-container">
                         <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#f0f2f5" stroke-width="18" />
-                            @{ var rsegs = RouteSegments; var arcs = BuildDonutArcs(rsegs.Select(s => (s.Count, s.Color)).ToArray(), 46, 60, 60); }
-                            @foreach (var arc in arcs)
-                            {
-                                <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                            }
-                            <circle cx="60" cy="60" r="35" fill="white" />
+                            @{ var rsegs = RouteSegments; }
+                            <defs>
+                                @foreach (var c in rsegs.Select(s => s.Color).Distinct())
+                                {
+                                    <linearGradient id="@TrmGradId(c)" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="@c" /><stop offset="100%" stop-color="@Darken(c)" />
+                                    </linearGradient>
+                                }
+                                <radialGradient id="trm-donut-hole" cx="50%" cy="40%" r="62%">
+                                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
+                                </radialGradient>
+                                <filter id="trm-donut-depth" x="-30%" y="-30%" width="160%" height="160%">
+                                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
+                                </filter>
+                            </defs>
+                            <circle cx="60" cy="60" r="46" fill="none" stroke="#eef2f6" stroke-width="18" />
+                            @{ var arcs = BuildDonutArcs(rsegs.Select(s => (s.Count, $"url(#{TrmGradId(s.Color)})")).ToArray(), 46, 60, 60); }
+                            <g filter="url(#trm-donut-depth)">
+                                @foreach (var arc in arcs)
+                                {
+                                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
+                                }
+                            </g>
+                            <circle cx="60" cy="60" r="35" fill="url(#trm-donut-hole)" />
+                            <circle cx="60" cy="60" r="35" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
                             <text x="60" y="56" class="donut-center-val">@TotalTrips</text>
                             <text x="60" y="70" class="donut-center-lbl">TRIPS</text>
                         </svg>
@@ -338,7 +331,7 @@ else
                             {
                                 var legPct = TotalTrips > 0 ? (int)Math.Round((double)seg.Count / TotalTrips * 100) : 0;
                                 <div class="donut-leg-item">
-                                    <div class="donut-leg-left"><span class="donut-leg-dot" style="background:@seg.Color"></span><span class="donut-leg-label">@seg.Label</span></div>
+                                    <div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg, @seg.Color 0%, @Darken(seg.Color) 100%)"></span><span class="donut-leg-label">@seg.Label</span></div>
                                     <strong class="donut-leg-value">@seg.Count <span class="donut-leg-pct">· @legPct%</span></strong>
                                 </div>
                             }
@@ -414,17 +407,6 @@ else
                 }
             </div>
 
-            <!-- KPI stack -->
-            <div class="audit-card audit-kpi-stack">
-                <div class="audit-number-card">
-                    <strong>&#8369;@TotalCollected.ToString("N0")</strong>
-                    <span>Total Fees</span>
-                </div>
-                <div class="audit-number-card">
-                    <strong>@TotalTrips</strong>
-                    <span>Total Trips</span>
-                </div>
-            </div>
         </div>
 
         @if (ActivePeriod == "Yearly")
@@ -555,7 +537,7 @@ else
     {
         _routeBreakdown = BuildRouteBreakdown();
         _orgBreakdown = BuildOrgBreakdown();
-        _trendPoints = BuildTrendPoints();
+        _revenueTrend = BuildRevenueTrend();
         _routeSegments = BuildRouteSegments(_routeBreakdown);
     }
 
@@ -648,12 +630,11 @@ else
 
     private IReadOnlyList<TallyRow> _orgBreakdown = Array.Empty<TallyRow>();
     private IReadOnlyList<RouteRow> _routeBreakdown = Array.Empty<RouteRow>();
-    private IReadOnlyList<TrendPoint> _trendPoints = Array.Empty<TrendPoint>();
+    private List<RevenueTrendDto> _revenueTrend = new();
     private IReadOnlyList<DonutSeg> _routeSegments = Array.Empty<DonutSeg>();
 
     IReadOnlyList<TallyRow> OrgBreakdown => _orgBreakdown;
     IReadOnlyList<RouteRow> RouteBreakdown => _routeBreakdown;
-    IReadOnlyList<TrendPoint> TrendPoints => _trendPoints;
     IReadOnlyList<DonutSeg> RouteSegments => _routeSegments;
 
     IReadOnlyList<TallyRow> BuildOrgBreakdown()
@@ -695,11 +676,7 @@ else
     }
 
     // ── Trend (daily for Monthly, monthly for Yearly) ─────────────
-    record TrendPoint(string Label, decimal Amount, bool IsCurrent, int HeightPct, bool IsZero)
-    {
-        public string ShortValue => Amount >= 1000 ? $"{Amount / 1000:N1}k" : Amount.ToString("N0");
-    }
-    IReadOnlyList<TrendPoint> BuildTrendPoints()
+    List<RevenueTrendDto> BuildRevenueTrend()
     {
         var today = PhilippineTime.Today;
         List<(string Label, decimal Amount, bool IsCurrent)> pts;
@@ -742,12 +719,10 @@ else
                     IsCurrent: m.Year == today.Year && m.Month == today.Month))
                 .ToList();
         }
-        var max = pts.Any() ? pts.Max(x => x.Amount) : 0m;
-        var ceiling = max > 0m ? max * 1.15m : 0m;
-        return pts.Select(x => new TrendPoint(
-            x.Label, x.Amount, x.IsCurrent,
-            x.Amount > 0m && ceiling > 0m ? Math.Max(3, (int)(x.Amount / ceiling * 100)) : 0,
-            x.Amount <= 0m)).ToList();
+        // Map to the shared chart's DTO (single-segment: TRM has no fish fee).
+        return pts
+            .Select(x => new RevenueTrendDto(x.Label, x.Amount, ExpectedRevenue: x.Amount, IsCurrentPeriod: x.IsCurrent))
+            .ToList();
     }
 
     // ── History rows (Phase 3 + yearly monthly-summary) ───────────
@@ -755,6 +730,18 @@ else
     IReadOnlyList<TrmPeriodSummaryDto> HistoryYearly => Hist?.Yearly ?? new List<TrmPeriodSummaryDto>();
 
     // ── Donut arc builder ─────────────────────────────────────────
+    // Per-segment gradient id + darker bottom stop (matches NPM's donut depth).
+    static string TrmGradId(string color) => "trmg-" + color.TrimStart('#');
+    static string Darken(string hex, double f = 0.68)
+    {
+        hex = hex.TrimStart('#');
+        if (hex.Length != 6) return "#" + hex;
+        var r = (int)(Convert.ToInt32(hex.Substring(0, 2), 16) * f);
+        var g = (int)(Convert.ToInt32(hex.Substring(2, 2), 16) * f);
+        var b = (int)(Convert.ToInt32(hex.Substring(4, 2), 16) * f);
+        return $"#{r:X2}{g:X2}{b:X2}";
+    }
+
     record ArcSegment(string D, string Color);
     static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
     {

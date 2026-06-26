@@ -1,0 +1,889 @@
+@page "/reports/collections"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.DailyCollections
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection
+@using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
+@using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException
+@using EEMOCantilanSDS.Application.Command.Payments.ClearMonthlyException
+@using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure
+@using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure
+@inject IStallsApiClient StallsApi
+@inject IDailyCollectionApiClient DailyApi
+@inject IPaymentsApiClient PaymentsApi
+@inject IJSRuntime JS
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   Collection Manager — manage a payor's collection status (Paid / Unpaid / Excused).
+
+   NPM per-DAY (RecordDailyCollection) and monthly facilities per-MONTH Paid/Unpaid/Excused
+   (RecordPayment + StallMonthlyException). NPM "Market Days" closes a whole day, excusing
+   every payor at once (NpmMarketClosure). Recorded / past periods are locked behind a
+   double confirmation; future periods can only be scheduled as Excused.
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>EEMO Admin — Collection Manager</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Collection Manager</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">EEMO Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Collection Manager</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <div class="ce-layout">
+
+        <!-- ── Left: selection / filtering ── -->
+        <aside class="ce-side">
+            @{ var stalls = VisibleStalls(); }
+
+            <div class="ce-side-head">
+                <div class="ce-side-title">Payors</div>
+                <div class="ce-side-sub">Manage collection status &amp; approved absences</div>
+            </div>
+
+            <div class="ce-seg" role="group" aria-label="Facility">
+                @foreach (var fc in Facilities)
+                {
+                    <button class="ce-seg-btn @(_facility == fc ? "ce-seg-on" : "")" type="button" title="@FacilityName(fc)" @onclick="() => SelectFacility(fc)">@fc</button>
+                }
+            </div>
+
+            <div class="ce-row ce-period">
+                <button class="ce-nav" type="button" @onclick="PrevMonth" aria-label="Previous">
+                    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <span class="ce-period-lbl">@(IsNpm ? PeriodLabel : _year.ToString())</span>
+                <button class="ce-nav" type="button" @onclick="NextMonth" aria-label="Next">
+                    <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+            </div>
+
+            <div class="ce-row ce-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input placeholder="Search stall no. or occupant" @bind="_search" @bind:event="oninput" />
+            </div>
+
+            @if (IsNpm)
+            {
+                <div class="ce-row ce-filter-row">
+                    <div class="ce-select-wrap">
+                        <label>Section</label>
+                        <div class="ce-dd @(_openDd == "section" ? "ce-dd-open" : "")">
+                            <button class="ce-dd-btn" type="button" @onclick='() => ToggleDd("section")'>
+                                <span>@_section</span>
+                                <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                            </button>
+                            @if (_openDd == "section")
+                            {
+                                <div class="ce-dd-menu">
+                                    @foreach (var sec in Sections)
+                                    {
+                                        <button class="ce-dd-opt @(_section == sec ? "ce-dd-sel" : "")" type="button" @onclick="() => PickSection(sec)">
+                                            <span>@sec</span>
+                                            @if (_section == sec) { <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg> }
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                @if (_openDd is not null)
+                {
+                    <div class="ce-dd-backdrop" @onclick="() => _openDd = null"></div>
+                }
+            }
+
+            <div class="ce-list-head">
+                <span>@stalls.Count Payor@(stalls.Count != 1 ? "s" : "")</span>
+                <span class="ce-list-head-fac">@_facility</span>
+            </div>
+
+            <div class="ce-list">
+                @if (_loading)
+                {
+                    <div class="ce-empty-sm">Loading payors…</div>
+                }
+                else if (stalls.Count == 0)
+                {
+                    <div class="ce-empty-sm">No @_facility payors match the selected filters.</div>
+                }
+                else
+                {
+                    @foreach (var st in stalls)
+                    {
+                        <button class="ce-stall @(IsSelected(st) ? "ce-stall-on" : "")" type="button" @onclick="() => SelectStall(st)">
+                            <div class="ce-stall-top">
+                                <span class="ce-stall-no">@st.StallNo</span>
+                                @if (!string.IsNullOrEmpty(st.Section))
+                                {
+                                    <span class="ce-stall-badge ce-badge-green">@st.Section</span>
+                                }
+                            </div>
+                            <div class="ce-stall-name">@st.Occupant</div>
+                        </button>
+                    }
+                }
+            </div>
+        </aside>
+
+        <!-- ── Right: calendar / detail ── -->
+        <section class="ce-main">
+
+            @if (IsNpm)
+            {
+                <div class="ce-mode" role="group" aria-label="View mode">
+                    <button class="ce-mode-btn @(_npmMode == "payor" ? "ce-mode-on" : "")" type="button" @onclick='() => SetMode("payor")'>Per-Payor</button>
+                    <button class="ce-mode-btn @(_npmMode == "market" ? "ce-mode-on" : "")" type="button" @onclick='() => SetMode("market")'>Market Days</button>
+                </div>
+            }
+
+            @if (IsNpm && _npmMode == "market")
+            {
+                <div class="ce-main-head">
+                    <div class="ce-main-id">
+                        <div class="ce-main-title">Market Closure</div>
+                        <div class="ce-main-sub"><span class="ce-tag">NPM</span> Close a day to excuse <strong>all</strong> payors at once</div>
+                    </div>
+                    <div class="ce-main-period">@PeriodLabel</div>
+                </div>
+
+                <div class="ce-stats">
+                    <div class="ce-stat">
+                        <div class="ce-stat-val ce-gold">@_marketClosedDays.Count</div>
+                        <div class="ce-stat-lbl">Closed Days</div>
+                    </div>
+                    <div class="ce-stat">
+                        <div class="ce-stat-val">@(DaysInMonth - _marketClosedDays.Count)</div>
+                        <div class="ce-stat-lbl">Open Days</div>
+                    </div>
+                </div>
+
+                @if (_marketLoading)
+                {
+                    <div class="ce-soon">Loading market closures for @PeriodLabel…</div>
+                }
+                else
+                {
+                    <div class="ce-cal-wrap">
+                        <div class="ce-cal">
+                            <div class="ce-cal-hdr">Sun</div>
+                            <div class="ce-cal-hdr">Mon</div>
+                            <div class="ce-cal-hdr">Tue</div>
+                            <div class="ce-cal-hdr">Wed</div>
+                            <div class="ce-cal-hdr">Thu</div>
+                            <div class="ce-cal-hdr">Fri</div>
+                            <div class="ce-cal-hdr">Sat</div>
+
+                            @for (var blank = 0; blank < CalendarOffset; blank++)
+                            {
+                                <div class="ce-cell ce-cell-empty"></div>
+                            }
+                            @for (var d = 1; d <= DaysInMonth; d++)
+                            {
+                                var day = d;
+                                var closed = _marketClosedDays.Contains(day);
+                                <button class="ce-cell @(closed ? "ce-excused" : "ce-mkt-open") @(IsToday(day) ? "ce-cell-today" : "") @(_marketDrawerOpen && _marketDay == day ? "ce-cell-sel" : "")"
+                                        type="button" @onclick="() => OpenMarketDay(day)">
+                                    <span class="ce-cell-num">@day</span>
+                                    <span class="ce-cell-tag">@(closed ? "Closed" : "Open")</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="ce-legend">
+                        <span><i class="ce-sw ce-sw-excused"></i>Closed — all payors excused</span>
+                        <span><i class="ce-sw ce-sw-open"></i>Open</span>
+                    </div>
+
+                    @if (_marketDrawerOpen)
+                    {
+                        var closed = _marketClosedDays.Contains(_marketDay);
+                        var past = new DateOnly(_year, _month, _marketDay) < PhilippineTime.Today;
+                        <div class="ce-drawer">
+                            <div class="ce-drawer-head">
+                                <div>
+                                    <div class="ce-drawer-title">@(new DateTime(_year, _month, _marketDay).ToString("MMMM d, yyyy"))</div>
+                                    <div class="ce-drawer-status">
+                                        Current status:
+                                        <span class="ce-pill ce-pill-@(closed ? "excused" : "future")">@(closed ? "Closed" : "Open")</span>
+                                    </div>
+                                </div>
+                                <button class="ce-x" type="button" @onclick="CloseMarketDrawer" aria-label="Close">
+                                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                </button>
+                            </div>
+
+                            <div class="ce-drawer-body">
+                                <div class="ce-set-label">
+                                    @(closed
+                                        ? "The market is closed this day — every NPM payor is excused (₱0 owed)."
+                                        : "Closing the market excuses every NPM payor for this day (₱0 owed, not unpaid).")
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(_marketError))
+                                {
+                                    <div class="ce-form-error">@_marketError</div>
+                                }
+
+                                <div class="ce-confirm">
+                                    @if (past)
+                                    {
+                                        <div class="ce-confirm-warn">
+                                            <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                            This date has already passed — changing it affects historical collection figures. Please confirm.
+                                        </div>
+                                        <label class="ce-ack">
+                                            <input type="checkbox" @bind="_marketAck" />
+                                            <span>I confirm changing this past date.</span>
+                                        </label>
+                                    }
+                                    <div class="ce-confirm-row">
+                                        <span class="ce-confirm-q">
+                                            @(closed ? "Reopen the market this day?" : "Close the market this day?")
+                                        </span>
+                                        <div class="ce-confirm-actions">
+                                            <button class="ce-cbtn ce-cbtn-ghost" type="button" @onclick="CloseMarketDrawer" disabled="@_marketSaving">Cancel</button>
+                                            <button class="ce-cbtn ce-cbtn-primary" type="button"
+                                                    disabled="@((past && !_marketAck) || _marketSaving)"
+                                                    @onclick="() => ConfirmMarket(!closed)">
+                                                @(_marketSaving ? "Saving…" : closed ? "Reopen" : "Close market")
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+            else if (SelectedStall is null)
+            {
+                <div class="ce-empty">
+                    <div class="ce-empty-icon">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    </div>
+                    <div class="ce-empty-title">Select a payor to manage its collection status</div>
+                    <div class="ce-empty-sub">Choose a stall from the list to mark @(IsNpm ? "days" : "months") as Paid, Unpaid, or Excused.</div>
+                </div>
+            }
+            else
+            {
+                <div class="ce-main-head">
+                    <div class="ce-main-id">
+                        <div class="ce-main-title">@SelectedStall.Occupant</div>
+                        <div class="ce-main-sub">
+                            <span class="ce-tag">@_facility</span>
+                            Stall @SelectedStall.StallNo
+                            @if (!string.IsNullOrEmpty(SelectedStall.Section)) { <text> · @SelectedStall.Section</text> }
+                        </div>
+                    </div>
+                    <div class="ce-main-period">@(IsNpm ? PeriodLabel : _year.ToString())</div>
+                </div>
+
+                <div class="ce-stats">
+                    <div class="ce-stat">
+                        <div class="ce-stat-val">@StatCollected()</div>
+                        <div class="ce-stat-lbl">@(IsNpm ? "Days Collected" : "Months Paid")</div>
+                    </div>
+                    <div class="ce-stat">
+                        <div class="ce-stat-val ce-red">@StatMissed()</div>
+                        <div class="ce-stat-lbl">@(IsNpm ? "Days Unpaid" : "Months Unpaid")</div>
+                    </div>
+                    <div class="ce-stat">
+                        <div class="ce-stat-val ce-gold">@StatExcused()</div>
+                        <div class="ce-stat-lbl">@(IsNpm ? "Excused Days" : "Excused Months")</div>
+                    </div>
+                    <div class="ce-stat ce-stat-accent">
+                        <div class="ce-stat-val">@Money(StatExpected())</div>
+                        <div class="ce-stat-lbl">Expected Bill (after excused)</div>
+                    </div>
+                </div>
+
+                @if (_periodLoading)
+                {
+                    <div class="ce-soon">Loading @SelectedStall.Occupant's @(IsNpm ? PeriodLabel : _year.ToString()) records…</div>
+                }
+                else if (IsNpm)
+                {
+                    <div class="ce-cal-wrap">
+                        <div class="ce-cal">
+                            <div class="ce-cal-hdr">Sun</div>
+                            <div class="ce-cal-hdr">Mon</div>
+                            <div class="ce-cal-hdr">Tue</div>
+                            <div class="ce-cal-hdr">Wed</div>
+                            <div class="ce-cal-hdr">Thu</div>
+                            <div class="ce-cal-hdr">Fri</div>
+                            <div class="ce-cal-hdr">Sat</div>
+
+                            @for (var blank = 0; blank < CalendarOffset; blank++)
+                            {
+                                <div class="ce-cell ce-cell-empty"></div>
+                            }
+                            @for (var d = 1; d <= DaysInMonth; d++)
+                            {
+                                var day = d;
+                                var status = DayStatus(day);
+                                <button class="ce-cell ce-@status @(IsToday(day) ? "ce-cell-today" : "") @(_drawerOpen && _drawerKind == "day" && _drawerDay == day ? "ce-cell-sel" : "")"
+                                        type="button" @onclick="() => OpenDay(day)">
+                                    <span class="ce-cell-num">@day</span>
+                                    <span class="ce-cell-tag">@StatusTag(status)</span>
+                                    @if (DayLocked(day, status)) { <span class="ce-lock">@LockGlyph</span> }
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="ce-months">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            var mo = m;
+                            var status = MonthStatus(mo);
+                            <button class="ce-month ce-@status @(_drawerOpen && _drawerKind == "month" && _drawerMonth == mo ? "ce-cell-sel" : "")"
+                                    type="button" @onclick="() => OpenMonth(mo)">
+                                <span class="ce-month-name">@(new DateTime(_year, mo, 1).ToString("MMM"))</span>
+                                <span class="ce-month-tag">@StatusTag(status)</span>
+                                @if (MonthLocked(mo, status)) { <span class="ce-lock">@LockGlyph</span> }
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (!_periodLoading)
+                {
+                    <div class="ce-legend">
+                        <span><i class="ce-sw ce-sw-collected"></i>@(IsNpm ? "Collected" : "Paid")</span>
+                        <span><i class="ce-sw ce-sw-missed"></i>Unpaid</span>
+                        <span><i class="ce-sw ce-sw-excused"></i>Excused</span>
+                        <span><i class="ce-sw ce-sw-future"></i>Upcoming</span>
+                    </div>
+                }
+
+                @if (_drawerOpen)
+                {
+                    var cur = DrawerStatus();
+                    var eff = _pendingStatus ?? cur;
+                    <div class="ce-drawer">
+                        <div class="ce-drawer-head">
+                            <div>
+                                <div class="ce-drawer-title">@DrawerTitle()</div>
+                                <div class="ce-drawer-status">
+                                    Current status:
+                                    <span class="ce-pill ce-pill-@cur">@StatusTag(cur)</span>
+                                    @if (DrawerLocked)
+                                    {
+                                        <span class="ce-lock-badge">@LockGlyph @DrawerLockLabel</span>
+                                    }
+                                    @if (DrawerIsFuture() && cur == "excused")
+                                    {
+                                        <span class="ce-sched">Scheduled</span>
+                                    }
+                                </div>
+                            </div>
+                            <button class="ce-x" type="button" @onclick="CloseDrawer" aria-label="Close">
+                                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                            </button>
+                        </div>
+
+                        <div class="ce-drawer-body">
+                            <div class="ce-set-label">Set status</div>
+                            <div class="ce-set-opts">
+                                <button class="ce-set-opt ce-set-paid @(eff == "collected" ? "ce-set-on" : "") @(DrawerIsFuture() ? "ce-set-disabled" : "")" type="button" disabled="@DrawerIsFuture()" @onclick='() => ChooseStatus("collected")'>
+                                    <span class="ce-set-dot"></span>
+                                    <span class="ce-set-name">@(IsNpm ? "Collected" : "Paid")</span>
+                                    <span class="ce-set-sub">Payment recorded</span>
+                                </button>
+                                <button class="ce-set-opt ce-set-unpaid @(eff == "missed" ? "ce-set-on" : "") @(DrawerIsFuture() ? "ce-set-disabled" : "")" type="button" disabled="@DrawerIsFuture()" @onclick='() => ChooseStatus("missed")'>
+                                    <span class="ce-set-dot"></span>
+                                    <span class="ce-set-name">Unpaid</span>
+                                    <span class="ce-set-sub">Due / not collected</span>
+                                </button>
+                                <button class="ce-set-opt ce-set-excused @(eff == "excused" ? "ce-set-on" : "")" type="button" @onclick='() => ChooseStatus("excused")'>
+                                    <span class="ce-set-dot"></span>
+                                    <span class="ce-set-name">Excused</span>
+                                    <span class="ce-set-sub">₱0 owed — not unpaid</span>
+                                </button>
+                            </div>
+
+                            @if (DrawerIsFuture())
+                            {
+                                <div class="ce-future-note">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                    Future periods can only be scheduled as <strong>Excused</strong>.
+                                </div>
+                            }
+
+                            @if (eff == "collected")
+                            {
+                                <div class="ce-or">
+                                    <label class="ce-or-label">OR Number <span class="ce-or-opt">(official receipt)</span></label>
+                                    <input class="ce-or-input" placeholder="e.g. OR-10231" @bind="CurrentOr" @bind:event="oninput" />
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(_saveError))
+                            {
+                                <div class="ce-form-error">@_saveError</div>
+                            }
+
+                            @if (_pendingStatus is not null && _pendingStatus != cur)
+                            {
+                                <div class="ce-confirm">
+                                    @if (DrawerLocked)
+                                    {
+                                        <div class="ce-confirm-warn">
+                                            <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                            @(DrawerPast
+                                                ? $"This {(IsNpm ? "date" : "month")} has already passed. Editing a past record is sensitive — please confirm."
+                                                : $"This {(IsNpm ? "date" : "month")} is already recorded. Confirming will overwrite the existing record.")
+                                        </div>
+                                        <label class="ce-ack">
+                                            <input type="checkbox" @bind="_ackEdit" />
+                                            <span>I confirm editing this @(DrawerPast ? "past" : "recorded") entry.</span>
+                                        </label>
+                                    }
+                                    <div class="ce-confirm-row">
+                                        <span class="ce-confirm-q">Change status to <strong>@PendingLabel()</strong>?</span>
+                                        <div class="ce-confirm-actions">
+                                            <button class="ce-cbtn ce-cbtn-ghost" type="button" @onclick="CancelPending" disabled="@_saving">Cancel</button>
+                                            <button class="ce-cbtn ce-cbtn-primary" type="button" disabled="@((DrawerLocked && !_ackEdit) || _saving)" @onclick="ConfirmPending">@(_saving ? "Saving…" : "Confirm")</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private static readonly string[] Facilities = { "NPM", "TCC", "NCC", "ICE", "BBQ" };
+    private static readonly string[] Sections = { "All", "Vegetable Area", "Fish Area", "Meat Area" };
+
+    private static readonly RenderFragment LockGlyph = @<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
+
+    // ── Filter / selection state ──
+    private string _facility = "NPM";
+    private string _section = "All";
+    private string _search = "";
+    private string? _openDd;
+    private string _npmMode = "payor";
+    private int _year = PhilippineTime.Now.Year;
+    private int _month = PhilippineTime.Now.Month;
+
+    private bool _loading;
+    private bool _periodLoading;
+    private readonly List<CeStall> _payors = new();
+    private CeStall? SelectedStall;
+    private DailyCollectionMonthDto? _npmMonth;          // NPM selected stall's month
+    private readonly Dictionary<int, PaymentRecordDto> _monthRecords = new();   // monthly: month → record
+    private readonly HashSet<int> _excusedMonths = new();                       // monthly: excused months in the year
+    private readonly HashSet<int> _marketClosedDays = new();                    // NPM: facility-wide closed days in the month
+    private bool _marketLoading;
+    private bool _marketDrawerOpen;
+    private int _marketDay;
+    private bool _marketSaving;
+    private bool _marketAck;
+    private string? _marketError;
+
+    private bool IsNpm => _facility == "NPM";
+    private FacilityCode CurrentFacility => _facility switch
+    {
+        "NPM" => FacilityCode.NPM, "TCC" => FacilityCode.TCC, "NCC" => FacilityCode.NCC, "ICE" => FacilityCode.ICE, _ => FacilityCode.BBQ
+    };
+    private string PeriodLabel => new DateTime(_year, _month, 1).ToString("MMMM yyyy");
+
+    // ── Drawer state (shared by day & month) ──
+    private bool _drawerOpen;
+    private string _drawerKind = "day";   // "day" (NPM) | "month" (monthly)
+    private int _drawerDay;
+    private int _drawerMonth;
+    private string? _pendingStatus;
+    private bool _ackEdit;
+    private bool _saving;
+    private string? _saveError;
+    private readonly Dictionary<string, string> _orNumbers = new();
+
+    protected override async Task OnInitializedAsync() => await LoadPayors();
+
+    // ── Real payors for the current facility ──
+    private async Task LoadPayors()
+    {
+        _loading = true;
+        _payors.Clear();
+        SelectedStall = null;
+        _npmMonth = null;
+        _monthRecords.Clear();
+        StateHasChanged();
+
+        var all = new List<StallDto>();
+        DateTime? cursor = null;
+        for (var page = 0; page < 50; page++)
+        {
+            var res = await StallsApi.GetStallsByFacilityPaginatedAsync(CurrentFacility, null, cursor, 50);
+            if (!res.IsSuccess || res.Value is null) break;
+            all.AddRange(res.Value.Items);
+            if (!res.Value.HasMore || res.Value.NextCursor is null) break;
+            cursor = res.Value.NextCursor;
+        }
+
+        foreach (var s in all.Where(s => s.Status == StallStatus.Active))
+        {
+            _payors.Add(new CeStall(
+                s.Id, s.StallNo, string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!,
+                SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate));
+        }
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private IReadOnlyList<CeStall> VisibleStalls() =>
+        _payors
+            .Where(s => !IsNpm || _section == "All" || s.Section == _section)
+            .Where(s => string.IsNullOrWhiteSpace(_search)
+                || s.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || s.Occupant.Contains(_search, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    private bool IsSelected(CeStall s) => SelectedStall is not null && SelectedStall.Id == s.Id;
+
+    private async Task SelectFacility(string fc)
+    {
+        if (_facility == fc) return;
+        _facility = fc;
+        _section = "All";
+        _npmMode = "payor";
+        _marketClosedDays.Clear();
+        CloseDrawer();
+        CloseMarketDrawer();
+        await LoadPayors();
+    }
+
+    private async Task SetMode(string mode)
+    {
+        _npmMode = mode;
+        CloseDrawer();
+        CloseMarketDrawer();
+        if (mode == "market") await LoadMarketClosures();
+    }
+
+    // Facility-wide NPM market closures for the current month (drives Market Days + per-payor overlay).
+    private async Task LoadMarketClosures()
+    {
+        if (!IsNpm) return;
+        _marketLoading = true;
+        _marketClosedDays.Clear();
+        StateHasChanged();
+        var res = await PaymentsApi.GetMarketClosuresAsync(_year, _month);
+        if (res.IsSuccess && res.Value is not null)
+            foreach (var d in res.Value) _marketClosedDays.Add(d);
+        _marketLoading = false;
+        StateHasChanged();
+    }
+
+    private void OpenMarketDay(int d) { _marketDay = d; _marketError = null; _marketAck = false; _marketDrawerOpen = true; }
+    private void CloseMarketDrawer() { _marketDrawerOpen = false; _marketAck = false; _marketError = null; _marketSaving = false; }
+
+    private async Task ConfirmMarket(bool close)
+    {
+        _marketSaving = true; _marketError = null; StateHasChanged();
+        var date = new DateOnly(_year, _month, _marketDay);
+        var res = close
+            ? await PaymentsApi.SetMarketClosureAsync(new SetNpmMarketClosureCommand(date))
+            : await PaymentsApi.ClearMarketClosureAsync(new ClearNpmMarketClosureCommand(date));
+        _marketSaving = false;
+        if (res.IsSuccess)
+        {
+            if (close) _marketClosedDays.Add(_marketDay); else _marketClosedDays.Remove(_marketDay);
+            CloseMarketDrawer();
+            if (SelectedStall is not null) await LoadPeriod();   // refresh the per-payor overlay
+        }
+        else
+        {
+            _marketError = res.Error ?? "Unable to save. Please try again.";
+        }
+        StateHasChanged();
+    }
+
+    private async Task SelectStall(CeStall s)
+    {
+        SelectedStall = s;
+        CloseDrawer();
+        await LoadPeriod();
+    }
+
+    // Loads the selected stall's period data (NPM month OR monthly 12-month year).
+    private async Task LoadPeriod()
+    {
+        if (SelectedStall is null) return;
+        _periodLoading = true;
+        _npmMonth = null;
+        _monthRecords.Clear();
+        _excusedMonths.Clear();
+        StateHasChanged();
+
+        if (IsNpm)
+        {
+            var res = await DailyApi.GetDailyCollectionMonthAsync(SelectedStall.Id, _year, _month);
+            _npmMonth = res.IsSuccess ? res.Value : null;
+            await LoadMarketClosures();   // overlay facility-wide closures on the payor calendar
+        }
+        else
+        {
+            var ex = await PaymentsApi.GetMonthlyExceptionsAsync(SelectedStall.Id, _year);
+            if (ex.IsSuccess && ex.Value is not null)
+                foreach (var m in ex.Value) _excusedMonths.Add(m);
+            for (var m = 1; m <= 12; m++)
+            {
+                var res = await PaymentsApi.GetPaymentRecordAsync(SelectedStall.Id, _year, m);
+                if (res.IsSuccess && res.Value is not null) _monthRecords[m] = res.Value;
+            }
+        }
+        _periodLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task PrevMonth()
+    {
+        var oldYear = _year;
+        var d = new DateTime(_year, _month, 1).AddMonths(-1);
+        _year = d.Year; _month = d.Month;
+        CloseDrawer();
+        CloseMarketDrawer();
+        if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();
+        else if (IsNpm && _npmMode == "market") await LoadMarketClosures();
+    }
+    private async Task NextMonth()
+    {
+        var oldYear = _year;
+        var d = new DateTime(_year, _month, 1).AddMonths(1);
+        _year = d.Year; _month = d.Month;
+        CloseDrawer();
+        CloseMarketDrawer();
+        if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();
+        else if (IsNpm && _npmMode == "market") await LoadMarketClosures();
+    }
+
+    private void ToggleDd(string id) => _openDd = _openDd == id ? null : id;
+    private void PickSection(string v) { _section = v; _openDd = null; }
+
+    // ── NPM day status (real) ──
+    private int DaysInMonth => DateTime.DaysInMonth(_year, _month);
+    private int CalendarOffset => (int)new DateTime(_year, _month, 1).DayOfWeek;
+    private bool IsToday(int d) => PhilippineTime.Today == new DateOnly(_year, _month, d);
+
+    private string DayStatus(int d)
+    {
+        var date = new DateOnly(_year, _month, d);
+        if (_marketClosedDays.Contains(d)) return "excused";   // facility-wide closure excuses this payor
+        if (SelectedStall?.ContractDate is { } cd && date < DateOnly.FromDateTime(cd)) return "na";   // before contract → out of scope
+        var key = date.ToString("yyyy-MM-dd");
+        if (_npmMonth is not null && _npmMonth.Collections.TryGetValue(key, out var c))
+        {
+            if (c.IsAbsent) return "excused";
+            if (c.IsPaid) return "collected";
+        }
+        return date > PhilippineTime.Today ? "future" : "missed";
+    }
+
+    private bool IsPastDay(int d) => new DateOnly(_year, _month, d) < PhilippineTime.Today;
+    private bool DayLocked(int d, string status) => status != "na" && (IsPastDay(d) || status == "collected");
+
+    // ── Monthly month status (real) ──
+    private string MonthStatus(int m)
+    {
+        if (_excusedMonths.Contains(m)) return "excused";
+        if (SelectedStall?.ContractDate is { } cd)
+        {
+            var ms = new DateOnly(_year, m, 1);
+            if (ms < new DateOnly(cd.Year, cd.Month, 1)) return "na";   // before the contract existed → out of scope
+        }
+        if (_monthRecords.TryGetValue(m, out var r))
+            return r.Status switch { PaymentStatus.Paid => "collected", PaymentStatus.Partial => "partial", _ => "missed" };
+        var isFuture = _year > PhilippineTime.Now.Year || (_year == PhilippineTime.Now.Year && m > PhilippineTime.Now.Month);
+        return isFuture ? "future" : "missed";
+    }
+
+    private bool IsPastMonth(int m) => _year < PhilippineTime.Now.Year || (_year == PhilippineTime.Now.Year && m < PhilippineTime.Now.Month);
+    private bool MonthLocked(int m, string status) => status != "na" && (IsPastMonth(m) || status == "collected" || status == "partial");
+
+    private static string StatusTag(string s) => s switch
+    {
+        "collected" => "Paid", "missed" => "Unpaid", "excused" => "Excused", "partial" => "Partial", "future" => "Soon", "na" => "—", _ => ""
+    };
+
+    // ── Stats ──
+    private int StatCollected() => IsNpm ? CountDays("collected") : CountMonths("collected");
+    private int StatMissed() => IsNpm ? CountDays("missed") : CountMonths("missed");
+    private int StatExcused() => IsNpm ? CountDays("excused") : CountMonths("excused");
+    private int CountDays(string status) => Enumerable.Range(1, DaysInMonth).Count(d => DayStatus(d) == status);
+    private int CountMonths(string status) => Enumerable.Range(1, 12).Count(m => MonthStatus(m) == status);
+    private decimal StatExpected()
+    {
+        if (SelectedStall is null) return 0m;
+        if (IsNpm) return (CountDays("collected") + CountDays("missed")) * FeeRates.NpmDailyFee;
+        var billable = CountMonths("collected") + CountMonths("missed") + CountMonths("partial");
+        return billable * SelectedStall.MonthlyRate;
+    }
+
+    // ── Drawer ──
+    private void OpenDay(int d) { if (_marketClosedDays.Contains(d) || DayStatus(d) == "na") return; _drawerKind = "day"; _drawerDay = d; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
+    private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
+    private void CloseDrawer() { _drawerOpen = false; _pendingStatus = null; _ackEdit = false; _saveError = null; }
+
+    private bool IsDay => _drawerKind == "day";
+    private bool DrawerIsFuture() => IsDay
+        ? new DateOnly(_year, _month, _drawerDay) > PhilippineTime.Today
+        : (_year > PhilippineTime.Now.Year || (_year == PhilippineTime.Now.Year && _drawerMonth > PhilippineTime.Now.Month));
+    private bool DrawerPast => IsDay ? IsPastDay(_drawerDay) : IsPastMonth(_drawerMonth);
+    private string DrawerStatus() => IsDay ? DayStatus(_drawerDay) : MonthStatus(_drawerMonth);
+    private bool DrawerLocked => IsDay ? (DrawerPast || DrawerStatus() == "collected")
+        : (DrawerPast || DrawerStatus() is "collected" or "partial");
+    private string DrawerLockLabel => DrawerPast ? "Locked · Past" : "Recorded";
+    private string DrawerTitle() => IsDay
+        ? new DateTime(_year, _month, _drawerDay).ToString("dddd, MMMM d, yyyy")
+        : new DateTime(_year, _drawerMonth, 1).ToString("MMMM yyyy");
+
+    private string CurrentKey => IsDay ? $"{SelectedStall?.Id}|D|{_year}|{_month}|{_drawerDay}" : $"{SelectedStall?.Id}|M|{_year}|{_drawerMonth}";
+    private string CurrentOr
+    {
+        get => _orNumbers.GetValueOrDefault(CurrentKey, "");
+        set => _orNumbers[CurrentKey] = value ?? "";
+    }
+
+    private void ChooseStatus(string status)
+    {
+        if (DrawerIsFuture() && status != "excused") return; // future = Excused-only
+        _pendingStatus = status == DrawerStatus() ? null : status;
+        _ackEdit = false;
+        _saveError = null;
+    }
+
+    private string PendingLabel() => _pendingStatus switch
+    {
+        "collected" => IsNpm ? "Collected" : "Paid", "missed" => "Unpaid", "excused" => "Excused", _ => ""
+    };
+
+    private void CancelPending() { _pendingStatus = null; _ackEdit = false; _saveError = null; }
+
+    // Persists the chosen status to the backend, then refreshes.
+    private async Task ConfirmPending()
+    {
+        if (_pendingStatus is null || SelectedStall is null) return;
+        if (DrawerLocked && !_ackEdit) return;
+
+        var or = string.IsNullOrWhiteSpace(CurrentOr) ? null : CurrentOr.Trim();
+        _saving = true;
+        _saveError = null;
+
+        Result<bool> res;
+        if (IsDay)
+        {
+            var date = new DateOnly(_year, _month, _drawerDay);
+            var cmd = _pendingStatus switch
+            {
+                "collected" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: true, ORNumber: or),
+                "missed" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: false, IsAbsent: false),
+                _ => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: false, IsAbsent: true)
+            };
+            res = await DailyApi.RecordDailyCollectionAsync(cmd);
+        }
+        else
+        {
+            var cur = MonthStatus(_drawerMonth);
+            if (_pendingStatus == "excused")
+            {
+                res = await PaymentsApi.SetMonthlyExceptionAsync(
+                    new SetStallMonthlyExceptionCommand(SelectedStall.Id, _year, _drawerMonth));
+            }
+            else if (_pendingStatus == "collected")
+            {
+                // Clear any excused flag first so the month isn't both excused and paid.
+                if (cur == "excused")
+                {
+                    var cleared = await PaymentsApi.ClearMonthlyExceptionAsync(
+                        new ClearStallMonthlyExceptionCommand(SelectedStall.Id, _year, _drawerMonth));
+                    if (!cleared.IsSuccess)
+                    {
+                        _saving = false;
+                        _saveError = cleared.Error ?? "Unable to save. Please try again.";
+                        return;
+                    }
+                }
+                res = await PaymentsApi.RecordPaymentAsync(
+                    new RecordPaymentCommand(SelectedStall.Id, _year, _drawerMonth, PaymentStatus.Paid, null, null, or));
+            }
+            else // "missed" → unpaid
+            {
+                // From excused: clearing the exception returns the month to owing. Otherwise mark Unpaid.
+                res = cur == "excused"
+                    ? await PaymentsApi.ClearMonthlyExceptionAsync(
+                        new ClearStallMonthlyExceptionCommand(SelectedStall.Id, _year, _drawerMonth))
+                    : await PaymentsApi.RecordPaymentAsync(
+                        new RecordPaymentCommand(SelectedStall.Id, _year, _drawerMonth, PaymentStatus.Unpaid, null, null, or));
+            }
+        }
+
+        _saving = false;
+        if (res.IsSuccess)
+        {
+            _orNumbers.Remove(CurrentKey);
+            await LoadPeriod();
+            CloseDrawer();
+        }
+        else
+        {
+            _saveError = res.Error ?? "Unable to save. Please try again.";
+        }
+    }
+
+    // ── Misc helpers ──
+    private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    private static string SectionLabelOf(StallDto s) =>
+        s.Section.HasValue ? SectionLabel(s.Section.Value)
+        : s.AreaLocation.HasValue ? s.AreaLocation.Value.ToString()
+        : string.Empty;
+
+    private static string SectionLabel(MarketSection section) => section switch
+    {
+        MarketSection.VegetableArea => "Vegetable Area",
+        MarketSection.FishSection => "Fish Area",
+        MarketSection.MeatSection => "Meat Area",
+        _ => string.Empty
+    };
+
+    private static string FacilityName(string code) => code switch
+    {
+        "NPM" => "New Public Market",
+        "TCC" => "Tampak Commercial Center",
+        "NCC" => "New Commercial Center",
+        "ICE" => "Iceplant",
+        "BBQ" => "Barbecue Stand",
+        _ => code
+    };
+
+    private sealed record CeStall(Guid Id, string StallNo, string Occupant, string Section,
+        decimal MonthlyRate, decimal? DailyRate, DateTime? ContractDate);
+}

@@ -109,12 +109,51 @@ public partial class FacilityReportsRepository
                 .ToDictionary(g => g.Key, g => (IReadOnlySet<DateOnly>)g.Select(x => x.CollectionDate).ToHashSet())
             : new Dictionary<Guid, IReadOnlySet<DateOnly>>();
 
+        // Facility-wide NPM market closures in the window excuse EVERY NPM payor for those dates — they
+        // are merged into each stall's absent set so the day owes ₱0 and never counts as missed.
+        var marketClosedDates = includeFish
+            ? (await _context.NpmMarketClosures
+                    .AsNoTracking()
+                    .Where(c => c.ClosureDate >= yearStart && c.ClosureDate <= endDate)
+                    .Select(c => c.ClosureDate)
+                    .ToListAsync(ct))
+                .ToHashSet()
+            : new HashSet<DateOnly>();
+
+        // Admin-excused months for monthly facilities (TCC/NCC/BBQ/ICE) overlapping the period — these
+        // months are ₱0 owed and never count as unpaid/missed/delinquent.
+        var excusedByStall = !includeFish
+            ? (await _context.StallMonthlyExceptions
+                    .AsNoTracking()
+                    .Where(e => stallIds.Contains(e.StallId)
+                        && (e.BillingYear > complianceStart.Year || (e.BillingYear == complianceStart.Year && e.BillingMonth >= complianceStart.Month))
+                        && (e.BillingYear < complianceEnd.Year || (e.BillingYear == complianceEnd.Year && e.BillingMonth <= complianceEnd.Month)))
+                    .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth })
+                    .ToListAsync(ct))
+                .GroupBy(e => e.StallId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (IReadOnlySet<(int Year, int Month)>)g.Select(x => (x.BillingYear, x.BillingMonth)).ToHashSet())
+            : new Dictionary<Guid, IReadOnlySet<(int Year, int Month)>>();
+
         var rows = new List<StallComplianceDto>();
 
         foreach (var s in stalls)
         {
             var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
-            var absentSet = includeFish ? absentDatesByStall.GetValueOrDefault(s.Id) : null;
+            // NPM absent set = this stall's own absent days ∪ facility-wide market closures.
+            IReadOnlySet<DateOnly>? absentSet = null;
+            if (includeFish)
+            {
+                var union = new HashSet<DateOnly>(marketClosedDates);
+                if (absentDatesByStall.GetValueOrDefault(s.Id) is { } perStall)
+                    union.UnionWith(perStall);
+                absentSet = union;
+            }
+            var excusedSet = includeFish ? null : excusedByStall.GetValueOrDefault(s.Id);
+            IReadOnlySet<int>? excusedMonthsThisYear = excusedSet is null
+                ? null
+                : excusedSet.Where(t => t.Year == endDate.Year).Select(t => t.Month).ToHashSet();
 
             decimal totalBill;
             decimal rentBill;
@@ -145,7 +184,7 @@ public partial class FacilityReportsRepository
                 // due across every month the contract is effective in the period (so unpaid months
                 // without a record still count), plus any utilities actually billed on in-period
                 // records. The balance then reconciles with MissedMonths and the Collection Rate.
-                rentBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
+                rentBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd, excusedSet);
                 totalBill = rentBill
                     + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
@@ -165,7 +204,7 @@ public partial class FacilityReportsRepository
                 // (dailyByStall) settle against its own daily obligation.
                 rentBill = includeFish
                     ? CalculateNpmDailyObligation(s, complianceStart, complianceEnd, absentSet)
-                    : CalculateStallRentObligationDue(s, complianceStart, complianceEnd);
+                    : CalculateStallRentObligationDue(s, complianceStart, complianceEnd, excusedSet);
                 totalBill = rentBill;
                 amountPaid = dailyByStall.GetValueOrDefault(s.Id);
             }
@@ -176,16 +215,23 @@ public partial class FacilityReportsRepository
             // but every one of them was excused/absent, so nothing is owed and nothing was paid.
             var absentDays = absentSet is null
                 ? 0
-                : absentSet.Count(d => d >= complianceStart && d <= complianceEnd);
+                : absentSet.Count(d => d >= complianceStart && d <= complianceEnd && IsStallCollectableOn(s, d));
             var hadRawCollectableDays = includeFish && CountNpmCollectableDays(s, complianceStart, complianceEnd) > 0;
             var allDaysExcused = includeFish && absentDays > 0 && rentBill <= 0m && amountPaid <= 0m && hadRawCollectableDays;
 
+            // Monthly stall whose every due month in the period is admin-excused (raw obligation > 0,
+            // but the excused-adjusted obligation is 0 and nothing was paid) → distinct "Excused".
+            var monthlyFullyExcused = !includeFish && amountPaid <= 0m && rentBill <= 0m
+                && CalculateStallRentObligationDue(s, complianceStart, complianceEnd, null) > 0m;
+
             var status = allDaysExcused
                 ? "Absent"
-                : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
+                : monthlyFullyExcused
+                    ? "Excused"
+                    : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
             var missedMonths = CountMissedMonths(
-                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet);
+                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet, excusedMonthsThisYear);
 
             rows.Add(new StallComplianceDto(
                 s.Id,
@@ -262,9 +308,21 @@ public partial class FacilityReportsRepository
                 && (p.BillingYear < year || (p.BillingYear == year && p.BillingMonth < month)))
             .ToListAsync(ct);
 
+        // Exclude admin-excused months so an excused (₱0-owed) month never reads as delinquent.
+        var excusedWindow = (await _context.StallMonthlyExceptions
+                .AsNoTracking()
+                .Where(e => stallIds.Contains(e.StallId)
+                    && (e.BillingYear > since.Year || (e.BillingYear == since.Year && e.BillingMonth >= since.Month))
+                    && (e.BillingYear < year || (e.BillingYear == year && e.BillingMonth < month)))
+                .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth })
+                .ToListAsync(ct))
+            .Select(e => (e.StallId, e.BillingYear, e.BillingMonth))
+            .ToHashSet();
+
         var stallById = stalls.ToDictionary(s => s.Id);
 
         return unpaidWindow
+            .Where(p => !excusedWindow.Contains((p.StallId, p.BillingYear, p.BillingMonth)))
             .GroupBy(p => p.StallId)
             .Where(g => stallById.ContainsKey(g.Key))
             .Select(g =>
@@ -306,7 +364,8 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         bool isNpm,
         HashSet<int>? dailyPaidMonths,
-        IReadOnlySet<DateOnly>? absentDates = null)
+        IReadOnlySet<DateOnly>? absentDates = null,
+        IReadOnlySet<int>? excusedMonths = null)
     {
         dailyPaidMonths ??= new HashSet<int>();
 
@@ -342,6 +401,10 @@ public partial class FacilityReportsRepository
             // Skip months the stall was not under an active contract (pre-effectivity / post-expiry),
             // or months whose every collectable day was excused/absent (nothing was owed → not missed).
             if (CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates) == 0)
+                continue;
+
+            // Admin-excused monthly months are not owed → never missed.
+            if (!isNpm && excusedMonths is not null && excusedMonths.Contains(m))
                 continue;
 
             var covered = isNpm

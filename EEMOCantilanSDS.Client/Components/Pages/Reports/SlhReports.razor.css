@@ -209,7 +209,15 @@
 .rpt-section-heading h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); white-space: nowrap; margin: 0; }
 
 /* ── Audit row ── */
-.rpt-audit-row { display: grid; grid-template-columns: 1.4fr 1fr 280px; gap: 16px; }
+.rpt-audit-row { display: grid; grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.45fr); gap: 16px; align-items: stretch; }
+/* Transaction/summary log beside the animal breakdown — matches the breakdown card's height,
+   the table scrolls within that height. */
+.slh-log-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.slh-log-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.slh-log-scroll table { width: 100%; border-collapse: collapse; }
+.slh-log-scroll::-webkit-scrollbar { width: 7px; }
+.slh-log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.slh-log-scroll::-webkit-scrollbar-track { background: transparent; }
 .slh-breakdown-card { grid-column: auto; display: flex; flex-direction: column; }
 .slh-breakdown-footer { margin-top: auto; padding-top: 14px; }
 .slh-bf-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-subtle); }
@@ -229,7 +237,7 @@
 .slh-breakdown-card { grid-column: 1; }
 .slh-animal-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     margin-top: 4px;
 }

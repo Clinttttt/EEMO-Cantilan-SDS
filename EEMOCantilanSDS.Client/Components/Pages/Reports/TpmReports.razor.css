@@ -76,7 +76,7 @@
 .bar3d-face { position: absolute; }
 .bar3d-front { bottom: 0; left: 10%; width: 80%; background: linear-gradient(180deg, #3fa07a 0%, #2d7a5f 100%); border-radius: 9px 9px 4px 4px; transition: height .4s cubic-bezier(.4,0,.2,1), transform .15s ease, filter .15s ease; min-height: 6px; }
 .rpt-bar-group.current .bar3d-front { background: linear-gradient(180deg, #d4b45e 0%, #c8a84b 100%); }
-.rpt-bar-group.is-zero .bar3d-front { min-height: 10px; background: #e6ebf1; filter: none; }
+.rpt-bar-group.is-zero .bar3d-front { min-height: 0; background: none; filter: none; }
 .rpt-bar-group.is-zero .rpt-bar-3d { filter: none; }
 .bar3d-top, .bar3d-side { display: none; }
 .rpt-bar-group:hover .bar3d-front { transform: translateY(-2px); filter: brightness(1.04); }
@@ -108,7 +108,14 @@
 .rpt-section-heading h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); white-space: nowrap; margin: 0; }
 
 /* ── Audit row ── */
-.rpt-audit-row { display: grid; grid-template-columns: 1.4fr 1.6fr; gap: 16px; }
+.rpt-audit-row { display: grid; grid-template-columns: 1.4fr 1.6fr; gap: 16px; align-items: start; }
+/* Attendance/summary log shown beside the goods breakdown — its own scroll keeps the row tidy. */
+.tpm-log-card { display: flex; flex-direction: column; min-width: 0; }
+.tpm-log-scroll { overflow-y: auto; max-height: 300px; margin: 0 -4px; padding: 0 4px; }
+.tpm-log-scroll table { width: 100%; border-collapse: collapse; }
+.tpm-log-scroll::-webkit-scrollbar { width: 7px; }
+.tpm-log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tpm-log-scroll::-webkit-scrollbar-track { background: transparent; }
 .audit-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(13,33,55,.06); }
 .audit-card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 8px; }
 .audit-card-head span { font-size: 14px; font-weight: 700; color: var(--navy); }

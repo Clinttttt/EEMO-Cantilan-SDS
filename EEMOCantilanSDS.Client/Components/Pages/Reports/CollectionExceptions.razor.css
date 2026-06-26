@@ -1,0 +1,336 @@
+/* ════════════════════════════════════════════════════════════════
+   Collection Exceptions — two-panel layout (payor list + calendar/detail)
+   Uses the shared design tokens from app.css (navy / gold / etc.).
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Layout grid ── */
+.ce-layout { display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: stretch; height: calc(100vh - var(--topbar-h, 64px) - 48px); min-height: 520px; }
+
+/* ── Left side panel ── */
+.ce-side {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; height: 100%; min-height: 0;
+    display: flex; flex-direction: column;
+}
+.ce-side-head { margin-bottom: 16px; }
+.ce-side-title { font-size: 16px; font-weight: 800; color: var(--navy); }
+.ce-side-sub { font-size: 11.5px; color: var(--text-subtle); margin-top: 2px; }
+
+.ce-row { margin-bottom: 12px; }
+
+/* Fixed (non-scrolling) rows must keep their size — only the payor list absorbs overflow.
+   Without this, a taller facility (NPM's Section row / more payors) squished & clipped the tabs. */
+.ce-side-head, .ce-seg, .ce-row, .ce-list-head { flex-shrink: 0; }
+
+/* Facility segmented control */
+.ce-seg { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg); margin-bottom: 14px; }
+.ce-seg-btn {
+    flex: 1; border: none; background: transparent; padding: 9px 4px; font-size: 12px; font-weight: 700;
+    color: var(--text-subtle); cursor: pointer; border-right: 1px solid var(--border);
+    transition: background .12s, color .12s;
+}
+.ce-seg-btn:last-child { border-right: none; }
+.ce-seg-btn:hover { background: var(--bg-icon); color: var(--navy); }
+.ce-seg-on, .ce-seg-on:hover { background: var(--navy); color: #fff; }
+
+/* Period */
+.ce-period { display: flex; align-items: center; gap: 8px; }
+.ce-period-lbl { flex: 1; text-align: center; font-size: 13px; font-weight: 700; color: var(--navy); }
+.ce-nav {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .12s, border-color .12s; flex-shrink: 0;
+}
+.ce-nav:hover { background: var(--bg-icon); border-color: var(--navy); }
+.ce-nav svg { width: 13px; height: 13px; stroke: var(--navy); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Search */
+.ce-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; background: var(--bg); }
+.ce-search:focus-within { border-color: var(--navy-3); background: var(--bg-card); }
+.ce-search svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ce-search input { border: none; outline: none; background: transparent; font-size: 13px; color: var(--text); width: 100%; font-family: inherit; }
+
+/* Filter dropdowns */
+.ce-filter-row { display: flex; gap: 10px; }
+.ce-select-wrap { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ce-select-wrap label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.ce-select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--navy); background: var(--bg-card); font-family: inherit; cursor: pointer; }
+.ce-select:focus { outline: none; border-color: var(--navy-3); }
+
+/* Custom dropdown (professional replacement for native select) */
+.ce-dd { position: relative; }
+.ce-dd-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; font-size: 12.5px; font-weight: 600; color: var(--navy); background: var(--bg-card); cursor: pointer; font-family: inherit; transition: border-color .12s; }
+.ce-dd-btn:hover { border-color: var(--navy-3); }
+.ce-dd-open .ce-dd-btn { border-color: var(--navy); }
+.ce-dd-btn svg { width: 14px; height: 14px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; flex-shrink: 0; }
+.ce-dd-open .ce-dd-btn svg { transform: rotate(180deg); }
+.ce-dd-menu { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 30; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 28px rgba(13,33,55,.16); padding: 5px; }
+.ce-dd-opt { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: none; background: transparent; border-radius: 7px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; color: var(--navy); cursor: pointer; text-align: left; font-family: inherit; }
+.ce-dd-opt:hover { background: var(--bg-icon); }
+.ce-dd-sel, .ce-dd-sel:hover { background: var(--navy); color: #fff; }
+.ce-dd-opt svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ce-dd-backdrop { position: fixed; inset: 0; z-index: 20; background: transparent; }
+
+/* List header */
+.ce-list-head {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted);
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); margin-bottom: 10px;
+}
+.ce-list-head-fac { color: var(--navy); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; letter-spacing: .4px; }
+
+/* ── Payor list ── */
+.ce-list { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-top: 4px; padding-right: 6px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.ce-list::-webkit-scrollbar { width: 6px; }
+.ce-list::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.ce-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.ce-list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+.ce-list::-webkit-scrollbar-track { background: transparent; }
+.ce-stall {
+    text-align: left; border: 1px solid var(--border); background: var(--bg-card); border-radius: 11px;
+    padding: 11px 13px; cursor: pointer; transition: border-color .12s, box-shadow .12s; width: 100%;
+}
+.ce-stall:hover { border-color: var(--navy-3); box-shadow: 0 1px 6px rgba(13,33,55,.08); }
+.ce-stall-on { border-color: var(--navy); box-shadow: 0 0 0 1px var(--navy); }
+.ce-stall-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.ce-stall-no { font-size: 13px; font-weight: 800; color: var(--navy); }
+.ce-stall-name { font-size: 13px; color: var(--text); font-weight: 600; }
+.ce-stall-meta { display: flex; align-items: center; gap: 7px; margin-top: 5px; font-size: 11px; color: var(--text-subtle); }
+.ce-stall-meta .ce-ok { color: var(--green); font-weight: 700; }
+.ce-stall-meta .ce-muted { color: var(--text-muted); }
+.ce-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
+
+.ce-stall-badge { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 3px 8px; border-radius: 999px; }
+.ce-badge-green { background: var(--green-bg); color: var(--green); }
+.ce-badge-gold { background: rgba(200,168,75,.16); color: #b5872a; }
+.ce-badge-red { background: var(--red-bg); color: var(--red); }
+
+.ce-empty-sm { padding: 24px 12px; text-align: center; font-size: 12.5px; color: var(--text-subtle); }
+
+/* ── Right main panel ── */
+.ce-main { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; height: 100%; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.ce-main::-webkit-scrollbar { width: 8px; }
+.ce-main::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.ce-main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.ce-main::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+.ce-main::-webkit-scrollbar-track { background: transparent; }
+
+.ce-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: 480px; }
+.ce-empty-icon { width: 56px; height: 56px; border-radius: 14px; background: var(--bg-icon); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.ce-empty-icon svg { width: 26px; height: 26px; stroke: var(--text-muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ce-empty-title { font-size: 16px; font-weight: 800; color: var(--navy); }
+.ce-empty-sub { font-size: 13px; color: var(--text-subtle); margin-top: 6px; max-width: 360px; }
+
+.ce-main-head { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.ce-main-title { font-size: 18px; font-weight: 800; color: var(--navy); }
+.ce-main-sub { font-size: 12.5px; color: var(--text-subtle); margin-top: 3px; }
+.ce-main-period { font-size: 13px; font-weight: 700; color: var(--navy); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+.ce-tag { display: inline-block; background: var(--navy); color: var(--gold-light); font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 2px 7px; border-radius: 5px; margin-right: 6px; }
+
+/* ── Stat strip ── */
+.ce-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0 20px; }
+.ce-stat { border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px; background: var(--bg); }
+.ce-stat-val { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1.1; }
+.ce-stat-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-top: 5px; }
+.ce-stat-accent { border-top: 3px solid var(--gold); }
+.ce-red { color: var(--red); }
+.ce-gold { color: #b5872a; }
+
+/* ── NPM day calendar ── */
+.ce-cal-wrap { margin-bottom: 14px; }
+.ce-cal { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 64px; gap: 5px; }
+.ce-cal-hdr { height: auto; text-align: center; font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .8px; padding: 4px 0; }
+.ce-cell {
+    position: relative; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card);
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
+    padding: 7px 8px; cursor: pointer; transition: border-color .14s, box-shadow .16s, transform .16s; overflow: hidden;
+}
+.ce-cell:hover:not(.ce-cell-empty) { border-color: var(--navy-2); box-shadow: 0 3px 10px rgba(13,33,55,.12); transform: translateY(-1px); z-index: 1; }
+.ce-cell-num { font-size: 13px; font-weight: 800; color: var(--navy); line-height: 1; }
+.ce-cell-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.ce-cell-empty { background: transparent; border: none; cursor: default; box-shadow: none; }
+.ce-cell-today { outline: 2px solid var(--gold); outline-offset: -2px; }
+.ce-cell-sel { box-shadow: 0 0 0 2px var(--navy); border-color: var(--navy); }
+
+/* ── Monthly grid ── */
+.ce-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.ce-month {
+    border: 1px solid var(--border); border-radius: 11px; background: var(--bg-card); position: relative;
+    padding: 16px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 7px; align-items: center;
+    transition: border-color .14s, box-shadow .16s, transform .16s; min-height: 78px; justify-content: center;
+}
+.ce-month:hover { border-color: var(--navy-2); box-shadow: 0 3px 10px rgba(13,33,55,.12); transform: translateY(-1px); }
+.ce-month-name { font-size: 14px; font-weight: 800; color: var(--navy); }
+.ce-month-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+
+/* ── Status colours (shared by cells & months) — tags rendered as clean pill badges ── */
+.ce-cell-tag, .ce-month-tag {
+    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+    padding: 2px 8px; border-radius: 999px; line-height: 1.5;
+}
+.ce-cell-tag { align-self: flex-start; }
+.ce-month-tag { font-size: 9.5px; }
+
+/* Paid / Collected — clean card, green pill */
+.ce-collected.ce-cell, .ce-collected.ce-month { background: var(--bg-card); border-color: var(--border); }
+.ce-collected .ce-cell-tag, .ce-collected .ce-month-tag { background: var(--green-bg); color: var(--green); }
+
+/* Unpaid — clean card, red pill (no heavy red fill) */
+.ce-missed.ce-cell, .ce-missed.ce-month { background: var(--bg-card); border-color: var(--border); }
+.ce-missed .ce-cell-tag, .ce-missed .ce-month-tag { background: var(--red-bg); color: var(--red); }
+
+/* Excused — the highlighted state: soft gold wash + gold pill */
+.ce-excused.ce-cell, .ce-excused.ce-month { background: rgba(200,168,75,.12); border-color: rgba(200,168,75,.5); }
+.ce-excused .ce-cell-tag, .ce-excused .ce-month-tag { background: rgba(200,168,75,.22); color: #8a6a1f; }
+.ce-excused .ce-cell-num, .ce-excused .ce-month-name { color: #8a6a1f; }
+
+/* Upcoming — muted, dashed */
+.ce-future.ce-cell, .ce-future.ce-month { background: var(--bg); border-style: dashed; }
+.ce-future .ce-cell-num, .ce-future .ce-month-name { color: var(--text-muted); }
+.ce-future .ce-cell-tag, .ce-future .ce-month-tag { background: var(--bg-icon); color: var(--text-muted); }
+
+/* Market "Open" day — neutral, clearly clickable */
+.ce-mkt-open.ce-cell { background: var(--bg-card); border-color: var(--border); }
+.ce-mkt-open .ce-cell-tag { background: var(--green-bg); color: var(--green); }
+.ce-mkt-open:hover { border-color: var(--gold); }
+
+/* Out of scope — before the contract existed: greyed, non-interactive, shown as "—" */
+.ce-na.ce-cell, .ce-na.ce-month { background: var(--bg); opacity: .5; cursor: default; box-shadow: none; }
+.ce-na.ce-cell:hover, .ce-na.ce-month:hover { border-color: var(--border); transform: none; }
+.ce-na .ce-cell-num, .ce-na .ce-month-name { color: var(--text-muted); }
+.ce-na .ce-cell-tag, .ce-na .ce-month-tag { background: transparent; color: var(--text-muted); }
+
+/* ── Legend ── */
+.ce-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 2px; font-size: 11.5px; color: var(--text-subtle); }
+.ce-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.ce-sw { width: 12px; height: 12px; border-radius: 4px; display: inline-block; border: 1px solid var(--border); }
+.ce-sw-collected { background: var(--bg-card); border: 1.5px solid var(--navy); }
+.ce-sw-missed { background: var(--red-bg); border-color: rgba(139,58,58,.5); }
+.ce-sw-excused { background: rgba(200,168,75,.3); border-color: rgba(200,168,75,.6); }
+.ce-sw-future { background: rgba(168,184,200,.18); border-style: dashed; }
+.ce-sw-open { background: var(--green-bg); border-color: rgba(45,122,95,.5); }
+
+/* ── Detail drawer ── */
+.ce-drawer { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); margin-top: 8px; overflow: hidden; }
+.ce-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
+.ce-drawer-title { font-size: 14px; font-weight: 800; color: var(--navy); }
+.ce-drawer-status { font-size: 12px; color: var(--text-subtle); margin-top: 3px; }
+.ce-sched { display: inline-block; margin-left: 8px; background: rgba(168,184,200,.18); color: var(--text-subtle); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+.ce-x { border: none; background: transparent; cursor: pointer; padding: 2px; }
+.ce-x svg { width: 18px; height: 18px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; }
+.ce-x:hover svg { stroke: var(--navy); }
+
+.ce-drawer-body { padding: 16px; }
+.ce-set-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 10px; }
+.ce-set-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ce-set-opt {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; background: var(--bg-card);
+    cursor: pointer; text-align: left; transition: border-color .12s, box-shadow .12s, background .12s;
+}
+.ce-set-opt:hover { border-color: var(--navy-3); }
+.ce-set-dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 4px; }
+.ce-set-name { font-size: 12.5px; font-weight: 800; color: var(--navy); }
+.ce-set-sub { font-size: 10px; color: var(--text-subtle); }
+.ce-set-paid .ce-set-dot { background: var(--green); }
+.ce-set-unpaid .ce-set-dot { background: var(--red); }
+.ce-set-excused .ce-set-dot { background: var(--gold); }
+.ce-set-paid.ce-set-on { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); background: var(--green-bg); }
+.ce-set-unpaid.ce-set-on { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); background: var(--red-bg); }
+.ce-set-excused.ce-set-on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: rgba(200,168,75,.14); }
+
+/* Status pill (drawer header current status) */
+.ce-pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 9px; border-radius: 999px; }
+.ce-pill-collected { background: var(--green-bg); color: var(--green); }
+.ce-pill-missed { background: var(--red-bg); color: var(--red); }
+.ce-pill-excused { background: rgba(200,168,75,.16); color: #b5872a; }
+.ce-pill-future { background: var(--bg-icon); color: var(--text-muted); }
+.ce-pill-partial { background: rgba(184,115,51,.14); color: #9a5a1f; }
+
+/* Partial (monthly) — amber, distinct from Paid/Unpaid */
+.ce-partial.ce-cell, .ce-partial.ce-month { background: rgba(184,115,51,.10); border-color: rgba(184,115,51,.4); }
+.ce-partial .ce-cell-tag, .ce-partial .ce-month-tag { background: rgba(184,115,51,.16); color: #9a5a1f; }
+.ce-partial .ce-month-name { color: #7a4a1a; }
+
+/* Disabled status option (future Paid/Unpaid) */
+.ce-set-disabled { opacity: .4; cursor: not-allowed; }
+.ce-set-disabled:hover { border-color: var(--border); }
+
+/* Future-only note */
+.ce-future-note { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 11.5px; color: var(--text-subtle); }
+.ce-future-note svg { width: 14px; height: 14px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ce-future-note strong { color: #8a6a1f; font-weight: 800; }
+
+/* OR-number field (shown for Paid) */
+.ce-or { margin-top: 14px; }
+.ce-or-label { display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-bottom: 6px; }
+.ce-or-opt { color: var(--text-muted); font-weight: 500; text-transform: none; letter-spacing: 0; }
+.ce-or-input { width: 100%; max-width: 280px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; font-size: 13px; color: var(--text); background: var(--bg-card); font-family: inherit; box-sizing: border-box; }
+.ce-or-input:focus { outline: none; border-color: var(--navy-3); }
+
+/* Lock badge (drawer header) + lock glyph on recorded cells */
+.ce-lock-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; background: var(--bg-icon); color: var(--text-subtle); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.ce-lock-badge svg { width: 11px; height: 11px; stroke: var(--text-muted); fill: none; stroke-width: 2; }
+.ce-lock { position: absolute; top: 6px; right: 7px; display: inline-flex; opacity: .32; pointer-events: none; }
+.ce-lock svg { width: 10px; height: 10px; stroke: var(--navy); fill: none; stroke-width: 2; }
+
+/* Confirmation bar */
+.ce-confirm { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); padding: 12px 14px; }
+.ce-confirm-warn { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--red); font-weight: 600; margin-bottom: 10px; }
+.ce-confirm-warn svg { width: 15px; height: 15px; stroke: var(--red); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ce-confirm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ce-confirm-q { font-size: 13px; color: var(--navy); }
+.ce-confirm-q strong { font-weight: 800; }
+.ce-confirm-actions { display: flex; gap: 8px; }
+.ce-cbtn { border: 1px solid var(--border); background: var(--bg-card); color: var(--navy); border-radius: 8px; padding: 7px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background .12s, border-color .12s; }
+.ce-cbtn-ghost { color: var(--text-subtle); }
+.ce-cbtn-ghost:hover { background: var(--bg-icon); }
+.ce-cbtn-primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+.ce-cbtn-primary:hover { background: var(--navy-2); }
+.ce-cbtn:disabled { opacity: .45; cursor: not-allowed; }
+.ce-cbtn-primary:disabled:hover { background: var(--navy); }
+
+/* Double-confirmation acknowledgment (locked / past edits) */
+.ce-ack { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--navy); margin-bottom: 12px; cursor: pointer; font-weight: 600; }
+.ce-ack input { width: 15px; height: 15px; accent-color: var(--navy); cursor: pointer; flex-shrink: 0; }
+
+/* Mode toggle (NPM: Per-Payor / Market Days) */
+.ce-mode { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; margin-bottom: 18px; }
+.ce-mode-btn { border: none; background: var(--bg); padding: 8px 18px; font-size: 12.5px; font-weight: 700; color: var(--text-subtle); cursor: pointer; border-right: 1px solid var(--border); transition: background .12s, color .12s; }
+.ce-mode-btn:last-child { border-right: none; }
+.ce-mode-btn:hover { background: var(--bg-icon); color: var(--navy); }
+.ce-mode-on, .ce-mode-on:hover { background: var(--navy); color: #fff; }
+
+/* ── Market closure summary ── */
+.ce-mkt-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; color: var(--navy); }
+.ce-mkt-summary svg { width: 17px; height: 17px; stroke: #b5872a; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ce-mkt-summary strong { font-weight: 800; }
+.ce-mkt-hint { color: var(--text-subtle); font-size: 11.5px; margin-left: auto; }
+
+/* ── Market calendar cell states ── */
+.ce-open.ce-cell { background: var(--bg-card); border-color: var(--border); }
+.ce-open .ce-cell-tag { background: var(--green-bg); color: var(--green); }
+.ce-closed.ce-cell { background: rgba(200,168,75,.12); border-color: rgba(200,168,75,.5); }
+.ce-closed .ce-cell-tag { background: rgba(200,168,75,.22); color: #8a6a1f; }
+.ce-closed .ce-cell-num { color: #8a6a1f; }
+
+/* ── Notes ── */
+.ce-market-note { font-size: 12.5px; color: var(--text-subtle); line-height: 1.5; margin: 0 0 12px; }
+.ce-market-note strong { color: var(--navy); font-weight: 800; }
+.ce-closure-note { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--text-subtle); line-height: 1.5; }
+.ce-closure-note svg { width: 15px; height: 15px; stroke: #8a6a1f; fill: none; stroke-width: 2; flex-shrink: 0; margin-top: 1px; }
+.ce-closure-note strong { color: var(--navy); font-weight: 800; }
+
+/* Phase placeholder note + save error */
+.ce-soon { display: flex; align-items: center; gap: 9px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; font-size: 13px; color: var(--text-subtle); line-height: 1.5; }
+.ce-soon svg { width: 17px; height: 17px; flex-shrink: 0; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ce-soon strong { color: var(--navy); font-weight: 700; }
+.ce-form-error { color: var(--red); font-size: 12px; margin-top: 10px; font-weight: 600; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .ce-layout { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .ce-side { height: auto; }
+    .ce-main { height: auto; overflow: visible; }
+    .ce-stats { grid-template-columns: repeat(2, 1fr); }
+    .ce-months { grid-template-columns: repeat(3, 1fr); }
+}

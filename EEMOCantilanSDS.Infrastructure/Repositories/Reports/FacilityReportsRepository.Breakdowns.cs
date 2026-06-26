@@ -198,7 +198,16 @@ public partial class FacilityReportsRepository
             .GroupBy(x => x.StallId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
-        bool AbsentOn(Stall s, DateOnly d) => absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d);
+        // Facility-wide market closures excuse EVERY payor that day — folded into AbsentOn below.
+        var marketClosedDates = (await _context.NpmMarketClosures
+                .AsNoTracking()
+                .Where(c => c.ClosureDate >= monthStart && c.ClosureDate <= monthEnd)
+                .Select(c => c.ClosureDate)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+        bool AbsentOn(Stall s, DateOnly d) =>
+            marketClosedDates.Contains(d) || (absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d));
 
         bool CollectableOn(Stall s, DateOnly d) => s.Contracts.Any(c =>
             c.IsActive && c.EffectivityDate <= d && d <= c.EffectivityDate.AddYears(c.DurationYears));

@@ -94,6 +94,7 @@
             var niceUnit = norm <= 1 ? 1.0 : norm <= 2 ? 2.0 : norm <= 5 ? 5.0 : 10.0;
             var step = (decimal)(niceUnit * mag);
             var max = Math.Ceiling(rawMax / step) * step;
+            if (max <= rawMax) max += step;   // headroom so the tallest 3D bar (its top face) never clips the plot
             var ticks = new List<decimal>();
             for (var v = 0m; v <= max + 0.0001m; v += step) ticks.Add(v);
             return (max, ticks);

@@ -335,7 +335,8 @@ public partial class FacilityReportsRepository
     /// in <see cref="CountMissedMonths"/>, so the compliance Balance, Outstanding KPI, Collection
     /// Rate and Missed-months all reconcile (e.g. Balance of an unpaid stall == MissedMonths × rate).
     /// </summary>
-    private static decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end)
+    private static decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end,
+        IReadOnlySet<(int Year, int Month)>? excusedMonths = null)
     {
         if (end < start) return 0m;
         var today = PhilippineTime.Today;
@@ -346,8 +347,10 @@ public partial class FacilityReportsRepository
         {
             var mStart = cursor;
             var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-            // Skip months that have not started yet (not due) and months the contract is not effective.
+            // Skip months that have not started yet (not due), months the contract is not effective,
+            // and admin-excused months (₱0 owed for an approved closure).
             if (mStart <= today
+                && (excusedMonths is null || !excusedMonths.Contains((cursor.Year, cursor.Month)))
                 && stall.Contracts.Any(c => c.IsActive
                     && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
             {

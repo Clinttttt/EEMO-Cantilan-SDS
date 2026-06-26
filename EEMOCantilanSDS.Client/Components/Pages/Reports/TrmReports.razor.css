@@ -105,7 +105,7 @@
 .rpt-section-heading h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); white-space: nowrap; margin: 0; }
 
 /* ── Audit row ── */
-.rpt-audit-row { display: grid; grid-template-columns: 1.4fr 1fr 280px; gap: 16px; }
+.rpt-audit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 .audit-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(13,33,55,.06); }
 .audit-card-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 8px; }
 .audit-card-head span { font-size: 14px; font-weight: 700; color: var(--navy); }
