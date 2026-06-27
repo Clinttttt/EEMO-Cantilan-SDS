@@ -34,6 +34,14 @@ namespace EEMOCantilanSDS.Domain.Enums
         Active = 1,
         Closed = 2,
     }
+    // Category of an INACTIVE stall account on the register. Derived, not stored:
+    //   Closed  = explicitly frozen by a head/admin (Status == Closed) — reversible via Reopen.
+    //   Expired = active stall whose contract term has lapsed (ExpiryDate &lt; today) — reversible via Renew.
+    public enum InactiveAccountState
+    {
+        Closed = 1,
+        Expired = 2,
+    }
     public enum StallType
     {
         Permanent = 1,

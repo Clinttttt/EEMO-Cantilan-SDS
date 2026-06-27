@@ -509,6 +509,135 @@ public class StallRepository(AppDbContext context) : IStallRepository
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
+    /// <summary>
+    /// Inactive accounts register. CLOSED = Status==Closed (frozen by an admin). EXPIRED = active stall
+    /// whose contract term has lapsed (ExpiryDate &lt; today). Lifetime collected counts ALL money ever
+    /// received (closure/expiry never erases history). Uncollected = arrears that accrued from contract
+    /// effectivity up to the end point (close date for closed, contract expiry for expired), with
+    /// excused months / absent days owing nothing — the same billing rules the reports use, contract-
+    /// gated (the stall WAS operating then) and bounded to the end point so nothing is back/over-billed.
+    /// </summary>
+    public async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct)
+    {
+        var today = PhilippineTime.Today;
+
+        // Candidates: closed stalls, or active stalls whose active contract has lapsed. A stall with no
+        // active contract is "vacant" (not an inactive ACCOUNT), so the active-contract filter excludes it.
+        // Expiry (= effectivity + duration years) is a domain-computed value that Npgsql cannot translate
+        // in a predicate, so occupied stalls are loaded then the expired ones are filtered in memory.
+        var occupied = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .Where(s => s.Contracts.Any(c => c.IsActive))
+            .ToListAsync(ct);
+
+        var candidates = occupied
+            .Where(s => s.Status == StallStatus.Closed
+                || s.Contracts.Any(c => c.IsActive && c.EffectivityDate.AddYears(c.DurationYears) < today))
+            .ToList();
+
+        if (candidates.Count == 0)
+            return new List<ClosedStallAccountDto>();
+
+        var stallIds = candidates.Select(s => s.Id).ToList();
+
+        // Batch-load the financial inputs once (no N+1).
+        var payments = await context.PaymentRecords.AsNoTracking()
+            .Where(p => stallIds.Contains(p.StallId)).ToListAsync(ct);
+        var paidDailies = await context.DailyCollections.AsNoTracking()
+            .Where(d => stallIds.Contains(d.StallId) && d.IsPaid)
+            .Select(d => new { d.StallId, d.CollectionDate, d.DailyFee, d.FishKilos }).ToListAsync(ct);
+        var absentDailies = await context.DailyCollections.AsNoTracking()
+            .Where(d => stallIds.Contains(d.StallId) && d.IsAbsent)
+            .Select(d => new { d.StallId, d.CollectionDate }).ToListAsync(ct);
+        var exceptions = await context.StallMonthlyExceptions.AsNoTracking()
+            .Where(e => stallIds.Contains(e.StallId))
+            .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth }).ToListAsync(ct);
+
+        var paidByStall = paidDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.ToList());
+        var absentByStall = absentDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
+        var paymentsByStall = payments.GroupBy(p => p.StallId).ToDictionary(g => g.Key, g => g.ToList());
+        var excusedByStall = exceptions.GroupBy(e => e.StallId).ToDictionary(g => g.Key, g => g.Select(x => (x.BillingYear, x.BillingMonth)).ToHashSet());
+
+        var result = new List<ClosedStallAccountDto>(candidates.Count);
+        foreach (var stall in candidates)
+        {
+            var contract = stall.Contracts.Where(c => c.IsActive).OrderBy(c => c.EffectivityDate).First();
+            var isNpm = stall.Facility?.Code == FacilityCode.NPM;
+            var isClosed = stall.Status == StallStatus.Closed;
+
+            var contractExpiry = contract.EffectivityDate.AddYears(contract.DurationYears);
+            // End point: close date (closed) or contract expiry (expired). Never past the contract term.
+            var endDate = isClosed && stall.ClosedAt is { } ca && ca < contractExpiry ? ca : contractExpiry;
+
+            var stallPaid = paidByStall.GetValueOrDefault(stall.Id) ?? new();
+            var stallAbsent = absentByStall.GetValueOrDefault(stall.Id) ?? new();
+            var stallPayments = paymentsByStall.GetValueOrDefault(stall.Id) ?? new();
+            var stallExcused = excusedByStall.GetValueOrDefault(stall.Id) ?? new();
+
+            // Lifetime collected = every peso actually received (status-independent).
+            var lifetimeCollected = isNpm
+                ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m))
+                : stallPayments.Sum(p => p.AmountPaid);
+
+            decimal uncollected = 0m;
+            if (isNpm)
+            {
+                // ₱30 for each contract-effective, non-absent day in [effectivity, endDate] with no paid collection.
+                var paidDates = stallPaid.Select(d => d.CollectionDate).ToHashSet();
+                for (var d = contract.EffectivityDate; d <= endDate && d <= contractExpiry; d = d.AddDays(1))
+                {
+                    if (stallAbsent.Contains(d) || paidDates.Contains(d)) continue;
+                    uncollected += FeeRates.NpmDailyFee;
+                }
+            }
+            else
+            {
+                // Per calendar month overlapping [effectivity, endDate]: a non-Unpaid record's balance,
+                // else the full monthly rent. Excused months owe nothing.
+                var cursor = new DateOnly(contract.EffectivityDate.Year, contract.EffectivityDate.Month, 1);
+                var endMonth = new DateOnly(endDate.Year, endDate.Month, 1);
+                while (cursor <= endMonth)
+                {
+                    var mStart = cursor;
+                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                    var inContract = contract.EffectivityDate <= mEnd && contractExpiry >= mStart;
+                    if (inContract && !stallExcused.Contains((cursor.Year, cursor.Month)))
+                    {
+                        var rec = stallPayments.FirstOrDefault(p => p.BillingYear == cursor.Year && p.BillingMonth == cursor.Month);
+                        uncollected += rec is not null && rec.Status != PaymentStatus.Unpaid
+                            ? rec.BalanceDue
+                            : stall.MonthlyRate;
+                    }
+                    cursor = cursor.AddMonths(1);
+                }
+            }
+
+            result.Add(new ClosedStallAccountDto(
+                stall.Id,
+                isClosed ? InactiveAccountState.Closed : InactiveAccountState.Expired,
+                stall.Facility!.Code,
+                stall.Facility!.Name,
+                stall.StallNo,
+                contract.ActualOccupant,
+                contract.NameOnContract,
+                contract.EffectivityDate,
+                contract.DurationYears,
+                stall.MonthlyRate,
+                isClosed ? stall.ClosedAt : null,
+                contractExpiry,
+                lifetimeCollected,
+                uncollected,
+                stall.UpdatedBy));
+        }
+
+        return result
+            .OrderByDescending(r => r.ClosedOn ?? r.ExpiryDate)
+            .ThenBy(r => r.FacilityName)
+            .ToList();
+    }
+
     public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
     {
         return await context.Stalls

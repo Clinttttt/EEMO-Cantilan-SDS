@@ -60,4 +60,10 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
 
     public async Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command) =>
         await UpdateAsync<UpdateStallDetailsCommand, bool>($"api/Stalls/{stallId}/details", command);
+
+    public async Task<Result<IReadOnlyList<ClosedStallAccountDto>>> GetClosedStallAccountsAsync() =>
+        await GetAsync<IReadOnlyList<ClosedStallAccountDto>>("api/Stalls/closed-accounts");
+
+    public async Task<Result<bool>> RenewStallContractAsync(Guid stallId, RenewStallContractRequest request) =>
+        await PostAsync<RenewStallContractRequest, bool>($"api/Stalls/{stallId}/renew", request);
 }

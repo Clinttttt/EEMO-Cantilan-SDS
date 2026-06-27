@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
@@ -6,6 +7,7 @@ using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
 using EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
+using EEMOCantilanSDS.Application.Queries.Stalls.GetClosedStallAccounts;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 using EEMOCantilanSDS.Application.Requests.Stalls;
@@ -84,6 +86,22 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     [HttpPatch("{stallId}/details")]
     public async Task<ActionResult<bool>> UpdateStallDetails(Guid stallId, [FromBody] UpdateStallDetailsCommand command)
     {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("closed-accounts")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.Stalls.ClosedStallAccountDto>>> GetClosedAccounts()
+    {
+        var result = await Sender.Send(new GetClosedStallAccountsQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPost("{stallId}/renew")]
+    public async Task<ActionResult<bool>> RenewContract(Guid stallId, [FromBody] RenewStallContractRequest request)
+    {
+        var command = new RenewStallContractCommand(
+            stallId, request.EffectivityDate, request.DurationYears, request.ActualOccupant, request.NameOnContract);
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }

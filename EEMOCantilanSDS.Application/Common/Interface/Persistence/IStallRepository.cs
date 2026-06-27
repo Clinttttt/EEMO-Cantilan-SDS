@@ -21,6 +21,13 @@ public interface IStallRepository
     /// — the contract-attention source for the Follow-up Queue. Expired rows are returned first.
     /// </summary>
     Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct);
+    /// <summary>
+    /// Inactive stall accounts for the register: explicitly CLOSED (frozen) stalls and EXPIRED ones
+    /// (active stall whose contract term has lapsed). Includes lifetime collected (all money ever
+    /// received) and uncollected arrears accrued up to the end point (close date / contract expiry),
+    /// excused/absent-aware.
+    /// </summary>
+    Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);
     Task AddAsync(Stall stall, CancellationToken ct);
