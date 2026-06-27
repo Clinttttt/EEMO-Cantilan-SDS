@@ -105,6 +105,27 @@
     cursor: pointer;
 }
 
+/* NavLink renders its own <a> inside a child component, so CSS isolation
+   won't attach this file's scope attribute to that generated anchor.
+   ::deep intentionally reaches into the NavLink output while still keeping
+   the rule anchored to this sidebar component. */
+.sidebar ::deep .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 2px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    position: relative;
+    cursor: pointer;
+    text-decoration: none;
+}
+
 /* Raw SVGs inserted via MarkupString don't receive the component scope
    attribute, so expose the SVG rule globally to ensure they render
    correctly when injected as raw markup. */
@@ -124,7 +145,18 @@
         color: rgba(255,255,255,0.85);
     }
 
+    .sidebar ::deep .nav-item:hover {
+        background: rgba(255,255,255,0.07);
+        color: rgba(255,255,255,0.85);
+    }
+
     .nav-item.active {
+        background: rgba(200,168,75,0.15);
+        color: var(--gold-light);
+        font-weight: 600;
+    }
+
+    .sidebar ::deep .nav-item.active {
         background: rgba(200,168,75,0.15);
         color: var(--gold-light);
         font-weight: 600;
@@ -181,7 +213,17 @@
     display: none;
 }
 
+.sidebar.collapsed ::deep .nav-item span,
+.sidebar.collapsed ::deep .nav-badge {
+    display: none;
+}
+
 .sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 9px 0;
+}
+
+.sidebar.collapsed ::deep .nav-item {
     justify-content: center;
     padding: 9px 0;
 }
