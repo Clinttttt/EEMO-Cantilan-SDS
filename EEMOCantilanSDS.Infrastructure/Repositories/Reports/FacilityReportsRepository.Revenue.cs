@@ -59,6 +59,13 @@ public partial class FacilityReportsRepository
         => stall.Status == StallStatus.Active
             && stall.Contracts.Any(c => IsContractCollectableOn(c, date));
 
+    // Revenue recognition (money ACTUALLY received) is independent of the stall's CURRENT status — it
+    // only requires the stall to have been under an effective contract on that date. A closure is a
+    // current-state flag and must never erase already-collected daily fees. Forward-looking
+    // obligation/expected math keeps using the status-aware IsStallCollectableOn above.
+    private static bool IsUnderContractOn(Stall stall, DateOnly date)
+        => stall.Contracts.Any(c => IsContractCollectableOn(c, date));
+
     private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
     {
         if (endDate < startDate)
@@ -87,6 +94,19 @@ public partial class FacilityReportsRepository
             .Where(s => s.FacilityId == facilityId
                 && s.Status == StallStatus.Active
                
+                && s.Contracts.Any(c => c.IsActive))
+            .ToListAsync(ct);
+    }
+
+    // Stalls for REVENUE recognition — same as the collectable set but INCLUDING closed stalls, so a
+    // closure never drops a stall's already-collected daily fees out of the Collected total. Closed
+    // stalls still owe ₱0 going forward (the obligation/expected helpers remain status-aware).
+    private async Task<List<Stall>> LoadNpmRevenueStallsAsync(Guid facilityId, CancellationToken ct)
+    {
+        return await _context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .Where(s => s.FacilityId == facilityId
                 && s.Contracts.Any(c => c.IsActive))
             .ToListAsync(ct);
     }
@@ -250,7 +270,7 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         CancellationToken ct)
     {
-        var npmCollectableStalls = await LoadNpmCollectableStallsAsync(facilityId, ct);
+        var npmCollectableStalls = await LoadNpmRevenueStallsAsync(facilityId, ct);
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
 
@@ -283,7 +303,7 @@ public partial class FacilityReportsRepository
             .ToListAsync(ct);
 
         var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-            && IsStallCollectableOn(stall, dc.CollectionDate)
+            && IsUnderContractOn(stall, dc.CollectionDate)
                 ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                 : 0m);
 
@@ -355,6 +375,55 @@ public partial class FacilityReportsRepository
                     && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
             {
                 total += stall.MonthlyRate;
+            }
+            cursor = cursor.AddMonths(1);
+        }
+        return total;
+    }
+
+    /// <summary>
+    /// History-faithful monthly-rental obligation across rate changes: a month that already has a
+    /// payment record is billed at that record's snapshot (<see cref="PaymentRecord.BaseRentalAmount"/>
+    /// — the rate at the time it was recorded), and only months with NO record yet are billed at the
+    /// stall's CURRENT <see cref="Stall.MonthlyRate"/>. This stops an admin rate change from
+    /// retroactively re-pricing already-recorded months (which previously made paid-at-the-old-rate
+    /// months show a phantom balance). Excused months, and unrecorded months that are not yet due or
+    /// outside the active contract, owe ₱0.
+    /// </summary>
+    private static decimal CalculateMonthlyRentObligationDue(
+        Stall stall, DateOnly start, DateOnly end,
+        IReadOnlyList<PaymentRecord> records,
+        IReadOnlySet<(int Year, int Month)>? excusedMonths = null)
+    {
+        if (end < start) return 0m;
+
+        // Snapshot rent actually billed per recorded month (sum guards against an unexpected duplicate).
+        var recordedByMonth = records
+            .GroupBy(r => (r.BillingYear, r.BillingMonth))
+            .ToDictionary(g => g.Key, g => g.Sum(r => r.BaseRentalAmount));
+
+        var today = PhilippineTime.Today;
+        decimal total = 0m;
+        var cursor = new DateOnly(start.Year, start.Month, 1);
+        var last = new DateOnly(end.Year, end.Month, 1);
+        while (cursor <= last)
+        {
+            var key = (cursor.Year, cursor.Month);
+            if (excusedMonths is null || !excusedMonths.Contains(key))
+            {
+                if (recordedByMonth.TryGetValue(key, out var snapshot))
+                {
+                    total += snapshot;   // bill exactly what was recorded (rate at that time)
+                }
+                else
+                {
+                    var mStart = cursor;
+                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                    if (mStart <= today
+                        && stall.Contracts.Any(c => c.IsActive
+                            && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+                        total += stall.MonthlyRate;   // no record yet → current rate
+                }
             }
             cursor = cursor.AddMonths(1);
         }

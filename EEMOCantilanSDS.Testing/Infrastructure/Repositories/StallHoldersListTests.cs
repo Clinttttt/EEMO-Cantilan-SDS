@@ -23,7 +23,7 @@ public class StallHoldersListTests : RepositoryTestBase
         var s1 = Stall.Create(facility.Id, "1", 2_760m, ApplicableFees.BaseRental);
         var s2 = Stall.Create(facility.Id, "2", 2_400m, ApplicableFees.BaseRental);
         var s3 = Stall.Create(facility.Id, "3", 2_400m, ApplicableFees.BaseRental);
-        s3.Close();   // closed → listed, but excluded from monetary totals
+        s3.Close(new DateOnly(2026, 1, 1));   // closed → listed, but excluded from monetary totals
 
         var c1 = Contract.Create(s1.Id, "Joseph Quinones", "Joseph Quinones", new DateOnly(2026, 1, 1), 3, 2_760m);
         var c2 = Contract.Create(s2.Id, "Marlex Dumagay", "Marlex Dumagay", new DateOnly(2026, 1, 1), 3, 2_400m);

@@ -168,20 +168,37 @@
                     <div class="avm-row-2">
                         <div class="avm-group">
                             <label class="avm-label">Contract Effectivity Date</label>
-                            <input class="avm-input" type="date"
-                                   @bind="Form.ContractDate" />
+                            @if (IsEditing)
+                            {
+                                <div class="avm-input avm-input-locked">@(Form.ContractDate?.ToString("MMMM d, yyyy") ?? "—")</div>
+                            }
+                            else
+                            {
+                                <input class="avm-input" type="date" @bind="Form.ContractDate" />
+                            }
                         </div>
                         <div class="avm-group">
                             <label class="avm-label">Contract Duration (No. of Years)</label>
-                            <select class="avm-input" @bind="Form.ContractYears">
-                                <option value="0">No contract</option>
-                                <option value="1">1 year</option>
-                                <option value="2">2 years</option>
-                                <option value="3">3 years</option>
-                                <option value="5">5 years</option>
-                            </select>
+                            @if (IsEditing)
+                            {
+                                <div class="avm-input avm-input-locked">@(Form.ContractYears > 0 ? $"{Form.ContractYears} year{(Form.ContractYears > 1 ? "s" : "")}" : "No contract")</div>
+                            }
+                            else
+                            {
+                                <select class="avm-input" @bind="Form.ContractYears">
+                                    <option value="0">No contract</option>
+                                    <option value="1">1 year</option>
+                                    <option value="2">2 years</option>
+                                    <option value="3">3 years</option>
+                                    <option value="5">5 years</option>
+                                </select>
+                            }
                         </div>
                     </div>
+                    @if (IsEditing)
+                    {
+                        <div class="avm-section-note">Contract effectivity and duration are set at registration — they define the billing history and aren't editable here.</div>
+                    }
                 </div>
 
                 <!-- §3 Space Information -->
@@ -232,13 +249,7 @@
                                        @bind="Form.MonthlyRate" @bind:event="oninput" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
                             </div>
-                            <div class="avm-group">
-                                <label class="avm-label">Actual Monthly Rental (₱)</label>
-                                <input class="avm-input" type="number" min="0"
-                                       placeholder="Leave blank if same as contract"
-                                       @bind="Form.ActualMonthlyRental" @bind:event="oninput" />
-                                <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearActualRental.ToString("N0")</div>
-                            </div>
+                            <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
                     }
 

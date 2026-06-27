@@ -44,15 +44,17 @@ public class PayorRepository(AppDbContext context) : IPayorRepository
                 && c.ExpiresAt > now, ct);
     }
 
-    public async Task RevokeActiveCodesForStallAsync(Guid stallId, string revokedBy, CancellationToken ct = default)
+    public async Task RemoveCodesForStallAsync(Guid stallId, CancellationToken ct = default)
     {
-        var now = DateTime.UtcNow;
-        var active = await context.PayorActivationCodes
-            .Where(c => c.StallId == stallId && !c.IsUsed && c.ExpiresAt > now)
+        // Hard-delete every prior code for the stall (IgnoreQueryFilters catches any soft-deleted
+        // remnants too) so issuing a new one leaves exactly one record per stall.
+        var existing = await context.PayorActivationCodes
+            .IgnoreQueryFilters()
+            .Where(c => c.StallId == stallId)
             .ToListAsync(ct);
 
-        foreach (var code in active)
-            code.Revoke(revokedBy);
+        if (existing.Count > 0)
+            context.PayorActivationCodes.RemoveRange(existing);
     }
 
     public async Task AddActivationCodeAsync(PayorActivationCode code, CancellationToken ct = default)

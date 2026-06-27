@@ -48,7 +48,7 @@ public partial class FacilityReportsRepository
         var (startDate, endDate) = CalculateWeeklyDateRange(year, month, weekNumber);
         var trends = new List<RevenueTrendDto>();
         var npmCollectableStalls = facilityCode == FacilityCode.NPM
-            ? await LoadNpmCollectableStallsAsync(facilityId, ct)
+            ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
@@ -93,13 +93,13 @@ public partial class FacilityReportsRepository
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
                 fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
@@ -121,7 +121,7 @@ public partial class FacilityReportsRepository
     {
         var trends = new List<RevenueTrendDto>();
         var npmCollectableStalls = facilityCode == FacilityCode.NPM
-            ? await LoadNpmCollectableStallsAsync(facilityId, ct)
+            ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
@@ -177,13 +177,13 @@ public partial class FacilityReportsRepository
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
                 fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
@@ -221,7 +221,7 @@ public partial class FacilityReportsRepository
     {
         var trends = new List<RevenueTrendDto>();
         var npmCollectableStalls = facilityCode == FacilityCode.NPM
-            ? await LoadNpmCollectableStallsAsync(facilityId, ct)
+            ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
@@ -274,13 +274,13 @@ public partial class FacilityReportsRepository
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
                 fishRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate)
+                    && IsUnderContractOn(stall, dc.CollectionDate)
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                         : 0m);
 

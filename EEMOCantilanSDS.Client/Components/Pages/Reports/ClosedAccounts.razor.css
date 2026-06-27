@@ -1,0 +1,152 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Closed Accounts — transparency register (ca-). Shares the Stall Holder /
+   Month-End document language (filter chips, sheet, summary cards, tables,
+   subtotals) so the reporting suite reads as one.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Temporary preview banner */
+.ca-preview {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(200, 168, 75, .12); border: 1px solid rgba(200, 168, 75, .45);
+    color: #8a6d1b; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 12.5px;
+}
+.ca-preview svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+/* Controls */
+.ca-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.ca-filter {
+    display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 9px; padding: 4px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
+}
+.ca-filter-cap { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); padding: 0 8px 0 6px; }
+.ca-chip {
+    min-height: 32px; padding: 6px 15px; border-radius: 6px;
+    border: 1px solid transparent; background: transparent;
+    font: inherit; font-size: 12.5px; font-weight: 650; letter-spacing: .2px; line-height: 1;
+    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.ca-chip:hover { color: var(--navy); }
+.ca-chip-active, .ca-chip-active:hover {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
+}
+
+.ca-actions { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
+.ca-search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 9px;
+    height: 38px; padding: 0 12px; flex: 1 1 auto; min-width: 0;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+.ca-search:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.ca-search svg { width: 15px; height: 15px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.ca-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13px; color: var(--navy); }
+.ca-search input::placeholder { color: var(--text-muted); }
+.ca-search input::-webkit-search-cancel-button { display: none; }
+.ca-search-clear { border: none; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
+.ca-search-clear:hover { color: var(--navy); }
+
+.ca-print-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--navy); color: #fff; border: none; border-radius: 9px;
+    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ca-print-btn:hover { background: var(--navy-2, #112d47); }
+.ca-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ca-state { padding: 40px; text-align: center; color: var(--text-subtle); font-size: 14px; }
+
+/* Sheet + document header */
+.ca-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
+
+/* Frame table — invisible on screen; its thead/tfoot repeat a blank spacer on every printed
+   page so continued pages get consistent top/bottom whitespace (matches the report page). */
+.ca-frame { width: 100%; border-collapse: collapse; }
+.ca-frame > thead > tr > td, .ca-frame > tfoot > tr > td, .ca-frame > tbody > tr > td { padding: 0; border: none; }
+.ca-frame-space { height: 0; }
+.ca-rpt-head { text-align: center; margin-bottom: 20px; }
+.ca-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
+.ca-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.ca-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
+.ca-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
+.ca-doc { margin-top: 12px; font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--navy); }
+.ca-doc-scope { margin-top: 3px; font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #8a6d1b; }
+.ca-doc-period { margin-top: 4px; font-size: 11px; color: var(--text-subtle); }
+
+/* Summary cards */
+.ca-summary { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 14px; margin-bottom: 16px; }
+.ca-sum-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; background: var(--bg); }
+.ca-sum-card.ca-sum-warn { border-color: rgba(139, 58, 58, .35); background: var(--red-bg); }
+.ca-sum-val { font-size: 19px; font-weight: 800; color: var(--navy); }
+.ca-sum-card.ca-sum-warn .ca-sum-val { color: var(--red); }
+.ca-sum-lbl { font-size: 11px; color: var(--text-subtle); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+
+.ca-note { font-size: 11.5px; color: var(--text-subtle); line-height: 1.5; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-bottom: 22px; }
+.ca-note strong { color: var(--navy); }
+
+/* Year block */
+.ca-year { margin-bottom: 24px; }
+.ca-year-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-bottom: 9px; margin-bottom: 10px; border-bottom: 2px solid var(--border); flex-wrap: wrap;
+}
+.ca-year-label { font-size: 14px; font-weight: 800; color: var(--navy); letter-spacing: .3px; }
+.ca-year-stats { font-size: 12.5px; color: var(--text-subtle); }
+.ca-year-stats strong { color: var(--navy); }
+
+/* Table */
+.ca-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 10px; }
+.ca-table th {
+    text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+    color: var(--text-subtle); padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: bottom;
+}
+.ca-table td { padding: 9px 10px; color: var(--text); vertical-align: middle; }
+.ca-table tr.ca-grp-start td { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.ca-table tbody tr:hover { background: var(--bg); }
+.ca-c { text-align: center; }
+.ca-r { text-align: right; font-variant-numeric: tabular-nums; }
+.ca-fw { font-weight: 400; color: var(--text); }
+.ca-muted { color: var(--text-muted); }
+.ca-fac-cell { font-weight: 400; color: var(--text); }
+.ca-period { white-space: nowrap; color: var(--text-subtle); }
+.ca-period span { color: var(--text-muted); margin: 0 2px; }
+
+.ca-amt-due { display: block; font-weight: 700; color: var(--red); }
+.ca-amt-clear { display: block; color: var(--text-muted); }
+
+.ca-table tfoot td { border-top: 2px solid var(--border); border-bottom: none; padding: 10px; color: var(--navy); font-size: 12.5px; }
+
+.ca-rpt-foot { display: flex; justify-content: space-between; gap: 20px; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+.ca-rpt-foot div { text-align: center; flex: 1; }
+.ca-rpt-foot span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); margin-bottom: 4px; }
+.ca-rpt-foot strong { font-size: 12.5px; color: var(--navy); }
+
+@media (max-width: 860px) {
+    .ca-summary { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
+    .ca-actions { flex-basis: 100%; }
+    .ca-table { font-size: 11.5px; display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Print: only the header + tables (clean register). Cards/note are screen-only. */
+@media print {
+    .no-print { display: none !important; }
+    .content-area { padding: 0 !important; }
+    .ca-sheet { border: none; border-radius: 0; padding: 0 12mm; }
+    .ca-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
+    .ca-summary, .ca-note { display: none !important; }
+    .ca-year-head { font-size: 11px; }
+    .ca-year-label { font-size: 12px; }
+    .ca-table { display: table !important; width: 100%; overflow: visible !important; white-space: normal !important; font-size: 9px; }
+    .ca-table th, .ca-table td { border-left: 1px solid #d8dee5; border-right: 1px solid #d8dee5; padding: 4px 5px; word-break: break-word; vertical-align: top; }
+    .ca-table thead th { border-top: 1px solid #d8dee5; border-bottom: 1px solid #d8dee5; background: #f4f7fa; }
+    .ca-table tr.ca-grp-start td { border-top: 1px solid #d8dee5; }
+    .ca-table tfoot td { border-top: 1px solid #d8dee5; border-bottom: 1px solid #d8dee5; }
+    .ca-table tbody tr:hover { background: transparent; }
+    .ca-period { white-space: normal !important; }   /* allow the date range to wrap so the table fits */
+}

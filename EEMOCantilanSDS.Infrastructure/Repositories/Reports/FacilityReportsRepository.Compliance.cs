@@ -183,8 +183,9 @@ public partial class FacilityReportsRepository
                 // Monthly-billed facilities (TCC/NCC/BBQ/ICE): the bill is the FULL rent obligation
                 // due across every month the contract is effective in the period (so unpaid months
                 // without a record still count), plus any utilities actually billed on in-period
-                // records. The balance then reconciles with MissedMonths and the Collection Rate.
-                rentBill = CalculateStallRentObligationDue(s, complianceStart, complianceEnd, excusedSet);
+                // records. Recorded months are billed at THEIR snapshot rate (history-faithful across
+                // rate changes); only unrecorded due months use the stall's current rate.
+                rentBill = CalculateMonthlyRentObligationDue(s, complianceStart, complianceEnd, payments, excusedSet);
                 totalBill = rentBill
                     + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid

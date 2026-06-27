@@ -52,6 +52,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.DailyRate)
                 .HasPrecision(18, 2);
 
+            builder.Property(s => s.ClosedAt);
+
             builder.HasIndex(s => new { s.FacilityId, s.Section, s.StallNo })
                 .IsUnique()
                 .HasFilter("\"Section\" IS NOT NULL");

@@ -103,7 +103,7 @@
     {
         ConfirmState.Paid => "Your payment has been received.",
         ConfirmState.Failed => "We couldn't confirm this payment.",
-        _ => "We're confirming your payment with GCash…"
+        _ => "We're confirming your payment…"
     };
 
     private string DetailText => _state switch
@@ -113,6 +113,6 @@
         ConfirmState.Failed =>
             "If you were charged, please contact the EEMO office — your payment will be reconciled. You can also try paying again from the portal.",
         _ =>
-            "Your balance updates automatically once GCash confirms the payment — this is usually immediate but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history."
+            "Your balance updates automatically once the payment is confirmed — this is usually immediate but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history."
     };
 }

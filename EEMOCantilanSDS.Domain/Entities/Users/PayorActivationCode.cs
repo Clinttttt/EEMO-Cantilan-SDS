@@ -59,18 +59,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             UpdatedBy = "Self-Activation";
         }
 
-        /// <summary>
-        /// Voids an unredeemed code (e.g. when a fresh one is issued for the same stall) by expiring it
-        /// immediately, so only one code is ever redeemable per stall at a time. No-op if already used.
-        /// </summary>
-        public void Revoke(string revokedBy)
-        {
-            if (IsUsed) return;
-            ExpiresAt = DateTime.UtcNow;
-            UpdatedAt = DateTime.UtcNow;
-            UpdatedBy = revokedBy;
-        }
-
         // Unambiguous alphabet (no I/O/0/1) for codes read aloud / handwritten in the field.
         private const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 

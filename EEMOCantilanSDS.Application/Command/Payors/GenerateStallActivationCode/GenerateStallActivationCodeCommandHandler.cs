@@ -58,8 +58,9 @@ public class GenerateStallActivationCodeCommandHandler(
             return Result<StallActivationCodeDto>.Failure(
                 "This mobile number already has a pending activation code for another stall.", 409);
 
-        // Only one redeemable code per stall — void any prior unredeemed one.
-        await payorRepository.RevokeActiveCodesForStallAsync(stall.Id, issuedBy, cancellationToken);
+        // One activation record per stall: remove any prior code(s) so re-issuing REPLACES the old
+        // instead of accumulating a new row each time. Only the newest code is ever redeemable.
+        await payorRepository.RemoveCodesForStallAsync(stall.Id, cancellationToken);
 
         // Generate a collision-free code.
         string code;

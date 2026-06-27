@@ -94,7 +94,7 @@ public partial class FacilityReportsRepository
                 .ToListAsync(ct);
 
             var dailyRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
-                && IsStallCollectableOn(stall, dc.CollectionDate)
+                && IsUnderContractOn(stall, dc.CollectionDate)
                     ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
                     : 0m);
 
@@ -115,8 +115,11 @@ public partial class FacilityReportsRepository
 
             // Collection rate is for the daily stall-rent obligation only. Fish kilo fees are
             // revenue, but they must not inflate rent compliance or receivable-risk charts.
+            // Numerator and denominator are both currently-billable (active) only — a closed stall's
+            // collected money shows in Revenue but never in the rate, so the rate reflects current
+            // billable performance and can never read above 100%.
             var rentCollected = dailyFeeRevenue + monthlyDailyFeeRevenue;
-            var percentage = expectedRevenue > 0 ? (rentCollected / expectedRevenue) * 100m : 0m;
+            var percentage = expectedRevenue > 0 ? Math.Min(100m, (rentCollected / expectedRevenue) * 100m) : 0m;
             var sectionName = SectionLabel(section);
             var activeStalls = stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
@@ -307,7 +310,7 @@ public partial class FacilityReportsRepository
 
             dailyRevenueByStall = dailyCollections
                 .Where(dc => stallsById.TryGetValue(dc.StallId, out var stall)
-                    && IsStallCollectableOn(stall, dc.CollectionDate))
+                    && IsUnderContractOn(stall, dc.CollectionDate))
                 .GroupBy(dc => dc.StallId)
                 .ToDictionary(
                     g => g.Key,

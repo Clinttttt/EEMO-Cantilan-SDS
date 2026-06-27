@@ -238,24 +238,33 @@
 
     private async Task LoadStallsFromApi()
     {
+        var now = DateTime.Now;
+
         // Daily-aware monthly report for the hero + section stats (same source as the Reports page).
-        var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
-            FacilityCode.NPM, ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+        var reportTask = FacilitiesApi.GetFacilityReportsAsync(
+            FacilityCode.NPM, ReportPeriod.Monthly, now.Year, now.Month);
+        var stallsTask = StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NPM, null, null, 100);
+        var paymentsTask = PaymentsApi.GetFacilityPaymentRecordsAsync(
+            FacilityCode.NPM, now.Year, now.Month);
+        var dailyStatusTask = PaymentsApi.GetNpmDailyStatusAsync(
+            FacilityCode.NPM, now.Year, now.Month);
+
+        await Task.WhenAll(reportTask, stallsTask, paymentsTask, dailyStatusTask);
+
+        var reportResult = await reportTask;
         if (reportResult.IsSuccess) Report = reportResult.Value;
 
-        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.NPM, null, null, 100);
+        var result = await stallsTask;
         if (result.IsSuccess && result.Value != null)
         {
             // Single batch call for all current-month payment records (avoids per-stall N+1)
-            var paymentsResult = await PaymentsApi.GetFacilityPaymentRecordsAsync(
-                FacilityCode.NPM, DateTime.Now.Year, DateTime.Now.Month);
+            var paymentsResult = await paymentsTask;
             var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
                 ? paymentsResult.Value.ToDictionary(p => p.StallId)
                 : new();
 
             // NPM daily operational status (paid today / days paid / last paid) — daily-collection based.
-            var dailyStatusResult = await PaymentsApi.GetNpmDailyStatusAsync(
-                FacilityCode.NPM, DateTime.Now.Year, DateTime.Now.Month);
+            var dailyStatusResult = await dailyStatusTask;
             var dailyStatus = dailyStatusResult.IsSuccess && dailyStatusResult.Value != null
                 ? dailyStatusResult.Value.ToDictionary(d => d.StallId)
                 : new();

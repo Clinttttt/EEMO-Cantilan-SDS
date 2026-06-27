@@ -6,6 +6,7 @@
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IDailyCollectionApiClient DailyCollectionApi
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
 
@@ -227,6 +228,8 @@
                             <div class="prof-card-title">@DateTime.Now.ToString("MMMM yyyy") — Payment Status</div>
                         </div>
 
+                        @if (!IsNpm)
+                        {
                         <div class="prof-month-status @(Stall.IsPaid ? "month-paid" : Stall.IsPartial ? "month-partial" : "month-unpaid")">
                             <div class="prof-month-icon">
                                 @if (Stall.IsPaid)
@@ -262,6 +265,7 @@
                                 </div>
                             </div>
                         </div>
+                        }
 
                         <div class="prof-field-list" style="margin-top:12px;">
                             <div class="prof-field">
@@ -278,58 +282,93 @@
                         </div>
                     </div>
 
-                    <!-- 12-Month Payment History -->
+                    <!-- Collection history -->
                     <div class="prof-card">
                         <div class="prof-card-header">
                             <div class="prof-card-icon">
                                 <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
                             </div>
-                            <div class="prof-card-title">12-Month Payment History</div>
+                            <div class="prof-card-title">@(IsNpm ? "Daily Collection Activity" : "12-Month Payment History")</div>
                         </div>
 
-                        <div class="prof-hist-grid">
-                            @for (int i = 11; i >= 0; i--)
-                            {
-                                var month = DateTime.Now.AddMonths(-i);
-                                var key = month.ToString("yyyy-MM");
-                                var contractStart = Stall.ContractDate.HasValue
-                                    ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
-                                    : (DateTime?)null;
-                                var hasRecord = Stall.PaymentHistory.TryGetValue(key, out var recordedStatus);
-                                var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
-                                var status = isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
-                                var isCurrent = i == 0;
-                                <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
-                                    <div class="prof-hist-month-name">@month.ToString("MMM")</div>
-                                    <div class="prof-hist-month-year">@month.ToString("yy")</div>
-                                    @if (isBeforeContract)
+                        @if (IsNpm)
+                        {
+                            <div class="ph-heat-head">@_heatCollected day@(_heatCollected == 1 ? "" : "s") collected in the last year</div>
+                            <div class="ph-heat-scroll">
+                                <div class="ph-heat-months">
+                                    @for (var w = 0; w < _heatWeeks.Count; w++)
                                     {
-                                        <div class="prof-hist-icon">—</div>
-                                    }
-                                    else if (status == "Paid")
-                                    {
-                                        <div class="prof-hist-icon">✓</div>
-                                    }
-                                    else if (status == "Partial")
-                                    {
-                                        <div class="prof-hist-icon">
-                                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;">
-                                                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                                                <path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/>
-                                            </svg>
-                                        </div>
-                                    }
-                                    else if (status == "Absent")
-                                    {
-                                        <div class="prof-hist-icon">–</div>
-                                    }
-                                    else
-                                    {
-                                        <div class="prof-hist-icon">✗</div>
+                                        <span class="ph-heat-mcol">@MonthLabel(w)</span>
                                     }
                                 </div>
-                            }
-                        </div>
+                                <div class="ph-heat-body">
+                                    <div class="ph-heat-dow">
+                                        <span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span>
+                                    </div>
+                                    <div class="ph-heat-grid">
+                                        @foreach (var wk in _heatWeeks)
+                                        {
+                                            @foreach (var cell in wk)
+                                            {
+                                                <span class="ph-cell ph-@cell.Kind" data-tip="@(HeatLabel(cell.Kind)) · @(cell.Date.ToString("MMMM d, yyyy"))"></span>
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ph-heat-legend">
+                                <span class="ph-legend-item"><i class="ph-cell ph-collected"></i> Collected</span>
+                                <span class="ph-legend-item"><i class="ph-cell ph-excused"></i> Excused</span>
+                                <span class="ph-legend-item"><i class="ph-cell ph-missed"></i> Uncollected</span>
+                                <span class="ph-legend-item"><i class="ph-cell ph-none"></i> No obligation</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="prof-hist-grid">
+                                @for (int i = 11; i >= 0; i--)
+                                {
+                                    var month = DateTime.Now.AddMonths(-i);
+                                    var key = month.ToString("yyyy-MM");
+                                    var contractStart = Stall.ContractDate.HasValue
+                                        ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
+                                        : (DateTime?)null;
+                                    var hasRecord = Stall.PaymentHistory.TryGetValue(key, out var recordedStatus);
+                                    var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
+                                    var status = isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
+                                    var isCurrent = i == 0;
+                                    <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                        <div class="prof-hist-month-name">@month.ToString("MMM")</div>
+                                        <div class="prof-hist-month-year">@month.ToString("yy")</div>
+                                        @if (isBeforeContract)
+                                        {
+                                            <div class="prof-hist-icon">—</div>
+                                        }
+                                        else if (status == "Paid")
+                                        {
+                                            <div class="prof-hist-icon">✓</div>
+                                        }
+                                        else if (status == "Partial")
+                                        {
+                                            <div class="prof-hist-icon">
+                                                <svg viewBox="0 0 24 24" style="width:14px;height:14px;">
+                                                    <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                                    <path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/>
+                                                </svg>
+                                            </div>
+                                        }
+                                        else if (status == "Absent")
+                                        {
+                                            <div class="prof-hist-icon">–</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="prof-hist-icon">✗</div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
 
                         <div class="prof-hist-summary">
                             @{
@@ -338,14 +377,28 @@
                                 var totalCollected = Stall.LedgerSummary?.TotalCollected ?? 0m;
                                 var balanceDue = Stall.LedgerSummary?.TotalOutstanding ?? 0m;
                             }
-                            <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val green">@paidCount</div>
-                                <div class="prof-hist-stat-key">Months Paid</div>
-                            </div>
-                            <div class="prof-hist-stat">
-                                <div class="prof-hist-stat-val red">@unpaidCount</div>
-                                <div class="prof-hist-stat-key">Months Unpaid</div>
-                            </div>
+                            @if (IsNpm)
+                            {
+                                <div class="prof-hist-stat">
+                                    <div class="prof-hist-stat-val green">@_heatCollected</div>
+                                    <div class="prof-hist-stat-key">Days Collected</div>
+                                </div>
+                                <div class="prof-hist-stat">
+                                    <div class="prof-hist-stat-val red">@_heatMissed</div>
+                                    <div class="prof-hist-stat-key">Days Uncollected</div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="prof-hist-stat">
+                                    <div class="prof-hist-stat-val green">@paidCount</div>
+                                    <div class="prof-hist-stat-key">Months Paid</div>
+                                </div>
+                                <div class="prof-hist-stat">
+                                    <div class="prof-hist-stat-val red">@unpaidCount</div>
+                                    <div class="prof-hist-stat-key">Months Unpaid</div>
+                                </div>
+                            }
                             <div class="prof-hist-stat">
                                 <div class="prof-hist-stat-val">₱@totalCollected.ToString("N0")</div>
                                 <div class="prof-hist-stat-key">Total Collected</div>
@@ -374,6 +427,7 @@
                 <div>
                     <div class="eemo-modal-title">Edit Stall Details</div>
                     <div class="eemo-modal-sub">Stall @Stall.StallNo · @Stall.ActualOccupant</div>
+                    <div class="prof-edit-note">Greyed fields are managed elsewhere and cannot be changed here.</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowEditModal = false">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -407,23 +461,18 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Contract Effectivity Date</label>
-                        <input class="form-input" type="date"
-                               value="@Stall.ContractDate?.ToString("yyyy-MM-dd")"
-                               @onchange="e => Stall.ContractDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : Stall.ContractDate" />
+                        <input class="form-input" type="text" readonly title="Contract effectivity is not editable here"
+                               value="@(Stall.ContractDate.HasValue ? Stall.ContractDate.Value.ToString("MMMM d, yyyy") : "—")" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Contract Duration (years)</label>
-                        <select class="form-input" @bind="Stall.ContractYears">
-                            <option value="0">No contract</option>
-                            <option value="1">1 year</option>
-                            <option value="2">2 years</option>
-                            <option value="3">3 years</option>
-                            <option value="5">5 years</option>
-                        </select>
+                        <input class="form-input" type="text" readonly title="Contract duration is not editable here"
+                               value="@Stall.ContractDuration" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Monthly Rental Rate (₱) <span class="req">*</span></label>
-                        <input class="form-input" type="number" @bind="Stall.MonthlyRate" />
+                        <label class="form-label">Monthly Rental Rate</label>
+                        <input class="form-input" type="text" readonly title="Monthly rental rate is not editable here"
+                               value="₱@Stall.MonthlyRate.ToString("N0")" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">Area Location / Note</label>
@@ -470,6 +519,14 @@
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
     string DisplayStallNo = string.Empty;
+
+    private bool IsNpm => FacilityId.ToUpper() == "NPM";
+
+    // GitHub-style daily heatmap (NPM only): last ~12 months of per-day collection status.
+    private sealed record HeatCell(DateOnly Date, string Kind);
+    private List<List<HeatCell>> _heatWeeks = new();   // each inner list = 7 cells (Sun→Sat)
+    private int _heatCollected;
+    private int _heatMissed;
 
     class StallProfile
     {
@@ -653,6 +710,8 @@
                     PaymentHistory = paymentHistory,
                     LedgerSummary = (await PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id)).Value
                 };
+
+                if (IsNpm) await LoadNpmDailyHeatmap(StallGuid);
             }
             else
             {
@@ -683,6 +742,75 @@
             _ => "Unknown Facility"
         };
     }
+
+    // ── GitHub-style daily collection heatmap (NPM) ──
+    async Task LoadNpmDailyHeatmap(Guid stallId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        // Last 12 calendar months, fetched in parallel.
+        var months = new List<(int y, int m)>();
+        var cursor = new DateTime(today.Year, today.Month, 1);
+        for (var i = 0; i < 12; i++) { months.Add((cursor.Year, cursor.Month)); cursor = cursor.AddMonths(-1); }
+
+        var results = await Task.WhenAll(
+            months.Select(mm => DailyCollectionApi.GetDailyCollectionMonthAsync(stallId, mm.y, mm.m)));
+
+        var status = new Dictionary<DateOnly, string>();
+        foreach (var r in results)
+        {
+            if (r.IsSuccess && r.Value is not null)
+                foreach (var day in r.Value.Collections.Values)
+                    status[day.Date] = day.IsAbsent ? "excused" : day.IsPaid ? "collected" : "missed";
+        }
+
+        var contractStart = Stall.ContractDate.HasValue ? DateOnly.FromDateTime(Stall.ContractDate.Value) : (DateOnly?)null;
+        var start = today.AddDays(-364);
+        while (start.DayOfWeek != DayOfWeek.Sunday) start = start.AddDays(-1);
+
+        var weeks = new List<List<HeatCell>>();
+        var collected = 0;
+        var missed = 0;
+        var d = start;
+        while (d <= today)
+        {
+            var week = new List<HeatCell>();
+            for (var i = 0; i < 7; i++)
+            {
+                string kind;
+                if (d > today) kind = "future";
+                else if (contractStart.HasValue && d < contractStart.Value) kind = "none";
+                else if (status.TryGetValue(d, out var st)) kind = st;
+                else kind = "missed";
+                if (kind == "collected") collected++;
+                else if (kind == "missed") missed++;
+                week.Add(new HeatCell(d, kind));
+                d = d.AddDays(1);
+            }
+            weeks.Add(week);
+        }
+        _heatWeeks = weeks;
+        _heatCollected = collected;
+        _heatMissed = missed;
+    }
+
+    // Month abbreviation above the week where the month first changes (skips the clipped left edge).
+    private string MonthLabel(int weekIndex)
+    {
+        if (weekIndex <= 0 || weekIndex >= _heatWeeks.Count) return "";
+        var month = _heatWeeks[weekIndex][0].Date.Month;
+        var prev = _heatWeeks[weekIndex - 1][0].Date.Month;
+        return month != prev ? _heatWeeks[weekIndex][0].Date.ToString("MMM") : "";
+    }
+
+    private static string HeatLabel(string kind) => kind switch
+    {
+        "collected" => "Collected",
+        "excused" => "Excused",
+        "missed" => "Uncollected",
+        "future" => "Upcoming",
+        _ => "No obligation"
+    };
 
     async Task SaveEdit()
     {

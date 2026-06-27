@@ -1,6 +1,5 @@
 @page "/online-payments"
 @using Microsoft.AspNetCore.Authorization
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
@@ -29,7 +28,7 @@
 
 <div class="content-area">
     <div class="op-intro">
-        <div class="op-intro-title">GCash payments received — awaiting Official Receipt</div>
+        <div class="op-intro-title">Online payments received — awaiting Official Receipt</div>
         <div class="op-intro-sub">
             These payors paid online and their balance is already cleared. Encode the manually-issued OR number to
             complete each transaction. Amounts and the payor are shown for verification against the treasury report.
@@ -80,7 +79,7 @@
                             </td>
                             <td>
                                 <div class="op-strong">@item.PayorName</div>
-                                <div class="op-muted">@(item.Method ?? "gcash")</div>
+                                <div class="op-muted">@(item.Method ?? "PayMongo")</div>
                             </td>
                             <td>
                                 <div class="op-strong">@item.Facility · Stall @item.StallNo</div>

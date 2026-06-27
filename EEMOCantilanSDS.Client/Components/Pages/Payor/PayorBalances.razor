@@ -58,8 +58,9 @@ else
     }
 
     <div class="pp-foot">
-        You'll be redirected to GCash via PayMongo. Your balance updates automatically once payment is confirmed;
-        the Official Receipt is issued by EEMO afterwards.
+        You'll be redirected to PayMongo Checkout to pay via <strong>QR&nbsp;Ph</strong> — scan the QR with any
+        supported bank or e-wallet app. On one phone, screenshot the QR and upload it from your app's QR scanner.
+        Your balance updates automatically once payment is confirmed; the Official Receipt is issued by EEMO afterwards.
     </div>
 }
 
@@ -104,7 +105,7 @@ else
 
         if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.CheckoutUrl))
         {
-            // Hand off to the hosted GCash checkout.
+            // Hand off to the hosted PayMongo (QR Ph) checkout.
             Nav.NavigateTo(result.Value.CheckoutUrl, forceLoad: true);
             return;
         }

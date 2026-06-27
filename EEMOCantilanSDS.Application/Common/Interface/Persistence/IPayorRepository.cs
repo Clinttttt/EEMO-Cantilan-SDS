@@ -21,8 +21,13 @@ public interface IPayorRepository
     /// </summary>
     Task<bool> ActiveCodeExistsForContactOnOtherStallAsync(string contactNumber, Guid stallId, CancellationToken ct = default);
 
-    /// <summary>Voids any still-redeemable code for the stall so only the newest one is active.</summary>
-    Task RevokeActiveCodesForStallAsync(Guid stallId, string revokedBy, CancellationToken ct = default);
+    /// <summary>
+    /// Removes every activation code row for the stall so re-issuing REPLACES (not accumulates) —
+    /// the table holds a single activation record per stall/payor at a time. Hard delete by design:
+    /// activation codes are ephemeral credentials; the durable activation record is the PayorUser +
+    /// PayorStallLink (and the change is captured in the audit log).
+    /// </summary>
+    Task RemoveCodesForStallAsync(Guid stallId, CancellationToken ct = default);
 
     Task AddActivationCodeAsync(PayorActivationCode code, CancellationToken ct = default);
 

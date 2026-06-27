@@ -1,0 +1,251 @@
+@page "/reports/closed-accounts"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Domain.Common
+@inject IJSRuntime JS
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   Closed Accounts — transparency / year-end register of CLOSED stall accounts and
+   their UNCOLLECTED balances. Read-only, printable, government-sheet style.
+
+   ⚠ PREVIEW BUILD: the rows below are HARDCODED sample data so the layout/UX can be
+   reviewed first. No backend yet. Next step wires this to a real query
+   (closed stalls + lifetime collected/uncollected + close metadata from the audit
+   trail / first-class ClosedAt + ClosureReason). Scope: NPM/TCC/NCC/BBQ/ICE only.
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<PageTitle>EEMO Admin — Closed Accounts</PageTitle>
+
+<header class="topbar no-print">
+    <div class="topbar-left">
+        <div class="topbar-title">Closed Accounts</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">EEMO Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Closed Accounts</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-period">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            As of <strong>@PhilippineTime.Today.ToString("MMM d, yyyy")</strong>
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- Controls: year-closed + facility + search + print -->
+    <div class="ca-controls no-print">
+        <div class="ca-filter" role="group" aria-label="Year closed">
+            <span class="ca-filter-cap">Year closed</span>
+            <button class="ca-chip @(_year is null ? "ca-chip-active" : "")" type="button" @onclick="() => _year = null">All</button>
+            @foreach (var y in Years)
+            {
+                <button class="ca-chip @(_year == y ? "ca-chip-active" : "")" type="button" @onclick="() => _year = y">@y</button>
+            }
+        </div>
+
+        <div class="ca-filter" role="group" aria-label="Facility">
+            <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = null">All Facilities</button>
+            @foreach (var fc in Facilities)
+            {
+                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = fc">@fc</button>
+            }
+        </div>
+
+        <div class="ca-actions">
+            <div class="ca-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search occupant, contract, or stall no.…" value="@_search" @oninput="OnSearch" aria-label="Search closed accounts" />
+                @if (HasSearch)
+                {
+                    <button class="ca-search-clear" type="button" @onclick="@(() => _search = "")" aria-label="Clear search">&times;</button>
+                }
+            </div>
+            <button class="ca-print-btn" type="button" @onclick="Print">
+                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                Print
+            </button>
+        </div>
+    </div>
+
+    @{
+        var rows = Filtered();
+        var withBalance = rows.Where(r => r.Uncollected > 0).ToList();
+        var groups = rows.GroupBy(r => r.ClosedOn.Year).OrderByDescending(g => g.Key).ToList();
+    }
+
+    <!-- Summary KPI cards — top of page (screen only) -->
+    <div class="ca-summary no-print">
+        <div class="ca-sum-card">
+            <div class="ca-sum-val">@rows.Count</div>
+            <div class="ca-sum-lbl">Accounts Closed</div>
+        </div>
+        <div class="ca-sum-card ca-sum-warn">
+            <div class="ca-sum-val">@withBalance.Count</div>
+            <div class="ca-sum-lbl">Closed with Balance</div>
+        </div>
+        <div class="ca-sum-card">
+            <div class="ca-sum-val">@Money(rows.Sum(r => r.Uncollected))</div>
+            <div class="ca-sum-lbl">Total Uncollected</div>
+        </div>
+        <div class="ca-sum-card">
+            <div class="ca-sum-val">@Money(rows.Sum(r => r.LifetimeCollected))</div>
+            <div class="ca-sum-lbl">Lifetime Collected</div>
+        </div>
+    </div>
+
+    <section class="ca-sheet">
+        <table class="ca-frame">
+            <thead><tr><td><div class="ca-frame-space"></div></td></tr></thead>
+            <tfoot><tr><td><div class="ca-frame-space"></div></td></tr></tfoot>
+            <tbody><tr><td>
+        <header class="ca-rpt-head">
+            <img class="ca-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+            <div class="ca-gov">Republic of the Philippines</div>
+            <div class="ca-org">Economic Enterprise &amp; Management Office</div>
+            <div class="ca-muni">Municipality of Cantilan, Surigao del Sur</div>
+            <div class="ca-doc">Register of Closed Stall Accounts</div>
+            <div class="ca-doc-scope">@(_year?.ToString() ?? "All Years")@(_facility is null ? "" : " · " + _facility)</div>
+            <div class="ca-doc-period">As of @PhilippineTime.Today.ToString("MMMM d, yyyy")</div>
+        </header>
+
+        <div class="ca-note">
+            Closed accounts are retained for transparency and audit. They are <strong>excluded from current billing
+            and delinquency</strong>; uncollected amounts shown are historical balances at the time of closure.
+        </div>
+
+        @if (rows.Count == 0)
+        {
+            <div class="ca-state">No closed accounts match the current filter@(HasSearch ? " and search" : "").</div>
+        }
+
+        @foreach (var grp in groups)
+        {
+            var yr = grp.OrderBy(r => r.Facility).ThenByDescending(r => r.ClosedOn).ToList();
+            <div class="ca-year">
+                <div class="ca-year-head">
+                    <span class="ca-year-label">Closed in @grp.Key</span>
+                    <span class="ca-year-stats">
+                        <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
+                        <strong>@Money(yr.Sum(r => r.Uncollected))</strong> uncollected
+                    </span>
+                </div>
+
+                <table class="ca-table">
+                    <thead>
+                        <tr>
+                            <th class="ca-c">#</th>
+                            <th>Facility</th>
+                            <th class="ca-c">Stall</th>
+                            <th>Last Occupant</th>
+                            <th>Name on Contract</th>
+                            <th class="ca-c">Period (Effectivity → Closed)</th>
+                            <th class="ca-r">Lifetime Collected</th>
+                            <th class="ca-r">Uncollected</th>
+                            <th>Closed By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var n = 1; string? prevFac = null; }
+                        @foreach (var r in yr)
+                        {
+                            var grpStart = r.Facility != prevFac;
+                            <tr class="@(grpStart ? "ca-grp-start" : "ca-cont")">
+                                <td class="ca-c">@n</td>
+                                <td class="ca-fac-cell">@(grpStart ? r.FacilityName : "")</td>
+                                <td class="ca-c">@r.StallNo</td>
+                                <td class="ca-fw">@r.Occupant</td>
+                                <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ContractName) ? "—" : r.ContractName)</td>
+                                <td class="ca-c ca-period">@r.Effectivity.ToString("MMM yyyy") <span>→</span> @r.ClosedOn.ToString("MMM d, yyyy")</td>
+                                <td class="ca-r">@Money(r.LifetimeCollected)</td>
+                                <td class="ca-r">
+                                    @if (r.Uncollected > 0)
+                                    {
+                                        <span class="ca-amt-due">@Money(r.Uncollected)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ca-amt-clear">@Money(0)</span>
+                                    }
+                                </td>
+                                <td class="ca-muted">@r.ClosedBy</td>
+                            </tr>
+                            prevFac = r.Facility;
+                            n++;
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="6"><strong>Subtotal — @yr.Count closed account@(yr.Count != 1 ? "s" : "")</strong></td>
+                            <td class="ca-r"><strong>@Money(yr.Sum(r => r.LifetimeCollected))</strong></td>
+                            <td class="ca-r"><strong>@Money(yr.Sum(r => r.Uncollected))</strong></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+
+        <div class="ca-rpt-foot">
+            <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
+            <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+            <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+        </div>
+            </td></tr></tbody>
+        </table>
+    </section>
+</div>
+
+@code {
+    // ── Filters ──
+    private int? _year;
+    private string? _facility;
+    private string _search = "";
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+    private async Task Print() => await JS.InvokeVoidAsync("print");
+
+    private static readonly string[] Facilities = { "NPM", "TCC", "NCC", "BBQ", "ICE" };
+    private static readonly int[] Years = { 2026, 2025, 2024 };
+
+    // ── PREVIEW sample data (temporary; replace with GetClosedStallAccountsAsync) ──
+    private sealed record CaRow(
+        string Facility, string FacilityName, string StallNo, string Occupant, string ContractName,
+        DateOnly Effectivity, DateOnly ClosedOn, decimal LifetimeCollected, decimal Uncollected,
+        string Reason, string ClosedBy);
+
+    private static readonly List<CaRow> Sample = new()
+    {
+        new("NPM", "New Public Market", "12", "Rosa Mendez", "Rosa Mendez", new(2019, 3, 1), new(2026, 2, 15), 24_300m, 0m, "Vacated", "Head"),
+        new("TCC", "Tampak Commercial Center", "4", "Pedro Gallardo", "Pedro Gallardo", new(2021, 6, 1), new(2026, 1, 20), 57_600m, 4_800m, "NonPayment", "Administrative Staff"),
+        new("NCC", "New Commercial Center", "Ext-2", "Lita Soriano", "Lita Soriano", new(2020, 1, 15), new(2026, 5, 10), 43_200m, 0m, "Transferred", "Head"),
+        new("ICE", "Iceplant", "3", "Marvin Uy", "Marvin Uy Trading", new(2022, 9, 1), new(2025, 11, 30), 18_000m, 2_000m, "NonPayment", "Administrative Staff"),
+        new("BBQ", "Barbecue Stand", "7", "Daisy Lim", "Daisy Lim", new(2023, 2, 1), new(2025, 8, 12), 28_800m, 0m, "Vacated", "Administrative Staff"),
+        new("TCC", "Tampak Commercial Center", "9", "Ernesto Vidal", "Vidal Enterprises", new(2018, 5, 1), new(2024, 12, 5), 96_000m, 9_600m, "NonPayment", "Head"),
+        new("NCC", "New Commercial Center", "Cor-1", "Grace Ababon", "Grace Ababon", new(2017, 7, 1), new(2024, 7, 22), 110_400m, 0m, "Transferred", "Administrative Staff"),
+        new("NCC", "New Commercial Center", "Cor-1", "Grace Largado", "Grace Largado", new(2017, 7, 1), new(2024, 7, 22), 110_400m, 0m, "Transferred", "Administrative Staff"),
+        new("NPM", "New Public Market", "F-5", "Lorenzo Paquibot", "Lorenzo Paquibot", new(2021, 4, 1), new(2025, 3, 18), 12_600m, 1_350m, "Other", "Administrative Staff"),
+    };
+
+    private IReadOnlyList<CaRow> Filtered()
+    {
+        IEnumerable<CaRow> q = Sample;
+        if (_year is int y) q = q.Where(r => r.ClosedOn.Year == y);
+        if (_facility is not null) q = q.Where(r => r.Facility == _facility);
+        if (HasSearch)
+        {
+            var s = _search.Trim();
+            q = q.Where(r =>
+                r.Occupant.Contains(s, StringComparison.OrdinalIgnoreCase) ||
+                r.ContractName.Contains(s, StringComparison.OrdinalIgnoreCase) ||
+                r.StallNo.Contains(s, StringComparison.OrdinalIgnoreCase));
+        }
+        return q.OrderByDescending(r => r.ClosedOn).ToList();
+    }
+
+    private static string Money(decimal v) => "₱" + v.ToString("N0");
+}

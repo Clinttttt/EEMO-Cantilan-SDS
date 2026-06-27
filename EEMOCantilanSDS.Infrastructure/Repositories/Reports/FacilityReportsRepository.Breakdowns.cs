@@ -27,7 +27,7 @@ public partial class FacilityReportsRepository
             return null;
         }
 
-        var npmCollectableStalls = await LoadNpmCollectableStallsAsync(facilityId, ct);
+        var npmCollectableStalls = await LoadNpmRevenueStallsAsync(facilityId, ct);
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
 
@@ -59,7 +59,7 @@ public partial class FacilityReportsRepository
 
         var collectableDailyCollections = dailyCollections
             .Where(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
-                && IsStallCollectableOn(stall, dc.CollectionDate))
+                && IsUnderContractOn(stall, dc.CollectionDate))
             .ToList();
 
         var dailyFeeFromCollections = collectableDailyCollections.Sum(dc => dc.DailyFee);

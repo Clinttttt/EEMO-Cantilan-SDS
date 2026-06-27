@@ -14,6 +14,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public Guid FacilityId { get; private set; }
         public string StallNo { get; private set; } = string.Empty;
         public StallStatus Status { get; private set; } = StallStatus.Active;
+
+        // The date the stall was frozen/closed (null when active). Used to excuse the closed span on
+        // reopen so a temporary closure never back-bills as arrears.
+        public DateOnly? ClosedAt { get; private set; }
         public StallType Type { get; private set; } = StallType.Permanent;
         public ApplicableFees Fees { get; private set; }
 
@@ -103,17 +107,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
-        public void Close()
+        public void Close(DateOnly closedOn, string updatedBy = "System")
         {
             Status = StallStatus.Closed;
+            ClosedAt = closedOn;
             UpdatedAt = DateTime.UtcNow;
-            UpdatedBy = "System";
+            UpdatedBy = updatedBy;
         }
-        public void Reopen()
+        public void Reopen(string updatedBy = "System")
         {
             Status = StallStatus.Active;
+            ClosedAt = null;
             UpdatedAt = DateTime.UtcNow;
-            UpdatedBy = "System";
+            UpdatedBy = updatedBy;
         }
         public bool IsActive() => Status == StallStatus.Active;
 

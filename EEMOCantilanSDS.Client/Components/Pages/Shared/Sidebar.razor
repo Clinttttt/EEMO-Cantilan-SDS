@@ -3,6 +3,7 @@
 @inject IFacilitiesApiClient FacilitiesApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@implements IDisposable
 
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
     <div class="sidebar-brand">
@@ -90,7 +91,10 @@
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
 
     protected override void OnInitialized()
-        => Nav.LocationChanged += (_, _) => InvokeAsync(StateHasChanged);
+        => Nav.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
 
     // Returns "active" CSS class if the current path matches the given href (exact for /menu,
     // prefix for everything else so /facility/npm and /tcc/reports both light up the facility item).
@@ -129,4 +133,7 @@
         [FacilityCode.TRM] = ("Transport Terminal", """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>"""),
         [FacilityCode.TPM] = ("Tabo-an Market", """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""),
     };
+
+    public void Dispose()
+        => Nav.LocationChanged -= OnLocationChanged;
 }

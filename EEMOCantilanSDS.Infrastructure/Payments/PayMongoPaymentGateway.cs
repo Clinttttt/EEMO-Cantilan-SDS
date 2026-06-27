@@ -12,9 +12,10 @@ namespace EEMOCantilanSDS.Infrastructure.Payments;
 
 /// <summary>
 /// PayMongo implementation of <see cref="IPaymentGateway"/> using hosted Checkout Sessions with
-/// GCash. The secret-key Basic-auth header is applied once at HttpClient registration time
-/// (see <c>AddInfrastructureService</c>); this class reads the webhook signing secret on demand,
-/// mirroring how <c>TokenService</c> reads JWT config directly from <see cref="IConfiguration"/>.
+/// QR Ph as the current enabled live payment channel. The secret-key Basic-auth header is applied once
+/// at HttpClient registration time (see <c>AddInfrastructureService</c>); this class reads the webhook
+/// signing secret on demand, mirroring how <c>TokenService</c> reads JWT config directly from
+/// <see cref="IConfiguration"/>.
 /// </summary>
 public sealed class PayMongoPaymentGateway(
     HttpClient httpClient,
@@ -54,7 +55,7 @@ public sealed class PayMongoPaymentGateway(
                             quantity = 1
                         }
                     },
-                    payment_method_types = new[] { "gcash" },
+                    payment_method_types = new[] { "qrph" },
                     reference_number = request.Reference,
                     success_url = request.SuccessUrl,
                     cancel_url = request.CancelUrl,

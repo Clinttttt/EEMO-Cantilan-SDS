@@ -69,7 +69,7 @@ public class GenerateStallActivationCodeCommandHandlerTests
     }
 
     [Fact]
-    public async Task Collector_Assigned_IssuesCode_AndRevokesPrior()
+    public async Task Collector_Assigned_IssuesCode_AndReplacesPrior()
     {
         var stall = StallInFacility(FacilityCode.TCC);
         var collector = CollectorWith(FacilityCode.TCC);
@@ -88,7 +88,8 @@ public class GenerateStallActivationCodeCommandHandlerTests
         Assert.Contains("-", result.Value.Code);                    // XXXX-XXXX format
         Assert.NotNull(captured);
         Assert.Equal("09171234567", captured!.ContactNumber);
-        payorRepo.Verify(r => r.RevokeActiveCodesForStallAsync(stall.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        // Prior code(s) for the stall are removed first, so the table keeps one record per stall.
+        payorRepo.Verify(r => r.RemoveCodesForStallAsync(stall.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Payments;
 
@@ -30,10 +31,17 @@ public sealed class OnlinePaymentSettlementService(
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", 500);
 
-        // Money received: clear the balance (delinquency recomputes as cleared). OR stays null until staff
-        // encode it; CollectorId stays null (online has no collector).
-        record.MarkPaidOnline($"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}");
-        await paymentRepository.UpdateAsync(record, cancellationToken);
+        // Cross-channel safety: between initiation and now, this period may already have been settled by
+        // another channel (an offline collection, or a duplicate online transaction). The gateway has
+        // still captured the payor's money, so we RECORD this transaction as Paid (above) for audit and
+        // refund — but we must NOT overwrite the record's existing Paid status, OR number, or collector
+        // attribution. Only clear the balance when the period is still outstanding (the normal case).
+        if (record.Status != PaymentStatus.Paid)
+        {
+            record.MarkPaidOnline($"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}");
+            await paymentRepository.UpdateAsync(record, cancellationToken);
+        }
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Best-effort realtime alert for staff — must never affect payment processing.

@@ -126,46 +126,45 @@
         @foreach (var grp in visibleSections)
         {
             <section class="fq-section">
-                <!-- Section header card (count + title + scope) -->
-                <div class="fq-sec-card fq-sec-@grp.Section.Tone">
-                    <div class="fq-sec-icon">
-                        <svg viewBox="0 0 24 24">@((MarkupString)Svg(grp.Section.Icon))</svg>
-                    </div>
-                    <div class="fq-sec-num">@grp.Items.Count</div>
+                <div class="fq-sec-head fq-sec-@grp.Section.Tone">
+                    <span class="fq-sec-rail"></span>
+                    <span class="fq-sec-count">@grp.Items.Count</span>
                     <div class="fq-sec-info">
                         <div class="fq-sec-title">@grp.Section.Title</div>
                         <div class="fq-sec-sub">@grp.Section.Sub</div>
                     </div>
                 </div>
 
-                <div class="fq-list">
-                    @foreach (var it in grp.Items)
-                    {
-                        <div class="fq-item fq-pri-@PriClass(it.Priority)">
-                            <div class="fq-avatar">
-                                <svg viewBox="0 0 24 24">@((MarkupString)Svg(IconFor(it.ReasonKind)))</svg>
-                            </div>
-                            <div class="fq-item-main">
-                                <div class="fq-badges">
-                                    <span class="fq-reason fq-rb-@PriClass(it.Priority)">@it.Reason</span>
-                                    <span class="fq-facility">@it.Facility · @it.Model</span>
-                                </div>
-                                <div class="fq-person">
-                                    @it.Person<span class="fq-ident"> · @it.Identifier</span>
-                                </div>
-                                <div class="fq-meta">
-                                    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                                    <span>@it.Period</span>
-                                    <span class="fq-dot">·</span>
-                                    <span>@it.Status</span>
-                                </div>
-                            </div>
-                            <div class="fq-item-side">
-                                <div class="fq-amount @AmountClass(it)">@AmountLabel(it)</div>
-                                <a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a>
-                            </div>
-                        </div>
-                    }
+                <div class="fq-table-wrap">
+                    <table class="fq-table">
+                        <thead>
+                            <tr>
+                                <th>Reason</th>
+                                <th>Payor / Stall</th>
+                                <th>Period &amp; Status</th>
+                                <th class="fq-r">Amount</th>
+                                <th class="fq-r">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var it in grp.Items)
+                            {
+                                <tr class="fq-row fq-pri-@PriClass(it.Priority)">
+                                    <td><span class="fq-reason fq-rb-@PriClass(it.Priority)">@it.Reason</span></td>
+                                    <td>
+                                        <div class="fq-person">@it.Person</div>
+                                        <div class="fq-sub">@it.Identifier · @it.Facility · @it.Model</div>
+                                    </td>
+                                    <td>
+                                        <div class="fq-period">@it.Period</div>
+                                        <div class="fq-sub">@it.Status</div>
+                                    </td>
+                                    <td class="fq-r"><span class="fq-amount @AmountClass(it)">@AmountLabel(it)</span></td>
+                                    <td class="fq-r"><a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </section>
         }

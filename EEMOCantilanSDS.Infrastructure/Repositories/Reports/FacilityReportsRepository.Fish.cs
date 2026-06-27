@@ -20,7 +20,7 @@ public partial class FacilityReportsRepository
         var startDate = new DateOnly(year, month, 1);
         var endDate = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
-        var npmStalls = await LoadNpmCollectableStallsAsync(facility.Id, ct);
+        var npmStalls = await LoadNpmRevenueStallsAsync(facility.Id, ct);
         var npmStallsById = npmStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
 
@@ -54,7 +54,7 @@ public partial class FacilityReportsRepository
         foreach (var dc in dailyCollections)
         {
             if (!npmStallsById.TryGetValue(dc.StallId, out var stall)
-                || !IsStallCollectableOn(stall, dc.CollectionDate))
+                || !IsUnderContractOn(stall, dc.CollectionDate))
                 continue;
             var kilos = dc.FishKilos ?? 0m;
             if (kilos <= 0m) continue;

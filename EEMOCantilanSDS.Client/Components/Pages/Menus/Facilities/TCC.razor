@@ -167,16 +167,24 @@
 
     private async Task LoadStallsFromApi()
     {
+        var now = DateTime.Now;
+
         // Monthly report for the hero + collection rate (same source as the Reports page).
-        var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
-            FacilityCode.TCC, ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+        var reportTask = FacilitiesApi.GetFacilityReportsAsync(
+            FacilityCode.TCC, ReportPeriod.Monthly, now.Year, now.Month);
+        var stallsTask = StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.TCC, null, null, 100);
+        var paymentsTask = PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCode.TCC, now.Year, now.Month);
+
+        await Task.WhenAll(reportTask, stallsTask, paymentsTask);
+
+        var reportResult = await reportTask;
         if (reportResult.IsSuccess) Report = reportResult.Value;
 
-        var result = await StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCode.TCC, null, null, 100);
+        var result = await stallsTask;
         if (result.IsSuccess && result.Value != null)
         {
             // Single batch call for all current-month payment records (avoids per-stall N+1)
-            var paymentsResult = await PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCode.TCC, DateTime.Now.Year, DateTime.Now.Month);
+            var paymentsResult = await paymentsTask;
             var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
                 ? paymentsResult.Value.ToDictionary(p => p.StallId)
                 : new();
