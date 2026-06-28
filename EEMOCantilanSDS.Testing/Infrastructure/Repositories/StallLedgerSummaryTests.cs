@@ -133,4 +133,60 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         Assert.Equal(3, summary.MonthsUnpaid);                           // 3 collectable months, none fully paid
         Assert.True(summary.TotalOutstanding > 0m);
     }
+
+    [Fact]
+    public async Task Summary_Npm_MarketClosedDay_IsExcused_NotOwed()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Lorna", "Lorna", monthStart, 3, 900m); // starts this month → 1 collectable month
+        var closure = NpmMarketClosure.Create(monthStart.AddDays(1), MarketClosureReason.Holiday, "Market closed", "Head");
+        context.AddRange(facility, stall, contract, closure);
+
+        // Pay every day this month EXCEPT the market-closed day (day 2).
+        for (var day = 1; day <= daysInMonth; day++)
+        {
+            if (day == 2) continue;
+            var dc = DailyCollection.Create(stall.Id, new DateOnly(today.Year, today.Month, day));
+            dc.MarkPaid(string.Empty, collectorId: null);
+            context.Add(dc);
+        }
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        // The market-closed day owes nothing, so paying every other day fully settles the month.
+        Assert.Equal(0m, summary.TotalOutstanding);
+        Assert.Equal(1, summary.MonthsPaid);
+        Assert.Equal(0, summary.MonthsUnpaid);
+    }
+
+    [Fact]
+    public async Task Summary_Monthly_ExcusedMonth_OwesNothing()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "101", 1000m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Tenant", "Tenant", monthStart, 3, 1000m); // 1 collectable month
+        var excused = StallMonthlyException.Create(stall.Id, today.Year, today.Month, MonthlyExceptionReason.TemporaryClosure, "Closed", "Head");
+        context.AddRange(facility, stall, contract, excused);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        // The excused month owes nothing and is neither paid nor unpaid.
+        Assert.Equal(0m, summary.TotalOutstanding);
+        Assert.Equal(0, summary.MonthsUnpaid);
+        Assert.Equal(0m, summary.TotalCollected);
+    }
 }

@@ -761,7 +761,7 @@
         {
             if (r.IsSuccess && r.Value is not null)
                 foreach (var day in r.Value.Collections.Values)
-                    status[day.Date] = day.IsAbsent ? "excused" : day.IsPaid ? "collected" : "missed";
+                    status[day.Date] = day.IsMarketClosed || day.IsAbsent ? "excused" : day.IsPaid ? "collected" : "missed";
         }
 
         var contractStart = Stall.ContractDate.HasValue ? DateOnly.FromDateTime(Stall.ContractDate.Value) : (DateOnly?)null;

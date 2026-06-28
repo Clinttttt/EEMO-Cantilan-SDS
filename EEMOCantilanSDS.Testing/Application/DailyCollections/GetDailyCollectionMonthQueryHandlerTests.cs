@@ -82,12 +82,42 @@ public class GetDailyCollectionMonthQueryHandlerTests
         Assert.Equal(dto.TotalDays - 1, dto.DaysMissed);
     }
 
+    [Fact]
+    public async Task Handle_MarketClosedDay_ReadsAsClosed_ExcusedNotMissed()
+    {
+        var month = PhilippineTime.Today.AddMonths(-1);
+        var contractDate = new DateOnly(month.Year, month.Month, 1);
+        var stall = CreateNpmStallWithContract(contractDate);
+        var closedDate = new DateOnly(month.Year, month.Month, 23);
+        var closure = NpmMarketClosure.Create(closedDate, MarketClosureReason.Holiday, "Market closed", "Head");
+
+        // No per-stall record for the 23rd — the closure is facility-wide.
+        var handler = CreateHandler(stall, [], [closure]);
+
+        var result = await handler.Handle(
+            new GetDailyCollectionMonthQuery(stall.Id, month.Year, month.Month),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var dto = result.Value!;
+        var key = closedDate.ToString("yyyy-MM-dd");
+        Assert.True(dto.Collections[key].IsMarketClosed);   // shows as "Closed", not unpaid
+        Assert.False(dto.Collections[key].IsPaid);
+        Assert.False(dto.Collections[key].IsAbsent);
+        Assert.Equal(1, dto.DaysClosed);
+        Assert.Equal(0, dto.DaysCollected);
+        // Closed day is excused — N valid days, 1 closed → N−1 missed (not N).
+        Assert.Equal(dto.TotalDays - 1, dto.DaysMissed);
+    }
+
     private static GetDailyCollectionMonthQueryHandler CreateHandler(
         Stall stall,
-        IReadOnlyList<DailyCollection> collections)
+        IReadOnlyList<DailyCollection> collections,
+        IReadOnlyList<NpmMarketClosure>? closures = null)
     {
         var dailyCollectionRepository = new Mock<IDailyCollectionRepository>();
         var stallRepository = new Mock<IStallRepository>();
+        var marketClosureRepository = new Mock<INpmMarketClosureRepository>();
 
         stallRepository
             .Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>()))
@@ -97,9 +127,14 @@ public class GetDailyCollectionMonthQueryHandlerTests
             .Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(collections);
 
+        marketClosureRepository
+            .Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(closures ?? new List<NpmMarketClosure>());
+
         return new GetDailyCollectionMonthQueryHandler(
             dailyCollectionRepository.Object,
-            stallRepository.Object);
+            stallRepository.Object,
+            marketClosureRepository.Object);
     }
 
     private static Stall CreateNpmStallWithContract(DateOnly contractDate)
@@ -111,6 +146,10 @@ public class GetDailyCollectionMonthQueryHandlerTests
             ApplicableFees.DailyRental,
             section: MarketSection.VegetableArea,
             dailyRate: FeeRates.NpmDailyFee);
+
+        // Market-closure handling is NPM-only, keyed off the stall's facility.
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
 
         stall.Contracts.Add(Contract.Create(
             stall.Id,

@@ -209,6 +209,15 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .ToListAsync(ct))
             .ToHashSet();
 
+        // NPM market closures (facility-wide) also excuse the day — fold them in so a closed day is
+        // never billed/Unpaid in the history (mirrors the ledger summary + Financial Reports).
+        var historyClosedDates = await context.NpmMarketClosures
+            .AsNoTracking()
+            .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
+            .Select(c => c.ClosureDate)
+            .ToListAsync(ct);
+        absentDates.UnionWith(historyClosedDates);
+
         var collectorIds = dailies.Where(d => d.CollectorId.HasValue).Select(d => d.CollectorId!.Value)
             .Concat(payments.Where(p => p.CollectorId.HasValue).Select(p => p.CollectorId!.Value))
             .Distinct().ToList();
@@ -326,6 +335,29 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 .ToHashSet()
             : new HashSet<DateOnly>();
 
+        // NPM market closures (facility-wide) also excuse the day — union them with per-stall absences.
+        var marketClosedDates = isNpm
+            ? (await context.NpmMarketClosures
+                .AsNoTracking()
+                .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
+                .Select(c => c.ClosureDate)
+                .ToListAsync(ct))
+                .ToHashSet()
+            : new HashSet<DateOnly>();
+        var excusedDates = new HashSet<DateOnly>(absentDates);
+        excusedDates.UnionWith(marketClosedDates);
+
+        // Monthly facilities: months an admin excused (e.g. temporary closure) owe nothing.
+        var excusedMonths = isNpm
+            ? new HashSet<(int Year, int Month)>()
+            : (await context.StallMonthlyExceptions
+                .AsNoTracking()
+                .Where(e => e.StallId == stallId)
+                .Select(e => new { e.BillingYear, e.BillingMonth })
+                .ToListAsync(ct))
+                .Select(e => (e.BillingYear, e.BillingMonth))
+                .ToHashSet();
+
         int monthsPaid = 0, monthsUnpaid = 0;
         decimal totalCollected = 0m, totalOutstanding = 0m;
 
@@ -345,10 +377,10 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             if (isNpm)
             {
                 // NPM money is always daily-truth (₱30/day × contract-prorated days) — a flat monthly
-                // record never overrides it. Excused/absent days are not owed, so they reduce the bill;
-                // a month entirely excused is skipped (not paid, not unpaid, nothing owed).
-                var npmAbsent = absentDates.Count(d => d >= monthStart && d <= monthEnd);
-                var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmAbsent);
+                // record never overrides it. Excused/absent/market-closed days are not owed, so they
+                // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
+                var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
+                var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
                 var bill = billableDays * FeeRates.NpmDailyFee;
                 if (bill <= 0m)
                     continue;
@@ -356,6 +388,15 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 totalCollected += paid;
                 totalOutstanding += Math.Max(0m, bill - paid);
                 if (paid >= bill) monthsPaid++; else monthsUnpaid++;
+                continue;
+            }
+
+            // Non-NPM: an admin-excused month owes nothing. Any payment already made still counts as
+            // collected (money received is never dropped); the month just adds no outstanding.
+            if (excusedMonths.Contains((year, month)))
+            {
+                if (rec is not null && rec.Status != PaymentStatus.Unpaid)
+                    totalCollected += rec.AmountPaid;
                 continue;
             }
 

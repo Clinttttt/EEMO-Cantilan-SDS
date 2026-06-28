@@ -541,3 +541,18 @@
     font-weight: 500;
     flex: 1;
 }
+
+/* ── Market closed (whole market shut that day) — neutral slate, locked (not toggleable) ── */
+.cal-cell.cal-closed {
+    background: rgba(13, 33, 55, 0.05);
+    border-color: rgba(13, 33, 55, 0.18);
+    cursor: not-allowed;
+}
+.cal-icon-closed {
+    background: rgba(13, 33, 55, 0.08);
+    border: 1.5px solid rgba(13, 33, 55, 0.35);
+}
+    .cal-icon-closed svg {
+        stroke: #44607d;
+    }
+.cal-sum-val.cal-sum-closed { color: #44607d; }

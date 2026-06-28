@@ -12,12 +12,14 @@ public sealed record DailyCollectionMonthDto(
     decimal GrandTotal,
     bool IsFullyPaid,
     Dictionary<string, DailyCollectionDayDto> Collections,
-    int DaysAbsent = 0
+    int DaysAbsent = 0,
+    int DaysClosed = 0
 );
 
 public sealed record DailyCollectionDayDto(
     DateOnly Date,
     bool IsPaid,
     decimal? FishKilos,
-    bool IsAbsent = false
+    bool IsAbsent = false,
+    bool IsMarketClosed = false
 );
