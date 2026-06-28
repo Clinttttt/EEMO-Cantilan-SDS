@@ -1459,7 +1459,10 @@ else
     static int NormalizeBarHeightPct(decimal value, decimal maxValue, decimal maxVisualPct = 92m)
         => value <= 0 || maxValue <= 0 ? 0 : ClampPct(value / maxValue * maxVisualPct);
 
-    static int PercentBarHeightPct(int pct) => pct <= 0 ? 6 : Math.Max(8, ClampPct(pct));
+    // 0–100% metric bars. Scaled to ~88% of the plot so a full (100%) bar still leaves room for its
+    // 3D top cap and the value label above it — otherwise the bar overflows the chart top. The label
+    // always shows the true percentage.
+    static int PercentBarHeightPct(int pct) => pct <= 0 ? 6 : Math.Max(8, ClampPct(pct * 0.88m));
 
     static int ClampPct(decimal value) => (int)Math.Clamp(Math.Round(value), 0m, 100m);
     static string NormalizeSectionName(string n) => n switch
