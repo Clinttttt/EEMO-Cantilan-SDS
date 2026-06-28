@@ -25,22 +25,22 @@
     {
         @if (ColumnSet == "Operational" || ColumnSet == "MonthlyCard")
         {
-            <div class="sk-grid-2">
+            @* Mirror the real ops-grid/ops-card frame exactly so the layout doesn't jump on load. *@
+            <div class="ops-grid">
                 @for (var _i = 0; _i < 6; _i++)
                 {
-                    <div class="sk-card">
-                        <div class="sk-inline">
-                            <Skeleton Width="58px" Height="22px" Radius="6px" />
-                            <span class="sk-grow"></span>
-                            <Skeleton Width="76px" Height="24px" Radius="999px" />
+                    <div class="ops-card">
+                        <div class="ops-card-top">
+                            <Skeleton Width="46px" Height="18px" Radius="6px" />
+                            <Skeleton Width="80px" Height="22px" Radius="999px" />
+                            <div class="action-btns ops-actions">
+                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                            </div>
                         </div>
-                        <Skeleton Width="60%" Height="16px" Radius="6px" />
-                        <Skeleton Width="85%" Height="12px" />
-                        <div class="sk-inline">
-                            <Skeleton Width="32px" Height="32px" Radius="8px" />
-                            <Skeleton Width="32px" Height="32px" Radius="8px" />
-                            <Skeleton Width="32px" Height="32px" Radius="8px" />
-                        </div>
+                        <Skeleton Width="55%" Height="15px" Radius="6px" />
+                        <Skeleton Width="82%" Height="12px" Radius="6px" />
                     </div>
                 }
             </div>
