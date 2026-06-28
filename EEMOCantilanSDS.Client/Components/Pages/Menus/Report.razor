@@ -117,7 +117,7 @@
         </div>
     </div>
 
-    @if (Loading)
+    @if (Loading && Model is null)
     {
         <div class="rpt-state">Loading report…</div>
     }
@@ -130,6 +130,10 @@
     }
     else
     {
+        @if (Loading)
+        {
+            <div class="rpt-refreshing"><span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…</div>
+        }
         <!-- FINANCIAL POSITION — KPIs -->
         <div class="kpi-row">
             <div class="kpi-card">
@@ -523,8 +527,9 @@
 
     private async Task Load()
     {
+        // Keep the currently-shown report visible while the new one loads (a small "Refreshing…" cue
+        // shows instead of blanking the page). Only the very first load shows the full loading state.
         Loading = true;
-        Model = null;
         StateHasChanged();
 
         var period = ActiveTab == "Annual" ? ReportPeriod.Yearly : ReportPeriod.Monthly;
@@ -533,18 +538,25 @@
         FacilityCode? facility = SelectedFacility == "All" ? null : Enum.Parse<FacilityCode>(SelectedFacility);
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        var loaded = false;
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var result = await ReportsApi.GetFinancialReportAsync(period, year, month, facility);
             if (result.IsSuccess)
             {
                 Model = result.Value;
+                loaded = true;
                 break;
             }
             if (result.StatusCode is not (401 or 403))
                 break;
             await Task.Delay(400);
         }
+
+        // The old report stays visible only while a NEW one is loading; if the load definitively
+        // fails, clear it so the error state shows for the new selection (never stale data).
+        if (!loaded)
+            Model = null;
 
         // Recompute the y-axis scale for the new data and bump the epoch so bars re-animate.
         var trendMax = TrendBars.Count == 0 ? 0m : TrendBars.Max(t => Math.Max(t.Collected, t.Unpaid));

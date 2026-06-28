@@ -189,19 +189,22 @@
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
         {
+            // Load every facility in parallel (independent requests) — ~1 round-trip instead of 5
+            // sequential ones. Mirrors the Task.WhenAll pattern used by the facility pages.
+            var tasks = StallFacilities.ToDictionary(
+                code => code,
+                code => StallsApi.GetStallHoldersListAsync(code, null, null));
+            await Task.WhenAll(tasks.Values);
+
             var loaded = new Dictionary<FacilityCode, StallHoldersListDto>();
             var authPending = false;
-
-            foreach (var code in StallFacilities)
+            foreach (var (code, task) in tasks)
             {
-                var result = await StallsApi.GetStallHoldersListAsync(code, null, null);
+                var result = await task;
                 if (result.IsSuccess && result.Value is not null)
                     loaded[code] = result.Value;
                 else if (result.StatusCode is 401 or 403)
-                {
                     authPending = true;
-                    break;
-                }
             }
 
             if (!authPending)

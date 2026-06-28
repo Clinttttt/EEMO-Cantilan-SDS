@@ -8,6 +8,7 @@
 
 @code {
     private bool _visible;
+    private CancellationTokenSource? _hideCts;
 
     protected override void OnInitialized()
     {
@@ -15,12 +16,30 @@
         _visible = Loading.IsLoading;
     }
 
-    private void OnChanged()
-        => _ = InvokeAsync(() =>
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        if (Loading.IsLoading)
         {
-            _visible = Loading.IsLoading;
-            StateHasChanged();
-        });
+            _hideCts?.Cancel();                 // a new request arrived — keep the bar up
+            if (!_visible) { _visible = true; StateHasChanged(); }
+        }
+        else
+        {
+            // Debounce the hide so brief gaps between back-to-back requests (e.g. several parallel or
+            // sequential API calls on one page) don't flash the bar off and on. Showing stays instant.
+            _hideCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _hideCts = cts;
+            try { await Task.Delay(180, cts.Token); }
+            catch (TaskCanceledException) { return; }
+            if (!Loading.IsLoading && _visible) { _visible = false; StateHasChanged(); }
+        }
+    });
 
-    public void Dispose() => Loading.Changed -= OnChanged;
+    public void Dispose()
+    {
+        Loading.Changed -= OnChanged;
+        _hideCts?.Cancel();
+        _hideCts?.Dispose();
+    }
 }
