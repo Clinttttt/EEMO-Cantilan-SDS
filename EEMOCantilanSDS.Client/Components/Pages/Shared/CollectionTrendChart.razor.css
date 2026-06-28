@@ -198,16 +198,20 @@
     color: var(--navy);
 }
 
-/* Empty state */
+/* Empty state — fills the exact gridline box (top:14 / bottom:50 / sides:18) so it sits dead-centre */
 .rpt-empty {
-    flex: 1;
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    right: 18px;
+    bottom: 50px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 6px;
     color: var(--text-muted);
-    padding: 30px 0;
+    text-align: center;
 }
 .rpt-empty-icon svg { width: 40px; height: 40px; stroke: var(--text-subtle); opacity: 0.6; }
 .rpt-empty-title { font-size: 14px; font-weight: 700; color: var(--text-subtle); }

@@ -14,5 +14,6 @@ public record UnreceiptedPaymentDto(
     string Occupant,
     decimal Amount,
     int Count,
-    bool IsDaily
+    bool IsDaily,
+    Guid StallId = default
 );

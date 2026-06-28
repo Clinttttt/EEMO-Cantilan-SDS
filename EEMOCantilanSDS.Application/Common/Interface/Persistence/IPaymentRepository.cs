@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -17,6 +18,11 @@ public interface IPaymentRepository
     /// </summary>
     Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct);
     Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct);
+    /// <summary>
+    /// Cursor-paginated transparency log of a stall's collections, newest first. NPM → recorded daily
+    /// collections (paid/absent); monthly facilities → payment records. Cursor is the last row's date.
+    /// </summary>
+    Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(Guid stallId, DateTime? cursor, int pageSize, CancellationToken ct);
     Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     Task AddAsync(PaymentRecord payment, CancellationToken ct);

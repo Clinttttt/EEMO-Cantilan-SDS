@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
+using EEMOCantilanSDS.Application.Queries.Payments.GetStallCollectionHistory;
 using EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetClosedStallAccounts;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
@@ -79,6 +80,15 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<Application.Dtos.Payments.StallLedgerSummaryDto>> GetLedgerSummary(Guid stallId)
     {
         var query = new GetStallLedgerSummaryQuery(stallId);
+        var result = await Sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("{stallId}/collection-history")]
+    public async Task<ActionResult<CursorPagedResult<Application.Dtos.Payments.StallCollectionHistoryRowDto>>> GetCollectionHistory(
+        Guid stallId, [FromQuery] DateTime? cursor = null, [FromQuery] int pageSize = 10)
+    {
+        var query = new GetStallCollectionHistoryQuery(stallId, cursor, pageSize);
         var result = await Sender.Send(query);
         return HandleResponse(result);
     }

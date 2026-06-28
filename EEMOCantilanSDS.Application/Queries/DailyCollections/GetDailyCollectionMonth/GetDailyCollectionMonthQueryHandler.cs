@@ -75,7 +75,8 @@ public class GetDailyCollectionMonthQueryHandler(
                 collection.FishKilos,
                 // A market closure outranks an individual "absent" marker for display.
                 IsAbsent: collection.IsAbsent && !closedToday,
-                IsMarketClosed: closedToday && !collection.IsPaid
+                IsMarketClosed: closedToday && !collection.IsPaid,
+                ORNumber: collection.ORNumber
             );
 
             if (collection.IsPaid && day >= contractStartDay)

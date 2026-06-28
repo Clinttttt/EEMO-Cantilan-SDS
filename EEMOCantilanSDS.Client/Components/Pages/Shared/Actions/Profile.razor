@@ -219,69 +219,6 @@
                 <!-- RIGHT COL -->
                 <div class="prof-col">
 
-                    <!-- This Month Status -->
-                    <div class="prof-card">
-                        <div class="prof-card-header">
-                            <div class="prof-card-icon">
-                                <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                            </div>
-                            <div class="prof-card-title">@DateTime.Now.ToString("MMMM yyyy") — Payment Status</div>
-                        </div>
-
-                        @if (!IsNpm)
-                        {
-                        <div class="prof-month-status @(Stall.IsPaid ? "month-paid" : Stall.IsPartial ? "month-partial" : "month-unpaid")">
-                            <div class="prof-month-icon">
-                                @if (Stall.IsPaid)
-                                {
-                                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                }
-                                else if (Stall.IsPartial)
-                                {
-                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/></svg>
-                                }
-                                else
-                                {
-                                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                }
-                            </div>
-                            <div>
-                                <div class="prof-month-label">
-                                    @(Stall.IsPaid ? "Fully Paid" : Stall.IsPartial ? "Partially Paid" : "Unpaid")
-                                </div>
-                                <div class="prof-month-sub">
-                                    @if (Stall.IsPaid)
-                                    {
-                                        @($"₱{Stall.TotalBill:N0} settled")
-                                    }
-                                    else if (Stall.IsPartial)
-                                    {
-                                        @($"₱{Stall.PartialAmount:N0} paid · ₱{Stall.BalanceDue:N0} remaining")
-                                    }
-                                    else
-                                    {
-                                        @($"₱{Stall.TotalBill:N0} outstanding")
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                        }
-
-                        <div class="prof-field-list" style="margin-top:12px;">
-                            <div class="prof-field">
-                                <span class="prof-field-label">OR Number</span>
-                                <span class="prof-field-val mono">@(string.IsNullOrEmpty(Stall.ORNumber) ? "— Not issued" : Stall.ORNumber)</span>
-                            </div>
-                            <div class="prof-field">
-                                <span class="prof-field-label">Assigned Collector</span>
-                                <span class="prof-field-val">
-                                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--text-muted);fill:none;stroke-width:2;vertical-align:middle;margin-right:4px;"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                    @(string.IsNullOrEmpty(Stall.CollectorName) ? "—" : Stall.CollectorName)
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Collection history -->
                     <div class="prof-card">
                         <div class="prof-card-header">
@@ -410,6 +347,70 @@
                         </div>
                     </div>
 
+                    <!-- Collection History (transparency log, cursor-paginated 10/page) -->
+                    <div class="prof-card">
+                        <div class="prof-card-header">
+                            <div class="prof-card-icon">
+                                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                            </div>
+                            <div class="prof-card-title">Collection History</div>
+                        </div>
+
+                        @if (_historyLoading && _history.Count == 0)
+                        {
+                            <div class="prof-ch-state">Loading collection history…</div>
+                        }
+                        else if (_historyError && _history.Count == 0)
+                        {
+                            <div class="prof-ch-state">
+                                Couldn't load collection history.
+                                <button type="button" class="prof-ch-retry" @onclick="() => LoadHistory(true)" disabled="@_historyLoading">
+                                    @(_historyLoading ? "Retrying…" : "Retry")
+                                </button>
+                            </div>
+                        }
+                        else if (_history.Count == 0)
+                        {
+                            <div class="prof-ch-state">No collections recorded yet.</div>
+                        }
+                        else
+                        {
+                            <div class="prof-ch-wrap">
+                                <table class="prof-ch-table">
+                                    <thead>
+                                        <tr>
+                                            <th>@(IsNpm ? "Date" : "Period")</th>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th class="prof-ch-r">Amount</th>
+                                            <th>OR No.</th>
+                                            <th>Collector</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in _history)
+                                        {
+                                            <tr>
+                                                <td class="prof-ch-date">@row.Date.ToString(IsNpm ? "MMM d, yyyy" : "MMM yyyy")</td>
+                                                <td>@row.PayorName</td>
+                                                <td><span class="prof-ch-pill prof-ch-@row.Status.ToLowerInvariant()">@row.Status</span></td>
+                                                <td class="prof-ch-r mono">@(row.Amount > 0 ? $"₱{row.Amount:N0}" : "—")</td>
+                                                <td class="mono">@(string.IsNullOrWhiteSpace(row.ORNumber) ? "—" : row.ORNumber)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(row.CollectorName) ? "—" : row.CollectorName)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (_historyHasMore)
+                            {
+                                <button type="button" class="prof-ch-more" @onclick="LoadMoreHistory" disabled="@_historyLoading">
+                                    @(_historyLoading ? "Loading…" : "Load more")
+                                </button>
+                            }
+                        }
+                    </div>
+
                 </div>
             </div>
 
@@ -528,6 +529,47 @@
     private int _heatCollected;
     private int _heatMissed;
 
+    // Collection history (transparency log) — cursor-paginated 10/page (NPM days / monthly records).
+    private readonly List<StallCollectionHistoryRowDto> _history = new();
+    private DateTime? _historyCursor;
+    private bool _historyHasMore;
+    private bool _historyLoading;
+    private bool _historyError;
+
+    private async Task LoadHistory(bool reset)
+    {
+        if (StallGuid == Guid.Empty || _historyLoading) return;
+        if (reset)
+        {
+            _history.Clear();
+            _historyCursor = null;
+            _historyHasMore = false;
+        }
+        _historyLoading = true;
+        _historyError = false;
+        try
+        {
+            var result = await StallsApi.GetStallCollectionHistoryAsync(StallGuid, _historyCursor, 10);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _history.AddRange(result.Value.Items);
+                _historyCursor = result.Value.NextCursor;
+                _historyHasMore = result.Value.HasMore;
+            }
+            else
+            {
+                // Distinguish a failed fetch from a genuinely empty log (don't show "no records").
+                _historyError = true;
+            }
+        }
+        finally
+        {
+            _historyLoading = false;
+        }
+    }
+
+    private Task LoadMoreHistory() => LoadHistory(reset: false);
+
     class StallProfile
     {
         public string Facility { get; set; } = string.Empty;
@@ -559,7 +601,6 @@
         public decimal BalanceDue => TotalBill - TotalPaid;
         public bool IsActive { get; set; } = true;
         public string ORNumber { get; set; } = string.Empty;
-        public string CollectorName { get; set; } = string.Empty;
         public string Remarks { get; set; } = string.Empty;
         public Dictionary<string, string> PaymentHistory { get; set; } = new();
         // Authoritative daily-aware rolling 12-month ledger totals (from the server).
@@ -714,7 +755,6 @@
                     PartialAmount = partialAmount,
                     IsActive = stallDto.Status == Domain.Enums.StallStatus.Active,
                     ORNumber = orNumber,
-                    CollectorName = string.Empty,
                     Remarks = stallDto.Remarks ?? string.Empty,
                     PaymentHistory = paymentHistory,
                     LedgerSummary = (await ledgerTask).Value
@@ -730,6 +770,15 @@
         }
         
         IsLoading = false;
+
+        // Collection history loads off the first-paint critical path: paint the profile now
+        // (StateHasChanged), then fetch page 1 while the card shows its own loading state, so a
+        // slow history query never delays the whole page.
+        if (StallGuid != Guid.Empty)
+        {
+            StateHasChanged();
+            await LoadHistory(reset: true);
+        }
     }
 
     string GetFacilityName(string facilityId)

@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Extensions;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -74,6 +75,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             {
                 Code = p.Stall!.Facility!.Code,
                 p.Stall.StallNo,
+                p.StallId,
                 Occupant = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
                 p.BaseRentalAmount,
                 p.ElecAmount,
@@ -89,7 +91,8 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0)
                 + (p.FishKilos.HasValue ? p.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
             1,
-            IsDaily: false));
+            IsDaily: false,
+            StallId: p.StallId));
 
         // ── NPM daily: paid daily collections with a blank OR, grouped per stall for the period ──
         var dailyRaw = await context.DailyCollections
@@ -101,6 +104,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             {
                 Code = dc.Stall!.Facility!.Code,
                 dc.Stall.StallNo,
+                dc.StallId,
                 Occupant = dc.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
                 dc.DailyFee,
                 dc.FishKilos
@@ -115,7 +119,8 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 string.IsNullOrWhiteSpace(g.Key.Occupant) ? string.Empty : g.Key.Occupant!,
                 g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)),
                 g.Count(),
-                IsDaily: true));
+                IsDaily: true,
+                StallId: g.First().StallId));
 
         return monthly.Concat(daily).ToList();
     }
@@ -417,6 +422,88 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         }
 
         return new StallLedgerSummaryDto(monthsPaid, monthsUnpaid, totalCollected, totalOutstanding);
+    }
+
+    public async Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(
+        Guid stallId, DateTime? cursor, int pageSize, CancellationToken ct)
+    {
+        if (pageSize <= 0) pageSize = 10;
+
+        var stall = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .FirstOrDefaultAsync(s => s.Id == stallId, ct);
+        if (stall is null)
+            return new CursorPagedResult<StallCollectionHistoryRowDto>();
+
+        var payorName = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant ?? "—";
+
+        if (stall.Facility?.Code == FacilityCode.NPM)
+        {
+            // NPM: one row per recorded daily collection (paid or absent), newest first; cursor = date.
+            var q = context.DailyCollections.AsNoTracking()
+                .Where(d => d.StallId == stallId && (d.IsPaid || d.IsAbsent));
+            if (cursor.HasValue)
+            {
+                var cursorDate = DateOnly.FromDateTime(cursor.Value);
+                q = q.Where(d => d.CollectionDate < cursorDate);
+            }
+            q = q.OrderByDescending(d => d.CollectionDate);
+
+            var paged = await q.ToCursorPagedResultAsync(pageSize, d => d.CollectionDate.ToDateTime(TimeOnly.MinValue), ct);
+            var names = await LoadCollectorNamesAsync(paged.Items.Select(d => d.CollectorId), ct);
+
+            return new CursorPagedResult<StallCollectionHistoryRowDto>
+            {
+                Items = paged.Items.Select(d => new StallCollectionHistoryRowDto(
+                    d.CollectionDate.ToDateTime(TimeOnly.MinValue),
+                    payorName,
+                    d.IsPaid ? "Paid" : "Absent",
+                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m) : 0m,
+                    d.ORNumber,
+                    d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null)).ToList(),
+                NextCursor = paged.NextCursor,
+                HasMore = paged.HasMore
+            };
+        }
+
+        // Monthly facilities: one row per payment record, newest billing month first; cursor = month.
+        var mq = context.PaymentRecords.AsNoTracking().Where(p => p.StallId == stallId);
+        if (cursor.HasValue)
+        {
+            int cy = cursor.Value.Year, cm = cursor.Value.Month;
+            mq = mq.Where(p => p.BillingYear < cy || (p.BillingYear == cy && p.BillingMonth < cm));
+        }
+        mq = mq.OrderByDescending(p => p.BillingYear).ThenByDescending(p => p.BillingMonth);
+
+        var mPaged = await mq.ToCursorPagedResultAsync(pageSize, p => (DateTime?)new DateTime(p.BillingYear, p.BillingMonth, 1), ct);
+        var mNames = await LoadCollectorNamesAsync(mPaged.Items.Select(p => p.CollectorId), ct);
+
+        return new CursorPagedResult<StallCollectionHistoryRowDto>
+        {
+            Items = mPaged.Items.Select(p => new StallCollectionHistoryRowDto(
+                new DateTime(p.BillingYear, p.BillingMonth, 1),
+                payorName,
+                p.Status.ToString(),
+                p.AmountPaid,
+                p.ORNumber,
+                p.CollectorId is Guid cid && mNames.TryGetValue(cid, out var nm) ? nm : null)).ToList(),
+            NextCursor = mPaged.NextCursor,
+            HasMore = mPaged.HasMore
+        };
+    }
+
+    // Resolves collector display names for a page of records (admin-recorded entries have no collector).
+    private async Task<Dictionary<Guid, string>> LoadCollectorNamesAsync(IEnumerable<Guid?> collectorIds, CancellationToken ct)
+    {
+        var ids = collectorIds.Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<Guid, string>();
+        return await context.CollectorUsers
+            .AsNoTracking()
+            .Where(c => ids.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.FullName ?? string.Empty, ct);
     }
 
     // Days in [start, end] where the stall is active and under an effective contract (NPM-style).

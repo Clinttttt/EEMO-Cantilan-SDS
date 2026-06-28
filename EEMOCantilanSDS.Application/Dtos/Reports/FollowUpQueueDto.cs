@@ -35,5 +35,6 @@ public record FollowUpItemDto(
     string Period,
     string Status,
     string Action,       // button label, e.g. "View vendor", "Encode OR"
-    string Link          // client route, e.g. "/profile/bbq/4"
+    string Link,         // client route, e.g. "/profile/bbq/4"
+    Guid? StallId = null // present for rows that act on a specific stall (e.g. inline daily Add-OR)
 );

@@ -21,5 +21,6 @@ public sealed record DailyCollectionDayDto(
     bool IsPaid,
     decimal? FishKilos,
     bool IsAbsent = false,
-    bool IsMarketClosed = false
+    bool IsMarketClosed = false,
+    string? ORNumber = null
 );

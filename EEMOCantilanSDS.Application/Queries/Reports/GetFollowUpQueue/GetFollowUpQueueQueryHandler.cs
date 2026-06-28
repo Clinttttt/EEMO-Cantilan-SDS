@@ -140,12 +140,14 @@ public class GetFollowUpQueueQueryHandler(
         foreach (var g in slaughter.Where(t => string.IsNullOrWhiteSpace(t.ORNumber))
                      .GroupBy(t => Named(t.OwnerName)))
         {
+            // A receipt = one visit (owner + date); a visit may span several animal-type rows.
+            var receipts = g.Select(t => t.TransactionDate).Distinct().Count();
             items.Add(new FollowUpItemDto(
                 SecOperational, "Normal", "Missing OR", "missingor",
                 FacilityCode.SLH, Model(FacilityCode.SLH), g.Key,
-                $"{g.Count()} receipt{(g.Count() == 1 ? "" : "s")}",
+                $"{receipts} receipt{(receipts == 1 ? "" : "s")}",
                 g.Sum(t => t.TotalAmount), false, periodLabel,
-                "Recorded · OR blank", "Encode OR", "/slh"));
+                "Recorded · OR blank", "Add OR", "/slh"));
         }
 
         var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);
@@ -157,7 +159,7 @@ public class GetFollowUpQueueQueryHandler(
                 FacilityCode.TRM, Model(FacilityCode.TRM), g.Key,
                 $"{g.Count()} trip{(g.Count() == 1 ? "" : "s")}",
                 g.Sum(t => t.Fee), false, periodLabel,
-                "Paid · OR blank", "Encode OR", "/trm"));
+                "Paid · OR blank", "Add OR", "/trm"));
         }
 
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
@@ -169,7 +171,7 @@ public class GetFollowUpQueueQueryHandler(
                 FacilityCode.TPM, Model(FacilityCode.TPM), g.Key,
                 $"{g.Count()} market day{(g.Count() == 1 ? "" : "s")}",
                 g.Sum(a => a.Fee), false, periodLabel,
-                "Paid · OR blank", "Encode OR", "/tpm"));
+                "Paid · OR blank", "Add OR", "/tpm"));
         }
 
         // ── 4b) Missing OR — cash/field records fully paid but not yet receipted ──
@@ -185,7 +187,8 @@ public class GetFollowUpQueueQueryHandler(
                     u.Facility, Model(u.Facility), Named(u.Occupant),
                     $"Stall {u.StallNo} · {u.Count} day{(u.Count == 1 ? "" : "s")}",
                     u.Amount, false, periodLabel,
-                    "Paid daily · OR blank", "Open daily calendar", "/npm"));
+                    "Paid daily · OR blank", "Add OR", "/npm",
+                    StallId: u.StallId));
             }
             else
             {
@@ -193,7 +196,8 @@ public class GetFollowUpQueueQueryHandler(
                     SecImmediate, "High", "Missing OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant), $"Stall {u.StallNo}",
                     u.Amount, false, periodLabel,
-                    "Paid · OR blank", "Encode OR", ProfileLink(u.Facility, u.StallNo)));
+                    "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallNo),
+                    StallId: u.StallId));
             }
         }
 

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
@@ -14,5 +15,6 @@ public interface ISlaughterApiClient
     Task<Result<OwnerTransactionHistoryDto>> GetOwnerHistoryAsync(string ownerName, int year, int month);
     Task<Result<bool>> RecordTransactionAsync(RecordSlaughterCommand command);
     Task<Result<bool>> UpdateTransactionAsync(UpdateSlaughterCommand command);
+    Task<Result<bool>> SaveOrNumberAsync(SaveSlaughterOrNumberCommand command);
     Task<Result<ClientProfileDto>> GetClientProfileAsync(string ownerName);
 }

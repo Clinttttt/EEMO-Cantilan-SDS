@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Requests.Stalls;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -66,4 +67,11 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
 
     public async Task<Result<bool>> RenewStallContractAsync(Guid stallId, RenewStallContractRequest request) =>
         await PostAsync<RenewStallContractRequest, bool>($"api/Stalls/{stallId}/renew", request);
+
+    public async Task<Result<CursorPagedResult<StallCollectionHistoryRowDto>>> GetStallCollectionHistoryAsync(Guid stallId, DateTime? cursor = null, int pageSize = 10)
+    {
+        var url = $"api/Stalls/{stallId}/collection-history?pageSize={pageSize}";
+        if (cursor.HasValue) url += $"&cursor={cursor.Value:O}";
+        return await GetAsync<CursorPagedResult<StallCollectionHistoryRowDto>>(url);
+    }
 }

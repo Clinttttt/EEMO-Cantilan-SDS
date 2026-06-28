@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Requests.Stalls;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -19,4 +20,5 @@ public interface IStallsApiClient
     Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command);
     Task<Result<IReadOnlyList<ClosedStallAccountDto>>> GetClosedStallAccountsAsync();
     Task<Result<bool>> RenewStallContractAsync(Guid stallId, RenewStallContractRequest request);
+    Task<Result<CursorPagedResult<StallCollectionHistoryRowDto>>> GetStallCollectionHistoryAsync(Guid stallId, DateTime? cursor = null, int pageSize = 10);
 }

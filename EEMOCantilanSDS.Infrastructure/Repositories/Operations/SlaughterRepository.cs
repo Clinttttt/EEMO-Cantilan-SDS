@@ -322,6 +322,12 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             .Where(x => x.OwnerName == ownerName && x.TransactionDate == date && x.ORNumber == orNumber)
             .ToListAsync(ct);
 
+    public async Task<IReadOnlyList<SlaughterTransaction>> GetUnreceiptedByOwnerDateAsync(string ownerName, DateOnly transactionDate, CancellationToken ct = default)
+        => await context.SlaughterTransactions
+            .Where(x => x.OwnerName == ownerName && x.TransactionDate == transactionDate
+                     && (x.ORNumber == null || x.ORNumber == ""))
+            .ToListAsync(ct);
+
     public Task RemoveAsync(SlaughterTransaction transaction, CancellationToken ct = default)
     {
         context.SlaughterTransactions.Remove(transaction);

@@ -132,5 +132,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
         public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+
+        /// <summary>
+        /// Stamps the official receipt (OR) number. One OR covers a customer's whole visit, so the
+        /// same value is applied to every animal row of the (owner, date) receipt by the caller.
+        /// </summary>
+        public void SetOrNumber(string orNumber, string updatedBy)
+        {
+            ORNumber = orNumber;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
     }
 }

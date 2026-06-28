@@ -23,6 +23,12 @@ public interface ISlaughterRepository
     /// </summary>
     Task<bool> IsORNumberAvailableForReceiptAsync(string orNumber, string ownerName, DateOnly transactionDate, CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransaction>> GetTransactionsByOwnerDateORAsync(string ownerName, DateOnly date, string orNumber, CancellationToken ct = default);
+    /// <summary>
+    /// Tracked rows for a single visit (<paramref name="ownerName"/> + <paramref name="transactionDate"/>)
+    /// that still have a blank OR — i.e. an unreceipted receipt. Used to stamp one OR across all its
+    /// animal rows.
+    /// </summary>
+    Task<IReadOnlyList<SlaughterTransaction>> GetUnreceiptedByOwnerDateAsync(string ownerName, DateOnly transactionDate, CancellationToken ct = default);
     Task RemoveAsync(SlaughterTransaction transaction, CancellationToken ct = default);
     Task<ClientProfileDto?> GetClientProfileAsync(string ownerName, CancellationToken ct = default);
 }

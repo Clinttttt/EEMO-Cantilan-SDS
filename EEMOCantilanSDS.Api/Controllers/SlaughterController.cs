@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Api.Controllers;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetClientProfile;
@@ -66,6 +67,13 @@ public class SlaughterController(ISender sender) : ApiBaseController(sender)
 
     [HttpPut("update")]
     public async Task<ActionResult<bool>> UpdateSlaughter([FromBody] UpdateSlaughterCommand command)
+    {
+        var result = await sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("or")]
+    public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveSlaughterOrNumberCommand command)
     {
         var result = await sender.Send(command);
         return HandleResponse(result);

@@ -138,9 +138,10 @@ public class GetFollowUpQueueQueryHandlerTests
     public async Task CashPaidRecord_MissingOr_SurfacesAsImmediate_WithoutDuplicatingOnline()
     {
         // A fully-paid cash monthly record with a blank OR (TCC stall 03).
+        var stallId = Guid.NewGuid();
         var handler = Build(new[]
         {
-            new UnreceiptedPaymentDto(FacilityCode.TCC, "03", "Jose Cruz", 2_400m, 1, IsDaily: false),
+            new UnreceiptedPaymentDto(FacilityCode.TCC, "03", "Jose Cruz", 2_400m, 1, IsDaily: false, StallId: stallId),
         });
 
         var result = await handler.Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
@@ -153,8 +154,35 @@ public class GetFollowUpQueueQueryHandlerTests
         var cash = Assert.Single(missing, i => i.Facility == FacilityCode.TCC);
         Assert.Equal(1, cash.Section);            // immediate action
         Assert.Equal("High", cash.Priority);
-        Assert.Equal("Encode OR", cash.Action);
+        Assert.Equal("Add OR", cash.Action);      // inline OR entry, carrying the stall to act on
+        Assert.Equal(stallId, cash.StallId);
         Assert.Equal("/profile/tcc/03", cash.Link);
         Assert.Equal(2_400m, cash.Amount);
+
+        // The online row keeps its own encode flow.
+        var online = Assert.Single(missing, i => i.Facility == FacilityCode.NCC);
+        Assert.Equal("Encode OR", online.Action);
+    }
+
+    [Fact]
+    public async Task DailyCashReceipt_MissingOr_SurfacesOperational_WithInlineAddOr_AndStallId()
+    {
+        var stallId = Guid.NewGuid();
+        // A stall with 15 paid daily collections in the period, all with a blank OR.
+        var handler = Build(new[]
+        {
+            new UnreceiptedPaymentDto(FacilityCode.NPM, "1", "Pantom Dant", 450m, 15, IsDaily: true, StallId: stallId),
+        });
+
+        var result = await handler.Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+
+        var daily = Assert.Single(result.Value!.Items, i => i.Reason == "Daily receipt · OR");
+        Assert.Equal(4, daily.Section);             // facility-specific operational
+        Assert.Equal("missingor", daily.ReasonKind);
+        Assert.Equal("Add OR", daily.Action);       // inline modal, not "Open daily calendar"
+        Assert.Equal(stallId, daily.StallId);       // carries the stall so the modal can act on it
+        Assert.Equal(450m, daily.Amount);
+        Assert.Contains("15 day", daily.Identifier);
     }
 }

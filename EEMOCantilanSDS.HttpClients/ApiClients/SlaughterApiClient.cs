@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
+using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
@@ -28,6 +29,9 @@ public class SlaughterApiClient(HttpClient http) : HandleResponse(http), ISlaugh
 
     public async Task<Result<bool>> UpdateTransactionAsync(UpdateSlaughterCommand command) =>
         await PutAsync<UpdateSlaughterCommand, bool>("api/slaughter/update", command);
+
+    public async Task<Result<bool>> SaveOrNumberAsync(SaveSlaughterOrNumberCommand command) =>
+        await PostAsync<SaveSlaughterOrNumberCommand, bool>("api/slaughter/or", command);
 
     public async Task<Result<ClientProfileDto>> GetClientProfileAsync(string ownerName) =>
         await GetAsync<ClientProfileDto>($"api/slaughter/client/{Uri.EscapeDataString(ownerName)}");
