@@ -1951,12 +1951,13 @@ a.topbar-admin.account-chip {
 /* ── Reusable table/list row skeleton (reads like real rows, not bare blocks) ── */
 .sk-rows { display: flex; flex-direction: column; }
 .sk-rows .sk-row {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     align-items: center;
-    gap: 16px;
-    padding: 14px 6px;
+    gap: 22px;
+    padding: 14px 10px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
 }
 .sk-rows .sk-row:last-child { border-bottom: none; }
-.sk-rows .sk-row .sk-spacer { flex: 1 1 auto; }
 .sk-rows .sk-head { padding-bottom: 12px; }

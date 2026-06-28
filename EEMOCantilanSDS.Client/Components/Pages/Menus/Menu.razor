@@ -189,22 +189,12 @@
                                 </div>
                             </div>
 
-                            @if (PaidOnService(fac.Code))
-                            {
-                                <div class="facility-onservice" title="Collected at the point of service — no recurring balance">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                                    Paid on service
+                            <div class="facility-progress-wrap">
+                                <div class="facility-progress-bar">
+                                    <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
                                 </div>
-                            }
-                            else
-                            {
-                                <div class="facility-progress-wrap">
-                                    <div class="facility-progress-bar">
-                                        <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
-                                    </div>
-                                    <span class="facility-progress-pct">@fac.CollectionRate%</span>
-                                </div>
-                            }
+                                <span class="facility-progress-pct">@fac.CollectionRate%</span>
+                            </div>
 
                             <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
                                 @ActionLabel(fac.Code)
