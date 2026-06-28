@@ -1,6 +1,6 @@
 @page "/reports/closed-accounts"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls

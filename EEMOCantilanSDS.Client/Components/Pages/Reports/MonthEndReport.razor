@@ -1,6 +1,6 @@
 @page "/reports/month-end"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common

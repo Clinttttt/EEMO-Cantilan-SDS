@@ -2,7 +2,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject IVendorsApiClient VendorsApi

@@ -163,11 +163,15 @@
             }
             else if (isLoadingAttendance)
             {
-                <div class="sk-stack">
-                    <Skeleton Height="56px" Radius="10px" />
+                <div class="sk-rows">
                     @for (var _i = 0; _i < 8; _i++)
                     {
-                        <Skeleton Height="46px" Radius="8px" />
+                        <div class="sk-row">
+                            <Skeleton Width="150px" Height="13px" Radius="6px" />
+                            <Skeleton Width="64px" Height="22px" Radius="999px" />
+                            <span class="sk-spacer"></span>
+                            <Skeleton Width="80px" Height="13px" Radius="6px" />
+                        </div>
                     }
                 </div>
             }

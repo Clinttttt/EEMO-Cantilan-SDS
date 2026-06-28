@@ -1,7 +1,7 @@
 @page "/payor/payment/success"
 @layout PayorLayout
 @attribute [AllowAnonymous]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @inject IPayorApiClient PayorApi
 @inject NavigationManager Nav

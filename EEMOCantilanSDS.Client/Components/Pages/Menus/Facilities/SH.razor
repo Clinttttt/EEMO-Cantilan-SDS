@@ -199,11 +199,16 @@
         <div class="panel">
             @if (isLoading)
             {
-                <div class="sk-stack">
-                    <Skeleton Height="40px" Radius="8px" />
+                <div class="sk-rows">
                     @for (var _i = 0; _i < 8; _i++)
                     {
-                        <Skeleton Height="46px" Radius="8px" />
+                        <div class="sk-row">
+                            <Skeleton Width="140px" Height="13px" Radius="6px" />
+                            <Skeleton Width="64px" Height="22px" Radius="999px" />
+                            <span class="sk-spacer"></span>
+                            <Skeleton Width="90px" Height="13px" Radius="6px" />
+                            <Skeleton Width="70px" Height="13px" Radius="6px" />
+                        </div>
                     }
                 </div>
             }

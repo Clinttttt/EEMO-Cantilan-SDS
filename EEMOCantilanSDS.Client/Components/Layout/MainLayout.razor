@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <EEMOCantilanSDS.Client.Components.Shared.GlobalLoadingBar />
@@ -27,6 +28,17 @@ else
     {
         Navigation.LocationChanged += OnLocationChanged;
         UpdateSidebarVisibility();
+    }
+
+    // First interactive render means the circuit is up and the app shell is on screen — remove the
+    // branded boot splash that was covering the initial-load blank.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try { await JS.InvokeVoidAsync("hideStallTrackSplash"); }
+            catch { /* JS not ready / not on a circuit — the splash has its own timeout fallback */ }
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)

@@ -1,10 +1,10 @@
-﻿@page "/reports"
+@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IReportsApiClient ReportsApi
 
 <PageTitle>Financial Reports — EEMO Admin</PageTitle>

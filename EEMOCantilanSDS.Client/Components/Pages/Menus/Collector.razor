@@ -7,7 +7,7 @@
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 <PageTitle>EEMO Admin — Collectors</PageTitle>
 
 <header class="topbar">

@@ -1,6 +1,6 @@
 @page "/trm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject ITrmApiClient TrmApi

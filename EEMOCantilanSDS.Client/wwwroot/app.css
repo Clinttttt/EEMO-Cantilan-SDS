@@ -1866,3 +1866,97 @@ a.topbar-admin.account-chip {
     .admin-layout { display: block !important; }
     .no-print { display: none !important; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BOOT SPLASH — branded cover for the initial-load blank (prerender is off,
+   so the page is blank until the interactive circuit connects). Removed by
+   hideStallTrackSplash() on the app's first interactive render.
+   ══════════════════════════════════════════════════════════════════════ */
+.st-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: var(--bg, #f0f4f8);
+    opacity: 1;
+    transition: opacity .45s ease;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+}
+.st-splash.st-hide { opacity: 0; pointer-events: none; }
+
+.st-splash-ring {
+    position: relative;
+    width: 168px;
+    height: 168px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.st-splash-ring::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--navy, #0d2137) 12%, transparent);
+    border-top-color: var(--gold, #c8a84b);
+    border-right-color: var(--gold, #c8a84b);
+    animation: st-splash-spin 1s linear infinite;
+}
+.st-splash-logo {
+    width: 104px;
+    height: 104px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 22px rgba(13, 33, 55, .18));
+}
+.st-splash-title {
+    letter-spacing: .5em;
+    padding-left: .5em;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--navy, #0d2137);
+}
+.st-splash-bar {
+    width: 240px;
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--navy, #0d2137) 12%, transparent);
+    overflow: hidden;
+}
+.st-splash-bar span {
+    display: block;
+    height: 100%;
+    width: 40%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold, #c8a84b), var(--gold-light, #e8cc76));
+    animation: st-splash-bar 1.2s ease-in-out infinite;
+}
+.st-splash-sub {
+    color: var(--text-subtle, #6a8aa0);
+    font-size: 13.5px;
+}
+@keyframes st-splash-spin { to { transform: rotate(360deg); } }
+@keyframes st-splash-bar {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .st-splash-ring::before, .st-splash-bar span { animation: none; }
+}
+
+
+/* ── Reusable table/list row skeleton (reads like real rows, not bare blocks) ── */
+.sk-rows { display: flex; flex-direction: column; }
+.sk-rows .sk-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 6px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.sk-rows .sk-row:last-child { border-bottom: none; }
+.sk-rows .sk-row .sk-spacer { flex: 1 1 auto; }
+.sk-rows .sk-head { padding-bottom: 12px; }

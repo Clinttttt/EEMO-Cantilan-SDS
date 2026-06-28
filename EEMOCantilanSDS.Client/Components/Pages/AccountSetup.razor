@@ -5,7 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin
 @inject ISetupApiClient SetupApi
 @inject NavigationManager Navigation
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 <PageTitle>EEMO — Initial System Setup</PageTitle>
 
 <div class="setup-root">

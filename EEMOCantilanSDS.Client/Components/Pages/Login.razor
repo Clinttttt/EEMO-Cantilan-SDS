@@ -1,10 +1,10 @@
-﻿@page "/login"
+@page "/login"
 @attribute [AllowAnonymous]
 
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 @using EEMOCantilanSDS.Client.Securities
 @using Microsoft.AspNetCore.WebUtilities
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject AuthService AuthService
 @inject ISetupApiClient SetupApi
 @inject NavigationManager Navigation

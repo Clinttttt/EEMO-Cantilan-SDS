@@ -17,12 +17,33 @@
 </head>
 
 <body>
+    <div id="stalltrack-splash" class="st-splash">
+        <div class="st-splash-ring">
+            <img class="st-splash-logo" src="/images/logo_stalltrack.png" alt="StallTrack" />
+        </div>
+        <div class="st-splash-title">LOADING</div>
+        <div class="st-splash-bar"><span></span></div>
+        <div class="st-splash-sub">Please wait…</div>
+    </div>
     <Routes />
     <script src="_framework/blazor.web.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/modal.js"></script>
     <script src="/js/payor-hub.js"></script>
+    <script>
+        // Branded boot splash: shown by static HTML on initial load (prerender is off, so the page is
+        // blank until the interactive circuit connects). The app calls hideStallTrackSplash() from its
+        // first interactive render (MainLayout); the timeout is a safety net so it can never stick.
+        window.hideStallTrackSplash = function () {
+            var el = document.getElementById('stalltrack-splash');
+            if (!el || el.dataset.hiding) return;
+            el.dataset.hiding = '1';
+            el.classList.add('st-hide');
+            setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 500);
+        };
+        setTimeout(function () { window.hideStallTrackSplash(); }, 15000);
+    </script>
 </body>
 
 </html>

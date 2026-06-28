@@ -51,19 +51,29 @@
         <div class="trm-columns">
             <div class="trm-panel">
                 <div class="trm-panel-header"><Skeleton Width="200px" Height="20px" Radius="6px" /></div>
-                <div class="sk-stack">
+                <div class="sk-rows">
                     @for (var _i = 0; _i < 6; _i++)
                     {
-                        <Skeleton Height="48px" Radius="8px" />
+                        <div class="sk-row">
+                            <Skeleton Width="34px" Height="34px" Radius="8px" />
+                            <Skeleton Width="120px" Height="13px" Radius="6px" />
+                            <span class="sk-spacer"></span>
+                            <Skeleton Width="64px" Height="13px" Radius="6px" />
+                        </div>
                     }
                 </div>
             </div>
             <div class="trm-panel">
                 <div class="trm-panel-header"><Skeleton Width="160px" Height="20px" Radius="6px" /></div>
-                <div class="sk-stack">
+                <div class="sk-rows">
                     @for (var _i = 0; _i < 6; _i++)
                     {
-                        <Skeleton Height="48px" Radius="8px" />
+                        <div class="sk-row">
+                            <Skeleton Width="34px" Height="34px" Radius="8px" />
+                            <Skeleton Width="120px" Height="13px" Radius="6px" />
+                            <span class="sk-spacer"></span>
+                            <Skeleton Width="64px" Height="13px" Radius="6px" />
+                        </div>
                     }
                 </div>
             </div>

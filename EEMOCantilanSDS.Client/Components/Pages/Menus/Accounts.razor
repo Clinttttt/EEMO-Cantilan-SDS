@@ -9,7 +9,7 @@
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 <PageTitle>EEMO Admin — Accounts</PageTitle>
 
 <header class="topbar">

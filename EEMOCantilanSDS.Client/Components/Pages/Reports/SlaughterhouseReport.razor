@@ -3,7 +3,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 

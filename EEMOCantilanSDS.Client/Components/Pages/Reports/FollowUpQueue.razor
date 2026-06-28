@@ -1,6 +1,6 @@
 @page "/reports/follow-up"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Application.Dtos.Reports

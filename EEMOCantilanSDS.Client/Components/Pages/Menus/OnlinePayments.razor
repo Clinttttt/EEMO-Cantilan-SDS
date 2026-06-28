@@ -3,7 +3,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode InteractiveServer
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 
 <PageTitle>EEMO Admin — Online Payments</PageTitle>
