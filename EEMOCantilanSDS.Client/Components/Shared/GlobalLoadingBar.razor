@@ -1,0 +1,26 @@
+@namespace EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Securities
+@implements IDisposable
+@inject UiLoadingService Loading
+
+@* React/NProgress-style top bar: visible whenever any API request is in flight (circuit-scoped). *@
+<div class="global-progress @(_visible ? "is-active" : "")" aria-hidden="true"></div>
+
+@code {
+    private bool _visible;
+
+    protected override void OnInitialized()
+    {
+        Loading.Changed += OnChanged;
+        _visible = Loading.IsLoading;
+    }
+
+    private void OnChanged()
+        => _ = InvokeAsync(() =>
+        {
+            _visible = Loading.IsLoading;
+            StateHasChanged();
+        });
+
+    public void Dispose() => Loading.Changed -= OnChanged;
+}

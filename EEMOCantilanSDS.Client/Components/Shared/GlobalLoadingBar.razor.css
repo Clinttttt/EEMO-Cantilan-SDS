@@ -1,0 +1,42 @@
+.global-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 10000;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity .18s ease;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--navy, #0d2137) 12%, transparent);
+}
+
+.global-progress.is-active {
+    opacity: 1;
+}
+
+.global-progress::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -45%;
+    height: 100%;
+    width: 45%;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--gold, #c8a84b),
+        var(--gold-light, #e8cc76),
+        transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--gold, #c8a84b) 60%, transparent);
+}
+
+.global-progress.is-active::before {
+    animation: gp-indeterminate 1.05s ease-in-out infinite;
+}
+
+@keyframes gp-indeterminate {
+    0% { left: -45%; }
+    100% { left: 100%; }
+}

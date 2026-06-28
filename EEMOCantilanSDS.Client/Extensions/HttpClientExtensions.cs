@@ -17,6 +17,7 @@ namespace EEMOCantilanSDS.Client.Extensions
             {
                 client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
             })
+            .AddHttpMessageHandler(s => s.GetRequiredService<LoadingDelegatingHandler>())
             .AddHttpMessageHandler<RefreshTokenDelegatingHandler>()
             .AddHttpMessageHandler(s => s.GetRequiredService<AuthorizationDelegatingHandler>());
         }
