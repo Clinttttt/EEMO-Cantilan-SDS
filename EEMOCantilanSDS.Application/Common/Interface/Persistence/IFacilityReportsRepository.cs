@@ -27,6 +27,7 @@ public interface IFacilityReportsRepository
     /// </summary>
     Task<FacilitySnapshotDto> GetFacilitySnapshotAsync(
         FacilityCode facilityCode,
+        Guid facilityId,
         int year,
         int month,
         CancellationToken ct

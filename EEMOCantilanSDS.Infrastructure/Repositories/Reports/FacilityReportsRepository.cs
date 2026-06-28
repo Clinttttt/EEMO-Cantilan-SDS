@@ -152,17 +152,11 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
     /// </summary>
     public async Task<FacilitySnapshotDto> GetFacilitySnapshotAsync(
         FacilityCode facilityCode,
+        Guid facilityId,
         int year,
         int month,
         CancellationToken ct)
     {
-        var facility = await _context.Facilities
-            .AsNoTracking()
-            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
-        if (facility == null)
-            return new FacilitySnapshotDto(0m, 0m, 0, 0, 0, 0, 0);
-
-        var facilityId = facility.Id;
         var (start, end) = CalculateMonthlyDateRange(year, month);
 
         var collected = facilityCode == FacilityCode.NPM

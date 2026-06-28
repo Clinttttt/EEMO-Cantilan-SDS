@@ -91,7 +91,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
 
             // Stall facilities (NPM, TCC, NCC, BBQ, ICE) — delegate to the canonical, daily-aware
             // facility-reports aggregation so the dashboard matches the facility page and reports.
-            var snap = await facilityReports.GetFacilitySnapshotAsync(f.Code, year, month, ct);
+            var snap = await facilityReports.GetFacilitySnapshotAsync(f.Code, f.Id, year, month, ct);
             totalPending += snap.Pending;
             paidTransactions += snap.PaidTransactions;
             facilityCards.Add(new DashboardFacilityDto(
