@@ -1880,7 +1880,7 @@ a.topbar-admin.account-chip {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 28px;
+    gap: 22px;
     background: var(--bg, #f0f4f8);
     opacity: 1;
     transition: opacity .45s ease;
@@ -1890,8 +1890,8 @@ a.topbar-admin.account-chip {
 
 .st-splash-ring {
     position: relative;
-    width: 168px;
-    height: 168px;
+    width: 124px;
+    height: 124px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1907,10 +1907,10 @@ a.topbar-admin.account-chip {
     animation: st-splash-spin 1s linear infinite;
 }
 .st-splash-logo {
-    width: 104px;
-    height: 104px;
+    width: 74px;
+    height: 74px;
     object-fit: contain;
-    filter: drop-shadow(0 10px 22px rgba(13, 33, 55, .18));
+    filter: drop-shadow(0 8px 18px rgba(13, 33, 55, .18));
 }
 .st-splash-title {
     letter-spacing: .5em;
