@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
 using MediatR;
@@ -12,6 +13,15 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
 {
     [HttpPost("record")]
     public async Task<ActionResult<bool>> RecordDailyCollection([FromBody] RecordDailyCollectionCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    // OR numbers are entered manually by admins/head only (never by field collectors).
+    [HttpPost("or")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveDailyCollectionOrNumberCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

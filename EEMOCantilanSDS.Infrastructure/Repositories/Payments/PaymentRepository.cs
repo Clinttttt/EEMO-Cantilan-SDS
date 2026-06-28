@@ -151,7 +151,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                     paid.OrderByDescending(x => x.CollectionDate)
                         .Select(x => x.ORNumber)
                         .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or)),
-                    g.Any(x => x.IsAbsent && x.CollectionDate == today));
+                    g.Any(x => x.IsAbsent && x.CollectionDate == today),
+                    // OR of the single most-recent paid day (may be blank → that day is awaiting an OR).
+                    paid.OrderByDescending(x => x.CollectionDate).FirstOrDefault()?.ORNumber);
             })
             .ToList();
     }

@@ -175,3 +175,15 @@
     font-size: 11px;
     color: var(--text-muted);
 }
+
+/* Awaiting-OR call-to-action (NPM ops card): a gold-accented action button. */
+.action-btn.action-btn-or {
+    border-color: color-mix(in srgb, var(--gold, #c8a84b) 60%, transparent);
+    color: #b5872a;
+    background: color-mix(in srgb, var(--gold, #c8a84b) 12%, transparent);
+}
+.action-btn.action-btn-or:hover {
+    background: var(--gold, #c8a84b);
+    color: #fff;
+    border-color: var(--gold, #c8a84b);
+}

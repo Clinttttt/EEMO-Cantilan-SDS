@@ -94,5 +94,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
         public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+
+        /// <summary>
+        /// Stamps the OR (receipt) number on an already-PAID day — for when a collector recorded the
+        /// collection in the field without an OR and an admin adds it later. Leaves the paid amount,
+        /// collector, and fish kilos untouched. Only a paid day can carry an OR, so this is a no-op
+        /// for an unpaid/absent record.
+        /// </summary>
+        public void SetOrNumber(string orNumber, string updatedBy = "System")
+        {
+            if (!IsPaid) return;
+            ORNumber = orNumber;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
     }
 }

@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
@@ -152,6 +153,7 @@
                                  OnPaymentClick="OpenPayment"
                                  OnHistoryClick="OpenHistory"
                                  OnTodayStatusClick="ToggleAbsentToday"
+                                 OnAddOrClick="OpenAddOr"
                                  OnEditClick="OpenEdit" />
 
         </div><!-- end content-area -->
@@ -197,6 +199,46 @@
                 OnFacilityChanged="() => {}"
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
+
+
+@* ══════════════════════════════════════════════
+     ADD OR NUMBER (NPM daily collection — most-recent paid day with no OR yet)
+══════════════════════════════════════════════ *@
+@if (ShowAddOr && AddOrStall is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseAddOr">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Add OR Number</div>
+                    <div class="eemo-modal-sub">Stall @AddOrStall.StallNo · @AddOrStall.ActualOccupant</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="CloseAddOr">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <p class="or-modal-note">
+                    Enter the official receipt (OR) number for this payor's collection on
+                    <strong>@(AddOrStall.LastPaidDate?.ToString("MMMM d, yyyy"))</strong>.
+                </p>
+                <div class="form-group">
+                    <label class="form-label">OR Number</label>
+                    <input class="form-input" type="text" maxlength="50" placeholder="e.g. 1234567"
+                           value="@AddOrInput" @oninput="e => AddOrInput = e.Value?.ToString() ?? string.Empty" />
+                </div>
+                @if (!string.IsNullOrEmpty(AddOrError))
+                {
+                    <p class="or-modal-err">@AddOrError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseAddOr" disabled="@AddOrBusy">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmAddOr" disabled="@AddOrBusy">@(AddOrBusy ? "Saving…" : "Save OR")</button>
+            </div>
+        </div>
+    </div>
+}
 
 
 
@@ -316,10 +358,11 @@
 
                 dailyStatus.TryGetValue(dto.Id, out var ds);
 
-                // NPM ORs live on the daily collections (no monthly record), so prefer the latest
-                // daily OR for display (the receipt's reference OR).
-                if (!string.IsNullOrWhiteSpace(ds?.LastORNumber))
-                    orNumber = ds!.LastORNumber!;
+                // NPM ORs live on the daily collections. Show the OR of the MOST RECENT paid day —
+                // blank when that day was collected without one — so an older day's OR is never shown
+                // as if it were today's, and the admin sees the "Add OR" prompt for the missing one.
+                if (ds?.LastPaidDate is not null)
+                    orNumber = ds.LastPaidORNumber ?? string.Empty;
 
                 Stalls.Add(new NpmStall
                 {
@@ -346,6 +389,60 @@
                     PaymentHistory = new()
                 });
             }
+        }
+    }
+
+    // ── Add OR number to the most-recent paid day (NPM daily collection) ──
+    private bool ShowAddOr;
+    private NpmStall? AddOrStall;
+    private string AddOrInput = string.Empty;
+    private string? AddOrError;
+    private bool AddOrBusy;
+
+    private void OpenAddOr(NpmStall stall)
+    {
+        AddOrStall = stall;
+        AddOrInput = string.Empty;
+        AddOrError = null;
+        ShowAddOr = true;
+    }
+
+    private void CloseAddOr()
+    {
+        if (AddOrBusy) return;
+        ShowAddOr = false;
+        AddOrStall = null;
+        AddOrError = null;
+    }
+
+    private async Task ConfirmAddOr()
+    {
+        if (AddOrStall is null || AddOrStall.LastPaidDate is null)
+        {
+            AddOrError = "No paid day on record to receipt.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(AddOrInput))
+        {
+            AddOrError = "OR number is required.";
+            return;
+        }
+
+        AddOrBusy = true;
+        AddOrError = null;
+        var result = await DailyCollectionApi.SaveOrNumberAsync(
+            new SaveDailyCollectionOrNumberCommand(AddOrStall.StallGuid, AddOrStall.LastPaidDate.Value, AddOrInput.Trim()));
+        AddOrBusy = false;
+
+        if (result.IsSuccess)
+        {
+            ShowAddOr = false;
+            AddOrStall = null;
+            await LoadStallsFromApi();   // refresh so the OR now shows and the button disappears
+        }
+        else
+        {
+            AddOrError = result.Error ?? "Failed to save the OR number.";
         }
     }
 

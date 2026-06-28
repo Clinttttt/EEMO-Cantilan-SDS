@@ -1961,3 +1961,8 @@ a.topbar-admin.account-chip {
 }
 .sk-rows .sk-row:last-child { border-bottom: none; }
 .sk-rows .sk-head { padding-bottom: 12px; }
+
+/* ── Add-OR modal text (NPM daily collection) ── */
+.or-modal-note { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
+.or-modal-note strong { color: var(--navy); }
+.or-modal-err { margin-top: 10px; color: var(--red); font-size: 12.5px; font-weight: 600; }

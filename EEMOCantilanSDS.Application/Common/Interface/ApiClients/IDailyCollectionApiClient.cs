@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -8,4 +9,5 @@ public interface IDailyCollectionApiClient
 {
     Task<Result<bool>> RecordDailyCollectionAsync(RecordDailyCollectionCommand command);
     Task<Result<DailyCollectionMonthDto>> GetDailyCollectionMonthAsync(Guid stallId, int year, int month);
+    Task<Result<bool>> SaveOrNumberAsync(SaveDailyCollectionOrNumberCommand command);
 }

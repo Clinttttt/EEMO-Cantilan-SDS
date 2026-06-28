@@ -96,6 +96,12 @@
                                 </span>
                             }
                             <div class="action-btns ops-actions">
+                                @if (IsAwaitingOr(s))
+                                {
+                                    <button class="action-btn action-btn-or" title="Add OR number" @onclick="() => OnAddOrClick.InvokeAsync(s)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" /></svg>
+                                    </button>
+                                }
                                 <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                                 </button>
@@ -161,6 +167,12 @@
                                 </span>
                             }
                             <div class="action-btns ops-actions">
+                                @if (IsAwaitingOr(s))
+                                {
+                                    <button class="action-btn action-btn-or" title="Add OR number" @onclick="() => OnAddOrClick.InvokeAsync(s)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" /></svg>
+                                    </button>
+                                }
                                 <button class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
                                 </button>
@@ -266,6 +278,18 @@
 
     /// <summary>Operational (NPM) only: clicking the today-status pill toggles the day's Absent state.</summary>
     [Parameter] public EventCallback<TStall> OnTodayStatusClick { get; set; }
+
+    /// <summary>Operational (NPM) only: add an OR number to the most-recent paid day that has none.</summary>
+    [Parameter] public EventCallback<TStall> OnAddOrClick { get; set; }
+
+    // Awaiting-OR (NPM): there is a paid day on record but no OR number captured for it yet. Shown only
+    // in the operational view; hidden once any OR exists for the stall's recent collection.
+    private bool IsAwaitingOr(TStall stall)
+    {
+        if (ColumnSet != "Operational") return false;
+        var lastPaid = GetPropertyValue<DateOnly?>(stall, "LastPaidDate");
+        return lastPaid.HasValue && string.IsNullOrWhiteSpace(GetPropertyValue<string>(stall, "ORNumber"));
+    }
 
     /// <summary>When true, render shimmer placeholders instead of the stalls (initial load).</summary>
     [Parameter] public bool IsLoading { get; set; }
