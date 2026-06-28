@@ -525,12 +525,21 @@
     private FacilityReportsDto? ReportData { get; set; }
     private bool UsesContextOverrides => FacilityCode is "TRM" or "TPM" or "SLH";
 
+    private bool _wasOpen;
+    private string? _loadedFacility;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (IsOpen && !string.IsNullOrEmpty(FacilityCode))
+        // Load only when the modal OPENS or the target facility changes — not on every parent re-render
+        // while already open (that re-fetched the whole report repeatedly). Period/date changes inside the
+        // modal reload via their own handlers; context-override facilities re-render from bound parameters.
+        var nowOpen = IsOpen && !string.IsNullOrEmpty(FacilityCode);
+        if (nowOpen && (!_wasOpen || _loadedFacility != FacilityCode))
         {
+            _loadedFacility = FacilityCode;
             await LoadReportDataAsync();
         }
+        _wasOpen = nowOpen;
     }
 
     private async Task LoadReportDataAsync()

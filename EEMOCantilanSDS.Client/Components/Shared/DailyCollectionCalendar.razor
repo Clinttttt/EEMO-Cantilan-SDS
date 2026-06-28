@@ -179,9 +179,20 @@
         EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month,
         1);
 
+    private Guid _loadedStallId;
+    private bool _loadedOnce;
+
     protected override async Task OnParametersSetAsync()
     {
-        await LoadMonthData();
+        // Only (re)load when the stall actually changes (or on first render). OnParametersSetAsync fires
+        // on every parent re-render, so an unconditional load here re-fetched the month on every render.
+        // Month navigation (Prev/Next) reloads on its own, independent of parameters.
+        if (!_loadedOnce || _loadedStallId != StallId)
+        {
+            _loadedOnce = true;
+            _loadedStallId = StallId;
+            await LoadMonthData();
+        }
     }
 
     private async Task LoadMonthData()
