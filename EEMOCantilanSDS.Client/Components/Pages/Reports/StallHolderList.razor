@@ -79,6 +79,28 @@
     else
     {
         var visible = VisibleFacilities();
+        var allRows = visible.SelectMany(RowsFor).ToList();
+        var activeRows = allRows.Where(r => !r.IsClosed).ToList();
+
+        <!-- Quick-glance totals (screen only — excluded from print / PDF) -->
+        <div class="sh-summary no-print">
+            <div class="sh-sum-card">
+                <div class="sh-sum-val">@activeRows.Count</div>
+                <div class="sh-sum-lbl">Active Stalls</div>
+            </div>
+            <div class="sh-sum-card">
+                <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
+                <div class="sh-sum-lbl">Total Monthly Rate</div>
+            </div>
+            <div class="sh-sum-card">
+                <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
+                <div class="sh-sum-lbl">Total Whole-Year Rental</div>
+            </div>
+            <div class="sh-sum-card">
+                <div class="sh-sum-val">@visible.Count(f => RowsFor(f).Any())</div>
+                <div class="sh-sum-lbl">Facilities</div>
+            </div>
+        </div>
 
         <section class="sh-sheet">
             <header class="sh-rpt-head">
@@ -88,31 +110,6 @@
                 <div class="sh-muni">Municipality of Cantilan, Surigao del Sur</div>
                 <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityName(_facility.Value))</div>
             </header>
-
-            @{
-                var allRows = visible.SelectMany(RowsFor).ToList();
-                var activeRows = allRows.Where(r => !r.IsClosed).ToList();
-            }
-
-            <!-- Grand summary (reflects facility/search scope) -->
-            <div class="sh-summary">
-                <div class="sh-sum-card">
-                    <div class="sh-sum-val">@activeRows.Count</div>
-                    <div class="sh-sum-lbl">Active Stalls</div>
-                </div>
-                <div class="sh-sum-card">
-                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
-                    <div class="sh-sum-lbl">Total Monthly Rate</div>
-                </div>
-                <div class="sh-sum-card">
-                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
-                    <div class="sh-sum-lbl">Total Whole-Year Rental</div>
-                </div>
-                <div class="sh-sum-card">
-                    <div class="sh-sum-val">@visible.Count(f => RowsFor(f).Any())</div>
-                    <div class="sh-sum-lbl">Facilities</div>
-                </div>
-            </div>
 
             @if (allRows.Count == 0)
             {
@@ -128,7 +125,6 @@
                 <div class="sh-facility">
                     <div class="sh-fac-head">
                         <div class="sh-fac-title">
-                            <span class="sh-fac-code">@fc</span>
                             <span class="sh-fac-name">@FacilityName(fc)</span>
                             <span class="sh-tag">@Model(fc)</span>
                         </div>
@@ -289,8 +285,8 @@
                 {
                     <tr class="@(r.IsClosed ? "sh-row-closed" : "")">
                         <td class="sh-c">@n</td>
-                        <td class="sh-fw">@r.ActualOccupant</td>
-                        <td class="sh-muted">@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
+                        <td>@r.ActualOccupant</td>
+                        <td>@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
                         <td class="sh-c">@r.StallNo</td>
                         <td class="sh-c">@(r.EffectivityDate == default ? "—" : r.EffectivityDate.ToString("M/d/yyyy"))</td>
                         <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>

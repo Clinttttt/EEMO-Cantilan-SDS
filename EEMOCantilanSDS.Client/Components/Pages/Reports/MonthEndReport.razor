@@ -112,6 +112,32 @@
     }
     else
     {
+        var visibleFacilities = VisibleFacilities().ToList();
+        var sumCollected = visibleFacilities.Sum(ShownCollected);
+        var sumOutstanding = visibleFacilities.Sum(ShownOutstanding);
+        var sumRate = RateOf(sumCollected, sumOutstanding);
+        var (sumPaid, sumPartial, sumUnpaid) = ShownStatusCounts(visibleFacilities);
+
+        <!-- Quick-glance totals (screen only; excluded from print / PDF) -->
+        <div class="me-summary no-print">
+            <div class="me-sum-card">
+                <div class="me-sum-val">@Money(sumCollected)</div>
+                <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Collected" : "Collected")</div>
+            </div>
+            <div class="me-sum-card">
+                <div class="me-sum-val me-red">@Money(sumOutstanding)</div>
+                <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Outstanding" : "Outstanding")</div>
+            </div>
+            <div class="me-sum-card">
+                <div class="me-sum-val">@sumRate%</div>
+                <div class="me-sum-lbl">Collection Rate</div>
+            </div>
+            <div class="me-sum-card">
+                <div class="me-sum-val">@sumPaid / @sumPartial / @sumUnpaid</div>
+                <div class="me-sum-lbl">Paid / Partial / Unpaid</div>
+            </div>
+        </div>
+
         <!-- Printable report -->
         <section class="me-sheet">
             <header class="me-rpt-head">
@@ -122,40 +148,12 @@
                 <div class="me-doc">Comprehensive Month-End Collection Report — @Report.PeriodLabel</div>
             </header>
 
-            @{
-                var visibleFacilities = VisibleFacilities().ToList();
-                var sumCollected = visibleFacilities.Sum(ShownCollected);
-                var sumOutstanding = visibleFacilities.Sum(ShownOutstanding);
-                var sumRate = RateOf(sumCollected, sumOutstanding);
-                var (sumPaid, sumPartial, sumUnpaid) = ShownStatusCounts(visibleFacilities);
-            }
-
             @if (_facility is not null || HasSearch)
             {
                 <div class="me-scope-row">
                     <span class="me-scope">Filtered view — <strong>@ScopeLabel</strong></span>
                 </div>
             }
-
-            <!-- Grand summary (reflects the active facility/search scope) -->
-            <div class="me-summary">
-                <div class="me-sum-card">
-                    <div class="me-sum-val">@Money(sumCollected)</div>
-                    <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Collected" : "Collected")</div>
-                </div>
-                <div class="me-sum-card">
-                    <div class="me-sum-val me-red">@Money(sumOutstanding)</div>
-                    <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Outstanding" : "Outstanding")</div>
-                </div>
-                <div class="me-sum-card">
-                    <div class="me-sum-val">@sumRate%</div>
-                    <div class="me-sum-lbl">Collection Rate</div>
-                </div>
-                <div class="me-sum-card">
-                    <div class="me-sum-val">@sumPaid / @sumPartial / @sumUnpaid</div>
-                    <div class="me-sum-lbl">Paid / Partial / Unpaid</div>
-                </div>
-            </div>
 
             @if (visibleFacilities.Count == 0)
             {
@@ -173,7 +171,6 @@
                 <div class="me-facility">
                     <div class="me-fac-head">
                         <div class="me-fac-title">
-                            <span class="me-fac-code">@f.Code</span>
                             <span class="me-fac-name">@f.Name</span>
                             @if (!f.IsRental)
                             {
