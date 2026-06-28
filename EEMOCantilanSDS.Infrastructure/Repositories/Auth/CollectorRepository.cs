@@ -88,8 +88,10 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         if (all || facility is FacilityCode.NPM)
         {
             var npmAssigned = assignedSet.Contains(FacilityCode.NPM);
+            // Include PAID days and ABSENT/excused days (₱0, no OR) so the collector sees their full
+            // daily activity — an absence they marked should still appear on the feed.
             var rows = await context.DailyCollections.AsNoTracking()
-                .Where(d => d.IsPaid
+                .Where(d => (d.IsPaid || d.IsAbsent)
                          && d.CollectionDate >= fromDate && d.CollectionDate <= toDate
                          && (d.CollectorId == collectorId || (npmAssigned && d.CollectorId == null)))
                 .Select(d => new
@@ -101,16 +103,25 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     d.Stall.Section,
                     d.DailyFee,
                     d.FishKilos,
+                    d.IsAbsent,
                     IsAdmin = d.CollectorId == null,
                     When = d.UpdatedAt ?? d.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
 
-            results.AddRange(rows.Select(d => new MobileCollectorRecordDto(
-                d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
-                "Daily Fee", d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
-                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), false, d.When, d.Section, d.FishKilos,
-                d.IsAdmin)));
+            results.AddRange(rows.Select(d =>
+            {
+                var amount = d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo);
+                return d.IsAbsent
+                    ? new MobileCollectorRecordDto(
+                        "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
+                        "Absent / Excused", 0m, 0m, false, d.When, d.Section, null,
+                        IsAdminRecorded: false, IsAbsent: true)
+                    : new MobileCollectorRecordDto(
+                        d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
+                        "Daily Fee", amount, amount, false, d.When, d.Section, d.FishKilos,
+                        d.IsAdmin, IsAbsent: false);
+            }));
         }
 
         // ── Slaughterhouse — business date = TransactionDate ──

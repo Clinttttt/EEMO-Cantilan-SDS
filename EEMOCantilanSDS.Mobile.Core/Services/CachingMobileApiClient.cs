@@ -26,10 +26,13 @@ public sealed class CachingMobileApiClient(
     IOfflineReadCache cache,
     IConnectivityMonitor connectivity) : IMobileApiClient
 {
-    // Cached reads whose data changes whenever a collection is recorded/synced. menu + profile are
-    // deliberately excluded so invalidation never wipes the data the offline app-open relies on.
+    // Caches invalidated after a write are the COLLECTION-ENTRY views (the data that changes the moment
+    // a collection is recorded/synced). menu + profile are excluded so the offline app-open keeps working.
+    // "records" and "report" are deliberately NOT here: they are offline REVIEW views, and since reads
+    // always hit the network when online (see ReadThroughAsync), wiping them gives no online benefit and
+    // only destroys the offline copy a collector relies on after going offline.
     private static readonly string[] CollectionPrefixes =
-        { "npm", "monthly", "slaughter", "trm", "tpm", "records", "report" };
+        { "npm", "monthly", "slaughter", "trm", "tpm" };
 
     // ── Reads: cache on success, serve last-known on connectivity failure ───
     public Task<Result<MobileMenuDto>> GetMenuAsync() =>
@@ -118,9 +121,23 @@ public sealed class CachingMobileApiClient(
         {
             var result = await fetch();
 
-            // Cache only genuine successes; a real failure response is returned untouched (never masked).
+            // Cache genuine successes.
             if (result.IsSuccess && result.Value is not null)
+            {
                 await cache.SetAsync(key, result.Value);
+                return result;
+            }
+
+            // The online check passed but the server/tunnel answered with a TRANSIENT failure (5xx, or
+            // 0 = no usable response). Prefer the last-known value over an error — but only if we actually
+            // have one. Definitive client/auth failures (400/401/403/404) are returned untouched so they
+            // are never masked by stale data.
+            if (result.StatusCode == 0 || result.StatusCode >= 500)
+            {
+                var stale = await cache.GetAsync<T>(key);
+                if (stale is not null)
+                    return Result<T>.Success(stale);
+            }
 
             return result;
         }

@@ -24,4 +24,7 @@ public sealed record MobileCollectorRecordDto(
     decimal? FishKilos = null,
     // True when the entry was recorded by an admin/office (CollectorId is null) rather than this
     // collector — surfaced on the mobile Records feed with an "Office" tag so attribution stays clear.
-    bool IsAdminRecorded = false);
+    bool IsAdminRecorded = false,
+    // True for an NPM daily collection marked Absent/Excused (₱0 owed, no OR) — shown distinctly so
+    // the collector's "marked absent" actions appear on the feed, never counted as a paid collection.
+    bool IsAbsent = false);

@@ -236,3 +236,22 @@
         opacity: 0.5;
         cursor: default;
     }
+
+/* ── Absent / excused NPM day (₱0, no OR) — neutral slate, distinct from paid/partial ── */
+.record-card.absent::before {
+    background: #94a3b8;
+}
+
+.record-icon.absent-icon {
+    background: #eef2f5;
+    border-color: #d7dfe7;
+}
+
+    .record-icon.absent-icon svg {
+        stroke: #64748b;
+    }
+
+.pill-absent {
+    background: #eef2f5;
+    color: #5b6b7b;
+}

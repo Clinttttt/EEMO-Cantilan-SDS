@@ -112,7 +112,7 @@ public class CachingMobileApiClientTests
     }
 
     [Fact]
-    public async Task Successful_write_invalidates_collection_caches_but_preserves_menu_and_profile()
+    public async Task Successful_write_invalidates_collection_entry_caches_but_preserves_review_menu_and_profile()
     {
         var cache = new FakeOfflineReadCache();
         await cache.SetAsync("menu", "menu-data");
@@ -128,10 +128,42 @@ public class CachingMobileApiClientTests
         var result = await sut.RecordMonthlyCollectionAsync(request);
 
         Assert.True(result.IsSuccess);
-        Assert.False(cache.Has("monthly|TCC|2026|6"));   // invalidated
-        Assert.False(cache.Has("records|all|2026-06-01|2026-06-30")); // invalidated
-        Assert.True(cache.Has("menu"));                  // preserved (offline app-open depends on it)
-        Assert.True(cache.Has("profile"));               // preserved
+        Assert.False(cache.Has("monthly|TCC|2026|6"));               // collection-entry view → invalidated
+        Assert.True(cache.Has("records|all|2026-06-01|2026-06-30")); // offline review view → preserved (survives for offline)
+        Assert.True(cache.Has("menu"));                              // preserved (offline app-open depends on it)
+        Assert.True(cache.Has("profile"));                           // preserved
+    }
+
+    [Fact]
+    public async Task Transient_server_failure_falls_back_to_cache_when_available()
+    {
+        var cached = Records();
+        var cache = new FakeOfflineReadCache();
+        await cache.SetAsync(RecordsKey, cached);
+
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetRecordsAsync(null, From, To))
+            .ReturnsAsync(Result<IReadOnlyList<MobileCollectorRecordDto>>.Failure("bad gateway", 502)); // flaky tunnel
+        var sut = Sut(inner.Object, cache, online: true);
+
+        var result = await sut.GetRecordsAsync(null, From, To);
+
+        Assert.True(result.IsSuccess);   // stale served instead of surfacing the transient error
+        Assert.Same(cached, result.Value);
+    }
+
+    [Fact]
+    public async Task Transient_server_failure_without_cache_returns_the_failure()
+    {
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetRecordsAsync(null, From, To))
+            .ReturnsAsync(Result<IReadOnlyList<MobileCollectorRecordDto>>.Failure("server error", 500));
+        var sut = Sut(inner.Object, new FakeOfflineReadCache(), online: true);
+
+        var result = await sut.GetRecordsAsync(null, From, To);
+
+        Assert.False(result.IsSuccess);  // nothing cached → surface the real failure (don't fake success)
+        Assert.Equal(500, result.StatusCode);
     }
 
     [Fact]

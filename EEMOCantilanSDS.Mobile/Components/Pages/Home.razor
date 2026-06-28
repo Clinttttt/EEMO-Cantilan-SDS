@@ -232,16 +232,8 @@
 
 @code {
 
-    // Loading label — cycles through messages while waiting
+    // Loading label — cycles while the real session restore runs (no fixed wait).
     string LoadingText = "Initializing";
-
-    // Sequence: label shown at each step → delay after it (ms)
-    readonly (string Label, int Delay)[] Steps = new[]
-    {
-        ("Initializing",      1000),
-        ("Loading data",      1000),
-        ("Almost ready",      600),
-    };
 
     private System.Threading.CancellationTokenSource _cts = new();
 
@@ -251,14 +243,25 @@
 
         try
         {
-            foreach (var (label, delay) in Steps)
+            // Begin the real session restore IMMEDIATELY — no artificial pre-delay. Keep a short
+            // minimum so the brand splash doesn't flash, and cycle labels only while work is happening.
+            var restoreTask = Session.RestoreSessionAsync();
+            var minimumSplash = Task.Delay(600, _cts.Token);
+
+            var labels = new[] { "Initializing", "Restoring session", "Almost ready" };
+            var i = 0;
+            while (!restoreTask.IsCompleted && !_cts.IsCancellationRequested)
             {
-                LoadingText = label;
+                LoadingText = labels[Math.Min(i++, labels.Length - 1)];
                 StateHasChanged();
-                await Task.Delay(delay, _cts.Token);
+                if (await Task.WhenAny(restoreTask, Task.Delay(600, _cts.Token)) == restoreTask)
+                    break;
             }
 
-            var restored = await Session.RestoreSessionAsync();
+            var restored = await restoreTask;
+            try { await minimumSplash; } catch (TaskCanceledException) { }
+            if (_cts.IsCancellationRequested) return;
+
             Navigation.NavigateTo(restored ? "/menu" : "/login", forceLoad: false);
         }
         catch (HttpRequestException)

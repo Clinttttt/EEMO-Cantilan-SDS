@@ -31,6 +31,13 @@
                 <div class="summary-value">@PartialCount</div>
                 <div class="summary-key">Partial</div>
             </div>
+            @if (ExcusedCount > 0)
+            {
+                <div class="summary-item">
+                    <div class="summary-value">@ExcusedCount</div>
+                    <div class="summary-key">Excused</div>
+                </div>
+            }
         </div>
 
         <!-- Search + Pending -->
@@ -107,8 +114,8 @@
 
                 @foreach (var rec in group.Value)
                 {
-                    <div class="record-card @(rec.IsPartial ? "unpaid" : "paid")" @onclick="() => OpenDetail(rec)">
-                        <div class="record-icon @(rec.IsPartial ? "" : "paid-icon")">
+                    <div class="record-card @CardClass(rec)" @onclick="() => OpenDetail(rec)">
+                        <div class="record-icon @IconClass(rec)">
                             <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                         </div>
                         <div class="record-info">
@@ -126,11 +133,11 @@
                                 {
                                     <span class="record-admin-tag">Office</span>
                                 }
-                                <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt") · OR #@rec.ORNumber</span>
+                                <span class="record-time">@rec.CollectedAt.ToString("hh:mm tt")@(rec.IsAbsent ? " · marked absent" : " · OR #" + rec.ORNumber)</span>
                             </div>
                         </div>
                         <div class="record-amount-col">
-                            <div class="record-amount">₱@rec.Amount.ToString("N0")</div>
+                            <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + rec.Amount.ToString("N0"))</div>
                             <span class="record-status-pill @PillClass(rec)">@StatusLabel(rec)</span>
                         </div>
                     </div>
@@ -153,7 +160,10 @@
             <div class="sheet-title">@SelectedRecord.PayorName</div>
             <div class="sheet-sub">Collection Record Detail</div>
 
-            <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+            @if (!SelectedRecord.IsAbsent)
+            {
+                <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+            }
             <div class="detail-row"><span class="detail-key">Facility</span><span class="detail-val">@SelectedRecord.FacilityName</span></div>
             @if (!string.IsNullOrWhiteSpace(SelectedRecord.StallNo))
             {
@@ -213,7 +223,7 @@
                     @foreach (var op in PendingOps)
                     {
                         var orphaned = op.OwnerKey is null;
-                        <div class="pending-item @(orphaned ? "rejected" : PendingItemClass(op))">
+                        <div class="pending-item @(orphaned ? "rejected" : PendingItemClass(op))" @key="op.ClientOperationId">
                             <div class="pending-item-main">
                                 <div class="pending-item-title">@op.Title</div>
                                 <div class="pending-item-detail">
@@ -459,8 +469,9 @@
     }
 
     decimal TotalCollected => FilteredRecords.Sum(r => r.AmountPaid);
-    int PaidCount => FilteredRecords.Count(r => !r.IsPartial);
+    int PaidCount => FilteredRecords.Count(r => !r.IsPartial && !r.IsAbsent);
     int PartialCount => FilteredRecords.Count(r => r.IsPartial);
+    int ExcusedCount => FilteredRecords.Count(r => r.IsAbsent);
 
     bool ShowDetailSheet = false;
     MobileCollectorRecordDto? SelectedRecord;
@@ -541,11 +552,21 @@
         Sync.Changed -= OnSyncChanged;
     }
 
+    static string CardClass(MobileCollectorRecordDto r) =>
+        r.IsAbsent ? "absent" : r.IsPartial ? "unpaid" : "paid";
+
+    static string IconClass(MobileCollectorRecordDto r) =>
+        r.IsAbsent ? "absent-icon" : r.IsPartial ? "" : "paid-icon";
+
     static string PillClass(MobileCollectorRecordDto r) =>
-        r.IsPartial ? "record-status-pill pill-partial" : "record-status-pill pill-paid";
+        r.IsAbsent ? "record-status-pill pill-absent"
+        : r.IsPartial ? "record-status-pill pill-partial"
+        : "record-status-pill pill-paid";
 
     static string StatusLabel(MobileCollectorRecordDto r) =>
-        r.IsPartial ? $"₱{r.AmountPaid:N0} paid" : "Paid";
+        r.IsAbsent ? "Excused"
+        : r.IsPartial ? $"₱{r.AmountPaid:N0} paid"
+        : "Paid";
 
     static string SectionLabel(MarketSection s) => s switch
     {
