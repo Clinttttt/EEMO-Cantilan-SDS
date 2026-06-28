@@ -602,9 +602,22 @@
             {
                 StallGuid = stallDto.Id;
                 DisplayStallNo = stallDto.StallNo;
-                
+
+                // Fetch all per-stall data concurrently (each is keyed by the stall id and independent),
+                // instead of awaiting them one after another. The NPM daily heatmap still runs after the
+                // Stall object is built, because it reads the contract date from it.
+                var historyTask = PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
+                var currentPaymentTask = PaymentsApi.GetPaymentRecordAsync(stallDto.Id, DateTime.Now.Year, DateTime.Now.Month);
+                var ledgerTask = PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id);
+                var reportTask = FacilityId.ToUpper() == "NPM"
+                    ? FacilitiesApi.GetFacilityReportsAsync(facilityCode, Domain.Enums.ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month)
+                    : null;
+                var pending = new List<Task> { historyTask, currentPaymentTask, ledgerTask };
+                if (reportTask is not null) pending.Add(reportTask);
+                await Task.WhenAll(pending);
+
                 // Load payment history
-                var historyResult = await PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
+                var historyResult = await historyTask;
                 var paymentHistory = new Dictionary<string, string>();
                 
                 if (historyResult.IsSuccess && historyResult.Value != null)
@@ -619,10 +632,7 @@
                 }
                 
                 // Load current month payment record
-                var currentPaymentResult = await PaymentsApi.GetPaymentRecordAsync(
-                    stallDto.Id,
-                    DateTime.Now.Year,
-                    DateTime.Now.Month);
+                var currentPaymentResult = await currentPaymentTask;
                 
                 // Handle 404 - no payment record exists yet for current month
                 bool isPaid = false;
@@ -647,8 +657,7 @@
                 // alone would read Unpaid). Mirrors the NPM facility page / payment modal.
                 if (FacilityId.ToUpper() == "NPM")
                 {
-                    var reportResult = await FacilitiesApi.GetFacilityReportsAsync(
-                        facilityCode, Domain.Enums.ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month);
+                    var reportResult = await reportTask!;
                     var compliance = reportResult.IsSuccess
                         ? reportResult.Value?.StallCompliance?.FirstOrDefault(c => c.StallId == StallGuid)
                         : null;
@@ -708,7 +717,7 @@
                     CollectorName = string.Empty,
                     Remarks = stallDto.Remarks ?? string.Empty,
                     PaymentHistory = paymentHistory,
-                    LedgerSummary = (await PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id)).Value
+                    LedgerSummary = (await ledgerTask).Value
                 };
 
                 if (IsNpm) await LoadNpmDailyHeatmap(StallGuid);
