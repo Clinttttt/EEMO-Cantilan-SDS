@@ -45,6 +45,8 @@ public sealed class PendingOperation
     public Guid? StallId { get; set; }
     public bool? IsPaid { get; set; }
     public decimal? FishKilos { get; set; }
+    // Excused/absent day (₱0 owed, mutually exclusive with IsPaid).
+    public bool? IsAbsent { get; set; }
 
     // ── Monthly rental (TCC/NCC/BBQ/ICE) ──
     public PaymentStatus? Status { get; set; }
@@ -107,5 +109,6 @@ public sealed class PendingOperation
         OccurredAt,
         VendorName,
         Goods,
-        Remarks);
+        Remarks,
+        IsAbsent);
 }

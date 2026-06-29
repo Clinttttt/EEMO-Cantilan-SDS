@@ -486,15 +486,14 @@
         IsSaving = true;
         SheetError = null;
 
-        // Offline: queue the collection locally and let it sync when connectivity returns. Only an actual
-        // collection is queued — "Not collected" is a no-money state change that needs the server.
+        // Offline: queue the collection locally and let it sync when connectivity returns. Collected
+        // and Absent (₱0 excused) can be captured offline; only a no-money "Not collected" needs the
+        // server (it's a plain state change with nothing to replay).
         if (!Sync.IsOnline)
         {
-            if (!SelectedIsPaid)
+            if (!SelectedIsPaid && !SelectedIsAbsent)
             {
-                SheetError = SelectedIsAbsent
-                    ? "You're offline. Marking a stall 'Absent' needs a connection."
-                    : "You're offline. Marking a stall 'Not collected' needs a connection.";
+                SheetError = "You're offline. Marking a stall 'Not collected' needs a connection.";
                 IsSaving = false;
                 return;
             }
@@ -504,13 +503,14 @@
                 Kind = OfflineOperationKind.NpmDaily,
                 BusinessDate = DateOnly.FromDateTime(DateTime.Now),
                 StallId = SelectedStall.StallId,
-                IsPaid = true,
-                FishKilos = SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
-                ORNumber = string.IsNullOrWhiteSpace(ORNumber) ? null : ORNumber.Trim(),
+                IsPaid = SelectedIsPaid,
+                IsAbsent = SelectedIsAbsent,
+                FishKilos = SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection ? FishKilos : null,
+                ORNumber = SelectedIsPaid && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null,
                 FacilityLabel = "NPM",
                 Title = SelectedStall.PayorName,
-                Detail = $"No. {SelectedStall.StallNo}",
-                Amount = SelectedStall.DailyRate
+                Detail = SelectedIsAbsent ? $"No. {SelectedStall.StallNo} · Absent" : $"No. {SelectedStall.StallNo}",
+                Amount = SelectedIsAbsent ? 0m : SelectedStall.DailyRate
             });
 
             QueuedOfflineStalls.Add(SelectedStall.StallId); // reflect immediately on the card

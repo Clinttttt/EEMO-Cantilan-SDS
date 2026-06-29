@@ -100,4 +100,26 @@ public class SyncOfflineCollectionsCommandHandlerTests
         Assert.Equal(1, result.Value!.FailedCount);
         Assert.Equal(SyncResultStatus.Failed, result.Value.Results[0].Status);
     }
+
+    [Fact]
+    public async Task AbsentOperation_DispatchesRecordDailyCollection_WithIsAbsent()
+    {
+        var (handler, sender, syncRepo) = Build(Guid.NewGuid());
+        syncRepo.Setup(r => r.IsOperationProcessedAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        sender.Setup(s => s.Send(It.IsAny<RecordDailyCollectionCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Success(true));
+
+        var stallId = Guid.NewGuid();
+        // An offline "Absent" capture: IsAbsent=true, IsPaid=false, no OR.
+        var op = new SyncOfflineOperationDto(Guid.NewGuid(), OfflineOperationKind.NpmDaily, new DateOnly(2026, 6, 5),
+            StallId: stallId, IsPaid: false, IsAbsent: true);
+
+        var result = await handler.Handle(new SyncOfflineCollectionsCommand(new[] { op }), CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.SyncedCount);
+        // The replay must carry IsAbsent so the server marks the day excused (MarkAbsent), not paid/unpaid.
+        sender.Verify(s => s.Send(
+            It.Is<RecordDailyCollectionCommand>(c => c.IsAbsent && !c.IsPaid && c.StallId == stallId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

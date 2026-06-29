@@ -31,6 +31,29 @@ public class PendingOperationStoreTests : IDisposable
     };
 
     [Fact]
+    public void ToDto_CarriesIsAbsent_WithoutClobberingIsPaidOrStall()
+    {
+        var stallId = Guid.NewGuid();
+        var absent = new PendingOperation
+        {
+            Kind = OfflineOperationKind.NpmDaily,
+            BusinessDate = new DateOnly(2026, 6, 5),
+            StallId = stallId,
+            IsPaid = false,
+            IsAbsent = true,
+        };
+
+        var dto = absent.ToDto();
+
+        Assert.True(dto.IsAbsent == true);   // positional mapping correct — lands on IsAbsent, not another field
+        Assert.True(dto.IsPaid == false);
+        Assert.Equal(stallId, dto.StallId);
+
+        // A normal paid op stays non-absent (unchanged behavior).
+        Assert.True(NpmOp().ToDto().IsAbsent != true);
+    }
+
+    [Fact]
     public async Task Add_then_GetAll_returns_the_item()
     {
         var store = new PendingOperationStore(_dir);

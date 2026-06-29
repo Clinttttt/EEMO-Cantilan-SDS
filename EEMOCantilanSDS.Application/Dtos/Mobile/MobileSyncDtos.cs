@@ -56,7 +56,9 @@ public sealed record SyncOfflineOperationDto(
     string? VendorName = null,
     string? Goods = null,
     // common
-    string? Remarks = null);
+    string? Remarks = null,
+    // NPM daily: excused/absent day (₱0 owed, mutually exclusive with IsPaid)
+    bool? IsAbsent = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,
