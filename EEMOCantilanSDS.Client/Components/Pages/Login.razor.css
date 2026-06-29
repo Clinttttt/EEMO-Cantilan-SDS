@@ -47,9 +47,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-wrap: wrap;
     width: auto;
     height: auto;
-    gap: 18px;
+    gap: 14px;
     margin-top: auto;
     margin-bottom: 10px;
 }
@@ -72,7 +73,11 @@
     object-fit: cover;
 }
 
-.bagong-pilipinas-logo img {
+.government-logo-card.stalltrack-logo {
+    background: transparent;
+}
+
+.government-logo-card.stalltrack-logo img {
     object-fit: contain;
 }
 
@@ -507,3 +512,51 @@
     .setup-brand-title { font-size: 34px; }
     .setup-brand-city { font-size: 12px; }
 }
+
+
+/* ── CARCANMADCARLAN network link (replaces the old monitoring notice; → external landing) ── */
+.login-network-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(200, 168, 75, .45);
+    background: linear-gradient(180deg, #fffdf7 0%, #fbf6ea 100%);
+    text-decoration: none;
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background .16s ease;
+}
+.login-network-link:hover {
+    border-color: var(--gold, #c8a84b);
+    box-shadow: 0 8px 22px rgba(13, 33, 55, .1);
+    transform: translateY(-1px);
+}
+.login-network-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--navy, #0b2239);
+    color: var(--gold-light, #e8cc76);
+}
+.login-network-icon svg { width: 22px; height: 22px; stroke-linecap: round; stroke-linejoin: round; }
+.login-network-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.login-network-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    color: var(--navy, #0b2239);
+    line-height: 1.25;
+}
+.login-network-sub { font-size: 11.5px; color: var(--text-muted, #8faabf); }
+.login-network-arrow {
+    flex-shrink: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gold, #c8a84b);
+    transition: transform .16s ease;
+}
+.login-network-link:hover .login-network-arrow { transform: translateX(4px); }

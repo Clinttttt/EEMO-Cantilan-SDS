@@ -23,8 +23,8 @@
                 <div class="government-logo-card">
                     <img src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan Logo" />
                 </div>
-                <div class="government-logo-card bagong-pilipinas-logo">
-                    <img src="/images/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo" />
+                <div class="government-logo-card stalltrack-logo">
+                    <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
                 </div>
             </div>
             <div class="setup-brand">
@@ -270,16 +270,21 @@
             @if (!IsFromSetup)
             {
                 <div class="login-divider"><span>or</span></div>
-                <div class="login-monitoring-notice">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
-                        <path d="m9 12 2 2 4-4" />
-                    </svg>
-                    <span>
-                        Unauthorized access is prohibited.<br />
-                        All access attempts are monitored and recorded.
+                <a class="login-network-link" href="https://www.stalltrack.site/select-municipality" aria-label="Access the CARCANMADCARLAN municipal network">
+                    <span class="login-network-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                            <path d="M3 9.5 12 4l9 5.5" />
+                            <path d="M4 9.5h16" />
+                            <path d="M5.5 11v7M9.5 11v7M14.5 11v7M18.5 11v7" />
+                            <path d="M3 20.5h18" />
+                        </svg>
                     </span>
-                </div>
+                    <span class="login-network-text">
+                        <span class="login-network-title">Access CARCANMADCARLAN Municipal Network</span>
+                        <span class="login-network-sub">Browse the five participating municipalities</span>
+                    </span>
+                    <span class="login-network-arrow" aria-hidden="true">&#8594;</span>
+                </a>
             }
 
             </section>
