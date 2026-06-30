@@ -58,6 +58,10 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const int ExpiringSoonMonths = 3;
         public const int MaxFailedLoginAttempts = 5;
         public const int LockoutMinutes = 15;
+
+        // Authentication token lifetimes (single source — also used by TokenService).
+        public const int AccessTokenMinutes = 15;
+        public const int RefreshTokenDays = 7;
     }
 }
 

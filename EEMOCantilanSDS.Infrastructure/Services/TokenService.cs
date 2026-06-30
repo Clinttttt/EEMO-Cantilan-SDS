@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
@@ -41,7 +42,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
             (
                 issuer: configuration["Jwt:Issuer"],
                 audience: configuration["Jwt:Audience"],
-                expires: DateTime.UtcNow.AddMinutes(15),
+                expires: DateTime.UtcNow.AddMinutes(DomainRules.AccessTokenMinutes),
                 claims: claim,
                 signingCredentials: creds
             );
@@ -59,7 +60,7 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         public async Task<string> GenerateAndSaveRefreshToken(BaseUser user, CancellationToken cancellationToken = default)
         {
             var refreshToken = GenerateRefreshToken();
-            user.SetRefreshToken(HashRefreshToken(refreshToken), DateTime.UtcNow.AddDays(7));
+            user.SetRefreshToken(HashRefreshToken(refreshToken), DateTime.UtcNow.AddDays(DomainRules.RefreshTokenDays));
             await unitOfWork.SaveChangesAsync(cancellationToken);
             return refreshToken;
         }

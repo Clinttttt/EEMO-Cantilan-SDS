@@ -1,0 +1,243 @@
+@page "/settings"
+@using Microsoft.AspNetCore.Authorization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Settings
+@using EEMOCantilanSDS.Domain.Common
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@inject ISettingsApiClient SettingsApi
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+
+@*
+    Settings — read-only system configuration overview.
+    Every value is loaded from the API (GetSystemSettings query), which sources them from the live
+    domain constants (FeeRates / DomainRules), the office-profile constants and the host environment.
+    Nothing here is hardcoded in markup, so the page can never drift from the system's real rules.
+    No secrets are exposed; the page does not duplicate Dashboard/Reports/Accounts/facility pages.
+*@
+
+<PageTitle>EEMO Admin — Settings</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Settings</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Settings</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @_now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    @if (_loading)
+    {
+        <div class="set-state">
+            <div class="set-spinner"></div>
+            <div class="set-state-text">Loading system configuration…</div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div class="set-state">
+            <div class="set-state-title">Couldn't load settings</div>
+            <div class="set-state-text">@_error</div>
+            <button class="set-retry" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+    else if (_model is not null)
+    {
+        <!-- ── Hero ── -->
+        <div class="vs-hero">
+            <div class="vs-hero-left">
+                <div class="vs-hero-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="vs-hero-eyebrow">EEMO Admin · System</div>
+                    <div class="vs-hero-title">Settings</div>
+                    <div class="vs-hero-sub">System configuration · read-only</div>
+                </div>
+            </div>
+            <div class="vs-hero-stats">
+                <div class="vs-hero-stat">
+                    <div class="vs-hero-val">@_model.Facilities.Count</div>
+                    <div class="vs-hero-key">Facilities</div>
+                    <div class="vs-hero-sub2">Configured</div>
+                </div>
+                <div class="vs-hero-divider"></div>
+                <div class="vs-hero-stat">
+                    <div class="vs-hero-val">@_model.Security.Roles.Count</div>
+                    <div class="vs-hero-key">User Roles</div>
+                    <div class="vs-hero-sub2">@string.Join(" · ", _model.Security.Roles)</div>
+                </div>
+                <div class="vs-hero-divider"></div>
+                <div class="vs-hero-stat">
+                    <div class="vs-hero-val">@_model.System.ServerDate.ToString("MMM yyyy")</div>
+                    <div class="vs-hero-key">Collection Period</div>
+                    <div class="vs-hero-sub2">Open</div>
+                </div>
+                <div class="vs-hero-divider"></div>
+                <div class="vs-hero-stat">
+                    <div class="vs-hero-val">v@(_model.System.Version)</div>
+                    <div class="vs-hero-key">Version</div>
+                    <div class="vs-hero-sub2">@_model.System.ApplicationName</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="set-grid">
+
+            <!-- ── Office / LGU Profile ── -->
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">Office &amp; LGU Profile</div>
+                        <div class="set-card-sub">Identity used on the portal, reports &amp; receipts</div>
+                    </div>
+                </div>
+                <div class="set-rows">
+                    <div class="set-row"><span class="set-key">Office</span><span class="set-val">@_model.Office.Office</span></div>
+                    <div class="set-row"><span class="set-key">Municipality</span><span class="set-val">@_model.Office.Municipality</span></div>
+                    <div class="set-row"><span class="set-key">Province</span><span class="set-val">@_model.Office.Province</span></div>
+                    <div class="set-row"><span class="set-key">System name</span><span class="set-val">@_model.Office.SystemName</span></div>
+                    <div class="set-row"><span class="set-key">Receipts issued by</span><span class="set-val">@_model.Office.ReceiptsIssuedBy</span></div>
+                </div>
+                <div class="set-note">Becomes editable via per-LGU configuration in the CARCANMADCARLAN release.</div>
+            </section>
+
+            <!-- ── Security & Access Policy ── -->
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">Security &amp; Access Policy</div>
+                        <div class="set-card-sub">Authentication rules · not account lists</div>
+                    </div>
+                </div>
+                <div class="set-rows">
+                    <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model.Security.AccessTokenMinutes minutes</span></div>
+                    <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days · hashed, single-use</span></div>
+                    <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts → @_model.Security.LockoutMinutes-min lock</span></div>
+                    <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the EEMO Head</span></div>
+                    <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
+                </div>
+                <div class="set-links">
+                    <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
+                    <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                </div>
+            </section>
+
+            <!-- ── Collection & Billing Rules ── -->
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">Collection &amp; Billing Rules</div>
+                        <div class="set-card-sub">Policies the system enforces</div>
+                    </div>
+                </div>
+                <div class="set-rows">
+                    <div class="set-row"><span class="set-key">Current period</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM yyyy") <span class="set-pill pill-ok">Open</span></span></div>
+                    <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">≥ @_model.Collection.DelinquentThresholdMonths unpaid months</span></div>
+                    <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">@_model.Collection.ArrearsMinMonths–@_model.Collection.ArrearsMaxMonths unpaid months</span></div>
+                    <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
+                    <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
+                    <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">₱0 owed · never unpaid</span></div>
+                    <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
+                </div>
+            </section>
+
+            <!-- ── System Information ── -->
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">System Information</div>
+                        <div class="set-card-sub">About this installation</div>
+                    </div>
+                </div>
+                <div class="set-rows">
+                    <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model.System.ApplicationName</span></div>
+                    <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
+                    <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
+                    <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
+                    <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ── Facility Collection Rules (table) ── -->
+        <section class="set-card">
+            <div class="set-card-head">
+                <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
+                <div class="set-card-titles">
+                    <div class="set-card-title">Facility Collection Rules</div>
+                    <div class="set-card-sub">How each of the @_model.Facilities.Count facilities is billed</div>
+                </div>
+                <a class="set-link" href="/reports/collections">Closures &amp; exceptions<span class="set-link-arrow">→</span></a>
+            </div>
+            <table class="set-table">
+                <thead>
+                    <tr><th>Facility</th><th>Collection model</th><th>Rate</th><th class="set-th-r">Cadence</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in _model.Facilities)
+                    {
+                        <tr>
+                            <td><span class="set-fac">@f.Name</span><span class="set-code">@f.Code</span></td>
+                            <td>@f.Model</td>
+                            <td>@f.Rate</td>
+                            <td class="set-td-r">@f.Cadence</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <div class="set-foot">
+            Read-only configuration. Collection, facility and security values reflect the system's live rules; office and system details will be backed by configuration in a future release. Credentials and secrets are never displayed.
+        </div>
+    }
+</div>
+
+@code {
+    private readonly DateTime _now = PhilippineTime.Now;
+    private SystemSettingsDto? _model;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        var result = await SettingsApi.GetSystemSettingsAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _model = result.Value;
+        }
+        else
+        {
+            _error = string.IsNullOrWhiteSpace(result.Error)
+                ? "The system configuration could not be retrieved."
+                : result.Error;
+        }
+
+        _loading = false;
+    }
+}
