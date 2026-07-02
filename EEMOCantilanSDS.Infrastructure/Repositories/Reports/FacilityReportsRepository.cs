@@ -35,11 +35,9 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
 
         var facilityId = facility.Id;
 
-        // Calculate date ranges for current and previous periods
         var (currentStart, currentEnd) = CalculateDateRange(period, year, month, weekNumber);
         var (previousStart, previousEnd) = CalculatePreviousPeriodDateRange(period, year, month, weekNumber);
 
-        // Task 5.2-5.6: Calculate summary metrics
         decimal currentRevenue;
         decimal previousRevenue;
 
@@ -53,34 +51,24 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
             currentRevenue = await CalculateMonthlyRentalRevenueAsync(facilityId, currentStart, currentEnd, ct);
             previousRevenue = await CalculateMonthlyRentalRevenueAsync(facilityId, previousStart, previousEnd, ct);
         }
-
         var revenueGrowth = CalculateGrowthPercentage(currentRevenue, previousRevenue);
-
         var currentCollectionRate = await CalculateCollectionRateAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var previousCollectionRate = await CalculateCollectionRateAsync(facilityCode, facilityId, previousStart, previousEnd, ct);
         var collectionGrowth = CalculateGrowthPercentage(currentCollectionRate, previousCollectionRate);
-
         var occupiedStalls = await CalculateOccupiedStallsAsync(facilityId, currentStart, currentEnd, ct);
         var totalStalls = await CalculateTotalStallsAsync(facilityId, ct);
         var stallCompliance = await GenerateStallComplianceAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var pendingCount = stallCompliance.Count(s => s.Balance > 0m);
         var pendingAmount = stallCompliance.Sum(s => s.Balance);
-
-  
         var revenueTrend = await GenerateRevenueTrendAsync(facilityCode, facilityId, period, year, month, weekNumber, ct);
-
         var paymentDistribution = BuildPaymentDistribution(stallCompliance);
-
-        // Task 7.2-7.4: Generate section breakdown
         var sectionBreakdown = await GenerateSectionBreakdownAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
-
         var topStalls = await IdentifyTopStallsAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
-
         var collectionPerformance = BuildCollectionPerformance(stallCompliance);
         var dailyCollectionStreak = await GenerateDailyCollectionStreakAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var feeTypeBreakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
         var fishKiloTrend = await GenerateFishKiloTrendAsync(facilityCode, facilityId, currentStart, currentEnd, ct);
-        // Task 9.1: Assemble final DTO
+       
         return new FacilityReportsDto(
             TotalRevenue: currentRevenue,
             RevenueGrowthPercentage: revenueGrowth,
