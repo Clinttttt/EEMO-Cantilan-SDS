@@ -9,7 +9,23 @@
 @page { size: auto; margin: 0; }
 
 @media print {
-    /* Facility report sheets zero their own padding in print and relied on the old
-       @page margin for whitespace — restore it now that the page margin is 0. */
+    /* Facility reports print in LANDSCAPE — both the interactive dashboard (.rpt-content) and the
+       formatted Status Report sheet (.print-report-sheet) — so their wide multi-column grids get the
+       page width they need and lay out like on screen, instead of collapsing into a cramped column.
+       Scoped to facility-report classes only; every other printable page keeps its orientation.
+       Page margin is 0 (suppresses the browser's automatic date/URL/page-number header & footer);
+       whitespace comes from inner padding. Degrades gracefully where named pages are unsupported. */
+    @page report-landscape { size: A4 landscape; margin: 0; }
+
+    /* Portrait page WITH margins for the Financial Reports export: every page (including page 2+)
+       gets consistent top/side whitespace so content never jams against the sheet edge. */
+    @page report-doc { size: A4 portrait; margin: 12mm; }
+
+    .rpt-content,
+    .print-report-sheet { page: report-landscape; }
+
+    /* Whitespace via inner padding (page margin is 0). The Status Report's .rpt-content wraps the
+       sheet — only the sheet pads there; the dashboard .rpt-content pads itself. */
     .print-report-sheet { padding: 12mm !important; }
+    .rpt-content:not(.print-document-content) { padding: 12mm !important; }
 }

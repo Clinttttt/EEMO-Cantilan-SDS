@@ -1,0 +1,44 @@
+.live-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    user-select: none;
+}
+
+.live-clock-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--gold, #c8a84b);
+    flex-shrink: 0;
+}
+
+.live-clock-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.live-clock-date {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.live-clock-time {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    color: #fff;
+}
+
+/* Hide the clock when printing — it isn't part of the report content. */
+@media print {
+    .live-clock { display: none !important; }
+}

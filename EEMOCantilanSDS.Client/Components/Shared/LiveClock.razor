@@ -1,0 +1,43 @@
+@implements IDisposable
+
+<div class="live-clock" role="timer" aria-live="off" title="Current date and time (Philippine time)">
+    <svg class="live-clock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <polyline points="12 7 12 12 15.5 14" />
+    </svg>
+    <div class="live-clock-text">
+        <span class="live-clock-date">@_now.ToString("dddd, MMMM d, yyyy")</span>
+        <span class="live-clock-time">@_now.ToString("hh:mm:ss tt")</span>
+    </div>
+</div>
+
+@code {
+    private DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+    private System.Timers.Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        // Tick once per second. Blazor Server: a tiny per-second render diff over SignalR — negligible
+        // for an admin tool, and gives a live, professional wall-clock in the report header.
+        _timer = new System.Timers.Timer(1000) { AutoReset = true };
+        _timer.Elapsed += OnTick;
+        _timer.Start();
+    }
+
+    private void OnTick(object? sender, System.Timers.ElapsedEventArgs e)
+        => _ = InvokeAsync(() =>
+        {
+            _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+            StateHasChanged();
+        });
+
+    public void Dispose()
+    {
+        if (_timer is not null)
+        {
+            _timer.Elapsed -= OnTick;
+            _timer.Stop();
+            _timer.Dispose();
+        }
+    }
+}

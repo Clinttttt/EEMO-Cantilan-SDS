@@ -1476,3 +1476,55 @@
     0%, 100% { opacity: .3; }
     50% { opacity: 1; }
 }
+
+
+/* ══ Export PDF (browser print) — scoped to the Financial Reports page ══
+   The Export PDF button calls window.print(); these rules narrow the printed
+   sheet to a formal header + KPI cards + Revenue Trend + Revenue by Facility,
+   hiding all page chrome and the sections outside that scope. Portrait A4 (the
+   global print default) with the whole summary on one clean paper. */
+.rpt-pdf-header { display: none; }
+
+@media print {
+    .topbar,
+    .rpt-scope,
+    .rpt-filter-panel,
+    .rpt-state,
+    .rpt-refreshing { display: none !important; }
+
+    /* Only header + KPIs + Revenue Trend + Revenue by Facility print (Attention & Recent Records are excluded). */
+    .content-area > .section-card:not(.pdf-include) { display: none !important; }
+
+    .content-area { page: report-doc; padding: 0 !important; background: #fff !important; }
+
+    .rpt-pdf-header {
+        display: block !important;
+        text-align: center;
+        padding-bottom: 14px;
+        margin-bottom: 16px;
+        border-bottom: 2px solid #111827;
+        color: #111827;
+    }
+    .rpt-pdf-logo { display: block; width: 54px; height: 54px; object-fit: contain; margin: 0 auto 8px; }
+    .rpt-pdf-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
+    .rpt-pdf-office { font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 700; margin: 4px 0 0; }
+    .rpt-pdf-muni { font-size: 12px; color: #4b5563; }
+    .rpt-pdf-title { margin-top: 12px; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; font-weight: 800; }
+    .rpt-pdf-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 11px; color: #4b5563; }
+
+    /* Paper-friendly cards/sections: no shadows, keep each block whole. */
+    .kpi-row { grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; margin-bottom: 14px !important; }
+    .kpi-card,
+    .section-card { box-shadow: none !important; border: 1px solid #cfd6de !important; break-inside: avoid; page-break-inside: avoid; }
+    .section-card { margin-bottom: 12px !important; }
+
+    /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print. */
+    .bar-tip { display: none !important; }
+    .bar { animation: none !important; }
+
+    /* Compact the 7-column facility table so it fits the portrait page. */
+    .rpt-table-scroll { overflow: visible !important; }
+    .fac-table { font-size: 10.5px !important; }
+    .fac-table th,
+    .fac-table td { padding: 4px 7px !important; }
+}
