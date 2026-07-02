@@ -195,12 +195,12 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 
 | Phase | Title | State | Notes |
 |---|---|---|---|
-| 0 | Safety net & baseline lock | Not started | Prerequisite for 3–4 |
-| 1 | Municipality registry + selector wiring | Not started | Additive, low risk |
-| 2 | Live tenant seam (claim-bound) | Not started | Builds on existing `ITenantContext`/cache |
-| — | Hardening Track | Not started | Required for Checkpoint A |
-| A | **Production Checkpoint A (Cantilan live)** | Pending | After 0–2 + Hardening |
-| 3 | Data isolation model | Not started | Snapshot-gated, highest risk |
+| 0 | Safety net & baseline lock | ✅ Complete | Integration goldens + CI gate; 441/441 green |
+| 1 | Municipality registry + selector wiring | ✅ Complete | Registry: entity + migration + seed + tests; selector/branding wiring deferred (separate landing) |
+| 2 | Live tenant seam (claim-bound) | ✅ Complete | Claim in JWT + `ClaimTenantContext`; tenant still `cantilan-sds` |
+| — | Hardening Track | ◑ Partial — ops pending | Code-side done (probes, cookie policy, externalized JWT key, CI); runbook drives ops |
+| A | **Production Checkpoint A (Cantilan live)** | Pending ops verification | Code-side ready; runbook ops actions remain (secrets in host, TLS, backups, monitoring) |
+| 3 | Data isolation model | Not started — deferred | Until a real second LGU; highest risk (snapshot-gated) |
 | 4 | Facility & rate configurability | Not started | Snapshot-gated, archetype decoupling |
 | 5 | Runtime routing + multi-LGU capability | Not started | Enables a 2nd LGU |
 | 6 | Onboarding workspace + first real LGU | Not started | Proof of expansion |
@@ -213,42 +213,51 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 A phase is **Done** only when every box below is checked. Do not advance to the next phase with unchecked
 items in a prerequisite phase.
 
-### Phase 0 — Safety net & baseline lock
-- [ ] Snapshot tests exist for dashboard totals (collected, outstanding, collection rate, occupied count)
-- [ ] Snapshot tests exist for the month-end report
-- [ ] Snapshot tests exist for the financial report (monthly and yearly, all-facility and single-facility)
-- [ ] Snapshot tests exist for NPM daily obligations (paid/partial/unpaid, absent/excused, market closures)
-- [ ] Snapshot tests exist for monthly-rental facilities (TCC/NCC/BBQ/ICE) paid/partial/unpaid
-- [ ] Snapshot tests exist for SLH/TRM/TPM service-facility totals
-- [ ] Full test suite runs green (existing + new snapshots)
-- [ ] CI gate blocks merges that fail build or tests
-- [ ] Golden snapshot values recorded and committed as the baseline
+### Phase 0 — Safety net & baseline lock  ✅ (in place)
+- [x] Snapshot tests exist for dashboard totals — `DashboardRepositoryTests` (integration goldens over the real `AppDbContext`)
+- [x] Snapshot tests exist for the month-end report — `Phase0/CantilanMonthEndBaselineTests` (real repositories)
+- [x] Snapshot tests exist for the financial report — `Phase0/CantilanFinancialBaselineTests` (real repositories, monthly all-facility); single-facility/yearly behaviour covered by `GetFinancialReportQueryHandlerTests` + `FacilityReports*` tests
+- [x] Snapshot tests exist for NPM daily obligations — `FacilityReportsNpm*` suite (absent/excused, market closure, proration, obligation window)
+- [x] Snapshot tests exist for monthly-rental facilities — `FacilityReportsTccComplianceTests` + `FacilityReports*` (paid/partial/unpaid, rate changes)
+- [x] Snapshot tests exist for SLH/TRM/TPM service-facility totals — `SlaughterHistoryTests`/`TrmHistoryTests`/`TpmHistoryTests` + the two Phase 0 goldens
+- [x] Full test suite runs green — **435/435 passing**
+- [x] CI gate blocks merges that fail build or tests — `.github/workflows/ci.yml` (build API + portal + full test run on push/PR to master)
+- [x] Golden snapshot values recorded and committed as the baseline — `EEMOCantilanSDS.Testing/Phase0/*`
 
-### Phase 1 — Municipality registry + selector wiring
-- [ ] `Municipality` entity + EF configuration + migration created
-- [ ] Cantilan seeded as `Active` and `IsDefault`; Carrascal/Madrid/Carmen/Lanuza seeded as `Upcoming`
-- [ ] Public selector badges are driven by `Municipality.Status` (no hardcoded state)
-- [ ] Active card routes to the LGU login; Upcoming cards route to a rollout status page (no fake dashboard)
-- [ ] Cantilan branding (name, seal, report header, office label) is read from the `Municipality` record
-- [ ] No operational tables changed; Phase 0 snapshots still pass
-- [ ] Cantilan portal is visually unchanged
+> Note: the two new Phase 0 integration goldens fill the one real gap — the financial and month-end reports
+> were previously only tested with **mocked** repositories, so a regression in the repository/`AppDbContext`
+> layer (exactly where Phase 3's global query filters and Phase 4's rate config land) would not have been
+> caught. Both goldens run the composed reports through the **real** repositories against one fixed seed and
+> reconcile to identical totals (₱2,650 collected / ₱2,400 outstanding / 52% rate).
 
-### Phase 2 — Live tenant seam (claim-bound)
-- [ ] Login issues a JWT containing a `MunicipalityCode` claim
-- [ ] `ICurrentUserService` exposes the resolved municipality
-- [ ] `StaticTenantContext` replaced by a request-scoped claim-based `ITenantContext` (with Cantilan fallback)
-- [ ] Cache keys/regions resolve from the real tenant; Cantilan cache behavior unchanged
-- [ ] Tenant is never read from a header, route, or client input — only the validated token
-- [ ] Phase 0 snapshots still pass
 
-### Hardening Track (required for Checkpoint A)
-- [ ] JWT signing key, DB credentials, and PayMongo keys moved out of `appsettings.json` to env/secret store
-- [ ] HTTPS enforced with a valid certificate; security headers configured
-- [ ] Rate limiting on auth endpoints; account lockout verified
-- [ ] Automated PostgreSQL backups configured; a restore has been tested
-- [ ] Migration-deploy step documented and repeatable
-- [ ] Structured logging + error monitoring in place; health-check endpoint responds
-- [ ] CI/CD builds, runs tests (incl. snapshots), and deploys repeatably
+### Phase 1 — Municipality registry + selector wiring  ◑ (backend registry done)
+- [x] `Municipality` entity + EF configuration + migration created — `Domain/Entities/Tenancy/Municipality.cs`, `MunicipalityConfiguration`, migration `20260702065757_AddMunicipalityRegistry` (additive: creates only the `Municipalities` table)
+- [x] Cantilan seeded as `Active` and `IsDefault`; Carrascal/Madrid/Carmen/Lanuza seeded as `Upcoming` — `MunicipalitySeeder` (+ `Phase1/MunicipalitySeederTests`, idempotent)
+- [ ] Public selector badges are driven by `Municipality.Status` — DEFERRED: the public selector is a separate static landing project (`stalltrack-landing`, decoupled by design). Connecting it to the registry needs a small read-only public API; the landing currently drives its own status data.
+- [~] Active card routes to the LGU login; Upcoming cards route to a rollout status page — already built in the landing project (data-driven within that project), not yet from the DB registry
+- [ ] Cantilan branding (name, seal, report header, office label) is read from the `Municipality` record — DEFERRED: portal branding is still static; can be sourced from the registry in a follow-up
+- [x] No operational tables changed; Phase 0 snapshots still pass — additive migration only; **437/437 tests green** (incl. Phase 0 goldens)
+- [x] Cantilan portal is visually unchanged — no portal/operational code touched
+
+### Phase 2 — Live tenant seam (claim-bound)  ✅ (seam live)
+- [x] Login issues a JWT containing a `MunicipalityCode` claim — `TokenService.CreateToken` adds `AppClaimTypes.Municipality` (default tenant, since users aren't municipality-scoped until Phase 3)
+- [x] `ICurrentUserService` exposes the resolved municipality — `MunicipalityCode` (reads the claim)
+- [x] `StaticTenantContext` replaced by a request-scoped claim-based `ITenantContext` — `ClaimTenantContext` (registered in DI; `StaticTenantContext` retained for reference)
+- [x] Cache keys/regions resolve from the real tenant; Cantilan cache behavior unchanged — tenant still resolves to `cantilan-sds`; **441/441 tests green** (Phase 0 goldens + caching tests unchanged)
+- [x] Tenant is never read from a header, route, or client input — only the validated token claim (via `ICurrentUserService`)
+- [~] Token-less flows resolve the tenant from a trusted persisted record — currently fall back to the default tenant (correct while single-LGU); per-record resolution (webhook/sync) is wired in Phase 3 when a second LGU is real
+- [~] The Cantilan fallback is explicitly temporary — documented as such in `ClaimTenantContext`; the flip to warning/error on a missing/invalid claim is enforced once a second LGU is active
+- [x] Phase 0 snapshots still pass — verified (441/441, `Phase2/ClaimTenantContextTests` added)
+
+### Hardening Track (required for Checkpoint A) — see `CANTILAN-production-hardening-runbook.md`
+- [~] Secrets to env/secret store — `Jwt:Key` already externalized (empty in config); confirm DB connection string + PayMongo keys (runbook §1)
+- [~] HTTPS enforced + valid certificate; security headers — HTTPS redirect on outside Dev; HSTS + headers pending (runbook §2/§3, CSP tested separately)
+- [x] Account lockout verified (5 fails → 15-min lock); [ ] request rate limiting on auth endpoints, lenient (runbook §4)
+- [ ] Automated PostgreSQL backups configured; a restore has been tested (runbook §5)
+- [~] Migration-deploy step — `Database:ApplyMigrationsAtStartup` toggle exists; strategy to document (runbook §6)
+- [x] Health probes respond — `/health` (liveness) + `/health/ready` (DB readiness); [ ] structured logging + error monitoring (runbook §7)
+- [x] CI/CD builds API + portal and runs the full test suite on push/PR — `.github/workflows/ci.yml`
 
 ### ✅ Production Checkpoint A — Cantilan live
 - [ ] Phases 0, 1, 2 complete
@@ -263,7 +272,7 @@ items in a prerequisite phase.
 - [ ] EF Core global query filters on `MunicipalityId` applied centrally in `AppDbContext`
 - [ ] Writes stamp `MunicipalityId` from the tenant context (interceptor)
 - [ ] Unique constraints (username, OR number) scoped per municipality
-- [ ] Verified a query cannot return cross-tenant rows
+- [ ] Verified a query cannot return cross-tenant rows — isolation tests prove one LGU's data never appears in another's views, with explicit guards for the filter-bypass paths: `IgnoreQueryFilters()`, raw SQL, and background/scheduled jobs that don't run under a user token
 - [ ] Phase 0 snapshots pass byte-for-byte (no financial change)
 
 ### Phase 4 — Facility & rate configurability

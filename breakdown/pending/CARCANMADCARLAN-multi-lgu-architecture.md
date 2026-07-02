@@ -345,19 +345,18 @@ Three options exist:
 
 ### Recommended direction
 
-Use:
+> **Selected model (authoritative — see `CARCANMADCARLAN-production-roadmap.md`): one shared codebase
+> AND one shared database, with strict tenant isolation via `MunicipalityId`, EF Core global query
+> filters, tenant-stamped writes, and isolation tests.**
 
-> **One shared codebase, database per LGU.**
+Database-per-LGU (described below) is retained only as a **deferred future option**, to be adopted for a
+specific LGU only if legally or operationally required. It is not the current direction: it multiplies EF
+migrations across N databases and makes consolidated provincial reporting far harder.
 
-Meaning:
+Deferred option — database per LGU (one shared codebase):
 
-- Cantilan has its own database
-- Carrascal would have its own database if onboarded
-- Madrid would have its own database if onboarded
-- Carmen would have its own database if onboarded
-- Lanuza would have its own database if onboarded
-
-The codebase remains one.
+- Cantilan / Carrascal / Madrid / Carmen / Lanuza each with its own database.
+- Strongest physical isolation, but higher operational cost and harder cross-LGU reporting.
 
 This gives strong government data isolation while avoiding five separate applications.
 
