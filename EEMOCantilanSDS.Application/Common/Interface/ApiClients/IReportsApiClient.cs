@@ -14,5 +14,7 @@ public interface IReportsApiClient
 
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
 
+    Task<Result<FollowUpQueueDto>> GetFollowUpHistoryAsync(int year, int month);
+
     Task<Result<CollectionReportDto>> GetCollectionReportAsync(int year, int month);
 }

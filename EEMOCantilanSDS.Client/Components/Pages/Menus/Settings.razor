@@ -225,6 +225,7 @@
     {
         _loading = true;
         _error = null;
+        await PaintLoadingStateAsync();
 
         var result = await SettingsApi.GetSystemSettingsAsync();
         if (result.IsSuccess && result.Value is not null)
@@ -239,5 +240,11 @@
         }
 
         _loading = false;
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 }

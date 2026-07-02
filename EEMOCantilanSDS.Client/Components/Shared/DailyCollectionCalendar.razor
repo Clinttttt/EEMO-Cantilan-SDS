@@ -8,12 +8,18 @@
     </div>
 
     <div class="cal-nav">
-        <button class="cal-nav-btn" @onclick="PrevMonth">
+        <button class="cal-nav-btn cal-nav-year" @onclick="PrevYear" title="Previous year">
+            <svg viewBox="0 0 24 24"><polyline points="18 18 12 12 18 6" /><polyline points="11 18 5 12 11 6" /></svg>
+        </button>
+        <button class="cal-nav-btn" @onclick="PrevMonth" title="Previous month">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
         <span class="cal-month-label">@CurrentMonth.ToString("MMMM yyyy")</span>
-        <button class="cal-nav-btn" @onclick="NextMonth" disabled="@(!CanGoNext)">
+        <button class="cal-nav-btn" @onclick="NextMonth" disabled="@(!CanGoNext)" title="Next month">
             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+        <button class="cal-nav-btn cal-nav-year" @onclick="NextYear" disabled="@(!CanGoNextYear)" title="Next year">
+            <svg viewBox="0 0 24 24"><polyline points="6 18 12 12 6 6" /><polyline points="13 18 19 12 13 6" /></svg>
         </button>
     </div>
 
@@ -239,6 +245,32 @@
         if (CanGoNext)
         {
             CurrentMonth = CurrentMonth.AddMonths(1);
+            await LoadMonthData();
+        }
+    }
+
+    // Upper bound for navigation: the current (Philippine) month. Never navigate into the future.
+    private static DateTime MaxMonth => new DateTime(
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year,
+        EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month,
+        1);
+
+    private bool CanGoNextYear => CurrentMonth < MaxMonth;
+
+    private async Task PrevYear()
+    {
+        CurrentMonth = CurrentMonth.AddYears(-1);
+        await LoadMonthData();
+    }
+
+    private async Task NextYear()
+    {
+        // Jump forward a year, but cap at the current month so we never land on a future period.
+        var candidate = CurrentMonth.AddYears(1);
+        if (candidate > MaxMonth) candidate = MaxMonth;
+        if (candidate != CurrentMonth)
+        {
+            CurrentMonth = candidate;
             await LoadMonthData();
         }
     }

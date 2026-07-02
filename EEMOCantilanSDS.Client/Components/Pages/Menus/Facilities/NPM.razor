@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
@@ -25,14 +26,14 @@
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">NPM — @DateTime.Now.ToString("MMMM yyyy")</span>
+                        <span class="breadcrumb-active">NPM — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
                     </div>
                 </div>
             </div>
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @PhilippineTime.Now.ToString("MMMM d, yyyy")
                 </div>
                 <AccountChip />
             </div>
@@ -164,7 +165,7 @@
 ══════════════════════════════════════════════ -->
 <CollectionReceiptModal Show="ShowPayment"
                         FacilityName="New Public Market"
-                        PeriodLabel="@DateTime.Now.ToString("MMMM yyyy")"
+                        PeriodLabel="@PhilippineTime.Now.ToString("MMMM yyyy")"
                         StallNo="@(PaymentStall?.StallNo ?? string.Empty)"
                         PayorName="@(PaymentStall?.ActualOccupant ?? string.Empty)"
                         Section="@(PaymentStall?.Section ?? string.Empty)"
@@ -194,6 +195,7 @@
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="NpmFacilityOptions"
                 FacilityLocked="true"
+                ExistingStallNos="NpmSectionStallNos"
                 OnSave="SubmitVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -274,12 +276,18 @@
     {
         ResetState();
         InitializeToolbarActions();
-        try { await LoadStallsFromApi(); }
+        try { await LoadStallsFromApi(paintLoading: true); }
         finally { _loading = false; }
     }
 
-    private async Task LoadStallsFromApi()
+    private async Task LoadStallsFromApi(bool paintLoading = false)
     {
+        if (paintLoading)
+        {
+            _loading = true;
+            await PaintLoadingStateAsync();
+        }
+
         var now = DateTime.Now;
 
         // Daily-aware monthly report for the hero + section stats (same source as the Reports page).
@@ -313,7 +321,9 @@
 
             Stalls.Clear();
             int id = 1;
-            foreach (var dto in result.Value.Items)
+            // Only list payors whose contract is still within its duration; expired-contract active
+            // stalls are excluded from the facility view (StallContractStatus.IsCurrentVendor).
+            foreach (var dto in result.Value.Items.Where(StallContractStatus.IsCurrentVendor))
             {
                 var section = dto.Section switch
                 {
@@ -393,6 +403,12 @@
     }
 
     // ── Add OR number to the most-recent paid day (NPM daily collection) ──
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     private bool ShowAddOr;
     private NpmStall? AddOrStall;
     private string AddOrInput = string.Empty;
@@ -699,6 +715,13 @@
     private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
     private List<AddVendorModal.VendorFacilityOption> NpmFacilityOptions => new() { new() { Code = "NPM", Name = "New Public Market" } };
+
+    // Existing stall numbers within the currently-selected NPM section — feeds the modal's next-number
+    // suggestion (per section, since NPM numbering/uniqueness is per section).
+    private IReadOnlyCollection<string> NpmSectionStallNos =>
+        Stalls.Where(s => s.Section.Replace(" Area", "").Replace(" Section", "") == VendorForm.SelectedSection)
+              .Select(s => s.StallNo)
+              .ToList();
 
     private void OpenAddVendorModal()
     {

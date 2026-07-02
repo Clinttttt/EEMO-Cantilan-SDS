@@ -27,4 +27,11 @@ public interface IOnlinePaymentRepository
 
     /// <summary>Online payments that are Paid (money received) but still awaiting staff OR encoding.</summary>
     Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Period-scoped variant for the Follow-up History (past-period snapshot): online payments whose
+    /// billing period is <paramref name="year"/>/<paramref name="month"/> and are Paid but still awaiting
+    /// an OR. Lets a past month show only the online receipts that belonged to that period.
+    /// </summary>
+    Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrByPeriodAsync(int year, int month, CancellationToken ct = default);
 }

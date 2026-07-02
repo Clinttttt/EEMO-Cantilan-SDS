@@ -357,3 +357,72 @@
     padding: 12px 16px;
     border-bottom: 1px solid var(--border);
 }
+
+
+/* ── Manual hide (admin dismisses an item permanently from the live queue) ── */
+.fq-action-cell { display: inline-flex; align-items: center; gap: 12px; justify-content: flex-end; }
+
+.fq-hidebtn {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: background .14s ease, color .14s ease;
+}
+.fq-hidebtn:hover { background: var(--bg); color: var(--navy); }
+
+
+/* Bulk "Hide all Contract expired" — right side of the immediate section header */
+.fq-hideall {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--navy);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 13px;
+    cursor: pointer;
+    transition: background .14s ease, border-color .14s ease, color .14s ease;
+}
+.fq-hideall:hover { background: var(--bg-icon); border-color: var(--gold); color: #8a6d1b; }
+.fq-hideall svg { width: 14px; height: 14px; }
+
+
+/* Past follow-up button — standard app button (btn-outline), right-aligned in the filter bar. */
+.fq-history-link { margin-left: auto; flex-shrink: 0; }
+
+/* ── Hero + queue summary stat strip (matches the facility pages) ── */
+.fq-hero {
+    position: relative; display: flex; align-items: center; gap: 28px;
+    background: var(--navy); border-radius: 14px; padding: 22px 28px; margin-bottom: 18px;
+    overflow: hidden; flex-wrap: wrap;
+}
+.fq-hero::before {
+    content: ""; position: absolute; top: -40px; right: -40px; width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%); pointer-events: none;
+}
+.fq-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 230px; }
+.fq-hero-icon {
+    width: 54px; height: 54px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(200, 168, 75, .18); display: flex; align-items: center; justify-content: center;
+}
+.fq-hero-icon svg { width: 26px; height: 26px; stroke: var(--gold); }
+.fq-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.fq-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
+.fq-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
+.fq-hero-stats { flex: 1; display: flex; align-items: center; flex-wrap: wrap; }
+.fq-stat { padding: 0 20px; text-align: center; flex: 1; min-width: 110px; }
+.fq-stat-val { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.fq-stat-val.fq-stat-critical { color: #e5a5a5; }
+.fq-stat-key { font-size: 10.5px; color: rgba(255, 255, 255, .55); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+.fq-hero-divider { width: 1px; height: 42px; background: rgba(255, 255, 255, .12); flex-shrink: 0; }
+@media (max-width: 1000px) { .fq-hero-stats { width: 100%; } .fq-stat { min-width: 80px; padding: 0 12px; } }

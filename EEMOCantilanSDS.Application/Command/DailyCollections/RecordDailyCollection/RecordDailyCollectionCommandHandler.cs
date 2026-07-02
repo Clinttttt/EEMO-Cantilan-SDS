@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using MediatR;
@@ -12,7 +14,9 @@ public class RecordDailyCollectionCommandHandler(
     IStallRepository stallRepository,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
     {
@@ -96,6 +100,13 @@ public class RecordDailyCollectionCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            stall.Facility?.Code,
+            request.CollectionDate.Year,
+            request.CollectionDate.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

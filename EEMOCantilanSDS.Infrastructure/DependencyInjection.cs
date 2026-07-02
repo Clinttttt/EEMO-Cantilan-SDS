@@ -1,10 +1,14 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Infrastructure.Caching;
 using EEMOCantilanSDS.Infrastructure.Payments;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Infrastructure.Services;
+using EEMOCantilanSDS.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +33,12 @@ namespace EEMOCantilanSDS.Infrastructure
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
+            service.AddMemoryCache();
+            service.AddSingleton<EemoCacheOptions>();
+            service.AddSingleton<MemoryEemoCacheInvalidator>();
+            service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
+            service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();
+            service.AddScoped<ITenantContext, StaticTenantContext>();
  
             
             // Repositories

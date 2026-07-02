@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Vendors;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -21,8 +22,20 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
             .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
             .ToListAsync(cancellationToken);
 
-        var activeStalls = stalls.Where(s => s.Status == StallStatus.Active).ToList();
-        var closedStalls = stalls.Where(s => s.Status == StallStatus.Closed).ToList();
+        // Only current vendors belong in the registry: an ACTIVE stall whose contract term has lapsed
+        // (today past effectivity + duration) is excluded from BOTH the counts and the list. Closed
+        // stalls and stalls without a dated contract are unaffected. Mirrors Contract.IsExpired.
+        var today = PhilippineTime.Today;
+        var visibleStalls = stalls.Where(s =>
+        {
+            if (s.Status != StallStatus.Active) return true;
+            var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+            if (contract is null) return true;
+            return today <= contract.EffectivityDate.AddYears(contract.DurationYears);
+        }).ToList();
+
+        var activeStalls = visibleStalls.Where(s => s.Status == StallStatus.Active).ToList();
+        var closedStalls = visibleStalls.Where(s => s.Status == StallStatus.Closed).ToList();
 
         // Monthly rent collection metrics apply only to monthly-billed facilities.
         // NPM is collected daily (DailyCollection), so it is excluded from the monthly
@@ -54,7 +67,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
 
         var monthlyTarget = monthlyStalls.Sum(s => s.MonthlyRate);
 
-        var vendors = stalls.Select(s =>
+        var vendors = visibleStalls.Select(s =>
         {
             var activeContract = s.Contracts.FirstOrDefault(c => c.IsActive);
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
@@ -82,7 +95,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
         }).ToList();
 
         return new VendorRegistryDto(
-            stalls.Count,
+            visibleStalls.Count,
             activeStalls.Count,
             closedStalls.Count,
             monthlyStalls.Count,

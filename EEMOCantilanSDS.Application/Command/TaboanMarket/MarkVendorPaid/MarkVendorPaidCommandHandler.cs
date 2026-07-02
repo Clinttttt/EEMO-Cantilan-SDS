@@ -1,6 +1,9 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
@@ -9,7 +12,9 @@ public class MarkVendorPaidCommandHandler(
     ITpmRepository tpmRepo,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<MarkVendorPaidCommand, Result<bool>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<MarkVendorPaidCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(MarkVendorPaidCommand request, CancellationToken ct)
     {
@@ -25,7 +30,7 @@ public class MarkVendorPaidCommandHandler(
 
             var actingCollector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
             if (actingCollector is null ||
-                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == Domain.Enums.FacilityCode.TPM))
+                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.TPM))
             {
                 return Result<bool>.Forbidden();
             }
@@ -53,6 +58,13 @@ public class MarkVendorPaidCommandHandler(
         }
 
         await uow.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.TPM,
+            attendance.MarketDate.Year,
+            attendance.MarketDate.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

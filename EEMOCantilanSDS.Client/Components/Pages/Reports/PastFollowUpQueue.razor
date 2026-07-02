@@ -1,0 +1,482 @@
+@page "/reports/follow-up/history"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Reports
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IReportsApiClient ReportsApi
+
+@*
+    Follow-up History — the SAME layout and tables as the live queue (hero summary, filter bar, urgency
+    sections, context-aware columns) but a READ snapshot "as of" a PAST period chosen with the year/month
+    dropdowns. Data comes from GET /api/Reports/follow-up/history (GetFollowUpHistoryQuery), which reuses
+    the live composer with period-scoped contract-expiry and online-awaiting-OR. "Whole year" loads that
+    year's year-end snapshot (its latest available month), which — via the rolling delinquency window —
+    reflects the accumulated state across the year.
+*@
+
+<PageTitle>EEMO Admin — Follow-up History</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left flex gap-2">
+        <a href="/reports/follow-up" class="fh-back" title="Back to the live queue">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+            <div class="topbar-title">Follow-up History</div>
+            <div class="topbar-breadcrumb">
+                <a href="/reports/follow-up" class="breadcrumb-link">Follow-up Queue</a>
+                <span class="breadcrumb-sep">/</span>
+                <span class="breadcrumb-active">History</span>
+            </div>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @_now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    @{
+        var allItems = AllItems;
+        var shown = Filtered(allItems).ToList();
+        var periodLabel = _selMonth == 0
+            ? $"{_selYear} · Whole year"
+            : new DateTime(_selYear, _selMonth, 1).ToString("MMMM yyyy");
+        var asOfLabel = _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
+    }
+
+    <!-- Hero + section-count summary (same as the live queue) -->
+    <div class="fh-hero">
+        <div class="fh-hero-left">
+            <div class="fh-hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" />
+                </svg>
+            </div>
+            <div>
+                <div class="fh-hero-eyebrow">Follow-up · History</div>
+                <div class="fh-hero-title">Past follow-up</div>
+                <div class="fh-hero-sub">@asOfLabel</div>
+            </div>
+        </div>
+        <div class="fh-hero-stats">
+            <div class="fh-stat">
+                <div class="fh-stat-val fh-stat-critical">@allItems.Count(r => r.Section == 1)</div>
+                <div class="fh-stat-key">Immediate</div>
+            </div>
+            <div class="fh-hero-divider"></div>
+            <div class="fh-stat">
+                <div class="fh-stat-val">@allItems.Count(r => r.Section == 2)</div>
+                <div class="fh-stat-key">This period</div>
+            </div>
+            <div class="fh-hero-divider"></div>
+            <div class="fh-stat">
+                <div class="fh-stat-val">@allItems.Count(r => r.Section == 3)</div>
+                <div class="fh-stat-key">Verify</div>
+            </div>
+            <div class="fh-hero-divider"></div>
+            <div class="fh-stat">
+                <div class="fh-stat-val">@allItems.Count(r => r.Section == 4)</div>
+                <div class="fh-stat-key">Operational</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter bar (same as the live queue). Reason chips on the left, period picker pinned right. -->
+    <div class="fh-filterbar">
+        <div class="fh-reasonrow">
+            <div class="fh-filters" role="group" aria-label="Filter by reason">
+                @foreach (var f in ReasonFilters)
+                {
+                    var count = CountFor(allItems, f.Key);
+                    <button type="button" class="fh-chip @(_reason == f.Key ? "fh-chip-active" : "")"
+                            disabled="@(count == 0 && f.Key != "all")"
+                            @onclick="@(() => _reason = f.Key)">
+                        @f.Label<span class="fh-chip-count">@count</span>
+                    </button>
+                }
+            </div>
+
+            <!-- Period picker — professional custom dropdowns, in line with the reason chips (Excused) -->
+            <div class="fh-period-select" role="group" aria-label="Choose the period">
+
+                <!-- Year -->
+                <div class="fh-dd @(_yearOpen ? "open" : "")">
+                    <button type="button" class="fh-dd-trigger @(_yearOpen ? "open" : "")" @onclick="ToggleYear" aria-haspopup="listbox" aria-expanded="@_yearOpen">
+                        <span class="fh-dd-body">
+                            <span class="fh-dd-cap">Year</span>
+                            <span class="fh-dd-val">@_selYear</span>
+                        </span>
+                        <svg class="fh-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                    </button>
+                    @if (_yearOpen)
+                    {
+                        <div class="fh-dd-backdrop" @onclick="CloseAll"></div>
+                        <div class="fh-dd-menu" role="listbox" aria-label="Year">
+                            <div class="fh-dd-header">Year</div>
+                            @foreach (var y in Years)
+                            {
+                                <div class="fh-dd-item @(_selYear == y ? "active" : "")" role="option" aria-selected="@(_selYear == y)" @onclick="() => SelectYear(y)">
+                                    <span class="fh-dd-name">@y</span>
+                                    @if (_selYear == y)
+                                    {
+                                        <svg class="fh-dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Month (incl. Whole year) -->
+                <div class="fh-dd @(_monthOpen ? "open" : "")">
+                    <button type="button" class="fh-dd-trigger @(_monthOpen ? "open" : "")" @onclick="ToggleMonth" aria-haspopup="listbox" aria-expanded="@_monthOpen">
+                        <span class="fh-dd-body">
+                            <span class="fh-dd-cap">Month</span>
+                            <span class="fh-dd-val">@(_selMonth == 0 ? "Whole year" : MonthName(_selMonth))</span>
+                        </span>
+                        <svg class="fh-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                    </button>
+                    @if (_monthOpen)
+                    {
+                        <div class="fh-dd-backdrop" @onclick="CloseAll"></div>
+                        <div class="fh-dd-menu fh-dd-menu-right" role="listbox" aria-label="Month">
+                            <div class="fh-dd-header">Month</div>
+                            <div class="fh-dd-item @(_selMonth == 0 ? "active" : "")" role="option" aria-selected="@(_selMonth == 0)" @onclick="() => SelectMonth(0)">
+                                <span class="fh-dd-name">Whole year</span>
+                                @if (_selMonth == 0)
+                                {
+                                    <svg class="fh-dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                }
+                            </div>
+                            @foreach (var m in MonthsFor(_selYear))
+                            {
+                                <div class="fh-dd-item @(_selMonth == m ? "active" : "")" role="option" aria-selected="@(_selMonth == m)" @onclick="() => SelectMonth(m)">
+                                    <span class="fh-dd-name">@MonthName(m)</span>
+                                    @if (_selMonth == m)
+                                    {
+                                        <svg class="fh-dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="fh-toolrow">
+            <div class="fh-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="e => _search = e.Value?.ToString() ?? string.Empty" aria-label="Search history" />
+                @if (!string.IsNullOrWhiteSpace(_search))
+                {
+                    <button class="fh-search-clear" type="button" @onclick="@(() => _search = string.Empty)" aria-label="Clear search">&times;</button>
+                }
+            </div>
+            <div class="fh-filters" role="group" aria-label="Filter by facility">
+                <button type="button" class="fh-chip @(_facility is null ? "fh-chip-active" : "")" @onclick="@(() => _facility = null)">All Facilities</button>
+                @foreach (var fc in AllFacilities)
+                {
+                    <button type="button" class="fh-chip @(_facility == fc ? "fh-chip-active" : "")" @onclick="@(() => _facility = fc)">@fc</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="fh-state" aria-busy="true">Loading @periodLabel…</div>
+    }
+    else if (_data is null)
+    {
+        <div class="fh-state fh-state-error">
+            Unable to load the follow-up history.
+            <button class="fh-retry" type="button" @onclick="Load">Try again</button>
+        </div>
+    }
+    else
+    {
+        var visibleSections = Sections
+            .Select(s => new { Section = s, Items = shown.Where(r => r.Section == s.Id).ToList() })
+            .Where(x => x.Items.Count > 0)
+            .ToList();
+
+        if (visibleSections.Count == 0)
+        {
+            <div class="fh-empty">
+                <div class="fh-empty-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                </div>
+                <div class="fh-empty-title">No follow-up items for @periodLabel.</div>
+                <div class="fh-empty-sub">Nothing matched the selected scope for this period.</div>
+            </div>
+        }
+        else
+        {
+            @foreach (var grp in visibleSections)
+            {
+                <section class="fh-section">
+                    <div class="fh-sec-head fh-sec-@grp.Section.Tone">
+                        <span class="fh-sec-rail"></span>
+                        <span class="fh-sec-count">@grp.Items.Count</span>
+                        <div class="fh-sec-info">
+                            <div class="fh-sec-title">@grp.Section.Title</div>
+                            <div class="fh-sec-sub">@grp.Section.Sub</div>
+                        </div>
+                    </div>
+                    <div class="fh-table-wrap">
+                        @{ var cols = ColumnsFor(grp.Section.Id); }
+                        <table class="fh-table">
+                            <thead>
+                                <tr>
+                                    @foreach (var col in cols)
+                                    {
+                                        <th>@col.Header</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in grp.Items)
+                                {
+                                    <tr class="fh-row fh-pri-@PriClass(r.Priority)">
+                                        @foreach (var col in cols)
+                                        {
+                                            switch (col.Key)
+                                            {
+                                                case "reason":
+                                                    <td><span class="fh-reason fh-rb-@PriClass(r.Priority)">@r.Reason</span></td>
+                                                    break;
+                                                case "payor":
+                                                    <td>
+                                                        <div class="fh-person">@r.Person</div>
+                                                        <div class="fh-sub">@r.Identifier · @r.Facility · @r.Model</div>
+                                                    </td>
+                                                    break;
+                                                case "periodstatus":
+                                                    <td>
+                                                        <div class="fh-period">@r.Period</div>
+                                                        <div class="fh-sub">@r.Status</div>
+                                                    </td>
+                                                    break;
+                                                case "period":
+                                                    <td><div class="fh-period">@r.Period</div></td>
+                                                    break;
+                                                case "note":
+                                                    <td><span class="fh-note">@r.Status</span></td>
+                                                    break;
+                                                case "amount":
+                                                    <td><span class="fh-amount @(r.Amount is null or 0 ? "fh-amount-muted" : "")">@AmountLabel(r)</span></td>
+                                                    break;
+                                                case "action":
+                                                    <td>
+                                                        <div class="fh-action-cell">
+                                                            <a class="fh-action" href="@r.Link">@r.Action<span class="fh-action-arrow">→</span></a>
+                                                        </div>
+                                                    </td>
+                                                    break;
+                                            }
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        }
+    }
+</div>
+
+@code {
+    private readonly DateTime _now = PhilippineTime.Now;
+    private List<(int Year, int Month)> Periods = new();
+    private List<int> Years = new();
+    private int _selYear;
+    private int _selMonth;
+
+    private FollowUpQueueDto? _data;
+    private bool _loading = true;
+
+    private string _reason = "all";
+    private string _search = "";
+    private FacilityCode? _facility;
+
+    private bool _yearOpen;
+    private bool _monthOpen;
+
+    private static readonly (string Key, string Label)[] ReasonFilters =
+    {
+        ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"), ("missingor", "Missing OR"),
+        ("current", "Current-period"), ("contract", "Contract"), ("npm", "NPM Daily"), ("excused", "Excused"),
+    };
+
+    private static readonly FacilityCode[] AllFacilities =
+    {
+        FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ,
+        FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM,
+    };
+
+    // Same urgency bands as the live queue (consistency).
+    private sealed record SecDef(int Id, string Title, string Sub, string Tone);
+
+    private static readonly SecDef[] Sections =
+    {
+        new(1, "Needs immediate action", "Delinquent · missing receipts · expired contracts", "critical"),
+        new(2, "Needs follow-up this period", "Unpaid · partial · arrears · expiring contracts", "high"),
+        new(3, "Needs verification", "Excused / absent records", "review"),
+        new(4, "Facility-specific operational", "Daily · per-trip · market-day exceptions", "normal"),
+    };
+
+    // Per-section columns — the SAME context split and columns as the live queue, ending in Action.
+    private sealed record HistoryCol(string Key, string Header);
+
+    private static IReadOnlyList<HistoryCol> ColumnsFor(int section) => section switch
+    {
+        3 => new[]
+        {
+            new HistoryCol("reason", "Reason"),
+            new HistoryCol("payor", "Payor / Stall"),
+            new HistoryCol("period", "Period"),
+            new HistoryCol("note", "Status"),
+            new HistoryCol("action", "Action"),
+        },
+        4 => new[]
+        {
+            new HistoryCol("reason", "Reason"),
+            new HistoryCol("payor", "Payor / Stall"),
+            new HistoryCol("note", "Activity"),
+            new HistoryCol("amount", "Amount"),
+            new HistoryCol("action", "Action"),
+        },
+        _ => new[]
+        {
+            new HistoryCol("reason", "Reason"),
+            new HistoryCol("payor", "Payor / Stall"),
+            new HistoryCol("periodstatus", "Period & Status"),
+            new HistoryCol("amount", "Amount"),
+            new HistoryCol("action", "Action"),
+        },
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        for (var i = 1; i <= 12; i++)
+        {
+            var d = _now.AddMonths(-i);
+            Periods.Add((d.Year, d.Month));
+        }
+        Years = Periods.Select(p => p.Year).Distinct().OrderByDescending(y => y).ToList();
+
+        // Default view: the most recent year, whole-year (year-end snapshot) selected.
+        _selYear = Years.Count > 0 ? Years[0] : _now.Year;
+        _selMonth = 0;
+
+        await Load();
+    }
+
+    private IReadOnlyList<FollowUpItemDto> AllItems => _data?.Items ?? Array.Empty<FollowUpItemDto>();
+
+    private List<int> MonthsFor(int year) =>
+        Periods.Where(p => p.Year == year).Select(p => p.Month).OrderByDescending(m => m).ToList();
+
+    // The effective month to load: a chosen month, or (whole-year) the latest available month of the year.
+    private int EffectiveMonth()
+    {
+        if (_selMonth != 0) return _selMonth;
+        var months = MonthsFor(_selYear);
+        return months.Count > 0 ? months[0] : _now.Month;
+    }
+
+    private static string MonthName(int month) => new DateTime(2000, month, 1).ToString("MMMM");
+
+    // ── Dropdown interactions ──
+    private void ToggleYear() { _yearOpen = !_yearOpen; _monthOpen = false; }
+    private void ToggleMonth() { _monthOpen = !_monthOpen; _yearOpen = false; }
+    private void CloseAll() { _yearOpen = false; _monthOpen = false; }
+
+    private async Task SelectYear(int year)
+    {
+        _selYear = year;
+        // Whole-year stays selected across years; otherwise keep a valid month for the year.
+        if (_selMonth != 0)
+        {
+            var months = MonthsFor(_selYear);
+            if (months.Count > 0 && !months.Contains(_selMonth)) _selMonth = months[0];
+        }
+        _yearOpen = false;
+        await Load();
+    }
+
+    private async Task SelectMonth(int month)
+    {
+        _selMonth = month;
+        _monthOpen = false;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        var year = _selYear;
+        var month = EffectiveMonth();
+        await PaintLoadingStateAsync();
+
+        // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await ReportsApi.GetFollowUpHistoryAsync(year, month);
+            if (result.IsSuccess) { _data = result.Value; break; }
+            _data = null;
+            if (result.StatusCode is not (401 or 403)) break;
+            await Task.Delay(400);
+        }
+        _loading = false;
+    }
+
+    // ── Client-side filtering (reason / facility / search) over the loaded snapshot ──
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
+    private IEnumerable<FollowUpItemDto> Filtered(IReadOnlyList<FollowUpItemDto> items) => items.Where(r =>
+        (_reason == "all" || r.ReasonKind == _reason)
+        && (_facility is null || r.Facility == _facility)
+        && MatchesSearch(r));
+
+    private int CountFor(IReadOnlyList<FollowUpItemDto> items, string key) => items.Count(r =>
+        (key == "all" || r.ReasonKind == key)
+        && (_facility is null || r.Facility == _facility)
+        && MatchesSearch(r));
+
+    private bool MatchesSearch(FollowUpItemDto r)
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return true;
+        var q = _search.Trim();
+        return Has(r.Person, q) || Has(r.Identifier, q) || Has(r.Reason, q)
+            || Has(r.Facility.ToString(), q) || Has(r.Model, q) || Has(r.Status, q)
+            || Has(r.Period, q) || Has(r.Action, q);
+    }
+
+    private static bool Has(string? v, string q) => !string.IsNullOrEmpty(v) && v.Contains(q, StringComparison.OrdinalIgnoreCase);
+
+    // Priority → tone class (matches the live queue's reason badge / row rail colouring).
+    private static string PriClass(string priority) => priority switch
+    {
+        "Critical" => "critical",
+        "High" => "high",
+        "Review" => "review",
+        _ => "normal",
+    };
+
+    private static string AmountLabel(FollowUpItemDto r) =>
+        r.Excused ? "Excused" : r.Amount is { } a ? "₱" + a.ToString("N0") : "—";
+}

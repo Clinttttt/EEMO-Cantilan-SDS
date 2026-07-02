@@ -44,7 +44,7 @@ public class RecordPaymentCommandHandlerTests
         currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object), paymentRepo);
+        return (new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), paymentRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

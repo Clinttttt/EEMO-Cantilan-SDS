@@ -22,7 +22,7 @@ public class NpmMarketClosureCommandHandlerTests
         repo.Setup(r => r.GetAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync((NpmMarketClosure?)null);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new SetNpmMarketClosureCommandHandler(repo.Object, currentUser.Object, uow.Object);
+        var handler = new SetNpmMarketClosureCommandHandler(repo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(
             new SetNpmMarketClosureCommand(new DateOnly(2026, 6, 15), MarketClosureReason.Holiday), CancellationToken.None);
 
@@ -40,7 +40,7 @@ public class NpmMarketClosureCommandHandlerTests
         repo.Setup(r => r.GetAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync(existing);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new SetNpmMarketClosureCommandHandler(repo.Object, currentUser.Object, uow.Object);
+        var handler = new SetNpmMarketClosureCommandHandler(repo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(
             new SetNpmMarketClosureCommand(new DateOnly(2026, 6, 15), MarketClosureReason.Weather, "Typhoon"), CancellationToken.None);
 
@@ -58,7 +58,7 @@ public class NpmMarketClosureCommandHandlerTests
         var uow = new Mock<IUnitOfWork>();
         repo.Setup(r => r.GetAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync(existing);
 
-        var handler = new ClearNpmMarketClosureCommandHandler(repo.Object, uow.Object);
+        var handler = new ClearNpmMarketClosureCommandHandler(repo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new ClearNpmMarketClosureCommand(new DateOnly(2026, 6, 15)), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -72,7 +72,7 @@ public class NpmMarketClosureCommandHandlerTests
         var uow = new Mock<IUnitOfWork>();
         repo.Setup(r => r.GetAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>())).ReturnsAsync((NpmMarketClosure?)null);
 
-        var handler = new ClearNpmMarketClosureCommandHandler(repo.Object, uow.Object);
+        var handler = new ClearNpmMarketClosureCommandHandler(repo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new ClearNpmMarketClosureCommand(new DateOnly(2026, 6, 15)), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

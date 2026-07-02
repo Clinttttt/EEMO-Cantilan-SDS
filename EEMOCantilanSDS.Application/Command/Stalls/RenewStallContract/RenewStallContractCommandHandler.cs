@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using MediatR;
@@ -14,7 +16,9 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 public class RenewStallContractCommandHandler(
     IStallRepository stallRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<RenewStallContractCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<RenewStallContractCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RenewStallContractCommand request, CancellationToken ct)
     {
@@ -40,6 +44,7 @@ public class RenewStallContractCommandHandler(
 
         await stallRepository.AddContractAsync(renewed, ct);
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
 
         return Result<bool>.Success(true);
     }

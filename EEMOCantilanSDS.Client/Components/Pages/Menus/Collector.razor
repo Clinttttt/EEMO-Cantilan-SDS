@@ -393,7 +393,7 @@
                                     <td class="td-nature">@tx.Nature</td>
                                     <td class="amount-val">₱@tx.Amount.ToString("N0")</td>
                                     <td><span class="status-pill @(tx.Status == "Paid" ? "pill-active" : "pill-inactive")">@tx.Status</span></td>
-                                    <td class="td-date">@tx.TransactionDate.ToString("MMM d · hh:mm tt")</td>
+                                    <td class="td-date">@PhilippineTime.ToPhilippineTime(tx.TransactionDate).ToString("MMM d · hh:mm tt")</td>
                                 </tr>
                             }
                         </tbody>

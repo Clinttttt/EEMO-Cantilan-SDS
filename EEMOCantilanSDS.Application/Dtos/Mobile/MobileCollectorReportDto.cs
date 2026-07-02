@@ -16,7 +16,33 @@ public sealed record MobileCollectorReportDto(
     MobileReportTotalsDto Totals,
     IReadOnlyList<MobileReportFacilitySummaryDto> Facilities,
     IReadOnlyList<MobileReportPeriodSummaryDto> Periods,
-    IReadOnlyList<MobileReportPayeeSummaryDto> Payees);
+    IReadOnlyList<MobileReportPayeeSummaryDto> Payees,
+    IReadOnlyList<MobileReportTransactionDto> Transactions,
+    IReadOnlyList<MobileReportAbsentExcusedDto> AbsentExcused);
+
+/// <summary>One recorded collection event — backs the "Total Collected" / "Paid Payors" detail views.</summary>
+public sealed record MobileReportTransactionDto(
+    FacilityCode FacilityCode,
+    string FacilityName,
+    string? StallNo,
+    string PayorName,
+    DateOnly CollectionDate,
+    decimal Amount,
+    bool IsPartial,
+    string? ORNumber);
+
+/// <summary>
+/// One excused record — backs the "Absent / Excused" detail view. It is NPM per-day absence or a
+/// monthly-rental exception; either way the payor owes ₱0 and is never treated as unpaid.
+/// </summary>
+public sealed record MobileReportAbsentExcusedDto(
+    FacilityCode FacilityCode,
+    string FacilityName,
+    string? StallNo,
+    string PayorName,
+    DateOnly Date,
+    string Source,
+    string? Reason);
 
 public sealed record MobileReportTotalsDto(
     decimal CollectedAmount,
@@ -26,6 +52,7 @@ public sealed record MobileReportTotalsDto(
     int PaidCount,
     int PartialCount,
     int UnpaidCount,
+    int AbsentExcusedCount,
     int AssignedFacilityCount);
 
 public sealed record MobileReportFacilitySummaryDto(
@@ -38,7 +65,8 @@ public sealed record MobileReportFacilitySummaryDto(
     int PayeeCount,
     int PaidCount,
     int PartialCount,
-    int UnpaidCount);
+    int UnpaidCount,
+    int AbsentExcusedCount);
 
 public sealed record MobileReportPeriodSummaryDto(
     DateOnly PeriodDate,
@@ -46,7 +74,8 @@ public sealed record MobileReportPeriodSummaryDto(
     int TransactionCount,
     int PayeeCount,
     int PartialCount,
-    int OpenItemCount);
+    int OpenItemCount,
+    int AbsentExcusedCount);
 
 public sealed record MobileReportPayeeSummaryDto(
     string PayorName,

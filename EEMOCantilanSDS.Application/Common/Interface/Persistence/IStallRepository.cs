@@ -22,6 +22,12 @@ public interface IStallRepository
     /// </summary>
     Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct);
     /// <summary>
+    /// Period-scoped contract attention for the Follow-up History (past-period snapshot). Evaluates
+    /// expiry/expiring-soon as of the LAST day of <paramref name="year"/>/<paramref name="month"/> instead
+    /// of "today", so a past month reflects the contract state that would have shown then.
+    /// </summary>
+    Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsOfAsync(int year, int month, int withinMonths, CancellationToken ct);
+    /// <summary>
     /// Inactive stall accounts for the register: explicitly CLOSED (frozen) stalls and EXPIRED ones
     /// (active stall whose contract term has lapsed). Includes lifetime collected (all money ever
     /// received) and uncollected arrears accrued up to the end point (close date / contract expiry),

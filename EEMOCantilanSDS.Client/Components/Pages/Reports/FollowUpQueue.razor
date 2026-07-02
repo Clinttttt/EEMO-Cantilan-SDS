@@ -17,6 +17,7 @@
 @inject ITrmApiClient TrmApi
 @inject ITpmApiClient TpmApi
 @inject ISlaughterApiClient SlhApi
+@inject IJSRuntime JS
 
 @* ───────────────────────────────────────────────────────────────────────────────
    Follow-up Queue — an ACTION queue for the EEMO Head/Admin, distinct from the
@@ -58,15 +59,38 @@
 
 <div class="content-area">
 
-    <!-- Hero: what this queue is + scope -->
-    <div class="fq-intro">
-        <div class="fq-intro-text">
-            <div class="fq-intro-title">Work queue</div>
-            <div class="fq-intro-sub">Records, accounts, and facilities needing review, completion, or contract action — most urgent first.</div>
+    <!-- Hero + queue summary -->
+    <div class="fq-hero">
+        <div class="fq-hero-left">
+            <div class="fq-hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+            </div>
+            <div>
+                <div class="fq-hero-eyebrow">EEMO Admin · Work queue</div>
+                <div class="fq-hero-title">Follow-up Queue</div>
+                <div class="fq-hero-sub">As of @AsOf.ToString("MMMM d, yyyy") · @PeriodLabel</div>
+            </div>
         </div>
-        <div class="fq-intro-scope">
-            <span class="fq-scope-pill">@TotalItems open item@(TotalItems == 1 ? "" : "s")</span>
-            <span class="fq-scope-note">As of @AsOf.ToString("MMM d, yyyy")</span>
+        <div class="fq-hero-stats">
+            <div class="fq-stat">
+                <div class="fq-stat-val fq-stat-critical">@SectionTotal(1)</div>
+                <div class="fq-stat-key">Immediate</div>
+            </div>
+            <div class="fq-hero-divider"></div>
+            <div class="fq-stat">
+                <div class="fq-stat-val">@SectionTotal(2)</div>
+                <div class="fq-stat-key">This period</div>
+            </div>
+            <div class="fq-hero-divider"></div>
+            <div class="fq-stat">
+                <div class="fq-stat-val">@SectionTotal(3)</div>
+                <div class="fq-stat-key">Verify</div>
+            </div>
+            <div class="fq-hero-divider"></div>
+            <div class="fq-stat">
+                <div class="fq-stat-val">@SectionTotal(4)</div>
+                <div class="fq-stat-key">Operational</div>
+            </div>
         </div>
     </div>
 
@@ -102,6 +126,10 @@
                     <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@fc</button>
                 }
             </div>
+            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Resolved & dismissed items from previous periods">
+                <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
+                Past follow-up
+            </a>
         </div>
     </div>
 
@@ -176,6 +204,13 @@
                         <div class="fq-sec-title">@grp.Section.Title</div>
                         <div class="fq-sec-sub">@grp.Section.Sub</div>
                     </div>
+                    @if (grp.Section.Id == SecImmediate && ImmediateExpiredContractCount > 0)
+                    {
+                        <button type="button" class="fq-hideall" title="Dismiss every expired-contract item (they remain on the Closed Accounts page)" @onclick="HideAllExpiredContracts">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                            Hide all Contract expired (@ImmediateExpiredContractCount)
+                        </button>
+                    }
                 </div>
 
                 <div class="fq-table-wrap">
@@ -223,14 +258,20 @@
                                                 break;
                                             case "action":
                                                 <td>
-                                                    @if (it.Action == "Add OR")
-                                                    {
-                                                        <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenAddOr(it)">@it.Action<span class="fq-action-arrow">→</span></button>
-                                                    }
-                                                    else
-                                                    {
-                                                        <a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a>
-                                                    }
+                                                    <div class="fq-action-cell">
+                                                        @if (grp.Section.Id == SecImmediate)
+                                                        {
+                                                            <button type="button" class="fq-hidebtn" title="Dismiss from the live queue — reviewable under Past follow-up" @onclick="() => HideItem(it)">Hide</button>
+                                                        }
+                                                        @if (it.Action == "Add OR")
+                                                        {
+                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenAddOr(it)">@it.Action<span class="fq-action-arrow">→</span></button>
+                                                        }
+                                                        else
+                                                        {
+                                                            <a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a>
+                                                        }
+                                                    </div>
                                                 </td>
                                                 break;
                                             default:
@@ -337,6 +378,44 @@
     private string _search = "";
     private FacilityCode? _facility;   // null = all facilities
 
+    // ── Manual hide (admin-dismissed "Needs immediate action" items) ──────────────
+    // The Head/Admin can dismiss items they don't want escalated here (e.g. an expired contract that
+    // is already handled on the Closed Accounts page). Nothing is auto-hidden. Hidden keys persist
+    // per-browser via localStorage; a toggle reveals them. Scope: Needs immediate action only.
+    private const int SecImmediate = 1;
+    private const string HiddenStorageKey = "eemo.followup.hidden";
+    private HashSet<string> _hidden = new();
+
+    private static string HideKey(FollowUpItemDto i) => $"{i.Facility}|{i.ReasonKind}|{i.Identifier}|{i.Period}";
+
+    // Count of still-visible "Contract expired" items in Needs immediate action (expired contracts
+    // are ReasonKind "contract" in section 1; expiring-soon ones live in section 2).
+    private int ImmediateExpiredContractCount =>
+        Filtered().Count(i => i.Section == SecImmediate && i.ReasonKind == "contract" && !_hidden.Contains(HideKey(i)));
+
+    private async Task HideAllExpiredContracts()
+    {
+        foreach (var i in Filtered().Where(i => i.Section == SecImmediate && i.ReasonKind == "contract"))
+            _hidden.Add(HideKey(i));
+        await SaveHidden();
+    }
+
+    private async Task HideItem(FollowUpItemDto item)
+    {
+        _hidden.Add(HideKey(item));
+        await SaveHidden();
+    }
+
+    private async Task SaveHidden()
+    {
+        try
+        {
+            var json = System.Text.Json.JsonSerializer.Serialize(_hidden);
+            await JS.InvokeVoidAsync("localStorage.setItem", HiddenStorageKey, json);
+        }
+        catch { /* storage unavailable — the hide still applies for this session */ }
+    }
+
     private static readonly FacilityCode[] AllFacilities =
     {
         FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ,
@@ -349,9 +428,28 @@
 
     protected override async Task OnInitializedAsync() => await Load();
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", HiddenStorageKey);
+            if (string.IsNullOrWhiteSpace(json)) return;
+            var keys = System.Text.Json.JsonSerializer.Deserialize<HashSet<string>>(json);
+            if (keys is { Count: > 0 })
+            {
+                _hidden = keys;
+                StateHasChanged();   // re-filter now that dismissed items are known
+            }
+        }
+        catch { /* storage unavailable — start with nothing hidden */ }
+    }
+
     private async Task Load()
     {
         _loading = true;
+        await PaintLoadingStateAsync();
+
         var now = PhilippineTime.Now;
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
@@ -369,6 +467,12 @@
     // Works for every facility model. Mobile collection makes the OR optional, so any facility can
     // have blank-OR records. Reuses each facility's existing OR-save; for SLH one OR covers a whole
     // visit (all animal rows on that date).
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     private enum OrModel { NpmDaily, Monthly, Trm, Tpm, Slh }
 
     private sealed class OrRow
@@ -644,6 +748,15 @@
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
     private int TotalItems => Filtered().Count;
 
+    // Overview counts per urgency band for the hero — all open items (minus dismissed), independent
+    // of the reason/facility/search filters so the summary stays stable while filtering below.
+    private int SectionTotal(int section)
+    {
+        var q = AllItems.Where(i => i.Section == section);
+        if (section == SecImmediate) q = q.Where(i => !_hidden.Contains(HideKey(i)));
+        return q.Count();
+    }
+
     private void SelectFilter(string key) => _filter = key;
     private void SelectFacility(FacilityCode? code) => _facility = code;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
@@ -657,8 +770,14 @@
 
     private bool MatchesFacility(FollowUpItemDto i) => _facility is null || i.Facility == _facility;
 
-    private List<FollowUpItemDto> ItemsFor(int section) =>
-        Filtered().Where(i => i.Section == section).ToList();   // server already ordered by priority/amount
+    private List<FollowUpItemDto> ItemsFor(int section)
+    {
+        var items = Filtered().Where(i => i.Section == section);
+        // Dismissed items are permanently removed from the live queue (reviewable under Past follow-up).
+        if (section == SecImmediate)
+            items = items.Where(i => !_hidden.Contains(HideKey(i)));
+        return items.ToList();   // server already ordered by priority/amount
+    }
 
     private bool MatchesSearch(FollowUpItemDto i)
     {

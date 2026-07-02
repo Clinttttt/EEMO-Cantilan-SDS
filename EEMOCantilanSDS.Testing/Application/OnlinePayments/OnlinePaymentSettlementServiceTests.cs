@@ -24,7 +24,7 @@ public class OnlinePaymentSettlementServiceTests
         payRepo.Setup(r => r.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
         var notifier = new Mock<IOnlinePaymentNotifier>();
         var uow = new Mock<IUnitOfWork>();
-        return (new OnlinePaymentSettlementService(payRepo.Object, notifier.Object, uow.Object), payRepo, uow);
+        return (new OnlinePaymentSettlementService(payRepo.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), payRepo, uow);
     }
 
     private static OnlinePaymentTransaction PendingTxn(Guid recordId)

@@ -41,11 +41,9 @@
     <div class="ca-controls no-print">
         <div class="ca-filter" role="group" aria-label="Year">
             <span class="ca-filter-cap">Year</span>
-            <button class="ca-chip @(_year is null ? "ca-chip-active" : "")" type="button" @onclick="() => _year = null">All</button>
-            @foreach (var y in Years)
-            {
-                <button class="ca-chip @(_year == y ? "ca-chip-active" : "")" type="button" @onclick="() => _year = y">@y</button>
-            }
+            <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
+                             Label="@(_year?.ToString() ?? "All years")"
+                             OnSelectYear="OnPickYear" />
         </div>
 
         <div class="ca-filter" role="group" aria-label="Status">
@@ -325,6 +323,8 @@
     private static readonly string[] Facilities = { "NPM", "TCC", "NCC", "BBQ", "ICE" };
     private int[] Years = Array.Empty<int>();
 
+    private void OnPickYear(int? year) => _year = year;
+
     // ── Action state ──
     private ClosedStallAccountDto? _reopenTarget;
     private ClosedStallAccountDto? _renewTarget;
@@ -342,6 +342,8 @@
     {
         _loading = true;
         _error = null;
+        await PaintLoadingStateAsync();
+
         var result = await StallsApi.GetClosedStallAccountsAsync();
         if (result.IsSuccess && result.Value is not null)
         {
@@ -354,6 +356,12 @@
             _accounts = new();
         }
         _loading = false;
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     // The lifecycle end point used for grouping/sorting: close date (closed) or expiry (expired).

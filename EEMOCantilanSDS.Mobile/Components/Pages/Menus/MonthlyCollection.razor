@@ -315,9 +315,72 @@
                     <div class="receipt-note">This acknowledges receipt of the monthly stall rental stated above. Keep for your records.</div>
                 </div>
             </div>
+            @if (SelectedStall.Status == PaymentStatus.Partial && SelectedStall.Balance > 0)
+            {
+                <button class="btn-receipt-collect" type="button" @onclick="OpenCollectBalance">
+                    Collect Balance · @FormatCurrency(SelectedStall.Balance)
+                </button>
+            }
             <div class="receipt-close-row">
                 <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
                 <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowCollectBalance && SelectedStall is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseCollectBalance">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Collect Remaining Balance</div>
+            <div class="sheet-sub">Add a payment toward this stall's balance for @MonthLabel.</div>
+
+            <div class="sheet-preview">
+                <div class="preview-num">@SelectedStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@SelectedStall.PayorName</div>
+                    <div class="preview-detail">Monthly rental · @FormatCurrency(SelectedStall.MonthlyRate)</div>
+                </div>
+            </div>
+
+            <div class="balance-recap">
+                <div class="balance-recap-row"><span>Already paid</span><strong>@FormatCurrency(SelectedStall.AmountPaid)</strong></div>
+                <div class="balance-recap-row balance-recap-due"><span>Remaining balance</span><strong>@FormatCurrency(SelectedStall.Balance)</strong></div>
+            </div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Amount collected now</div>
+                <div class="fish-input-row">
+                    <span>₱</span>
+                    <input class="form-input" type="number" min="0" step="0.01" max="@SelectedStall.Balance" placeholder="0" @bind="BalanceCollectNow" @bind:event="oninput" />
+                </div>
+                <div class="form-hint">Up to the remaining balance of @FormatCurrency(SelectedStall.Balance). Paying it in full marks the stall Paid.</div>
+            </div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Official receipt no. <span>optional</span></div>
+                <input class="form-input mono-input"
+                       type="text"
+                       inputmode="numeric"
+                       maxlength="30"
+                       placeholder="000001"
+                       @bind="BalanceOrNumber"
+                       @bind:event="oninput" />
+                <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(CollectBalanceError))
+            {
+                <div class="form-error">@CollectBalanceError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseCollectBalance" disabled="@IsSaving">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmCollectBalanceAsync" disabled="@IsSaving">
+                    @(IsSaving ? "Saving..." : "Confirm Payment")
+                </button>
             </div>
         </div>
     </div>
@@ -787,6 +850,102 @@
     {
         ShowReceipt = false;
         SelectedStall = null;
+    }
+
+    // ── Collect the remaining balance on a partial record ──
+    private bool ShowCollectBalance;
+    private decimal? BalanceCollectNow;
+    private string BalanceOrNumber = string.Empty;
+    private string? CollectBalanceError;
+
+    private void OpenCollectBalance()
+    {
+        if (SelectedStall is null) return;
+        ShowReceipt = false;
+        BalanceCollectNow = SelectedStall.Balance; // default to clearing the whole balance
+        BalanceOrNumber = SelectedStall.ORNumber ?? string.Empty; // carry the existing OR forward, if any
+        CollectBalanceError = null;
+        ShowCollectBalance = true;
+    }
+
+    private void CloseCollectBalance()
+    {
+        ShowCollectBalance = false;
+        BalanceCollectNow = null;
+        BalanceOrNumber = string.Empty;
+        CollectBalanceError = null;
+        SelectedStall = null;
+    }
+
+    private async Task ConfirmCollectBalanceAsync()
+    {
+        if (SelectedStall is null || Collection is null) return;
+
+        var balance = SelectedStall.Balance;
+        if (BalanceCollectNow is null or <= 0m)
+        {
+            CollectBalanceError = "Enter an amount greater than 0.";
+            return;
+        }
+        if (BalanceCollectNow.Value > balance)
+        {
+            CollectBalanceError = $"Amount can't exceed the remaining balance of {FormatCurrency(balance)}.";
+            return;
+        }
+
+        // PartialAmount is the ABSOLUTE total paid; add what's collected now. Clearing the balance
+        // (or reaching the monthly rate) marks the stall Paid — the domain also auto-upgrades.
+        var newTotalPaid = SelectedStall.AmountPaid + BalanceCollectNow.Value;
+        var status = newTotalPaid >= SelectedStall.MonthlyRate ? PaymentStatus.Paid : PaymentStatus.Partial;
+        var orNumber = !string.IsNullOrWhiteSpace(BalanceOrNumber) ? BalanceOrNumber.Trim() : null;
+
+        IsSaving = true;
+        CollectBalanceError = null;
+
+        if (!Sync.IsOnline)
+        {
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.MonthlyRental,
+                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+                StallId = SelectedStall.StallId,
+                Status = status,
+                PartialAmount = status == PaymentStatus.Partial ? newTotalPaid : null,
+                ORNumber = orNumber,
+                FacilityLabel = FacilityCodeUpper,
+                Title = SelectedStall.PayorName,
+                Detail = $"No. {SelectedStall.StallNo} · balance",
+                Amount = BalanceCollectNow.Value
+            });
+            QueuedOfflineStalls.Add(SelectedStall.StallId);
+            CloseCollectBalance();
+            IsSaving = false;
+            return;
+        }
+
+        var request = new RecordMobileMonthlyCollectionRequest(
+            SelectedStall.StallId,
+            status,
+            status == PaymentStatus.Partial ? newTotalPaid : null,
+            orNumber);
+
+        var result = await MobileApi.RecordMonthlyCollectionAsync(request);
+        if (!result.IsSuccess)
+        {
+            CollectBalanceError = result.Error ?? "Unable to save the payment.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseCollectBalance();
+        try
+        {
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
     private void OpenSheet(MobileMonthlyStallCollectionDto stall)

@@ -77,7 +77,7 @@ namespace EEMOCantilanSDS.Mobile
         internal static string GetApiBaseUrl()
         {
             /*https://api.stalltrack.site*/
-            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+            const string ApiBaseUrlOverride = "http://api.stalltrack.site/";
                if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
                    return ApiBaseUrlOverride;
 

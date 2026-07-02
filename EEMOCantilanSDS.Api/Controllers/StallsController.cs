@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
@@ -25,6 +26,13 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost]
     public async Task<ActionResult<StallDto>> CreateStall([FromBody] CreateStallCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("bulk-import")]
+    public async Task<ActionResult<BulkImportResultDto>> BulkImport([FromBody] BulkImportStallholdersCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

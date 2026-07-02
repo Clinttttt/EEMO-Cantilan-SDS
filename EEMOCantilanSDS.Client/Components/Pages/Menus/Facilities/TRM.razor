@@ -24,14 +24,14 @@
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">TRM — @DateTime.Now.ToString("MMMM d, yyyy")</span>
+                <span class="breadcrumb-active">TRM — @PhilippineTime.Now.ToString("MMMM d, yyyy")</span>
             </div>
         </div>
     </div>
     <div class="topbar-right">
         <div class="topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @DateTime.Now.ToString("MMMM d, yyyy")
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
         </div>
         <AccountChip />
     </div>
@@ -151,7 +151,7 @@
                     Today's Trip Log
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <div class="trm-log-date">@DateTime.Now.ToString("MMMM d, yyyy")</div>
+                    <div class="trm-log-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
                     <button class="btn-outline" @onclick='() => Navigation.NavigateTo("/trm/reports")' title="View Transport Terminal Reports">
                         <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
                             <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
@@ -201,7 +201,7 @@
                                     <td class="trm-org-cell">@trip.Organization</td>
                                     <td class="trm-plate-cell">@trip.PlateNumber</td>
                                     <td class="trm-route-cell">@trip.Route</td>
-                                    <td class="trm-time-cell">@trip.RecordedAt.ToString("h:mm tt")</td>
+                                    <td class="trm-time-cell">@PhilippineTime.ToPhilippineTime(trip.RecordedAt).ToString("h:mm tt")</td>
                                 </tr>
                             }
                         </tbody>
@@ -351,7 +351,7 @@
                                         OR No.
                                     </button>
                                 }
-                                <span class="trm-profile-trip-time">@trip.RecordedAt.ToString("h:mm tt")</span>
+                                <span class="trm-profile-trip-time">@PhilippineTime.ToPhilippineTime(trip.RecordedAt).ToString("h:mm tt")</span>
                             </div>
                         </div>
                     }
@@ -374,7 +374,7 @@
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Trip #@DetailTrip.TripNumber</div>
-                    <div class="eemo-modal-sub">@DetailTrip.RecordedAt.ToString("MMMM d, yyyy · h:mm tt")</div>
+                    <div class="eemo-modal-sub">@PhilippineTime.ToPhilippineTime(DetailTrip.RecordedAt).ToString("MMMM d, yyyy · h:mm tt")</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="CloseTripDetail">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -400,7 +400,7 @@
                     </div>
                     <div class="trm-record-info-row">
                         <span class="trm-record-info-key">Time</span>
-                        <span class="trm-record-info-val">@DetailTrip.RecordedAt.ToString("h:mm tt")</span>
+                        <span class="trm-record-info-val">@PhilippineTime.ToPhilippineTime(DetailTrip.RecordedAt).ToString("h:mm tt")</span>
                     </div>
                     <div class="trm-record-info-row">
                         <span class="trm-record-info-key">Terminal Fee</span>
@@ -603,23 +603,39 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadData();
+        await LoadData(paintLoading: true);
     }
 
-    async Task LoadData()
+    async Task LoadData(bool paintLoading = false)
     {
+        if (paintLoading)
+        {
+            isLoading = true;
+            await PaintLoadingStateAsync();
+        }
 
+        var overviewTask = TrmApi.GetOverviewAsync();
+        var transportersTask = TrmApi.GetTransportersAsync();
+        var tripsTask = TrmApi.GetTodayTripsAsync();
 
-        var overviewResult = await TrmApi.GetOverviewAsync();
+        await Task.WhenAll(overviewTask, transportersTask, tripsTask);
+
+        var overviewResult = await overviewTask;
         if (overviewResult.IsSuccess) overview = overviewResult.Value;
 
-        var transportersResult = await TrmApi.GetTransportersAsync();
+        var transportersResult = await transportersTask;
         if (transportersResult.IsSuccess) Transporters = transportersResult.Value?.ToList() ?? new();
 
-        var tripsResult = await TrmApi.GetTodayTripsAsync();
+        var tripsResult = await tripsTask;
         if (tripsResult.IsSuccess) AllTrips = tripsResult.Value?.ToList() ?? new();
 
         isLoading = false; StateHasChanged();
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     string TransporterSearch = string.Empty;

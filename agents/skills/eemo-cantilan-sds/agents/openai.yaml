@@ -1,0 +1,6 @@
+interface:
+  display_name: "EEMO Cantilan SDS"
+  short_description: "Work safely in the EEMO codebase"
+  default_prompt: "Use $eemo-cantilan-sds to inspect, change, test, or review the EEMO Cantilan SDS system."
+policy:
+  allow_implicit_invocation: true

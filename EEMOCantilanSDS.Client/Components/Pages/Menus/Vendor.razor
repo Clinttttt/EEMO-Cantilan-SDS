@@ -658,6 +658,7 @@
                 @bind-FormError="FormError"
                 FacilityOptions="FacilityTabsAsOptions()"
                 FacilityLocked="false"
+                ExistingStallNos="VendorStallNos"
                 OnSave="SaveVendor"
                 OnCancel="CloseModal"
                 OnFacilityChanged="OnFacilityChanged"
@@ -924,6 +925,9 @@
     bool IsEditing = false;
     int EditingId = 0;
     AddVendorModal.VendorModalForm Form = new();
+
+    // Existing stall numbers for the current facility's vendors — feeds the modal's next-number suggestion.
+    IReadOnlyCollection<string> VendorStallNos => Vendors.Select(v => v.StallNo).ToList();
 
     string FormError = string.Empty;
 

@@ -36,7 +36,7 @@ public class ActorAttributionTests
         paymentRepo.Setup(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()))
             .Callback<PaymentRecord, CancellationToken>((p, _) => captured = p).Returns(Task.CompletedTask);
 
-        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, actor.Object, uow.Object);
+        var handler = new RecordPaymentCommandHandler(paymentRepo.Object, stallRepo.Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 1, PaymentStatus.Paid, null, null), CancellationToken.None);
         return captured!;
     }
@@ -64,7 +64,7 @@ public class ActorAttributionTests
         var uow = new Mock<IUnitOfWork>();
         tpmRepo.Setup(r => r.GetAttendanceByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(attendance);
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, actor.Object, uow.Object);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, actor.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         await handler.Handle(new MarkVendorPaidCommand(Guid.NewGuid(), IsPaid: true), CancellationToken.None);
         return attendance;
     }

@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -11,7 +13,9 @@ public class SetStallMonthlyExceptionCommandHandler(
     IStallMonthlyExceptionRepository exceptionRepository,
     IStallRepository stallRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<SetStallMonthlyExceptionCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<SetStallMonthlyExceptionCommand, Result<bool>>
 {
     private static readonly HashSet<FacilityCode> MonthlyFacilities =
         new() { FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
@@ -43,6 +47,13 @@ public class SetStallMonthlyExceptionCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            code,
+            request.Year,
+            request.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

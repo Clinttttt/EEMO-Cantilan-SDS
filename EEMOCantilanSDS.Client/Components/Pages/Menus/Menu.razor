@@ -232,7 +232,7 @@
                                         <td><span>@tx.FacilityCode</span></td>
                                         <td>₱@tx.Amount.ToString("N0")</td>
                                         <td>@tx.RecordedBy</td>
-                                        <td>@tx.CollectedAt.ToString("hh:mm tt")</td>
+                                        <td>@PhilippineTime.ToPhilippineTime(tx.CollectedAt).ToString("hh:mm tt")</td>
                                     </tr>
                                 }
                             </tbody>
@@ -289,6 +289,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _loading = true;
+        await PaintLoadingStateAsync();
+
         // Cold-start resilience: right after login the Blazor circuit may not have attached the JWT yet
         // when this first API call fires, yielding a transient 401/403 and an empty dashboard until a
         // re-navigation. Re-attempt briefly until the circuit's token is ready. Only auth failures are
@@ -314,6 +317,12 @@
         {
             _loading = false;
         }
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private decimal TotalCollected => _data?.TotalCollected ?? 0;

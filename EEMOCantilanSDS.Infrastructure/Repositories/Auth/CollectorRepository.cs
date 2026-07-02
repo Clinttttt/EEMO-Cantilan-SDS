@@ -79,7 +79,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 var partial = r.Status == PaymentStatus.Partial;
                 return new MobileCollectorRecordDto(
                     r.ORNumber ?? "—", r.Payor ?? "—", r.Code, string.Empty, r.StallNo,
-                    "Stall Rental", full, partial ? r.PartialAmount : full, partial, r.When, r.Section, r.FishKilos,
+                    "Stall Rental", full, partial ? r.PartialAmount : full, partial, PhilippineTime.ToPhilippineTime(r.When), r.Section, r.FishKilos,
                     r.IsAdmin);
             }));
         }
@@ -115,11 +115,11 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 return d.IsAbsent
                     ? new MobileCollectorRecordDto(
                         "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
-                        "Absent / Excused", 0m, 0m, false, d.When, d.Section, null,
+                        "Absent / Excused", 0m, 0m, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, null,
                         IsAdminRecorded: false, IsAbsent: true)
                     : new MobileCollectorRecordDto(
                         d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
-                        "Daily Fee", amount, amount, false, d.When, d.Section, d.FishKilos,
+                        "Daily Fee", amount, amount, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, d.FishKilos,
                         d.IsAdmin, IsAbsent: false);
             }));
         }
@@ -144,7 +144,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
             results.AddRange(rows.Select(s => new MobileCollectorRecordDto(
                 s.ORNumber ?? "—", s.OwnerName, FacilityCode.SLH, string.Empty, null,
-                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, s.When,
+                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, PhilippineTime.ToPhilippineTime(s.When),
                 IsAdminRecorded: s.IsAdmin)));
         }
 
@@ -160,7 +160,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
             results.AddRange(rows.Select(t => new MobileCollectorRecordDto(
                 t.ORNumber ?? "—", t.DriverName, FacilityCode.TRM, string.Empty, null,
-                "Terminal Trip", t.Fee, t.Fee, false, t.RecordedAt,
+                "Terminal Trip", t.Fee, t.Fee, false, PhilippineTime.ToPhilippineTime(t.RecordedAt),
                 IsAdminRecorded: t.IsAdmin)));
         }
 
@@ -184,7 +184,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
             results.AddRange(rows.Select(a => new MobileCollectorRecordDto(
                 a.ORNumber ?? "—", a.Vendor, FacilityCode.TPM, string.Empty, null,
-                "Market Day", a.Fee, a.Fee, false, a.When,
+                "Market Day", a.Fee, a.Fee, false, PhilippineTime.ToPhilippineTime(a.When),
                 IsAdminRecorded: a.IsAdmin)));
         }
 
@@ -208,6 +208,12 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         var transactions = new List<CollectorReportTransaction>();
         var payees = new List<MobileReportPayeeSummaryDto>();
         var openItemsByDate = new Dictionary<DateOnly, int>();
+        // Absent (NPM daily) + excused (monthly-facility exception) counts — kept SEPARATE from
+        // paid/partial/unpaid so an excused payor is never presented as a debt.
+        var absentExcusedByFacility = new Dictionary<FacilityCode, int>();
+        var absentExcusedByDate = new Dictionary<DateOnly, int>();
+        var absentExcusedTotal = 0;
+        var absentExcusedRows = new List<MobileReportAbsentExcusedDto>();
         var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
         var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
 
@@ -215,6 +221,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         // = toDate). COLLECTED money, however, must include every paid collection in the month — even
         // days paid in advance (CollectionDate after today). So daily collections range to month-end.
         var collectionEnd = new DateOnly(fromDate.Year, fromDate.Month, DateTime.DaysInMonth(fromDate.Year, fromDate.Month));
+        var monthStart = new DateOnly(year, month, 1);
 
         if (selectedSet.Contains(FacilityCode.NPM))
         {
@@ -232,6 +239,26 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .ToListAsync(cancellationToken);
 
             var npmStallsById = npmStalls.ToDictionary(s => s.Id);
+
+            // Absent (excused) NPM days in the reporting window — counted separately, never as unpaid,
+            // and captured as rows for the Absent/Excused detail view.
+            foreach (var s in npmStalls)
+            {
+                foreach (var d in s.DailyCollections.Where(d => d.IsAbsent && d.CollectionDate >= fromDate && d.CollectionDate <= toDate))
+                {
+                    // Only count an absence on a date the stall's contract actually covers (skip stray
+                    // absences on days outside any contract term), and attribute it to that contract.
+                    var cov = s.Contracts.Where(c => c.IsCollectableOn(d.CollectionDate)).OrderByDescending(c => c.EffectivityDate).FirstOrDefault();
+                    if (cov is null) continue;
+                    var absentPayor = string.IsNullOrWhiteSpace(cov.ActualOccupant) ? "No active occupant" : cov.ActualOccupant;
+                    absentExcusedRows.Add(new MobileReportAbsentExcusedDto(
+                        FacilityCode.NPM, FacilityName(FacilityCode.NPM, facilityNames), s.StallNo, absentPayor,
+                        d.CollectionDate, "NPM daily absence", null));
+                    absentExcusedByFacility[FacilityCode.NPM] = absentExcusedByFacility.GetValueOrDefault(FacilityCode.NPM) + 1;
+                    absentExcusedByDate[d.CollectionDate] = absentExcusedByDate.GetValueOrDefault(d.CollectionDate) + 1;
+                    absentExcusedTotal++;
+                }
+            }
             var npmStallIds = npmStallsById.Keys.ToList();
             var npmPaymentRecords = await context.PaymentRecords
                 .AsNoTracking()
@@ -285,7 +312,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             {
                 var stall = npmStallsById[p.StallId];
                 var contract = stall.Contracts
-                    .Where(c => c.IsActive)
+                    .Where(c => c.OverlapsPeriod(fromDate, collectionEnd))
                     .OrderByDescending(c => c.EffectivityDate)
                     .FirstOrDefault();
                 var collectedAt = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt;
@@ -303,10 +330,12 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     p.ORNumber);
             }).Where(t => t.Amount > 0m));
 
-            payees.AddRange(npmStalls.Select(s =>
+            payees.AddRange(npmStalls
+                .Where(s => s.Contracts.Any(c => c.OverlapsPeriod(fromDate, collectionEnd)))
+                .Select(s =>
             {
                 var contract = s.Contracts
-                    .Where(c => c.IsActive)
+                    .Where(c => c.OverlapsPeriod(fromDate, collectionEnd))
                     .OrderByDescending(c => c.EffectivityDate)
                     .FirstOrDefault();
 
@@ -424,11 +453,42 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .ThenBy(s => s.StallNo)
                 .ToListAsync(cancellationToken);
 
-            payees.AddRange(monthlyStalls.Select(s =>
+            // Excused monthly-rental stalls for this billing month (₱0 owed) — excluded from the payee
+            // list so they are never counted as unpaid, and surfaced separately as absent/excused.
+            var monthlyStallIds = monthlyStalls.Select(s => s.Id).ToList();
+            var monthlyStallById = monthlyStalls.ToDictionary(s => s.Id);
+            var exceptions = await context.StallMonthlyExceptions
+                .AsNoTracking()
+                .Where(e => monthlyStallIds.Contains(e.StallId) && e.BillingYear == year && e.BillingMonth == month)
+                .Select(e => new { e.StallId, e.Reason, e.Remarks })
+                .ToListAsync(cancellationToken);
+            var excusedStallIds = exceptions.Select(e => e.StallId).ToHashSet();
+            if (exceptions.Count > 0)
+            {
+                var monthPeriod = new DateOnly(year, month, 1);
+                foreach (var e in exceptions)
+                {
+                    if (!monthlyStallById.TryGetValue(e.StallId, out var s)) continue;
+                    var contract = s.Contracts.Where(c => c.OverlapsPeriod(monthStart, collectionEnd)).OrderByDescending(c => c.EffectivityDate).FirstOrDefault();
+                    if (contract is null) continue; // exception for a month no contract covers → not a valid excused row
+                    var code = s.Facility!.Code;
+                    var payor = string.IsNullOrWhiteSpace(contract.ActualOccupant) ? "No active occupant" : contract.ActualOccupant;
+                    var reason = string.IsNullOrWhiteSpace(e.Remarks) ? e.Reason.ToString() : $"{e.Reason} — {e.Remarks}";
+                    absentExcusedRows.Add(new MobileReportAbsentExcusedDto(
+                        code, FacilityName(code, facilityNames), s.StallNo, payor, monthPeriod, "Monthly exception", reason));
+                    absentExcusedByFacility[code] = absentExcusedByFacility.GetValueOrDefault(code) + 1;
+                    absentExcusedByDate[monthPeriod] = absentExcusedByDate.GetValueOrDefault(monthPeriod) + 1;
+                    absentExcusedTotal++;
+                }
+            }
+
+            payees.AddRange(monthlyStalls
+                .Where(s => s.Contracts.Any(c => c.OverlapsPeriod(monthStart, collectionEnd)) && !excusedStallIds.Contains(s.Id))
+                .Select(s =>
             {
                 var facility = s.Facility!.Code;
                 var contract = s.Contracts
-                    .Where(c => c.IsActive)
+                    .Where(c => c.OverlapsPeriod(monthStart, collectionEnd))
                     .OrderByDescending(c => c.EffectivityDate)
                     .FirstOrDefault();
                 var record = s.PaymentRecords.FirstOrDefault();
@@ -586,21 +646,28 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     facilityPayees.Count,
                     facilityPayees.Count(p => p.Status == PaymentStatus.Paid),
                     facilityPayees.Count(p => p.Status == PaymentStatus.Partial),
-                    facilityPayees.Count(p => p.Status == PaymentStatus.Unpaid));
+                    facilityPayees.Count(p => p.Status == PaymentStatus.Unpaid),
+                    absentExcusedByFacility.GetValueOrDefault(f));
             })
             .OrderBy(f => f.FacilityCode)
             .ToList();
 
         var periodSummaries = dailyReportMode
-            ? transactions
-                .GroupBy(t => t.PeriodDate)
-                .Select(g => new MobileReportPeriodSummaryDto(
-                    g.Key,
-                    g.Sum(t => t.Amount),
-                    g.Count(),
-                    g.Select(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)).Distinct().Count(),
-                    g.Count(t => t.IsPartial),
-                    openItemsByDate.GetValueOrDefault(g.Key)))
+            ? transactions.Select(t => t.PeriodDate)
+                .Concat(absentExcusedByDate.Keys)
+                .Distinct()
+                .Select(date =>
+                {
+                    var dayTxns = transactions.Where(t => t.PeriodDate == date).ToList();
+                    return new MobileReportPeriodSummaryDto(
+                        date,
+                        dayTxns.Sum(t => t.Amount),
+                        dayTxns.Count,
+                        dayTxns.Select(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)).Distinct().Count(),
+                        dayTxns.Count(t => t.IsPartial),
+                        openItemsByDate.GetValueOrDefault(date),
+                        absentExcusedByDate.GetValueOrDefault(date));
+                })
                 .OrderByDescending(p => p.PeriodDate)
                 .ToList()
             : transactions.Count == 0
@@ -611,7 +678,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     transactions.Count,
                     transactions.Select(t => ReportPayeeKey(t.FacilityCode, t.StallNo, t.PayorName)).Distinct().Count(),
                     transactions.Count(t => t.IsPartial),
-                    payees.Count(p => p.Balance > 0m))];
+                    payees.Count(p => p.Balance > 0m),
+                    absentExcusedTotal)];
 
         var totals = new MobileReportTotalsDto(
             transactions.Sum(t => t.Amount),
@@ -621,6 +689,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             payees.Count(p => p.Status == PaymentStatus.Paid),
             payees.Count(p => p.Status == PaymentStatus.Partial),
             payees.Count(p => p.Status == PaymentStatus.Unpaid),
+            absentExcusedTotal,
             selectedFacilities.Count);
 
         return new MobileCollectorReportDto(
@@ -637,6 +706,18 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .ThenBy(p => p.AreaLabel)
                 .ThenBy(p => p.StallNo)
                 .ThenBy(p => p.PayorName)
+                .ToList(),
+            transactions
+                .OrderByDescending(t => t.PeriodDate)
+                .ThenBy(t => t.FacilityCode)
+                .ThenBy(t => t.StallNo)
+                .Select(t => new MobileReportTransactionDto(
+                    t.FacilityCode, t.FacilityName, t.StallNo, t.PayorName, t.PeriodDate, t.Amount, t.IsPartial, t.ORNumber))
+                .ToList(),
+            absentExcusedRows
+                .OrderByDescending(a => a.Date)
+                .ThenBy(a => a.FacilityCode)
+                .ThenBy(a => a.StallNo)
                 .ToList());
     }
 
@@ -1119,9 +1200,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
     }
 
     private static bool IsContractCollectableOn(Contract contract, DateOnly date) =>
-        contract.IsActive
-        && contract.EffectivityDate <= date
-        && date <= contract.ExpiryDate;
+        contract.IsCollectableOn(date);
 
     private static bool IsStallCollectableOn(Stall stall, DateOnly date) =>
         stall.Status == StallStatus.Active

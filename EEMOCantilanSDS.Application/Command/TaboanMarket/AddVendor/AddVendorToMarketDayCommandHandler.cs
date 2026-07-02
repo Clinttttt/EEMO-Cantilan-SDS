@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
@@ -12,7 +14,9 @@ public class AddVendorToMarketDayCommandHandler(
     ITpmRepository tpmRepo,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
 {
     public async Task<Result<TpmVendorAttendanceDto>> Handle(AddVendorToMarketDayCommand request, CancellationToken ct)
     {
@@ -58,6 +62,12 @@ public class AddVendorToMarketDayCommandHandler(
 
         await tpmRepo.AddAttendanceAsync(attendance, ct);
         await uow.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.TPM,
+            request.MarketDate.Year,
+            request.MarketDate.Month,
+            ct);
 
         return Result<TpmVendorAttendanceDto>.Success(new TpmVendorAttendanceDto
         {

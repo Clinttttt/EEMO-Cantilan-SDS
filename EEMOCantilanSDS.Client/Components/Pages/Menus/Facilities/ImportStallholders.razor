@@ -1,0 +1,919 @@
+@page "/import/{Facility}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.IO.Compression
+@using System.Text
+@using System.Xml.Linq
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders
+@using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Domain.Enums
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@inject NavigationManager Navigation
+@inject IStallsApiClient StallsApi
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+
+@*
+    ImportStallholders — facility-aware bulk import for stallholders (NPM, TCC, NCC, BBQ, ICE).
+    Reached from the Import action in the Add Vendor modal. The admin uploads a CSV/Excel list,
+    reviews and edits the rows in a table whose columns match the facility, then saves.
+
+    Backend persistence (CSV/XLSX parsing + a bulk create command) is wired in a later step.
+*@
+
+<PageTitle>EEMO Admin — Import @(_facility?.Name ?? "Stallholders")</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left flex gap-2">
+        <a href="@BackUrl" class="imp-back-btn" title="Back to @(_facility?.Name ?? "facility")">
+            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div>
+            <div class="topbar-title">Import Stallholders</div>
+            <div class="topbar-breadcrumb">
+                <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                <span class="breadcrumb-sep">/</span>
+                @if (_facility is not null)
+                {
+                    <a href="@BackUrl" class="breadcrumb-link">@_facility.ShortCode</a>
+                    <span class="breadcrumb-sep">/</span>
+                }
+                <span class="breadcrumb-active">Import</span>
+            </div>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    @if (_facility is null)
+    {
+        <div class="imp-state">
+            <div class="imp-state-title">Import not available</div>
+            <div class="imp-state-text">Bulk import is only supported for NPM, TCC, NCC, BBQ and ICE.</div>
+            <a class="imp-btn imp-btn-primary" href="/menu">Back to dashboard</a>
+        </div>
+    }
+    else
+    {
+        <!-- ── Hero ── -->
+        <div class="imp-hero">
+            <div class="imp-hero-left">
+                <div class="imp-hero-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="imp-hero-eyebrow">@(_facility.ShortCode + SectionSuffix) · Bulk Import</div>
+                    <div class="imp-hero-title">Import @_facility.Name Stallholders</div>
+                    <div class="imp-hero-sub">Upload a list, review &amp; edit, then save — instead of adding vendors one by one.</div>
+                </div>
+            </div>
+            <div class="imp-steps">
+                <div class="imp-step @(StepClass(1))"><span class="imp-step-no">1</span> Upload</div>
+                <div class="imp-step-line"></div>
+                <div class="imp-step @(StepClass(2))"><span class="imp-step-no">2</span> Review &amp; edit</div>
+                <div class="imp-step-line"></div>
+                <div class="imp-step @(StepClass(3))"><span class="imp-step-no">3</span> Save</div>
+            </div>
+        </div>
+
+        @if (_saved && _result is not null)
+        {
+            <!-- ── Import results ── -->
+            <div class="imp-state @(_result.FailedCount == 0 ? "imp-state-ok" : "")">
+                <div class="imp-state-badge @(_result.FailedCount == 0 ? "" : "warn")">
+                    @if (_result.FailedCount == 0)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+                    }
+                </div>
+                <div class="imp-state-title">
+                    @($"{_result.CreatedCount} {_facility.Name}{SectionSuffix} stallholder{(_result.CreatedCount == 1 ? "" : "s")} imported")
+                </div>
+                <div class="imp-state-text">
+                    @if (_result.FailedCount == 0)
+                    {
+                        <text>All rows were imported successfully.</text>
+                    }
+                    else
+                    {
+                        <text>@_result.FailedCount of @_result.TotalRows row@(_result.TotalRows == 1 ? "" : "s") could not be imported and were skipped — see below.</text>
+                    }
+                </div>
+
+                @if (_result.FailedCount > 0)
+                {
+                    <div class="imp-result-errors">
+                        @foreach (var r in _result.Results.Where(r => !r.Created))
+                        {
+                            <div class="imp-result-err-row">
+                                <span class="imp-result-err-row-no">Row @r.RowNumber</span>
+                                <span class="imp-result-err-row-name">@(string.IsNullOrWhiteSpace(r.Occupant) ? "—" : r.Occupant)@(string.IsNullOrWhiteSpace(r.StallNo) ? "" : $" · Stall {r.StallNo}")</span>
+                                <span class="imp-result-err-row-msg">@r.Error</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="imp-state-actions">
+                    <button class="imp-btn imp-btn-ghost" @onclick="ResetAll">Import another file</button>
+                    <a class="imp-btn imp-btn-primary" href="@BackUrl">Back to @_facility.ShortCode</a>
+                </div>
+            </div>
+        }
+        else if (NeedsSection)
+        {
+            <!-- ── NPM: choose section first (each section is a separate sheet) ── -->
+            <div class="imp-pick">
+                <div class="imp-pick-head">
+                    <div class="imp-pick-title">Which section are you importing?</div>
+                    <div class="imp-pick-sub">New Public Market keeps a separate list per section. Pick one — every row in the file you upload will be imported into it.</div>
+                </div>
+                <div class="imp-pick-grid">
+                    @foreach (var s in NpmSections)
+                    {
+                        var sec = s;
+                        <button type="button" class="imp-pick-card" @onclick="() => ChooseSection(sec.Name)">
+                            <span class="imp-pick-icon @sec.Css">@((MarkupString)sec.Icon)</span>
+                            <span class="imp-pick-name">@sec.Name</span>
+                            <span class="imp-pick-desc">@sec.Desc</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+        else if (!_loaded)
+        {
+            <!-- ── Step 1: Upload ── -->
+            <div class="imp-upload-card">
+                @if (RequiresSection)
+                {
+                    <div class="imp-section-badge">
+                        <span>Importing into the <strong>@_section</strong> section</span>
+                        <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change section</button>
+                    </div>
+                }
+                <label class="imp-drop">
+                    <InputFile OnChange="OnFileChange" class="imp-file-input" accept=".csv,.xlsx" />
+                    <div class="imp-drop-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                    </div>
+                    <div class="imp-drop-title">Choose a file to upload</div>
+                    <div class="imp-drop-sub">CSV or Excel (.xlsx) — the list of @_facility.Name stallholders</div>
+                    @if (!string.IsNullOrEmpty(_uploadError))
+                    {
+                        <div class="imp-drop-err">@_uploadError</div>
+                    }
+                </label>
+
+                <div class="imp-upload-foot">
+                    <a class="imp-link" href="@TemplateDataUri" download="@($"{_facility.ShortCode}-stallholders-template.csv")">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Download CSV template
+                    </a>
+                    <span class="imp-foot-sep">·</span>
+                    <button class="imp-link imp-link-btn" @onclick="LoadSample">Use sample data instead</button>
+                </div>
+
+                <div class="imp-cols-preview">
+                    <div class="imp-cols-label">Columns for @_facility.ShortCode</div>
+                    <div class="imp-cols-chips">
+                        @foreach (var c in _facility.Columns)
+                        {
+                            <span class="imp-chip">@c.Label</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- ── Step 2: Review & edit ── -->
+            <div class="imp-review-bar">
+                <div class="imp-review-left">
+                    <div class="imp-review-count">@_rows.Count</div>
+                    <div>
+                        <div class="imp-review-title">rows ready to review</div>
+                        <div class="imp-review-sub">
+                            @($"{(string.IsNullOrEmpty(_fileName) ? "Sample data" : _fileName)} · {_facility.Name}{SectionSuffix}")
+                        </div>
+                    </div>
+                </div>
+                <div class="imp-review-actions">
+                    <button class="imp-btn imp-btn-ghost" @onclick="AddRow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add row
+                    </button>
+                    <button class="imp-btn imp-btn-outline" @onclick="ResetAll">Discard</button>
+                </div>
+            </div>
+
+            <div class="imp-table-wrap">
+                <table class="imp-table">
+                    <thead>
+                        <tr>
+                            <th class="imp-th-num">#</th>
+                            @foreach (var c in _facility.Columns)
+                            {
+                                <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
+                            }
+                            <th class="imp-th-act"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < _rows.Count; i++)
+                        {
+                            var row = _rows[i];
+                            var rowIndex = i;
+                            <tr>
+                                <td class="imp-td-num">@(rowIndex + 1)</td>
+                                @foreach (var c in _facility.Columns)
+                                {
+                                    var col = c;
+                                    <td>
+                                        @if (col.Type == "select")
+                                        {
+                                            <div class="imp-select-wrap">
+                                                <select class="imp-cell imp-cell-select"
+                                                        value="@GetCell(row, col.Key)"
+                                                        @onchange="e => SetCell(row, col.Key, e.Value?.ToString())">
+                                                    <option value=""></option>
+                                                    @foreach (var opt in col.Options)
+                                                    {
+                                                        <option value="@opt">@opt</option>
+                                                    }
+                                                </select>
+                                                <svg class="imp-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "")"
+                                                   type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
+                                                   value="@GetCell(row, col.Key)"
+                                                   placeholder="@col.Placeholder"
+                                                   @oninput="e => SetCell(row, col.Key, e.Value?.ToString())" />
+                                        }
+                                    </td>
+                                }
+                                <td class="imp-td-act">
+                                    <button class="imp-row-del" title="Remove row" @onclick="() => RemoveRow(rowIndex)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (_rows.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="@(_facility.Columns.Count + 2)" class="imp-empty">
+                                    No rows. Use “Add row” to start, or discard and upload again.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ── Footer / Save ── -->
+            @if (!string.IsNullOrEmpty(_saveError))
+            {
+                <div class="imp-save-error">@_saveError</div>
+            }
+            <div class="imp-foot-bar">
+                <a class="imp-btn imp-btn-ghost" href="@BackUrl">Cancel</a>
+                <button class="imp-btn imp-btn-primary" @onclick="SaveAsync" disabled="@(_rows.Count == 0 || _saving)">
+                    @if (_saving)
+                    {
+                        <span class="imp-btn-spin"></span>
+                        <text>Importing…</text>
+                    }
+                    else
+                    {
+                        <text>Save @_rows.Count stallholder@(_rows.Count == 1 ? "" : "s")</text>
+                    }
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string Facility { get; set; } = string.Empty;
+
+    private FacilityImportConfig? _facility;
+    private List<Dictionary<string, string>> _rows = new();
+    private bool _loaded;
+    private bool _saved;
+    private string _fileName = string.Empty;
+    private string? _uploadError;
+    private string? _section;   // NPM only — chosen before upload (each section is a separate sheet)
+    private bool _saving;
+    private BulkImportResultDto? _result;
+    private string? _saveError;
+
+    private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
+
+    protected override void OnParametersSet()
+    {
+        _facility = Configs.TryGetValue((Facility ?? string.Empty).Trim().ToLowerInvariant(), out var cfg) ? cfg : null;
+    }
+
+    private string StepClass(int step)
+    {
+        var current = _saved ? 3 : _loaded ? 2 : 1;
+        if (step < current) return "done";
+        if (step == current) return "active";
+        return string.Empty;
+    }
+
+    private static string GetCell(Dictionary<string, string> row, string key)
+        => row.TryGetValue(key, out var v) ? v : string.Empty;
+
+    private void SetCell(Dictionary<string, string> row, string key, string? value)
+        => row[key] = value ?? string.Empty;
+
+    // NPM imports one section at a time (each section is a separate physical list).
+    private bool RequiresSection => _facility?.ShortCode == "NPM";
+    private bool NeedsSection => RequiresSection && string.IsNullOrEmpty(_section);
+    private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {_section}";
+
+    private void ChooseSection(string section) => _section = section;
+
+    private void ChangeSection()
+    {
+        _section = null;
+        _rows = new();
+        _loaded = false;
+        _fileName = string.Empty;
+        _uploadError = null;
+    }
+
+    public record NpmSectionOption(string Name, string Desc, string Css, string Icon);
+
+    private static readonly List<NpmSectionOption> NpmSections = new()
+    {
+        new("Vegetable", "Vegetable stalls · ₱30/day", "veg",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2c0 0-1 3-1 6s1 5 1 5'/><path d='M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z'/><path d='M9 4c-2 1-3 3-3 5'/><path d='M15 4c2 1 3 3 3 5'/></svg>"),
+        new("Fish", "Fish stalls · ₱30/day + ₱1/kg", "fish",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z'/><circle cx='14' cy='11' r='1' fill='currentColor' stroke='none'/></svg>"),
+        new("Meat", "Meat stalls · ₱30/day", "meat",
+            "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
+    };
+
+    private void AddRow()
+    {
+        if (_facility is null) return;
+        _rows.Add(NewRow(_facility));
+    }
+
+    private void RemoveRow(int index)
+    {
+        if (index >= 0 && index < _rows.Count) _rows.RemoveAt(index);
+    }
+
+    private static Dictionary<string, string> NewRow(FacilityImportConfig cfg)
+    {
+        var row = new Dictionary<string, string>();
+        foreach (var c in cfg.Columns) row[c.Key] = c.Default;
+        return row;
+    }
+
+    private void LoadSample()
+    {
+        if (_facility is null) return;
+        _fileName = string.Empty;
+        _uploadError = null;
+        _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
+        _loaded = true;
+    }
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        if (_facility is null) return;
+        _uploadError = null;
+        var file = e.File;
+        if (file is null) return;
+        _fileName = file.Name;
+
+        try
+        {
+            List<string[]> rawRows;
+
+            if (file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                using var rs = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await rs.CopyToAsync(ms);
+                ms.Position = 0;
+                rawRows = ReadXlsx(ms);
+            }
+            else if (file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                rawRows = ReadCsv(await reader.ReadToEndAsync());
+            }
+            else if (file.Name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                _uploadError = "The old .xls format isn't supported. Please save it as .xlsx or .csv and upload again.";
+                return;
+            }
+            else
+            {
+                _uploadError = "Unsupported file type. Please upload a .csv or .xlsx file.";
+                return;
+            }
+
+            var rows = MapRows(rawRows, _facility, RequiresSection ? _section : null);
+            if (rows.Count == 0)
+            {
+                _uploadError = "No stallholder rows were found in that file. Make sure it has the columns shown below and try again.";
+                return;
+            }
+
+            _rows = rows;
+            _loaded = true;
+        }
+        catch (Exception)
+        {
+            _uploadError = "Couldn't read that file. Make sure it's a valid .csv or .xlsx export and try again.";
+        }
+    }
+
+    // Maps parsed rows to the facility's columns by position. Built to tolerate "printable report"
+    // layouts: it skips title/section banners (single-cell rows), the column-header row, and total
+    // rows; normalizes dates and numbers; strips leading "1." numbering from names; and, for NPM,
+    // keeps only the rows under the section the user chose (when the file has section banners).
+    private static List<Dictionary<string, string>> MapRows(List<string[]> raw, FacilityImportConfig cfg, string? targetSection)
+    {
+        var staged = new List<(string? Section, Dictionary<string, string> Row)>();
+        string? currentSection = null;
+        var sawBanner = false;
+
+        foreach (var cells in raw)
+        {
+            if (cells.Length == 0 || cells.All(string.IsNullOrWhiteSpace)) continue;
+
+            var nonEmpty = cells.Where(c => !string.IsNullOrWhiteSpace(c)).ToArray();
+
+            // Single-cell rows are titles/section banners (e.g. "NEW PUBLIC MARKET", "VEGETABLE AREA").
+            if (nonEmpty.Length <= 1)
+            {
+                var sec = MatchSection(nonEmpty.Length == 1 ? nonEmpty[0] : string.Empty);
+                if (sec is not null) { currentSection = sec; sawBanner = true; }
+                continue;
+            }
+
+            // Column-header rows and TOTAL/sub-total rows are not data.
+            if (IsNoiseRow(cells)) continue;
+
+            var row = NewRow(cfg);
+            for (var i = 0; i < cfg.Columns.Count && i < cells.Length; i++)
+            {
+                var col = cfg.Columns[i];
+                var val = (cells[i] ?? string.Empty).Trim();
+                if (col.Key == "occupant") val = StripLeadingIndex(val);
+                else if (col.Type == "date") val = NormalizeDate(val);
+                else if (col.Type == "number") val = NormalizeNumber(val);
+                row[col.Key] = val;
+            }
+
+            // A real row must have an occupant name.
+            if (string.IsNullOrWhiteSpace(GetCell(row, "occupant"))) continue;
+
+            staged.Add((currentSection, row));
+        }
+
+        // NPM: when the file is a full report with section banners, keep only the chosen section.
+        // But if that yields nothing (e.g. a single-section export whose banner doesn't match, or Fish/
+        // Meat rows without a recognised banner), fall back to ALL data rows — the user already chose the
+        // target section, and the UI promises "every row in the file you upload will be imported into it".
+        IEnumerable<(string? Section, Dictionary<string, string> Row)> selected = staged;
+        if (!string.IsNullOrEmpty(targetSection) && sawBanner)
+        {
+            var filtered = staged.Where(s => string.Equals(s.Section, targetSection, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (filtered.Count > 0)
+                selected = filtered;
+        }
+
+        return selected.Select(s => s.Row).ToList();
+    }
+
+    private static string? MatchSection(string text)
+    {
+        var n = Norm(text);
+        if (n.Length == 0) return null;
+        if (n.Contains("vegetable")) return "Vegetable";
+        if (n.Contains("fish")) return "Fish";
+        if (n.Contains("meat")) return "Meat";
+        return null;
+    }
+
+    private static readonly string[] HeaderKeywords =
+    {
+        "nameoflessee", "actualoccupant", "leasee", "lessee", "stallspaceno", "stallspace",
+        "effectivity", "noofyears", "monthlyrental", "monthlyrentals", "actualmorental",
+        "actualmorentals", "wholeyearrental", "delinquent", "arealoc"
+    };
+
+    // A header or total row (not stallholder data).
+    private static bool IsNoiseRow(string[] cells)
+    {
+        var joined = Norm(string.Join(" ", cells));
+        if (joined.Contains("total")) return true;
+        var hits = cells.Count(c =>
+        {
+            var n = Norm(c);
+            return n.Length > 2 && HeaderKeywords.Any(h => n.Contains(h));
+        });
+        return hits >= 2;
+    }
+
+    // "1. Merlita A. Abuso" / "12) Name" -> "Merlita A. Abuso" / "Name".
+    private static string StripLeadingIndex(string value) =>
+        System.Text.RegularExpressions.Regex.Replace(value, @"^\s*\d+\s*[\.\)]\s*", string.Empty);
+
+    private static string NormalizeDate(string raw)
+    {
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var serial)
+            && serial > 59 && serial < 100000)
+            return DateTime.FromOADate(serial).ToString("yyyy-MM-dd");
+        if (DateTime.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var dt))
+            return dt.ToString("yyyy-MM-dd");
+        return raw;
+    }
+
+    // Pulls the first valid number out of a cell, ignoring currency symbols, thousands separators
+    // and unit suffixes — e.g. "₱1,200.00" -> "1200.00", "4.8 sq.m." -> "4.8", "3 yrs" -> "3".
+    private static string NormalizeNumber(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var noThousands = raw.Replace(",", string.Empty);
+        var match = System.Text.RegularExpressions.Regex.Match(noThousands, @"-?\d+(\.\d+)?");
+        return match.Success ? match.Value : string.Empty;
+    }
+
+    private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    private static List<string[]> ReadCsv(string text)
+    {
+        var rows = new List<string[]>();
+        var lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            rows.Add(SplitCsvLine(line));
+        }
+        return rows;
+    }
+
+    // Splits a CSV line honoring double-quoted fields (which may contain commas and "" escapes).
+    private static string[] SplitCsvLine(string line)
+    {
+        var cells = new List<string>();
+        var sb = new StringBuilder();
+        var inQuotes = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                else inQuotes = !inQuotes;
+            }
+            else if (ch == ',' && !inQuotes) { cells.Add(sb.ToString().Trim()); sb.Clear(); }
+            else sb.Append(ch);
+        }
+        cells.Add(sb.ToString().Trim());
+        return cells.ToArray();
+    }
+
+    // Minimal .xlsx reader (no external dependency): reads the first worksheet's rows and resolves
+    // shared strings. Cells are placed at their real column index from the A1-style cell reference.
+    private static List<string[]> ReadXlsx(Stream stream)
+    {
+        var rows = new List<string[]>();
+        using var zip = new ZipArchive(stream, ZipArchiveMode.Read);
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+
+        var shared = new List<string>();
+        var sst = zip.GetEntry("xl/sharedStrings.xml");
+        if (sst is not null)
+        {
+            using var s = sst.Open();
+            var doc = XDocument.Load(s);
+            if (doc.Root is not null)
+                foreach (var si in doc.Root.Elements(ns + "si"))
+                    shared.Add(SiText(si, ns));
+        }
+
+        var sheetEntry = zip.Entries
+            .Where(en => en.FullName.StartsWith("xl/worksheets/sheet", StringComparison.OrdinalIgnoreCase)
+                      && en.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(en => en.FullName, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (sheetEntry is null) return rows;
+
+        using var ss = sheetEntry.Open();
+        var sheet = XDocument.Load(ss);
+        var sheetData = sheet.Root?.Element(ns + "sheetData");
+        if (sheetData is null) return rows;
+
+        foreach (var row in sheetData.Elements(ns + "row"))
+        {
+            var map = new Dictionary<int, string>();
+            var maxIdx = -1;
+            foreach (var c in row.Elements(ns + "c"))
+            {
+                var colIdx = ColIndex((string?)c.Attribute("r") ?? string.Empty);
+                var type = (string?)c.Attribute("t");
+                string val;
+                if (type == "s")
+                {
+                    val = int.TryParse(c.Element(ns + "v")?.Value, out var idx) && idx >= 0 && idx < shared.Count
+                        ? shared[idx] : string.Empty;
+                }
+                else if (type == "inlineStr")
+                {
+                    val = c.Element(ns + "is") is XElement isEl ? SiText(isEl, ns) : string.Empty;
+                }
+                else
+                {
+                    val = c.Element(ns + "v")?.Value ?? string.Empty;
+                }
+                map[colIdx] = val;
+                if (colIdx > maxIdx) maxIdx = colIdx;
+            }
+
+            if (maxIdx < 0) { rows.Add(Array.Empty<string>()); continue; }
+            var arr = new string[maxIdx + 1];
+            for (var i = 0; i <= maxIdx; i++) arr[i] = map.TryGetValue(i, out var v) ? v : string.Empty;
+            rows.Add(arr);
+        }
+        return rows;
+    }
+
+    private static string SiText(XElement si, XNamespace ns)
+    {
+        var t = si.Element(ns + "t");
+        if (t is not null) return t.Value;
+        // Rich text: concatenate the <r><t> runs.
+        return string.Concat(si.Elements(ns + "r").Select(r => r.Element(ns + "t")?.Value ?? string.Empty));
+    }
+
+    private static int ColIndex(string cellRef)
+    {
+        var idx = 0;
+        foreach (var ch in cellRef)
+        {
+            if (char.IsLetter(ch)) idx = idx * 26 + (char.ToUpperInvariant(ch) - 'A' + 1);
+            else break;
+        }
+        return Math.Max(0, idx - 1);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_facility is null || _rows.Count == 0 || _saving) return;
+        _saving = true;
+        _saveError = null;
+
+        try
+        {
+            var command = new BulkImportStallholdersCommand(
+                _facility.Code,
+                RequiresSection ? MapSection(_section) : null,
+                _rows.Select((r, i) => BuildRow(r, i + 1)).ToList());
+
+            var result = await StallsApi.BulkImportStallholdersAsync(command);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _result = result.Value;
+                _saved = true;
+            }
+            else
+            {
+                _saveError = string.IsNullOrWhiteSpace(result.Error)
+                    ? "The import could not be completed. Please try again."
+                    : result.Error;
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private ImportStallRow BuildRow(Dictionary<string, string> row, int rowNumber)
+    {
+        DateTime? effectivity = DateTime.TryParse(GetCell(row, "effectivity"), out var dt) ? dt : null;
+        int years = int.TryParse(GetCell(row, "years"), out var y) ? y : 0;
+        double? area = double.TryParse(GetCell(row, "area"), out var a) ? a : null;
+        decimal monthly = decimal.TryParse(GetCell(row, "monthly"), out var m) ? m : 0m;
+        decimal? actualMonthly = decimal.TryParse(GetCell(row, "actualMonthly"), out var am) ? am : null;
+        var contractName = GetCell(row, "contractName");
+        var areaLoc = GetCell(row, "areaLoc");
+
+        return new ImportStallRow(
+            rowNumber,
+            GetCell(row, "occupant"),
+            string.IsNullOrWhiteSpace(contractName) ? null : contractName,
+            GetCell(row, "stallNo"),
+            effectivity,
+            years,
+            area,
+            monthly,
+            actualMonthly,
+            string.IsNullOrWhiteSpace(areaLoc) ? null : areaLoc);
+    }
+
+    private static MarketSection? MapSection(string? section) => section switch
+    {
+        "Vegetable" => MarketSection.VegetableArea,
+        "Fish" => MarketSection.FishSection,
+        "Meat" => MarketSection.MeatSection,
+        _ => null
+    };
+
+    private void ResetAll()
+    {
+        _rows = new();
+        _loaded = false;
+        _saved = false;
+        _fileName = string.Empty;
+        _uploadError = null;
+        _result = null;
+        _saveError = null;
+    }
+
+    private string TemplateDataUri
+    {
+        get
+        {
+            if (_facility is null) return "#";
+            var header = string.Join(",", _facility.Columns.Select(c => c.Label));
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(header + "\n");
+        }
+    }
+
+    // ── Facility-aware schemas + sample data (hardcoded) ─────────────────────
+    public record ColumnDef(string Key, string Label, string Type = "text", string[]? Options = null,
+        int MinWidth = 150, string Placeholder = "", string Default = "")
+    {
+        public string[] Options { get; init; } = Options ?? Array.Empty<string>();
+    }
+
+    public class FacilityImportConfig
+    {
+        public FacilityCode Code { get; set; }
+        public string ShortCode { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<ColumnDef> Columns { get; set; } = new();
+        public List<Dictionary<string, string>> Sample { get; set; } = new();
+    }
+
+    private static Dictionary<string, string> Row(params (string Key, string Val)[] cells)
+    {
+        var d = new Dictionary<string, string>();
+        foreach (var (k, v) in cells) d[k] = v;
+        return d;
+    }
+
+    private static readonly ColumnDef Occupant = new("occupant", "Actual Occupant (Leasee)", MinWidth: 200, Placeholder: "Full name");
+    private static readonly ColumnDef ContractName = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
+    private static readonly ColumnDef StallNo = new("stallNo", "Stall / Space No.", MinWidth: 110, Placeholder: "e.g. 1");
+    private static readonly ColumnDef Effectivity = new("effectivity", "Effectivity Date", "date", MinWidth: 150);
+    private static readonly ColumnDef Years = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "3");
+    private static readonly ColumnDef Area = new("area", "Area (sqm)", "number", MinWidth: 110, Placeholder: "0");
+    private static readonly ColumnDef Monthly = new("monthly", "Monthly Rental / Contract", "number", MinWidth: 160, Placeholder: "0.00");
+    private static readonly ColumnDef ActualMonthly = new("actualMonthly", "Actual Mo. Rental", "number", MinWidth: 150, Placeholder: "0.00");
+    private static readonly ColumnDef WholeYear = new("wholeYear", "Whole Year Rental", "number", MinWidth: 150, Placeholder: "0.00");
+    private static readonly ColumnDef Delinquent = new("delinquent", "Delinquent (₱)", "number", MinWidth: 130, Placeholder: "0.00");
+
+    private static readonly Dictionary<string, FacilityImportConfig> Configs = BuildConfigs();
+
+    private static Dictionary<string, FacilityImportConfig> BuildConfigs()
+    {
+        // Shared core columns from the official "List of Stallholders" form. NPM adds Section,
+        // NCC adds Area Location; space-only facilities (BBQ/ICE) simply leave contract columns blank.
+        List<ColumnDef> Core() => new()
+        {
+            Occupant, ContractName, StallNo, Effectivity, Years, Area, Monthly, ActualMonthly, WholeYear, Delinquent
+        };
+
+        var npm = new FacilityImportConfig
+        {
+            Code = FacilityCode.NPM,
+            ShortCode = "NPM",
+            Name = "New Public Market",
+            Columns = new()
+            {
+                Occupant, ContractName, StallNo, Effectivity, Years, Area, Monthly, ActualMonthly, WholeYear, Delinquent
+            },
+            Sample = new()
+            {
+                Row(("occupant","Elpedia Cora E. Trugillo"),("contractName","Nila F. Andoy"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Marilyn C. Bohol"),("contractName","Marilyn C. Bohol"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Elmalyn P. Arnaldo"),("contractName","Elmalyn P. Arnaldo"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Reymart P. Tecson"),("contractName","Nicolas S. Cupina"),("stallNo","4"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Jinky L. Rodriguez"),("contractName","Jinky L. Rodriguez"),("stallNo","5"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+            }
+        };
+
+        var tcc = new FacilityImportConfig
+        {
+            Code = FacilityCode.TCC,
+            ShortCode = "TCC",
+            Name = "Tampak Commercial Center",
+            Columns = Core(),
+            Sample = new()
+            {
+                Row(("occupant","Joseph O. Quiñones"),("contractName","Joseph O. Quiñones"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
+                Row(("occupant","Marlex Dumagay"),("contractName","Marlex Dumagay"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Jonaida P. Sultan"),("contractName","Jonaida P. Sultan"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Bernadette Miranda"),("actualMonthly","1500"),("wholeYear","18000")),
+                Row(("occupant","Jessie Estrada"),("actualMonthly","900"),("wholeYear","10800")),
+            }
+        };
+
+        var ncc = new FacilityImportConfig
+        {
+            Code = FacilityCode.NCC,
+            ShortCode = "NCC",
+            Name = "New Commercial Center",
+            Columns = new()
+            {
+                Occupant, ContractName, StallNo, Effectivity, Years, Area, Monthly, ActualMonthly, WholeYear,
+                new("areaLoc", "Area Loc.", "select", new[] { "Extension", "Corner", "Standard" }, MinWidth: 130),
+                Delinquent
+            },
+            Sample = new()
+            {
+                Row(("occupant","Lucrecia R. Bebero"),("contractName","Lucrecia R. Bebero"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Ruel R. Bebero"),("contractName","Ruel R. Bebero"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Florena R. Lago"),("contractName","Florena R. Lago"),("stallNo","13"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3240"),("actualMonthly","3240"),("wholeYear","38880"),("areaLoc","Corner")),
+                Row(("occupant","Guydon Damalerio"),("contractName","Guydon Damalerio"),("stallNo","16"),("effectivity","2023-06-07"),("years","3"),("area","70"),("monthly","2400"),("actualMonthly","4800"),("wholeYear","57600"),("areaLoc","Corner")),
+                Row(("occupant","Rachelle O. Rosario"),("contractName","Rachelle O. Rosario"),("stallNo","22"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3840"),("actualMonthly","3840"),("wholeYear","46080"),("areaLoc","Corner")),
+            }
+        };
+
+        var bbq = new FacilityImportConfig
+        {
+            Code = FacilityCode.BBQ,
+            ShortCode = "BBQ",
+            Name = "Barbecue Stand",
+            Columns = Core(),
+            Sample = new()
+            {
+                Row(("occupant","Joy Ruaza"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Mary May Benablo"),("actualMonthly","3200"),("wholeYear","38400")),
+                Row(("occupant","Loida Arreo"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Irene Plaza"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Claudine Mendaña"),("actualMonthly","1600"),("wholeYear","19200")),
+            }
+        };
+
+        var ice = new FacilityImportConfig
+        {
+            Code = FacilityCode.ICE,
+            ShortCode = "ICE",
+            Name = "Iceplant",
+            Columns = Core(),
+            Sample = new()
+            {
+                Row(("occupant","Recto Mendaña"),("actualMonthly","2000"),("wholeYear","24000")),
+                Row(("occupant","Rebecca S. Orpina"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Martin Dumaran"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Roel Mendaña"),("actualMonthly","2000"),("wholeYear","24000")),
+            }
+        };
+
+        return new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["npm"] = npm,
+            ["tcc"] = tcc,
+            ["ncc"] = ncc,
+            ["bbq"] = bbq,
+            ["ice"] = ice,
+            ["iceplant"] = ice,
+        };
+    }
+}

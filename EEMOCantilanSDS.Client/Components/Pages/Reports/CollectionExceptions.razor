@@ -535,7 +535,7 @@
         SelectedStall = null;
         _npmMonth = null;
         _monthRecords.Clear();
-        StateHasChanged();
+        await PaintLoadingStateAsync();
 
         var all = new List<StallDto>();
         DateTime? cursor = null;
@@ -594,7 +594,8 @@
         if (!IsNpm) return;
         _marketLoading = true;
         _marketClosedDays.Clear();
-        StateHasChanged();
+        await PaintLoadingStateAsync();
+
         var res = await PaymentsApi.GetMarketClosuresAsync(_year, _month);
         if (res.IsSuccess && res.Value is not null)
             foreach (var d in res.Value) _marketClosedDays.Add(d);
@@ -641,7 +642,7 @@
         _npmMonth = null;
         _monthRecords.Clear();
         _excusedMonths.Clear();
-        StateHasChanged();
+        await PaintLoadingStateAsync();
 
         if (IsNpm)
         {
@@ -662,6 +663,12 @@
         }
         _periodLoading = false;
         StateHasChanged();
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private async Task PrevMonth()

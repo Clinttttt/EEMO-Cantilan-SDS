@@ -18,7 +18,7 @@ public class ClearStallMonthlyExceptionCommandHandlerTests
         repo.Setup(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(existing);
 
-        var handler = new ClearStallMonthlyExceptionCommandHandler(repo.Object, uow.Object);
+        var handler = new ClearStallMonthlyExceptionCommandHandler(repo.Object, new Mock<IStallRepository>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new ClearStallMonthlyExceptionCommand(existing.StallId, 2026, 6), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -33,7 +33,7 @@ public class ClearStallMonthlyExceptionCommandHandlerTests
         repo.Setup(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((StallMonthlyException?)null);
 
-        var handler = new ClearStallMonthlyExceptionCommandHandler(repo.Object, uow.Object);
+        var handler = new ClearStallMonthlyExceptionCommandHandler(repo.Object, new Mock<IStallRepository>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new ClearStallMonthlyExceptionCommand(Guid.NewGuid(), 2026, 6), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

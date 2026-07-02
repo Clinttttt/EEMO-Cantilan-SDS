@@ -32,7 +32,7 @@ public class RecordSlaughterCommandHandlerTests
         currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new RecordSlaughterCommandHandler(slaughterRepo.Object, facilityRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object), slaughterRepo);
+        return (new RecordSlaughterCommandHandler(slaughterRepo.Object, facilityRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), slaughterRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

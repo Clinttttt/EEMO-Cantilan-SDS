@@ -1,0 +1,287 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ImportStallholders — bulk-import prototype. Government-restrained: navy hero,
+   gold accent, neutral white cards. Reuses app design tokens + global chrome
+   (topbar / content-area). All page-specific classes are scoped here.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.imp-back-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--navy);
+    text-decoration: none; flex-shrink: 0;
+}
+.imp-back-btn:hover { background: var(--bg-icon); }
+.imp-back-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Hero ── */
+.imp-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    overflow: hidden; flex-wrap: wrap;
+}
+.imp-hero::before {
+    content: ""; position: absolute; top: -50px; right: -30px; width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(200, 168, 75, .16) 0%, transparent 70%); pointer-events: none;
+}
+.imp-hero-left { display: flex; align-items: center; gap: 18px; min-width: 260px; }
+.imp-hero-icon {
+    width: 54px; height: 54px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(200, 168, 75, .18);
+    display: flex; align-items: center; justify-content: center;
+}
+.imp-hero-icon svg { width: 26px; height: 26px; stroke: var(--gold); }
+.imp-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.imp-hero-title { font-size: 21px; font-weight: 700; color: #fff; line-height: 1.2; }
+.imp-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .6); margin-top: 4px; max-width: 460px; }
+
+/* Step indicator */
+.imp-steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.imp-step {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, .45);
+}
+.imp-step-no {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    background: rgba(255, 255, 255, .12); color: rgba(255, 255, 255, .7);
+}
+.imp-step.active { color: #fff; }
+.imp-step.active .imp-step-no { background: var(--gold); color: var(--navy); }
+.imp-step.done { color: rgba(255, 255, 255, .8); }
+.imp-step.done .imp-step-no { background: rgba(200, 168, 75, .5); color: #fff; }
+.imp-step-line { width: 26px; height: 1px; background: rgba(255, 255, 255, .18); }
+
+/* ── Upload card ── */
+.imp-upload-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px; box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
+}
+.imp-drop {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; text-align: center;
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 40px 20px; cursor: pointer; transition: border-color .15s ease, background .15s ease;
+}
+.imp-drop:hover { border-color: var(--gold); background: var(--bg); }
+/* Hide the native file input rendered by <InputFile>. It lives inside a child component, so the
+   scoped class alone won't reach it — ::deep does. The whole dropzone stays the clickable target. */
+.imp-drop ::deep input[type="file"] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; font-size: 0; color: transparent;
+}
+.imp-drop-icon {
+    width: 52px; height: 52px; border-radius: 14px; background: var(--bg-icon); color: var(--navy);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 4px;
+}
+.imp-drop-icon svg { width: 24px; height: 24px; }
+.imp-drop-title { font-size: 15px; font-weight: 700; color: var(--navy); }
+.imp-drop-sub { font-size: 12.5px; color: var(--text-muted); }
+.imp-drop-err { font-size: 12.5px; color: var(--red); margin-top: 6px; }
+
+.imp-upload-foot {
+    display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 16px;
+}
+.imp-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: var(--navy); text-decoration: none;
+    background: none; border: none; cursor: pointer; padding: 0;
+}
+.imp-link:hover { color: #8a6d1b; }
+.imp-link svg { width: 15px; height: 15px; }
+.imp-foot-sep { color: var(--text-subtle); }
+
+.imp-cols-preview { margin-top: 20px; padding-top: 16px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.imp-cols-label { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+.imp-cols-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.imp-chip {
+    font-size: 11.5px; font-weight: 600; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px;
+}
+
+/* ── Review bar ── */
+.imp-review-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 14px;
+}
+.imp-review-left { display: flex; align-items: center; gap: 14px; }
+.imp-review-count {
+    font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1;
+    background: var(--bg-icon); border-radius: 10px; padding: 8px 14px; font-variant-numeric: tabular-nums;
+}
+.imp-review-title { font-size: 14px; font-weight: 700; color: var(--navy); }
+.imp-review-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.imp-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* NPM section picker (each section is a separate sheet) */
+.imp-pick {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px; box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
+}
+.imp-pick-head { text-align: center; margin-bottom: 22px; }
+.imp-pick-title { font-size: 17px; font-weight: 800; color: var(--navy); }
+.imp-pick-sub { font-size: 13px; color: var(--text-muted); margin: 6px auto 0; max-width: 560px; line-height: 1.5; }
+.imp-pick-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.imp-pick-card {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+    padding: 26px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg);
+    cursor: pointer; transition: border-color .14s ease, box-shadow .14s ease, transform .1s ease;
+}
+.imp-pick-card:hover { border-color: var(--gold); box-shadow: 0 6px 16px rgba(13, 33, 55, .08); transform: translateY(-2px); }
+.imp-pick-icon { width: 54px; height: 54px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+.imp-pick-icon svg { width: 26px; height: 26px; }
+.imp-pick-icon.veg { background: rgba(45, 122, 95, .12); color: #2d7a5f; }
+.imp-pick-icon.fish { background: rgba(26, 122, 181, .12); color: #1a7ab5; }
+.imp-pick-icon.meat { background: rgba(181, 86, 47, .12); color: #b5562f; }
+.imp-pick-name { font-size: 15px; font-weight: 800; color: var(--navy); }
+.imp-pick-desc { font-size: 12px; color: var(--text-muted); }
+@media (max-width: 700px) { .imp-pick-grid { grid-template-columns: 1fr; } }
+
+/* Chosen-section badge on the upload step */
+.imp-section-badge {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 14px; margin-bottom: 16px; font-size: 13px; color: var(--text);
+}
+.imp-section-badge strong { color: var(--navy); }
+
+/* ── Editable table ── */
+.imp-table-wrap {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    overflow: auto; max-height: 60vh;
+}
+.imp-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.imp-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    text-align: center; white-space: nowrap;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-subtle); background: var(--bg);
+    padding: 10px 10px; border-bottom: 1px solid var(--border);
+}
+.imp-th-num, .imp-td-num { width: 44px; text-align: center; color: var(--text-muted); font-weight: 700; }
+.imp-th-act, .imp-td-act { width: 48px; text-align: center; }
+.imp-table tbody td { padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); vertical-align: middle; }
+.imp-table tbody tr:last-child td { border-bottom: none; }
+
+.imp-cell {
+    width: 100%; box-sizing: border-box;
+    font-size: 13px; color: var(--text); text-align: center;
+    border: 1px solid transparent; border-radius: 7px;
+    padding: 7px 9px; background: transparent; transition: border-color .12s ease, background .12s ease;
+}
+.imp-cell:hover { background: var(--bg); }
+.imp-cell:focus { outline: none; border-color: var(--gold); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(200, 168, 75, .14); }
+.imp-cell-num { text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Dropdown — native arrow removed; a single overlay caret (.imp-select-caret) is positioned by
+   the wrapping .imp-select-wrap, so there's exactly one caret regardless of browser. */
+.imp-cell-select {
+    cursor: pointer;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    text-align: center; text-align-last: center;
+    padding: 7px 26px 7px 12px;
+}
+.imp-cell-select:hover { background-color: var(--bg); }
+.imp-cell-select:focus { border-color: var(--gold); background-color: var(--bg-card); }
+.imp-cell-select::-ms-expand { display: none; }
+.imp-cell-select option { text-align: left; color: var(--text); }
+
+.imp-select-wrap { position: relative; display: block; }
+.imp-select-caret {
+    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    width: 13px; height: 13px; pointer-events: none; color: var(--text-muted);
+}
+.imp-select-wrap:focus-within .imp-select-caret { color: var(--gold); }
+
+.imp-row-del {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid transparent; background: none; color: var(--text-muted); cursor: pointer;
+}
+.imp-row-del:hover { background: var(--red-bg); color: var(--red); }
+.imp-row-del svg { width: 16px; height: 16px; }
+.imp-empty { text-align: center; color: var(--text-muted); padding: 28px 12px; font-size: 13px; }
+
+/* ── Footer bar ── */
+.imp-foot-bar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
+/* ── Buttons ── */
+.imp-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 650; border-radius: 9px; padding: 9px 16px;
+    cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background .14s ease, color .14s ease;
+}
+.imp-btn svg { width: 16px; height: 16px; }
+.imp-btn-primary { background: var(--navy); color: #fff; }
+.imp-btn-primary:hover { background: var(--navy-2); }
+.imp-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.imp-btn-outline { background: var(--bg-card); color: var(--navy); border-color: var(--border); }
+.imp-btn-outline:hover { background: var(--bg-icon); }
+.imp-btn-ghost { background: var(--bg); color: var(--text); border-color: var(--border); }
+.imp-btn-ghost:hover { background: var(--bg-icon); }
+
+/* ── State panels (unsupported / saved) ── */
+.imp-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; min-height: 300px; padding: 40px 20px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+}
+.imp-state-ok { border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.imp-state-badge {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--green-bg); color: var(--green);
+    display: flex; align-items: center; justify-content: center;
+}
+.imp-state-badge svg { width: 28px; height: 28px; }
+.imp-state-title { font-size: 17px; font-weight: 800; color: var(--navy); }
+.imp-state-text { font-size: 13px; color: var(--text-muted); max-width: 460px; line-height: 1.5; }
+.imp-state-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+
+@media (max-width: 760px) {
+    .imp-hero { padding: 18px; }
+    .imp-hero-title { font-size: 18px; }
+    .imp-steps { width: 100%; }
+}
+
+
+/* ── Import results / errors ── */
+.imp-state-badge.warn { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
+
+.imp-result-errors {
+    width: 100%; max-width: 720px; margin-top: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 240px; overflow: auto;
+    text-align: left;
+}
+.imp-result-err-row {
+    display: grid; grid-template-columns: 70px minmax(120px, 1fr) 1.4fr; gap: 10px; align-items: baseline;
+    background: var(--red-bg); border: 1px solid color-mix(in srgb, var(--red) 22%, transparent);
+    border-radius: 8px; padding: 7px 11px; font-size: 12.5px;
+}
+.imp-result-err-row-no { font-weight: 700; color: var(--red); white-space: nowrap; }
+.imp-result-err-row-name { color: var(--navy); font-weight: 600; }
+.imp-result-err-row-msg { color: var(--red); }
+
+.imp-save-error {
+    font-size: 13px; color: var(--red); background: var(--red-bg);
+    border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); border-radius: 9px;
+    padding: 10px 14px; margin-bottom: 12px;
+}
+
+.imp-btn-spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff;
+    display: inline-block; animation: setSpin .7s linear infinite;
+}
+@media (max-width: 640px) {
+    .imp-result-err-row { grid-template-columns: 1fr; gap: 2px; }
+}

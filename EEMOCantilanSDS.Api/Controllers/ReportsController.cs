@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Queries.Reports.GetCollectionReport;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
+using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistory;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -37,6 +38,20 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
         [FromQuery] int month)
     {
         var result = await Sender.Send(new GetFollowUpQueueQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Follow-up History — the same action list as the live queue, but a read snapshot "as of" a PAST
+    /// collection period (chosen on the History page). Contract-expiry and online-awaiting-OR sources
+    /// are period-scoped so the snapshot reflects that period, not today.
+    /// </summary>
+    [HttpGet("follow-up/history")]
+    public async Task<ActionResult<FollowUpQueueDto>> GetFollowUpHistory(
+        [FromQuery] int year,
+        [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetFollowUpHistoryQuery(year, month));
         return HandleResponse(result);
     }
 

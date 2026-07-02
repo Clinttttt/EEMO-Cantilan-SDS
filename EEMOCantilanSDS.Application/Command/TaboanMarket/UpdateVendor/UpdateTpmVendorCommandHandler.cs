@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -10,7 +12,9 @@ public class UpdateTpmVendorCommandHandler(
     ITpmRepository tpmRepo,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<UpdateTpmVendorCommand, Result<bool>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<UpdateTpmVendorCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateTpmVendorCommand request, CancellationToken ct)
     {
@@ -54,6 +58,13 @@ public class UpdateTpmVendorCommandHandler(
         }
 
         await uow.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.TPM,
+            attendance.MarketDate.Year,
+            attendance.MarketDate.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

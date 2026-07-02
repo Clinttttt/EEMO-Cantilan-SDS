@@ -31,7 +31,7 @@ public class RecordTripCommandHandlerTests
         currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new RecordTripCommandHandler(trmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object), trmRepo);
+        return (new RecordTripCommandHandler(trmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), trmRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

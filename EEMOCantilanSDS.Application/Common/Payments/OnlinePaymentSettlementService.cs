@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -10,7 +12,9 @@ namespace EEMOCantilanSDS.Application.Common.Payments;
 public sealed class OnlinePaymentSettlementService(
     IPaymentRepository paymentRepository,
     IOnlinePaymentNotifier notifier,
-    IUnitOfWork unitOfWork) : IOnlinePaymentSettlementService
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IOnlinePaymentSettlementService
 {
     public async Task<Result<bool>> SettleAsync(
         OnlinePaymentTransaction transaction,
@@ -43,6 +47,12 @@ public sealed class OnlinePaymentSettlementService(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            null,
+            record.BillingYear,
+            record.BillingMonth,
+            cancellationToken);
 
         // Best-effort realtime alert for staff — must never affect payment processing.
         try

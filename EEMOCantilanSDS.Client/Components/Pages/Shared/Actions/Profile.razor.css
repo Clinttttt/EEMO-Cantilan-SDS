@@ -528,7 +528,8 @@
     border-color: #c8a84b;
 }
 
-.hist-na {
+.hist-na,
+.hist-future {
     background: #f5f7f9;
     border-color: #dde4ea;
     opacity: 0.6;
@@ -925,6 +926,100 @@
 
 /* ── NPM daily collection heatmap (GitHub-style) ── */
 .ph-heat-head { font-size: 13px; font-weight: 700; color: var(--navy); padding: 14px 18px 2px; }
+
+/* ── Daily heatmap year navigation ─────────────────────────────── */
+.ph-year-nav {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ph-year-arrow {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+
+    .ph-year-arrow:hover:not(:disabled) { background: var(--bg-icon); border-color: var(--navy); }
+    .ph-year-arrow:disabled { opacity: .4; cursor: default; }
+    .ph-year-arrow svg { width: 13px; height: 13px; stroke: var(--navy); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ph-year-picker { position: relative; }
+
+.ph-year-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 84px;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    cursor: pointer;
+    transition: border-color .12s;
+}
+
+    .ph-year-btn:hover, .ph-year-btn.open { border-color: var(--navy); }
+    .ph-year-btn svg { width: 14px; height: 14px; stroke: var(--text-subtle); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ph-year-backdrop { position: fixed; inset: 0; z-index: 299; }
+
+.ph-year-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(13,33,55,0.16);
+    padding: 10px;
+    width: 232px;
+}
+
+.ph-year-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+.ph-year-cell {
+    padding: 9px 0;
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-icon);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    cursor: pointer;
+    transition: background .12s, color .12s;
+}
+
+    .ph-year-cell:hover { background: var(--border); }
+    .ph-year-cell.active { background: var(--navy); color: #fff; }
+
+.ph-year-current {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    border-top: 1px solid var(--border);
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+    .ph-year-current:hover { color: var(--navy); }
 .ph-heat-scroll { overflow-x: auto; padding: 12px 18px 2px; }
 .ph-heat-months { display: flex; padding-left: 30px; margin-bottom: 5px; }
 .ph-heat-mcol { flex: 0 0 14px; font-size: 9px; color: var(--text-muted); white-space: nowrap; overflow: visible; }
@@ -1112,3 +1207,53 @@
     opacity: .6;
     cursor: default;
 }
+
+/* ── Skeleton loading state ─────────────────────────────────────── */
+.skel {
+    position: relative;
+    overflow: hidden;
+    background: #e8edf2;
+    border-radius: 6px;
+}
+
+    .skel::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+        animation: skel-shimmer 1.25s infinite;
+    }
+
+@keyframes skel-shimmer {
+    100% { transform: translateX(100%); }
+}
+
+.skel-line { border-radius: 6px; }
+
+.skel-chip { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0; }
+
+.prof-hero-skel { align-items: center; }
+
+.skel-hero-badge { width: 76px; height: 76px; border-radius: 16px; background: rgba(255, 255, 255, 0.18); flex-shrink: 0; }
+
+    .prof-hero-skel .skel::after {
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+    }
+
+.prof-hero-skel .skel-line { background: rgba(255, 255, 255, 0.16); }
+
+.skel-field { display: flex; align-items: center; justify-content: space-between; }
+
+.skel-body { padding: 16px 18px; }
+
+/* Heatmap placeholder: 7 rows (Sun→Sat), columns flow horizontally like the real grid. */
+.skel-heat {
+    display: grid;
+    grid-template-rows: repeat(7, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: 11px;
+    gap: 3px;
+}
+
+.skel-heat-cell { width: 11px; height: 11px; border-radius: 2px; }

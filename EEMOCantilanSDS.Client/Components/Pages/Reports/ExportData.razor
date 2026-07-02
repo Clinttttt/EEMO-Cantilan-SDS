@@ -70,15 +70,10 @@
         <div class="ex-control-row">
             <div class="ex-control-block">
                 <span class="ex-control-label">Period</span>
-                <div class="ex-period">
-                    <button class="ex-nav-btn" type="button" @onclick="PrevMonth" aria-label="Previous month">
-                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-                    </button>
-                    <span class="ex-period-label">@PeriodLabel</span>
-                    <button class="ex-nav-btn" type="button" @onclick="NextMonth" aria-label="Next month">
-                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                    </button>
-                </div>
+                <ReportPeriodNav Year="_year" Month="_month" Yearly="false"
+                                 Label="@PeriodLabel" AlignRight="false"
+                                 OnPrev="PrevMonth" OnNext="NextMonth"
+                                 OnPick="PickPeriod" OnToday="JumpToCurrent" />
             </div>
 
             <div class="ex-control-block ex-control-grow">
@@ -284,6 +279,8 @@
 
     private async Task PrevMonth() { var d = new DateTime(_year, _month, 1).AddMonths(-1); _year = d.Year; _month = d.Month; await Load(); }
     private async Task NextMonth() { var d = new DateTime(_year, _month, 1).AddMonths(1); _year = d.Year; _month = d.Month; await Load(); }
+    private async Task PickPeriod((int Year, int Month) p) { _year = p.Year; _month = p.Month; await Load(); }
+    private async Task JumpToCurrent() { _year = PhilippineTime.Now.Year; _month = PhilippineTime.Now.Month; await Load(); }
 
     private IReadOnlyList<ExFacility> VisibleFacilities() =>
         _facility is null ? _facilities : _facilities.Where(f => f.Code == _facility).ToList();

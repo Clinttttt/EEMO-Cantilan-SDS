@@ -1,0 +1,38 @@
+/* Matches the Follow-up History year/month picker (fh-dd). */
+
+.fh-dd { position: relative; display: inline-flex; }
+.fh-dd-block { display: flex; width: 100%; }
+.fh-dd-block .fh-dd-trigger { flex: 1; }
+.fh-dd-block .fh-dd-menu { left: 0; right: 0; min-width: 0; }
+
+.fh-dd-trigger {
+    display: inline-flex; align-items: center; justify-content: space-between; gap: 10px;
+    height: 42px; padding: 0 12px 0 14px; cursor: pointer; user-select: none;
+    background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 10px;
+    font: inherit; transition: border-color .15s ease, box-shadow .15s ease;
+}
+.fh-dd-trigger:hover { border-color: var(--gold); }
+.fh-dd-trigger.open { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(13, 33, 55, .07); }
+.fh-dd-body { display: flex; flex-direction: column; text-align: left; min-width: 0; }
+.fh-dd-cap { font-size: 8.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); line-height: 1; }
+.fh-dd-val { font-size: 13px; font-weight: 700; color: var(--navy); line-height: 1.25; margin-top: 2px; white-space: nowrap; }
+.fh-dd-chevron { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; transition: transform .2s ease; }
+.fh-dd-trigger.open .fh-dd-chevron { transform: rotate(180deg); }
+
+.fh-dd-backdrop { position: fixed; inset: 0; z-index: 299; }
+.fh-dd-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 300;
+    min-width: 180px; max-height: 320px; overflow-y: auto;
+    background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(13, 33, 55, .14); padding-bottom: 6px;
+    animation: fh-dd-in .15s ease;
+}
+.fh-dd-menu-right { left: auto; right: 0; }
+@keyframes fh-dd-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.fh-dd-header { font-size: 8.5px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--text-muted); padding: 10px 14px 6px; }
+.fh-dd-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: background .12s; }
+.fh-dd-item:hover { background: var(--bg); }
+.fh-dd-item.active { background: rgba(13, 33, 55, .04); }
+.fh-dd-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); font-weight: 500; white-space: nowrap; }
+.fh-dd-item.active .fh-dd-name { font-weight: 700; color: var(--navy); }
+.fh-dd-check { width: 14px; height: 14px; stroke: var(--navy); flex-shrink: 0; }

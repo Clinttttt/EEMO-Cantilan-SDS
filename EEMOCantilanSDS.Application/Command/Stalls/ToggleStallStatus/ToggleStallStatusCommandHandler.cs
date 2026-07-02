@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -21,7 +23,9 @@ public class ToggleStallStatusCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IPaymentRepository paymentRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ToggleStallStatusCommand request, CancellationToken ct)
     {
@@ -46,6 +50,7 @@ public class ToggleStallStatusCommandHandler(
 
         await stallRepository.UpdateAsync(stall, ct);
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
 
         return Result<bool>.Success(true);
     }

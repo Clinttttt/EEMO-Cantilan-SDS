@@ -51,7 +51,7 @@ public class ToggleStallStatusCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("tester");
         var uow = new Mock<IUnitOfWork>();
 
-        return (new ToggleStallStatusCommandHandler(stallRepo.Object, monthly.Object, daily.Object, payments.Object, currentUser.Object, uow.Object),
+        return (new ToggleStallStatusCommandHandler(stallRepo.Object, monthly.Object, daily.Object, payments.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant),
                 monthly, daily, payments);
     }
 

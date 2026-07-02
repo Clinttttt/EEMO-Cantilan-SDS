@@ -195,7 +195,7 @@
             {
                 <div class="section-label">Collection Summary</div>
 
-                <div class="facility-row">
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("collected"))" @onkeydown="@(e => OnCardKey(e, "collected"))">
                     <div class="facility-icon">
                         <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                     </div>
@@ -205,6 +205,19 @@
                     </div>
                     <div class="facility-amount-col">
                         <div class="facility-amount">&#8369;@GrandTotal.ToString("N0")</div>
+                    </div>
+                </div>
+
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("outstanding"))" @onkeydown="@(e => OnCardKey(e, "outstanding"))">
+                    <div class="facility-icon">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" /></svg>
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-name">Outstanding Balance</div>
+                        <div class="facility-meta"><span class="facility-count">Remaining collectible from current payors</span></div>
+                    </div>
+                    <div class="facility-amount-col">
+                        <div class="facility-amount">&#8369;@Outstanding.ToString("N0")</div>
                     </div>
                 </div>
 
@@ -234,7 +247,20 @@
                     </div>
                 </div>
 
-                <div class="facility-row">
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("paid"))" @onkeydown="@(e => OnCardKey(e, "paid"))">
+                    <div class="facility-icon">
+                        <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-name">Paid Payors</div>
+                        <div class="facility-meta"><span class="facility-count">Fully settled for this period</span></div>
+                    </div>
+                    <div class="facility-amount-col">
+                        <div class="facility-amount">@PaidPayorCount</div>
+                    </div>
+                </div>
+
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("partial"))" @onkeydown="@(e => OnCardKey(e, "partial"))">
                     <div class="facility-icon">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                     </div>
@@ -244,6 +270,32 @@
                     </div>
                     <div class="facility-amount-col">
                         <div class="facility-amount">@PartialCount</div>
+                    </div>
+                </div>
+
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("unpaid"))" @onkeydown="@(e => OnCardKey(e, "unpaid"))">
+                    <div class="facility-icon">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-name">Unpaid Payors</div>
+                        <div class="facility-meta"><span class="facility-count">Current valid payors not yet collected</span></div>
+                    </div>
+                    <div class="facility-amount-col">
+                        <div class="facility-amount">@UnpaidPayorCount</div>
+                    </div>
+                </div>
+
+                <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("absent-excused"))" @onkeydown="@(e => OnCardKey(e, "absent-excused"))">
+                    <div class="facility-icon">
+                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
+                    </div>
+                    <div class="facility-info">
+                        <div class="facility-name">Absent / Excused</div>
+                        <div class="facility-meta"><span class="facility-count">Excused records — not counted as unpaid</span></div>
+                    </div>
+                    <div class="facility-amount-col">
+                        <div class="facility-amount">@AbsentExcusedCount</div>
                     </div>
                 </div>
 
@@ -260,7 +312,16 @@
                             <div class="facility-name">@f.FacilityName</div>
                             <div class="facility-meta">
                                 <span class="facility-code">@f.FacilityCode</span>
-                                <span class="facility-count">@f.TransactionCount transactions</span>
+                                <span class="facility-count">@f.TransactionCount txns · @f.PayeeCount payees</span>
+                            </div>
+                            <div class="facility-substats">
+                                <span class="substat paid">@f.PaidCount paid</span>
+                                <span class="substat partial">@f.PartialCount partial</span>
+                                <span class="substat unpaid">@f.UnpaidCount unpaid</span>
+                                @if (f.AbsentExcusedCount > 0)
+                                {
+                                    <span class="substat excused">@f.AbsentExcusedCount excused</span>
+                                }
                             </div>
                         </div>
                         <div class="facility-amount-col">
@@ -275,6 +336,164 @@
         }
 
     </div>
+
+    @if (SelectedDetailCard is not null && ReportData is not null)
+    {
+        <div class="detail-sheet-backdrop" @onclick="CloseDetail"></div>
+        <div class="detail-sheet">
+            <div class="detail-sheet-head">
+                <div>
+                    <div class="detail-sheet-title">@DetailTitle</div>
+                    <div class="detail-sheet-sub">@ScopeLabel · @PeriodTitle</div>
+                </div>
+                <button class="detail-sheet-close" @onclick="CloseDetail" aria-label="Close">&times;</button>
+            </div>
+            <div class="detail-sheet-body">
+                @switch (SelectedDetailCard)
+                {
+                    case "collected":
+                        @if (Transactions.Count == 0)
+                        {
+                            @DetailEmpty("No collections recorded for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var t in Transactions)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@t.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(t.FacilityCode, t.StallNo) · @t.CollectionDate.ToString("MMM d")@(string.IsNullOrWhiteSpace(t.ORNumber) ? "" : " · OR " + t.ORNumber)</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val">&#8369;@t.Amount.ToString("N0")</div>
+                                        @if (t.IsPartial)
+                                        {
+                                            <span class="detail-tag partial">Partial</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "outstanding":
+                        @if (!OutstandingPayees.Any())
+                        {
+                            @DetailEmpty("No outstanding balances — everything is collected.")
+                        }
+                        else
+                        {
+                            @foreach (var p in OutstandingPayees)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@p.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(p.FacilityCode, p.StallNo) · Paid &#8369;@p.AmountPaid.ToString("N0") of &#8369;@p.AssessedAmount.ToString("N0")</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val due">&#8369;@p.Balance.ToString("N0")</div>
+                                        <span class="detail-tag @GetPayeeStatusClass(p)">@p.Status</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "paid":
+                        @if (!PaidPayees.Any())
+                        {
+                            @DetailEmpty("No fully-paid payors for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var p in PaidPayees)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@p.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(p.FacilityCode, p.StallNo)@(string.IsNullOrWhiteSpace(p.ORNumber) ? "" : " · OR " + p.ORNumber)@(p.LastCollectedAt.HasValue ? " · " + p.LastCollectedAt.Value.ToString("MMM d") : "")</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val paid">&#8369;@p.AmountPaid.ToString("N0")</div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "partial":
+                        @if (!PartialPayees.Any())
+                        {
+                            @DetailEmpty("No partial payors for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var p in PartialPayees)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@p.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(p.FacilityCode, p.StallNo)@(string.IsNullOrWhiteSpace(p.ORNumber) ? "" : " · OR " + p.ORNumber)@(p.LastCollectedAt.HasValue ? " · " + p.LastCollectedAt.Value.ToString("MMM d") : "")</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val">&#8369;@p.AmountPaid.ToString("N0")</div>
+                                        <div class="detail-amt-bal">Balance &#8369;@p.Balance.ToString("N0")</div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "unpaid":
+                        @if (!UnpaidPayees.Any())
+                        {
+                            @DetailEmpty("No unpaid current payors for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var p in UnpaidPayees)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@p.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(p.FacilityCode, p.StallNo)</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val due">&#8369;@p.Balance.ToString("N0")</div>
+                                        <div class="detail-amt-bal">amount due</div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "absent-excused":
+                        @if (AbsentExcusedRows.Count == 0)
+                        {
+                            @DetailEmpty("No absent or excused records for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var a in AbsentExcusedRows)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@a.PayorName</div>
+                                        <div class="detail-row-sub">@FacilityStall(a.FacilityCode, a.StallNo) · @a.Date.ToString("MMM d, yyyy")@(string.IsNullOrWhiteSpace(a.Reason) ? "" : " · " + a.Reason)</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <span class="detail-tag excused">@a.Source</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+                }
+            </div>
+        </div>
+    }
+
     <BottomNav ActiveTab="reports" />
 
 </div>
@@ -425,10 +644,51 @@
     IReadOnlyList<MobileReportFacilitySummaryDto> ReportFacilities =>
         ReportData?.Facilities ?? Array.Empty<MobileReportFacilitySummaryDto>();
 
+    // ── Clickable summary-card detail sheets ──
+    string? SelectedDetailCard;
+    void OpenDetail(string card) => SelectedDetailCard = card;
+    void CloseDetail() => SelectedDetailCard = null;
+
+    // Honour the cards' role="button" / tabindex="0": activate on Enter or Space.
+    void OnCardKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e, string card)
+    {
+        if (e.Key is "Enter" or " " or "Spacebar")
+            OpenDetail(card);
+    }
+
+    string DetailTitle => SelectedDetailCard switch
+    {
+        "collected" => "Total Collected",
+        "outstanding" => "Outstanding Balance",
+        "paid" => "Paid Payors",
+        "partial" => "Partial Payors",
+        "unpaid" => "Unpaid Payors",
+        "absent-excused" => "Absent / Excused",
+        _ => "Details"
+    };
+
+    IReadOnlyList<MobileReportTransactionDto> Transactions =>
+        ReportData?.Transactions ?? Array.Empty<MobileReportTransactionDto>();
+    IReadOnlyList<MobileReportAbsentExcusedDto> AbsentExcusedRows =>
+        ReportData?.AbsentExcused ?? Array.Empty<MobileReportAbsentExcusedDto>();
+    IEnumerable<MobileReportPayeeSummaryDto> OutstandingPayees => PayeeSummaries.Where(p => p.Balance > 0m);
+    IEnumerable<MobileReportPayeeSummaryDto> PaidPayees => PayeeSummaries.Where(p => p.Status == PaymentStatus.Paid);
+    IEnumerable<MobileReportPayeeSummaryDto> PartialPayees => PayeeSummaries.Where(p => p.Status == PaymentStatus.Partial);
+    IEnumerable<MobileReportPayeeSummaryDto> UnpaidPayees => PayeeSummaries.Where(p => p.Status == PaymentStatus.Unpaid);
+
+    static string FacilityStall(FacilityCode code, string? stallNo) =>
+        string.IsNullOrWhiteSpace(stallNo) ? code.ToString() : $"{code} · Stall {stallNo}";
+
+    RenderFragment DetailEmpty(string message) =>@<div class="detail-empty">@message</div>;
+
     decimal GrandTotal => ReportData?.Totals.CollectedAmount ?? 0m;
     int TotalTransactions => ReportData?.Totals.TransactionCount ?? 0;
     int PayeeCount => ReportData?.Totals.PayeeCount ?? 0;
     int PartialCount => ReportData?.Totals.PartialCount ?? 0;
+    decimal Outstanding => ReportData?.Totals.OutstandingAmount ?? 0m;
+    int PaidPayorCount => ReportData?.Totals.PaidCount ?? 0;
+    int UnpaidPayorCount => ReportData?.Totals.UnpaidCount ?? 0;
+    int AbsentExcusedCount => ReportData?.Totals.AbsentExcusedCount ?? 0;
 
     int GetProgressPercent(decimal amount)
     {

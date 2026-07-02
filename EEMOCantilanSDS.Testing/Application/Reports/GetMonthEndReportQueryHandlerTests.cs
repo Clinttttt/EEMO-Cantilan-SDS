@@ -114,7 +114,14 @@ public class GetMonthEndReportQueryHandlerTests
                 new TpmVendorAttendanceDto { Id = Guid.NewGuid(), VendorName = "Pedro", Goods = "Fish", IsPaid = false, Fee = 100m, ORNumber = null, MarketDate = new DateOnly(2026, 6, 6) },
             });
 
-        return (new GetMonthEndReportQueryHandler(reportsRepo.Object, slaughterRepo.Object, trmRepo.Object, tpmRepo.Object), reportsRepo);
+        return (new GetMonthEndReportQueryHandler(
+            reportsRepo.Object,
+            slaughterRepo.Object,
+            trmRepo.Object,
+            tpmRepo.Object,
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions()), reportsRepo);
     }
 
     [Fact]
@@ -206,7 +213,10 @@ public class GetMonthEndReportQueryHandlerTests
             reportsRepo.Object,
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
-            EmptyTpmRepo());
+            EmptyTpmRepo(),
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions());
 
         var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
 
@@ -248,7 +258,10 @@ public class GetMonthEndReportQueryHandlerTests
             reportsRepo.Object,
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
-            EmptyTpmRepo());
+            EmptyTpmRepo(),
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions());
 
         var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), CancellationToken.None)).Value!;
         var payor = Assert.Single(report.Facilities.Single(f => f.Code == FacilityCode.NPM).Payors);

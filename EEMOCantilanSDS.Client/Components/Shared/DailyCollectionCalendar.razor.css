@@ -32,6 +32,15 @@
         cursor: default;
     }
 
+    /* Year-jump buttons (double chevron) — slightly muted to read as a coarser step than months. */
+    .cal-nav-year svg {
+        stroke: var(--text-subtle);
+    }
+
+    .cal-nav-year:hover:not(:disabled) svg {
+        stroke: var(--navy);
+    }
+
     .cal-nav-btn svg {
         width: 13px;
         height: 13px;

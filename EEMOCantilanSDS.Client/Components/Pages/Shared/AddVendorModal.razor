@@ -1,4 +1,5 @@
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 @* ══════════════════════════════════════════════════════════════════════
    AddVendorModal.razor  —  Shared reusable Add / Edit Vendor Modal
@@ -139,6 +140,10 @@
                             {
                                 <span class="form-error">@GetFieldError("StallNo")</span>
                             }
+                            else if (!IsEditing && !string.IsNullOrEmpty(_lastSuggested) && Form.StallNo == _lastSuggested)
+                            {
+                                <span class="avm-hint-muted">Auto-suggested next number — you can edit it.</span>
+                            }
                         </div>
                     </div>
 
@@ -148,14 +153,8 @@
                         <div class="avm-row-2">
                             <div class="avm-group">
                                 <label class="avm-label">Section / Category <span class="avm-req">*</span></label>
-                                <select class="avm-input @(GetFieldError("Section") != string.Empty ? "form-input-error" : "")"
-                                        @bind="Form.SelectedSection"
-                                        @bind:after="HandleSectionChanged">
-                                    <option value="">-- Select Section --</option>
-                                    <option value="Vegetable">Vegetable Area</option>
-                                    <option value="Fish">Fish Area</option>
-                                    <option value="Meat">Meat Area</option>
-                                </select>
+                                <FhSelect Block="true" Caption="" Value="@Form.SelectedSection"
+                                          Options="SectionOptions" ValueChanged="OnSectionSelected" />
                                 @if (GetFieldError("Section") != string.Empty)
                                 {
                                     <span class="form-error">@GetFieldError("Section")</span>
@@ -185,13 +184,8 @@
                             }
                             else
                             {
-                                <select class="avm-input" @bind="Form.ContractYears">
-                                    <option value="0">No contract</option>
-                                    <option value="1">1 year</option>
-                                    <option value="2">2 years</option>
-                                    <option value="3">3 years</option>
-                                    <option value="5">5 years</option>
-                                </select>
+                                <FhSelect Block="true" Caption="" Value="@Form.ContractYears.ToString()"
+                                          Options="ContractYearOptions" ValueChanged="OnContractYearsSelected" />
                             }
                         </div>
                     </div>
@@ -378,7 +372,7 @@
 
                                 <!-- Electricity -->
                                 <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
-                                     @onclick='() => OnToggleFee.InvokeAsync("Electricity")'>
+                                     @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
                                     <div class="avm-fee-icon">
                                         <svg viewBox="0 0 24 24" style="stroke:#d4920a;">
                                             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -388,17 +382,15 @@
                                         <div class="avm-fee-title">Electricity</div>
                                         <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
                                     </div>
-                                    <div class="avm-fee-check @(Form.FeeTypes.Contains("Electricity") ? "checked" : "")">
-                                        @if (Form.FeeTypes.Contains("Electricity"))
-                                        {
-                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </div>
+                                    <input type="checkbox" class="avm-fee-checkbox"
+                                           checked="@Form.FeeTypes.Contains("Electricity")"
+                                           @onchange='() => HandleToggleFee("Electricity")'
+                                           @onclick:stopPropagation="true" />
                                 </div>
 
                                 <!-- Water -->
                                 <div class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
-                                     @onclick='() => OnToggleFee.InvokeAsync("Water")'>
+                                     @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
                                     <div class="avm-fee-icon">
                                         <svg viewBox="0 0 24 24" style="stroke:#1a7ab5;">
                                             <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
@@ -408,12 +400,10 @@
                                         <div class="avm-fee-title">Water</div>
                                         <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
                                     </div>
-                                    <div class="avm-fee-check @(Form.FeeTypes.Contains("Water") ? "checked" : "")">
-                                        @if (Form.FeeTypes.Contains("Water"))
-                                        {
-                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </div>
+                                    <input type="checkbox" class="avm-fee-checkbox"
+                                           checked="@Form.FeeTypes.Contains("Water")"
+                                           @onchange='() => HandleToggleFee("Water")'
+                                           @onclick:stopPropagation="true" />
                                 </div>
 
                                 <!-- Fish fee — Fish Area only -->
@@ -457,6 +447,14 @@
             </div><!-- /eemo-modal-body -->
             <!-- ── Footer ──────────────────────────────────────────────── -->
             <div class="eemo-drawer-footer">
+                @if (!IsEditing && IsImportSupported)
+                {
+                    <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImport"
+                            title="Bulk import stallholders from a file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                        Import list
+                    </button>
+                }
                 <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
                 <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
                     @(IsEditing ? "Save Changes" : "Add Vendor")
@@ -486,6 +484,73 @@
 
     /// Field-level validation errors from backend
     [Parameter] public Dictionary<string, string> FieldErrors { get; set; } = new();
+
+    /// Existing stall/space numbers for the CURRENT context (facility, and section for NPM), supplied by
+    /// the host from its loaded list. Used only to auto-SUGGEST the next number in add mode — never a
+    /// constant; the value stays fully editable.
+    [Parameter] public IReadOnlyCollection<string>? ExistingStallNos { get; set; }
+
+    // The last value we auto-suggested; lets us refresh the suggestion when the context (e.g. NPM
+    // section) changes — but only while the admin hasn't typed their own number.
+    private string _lastSuggested = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        if (Show && !IsEditing)
+        {
+            // Suggest on open, and re-suggest when the context list changes — but preserve a value the
+            // admin has typed themselves (i.e. only replace an empty field or our own prior suggestion).
+            if (string.IsNullOrWhiteSpace(Form.StallNo) || Form.StallNo == _lastSuggested)
+            {
+                var suggestion = SuggestNextStallNo(ExistingStallNos);
+                if (!string.IsNullOrEmpty(suggestion))
+                {
+                    Form.StallNo = suggestion;
+                    _lastSuggested = suggestion;
+                }
+            }
+        }
+        else if (!Show)
+        {
+            _lastSuggested = string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Suggests the next stall/space number from the existing ones — dynamically, never a fixed constant.
+    /// Takes the numeric part of each existing number, uses (max + 1), preserves a shared non-numeric
+    /// prefix (e.g. "F-12" → "F-13") and zero-padding (e.g. "01"…"40" → "41"). Returns empty when there's
+    /// no numeric pattern to continue (the admin then types it), so nothing is ever fabricated.
+    /// </summary>
+    public static string SuggestNextStallNo(IEnumerable<string>? existing)
+    {
+        if (existing is null) return string.Empty;
+
+        var nums = new List<int>();
+        string? sharedPrefix = null;
+        var prefixConsistent = true;
+        var width = 0;
+
+        foreach (var raw in existing)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var m = System.Text.RegularExpressions.Regex.Match(raw.Trim(), @"^(.*?)(\d+)\s*$");
+            if (!m.Success) continue;
+
+            var prefix = m.Groups[1].Value;
+            var digits = m.Groups[2].Value;
+            nums.Add(int.Parse(digits));
+            width = Math.Max(width, digits.Length);
+
+            if (sharedPrefix is null) sharedPrefix = prefix;
+            else if (!string.Equals(sharedPrefix, prefix, StringComparison.OrdinalIgnoreCase)) prefixConsistent = false;
+        }
+
+        if (nums.Count == 0) return string.Empty;
+
+        var next = (nums.Max() + 1).ToString().PadLeft(Math.Max(width, 1), '0');
+        return prefixConsistent && !string.IsNullOrEmpty(sharedPrefix) ? $"{sharedPrefix}{next}" : next;
+    }
 
     private ElementReference modalBodyRef;
 
@@ -530,6 +595,51 @@
     private async Task HandleSave() => await OnSave.InvokeAsync();
     private async Task HandleFacilityChanged() => await OnFacilityChanged.InvokeAsync();
     private async Task HandleSectionChanged() => await OnSectionChanged.InvokeAsync();
+
+    // Fee state lives on the shared Form. Toggle it HERE (the modal owns the click) so the checkbox
+    // updates immediately and identically on every host — facility pages (NPM/TCC/NCC/BBQ/ICE) and the
+    // Vendors registry — without depending on a host round-trip re-render. All hosts' toggles were the
+    // same add/remove, so this is authoritative.
+    private void HandleToggleFee(string fee)
+    {
+        if (Form.FeeTypes.Contains(fee))
+            Form.FeeTypes.Remove(fee);
+        else
+            Form.FeeTypes.Add(fee);
+        StateHasChanged();
+    }
+
+    // Options for the custom Section / Contract-duration dropdowns.
+    private static readonly IReadOnlyList<(string Value, string Label)> SectionOptions = new List<(string, string)>
+    {
+        ("Vegetable", "Vegetable Area"), ("Fish", "Fish Area"), ("Meat", "Meat Area"),
+    };
+    private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
+    {
+        ("0", "No contract"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"),
+    };
+
+    private async Task OnSectionSelected(string value)
+    {
+        Form.SelectedSection = value;
+        await HandleSectionChanged();
+    }
+
+    private void OnContractYearsSelected(string value)
+    {
+        Form.ContractYears = int.TryParse(value, out var years) ? years : 0;
+    }
+
+    // Bulk import is offered (Add mode only) for the facilities that have an import page.
+    private static readonly HashSet<string> ImportFacilities = new(StringComparer.OrdinalIgnoreCase)
+        { "NPM", "TCC", "NCC", "BBQ", "ICE" };
+    private bool IsImportSupported => ImportFacilities.Contains(Form.FacilityCode);
+
+    private void HandleImport()
+    {
+        if (IsImportSupported)
+            Navigation.NavigateTo($"/import/{Form.FacilityCode.ToLowerInvariant()}");
+    }
 
     // ── Shared models ─────────────────────────────────────────────────────────
     // Defined inside this component so host pages reference them as:

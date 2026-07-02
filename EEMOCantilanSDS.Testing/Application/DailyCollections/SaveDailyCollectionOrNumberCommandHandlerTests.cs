@@ -23,7 +23,7 @@ public class SaveDailyCollectionOrNumberCommandHandlerTests
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(c => c.Username).Returns("admin");
         var uow = new Mock<IUnitOfWork>();
-        return (new SaveDailyCollectionOrNumberCommandHandler(repo.Object, user.Object, uow.Object), uow);
+        return (new SaveDailyCollectionOrNumberCommandHandler(repo.Object, user.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow);
     }
 
     [Fact]

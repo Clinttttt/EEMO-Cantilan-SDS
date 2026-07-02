@@ -57,15 +57,12 @@
             <span>History</span>
         </button>
     </div>
-    <div class="rpt-date-nav @(ShowPrintReport || ShowHistory ? "utility-mode" : "")">
-        <button type="button" class="rpt-nav-btn" @onclick="PrevPeriod" aria-label="Previous period">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <span class="rpt-current-period">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</span>
-        <button type="button" class="rpt-nav-btn" @onclick="NextPeriod" aria-label="Next period">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-    </div>
+    <ReportPeriodNav Year="CurrentDate.Year" Month="CurrentDate.Month"
+                     Yearly="@(!ShowPrintReport && (ShowHistory || ActivePeriod == "Yearly"))"
+                     Label="@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())"
+                     UtilityMode="@(ShowPrintReport || ShowHistory)"
+                     OnPrev="PrevPeriod" OnNext="NextPeriod"
+                     OnPick="PickPeriod" OnToday="JumpToCurrent" />
 </div>
 
 @if (ShowPrintReport)
@@ -697,6 +694,17 @@ else
     DateTime WeekEndDate => new(CurrentDate.Year, CurrentDate.Month, WeekDayRange().ToDay);
     string PrintReportPeriodLabel => $"Status Report — {CurrentDate:MMMM yyyy}";
     string HistoryPeriodLabel => $"History — {CurrentDate.Year}";
+
+    async Task PickPeriod((int Year, int Month) p)
+    {
+        CurrentDate = new DateTime(p.Year, p.Month, 1);
+        await LoadAsync();
+    }
+    async Task JumpToCurrent()
+    {
+        CurrentDate = PhilippineTime.Now;
+        await LoadAsync();
+    }
 
     bool IsYearly => ActivePeriod == "Yearly";
     bool IsWeekly => ActivePeriod == "Weekly";

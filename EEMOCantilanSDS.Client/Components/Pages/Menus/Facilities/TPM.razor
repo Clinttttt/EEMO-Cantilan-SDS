@@ -30,7 +30,7 @@
     <div class="tpm-topbar-right">
         <div class="tpm-topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @DateTime.Now.ToString("MMMM d, yyyy")
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
         </div>
     </div>
 </header>
@@ -454,15 +454,21 @@
     // ── Lifecycle ─────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        await PaintLoadingStateAsync();
         await LoadOverviewAndMarketDaysAsync();
     }
 
     private async Task LoadOverviewAndMarketDaysAsync()
     {
-        var overviewResult = await TpmApi.GetOverviewAsync(CalendarMonth.Year, CalendarMonth.Month);
+        var overviewTask = TpmApi.GetOverviewAsync(CalendarMonth.Year, CalendarMonth.Month);
+        var marketDaysTask = TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
+
+        await Task.WhenAll(overviewTask, marketDaysTask);
+
+        var overviewResult = await overviewTask;
         if (overviewResult.IsSuccess) Overview = overviewResult.Value;
 
-        var marketDaysResult = await TpmApi.GetMarketDaysAsync(CalendarMonth.Year, CalendarMonth.Month);
+        var marketDaysResult = await marketDaysTask;
         MarketDays = marketDaysResult.IsSuccess && marketDaysResult.Value != null
             ? marketDaysResult.Value.ToList()
             : new();
@@ -491,6 +497,7 @@
         SelectedFriday = friday;
         VendorSearch = string.Empty;
         isLoadingAttendance = true;
+        await PaintLoadingStateAsync();
 
         var result = await TpmApi.GetVendorAttendanceAsync(DateOnly.FromDateTime(friday));
         Attendance = result.IsSuccess && result.Value != null ? result.Value.ToList() : new();
@@ -501,6 +508,12 @@
     // ── Payment status is now edited via the Edit modal (SubmitEditVendor). ──
 
     // ── Add Vendor Modal ──────────────────────────
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     private bool ShowAddVendorModal;
     private string NewVendorName = string.Empty;
     private string NewGoods = string.Empty;

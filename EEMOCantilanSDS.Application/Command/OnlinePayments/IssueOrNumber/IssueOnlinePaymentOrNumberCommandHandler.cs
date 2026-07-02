@@ -1,6 +1,8 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -12,7 +14,9 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
     IPaymentRepository paymentRepository,
     ICurrentUserService currentUser,
     IPayorRealtimeNotifier payorNotifier,
-    IUnitOfWork unitOfWork) : IRequestHandler<IssueOnlinePaymentOrNumberCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<IssueOnlinePaymentOrNumberCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(IssueOnlinePaymentOrNumberCommand request, CancellationToken cancellationToken)
     {
@@ -36,6 +40,12 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
 
         await paymentRepository.UpdateAsync(record, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            null,
+            record.BillingYear,
+            record.BillingMonth,
+            cancellationToken);
 
         // Best-effort realtime alert to the paying payor: their provisional acknowledgment is now a
         // complete digital receipt. Must never affect the OR encoding above.

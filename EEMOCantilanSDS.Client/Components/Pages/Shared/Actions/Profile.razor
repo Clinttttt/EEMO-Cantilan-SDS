@@ -32,13 +32,103 @@
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @PhilippineTime.Now.ToString("MMMM d, yyyy")
                 </div>
                 <AccountChip />
             </div>
         </header>
 
         <div class="content-area">
+
+            @if (IsLoading)
+            {
+                <!-- Skeleton loading state (matches the real profile layout) -->
+                <div class="prof-hero prof-hero-skel">
+                    <div class="skel skel-hero-badge"></div>
+                    <div class="prof-hero-identity" style="flex:1;">
+                        <div class="skel skel-line" style="width:70px;height:11px;"></div>
+                        <div class="skel skel-line" style="width:220px;height:24px;margin-top:10px;"></div>
+                        <div class="skel skel-line" style="width:300px;height:14px;margin-top:14px;"></div>
+                    </div>
+                    <div class="prof-hero-actions">
+                        <div class="skel skel-line" style="width:120px;height:38px;border-radius:9px;"></div>
+                        <div class="skel skel-line" style="width:160px;height:38px;border-radius:9px;"></div>
+                    </div>
+                </div>
+
+                <div class="prof-grid">
+                    <div class="prof-col">
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="skel skel-chip"></div>
+                                <div class="skel skel-line" style="width:140px;height:14px;"></div>
+                            </div>
+                            <div class="prof-field-list">
+                                @for (var i = 0; i < 6; i++)
+                                {
+                                    <div class="prof-field skel-field">
+                                        <div class="skel skel-line" style="width:120px;height:12px;"></div>
+                                        <div class="skel skel-line" style="width:90px;height:12px;"></div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="skel skel-chip"></div>
+                                <div class="skel skel-line" style="width:160px;height:14px;"></div>
+                            </div>
+                            <div class="prof-field-list">
+                                @for (var i = 0; i < 4; i++)
+                                {
+                                    <div class="prof-field skel-field">
+                                        <div class="skel skel-line" style="width:130px;height:12px;"></div>
+                                        <div class="skel skel-line" style="width:100px;height:12px;"></div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="prof-col">
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="skel skel-chip"></div>
+                                <div class="skel skel-line" style="width:180px;height:14px;"></div>
+                                <div class="skel skel-line" style="width:120px;height:28px;border-radius:8px;margin-left:auto;"></div>
+                            </div>
+                            <div class="skel-body">
+                                <div class="skel skel-line" style="width:210px;height:14px;margin-bottom:14px;"></div>
+                                <div class="skel-heat">
+                                    @for (var i = 0; i < 371; i++)
+                                    {
+                                        <span class="skel skel-heat-cell"></span>
+                                    }
+                                </div>
+                                <div class="prof-hist-summary" style="margin-top:16px;">
+                                    @for (var i = 0; i < 4; i++)
+                                    {
+                                        <div class="skel skel-line" style="height:58px;border-radius:10px;"></div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="skel skel-chip"></div>
+                                <div class="skel skel-line" style="width:150px;height:14px;"></div>
+                            </div>
+                            <div class="skel-body">
+                                @for (var i = 0; i < 4; i++)
+                                {
+                                    <div class="skel skel-line" style="height:18px;margin-bottom:14px;"></div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
 
             <!-- -- Profile Hero -- -->
             <div class="prof-hero">
@@ -226,11 +316,71 @@
                                 <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
                             </div>
                             <div class="prof-card-title">@(IsNpm ? "Daily Collection Activity" : "12-Month Payment History")</div>
+                            @if (IsNpm)
+                            {
+                                <div class="ph-year-nav">
+                                    <button class="ph-year-arrow" @onclick="PrevHeatYear" title="Previous year">
+                                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                                    </button>
+                                    <div class="ph-year-picker">
+                                        <button class="ph-year-btn @(_heatYearMenuOpen ? "open" : "")" @onclick="ToggleHeatYearMenu">
+                                            <span>@_heatYear</span>
+                                            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                        </button>
+                                        @if (_heatYearMenuOpen)
+                                        {
+                                            <div class="ph-year-backdrop" @onclick="() => _heatYearMenuOpen = false"></div>
+                                            <div class="ph-year-menu">
+                                                <div class="ph-year-grid">
+                                                    @foreach (var y in HeatYearOptions)
+                                                    {
+                                                        <button class="ph-year-cell @(y == _heatYear ? "active" : "")" @onclick="() => PickHeatYear(y)">@y</button>
+                                                    }
+                                                </div>
+                                                <button class="ph-year-current" @onclick="GoToCurrentHeatYear">Go to current year</button>
+                                            </div>
+                                        }
+                                    </div>
+                                    <button class="ph-year-arrow" @onclick="NextHeatYear" disabled="@(_heatYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)" title="Next year">
+                                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="ph-year-nav">
+                                    <button class="ph-year-arrow" @onclick="PrevMonthlyYear" title="Previous year">
+                                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                                    </button>
+                                    <div class="ph-year-picker">
+                                        <button class="ph-year-btn @(_monthlyYearMenuOpen ? "open" : "")" @onclick="ToggleMonthlyYearMenu">
+                                            <span>@_monthlyYear</span>
+                                            <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+                                        </button>
+                                        @if (_monthlyYearMenuOpen)
+                                        {
+                                            <div class="ph-year-backdrop" @onclick="() => _monthlyYearMenuOpen = false"></div>
+                                            <div class="ph-year-menu">
+                                                <div class="ph-year-grid">
+                                                    @foreach (var y in HeatYearOptions)
+                                                    {
+                                                        <button class="ph-year-cell @(y == _monthlyYear ? "active" : "")" @onclick="() => PickMonthlyYear(y)">@y</button>
+                                                    }
+                                                </div>
+                                                <button class="ph-year-current" @onclick="GoToCurrentMonthlyYear">Go to current year</button>
+                                            </div>
+                                        }
+                                    </div>
+                                    <button class="ph-year-arrow" @onclick="NextMonthlyYear" disabled="@(_monthlyYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)" title="Next year">
+                                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                                    </button>
+                                </div>
+                            }
                         </div>
 
                         @if (IsNpm)
                         {
-                            <div class="ph-heat-head">@_heatCollected day@(_heatCollected == 1 ? "" : "s") collected in the last year</div>
+                            <div class="ph-heat-head">@_heatCollected day@(_heatCollected == 1 ? "" : "s") collected @(_heatYear == EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year ? "in the last year" : $"in {_heatYear}")</div>
                             <div class="ph-heat-scroll">
                                 <div class="ph-heat-months">
                                     @for (var w = 0; w < _heatWeeks.Count; w++)
@@ -263,21 +413,29 @@
                         else
                         {
                             <div class="prof-hist-grid">
-                                @for (int i = 11; i >= 0; i--)
-                                {
-                                    var month = DateTime.Now.AddMonths(-i);
-                                    var key = month.ToString("yyyy-MM");
+                                @{
+                                    var mToday = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
                                     var contractStart = Stall.ContractDate.HasValue
                                         ? new DateTime(Stall.ContractDate.Value.Year, Stall.ContractDate.Value.Month, 1)
                                         : (DateTime?)null;
-                                    var hasRecord = Stall.PaymentHistory.TryGetValue(key, out var recordedStatus);
+                                }
+                                @for (int m = 1; m <= 12; m++)
+                                {
+                                    var month = new DateTime(_monthlyYear, m, 1);
+                                    var key = month.ToString("yyyy-MM");
+                                    var isFuture = _monthlyYear > mToday.Year || (_monthlyYear == mToday.Year && m > mToday.Month);
+                                    var hasRecord = _monthlyStatus.TryGetValue(key, out var recordedStatus);
                                     var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
-                                    var status = isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
-                                    var isCurrent = i == 0;
-                                    <div class="prof-hist-month @(isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                    var status = isFuture ? "Future" : isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
+                                    var isCurrent = _monthlyYear == mToday.Year && m == mToday.Month;
+                                    <div class="prof-hist-month @(isFuture ? "hist-future" : isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
                                         <div class="prof-hist-month-name">@month.ToString("MMM")</div>
                                         <div class="prof-hist-month-year">@month.ToString("yy")</div>
-                                        @if (isBeforeContract)
+                                        @if (isFuture)
+                                        {
+                                            <div class="prof-hist-icon">—</div>
+                                        }
+                                        else if (isBeforeContract)
                                         {
                                             <div class="prof-hist-icon">—</div>
                                         }
@@ -414,6 +572,8 @@
                 </div>
             </div>
 
+            }
+
         </div><!-- end content-area -->
 
 
@@ -528,6 +688,7 @@
     private List<List<HeatCell>> _heatWeeks = new();   // each inner list = 7 cells (Sun→Sat)
     private int _heatCollected;
     private int _heatMissed;
+    private int _heatYear = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
 
     // Collection history (transparency log) — cursor-paginated 10/page (NPM days / monthly records).
     private readonly List<StallCollectionHistoryRowDto> _history = new();
@@ -671,6 +832,9 @@
                             : "Unpaid";
                     }
                 }
+
+                // Seed the monthly grid's status map for the default (current) year from the rolling history.
+                _monthlyStatus = new Dictionary<string, string>(paymentHistory);
                 
                 // Load current month payment record
                 var currentPaymentResult = await currentPaymentTask;
@@ -804,12 +968,21 @@
     // ── GitHub-style daily collection heatmap (NPM) ──
     async Task LoadNpmDailyHeatmap(Guid stallId)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var year = _heatYear;
 
-        // Last 12 calendar months, fetched in parallel.
+        // Window END: today for the current (or a future-picked) year; Dec 31 for a past year. The grid
+        // always shows the trailing ~52 weeks ending there — full width, no future cells, and it includes
+        // the preceding months ("the passed") so the row spans the whole width instead of half.
+        var end = year >= today.Year ? today : new DateOnly(year, 12, 31);
+        var start = end.AddDays(-363);
+        while (start.DayOfWeek != DayOfWeek.Sunday) start = start.AddDays(-1);
+
+        // Fetch every calendar month the window touches, in parallel.
         var months = new List<(int y, int m)>();
-        var cursor = new DateTime(today.Year, today.Month, 1);
-        for (var i = 0; i < 12; i++) { months.Add((cursor.Year, cursor.Month)); cursor = cursor.AddMonths(-1); }
+        var mc = new DateOnly(start.Year, start.Month, 1);
+        var endMonth = new DateOnly(end.Year, end.Month, 1);
+        while (mc <= endMonth) { months.Add((mc.Year, mc.Month)); mc = mc.AddMonths(1); }
 
         var results = await Task.WhenAll(
             months.Select(mm => DailyCollectionApi.GetDailyCollectionMonthAsync(stallId, mm.y, mm.m)));
@@ -823,20 +996,18 @@
         }
 
         var contractStart = Stall.ContractDate.HasValue ? DateOnly.FromDateTime(Stall.ContractDate.Value) : (DateOnly?)null;
-        var start = today.AddDays(-364);
-        while (start.DayOfWeek != DayOfWeek.Sunday) start = start.AddDays(-1);
 
         var weeks = new List<List<HeatCell>>();
         var collected = 0;
         var missed = 0;
         var d = start;
-        while (d <= today)
+        while (d <= end)
         {
             var week = new List<HeatCell>();
             for (var i = 0; i < 7; i++)
             {
                 string kind;
-                if (d > today) kind = "future";
+                if (d > today) kind = "future";                                   // only the tail of the final week
                 else if (contractStart.HasValue && d < contractStart.Value) kind = "none";
                 else if (status.TryGetValue(d, out var st)) kind = st;
                 else kind = "missed";
@@ -850,6 +1021,116 @@
         _heatWeeks = weeks;
         _heatCollected = collected;
         _heatMissed = missed;
+    }
+
+    // Year navigation for the daily heatmap.
+    private bool _heatYearMenuOpen;
+    private IEnumerable<int> HeatYearOptions =>
+        Enumerable.Range(0, 12).Select(i => EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year - i);
+
+    private void ToggleHeatYearMenu() => _heatYearMenuOpen = !_heatYearMenuOpen;
+
+    private async Task PrevHeatYear()
+    {
+        _heatYearMenuOpen = false;
+        _heatYear--;
+        await LoadNpmDailyHeatmap(StallGuid);
+    }
+
+    private async Task NextHeatYear()
+    {
+        if (_heatYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year) return;
+        _heatYearMenuOpen = false;
+        _heatYear++;
+        await LoadNpmDailyHeatmap(StallGuid);
+    }
+
+    private async Task PickHeatYear(int y)
+    {
+        _heatYearMenuOpen = false;
+        if (y == _heatYear) return;
+        _heatYear = y;
+        await LoadNpmDailyHeatmap(StallGuid);
+    }
+
+    private async Task GoToCurrentHeatYear()
+    {
+        _heatYearMenuOpen = false;
+        var cy = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
+        if (_heatYear == cy) return;
+        _heatYear = cy;
+        await LoadNpmDailyHeatmap(StallGuid);
+    }
+
+    // Year navigation for the monthly (non-NPM) 12-month payment grid.
+    private int _monthlyYear = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
+    private bool _monthlyYearMenuOpen;
+    private Dictionary<string, string> _monthlyStatus = new();   // "yyyy-MM" → Paid/Partial/Unpaid/Absent
+
+    private void ToggleMonthlyYearMenu() => _monthlyYearMenuOpen = !_monthlyYearMenuOpen;
+
+    private async Task PrevMonthlyYear()
+    {
+        _monthlyYearMenuOpen = false;
+        _monthlyYear--;
+        await LoadMonthlyYear(_monthlyYear);
+    }
+
+    private async Task NextMonthlyYear()
+    {
+        if (_monthlyYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year) return;
+        _monthlyYearMenuOpen = false;
+        _monthlyYear++;
+        await LoadMonthlyYear(_monthlyYear);
+    }
+
+    private async Task PickMonthlyYear(int y)
+    {
+        _monthlyYearMenuOpen = false;
+        if (y == _monthlyYear) return;
+        _monthlyYear = y;
+        await LoadMonthlyYear(y);
+    }
+
+    private async Task GoToCurrentMonthlyYear()
+    {
+        _monthlyYearMenuOpen = false;
+        var cy = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
+        if (_monthlyYear == cy) return;
+        _monthlyYear = cy;
+        await LoadMonthlyYear(cy);
+    }
+
+    // Populate the monthly grid for a given year. The current year reuses the rolling history already
+    // loaded (which preserves Absent/Excused detail); past years fetch each month's record in parallel.
+    private async Task LoadMonthlyYear(int year)
+    {
+        if (year == EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)
+        {
+            _monthlyStatus = new Dictionary<string, string>(Stall.PaymentHistory);
+            return;
+        }
+
+        var tasks = Enumerable.Range(1, 12)
+            .Select(m => PaymentsApi.GetPaymentRecordAsync(StallGuid, year, m))
+            .ToArray();
+        var results = await Task.WhenAll(tasks);
+
+        var dict = new Dictionary<string, string>();
+        for (var m = 1; m <= 12; m++)
+        {
+            var r = results[m - 1];
+            if (r.IsSuccess && r.Value is not null)
+            {
+                dict[$"{year:0000}-{m:00}"] = r.Value.Status switch
+                {
+                    Domain.Enums.PaymentStatus.Paid => "Paid",
+                    Domain.Enums.PaymentStatus.Partial => "Partial",
+                    _ => "Unpaid"
+                };
+            }
+        }
+        _monthlyStatus = dict;
     }
 
     // Month abbreviation above the week where the month first changes (skips the clipped left edge).

@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Enums;
@@ -12,7 +14,9 @@ public class UpdateSlaughterCommandHandler(
     IFacilityRepository facilityRepository,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateSlaughterCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<UpdateSlaughterCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateSlaughterCommand request, CancellationToken ct)
     {
@@ -86,6 +90,13 @@ public class UpdateSlaughterCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.SLH,
+            request.TransactionDate.Year,
+            request.TransactionDate.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

@@ -31,7 +31,7 @@ public class RenewStallContractCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("tester");
         var uow = new Mock<IUnitOfWork>();
 
-        var handler = new RenewStallContractCommandHandler(stallRepo.Object, currentUser.Object, uow.Object);
+        var handler = new RenewStallContractCommandHandler(stallRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var newStart = new DateOnly(2026, 6, 28);
         var result = await handler.Handle(
@@ -57,7 +57,7 @@ public class RenewStallContractCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
 
-        var handler = new RenewStallContractCommandHandler(stallRepo.Object, currentUser.Object, uow.Object);
+        var handler = new RenewStallContractCommandHandler(stallRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(
             new RenewStallContractCommand(Guid.NewGuid(), new DateOnly(2026, 6, 28), 3, "X", null), CancellationToken.None);
 

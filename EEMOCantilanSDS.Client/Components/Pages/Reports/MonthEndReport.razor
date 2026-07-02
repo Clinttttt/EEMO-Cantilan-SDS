@@ -454,6 +454,7 @@
     {
         Loading = true;
         Report = null;
+        await PaintLoadingStateAsync();
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
@@ -470,6 +471,12 @@
         }
 
         Loading = false;
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private async Task PrevMonth()

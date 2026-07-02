@@ -41,7 +41,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, DateOnly.FromDateTime(DateTime.UtcNow), IsPaid: true),
@@ -82,7 +82,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "000001"),
@@ -120,7 +120,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), false),
@@ -151,7 +151,7 @@ public class RecordDailyCollectionCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("collector1");
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "DUP-1"),
@@ -183,7 +183,7 @@ public class RecordDailyCollectionCommandHandlerTests
         currentUser.SetupGet(c => c.Username).Returns("collector1");
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), true, ORNumber: "X-1"),
@@ -218,7 +218,7 @@ public class RecordDailyCollectionCommandHandlerTests
             .Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: false, IsAbsent: true),
@@ -252,7 +252,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: false, IsAbsent: true),
@@ -285,7 +285,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         // Collector switches the absent day to "Not Collected".
         var result = await handler.Handle(
@@ -318,7 +318,7 @@ public class RecordDailyCollectionCommandHandlerTests
         uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var handler = new RecordDailyCollectionCommandHandler(
-            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new RecordDailyCollectionCommand(stall.Id, new DateOnly(2026, 6, 6), IsPaid: true, ORNumber: "OR-9"),

@@ -181,6 +181,7 @@
     {
         _loading = true;
         _data.Clear();
+        await PaintLoadingStateAsync();
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
@@ -212,6 +213,12 @@
         }
 
         _loading = false;
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private IReadOnlyList<FacilityCode> VisibleFacilities() =>

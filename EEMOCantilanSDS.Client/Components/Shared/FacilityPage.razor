@@ -1,6 +1,7 @@
 @typeparam TStall where TStall : class, new()
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Stalls
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
@@ -15,14 +16,14 @@
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">@FacilityShortCode — @DateTime.Now.ToString("MMMM yyyy")</span>
+                <span class="breadcrumb-active">@FacilityShortCode — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
             </div>
         </div>
     </div>
     <div class="topbar-right">
         <div class="topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @DateTime.Now.ToString("MMMM d, yyyy")
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
         </div>
         <AccountChip />
     </div>
@@ -114,7 +115,7 @@
 
 <CollectionReceiptModal Show="ShowPayment"
                         FacilityName="@FacilityName"
-                        PeriodLabel="@DateTime.Now.ToString("MMMM yyyy")"
+                        PeriodLabel="@PhilippineTime.Now.ToString("MMMM yyyy")"
                         StallNo="@(PaymentStall is null ? string.Empty : StallNoSelector(PaymentStall))"
                         PayorName="@(PaymentStall is null ? string.Empty : ActualOccupantSelector(PaymentStall))"
                         OrNumber="@(PaymentStall is null ? string.Empty : GetStallOr(PaymentStall))"
@@ -136,6 +137,7 @@
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="FacilityOptions"
                 FacilityLocked="true"
+                ExistingStallNos="FacilityStallNos"
                 OnSave="SubmitAddVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -184,10 +186,22 @@
     private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
 
+    // Existing stall numbers for this facility — feeds the modal's next-number suggestion.
+    private IReadOnlyCollection<string> FacilityStallNos => Stalls.Select(StallNoSelector).ToList();
+
     protected override async Task OnInitializedAsync()
     {
+        _loading = true;
+        await PaintLoadingStateAsync();
+
         try { await LoadStallsFromApi(); }
         finally { _loading = false; }
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private async Task LoadStallsFromApi()
@@ -208,7 +222,9 @@
                 : new();
 
             Stalls.Clear();
-            foreach (var dto in result.Value.Items)
+            // Only list payors whose contract is still within its duration; expired-contract active
+            // stalls are excluded from the facility view (StallContractStatus.IsCurrentVendor).
+            foreach (var dto in result.Value.Items.Where(StallContractStatus.IsCurrentVendor))
             {
                 bool isPaid = false;
                 bool isPartial = false;

@@ -437,6 +437,16 @@
         stroke-linejoin: round;
     }
 
+/* Native utility checkbox — reliable instant toggle, navy accent to match the theme. */
+.avm-fee-checkbox {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    accent-color: var(--navy);
+    cursor: pointer;
+    margin: 0;
+}
+
 /* Water variant (blue tint) */
 .avm-fee-toggle-water {
     background: #eff8ff;
@@ -730,4 +740,16 @@
 /* Override modal header for drawer */
 .eemo-drawer .eemo-modal-header {
     display: none;
+}
+
+/* Bulk-import shortcut in the footer — pushed to the left, away from Cancel/Save. */
+.avm-import-btn {
+    margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.avm-import-btn svg {
+    width: 15px;
+    height: 15px;
 }

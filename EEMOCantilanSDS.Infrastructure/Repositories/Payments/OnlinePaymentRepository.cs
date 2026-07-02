@@ -48,9 +48,16 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
     }
 
     public async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrAsync(CancellationToken ct = default)
+        => await GetAwaitingOrCoreAsync(null, null, ct);
+
+    public async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrByPeriodAsync(int year, int month, CancellationToken ct = default)
+        => await GetAwaitingOrCoreAsync(year, month, ct);
+
+    private async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrCoreAsync(int? year, int? month, CancellationToken ct)
     {
         // Project the joined fields, then format the period in memory (string interpolation with
-        // padding does not translate to SQL).
+        // padding does not translate to SQL). When year/month are supplied, scope to that billing period
+        // (used by the Follow-up History past-period snapshot); otherwise return the whole backlog.
         var rows = await (
             from t in context.OnlinePaymentTransactions
             where t.Status == OnlinePaymentStatus.Paid
@@ -58,6 +65,7 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             // Skip any whose OR is already on the ledger record (e.g. encoded from the mobile side) so the
             // same payment can't show up here as still needing an OR.
             where r.ORNumber == null
+            where year == null || (r.BillingYear == year && r.BillingMonth == month)
             join s in context.Stalls on r.StallId equals s.Id
             join f in context.Facilities on s.FacilityId equals f.Id
             join u in context.PayorUsers on t.PayorUserId equals u.Id into payor

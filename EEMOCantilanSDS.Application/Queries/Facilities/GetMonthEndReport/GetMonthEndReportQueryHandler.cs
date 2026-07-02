@@ -1,5 +1,7 @@
 using System.Globalization;
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -23,13 +25,30 @@ public class GetMonthEndReportQueryHandler(
     IFacilityReportsRepository reportsRepository,
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
-    ITpmRepository tpmRepository
+    ITpmRepository tpmRepository,
+    IEemoAppCache cache,
+    ITenantContext tenantContext,
+    EemoCacheOptions cacheOptions
 ) : IRequestHandler<GetMonthEndReportQuery, Result<MonthEndReportDto>>
 {
     private static readonly FacilityCode[] RentalFacilities =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
 
     public async Task<Result<MonthEndReportDto>> Handle(GetMonthEndReportQuery request, CancellationToken ct)
+    {
+        var key = EemoCacheKeys.MonthEndReport(tenantContext.TenantCode, request.Year, request.Month);
+        var regions = EemoCacheRegions.MonthEndReportRegions(tenantContext.TenantCode, request.Year, request.Month);
+        var report = await cache.GetOrCreateAsync(
+            key,
+            regions,
+            cacheOptions.MonthEndReportTtl,
+            token => BuildReportAsync(request, token),
+            ct);
+
+        return Result<MonthEndReportDto>.Success(report);
+    }
+
+    private async Task<MonthEndReportDto> BuildReportAsync(GetMonthEndReportQuery request, CancellationToken ct)
     {
         var facilities = new List<MonthEndFacilityDto>();
 
@@ -107,7 +126,7 @@ public class GetMonthEndReportQueryHandler(
         var label = new DateTime(request.Year, request.Month, 1)
             .ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
-        return Result<MonthEndReportDto>.Success(new MonthEndReportDto(
+        return new MonthEndReportDto(
             Year: request.Year,
             Month: request.Month,
             PeriodLabel: label,
@@ -118,7 +137,7 @@ public class GetMonthEndReportQueryHandler(
             TotalPaidCount: ordered.Where(f => f.IsRental).Sum(f => f.PaidCount),
             TotalPartialCount: ordered.Where(f => f.IsRental).Sum(f => f.PartialCount),
             TotalUnpaidCount: ordered.Where(f => f.IsRental).Sum(f => f.UnpaidCount),
-            Facilities: ordered));
+            Facilities: ordered);
     }
 
     /// <summary>

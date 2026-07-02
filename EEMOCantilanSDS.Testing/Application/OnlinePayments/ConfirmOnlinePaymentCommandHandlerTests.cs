@@ -56,7 +56,7 @@ public class ConfirmOnlinePaymentCommandHandlerTests
         var notifier = new Mock<IOnlinePaymentNotifier>();
         var uow = new Mock<IUnitOfWork>();
 
-        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object);
+        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var handler = new ConfirmOnlinePaymentCommandHandler(
             onlineRepo.Object, gateway.Object, settlement, currentUser.Object, uow.Object);

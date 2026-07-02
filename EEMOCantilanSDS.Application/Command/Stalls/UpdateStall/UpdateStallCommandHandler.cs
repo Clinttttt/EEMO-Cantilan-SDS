@@ -1,4 +1,6 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -8,7 +10,9 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 
 public class UpdateStallCommandHandler(
     IStallRepository stallRepo,
-    IUnitOfWork uow) : IRequestHandler<UpdateStallCommand, Result<StallDto>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<UpdateStallCommand, Result<StallDto>>
 {
     public async Task<Result<StallDto>> Handle(UpdateStallCommand request, CancellationToken cancellationToken)
     {
@@ -37,6 +41,7 @@ public class UpdateStallCommandHandler(
 
         await stallRepo.UpdateAsync(stall, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 
         var dto = new StallDto(
             stall.Id,

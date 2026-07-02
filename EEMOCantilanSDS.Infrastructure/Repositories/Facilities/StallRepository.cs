@@ -21,9 +21,18 @@ public class StallRepository(AppDbContext context) : IStallRepository
     /// projected then filtered in memory; expired rows sort first, then by nearest expiry.
     /// </summary>
     public async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsync(int withinMonths, CancellationToken ct)
+        => await GetContractAttentionAsOfCoreAsync(PhilippineTime.Today, withinMonths, ct);
+
+    public async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsOfAsync(int year, int month, int withinMonths, CancellationToken ct)
     {
-        var today = PhilippineTime.Today;
-        var horizon = today.AddMonths(withinMonths);
+        // Snapshot reference = the LAST day of the requested period.
+        var asOf = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        return await GetContractAttentionAsOfCoreAsync(asOf, withinMonths, ct);
+    }
+
+    private async Task<IReadOnlyList<ContractAttentionDto>> GetContractAttentionAsOfCoreAsync(DateOnly asOf, int withinMonths, CancellationToken ct)
+    {
+        var horizon = asOf.AddMonths(withinMonths);
 
         var rows = await context.Stalls
             .AsNoTracking()
@@ -45,7 +54,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
         {
             if (s.Contract is null) continue;
             var expiry = s.Contract.EffectivityDate.AddYears(s.Contract.DurationYears);
-            var expired = today > expiry;
+            var expired = asOf > expiry;
             var expiringSoon = !expired && expiry <= horizon;
             if (!expired && !expiringSoon) continue;
 
@@ -83,12 +92,20 @@ public class StallRepository(AppDbContext context) : IStallRepository
             .ThenBy(s => s.StallNo)
             .ToListAsync(ct);
 
+        // Eligibility: only stalls whose active contract actually covers this collection month. Excludes
+        // expired (active-but-lapsed) contracts and stalls with no covering contract — IsActive alone is
+        // not enough, since it is a manual flag that does not reflect whether the term has lapsed.
+        stalls = stalls.Where(s => s.Contracts.Any(c => c.OverlapsPeriod(monthStart, effectiveEnd))).ToList();
+
         var rows = stalls.Select(s =>
         {
+            // Prefer the contract that actually covers this collection month — not merely the latest
+            // active one — so a future/expired sibling contract can't drive the occupant or the day math.
             var contract = s.Contracts
-                .Where(c => c.IsActive)
+                .Where(c => c.OverlapsPeriod(monthStart, effectiveEnd))
                 .OrderByDescending(c => c.EffectivityDate)
                 .FirstOrDefault();
+            var collectableToday = contract is not null && contract.IsCollectableOn(collectionDate);
 
             var dailyRate = s.DailyRate ?? FeeRates.NpmDailyFee;
             var todayCollection = s.DailyCollections.FirstOrDefault(d => d.CollectionDate == collectionDate);
@@ -96,7 +113,8 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 .Where(d => d.IsPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd)
                 .ToList();
 
-            var collectableDays = CountCollectableDays(contract?.EffectivityDate, monthStart, effectiveEnd);
+            var collectableDays = CountCollectableDays(contract?.EffectivityDate, monthStart,
+                contract is not null && contract.ExpiryDate < effectiveEnd ? contract.ExpiryDate : effectiveEnd);
             var daysCollected = paidCollections.Count;
             // Excused/absent days are not owed, so they leave the missed-day count.
             var absentDays = s.DailyCollections.Count(d => d.IsAbsent
@@ -122,11 +140,14 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 daysMissed,
                 collectableDays,
                 monthCollectedAmount,
-                todayCollection?.IsAbsent == true);
+                todayCollection?.IsAbsent == true,
+                collectableToday);
         }).ToList();
 
         var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
-        var pendingToday = rows.Where(r => r.CollectableDays > 0).ToList();
+        // "Pending today" = a stall whose contract covers TODAY and hasn't been collected/excused yet —
+        // not merely one that has an unpaid day earlier in the month.
+        var pendingToday = rows.Where(r => r.IsCollectableToday && !r.IsCollectedToday && !r.IsAbsentToday).ToList();
 
         return new MobileNpmCollectionDto(
             year,
@@ -134,9 +155,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
             collectionDate,
             rows.Count,
             collectedToday.Count,
-            pendingToday.Count(r => !r.IsCollectedToday && !r.IsAbsentToday),
+            pendingToday.Count,
             collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo)),
-            pendingToday.Where(r => !r.IsCollectedToday && !r.IsAbsentToday).Sum(r => r.DailyRate),
+            pendingToday.Sum(r => r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),
             rows);
@@ -145,6 +166,9 @@ public class StallRepository(AppDbContext context) : IStallRepository
     public async Task<MobileMonthlyCollectionDto> GetMobileMonthlyCollectionAsync(
         FacilityCode facilityCode, int year, int month, DateOnly collectionDate, CancellationToken ct)
     {
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
         var stalls = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Contracts)
@@ -157,6 +181,10 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 s.Contracts.Any(c => c.IsActive))
             .OrderBy(s => s.StallNo)
             .ToListAsync(ct);
+
+        // Eligibility: only stalls whose active contract overlaps the billing month. Excludes expired
+        // (active-but-lapsed) contracts — IsActive alone does not reflect whether the term has lapsed.
+        stalls = stalls.Where(s => s.Contracts.Any(c => c.OverlapsPeriod(monthStart, monthEnd))).ToList();
 
         // Which of this month's records were settled online (so the collector sees "paid online" and
         // doesn't collect again). A record is online-settled if it has a Paid/Completed transaction.
@@ -188,7 +216,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
         var rows = stalls.Select(s =>
         {
             var contract = s.Contracts
-                .Where(c => c.IsActive)
+                .Where(c => c.OverlapsPeriod(monthStart, monthEnd))
                 .OrderByDescending(c => c.EffectivityDate)
                 .FirstOrDefault();
 

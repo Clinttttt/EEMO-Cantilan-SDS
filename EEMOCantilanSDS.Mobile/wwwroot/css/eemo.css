@@ -2158,3 +2158,20 @@ html, body, #app {
 }
 .btn-receipt-close:active { background: var(--border); }
 
+.btn-receipt-collect {
+    border: 0; font: inherit; width: 100%; min-height: 46px;
+    padding: 0 24px; border-radius: 12px; background: var(--navy-primary);
+    color: #fff; font-size: 14px; font-weight: 800; letter-spacing: .2px; cursor: pointer;
+    margin-bottom: 10px;
+}
+.btn-receipt-collect:active { opacity: .9; }
+
+.balance-recap {
+    background: var(--bg-page); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 16px;
+}
+.balance-recap-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-muted); }
+.balance-recap-row + .balance-recap-row { margin-top: 6px; }
+.balance-recap-row strong { color: var(--navy-primary); font-weight: 700; }
+.balance-recap-due strong { color: var(--error-red); }
+

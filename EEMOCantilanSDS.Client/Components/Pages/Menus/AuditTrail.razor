@@ -288,7 +288,7 @@
     {
         _loading = true;
         _error = null;
-        StateHasChanged();
+        await PaintLoadingStateAsync();
 
         // PH date range → UTC bounds (stored timestamps are UTC; PH = UTC+8, no DST).
         DateTime? fromUtc = _fromDate is { } f ? f.ToDateTime(TimeOnly.MinValue).AddHours(-8) : null;
@@ -319,6 +319,12 @@
 
         _loading = false;
         StateHasChanged();
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private async Task OnSearchInput(ChangeEventArgs e)

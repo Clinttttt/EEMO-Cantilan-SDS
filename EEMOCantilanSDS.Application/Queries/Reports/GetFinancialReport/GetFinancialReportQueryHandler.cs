@@ -1,5 +1,7 @@
 using System.Globalization;
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Domain.Common;
@@ -21,7 +23,10 @@ public class GetFinancialReportQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
-    ITransactionFeedRepository transactionFeedRepository
+    ITransactionFeedRepository transactionFeedRepository,
+    IEemoAppCache cache,
+    ITenantContext tenantContext,
+    EemoCacheOptions cacheOptions
 ) : IRequestHandler<GetFinancialReportQuery, Result<FinancialReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
@@ -35,6 +40,32 @@ public class GetFinancialReportQueryHandler(
     private const int RecentLimit = 8;
 
     public async Task<Result<FinancialReportDto>> Handle(GetFinancialReportQuery request, CancellationToken ct)
+    {
+        var normalizedRequest = NormalizeRequest(request);
+        var key = EemoCacheKeys.FinancialReport(
+            tenantContext.TenantCode,
+            normalizedRequest.Period,
+            normalizedRequest.Year,
+            normalizedRequest.Month,
+            normalizedRequest.Facility);
+        var regions = EemoCacheRegions.FinancialReportRegions(
+            tenantContext.TenantCode,
+            normalizedRequest.Period,
+            normalizedRequest.Year,
+            normalizedRequest.Month,
+            normalizedRequest.Facility);
+
+        var report = await cache.GetOrCreateAsync(
+            key,
+            regions,
+            cacheOptions.FinancialReportTtl,
+            token => BuildFinancialReportAsync(normalizedRequest, token),
+            ct);
+
+        return Result<FinancialReportDto>.Success(report);
+    }
+
+    private async Task<FinancialReportDto> BuildFinancialReportAsync(GetFinancialReportQuery request, CancellationToken ct)
     {
         bool InScope(FacilityCode c) => request.Facility is null || request.Facility == c;
 
@@ -239,8 +270,13 @@ public class GetFinancialReportQueryHandler(
             Facilities: orderedRows,
             RecentRecords: recent);
 
-        return Result<FinancialReportDto>.Success(dto);
+        return dto;
     }
+
+    private static GetFinancialReportQuery NormalizeRequest(GetFinancialReportQuery request)
+        => request.Period == ReportPeriod.Monthly && request.Month is null
+            ? request with { Month = PhilippineTime.Today.Month }
+            : request;
 
     private static AttentionAccountDto ToAttention(DelinquentStallDto d) => new(
         Name: string.IsNullOrWhiteSpace(d.Occupant) ? "Unoccupied / unnamed" : d.Occupant,

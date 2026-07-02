@@ -1,0 +1,162 @@
+@using EEMOCantilanSDS.Domain.Common
+
+@*
+    Shared period navigator for the facility reports. Keeps the existing prev/next arrows and the
+    current-period label, but makes the label a dropdown trigger that opens a grid picker:
+      • month contexts (Monthly / Status Report) → a month grid with year stepping;
+      • year contexts (Yearly / History) → a grid of years.
+    The parent owns the actual period state; this component only raises OnPrev / OnNext / OnPick / OnToday.
+*@
+
+<div class="rpt-date-nav @(UtilityMode ? "utility-mode" : "")">
+    @if (!YearFilterMode)
+    {
+        <button type="button" class="rpt-nav-btn" @onclick="OnPrev" aria-label="Previous period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+    }
+
+    <span class="rpt-period-picker">
+        <button type="button" class="rpt-period-trigger" @onclick="Toggle" aria-haspopup="true" aria-expanded="@_open">
+            <span class="rpt-current-period">@Label</span>
+            <svg class="rpt-period-caret" aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
+        </button>
+
+        @if (_open)
+        {
+            <div class="rpt-picker-backdrop" @onclick="Close"></div>
+            <div class="rpt-picker @(AlignRight ? "" : "rpt-picker-left")">
+                @if (YearFilterMode)
+                {
+                    <div class="rpt-picker-grid">
+                        <button type="button" class="rpt-picker-cell rpt-picker-cell-wide @(SelectedYear is null ? "selected" : "")" @onclick="() => PickFilter(null)">
+                            All years
+                        </button>
+                        @foreach (var y in (FilterYears ?? Array.Empty<int>()))
+                        {
+                            var yr = y;
+                            <button type="button"
+                                    class="rpt-picker-cell @(SelectedYear == yr ? "selected" : "") @(yr == _now.Year && SelectedYear != yr ? "current" : "")"
+                                    @onclick="() => PickFilter(yr)">
+                                @yr
+                            </button>
+                        }
+                    </div>
+                }
+                else if (Yearly)
+                {
+                    <div class="rpt-picker-grid">
+                        @foreach (var y in YearRange())
+                        {
+                            var yr = y;
+                            <button type="button"
+                                    class="rpt-picker-cell @(yr == Year ? "selected" : "") @(yr == _now.Year && yr != Year ? "current" : "")"
+                                    @onclick="() => Pick(yr, Month)">
+                                @yr
+                            </button>
+                        }
+                    </div>
+                    <div class="rpt-picker-foot">
+                        <button type="button" class="rpt-picker-today" @onclick="Today">Go to current year</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="rpt-picker-head">
+                        <button type="button" class="rpt-picker-yr-btn" @onclick="() => _pickerYear--" aria-label="Previous year">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+                        </button>
+                        <span class="rpt-picker-year">@_pickerYear</span>
+                        <button type="button" class="rpt-picker-yr-btn" @onclick="() => _pickerYear++" aria-label="Next year">
+                            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+                        </button>
+                    </div>
+                    <div class="rpt-picker-grid">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            var month = m;
+                            var isSelected = _pickerYear == Year && month == Month;
+                            var isCurrent = _pickerYear == _now.Year && month == _now.Month;
+                            <button type="button"
+                                    class="rpt-picker-cell @(isSelected ? "selected" : "") @(isCurrent && !isSelected ? "current" : "")"
+                                    @onclick="() => Pick(_pickerYear, month)">
+                                @MonthAbbr(month)
+                            </button>
+                        }
+                    </div>
+                    <div class="rpt-picker-foot">
+                        <button type="button" class="rpt-picker-today" @onclick="Today">Go to current month</button>
+                    </div>
+                }
+            </div>
+        }
+    </span>
+
+    @if (!YearFilterMode)
+    {
+        <button type="button" class="rpt-nav-btn" @onclick="OnNext" aria-label="Next period">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    /// <summary>True for year contexts (Yearly / History) → the picker shows a grid of years.</summary>
+    [Parameter] public bool Yearly { get; set; }
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public bool UtilityMode { get; set; }
+    /// <summary>Right-align the dropdown (default) for right-positioned triggers; false = left-align.</summary>
+    [Parameter] public bool AlignRight { get; set; } = true;
+    [Parameter] public EventCallback OnPrev { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnToday { get; set; }
+    [Parameter] public EventCallback<(int Year, int Month)> OnPick { get; set; }
+
+    // Filter mode (no moving period / arrows): a year FILTER with an "All years" option — e.g. Closed Accounts.
+    [Parameter] public bool YearFilterMode { get; set; }
+    [Parameter] public int? SelectedYear { get; set; }
+    [Parameter] public IReadOnlyList<int>? FilterYears { get; set; }
+    [Parameter] public EventCallback<int?> OnSelectYear { get; set; }
+
+    private readonly DateTime _now = PhilippineTime.Now;
+    private bool _open;
+    private int _pickerYear;
+
+    private void Toggle()
+    {
+        if (!_open) _pickerYear = Year;
+        _open = !_open;
+    }
+
+    private void Close() => _open = false;
+
+    private async Task Pick(int year, int month)
+    {
+        _open = false;
+        await OnPick.InvokeAsync((year, month));
+    }
+
+    private async Task Today()
+    {
+        _open = false;
+        await OnToday.InvokeAsync();
+    }
+
+    private async Task PickFilter(int? year)
+    {
+        _open = false;
+        await OnSelectYear.InvokeAsync(year);
+    }
+
+    // Twelve most recent years (ending at the later of the selected year or the current year).
+    private IEnumerable<int> YearRange()
+    {
+        var end = Math.Max(Year, _now.Year);
+        for (var y = end; y > end - 12; y--)
+            yield return y;
+    }
+
+    private static string MonthAbbr(int month) => new DateTime(2000, month, 1).ToString("MMM");
+}

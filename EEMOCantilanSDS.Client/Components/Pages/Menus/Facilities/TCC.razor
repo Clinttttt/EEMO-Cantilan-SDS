@@ -26,14 +26,14 @@
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">TCC — @DateTime.Now.ToString("MMMM yyyy")</span>
+                        <span class="breadcrumb-active">TCC — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
                     </div>
                 </div>
             </div>
             <div class="topbar-right">
                 <div class="topbar-date">
                     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    @DateTime.Now.ToString("MMMM d, yyyy")
+                    @PhilippineTime.Now.ToString("MMMM d, yyyy")
                 </div>
                 <AccountChip />
             </div>
@@ -130,6 +130,7 @@
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="TccFacilityOptions"
                 FacilityLocked="true"
+                ExistingStallNos="TccStallNos"
                 OnSave="SubmitAddVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -161,12 +162,18 @@
     protected override async Task OnInitializedAsync()
     {
         ResetState();
-        try { await LoadStallsFromApi(); }
+        try { await LoadStallsFromApi(paintLoading: true); }
         finally { _loading = false; }
     }
 
-    private async Task LoadStallsFromApi()
+    private async Task LoadStallsFromApi(bool paintLoading = false)
     {
+        if (paintLoading)
+        {
+            _loading = true;
+            await PaintLoadingStateAsync();
+        }
+
         var now = DateTime.Now;
 
         // Monthly report for the hero + collection rate (same source as the Reports page).
@@ -227,6 +234,12 @@
                 });
             }
         }
+    }
+
+    private async Task PaintLoadingStateAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private void ResetState()
@@ -304,6 +317,9 @@
     }
 
     List<TccStall> Stalls = new();
+
+    // Existing stall numbers — feeds the modal's next-number suggestion.
+    private IReadOnlyCollection<string> TccStallNos => Stalls.Select(s => s.StallNo).ToList();
 
     static Dictionary<string, bool> MakeH(int paid)
     {

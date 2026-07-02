@@ -1,0 +1,64 @@
+@*
+    FhSelect — a custom dropdown styled to match the Follow-up History year/month pickers:
+    a trigger showing a small caption + the selected value + chevron, opening a panel with a
+    header and a checkmark on the active option. Drop-in replacement for a small <select>.
+*@
+
+<div class="fh-dd @(Block ? "fh-dd-block" : "") @(_open ? "open" : "")">
+    <button type="button" class="fh-dd-trigger @(_open ? "open" : "")" @onclick="Toggle" aria-haspopup="listbox" aria-expanded="@_open">
+        <span class="fh-dd-body">
+            @if (!string.IsNullOrEmpty(Caption))
+            {
+                <span class="fh-dd-cap">@Caption</span>
+            }
+            <span class="fh-dd-val">@SelectedLabel</span>
+        </span>
+        <svg class="fh-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+    </button>
+
+    @if (_open)
+    {
+        <div class="fh-dd-backdrop" @onclick="Close"></div>
+        <div class="fh-dd-menu @(RightAlign ? "fh-dd-menu-right" : "")" role="listbox" aria-label="@Caption">
+            @if (!string.IsNullOrEmpty(Caption))
+            {
+                <div class="fh-dd-header">@Caption</div>
+            }
+            @foreach (var opt in Options)
+            {
+                var val = opt.Value;
+                <div class="fh-dd-item @(val == Value ? "active" : "")" role="option" aria-selected="@(val == Value)" @onclick="() => Pick(val)">
+                    <span class="fh-dd-name">@opt.Label</span>
+                    @if (val == Value)
+                    {
+                        <svg class="fh-dd-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Caption { get; set; } = string.Empty;
+    [Parameter] public IReadOnlyList<(string Value, string Label)> Options { get; set; } = Array.Empty<(string, string)>();
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public bool RightAlign { get; set; }
+    /// <summary>Render full-width (for form fields) rather than inline.</summary>
+    [Parameter] public bool Block { get; set; }
+
+    private bool _open;
+
+    private string SelectedLabel => Options.FirstOrDefault(o => o.Value == Value).Label ?? Value;
+
+    private void Toggle() => _open = !_open;
+    private void Close() => _open = false;
+
+    private async Task Pick(string value)
+    {
+        _open = false;
+        if (value != Value)
+            await ValueChanged.InvokeAsync(value);
+    }
+}

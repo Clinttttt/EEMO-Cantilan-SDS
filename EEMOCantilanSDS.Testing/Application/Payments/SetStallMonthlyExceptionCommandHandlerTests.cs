@@ -34,7 +34,7 @@ public class SetStallMonthlyExceptionCommandHandlerTests
             .ReturnsAsync((StallMonthlyException?)null);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new SetStallMonthlyExceptionCommandHandler(repo.Object, stallRepo.Object, currentUser.Object, uow.Object), repo);
+        return (new SetStallMonthlyExceptionCommandHandler(repo.Object, stallRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), repo);
     }
 
     [Fact]

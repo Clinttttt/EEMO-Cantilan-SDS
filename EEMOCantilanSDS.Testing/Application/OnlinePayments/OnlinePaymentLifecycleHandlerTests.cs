@@ -208,7 +208,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var uow = new Mock<IUnitOfWork>();
         return (new IssueOnlinePaymentOrNumberCommandHandler(
-            onlineRepo.Object, paymentRepo.Object, currentUser.Object, notifier.Object, uow.Object), uow, notifier);
+            onlineRepo.Object, paymentRepo.Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
     }
 
     [Fact]

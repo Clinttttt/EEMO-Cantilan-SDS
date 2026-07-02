@@ -31,7 +31,7 @@ public class MarkVendorPaidCommandHandlerTests
         currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object), attendance);
+        return (new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), attendance);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)
@@ -81,7 +81,7 @@ public class MarkVendorPaidCommandHandlerTests
         currentUser.SetupGet(c => c.Role).Returns("Admin");
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "DUP-1"), CancellationToken.None);
 
         Assert.Equal(409, result.StatusCode);
@@ -105,7 +105,7 @@ public class MarkVendorPaidCommandHandlerTests
         currentUser.SetupGet(c => c.Role).Returns("Admin");
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object);
+        var handler = new MarkVendorPaidCommandHandler(tpmRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
         var result = await handler.Handle(new MarkVendorPaidCommand(attendance.Id, true, "OR-1"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);

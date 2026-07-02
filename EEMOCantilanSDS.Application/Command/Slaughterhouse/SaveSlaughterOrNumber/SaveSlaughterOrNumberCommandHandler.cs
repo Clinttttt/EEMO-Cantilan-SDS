@@ -1,6 +1,9 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber;
@@ -8,7 +11,9 @@ namespace EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumb
 public class SaveSlaughterOrNumberCommandHandler(
     ISlaughterRepository slaughterRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<SaveSlaughterOrNumberCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<SaveSlaughterOrNumberCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SaveSlaughterOrNumberCommand request, CancellationToken ct)
     {
@@ -25,6 +30,13 @@ public class SaveSlaughterOrNumberCommandHandler(
             transaction.SetOrNumber(or, by);
 
         await unitOfWork.SaveChangesAsync(ct);   // rows are tracked
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.SLH,
+            request.TransactionDate.Year,
+            request.TransactionDate.Month,
+            ct);
+
         return Result<bool>.Success(true);
     }
 }

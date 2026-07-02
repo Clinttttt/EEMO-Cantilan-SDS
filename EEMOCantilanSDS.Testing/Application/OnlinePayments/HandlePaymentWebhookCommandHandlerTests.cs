@@ -48,7 +48,7 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var notifier = new Mock<IOnlinePaymentNotifier>();
 
-        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object);
+        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, settlement, uow.Object), uow, gateway, notifier);
     }

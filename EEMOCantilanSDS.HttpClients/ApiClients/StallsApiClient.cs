@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -52,6 +53,9 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
 
     public async Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command) =>
         await PostAsync<CreateStallCommand, StallDto>("api/Stalls", command);
+
+    public async Task<Result<BulkImportResultDto>> BulkImportStallholdersAsync(BulkImportStallholdersCommand command) =>
+        await PostAsync<BulkImportStallholdersCommand, BulkImportResultDto>("api/Stalls/bulk-import", command);
 
     public async Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command) =>
         await PutAsync<UpdateStallCommand, StallDto>($"api/Stalls/{stallId}", command);

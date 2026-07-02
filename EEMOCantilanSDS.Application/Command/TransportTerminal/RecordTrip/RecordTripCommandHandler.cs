@@ -1,8 +1,11 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
@@ -11,7 +14,9 @@ public class RecordTripCommandHandler(
     ITrmRepository trmRepo,
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
 {
     public async Task<Result<TrmTripDto>> Handle(RecordTripCommand request, CancellationToken ct)
     {
@@ -33,7 +38,7 @@ public class RecordTripCommandHandler(
 
             var actingCollector = await collectorRepository.GetByIdAsync(actingCollectorId, ct);
             if (actingCollector is null ||
-                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == Domain.Enums.FacilityCode.TRM))
+                !actingCollector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.TRM))
             {
                 return Result<TrmTripDto>.Forbidden();
             }
@@ -63,6 +68,15 @@ public class RecordTripCommandHandler(
 
         await trmRepo.AddTripAsync(trip, ct);
         await uow.SaveChangesAsync(ct);
+        var businessDate = trip.RecordedAt.Kind == DateTimeKind.Utc
+            ? PhilippineTime.ToPhilippineTime(trip.RecordedAt)
+            : trip.RecordedAt;
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode,
+            FacilityCode.TRM,
+            businessDate.Year,
+            businessDate.Month,
+            ct);
 
         return Result<TrmTripDto>.Success(new TrmTripDto
         {

@@ -1,0 +1,96 @@
+/* Period navigator + grid picker (shared across facility reports). Mirrors the Month-End picker. */
+
+/* Base nav chrome (the elements moved into this component, so it owns their styles). */
+.rpt-date-nav { display: flex; align-items: center; gap: 10px; }
+.rpt-date-nav.utility-mode .rpt-current-period { color: var(--gold); }
+.rpt-nav-btn {
+    width: 30px; height: 30px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-icon);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background .13s;
+}
+.rpt-nav-btn:hover { background: var(--border); }
+.rpt-nav-btn svg { width: 14px; height: 14px; stroke: var(--navy); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rpt-current-period { font-size: 13.5px; font-weight: 600; color: var(--navy); white-space: nowrap; }
+
+.rpt-period-picker { position: relative; display: inline-flex; }
+
+.rpt-period-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    min-height: 34px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+    .rpt-period-trigger:hover { border-color: var(--gold); background: var(--bg); }
+    .rpt-period-trigger:focus-visible { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+
+.rpt-period-caret {
+    width: 14px; height: 14px;
+    stroke: var(--text-muted); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+    transition: transform .15s ease;
+    flex-shrink: 0;
+}
+
+.rpt-period-trigger[aria-expanded="true"] .rpt-period-caret { transform: rotate(180deg); }
+
+.rpt-picker-backdrop { position: fixed; inset: 0; z-index: 40; background: transparent; }
+
+.rpt-picker {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 50;
+    width: 278px;
+    max-width: calc(100vw - 32px);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(9, 31, 52, .18);
+    padding: 14px;
+    animation: rpt-picker-in .14s ease;
+}
+
+@keyframes rpt-picker-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.rpt-picker.rpt-picker-left { right: auto; left: 0; }
+
+.rpt-picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rpt-picker-year { font-size: 15px; font-weight: 800; color: var(--navy); letter-spacing: .3px; }
+.rpt-picker-yr-btn {
+    width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-card); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.rpt-picker-yr-btn:hover { background: var(--bg); }
+.rpt-picker-yr-btn svg { width: 14px; height: 14px; stroke: var(--navy); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.rpt-picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.rpt-picker-cell-wide { grid-column: 1 / -1; }
+.rpt-picker-cell {
+    padding: 10px 0; border-radius: 8px; border: 1px solid transparent; background: var(--bg);
+    font-size: 12.5px; font-weight: 650; color: var(--navy); cursor: pointer;
+    transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.rpt-picker-cell:hover { background: var(--bg-icon); }
+.rpt-picker-cell.current { border-color: var(--gold); color: #8a6d1b; }
+.rpt-picker-cell.selected, .rpt-picker-cell.selected:hover {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%); color: #fff; border-color: transparent;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .16);
+}
+
+.rpt-picker-foot { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; text-align: center; }
+.rpt-picker-today { background: transparent; border: none; color: #8a6d1b; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
+.rpt-picker-today:hover { color: var(--navy); background: var(--bg); }

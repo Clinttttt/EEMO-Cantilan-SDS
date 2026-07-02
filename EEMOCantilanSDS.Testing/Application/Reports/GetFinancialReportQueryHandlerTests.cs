@@ -95,7 +95,15 @@ public class GetFinancialReportQueryHandlerTests
                 new TransactionFeedDto(Guid.NewGuid(), FacilityCode.NPM, "New Public Market", new DateTime(2026, 3, 25), true, "Luz Cano", "5", "Daily Fee", 930m, "OR-9", "Paid")
             });
 
-        var handler = new GetFinancialReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, feed.Object);
+        var handler = new GetFinancialReportQueryHandler(
+            reports.Object,
+            slaughter.Object,
+            trm.Object,
+            tpm.Object,
+            feed.Object,
+            CacheTestDoubles.PassthroughCache,
+            CacheTestDoubles.Tenant,
+            new EemoCacheOptions());
         return (handler, reports);
     }
 

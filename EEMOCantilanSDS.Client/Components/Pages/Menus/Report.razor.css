@@ -11,7 +11,7 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 16px;
-    overflow: hidden;
+    overflow: visible;
     box-shadow: 0 1px 6px rgba(13, 33, 55, .05);
     margin-bottom: 24px;
 }
@@ -25,6 +25,8 @@
     padding: 18px 20px 16px;
     background: #fff;
     border-bottom: 1px solid var(--border);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
 }
 
 /* Individual control block (label above + control below) */
@@ -211,6 +213,8 @@
     padding: 12px 20px;
     background: #f8fafb;
     flex-wrap: wrap;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
 }
 
 .rfp-fac-row {
