@@ -1,6 +1,5 @@
 @page "/transactions"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Transactions
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITransactionsApiClient TransactionsApi
@@ -188,6 +187,9 @@
     private bool IsLoading = true;
     private IReadOnlyList<TransactionFeedDto> Feed = Array.Empty<TransactionFeedDto>();
 
+    [PersistentState(AllowUpdates = true)]
+    public TransactionsPageState? CachedTransactions { get; set; }
+
     private bool IsToday => SelectedDate == PhilippineTime.Today;
 
     // SLH transactions recorded under one OR (multiple animal lines) collapse into one expandable row.
@@ -271,7 +273,19 @@
         new() { Value = ActiveFilter is null ? "All" : ActiveFilter.ToString()!, Label = "Facility" },
     };
 
-    protected override async Task OnInitializedAsync() => await Reload();
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedTransactions is { } state
+            && state.ActiveFilter == ActiveFilter
+            && state.SelectedDate == SelectedDate)
+        {
+            Feed = state.Feed;
+            IsLoading = false;
+            return;
+        }
+
+        await ReloadAsync(paintLoading: true);
+    }
 
     private async Task SetFilter(FacilityCode? code)
     {
@@ -309,11 +323,28 @@
         }
     }
 
-    private async Task Reload()
+    private Task Reload() => ReloadAsync();
+
+    private async Task ReloadAsync(bool paintLoading = false)
     {
         IsLoading = true;
+        if (paintLoading)
+            await PaintLoadingAsync();
+
         var result = await TransactionsApi.GetRecentAsync(ActiveFilter, SelectedDate, 200);
         Feed = result.IsSuccess && result.Value is not null ? result.Value : Array.Empty<TransactionFeedDto>();
+        CachedTransactions = new TransactionsPageState(ActiveFilter, SelectedDate, Feed.ToList());
         IsLoading = false;
     }
+
+    private async Task PaintLoadingAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
+    public sealed record TransactionsPageState(
+        FacilityCode? ActiveFilter,
+        DateOnly SelectedDate,
+        List<TransactionFeedDto> Feed);
 }

@@ -5,7 +5,6 @@
 @using EEMOCantilanSDS.Domain.Common
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject ISettingsApiClient SettingsApi
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 
 @*
     Settings — read-only system configuration overview.
@@ -219,7 +218,20 @@
     private bool _loading = true;
     private string? _error;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public SystemSettingsDto? CachedSettings { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedSettings is not null)
+        {
+            _model = CachedSettings;
+            _loading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -231,6 +243,7 @@
         if (result.IsSuccess && result.Value is not null)
         {
             _model = result.Value;
+            CachedSettings = _model;
         }
         else
         {

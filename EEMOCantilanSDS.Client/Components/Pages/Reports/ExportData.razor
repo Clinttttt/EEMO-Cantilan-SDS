@@ -1,6 +1,5 @@
 @page "/export"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -221,6 +220,9 @@
     private int _year = PhilippineTime.Now.Year;
     private int _month = PhilippineTime.Now.Month;
 
+    [PersistentState(AllowUpdates = true)]
+    public ExportDataPageState? CachedExportData { get; set; }
+
     private static readonly string[] NpmSections = { "All Sections", "Vegetable Area", "Fish Area", "Meat Area" };
     private static readonly FacilityCode[] AllFacilities =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
@@ -231,21 +233,61 @@
         : _facility == FacilityCode.NPM && _npmSection != "All Sections" ? _npmSection
         : FacilityName(_facility.Value);
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedExportData())
+            return;
 
-    private async Task Load()
+        await LoadAsync(paintLoading: true);
+    }
+
+    private Task Load() => LoadAsync();
+
+    private async Task LoadAsync(bool paintLoading = false)
     {
         _loading = true;
+        if (paintLoading)
+            await PaintLoadingAsync();
+
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var result = await ReportsApi.GetCollectionReportAsync(_year, _month);
-            if (result.IsSuccess) { _data = result.Value; Map(); break; }
+            if (result.IsSuccess)
+            {
+                _data = result.Value;
+                if (_data is not null)
+                    CachedExportData = new ExportDataPageState(_year, _month, _data);
+
+                Map();
+                break;
+            }
             _data = null;
             if (result.StatusCode is not (401 or 403)) break;
             await Task.Delay(400);
         }
         _loading = false;
+    }
+
+    private bool TryApplyCachedExportData()
+    {
+        if (CachedExportData is not { } state
+            || state.Year != _year
+            || state.Month != _month)
+        {
+            return false;
+        }
+
+        _data = state.Data;
+        Map();
+        _loading = false;
+        return true;
+    }
+
+    private async Task PaintLoadingAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     // Map the API DTO to the render records. NPM rows carry their market section (for grouping);
@@ -354,6 +396,11 @@
 
     private static string Csv(params string[] fields) =>
         string.Join(",", fields.Select(f => f.Contains(',') || f.Contains('"') ? $"\"{f.Replace("\"", "\"\"")}\"" : f));
+
+    public sealed record ExportDataPageState(
+        int Year,
+        int Month,
+        CollectionReportDto Data);
 
     // ── Models ──
     private sealed record ExRental(string StallNo, string? Section, string Vendor, decimal Rate, string Status,

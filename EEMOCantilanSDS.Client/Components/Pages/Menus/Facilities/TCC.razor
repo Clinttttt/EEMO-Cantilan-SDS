@@ -1,4 +1,4 @@
-﻿@page "/tcc"
+@page "/tcc"
 @page "/facility/tcc"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 
@@ -10,7 +10,6 @@
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
 <PageTitle>EEMO Admin — Tampak Commercial Center</PageTitle>
@@ -151,6 +150,9 @@
     // Monthly report — single source of truth for hero + collection rate (matches the Reports page).
     private FacilityReportsDto? Report;
 
+    [PersistentState(AllowUpdates = true)]
+    public TccPageState? CachedTccPage { get; set; }
+
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
         new() { Value = $"₱{(Report?.TotalRevenue ?? TotalCollected):N0}", Label = "Collected" },
@@ -162,6 +164,17 @@
     protected override async Task OnInitializedAsync()
     {
         ResetState();
+        var now = DateTime.Now;
+        if (CachedTccPage is { } state
+            && state.Year == now.Year
+            && state.Month == now.Month)
+        {
+            Report = state.Report;
+            Stalls = state.Stalls.ToList();
+            _loading = false;
+            return;
+        }
+
         try { await LoadStallsFromApi(paintLoading: true); }
         finally { _loading = false; }
     }
@@ -234,6 +247,8 @@
                 });
             }
         }
+
+        CachedTccPage = new TccPageState(now.Year, now.Month, Report, Stalls.ToList());
     }
 
     private async Task PaintLoadingStateAsync()
@@ -289,7 +304,7 @@
         ActiveStatus = filter;
     }
 
-    class TccStall
+    public sealed class TccStall
     {
         public int Id { get; set; }
         public Guid StallGuid { get; set; } = Guid.Empty;
@@ -317,6 +332,12 @@
     }
 
     List<TccStall> Stalls = new();
+
+    public sealed record TccPageState(
+        int Year,
+        int Month,
+        FacilityReportsDto? Report,
+        List<TccStall> Stalls);
 
     // Existing stall numbers — feeds the modal's next-number suggestion.
     private IReadOnlyCollection<string> TccStallNos => Stalls.Select(s => s.StallNo).ToList();

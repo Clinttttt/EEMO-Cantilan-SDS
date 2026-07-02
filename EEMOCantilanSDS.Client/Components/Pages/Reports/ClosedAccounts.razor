@@ -1,6 +1,5 @@
 @page "/reports/closed-accounts"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls
@@ -310,6 +309,9 @@
     private bool _loading = true;
     private string? _error;
 
+    [PersistentState(AllowUpdates = true)]
+    public List<ClosedStallAccountDto>? CachedClosedAccounts { get; set; }
+
     // ── Filters ──
     private int? _year;
     private string? _facility;
@@ -336,7 +338,17 @@
     private bool _busy;
     private string? _actionError;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedClosedAccounts is not null)
+        {
+            ApplyClosedAccounts(CachedClosedAccounts);
+            _loading = false;
+            return;
+        }
+
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -347,8 +359,8 @@
         var result = await StallsApi.GetClosedStallAccountsAsync();
         if (result.IsSuccess && result.Value is not null)
         {
-            _accounts = result.Value.ToList();
-            Years = _accounts.Select(a => EndOf(a).Year).Distinct().OrderByDescending(y => y).ToArray();
+            ApplyClosedAccounts(result.Value.ToList());
+            CachedClosedAccounts = _accounts;
         }
         else
         {
@@ -356,6 +368,12 @@
             _accounts = new();
         }
         _loading = false;
+    }
+
+    private void ApplyClosedAccounts(IReadOnlyList<ClosedStallAccountDto> accounts)
+    {
+        _accounts = accounts as List<ClosedStallAccountDto> ?? accounts.ToList();
+        Years = _accounts.Select(a => EndOf(a).Year).Distinct().OrderByDescending(y => y).ToArray();
     }
 
     private async Task PaintLoadingStateAsync()

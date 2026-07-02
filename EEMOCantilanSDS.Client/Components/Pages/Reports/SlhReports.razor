@@ -1,6 +1,5 @@
 @page "/slh/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Enums
@@ -577,7 +576,16 @@ else
     // Trailing 6-month collected totals for the Monthly trend chart (oldest → newest).
     private List<(int Year, int Month, decimal Collected)> _trendMonthly = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public SlhReportsPageState? CachedReport { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedReport())
+            return;
+
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -624,6 +632,40 @@ else
         // The Monthly view's trend is a trailing 6-month window (like NPM), sourced from history.
         if (ActivePeriod == "Monthly" && !ShowPrintReport)
             _trendMonthly = await BuildMonthlyTrendHistoryAsync();
+
+        CachedReport = new SlhReportsPageState(
+            ActivePeriod,
+            ShowPrintReport,
+            ShowHistory,
+            CurrentDate.Year,
+            CurrentDate.Month,
+            WeekIndex,
+            Overview,
+            PrevOverview,
+            MonthTxns.ToList(),
+            Hist,
+            _trendMonthly.Select(t => new ReportTrendState(t.Year, t.Month, t.Collected)).ToList());
+    }
+
+    private bool TryApplyCachedReport()
+    {
+        if (CachedReport is not { } state
+            || state.ActivePeriod != ActivePeriod
+            || state.ShowPrintReport != ShowPrintReport
+            || state.ShowHistory != ShowHistory
+            || state.Year != CurrentDate.Year
+            || state.Month != CurrentDate.Month
+            || state.WeekIndex != WeekIndex)
+        {
+            return false;
+        }
+
+        Overview = state.Overview;
+        PrevOverview = state.PrevOverview;
+        MonthTxns = state.MonthTransactions.ToList();
+        Hist = state.History;
+        _trendMonthly = state.MonthlyTrend.Select(t => (t.Year, t.Month, t.Collected)).ToList();
+        return true;
     }
 
     // Trailing 6-month collected totals (oldest → newest) ending at the selected month, from history.
@@ -911,6 +953,21 @@ else
     static AnimalType AnimalEnumFromName(string n) => n switch { "Hog" => AnimalType.Hog, "Carabao" => AnimalType.Carabao, "Cow" => AnimalType.Cow, _ => AnimalType.Other };
     static string AnimalColor(AnimalType t) => t switch { AnimalType.Hog => "#2d7a5f", AnimalType.Carabao => "#2e7bb5", AnimalType.Cow => "#b87333", _ => "#8b5a3c" };
     static string AnimalLabel(SlaughterTransactionDto t) => t.AnimalType == AnimalType.Other && !string.IsNullOrEmpty(t.CustomAnimalType) ? t.CustomAnimalType : AnimalName(t.AnimalType);
+
+    public sealed record SlhReportsPageState(
+        string ActivePeriod,
+        bool ShowPrintReport,
+        bool ShowHistory,
+        int Year,
+        int Month,
+        int WeekIndex,
+        SlaughterOverviewDto? Overview,
+        SlaughterOverviewDto? PrevOverview,
+        List<SlaughterTransactionDto> MonthTransactions,
+        SlaughterHistoryDto? History,
+        List<ReportTrendState> MonthlyTrend);
+
+    public sealed record ReportTrendState(int Year, int Month, decimal Collected);
 
     // ── Donut arc builder ─────────────────────────────────────────
     // Per-segment gradient id + darker bottom stop (matches NPM's donut depth).

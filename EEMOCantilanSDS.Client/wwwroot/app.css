@@ -63,6 +63,7 @@ a {
    MAIN CONTENT AREA
 ══════════════════════════════════════════ */
 .admin-main {
+    position: relative;
     flex: 1;
     min-width: 0;
     width: calc(100% - var(--sidebar-w));
@@ -1868,9 +1869,9 @@ a.topbar-admin.account-chip {
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   BOOT SPLASH — branded cover for the initial-load blank (prerender is off,
-   so the page is blank until the interactive circuit connects). Removed by
-   hideStallTrackSplash() on the app's first interactive render.
+   BOOT SPLASH — branded cover for fallback circuit-connect states. When
+   prerendered app markup exists, App.razor hides this immediately; otherwise
+   MainLayout removes it after the first interactive render.
    ══════════════════════════════════════════════════════════════════════ */
 .st-splash {
     position: fixed;
@@ -1946,7 +1947,6 @@ a.topbar-admin.account-chip {
 @media (prefers-reduced-motion: reduce) {
     .st-splash-ring::before, .st-splash-bar span { animation: none; }
 }
-
 
 /* ── Reusable table/list row skeleton (reads like real rows, not bare blocks) ── */
 .sk-rows { display: flex; flex-direction: column; }

@@ -1,6 +1,5 @@
 @page "/bbq/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
@@ -528,7 +527,16 @@ else
     private FacilityHistoryDto? History;
     private bool HistoryLoading;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public FacilityReportPageState? CachedReport { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedReport())
+            return;
+
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -537,7 +545,31 @@ else
             : ActivePeriod switch { "Yearly" => ReportPeriod.Yearly, _ => ReportPeriod.Monthly };
         int? month = period == ReportPeriod.Yearly ? null : CurrentDate.Month;
         var result = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.BBQ, period, CurrentDate.Year, month);
-        if (result.IsSuccess) R = result.Value;
+        if (result.IsSuccess)
+        {
+            R = result.Value;
+            if (R is not null)
+                CachedReport = new FacilityReportPageState(period, CurrentDate.Year, month, R);
+        }
+    }
+
+    private bool TryApplyCachedReport()
+    {
+        var period = ShowPrintReport
+            ? ReportPeriod.Monthly
+            : ActivePeriod switch { "Yearly" => ReportPeriod.Yearly, _ => ReportPeriod.Monthly };
+        int? month = period == ReportPeriod.Yearly ? null : CurrentDate.Month;
+
+        if (CachedReport is not { } state
+            || state.Period != period
+            || state.Year != CurrentDate.Year
+            || state.Month != month)
+        {
+            return false;
+        }
+
+        R = state.Report;
+        return true;
     }
 
     async Task LoadHistoryAsync()
@@ -637,4 +669,10 @@ else
     // ── History ───────────────────────────────────────────────────
     IReadOnlyList<FacilityHistoryPeriodDto> HistoryMonthlyRows => History?.Monthly ?? new List<FacilityHistoryPeriodDto>();
     IReadOnlyList<FacilityHistoryPeriodDto> HistoryYearlyRows => History?.Yearly ?? new List<FacilityHistoryPeriodDto>();
+
+    public sealed record FacilityReportPageState(
+        ReportPeriod Period,
+        int Year,
+        int? Month,
+        FacilityReportsDto Report);
 }

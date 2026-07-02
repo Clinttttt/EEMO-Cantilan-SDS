@@ -6,7 +6,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
@@ -268,6 +267,9 @@
     // Daily-aware monthly report — single source of truth for hero + section stats (matches Reports page).
     private FacilityReportsDto? Report;
 
+    [PersistentState(AllowUpdates = true)]
+    public NpmPageState? CachedNpmPage { get; set; }
+
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
     private bool _loading = true;
@@ -276,6 +278,17 @@
     {
         ResetState();
         InitializeToolbarActions();
+        var now = DateTime.Now;
+        if (CachedNpmPage is { } state
+            && state.Year == now.Year
+            && state.Month == now.Month)
+        {
+            Report = state.Report;
+            Stalls = state.Stalls.ToList();
+            _loading = false;
+            return;
+        }
+
         try { await LoadStallsFromApi(paintLoading: true); }
         finally { _loading = false; }
     }
@@ -400,6 +413,8 @@
                 });
             }
         }
+
+        CachedNpmPage = new NpmPageState(now.Year, now.Month, Report, Stalls.ToList());
     }
 
     // ── Add OR number to the most-recent paid day (NPM daily collection) ──
@@ -541,7 +556,7 @@
         },
     };
 
-    class NpmStall
+    public sealed class NpmStall
     {
         public int Id { get; set; }
         public Guid StallGuid { get; set; } = Guid.Empty;
@@ -584,6 +599,12 @@
     }
 
     List<NpmStall> Stalls = new();
+
+    public sealed record NpmPageState(
+        int Year,
+        int Month,
+        FacilityReportsDto? Report,
+        List<NpmStall> Stalls);
 
     static Dictionary<string, bool> MakeH(int paid)
     {

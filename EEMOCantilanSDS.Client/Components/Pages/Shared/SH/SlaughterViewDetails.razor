@@ -1,6 +1,5 @@
 @page "/facility/slh/transaction/{OwnerName}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
@@ -187,6 +186,9 @@
     private ClientProfileDto? Profile;
     private bool isLoading = true;
 
+    [PersistentState(AllowUpdates = true)]
+    public SlaughterClientProfileState? CachedProfile { get; set; }
+
     private List<ClientTransactionDto> Transactions => Profile?.Transactions.ToList() ?? new();
     private int TotalTransactions => Profile?.TotalTransactions ?? 0;
     private int TotalHeads => Profile?.TotalHeads ?? 0;
@@ -198,6 +200,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (CachedProfile is not null &&
+            string.Equals(CachedProfile.OwnerName, OwnerName, StringComparison.OrdinalIgnoreCase))
+        {
+            Profile = CachedProfile.Profile;
+            isLoading = false;
+            return;
+        }
+
         await LoadClientProfile();
     }
 
@@ -205,9 +215,10 @@
     {
         isLoading = true;
         var result = await SlaughterApi.GetClientProfileAsync(OwnerName);
-        if (result.IsSuccess)
+        if (result.IsSuccess && result.Value is not null)
         {
             Profile = result.Value;
+            CachedProfile = new SlaughterClientProfileState(OwnerName, result.Value);
         }
         isLoading = false;
     }
@@ -221,4 +232,6 @@
     {
         // TODO: JS interop: window.print()
     }
+
+    public sealed record SlaughterClientProfileState(string OwnerName, ClientProfileDto Profile);
 }

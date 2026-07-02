@@ -12,7 +12,6 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 
 @*
     ImportStallholders — facility-aware bulk import for stallholders (NPM, TCC, NCC, BBQ, ICE).

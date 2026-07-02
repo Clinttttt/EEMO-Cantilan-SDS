@@ -7,7 +7,6 @@
 
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ITrmApiClient TrmApi
 
@@ -579,6 +578,9 @@
     private List<TrmTransporterListDto> Transporters = new();
     private List<TrmTripDto> AllTrips = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public TrmPageState? CachedTrmPage { get; set; }
+
     private List<FacilityHero.HeroStat> HeroStats => overview == null ? new() : new()
     {
         new() { Value = $"₱{overview.CollectedToday:N0}", Label = "Collected Today" },
@@ -603,6 +605,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        if (CachedTrmPage is { } state && state.Date == today)
+        {
+            overview = state.Overview;
+            Transporters = state.Transporters.ToList();
+            AllTrips = state.Trips.ToList();
+            isLoading = false;
+            return;
+        }
+
         await LoadData(paintLoading: true);
     }
 
@@ -629,8 +641,15 @@
         var tripsResult = await tripsTask;
         if (tripsResult.IsSuccess) AllTrips = tripsResult.Value?.ToList() ?? new();
 
+        CachedTrmPage = new TrmPageState(DateOnly.FromDateTime(DateTime.Now), overview, Transporters.ToList(), AllTrips.ToList());
         isLoading = false; StateHasChanged();
     }
+
+    public sealed record TrmPageState(
+        DateOnly Date,
+        TrmOverviewDto? Overview,
+        List<TrmTransporterListDto> Transporters,
+        List<TrmTripDto> Trips);
 
     private async Task PaintLoadingStateAsync()
     {

@@ -1,7 +1,6 @@
 @page "/payor/history"
 @layout PayorLayout
 @attribute [Authorize(Roles = "Payor")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Domain.Enums

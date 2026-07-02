@@ -37,7 +37,7 @@ else
         if (firstRender)
         {
             try { await JS.InvokeVoidAsync("hideStallTrackSplash"); }
-            catch { /* JS not ready / not on a circuit — the splash has its own timeout fallback */ }
+            catch { /* JS not ready / not on a circuit. */ }
         }
     }
 

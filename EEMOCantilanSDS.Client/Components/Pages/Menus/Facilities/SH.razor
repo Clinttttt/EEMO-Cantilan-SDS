@@ -7,7 +7,6 @@
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 <PageTitle>EEMO Admin — Slaughterhouse</PageTitle>
@@ -451,6 +450,9 @@
 
     private readonly List<string> AnimalFilters = new() { "All", "Hog", "Carabao", "Cow", "Others" };
 
+    [PersistentState(AllowUpdates = true)]
+    public SlaughterFacilityPageState? CachedSlaughterFacility { get; set; }
+
     // -- COMPUTED -------------------------------------------------
     private decimal TotalCollected => Overview?.TotalCollected ?? 0;
     private int TotalHeads => Overview?.TotalHeads ?? 0;
@@ -489,6 +491,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (CachedSlaughterFacility is { } state
+            && state.Year == CurrentYear
+            && state.Month == CurrentMonth)
+        {
+            Overview = state.Overview;
+            GroupedOwnerTransactions = state.Groups.ToList();
+            isLoading = false;
+            return;
+        }
+
         await LoadData();
     }
 
@@ -514,9 +526,21 @@
             GroupedOwnerTransactions = groupedResult.Value?.ToList() ?? new();
         }
 
+        CachedSlaughterFacility = new SlaughterFacilityPageState(
+            CurrentYear,
+            CurrentMonth,
+            Overview,
+            GroupedOwnerTransactions.ToList());
+
         isLoading = false;
         StateHasChanged();
     }
+
+    public sealed record SlaughterFacilityPageState(
+        int Year,
+        int Month,
+        SlaughterOverviewDto? Overview,
+        List<OwnerTransactionGroupDto> Groups);
 
     private async Task PaintLoadingStateAsync()
     {

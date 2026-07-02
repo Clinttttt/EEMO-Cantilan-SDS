@@ -3,7 +3,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 
 <PageTitle>EEMO Admin — Online Payments</PageTitle>
@@ -116,19 +115,42 @@
     private List<OnlinePaymentAwaitingOrDto> Items = new();
     private readonly Dictionary<Guid, string> _orInputs = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public List<OnlinePaymentAwaitingOrDto>? CachedItems { get; set; }
+
     private string GetOr(Guid id) => _orInputs.TryGetValue(id, out var v) ? v : string.Empty;
     private void SetOr(Guid id, string? v) => _orInputs[id] = v?.Trim() ?? string.Empty;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedItems is not null)
+        {
+            Items = CachedItems;
+            Loading = false;
+            return;
+        }
 
-    private async Task LoadAsync()
+        await LoadAsync(paintLoading: true);
+    }
+
+    private async Task LoadAsync(bool paintLoading = false)
     {
         Loading = true;
+        if (paintLoading)
+            await PaintLoadingAsync();
+
         var result = await OnlinePaymentsApi.GetAwaitingOrAsync();
         Items = result.IsSuccess && result.Value is not null
             ? result.Value.ToList()
             : new List<OnlinePaymentAwaitingOrDto>();
+        CachedItems = Items;
         Loading = false;
+    }
+
+    private async Task PaintLoadingAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
     }
 
     private async Task EncodeAsync(OnlinePaymentAwaitingOrDto item)
@@ -148,6 +170,7 @@
         if (result.IsSuccess)
         {
             Items.RemoveAll(i => i.TransactionId == item.TransactionId);
+            CachedItems = Items.ToList();
             _orInputs.Remove(item.TransactionId);
             IsError = false;
             Message = $"OR {orNumber} encoded — transaction completed.";

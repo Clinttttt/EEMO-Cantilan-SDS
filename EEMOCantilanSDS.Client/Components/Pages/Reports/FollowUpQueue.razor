@@ -1,6 +1,5 @@
 @page "/reports/follow-up"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
@@ -374,6 +373,9 @@
     private FollowUpQueueDto? _data;
     private bool _loading = true;
 
+    [PersistentState(AllowUpdates = true)]
+    public FollowUpQueuePageState? CachedFollowUpQueue { get; set; }
+
     private string _filter = "all";
     private string _search = "";
     private FacilityCode? _facility;   // null = all facilities
@@ -426,7 +428,20 @@
     private string PeriodLabel => _data?.PeriodLabel ?? PhilippineTime.Now.ToString("MMMM yyyy");
     private IReadOnlyList<FollowUpItemDto> AllItems => _data?.Items ?? Array.Empty<FollowUpItemDto>();
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        var now = PhilippineTime.Now;
+        if (CachedFollowUpQueue is { } state
+            && state.Year == now.Year
+            && state.Month == now.Month)
+        {
+            _data = state.Data;
+            _loading = false;
+            return;
+        }
+
+        await Load();
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -455,7 +470,14 @@
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var result = await ReportsApi.GetFollowUpQueueAsync(now.Year, now.Month);
-            if (result.IsSuccess) { _data = result.Value; break; }
+            if (result.IsSuccess)
+            {
+                _data = result.Value;
+                if (_data is not null)
+                    CachedFollowUpQueue = new FollowUpQueuePageState(now.Year, now.Month, _data);
+
+                break;
+            }
             _data = null;
             if (result.StatusCode is not (401 or 403)) break;
             await Task.Delay(400);
@@ -819,6 +841,11 @@
         if (i.Amount is > 0m) return "fq-amount-red";
         return "fq-amount-muted";
     }
+
+    public sealed record FollowUpQueuePageState(
+        int Year,
+        int Month,
+        FollowUpQueueDto Data);
 
     // Centralised inner-SVG paths (stroke style, matching the app's icon language).
     private static string Svg(string name) => name switch

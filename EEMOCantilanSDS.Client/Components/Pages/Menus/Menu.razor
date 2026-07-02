@@ -284,12 +284,21 @@
 
 @code {
     private bool _loading = true;
-    private DashboardOverviewDto? _data;
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+
+    [PersistentState(AllowUpdates = true)]
+    public DashboardOverviewDto? DashboardData { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         _loading = true;
+
+        if (DashboardData is not null)
+        {
+            _loading = false;
+            return;
+        }
+
         await PaintLoadingStateAsync();
 
         // Cold-start resilience: right after login the Blazor circuit may not have attached the JWT yet
@@ -303,7 +312,7 @@
                 var result = await DashboardApi.GetOverviewAsync(_now.Year, _now.Month);
                 if (result.IsSuccess)
                 {
-                    _data = result.Value;
+                    DashboardData = result.Value;
                     return;
                 }
 
@@ -325,16 +334,16 @@
         await Task.Yield();
     }
 
-    private decimal TotalCollected => _data?.TotalCollected ?? 0;
-    private decimal TotalPending => _data?.TotalPending ?? 0;
-    private int UnpaidCount => _data?.UnpaidCount ?? 0;
-    private int PaidCount => _data?.PaidCount ?? 0;
-    private int CollectionRate => _data?.CollectionRate ?? 0;
-    private int ActiveFacilitiesCount => _data?.ActiveFacilitiesCount ?? 0;
-    private int TotalCollectors => _data?.TotalCollectors ?? 0;
-    private IReadOnlyList<DashboardFacilityDto> Facilities => _data?.Facilities ?? [];
-    private IReadOnlyList<DashboardTransactionDto> RecentTransactions => _data?.RecentTransactions ?? [];
-    private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => _data?.DelinquentVendors ?? [];
+    private decimal TotalCollected => DashboardData?.TotalCollected ?? 0;
+    private decimal TotalPending => DashboardData?.TotalPending ?? 0;
+    private int UnpaidCount => DashboardData?.UnpaidCount ?? 0;
+    private int PaidCount => DashboardData?.PaidCount ?? 0;
+    private int CollectionRate => DashboardData?.CollectionRate ?? 0;
+    private int ActiveFacilitiesCount => DashboardData?.ActiveFacilitiesCount ?? 0;
+    private int TotalCollectors => DashboardData?.TotalCollectors ?? 0;
+    private IReadOnlyList<DashboardFacilityDto> Facilities => DashboardData?.Facilities ?? [];
+    private IReadOnlyList<DashboardTransactionDto> RecentTransactions => DashboardData?.RecentTransactions ?? [];
+    private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => DashboardData?.DelinquentVendors ?? [];
 
     // ── Model-aware card presentation (derived from the facility code) ──
     private static string ModelLabel(FacilityCode c) => c switch
@@ -384,4 +393,5 @@
         [FacilityCode.TRM] = """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>""",
         [FacilityCode.TPM] = """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
     };
+
 }

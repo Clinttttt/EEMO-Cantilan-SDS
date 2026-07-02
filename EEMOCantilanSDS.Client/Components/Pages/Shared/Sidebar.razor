@@ -90,7 +90,11 @@
     private bool SidebarCollapsed;
     private string _portalLabel = "Admin Portal";
     private string? _pendingPath;
+    private readonly DateTime _statePeriod = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
+
+    [PersistentState(AllowUpdates = true)]
+    public List<FacilitySidebarSummaryDto>? FacilitySummaries { get; set; }
 
     protected override void OnInitialized()
         => Nav.LocationChanged += OnLocationChanged;
@@ -104,7 +108,8 @@
 
     private void SetPendingPath(string href)
     {
-        _pendingPath = NormalizePath(href);
+        var targetPath = NormalizePath(href);
+        _pendingPath = targetPath;
     }
 
     private string NavItemClass(string href)
@@ -145,10 +150,23 @@
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
         _portalLabel = isHead ? "Head Portal" : "Admin Portal";
 
-        var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
-        var result = await FacilitiesApi.GetFacilitySummariesAsync(now.Year, now.Month);
+        if (FacilitySummaries is not null)
+        {
+            ApplyFacilitySummaries(FacilitySummaries);
+            return;
+        }
+
+        var result = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
         if (result.IsSuccess && result.Value is not null)
-            _unpaidByCode = result.Value.ToDictionary(f => f.Code, f => f.UnpaidCount);
+        {
+            ApplyFacilitySummaries(result.Value.ToList());
+        }
+    }
+
+    private void ApplyFacilitySummaries(IReadOnlyList<FacilitySidebarSummaryDto> summaries)
+    {
+        FacilitySummaries = summaries as List<FacilitySidebarSummaryDto> ?? summaries.ToList();
+        _unpaidByCode = FacilitySummaries.ToDictionary(f => f.Code, f => f.UnpaidCount);
     }
 
     // Presentation only: short nav label + icon per facility code (data comes from the API).
@@ -165,5 +183,7 @@
     };
 
     public void Dispose()
-        => Nav.LocationChanged -= OnLocationChanged;
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

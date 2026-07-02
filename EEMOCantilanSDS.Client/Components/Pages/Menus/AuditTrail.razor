@@ -4,7 +4,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Audit
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IAuditApiClient AuditApi
 @implements IDisposable
 <PageTitle>EEMO Admin — Audit Trail</PageTitle>
@@ -274,6 +273,9 @@
     private readonly string _todayIso = PhilippineTime.Today.ToString("yyyy-MM-dd");
     private System.Threading.CancellationTokenSource? _searchDebounce;
 
+    [PersistentState(AllowUpdates = true)]
+    public AuditTrailPageState? CachedAuditTrail { get; set; }
+
     // Any non-default filter active (used to show the Clear button).
     private bool _hasActiveFilters =>
         !string.IsNullOrEmpty(_search) || _action is not null
@@ -282,7 +284,13 @@
 
     private bool CanExport => _data is not null && _data.Items.Count > 0;
 
-    protected override async Task OnInitializedAsync() => await ReloadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedAuditTrail())
+            return;
+
+        await ReloadAsync();
+    }
 
     private async Task ReloadAsync(bool includeOptions = true)
     {
@@ -311,6 +319,18 @@
                 _entityTypes = _data.EntityTypes;
             }
             BuildCsv();
+            CachedAuditTrail = new AuditTrailPageState(
+                _search,
+                _action,
+                _entity,
+                _actor,
+                _fromDate,
+                _toDate,
+                _page,
+                _pageSize,
+                _data,
+                _actorOptions.ToList(),
+                _entityTypes.ToList());
         }
         else
         {
@@ -319,6 +339,29 @@
 
         _loading = false;
         StateHasChanged();
+    }
+
+    private bool TryApplyCachedAuditTrail()
+    {
+        if (CachedAuditTrail is not { } state
+            || state.Search != _search
+            || state.Action != _action
+            || state.Entity != _entity
+            || state.Actor != _actor
+            || state.FromDate != _fromDate
+            || state.ToDate != _toDate
+            || state.Page != _page
+            || state.PageSize != _pageSize)
+        {
+            return false;
+        }
+
+        _data = state.Data;
+        _actorOptions = state.ActorOptions;
+        _entityTypes = state.EntityTypes;
+        BuildCsv();
+        _loading = false;
+        return true;
     }
 
     private async Task PaintLoadingStateAsync()
@@ -523,6 +566,19 @@
     // No human description is stored; surface the note if present, else a generated summary.
     private static string DetailsText(AuditLogDto log) =>
         !string.IsNullOrWhiteSpace(log.Notes) ? log.Notes! : $"{log.Action} {EntityLabel(log.EntityType)}";
+
+    public sealed record AuditTrailPageState(
+        string Search,
+        string? Action,
+        string Entity,
+        string Actor,
+        DateOnly? FromDate,
+        DateOnly? ToDate,
+        int Page,
+        int PageSize,
+        AuditTrailDto Data,
+        List<AuditActorOptionDto> ActorOptions,
+        List<string> EntityTypes);
 
     public void Dispose()
     {

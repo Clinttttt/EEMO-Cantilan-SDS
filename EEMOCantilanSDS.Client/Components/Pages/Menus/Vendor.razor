@@ -2,7 +2,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Vendors
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject IVendorsApiClient VendorsApi
@@ -50,33 +49,33 @@
                     </div>
                     <div class="vs-hero-stats">
                         <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(registryData?.TotalVendors ?? 0)</div>
+                            <div class="vs-hero-val">@(RegistryData?.TotalVendors ?? 0)</div>
                             <div class="vs-hero-key">Total Vendors</div>
-                            <div class="vs-hero-sub2">@(registryData?.ActiveVendors ?? 0) active · @(registryData?.ClosedVendors ?? 0) closed</div>
+                            <div class="vs-hero-sub2">@(RegistryData?.ActiveVendors ?? 0) active · @(RegistryData?.ClosedVendors ?? 0) closed</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(registryData?.PaidThisMonth ?? 0)</div>
+                            <div class="vs-hero-val">@(RegistryData?.PaidThisMonth ?? 0)</div>
                             <div class="vs-hero-key">Paid This Month</div>
-                            <div class="vs-hero-sub2">out of @(registryData?.MonthlyBillableVendors ?? 0) billable vendors</div>
+                            <div class="vs-hero-sub2">out of @(RegistryData?.MonthlyBillableVendors ?? 0) billable vendors</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@(registryData?.UnpaidCount ?? 0)</div>
+                            <div class="vs-hero-val">@(RegistryData?.UnpaidCount ?? 0)</div>
                             <div class="vs-hero-key">Unpaid</div>
-                            <div class="vs-hero-sub2">@((registryData?.TotalOutstanding ?? 0).ToString("N0")) outstanding</div>
+                            <div class="vs-hero-sub2">@((RegistryData?.TotalOutstanding ?? 0).ToString("N0")) outstanding</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">
-                            <div class="vs-hero-val">@((registryData?.MonthlyTarget ?? 0).ToString("N0"))</div>
+                            <div class="vs-hero-val">@((RegistryData?.MonthlyTarget ?? 0).ToString("N0"))</div>
                             <div class="vs-hero-key">Monthly Target</div>
                             <div class="vs-hero-sub2">@_now.ToString("MMMM yyyy") · Monthly-rent facilities</div>
                         </div>
                     </div>
                     <div class="vs-hero-progress">
                         @{
-                            var allActive = registryData?.MonthlyBillableVendors ?? 0;
-                            var allPaid = registryData?.PaidThisMonth ?? 0;
+                            var allActive = RegistryData?.MonthlyBillableVendors ?? 0;
+                            var allPaid = RegistryData?.PaidThisMonth ?? 0;
                             var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
                         }
                         <div class="vs-hero-progress-fill" style="@($"width: {overallRate}%;")"></div>
@@ -712,31 +711,48 @@
     // -- Data loading state --------------------------------------------------------
     bool isLoading = true;
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
-    VendorRegistryDto? registryData = null;
+    [PersistentState(AllowUpdates = true)]
+    public VendorRegistryDto? RegistryData { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadVendorRegistry();
+        if (RegistryData is not null)
+        {
+            MapRegistryToVendors();
+            isLoading = false;
+            return;
+        }
+
+        await LoadVendorRegistry(paintLoading: true);
     }
 
-    async Task LoadVendorRegistry()
+    async Task LoadVendorRegistry(bool paintLoading = false)
     {
         isLoading = true;
+        if (paintLoading)
+            await PaintLoadingAsync();
+
         var result = await VendorsApi.GetVendorRegistryAsync(_now.Year, _now.Month);
         if (result.IsSuccess && result.Value != null)
         {
-            registryData = result.Value;
+            RegistryData = result.Value;
             MapRegistryToVendors();
         }
         isLoading = false;
     }
 
+    private async Task PaintLoadingAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     void MapRegistryToVendors()
     {
-        if (registryData == null) return;
+        if (RegistryData == null) return;
 
         Vendors.Clear();
-        foreach (var item in registryData.Vendors)
+        foreach (var item in RegistryData.Vendors)
         {
             var sectionDisplay = item.SectionDisplay switch
             {

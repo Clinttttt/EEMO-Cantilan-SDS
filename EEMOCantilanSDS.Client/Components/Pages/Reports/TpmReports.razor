@@ -1,6 +1,5 @@
 @page "/tpm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Constants
@@ -437,7 +436,16 @@ else
     // Full month's attendance kept for the Weekly trend's per-Friday (market-day) series.
     private List<TpmVendorAttendanceDto> _weekTrendSource = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public TpmReportsPageState? CachedReport { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedReport())
+            return;
+
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -476,6 +484,38 @@ else
         }
 
         RecomputeDerived();
+        CachedReport = new TpmReportsPageState(
+            ActivePeriod,
+            ShowPrintReport,
+            ShowHistory,
+            CurrentDate.Year,
+            CurrentDate.Month,
+            WeekIndex,
+            MonthAtt.ToList(),
+            Hist,
+            _trendMonthly.Select(t => new ReportTrendState(t.Year, t.Month, t.Collected)).ToList(),
+            _weekTrendSource.ToList());
+    }
+
+    private bool TryApplyCachedReport()
+    {
+        if (CachedReport is not { } state
+            || state.ActivePeriod != ActivePeriod
+            || state.ShowPrintReport != ShowPrintReport
+            || state.ShowHistory != ShowHistory
+            || state.Year != CurrentDate.Year
+            || state.Month != CurrentDate.Month
+            || state.WeekIndex != WeekIndex)
+        {
+            return false;
+        }
+
+        MonthAtt = state.MonthAttendance.ToList();
+        Hist = state.History;
+        _trendMonthly = state.MonthlyTrend.Select(t => (t.Year, t.Month, t.Collected)).ToList();
+        _weekTrendSource = state.WeekTrendSource.ToList();
+        RecomputeDerived();
+        return true;
     }
 
     void RecomputeDerived()
@@ -676,6 +716,20 @@ else
     // ── History rows (Phase 3 + yearly monthly-summary) ───────────
     IReadOnlyList<TpmPeriodSummaryDto> HistoryMonthly => Hist?.Monthly ?? new List<TpmPeriodSummaryDto>();
     IReadOnlyList<TpmPeriodSummaryDto> HistoryYearly => Hist?.Yearly ?? new List<TpmPeriodSummaryDto>();
+
+    public sealed record TpmReportsPageState(
+        string ActivePeriod,
+        bool ShowPrintReport,
+        bool ShowHistory,
+        int Year,
+        int Month,
+        int WeekIndex,
+        List<TpmVendorAttendanceDto> MonthAttendance,
+        TpmHistoryDto? History,
+        List<ReportTrendState> MonthlyTrend,
+        List<TpmVendorAttendanceDto> WeekTrendSource);
+
+    public sealed record ReportTrendState(int Year, int Month, decimal Collected);
 
     // ── Donut arc builder ─────────────────────────────────────────
     // Per-segment vertical gradient id + a darker shade for the bottom stop (matches NPM's donut depth).

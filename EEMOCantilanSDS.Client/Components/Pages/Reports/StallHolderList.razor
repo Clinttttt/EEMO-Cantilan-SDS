@@ -1,6 +1,5 @@
 @page "/stall-holders"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.StallHolders
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
@@ -169,13 +168,26 @@
     private FacilityCode? _facility;   // null = all
     private string _search = "";
 
+    [PersistentState(AllowUpdates = true)]
+    public List<StallHolderFacilityState>? CachedStallHolders { get; set; }
+
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
     private void SelectFacility(FacilityCode? code) => _facility = code;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedStallHolders is not null)
+        {
+            ApplyStallHolders(CachedStallHolders);
+            _loading = false;
+            return;
+        }
+
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -207,12 +219,22 @@
             if (!authPending)
             {
                 foreach (var kvp in loaded) _data[kvp.Key] = kvp.Value;
+                CachedStallHolders = _data
+                    .Select(kvp => new StallHolderFacilityState(kvp.Key, kvp.Value))
+                    .ToList();
                 break;
             }
             await Task.Delay(400);
         }
 
         _loading = false;
+    }
+
+    private void ApplyStallHolders(IEnumerable<StallHolderFacilityState> states)
+    {
+        _data.Clear();
+        foreach (var state in states)
+            _data[state.FacilityCode] = state.Data;
     }
 
     private async Task PaintLoadingStateAsync()
@@ -260,6 +282,10 @@
         FacilityCode.ICE => "Iceplant",
         _ => code.ToString()
     };
+
+    public sealed record StallHolderFacilityState(
+        FacilityCode FacilityCode,
+        StallHoldersListDto Data);
 
     private static string Model(FacilityCode code) => code == FacilityCode.NPM ? "Daily stall" : "Monthly rental";
 

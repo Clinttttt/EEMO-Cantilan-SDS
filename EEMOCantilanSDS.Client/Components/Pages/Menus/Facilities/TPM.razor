@@ -6,7 +6,6 @@
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
 @using EEMOCantilanSDS.Client.Components.Shared
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject ITpmApiClient TpmApi
 @inject NavigationManager Navigation
 
@@ -421,6 +420,9 @@
     private List<TpmMarketDayDto> MarketDays = new();
     private List<TpmVendorAttendanceDto> Attendance = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public TpmPageState? CachedTpmPage { get; set; }
+
     private DateTime CalendarMonth = new(DateTime.Now.Year, DateTime.Now.Month, 1);
     private DateTime CurrentMonthStart => new(DateTime.Now.Year, DateTime.Now.Month, 1);
     private DateTime? SelectedFriday;
@@ -454,6 +456,15 @@
     // ── Lifecycle ─────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        if (CachedTpmPage is { } state
+            && state.Year == CalendarMonth.Year
+            && state.Month == CalendarMonth.Month)
+        {
+            Overview = state.Overview;
+            MarketDays = state.MarketDays.ToList();
+            return;
+        }
+
         await PaintLoadingStateAsync();
         await LoadOverviewAndMarketDaysAsync();
     }
@@ -472,7 +483,19 @@
         MarketDays = marketDaysResult.IsSuccess && marketDaysResult.Value != null
             ? marketDaysResult.Value.ToList()
             : new();
+
+        CachedTpmPage = new TpmPageState(
+            CalendarMonth.Year,
+            CalendarMonth.Month,
+            Overview,
+            MarketDays.ToList());
     }
+
+    public sealed record TpmPageState(
+        int Year,
+        int Month,
+        TpmOverviewDto? Overview,
+        List<TpmMarketDayDto> MarketDays);
 
     // ── Navigation ────────────────────────────────
     private async Task PrevMonth()

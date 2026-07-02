@@ -17,24 +17,23 @@
 </head>
 
 <body>
-    <div id="stalltrack-splash" class="st-splash">
+    <div id="stalltrack-splash" class="st-splash" role="status" aria-live="polite">
         <div class="st-splash-ring">
             <img class="st-splash-logo" src="/images/logo_stalltrack.png" alt="StallTrack" />
         </div>
         <div class="st-splash-title">LOADING</div>
         <div class="st-splash-bar"><span></span></div>
-        <div class="st-splash-sub">Please wait…</div>
+        <div class="st-splash-sub" data-splash-status>Please wait…</div>
     </div>
-    <Routes />
+    <Routes @rendermode="@(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: true))" />
     <script src="_framework/blazor.web.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/modal.js"></script>
     <script src="/js/payor-hub.js"></script>
     <script>
-        // Branded boot splash: shown by static HTML on initial load (prerender is off, so the page is
-        // blank until the interactive circuit connects). The app calls hideStallTrackSplash() from its
-        // first interactive render (MainLayout); the timeout is a safety net so it can never stick.
+        // Branded boot splash: covers the fallback path while the Blazor circuit connects. When
+        // prerendered app markup is present, hide it immediately so the static HTML is visible.
         window.hideStallTrackSplash = function () {
             var el = document.getElementById('stalltrack-splash');
             if (!el || el.dataset.hiding) return;
@@ -42,7 +41,15 @@
             el.classList.add('st-hide');
             setTimeout(function () { if (el && el.parentNode) el.parentNode.removeChild(el); }, 500);
         };
-        setTimeout(function () { window.hideStallTrackSplash(); }, 15000);
+        if (document.querySelector('.admin-layout, .setup-root, .pp-shell')) {
+            window.hideStallTrackSplash();
+        }
+        setTimeout(function () {
+            var el = document.getElementById('stalltrack-splash');
+            if (!el || el.dataset.hiding) return;
+            var status = el.querySelector('[data-splash-status]');
+            if (status) status.textContent = 'Still connecting...';
+        }, 15000);
     </script>
 </body>
 

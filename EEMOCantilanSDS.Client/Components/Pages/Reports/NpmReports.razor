@@ -1,6 +1,5 @@
 @page "/npm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
@@ -1209,7 +1208,16 @@ else
     private FacilityHistoryDto? History;
     private bool HistoryLoading;
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public NpmReportsPageState? CachedReport { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedReport())
+            return;
+
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -1227,7 +1235,41 @@ else
         int? week = period == ReportPeriod.Weekly ? ((CurrentDate.Day - 1) / 7) + 1 : null;
 
         var result = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, period, CurrentDate.Year, month, week);
-        if (result.IsSuccess) R = result.Value;
+        if (result.IsSuccess)
+        {
+            R = result.Value;
+            if (R is not null)
+                CachedReport = new NpmReportsPageState(period, CurrentDate.Year, month, week, R);
+        }
+    }
+
+    private bool TryApplyCachedReport()
+    {
+        if (ShowUtilityBilling)
+            return false;
+
+        var period = ShowPrintReport
+            ? ReportPeriod.Monthly
+            : ActivePeriod switch
+            {
+                "Weekly" => ReportPeriod.Weekly,
+                "Yearly" => ReportPeriod.Yearly,
+                _ => ReportPeriod.Monthly
+            };
+        int? month = period == ReportPeriod.Yearly ? null : CurrentDate.Month;
+        int? week = period == ReportPeriod.Weekly ? ((CurrentDate.Day - 1) / 7) + 1 : null;
+
+        if (CachedReport is not { } state
+            || state.Period != period
+            || state.Year != CurrentDate.Year
+            || state.Month != month
+            || state.Week != week)
+        {
+            return false;
+        }
+
+        R = state.Report;
+        return true;
     }
 
     async Task SetPeriod(string p)
@@ -1322,6 +1364,13 @@ else
 
     IReadOnlyList<FacilityHistoryPeriodDto> HistoryMonthlyRows => History?.Monthly ?? new List<FacilityHistoryPeriodDto>();
     IReadOnlyList<FacilityHistoryPeriodDto> HistoryYearlyRows => History?.Yearly ?? new List<FacilityHistoryPeriodDto>();
+
+    public sealed record NpmReportsPageState(
+        ReportPeriod Period,
+        int Year,
+        int? Month,
+        int? Week,
+        FacilityReportsDto Report);
 
     // Status Report rows — driven by the same server-computed compliance data as the
     // "All Stalls" table (R.StallCompliance), grouped by section in the print view.

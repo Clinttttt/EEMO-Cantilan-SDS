@@ -1,6 +1,5 @@
 @page "/reports/collections"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
@@ -507,6 +506,9 @@
     private bool _marketAck;
     private string? _marketError;
 
+    [PersistentState(AllowUpdates = true)]
+    public CollectionExceptionsPayorState? CachedPayors { get; set; }
+
     private bool IsNpm => _facility == "NPM";
     private FacilityCode CurrentFacility => _facility switch
     {
@@ -525,7 +527,18 @@
     private string? _saveError;
     private readonly Dictionary<string, string> _orNumbers = new();
 
-    protected override async Task OnInitializedAsync() => await LoadPayors();
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedPayors is { } state && state.Facility == CurrentFacility)
+        {
+            _payors.Clear();
+            _payors.AddRange(state.Payors);
+            _loading = false;
+            return;
+        }
+
+        await LoadPayors();
+    }
 
     // ── Real payors for the current facility ──
     private async Task LoadPayors()
@@ -554,6 +567,7 @@
                 s.Id, s.StallNo, string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!,
                 SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate));
         }
+        CachedPayors = new CollectionExceptionsPayorState(CurrentFacility, _payors.ToList());
         _loading = false;
         StateHasChanged();
     }
@@ -891,6 +905,10 @@
         _ => code
     };
 
-    private sealed record CeStall(Guid Id, string StallNo, string Occupant, string Section,
+    public sealed record CollectionExceptionsPayorState(
+        FacilityCode Facility,
+        List<CeStall> Payors);
+
+    public sealed record CeStall(Guid Id, string StallNo, string Occupant, string Section,
         decimal MonthlyRate, decimal? DailyRate, DateTime? ContractDate);
 }

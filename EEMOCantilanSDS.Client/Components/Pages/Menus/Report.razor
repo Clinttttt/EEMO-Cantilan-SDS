@@ -4,7 +4,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject IReportsApiClient ReportsApi
 
 <PageTitle>Financial Reports — EEMO Admin</PageTitle>
@@ -455,6 +454,9 @@
     private FinancialReportDto? Model;
     private bool Loading = true;
 
+    [PersistentState(AllowUpdates = true)]
+    public FinancialReportPageState? CachedFinancialReport { get; set; }
+
     private readonly HashSet<FacilityCode> _expandedFacilities = new();
 
     private void ToggleFacility(FacilityCode code, bool expandable)
@@ -504,7 +506,13 @@
         ?? (SelectedFacility == "All" ? "All facilities" : FacilityOptions.First(o => o.Code == SelectedFacility).Label);
     private string FrequencyLabel => Model?.Frequency ?? ActiveTab;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedFinancialReport())
+            return;
+
+        await Load();
+    }
 
     private async Task SetTab(string tab)
     {
@@ -538,6 +546,16 @@
             if (result.IsSuccess)
             {
                 Model = result.Value;
+                if (Model is not null)
+                {
+                    CachedFinancialReport = new FinancialReportPageState(
+                        ActiveTab,
+                        SelectedYear,
+                        SelectedMonth,
+                        SelectedFacility,
+                        Model);
+                }
+
                 loaded = true;
                 break;
             }
@@ -558,6 +576,25 @@
 
         Loading = false;
         StateHasChanged();
+    }
+
+    private bool TryApplyCachedFinancialReport()
+    {
+        if (CachedFinancialReport is not { } state
+            || state.ActiveTab != ActiveTab
+            || state.SelectedYear != SelectedYear
+            || state.SelectedMonth != SelectedMonth
+            || state.SelectedFacility != SelectedFacility)
+        {
+            return false;
+        }
+
+        Model = state.Model;
+        var trendMax = TrendBars.Count == 0 ? 0m : TrendBars.Max(t => Math.Max(t.Collected, t.Unpaid));
+        _scale = ComputeTrendScale(trendMax);
+        _renderEpoch++;
+        Loading = false;
+        return true;
     }
 
     // ── Trend scaling (nice round axis + tight ceiling so bars stay tall) ──
@@ -652,6 +689,13 @@
 
     private static string ProfileUrl(FacilityCode code, string stallNo) =>
         $"/profile/{code.ToString().ToLower()}/{stallNo}";
+
+    public sealed record FinancialReportPageState(
+        string ActiveTab,
+        string SelectedYear,
+        string SelectedMonth,
+        string SelectedFacility,
+        FinancialReportDto Model);
 
     private void ExportPdf() { /* TODO: server-side export scoped to the active filters */ }
     private void ExportExcel() { /* TODO: server-side export scoped to the active filters */ }

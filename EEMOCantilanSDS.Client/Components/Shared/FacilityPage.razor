@@ -2,6 +2,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.Payments
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
@@ -175,6 +176,7 @@
     private bool ShowReports = false;
     
     private List<TStall> Stalls = new();
+    private readonly DateTime _statePeriod = PhilippineTime.Now;
     private bool _loading = true;
     private bool ShowPayment = false;
     private TStall? PaymentStall = null;
@@ -186,16 +188,35 @@
     private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public FacilityPagePersistentState? CachedFacilityState { get; set; }
+
     // Existing stall numbers for this facility — feeds the modal's next-number suggestion.
     private IReadOnlyCollection<string> FacilityStallNos => Stalls.Select(StallNoSelector).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         _loading = true;
+
+        if (CachedFacilityState is not null
+            && CachedFacilityState.FacilityCode == FacilityCodeEnum
+            && CachedFacilityState.Year == _statePeriod.Year
+            && CachedFacilityState.Month == _statePeriod.Month)
+        {
+            LoadStallsFromPersistentState(CachedFacilityState);
+            _loading = false;
+            return;
+        }
+
+        CachedFacilityState = null;
+
         await PaintLoadingStateAsync();
 
         try { await LoadStallsFromApi(); }
-        finally { _loading = false; }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task PaintLoadingStateAsync()
@@ -206,9 +227,8 @@
 
     private async Task LoadStallsFromApi()
     {
-        var now = DateTime.Now;
         var stallsTask = StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCodeEnum, null, null, 100);
-        var paymentsTask = PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCodeEnum, now.Year, now.Month);
+        var paymentsTask = PaymentsApi.GetFacilityPaymentRecordsAsync(FacilityCodeEnum, _statePeriod.Year, _statePeriod.Month);
 
         await Task.WhenAll(stallsTask, paymentsTask);
 
@@ -217,30 +237,49 @@
         {
             // Single batch call for all current-month payment records (avoids per-stall N+1)
             var paymentsResult = await paymentsTask;
-            var payments = paymentsResult.IsSuccess && paymentsResult.Value != null
-                ? paymentsResult.Value.ToDictionary(p => p.StallId)
-                : new();
+            var stallDtos = result.Value.Items.ToList();
+            var paymentDtos = paymentsResult.IsSuccess && paymentsResult.Value != null
+                ? paymentsResult.Value.ToList()
+                : new List<FacilityPaymentRecordDto>();
 
-            Stalls.Clear();
-            // Only list payors whose contract is still within its duration; expired-contract active
-            // stalls are excluded from the facility view (StallContractStatus.IsCurrentVendor).
-            foreach (var dto in result.Value.Items.Where(StallContractStatus.IsCurrentVendor))
+            CachedFacilityState = new FacilityPagePersistentState(
+                FacilityCodeEnum,
+                _statePeriod.Year,
+                _statePeriod.Month,
+                stallDtos,
+                paymentDtos);
+            RebuildStalls(stallDtos, paymentDtos);
+        }
+    }
+
+    private void LoadStallsFromPersistentState(FacilityPagePersistentState state)
+    {
+        RebuildStalls(state.Stalls, state.Payments);
+    }
+
+    private void RebuildStalls(IReadOnlyList<StallDto> stallDtos, IReadOnlyList<FacilityPaymentRecordDto> paymentDtos)
+    {
+        var payments = paymentDtos.ToDictionary(p => p.StallId);
+        Stalls.Clear();
+
+        // Only list payors whose contract is still within its duration; expired-contract active
+        // stalls are excluded from the facility view (StallContractStatus.IsCurrentVendor).
+        foreach (var dto in stallDtos.Where(StallContractStatus.IsCurrentVendor))
+        {
+            bool isPaid = false;
+            bool isPartial = false;
+            decimal partialAmount = 0;
+            string orNumber = dto.ORNumber ?? string.Empty;
+
+            if (payments.TryGetValue(dto.Id, out var payment))
             {
-                bool isPaid = false;
-                bool isPartial = false;
-                decimal partialAmount = 0;
-                string orNumber = dto.ORNumber ?? string.Empty;
-
-                if (payments.TryGetValue(dto.Id, out var payment))
-                {
-                    isPaid = payment.Status == PaymentStatus.Paid;
-                    isPartial = payment.Status == PaymentStatus.Partial;
-                    partialAmount = payment.TotalPaid;
-                    orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
-                }
-
-                Stalls.Add(StallMapper(dto, isPaid, isPartial, partialAmount, orNumber));
+                isPaid = payment.Status == PaymentStatus.Paid;
+                isPartial = payment.Status == PaymentStatus.Partial;
+                partialAmount = payment.TotalPaid;
+                orNumber = payment.ORNumber ?? dto.ORNumber ?? string.Empty;
             }
+
+            Stalls.Add(StallMapper(dto, isPaid, isPartial, partialAmount, orNumber));
         }
     }
 
@@ -480,4 +519,5 @@
             StateHasChanged();
         }
     }
+
 }

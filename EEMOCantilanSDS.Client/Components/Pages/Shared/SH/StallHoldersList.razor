@@ -1,7 +1,6 @@
 @page "/list-stall-holders"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 
 <PageTitle>EEMO Admin — List of Stall Holders</PageTitle>
@@ -341,7 +340,7 @@
         s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
         s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
 
-    class NpmStall
+    public sealed class NpmStall
     {
         public int Id { get; set; }
         public string Facility { get; set; } = "npm";
@@ -363,8 +362,19 @@
 
     List<NpmStall> Stalls = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public StallHoldersListPageState? CachedStalls { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        var facility = Facility?.ToLower() ?? "npm";
+        if (CachedStalls is { } state && state.Facility == facility)
+        {
+            Stalls = state.Stalls.ToList();
+            IsLoading = false;
+            return;
+        }
+
         await LoadStallsFromApi();
     }
 
@@ -421,7 +431,12 @@
                 }
             }
         }
-        
+
+        CachedStalls = new StallHoldersListPageState(Facility?.ToLower() ?? "npm", Stalls.ToList());
         IsLoading = false;
     }
+
+    public sealed record StallHoldersListPageState(
+        string Facility,
+        List<NpmStall> Stalls);
 }

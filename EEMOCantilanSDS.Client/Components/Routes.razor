@@ -2,10 +2,8 @@
 
 @inject NavigationManager Navigation
 @inject ISetupApiClient SetupApi
-@* Prerendering disabled: these admin/payor pages are authenticated, so the prerender pass runs without
-   the circuit's JWT (causing 401s + an empty first render, then a second interactive render = the
-   "double render"). Rendering interactive-only makes OnInitializedAsync run exactly once, with auth ready. *@
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+@* Prerendering is enabled at the interactive root. The setup check is persisted so the static
+   prerender and interactive pass don't both call the setup endpoint. *@
 
 
 <CascadingAuthenticationState>
@@ -32,6 +30,9 @@
 @code {
     private bool _hasCheckedSetup = false;
 
+    [PersistentState]
+    public bool? IsSetupRequired { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         if (_hasCheckedSetup) return;
@@ -43,8 +44,13 @@
 
         try
         {
-            var result = await SetupApi.GetSetupStatusAsync();
-            if (result.IsSuccess && result.Value?.IsSetupRequired == true)
+            if (IsSetupRequired is null)
+            {
+                var result = await SetupApi.GetSetupStatusAsync();
+                IsSetupRequired = result.IsSuccess && result.Value?.IsSetupRequired == true;
+            }
+
+            if (IsSetupRequired == true)
             {
                 Navigation.NavigateTo("/account-setup-admin", true);
             }
@@ -54,4 +60,5 @@
             
         }
     }
+
 }

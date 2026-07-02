@@ -3,7 +3,6 @@
 @using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 
@@ -260,6 +259,9 @@
     private bool IsGroupedView = false;
     private List<SlaughterTransactionDto> AllTransactions = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public SlaughterhouseReportPageState? CachedReport { get; set; }
+
     private readonly string[] AnimalFilters = ["All", "Hog", "Carabao", "Cow", "Others"];
 
     private int TotalTransactions => AllTransactions.Count;
@@ -342,6 +344,15 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (CachedReport is { } state
+            && state.Year == CurrentMonth.Year
+            && state.Month == CurrentMonth.Month)
+        {
+            AllTransactions = state.Transactions.ToList();
+            isLoading = false;
+            return;
+        }
+
         await LoadData();
     }
 
@@ -353,8 +364,17 @@
         if (result.IsSuccess && result.Value != null)
         {
             AllTransactions = result.Value.ToList();
+            CachedReport = new SlaughterhouseReportPageState(
+                CurrentMonth.Year,
+                CurrentMonth.Month,
+                AllTransactions.ToList());
         }
 
         isLoading = false;
     }
+
+    public sealed record SlaughterhouseReportPageState(
+        int Year,
+        int Month,
+        List<SlaughterTransactionDto> Transactions);
 }

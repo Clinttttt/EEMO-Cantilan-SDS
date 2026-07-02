@@ -9,7 +9,6 @@
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 <PageTitle>EEMO Admin — Accounts</PageTitle>
 
 <header class="topbar">
@@ -706,8 +705,11 @@
     private string SearchQuery = string.Empty;
     private bool IsSaving;
 
-    private List<AdminListDto>? Admins;
-    private List<CollectorListDto>? Collectors;
+    [PersistentState(AllowUpdates = true)]
+    public List<AdminListDto>? Admins { get; set; }
+
+    [PersistentState(AllowUpdates = true)]
+    public List<CollectorListDto>? Collectors { get; set; }
     private string? LoadError;
 
     private int ActiveCount =>
@@ -717,6 +719,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (Admins is not null && Collectors is not null)
+            return;
+
         await LoadAll();
     }
 

@@ -7,7 +7,6 @@
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 <PageTitle>EEMO Admin — Collectors</PageTitle>
 
 <header class="topbar">
@@ -449,17 +448,33 @@
     string ActiveFilter = "All";
     readonly List<string> StatusFilters = new() { "All", "Active", "Inactive" };
 
-    List<CollectorListDto>? Collectors = null;
+    [PersistentState(AllowUpdates = true)]
+    public List<CollectorListDto>? Collectors { get; set; }
     string? LoadError = null;
 
     protected override async Task OnInitializedAsync()
     {
+        _loading = true;
+        if (Collectors is not null)
+        {
+            _loading = false;
+            return;
+        }
+
+        await PaintLoadingAsync();
         try { await LoadCollectors(); }
         finally { _loading = false; }
     }
 
+    private async Task PaintLoadingAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+    }
+
     async Task LoadCollectors()
     {
+        LoadError = null;
         var result = await CollectorsApi.GetAllCollectorsAsync();
         if (result.IsSuccess)
             Collectors = result.Value?.ToList() ?? new();

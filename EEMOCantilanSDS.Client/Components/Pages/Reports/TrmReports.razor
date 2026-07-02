@@ -1,6 +1,5 @@
 @page "/trm/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject ITrmApiClient TrmApi
@@ -479,7 +478,16 @@ else
     // Trailing 6-month collected totals for the Monthly trend chart (oldest → newest).
     private List<(int Year, int Month, decimal Collected)> _trendMonthly = new();
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    [PersistentState(AllowUpdates = true)]
+    public TrmReportsPageState? CachedReport { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedReport())
+            return;
+
+        await LoadAsync();
+    }
 
     async Task LoadAsync()
     {
@@ -524,6 +532,36 @@ else
         }
 
         RecomputeDerived();
+        CachedReport = new TrmReportsPageState(
+            ActivePeriod,
+            ShowPrintReport,
+            ShowHistory,
+            CurrentDate.Year,
+            CurrentDate.Month,
+            WeekIndex,
+            MonthTrips.ToList(),
+            Hist,
+            _trendMonthly.Select(t => new ReportTrendState(t.Year, t.Month, t.Collected)).ToList());
+    }
+
+    private bool TryApplyCachedReport()
+    {
+        if (CachedReport is not { } state
+            || state.ActivePeriod != ActivePeriod
+            || state.ShowPrintReport != ShowPrintReport
+            || state.ShowHistory != ShowHistory
+            || state.Year != CurrentDate.Year
+            || state.Month != CurrentDate.Month
+            || state.WeekIndex != WeekIndex)
+        {
+            return false;
+        }
+
+        MonthTrips = state.MonthTrips.ToList();
+        Hist = state.History;
+        _trendMonthly = state.MonthlyTrend.Select(t => (t.Year, t.Month, t.Collected)).ToList();
+        RecomputeDerived();
+        return true;
     }
 
     /// <summary>
@@ -736,6 +774,19 @@ else
     // ── History rows (Phase 3 + yearly monthly-summary) ───────────
     IReadOnlyList<TrmPeriodSummaryDto> HistoryMonthly => Hist?.Monthly ?? new List<TrmPeriodSummaryDto>();
     IReadOnlyList<TrmPeriodSummaryDto> HistoryYearly => Hist?.Yearly ?? new List<TrmPeriodSummaryDto>();
+
+    public sealed record TrmReportsPageState(
+        string ActivePeriod,
+        bool ShowPrintReport,
+        bool ShowHistory,
+        int Year,
+        int Month,
+        int WeekIndex,
+        List<TrmTripDto> MonthTrips,
+        TrmHistoryDto? History,
+        List<ReportTrendState> MonthlyTrend);
+
+    public sealed record ReportTrendState(int Year, int Month, decimal Collected);
 
     // ── Donut arc builder ─────────────────────────────────────────
     // Per-segment gradient id + darker bottom stop (matches NPM's donut depth).

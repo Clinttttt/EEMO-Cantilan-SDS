@@ -1,6 +1,5 @@
 @page "/reports/month-end"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
@@ -344,6 +343,9 @@
     private bool Loading = true;
     private readonly HashSet<string> _expanded = new();
 
+    [PersistentState(AllowUpdates = true)]
+    public MonthEndPageState? CachedMonthEnd { get; set; }
+
     // ── Facility filter + search (client-side view filtering; never alters the underlying figures) ──
     private static readonly FacilityCode[] AllFacilities =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
@@ -448,7 +450,13 @@
         if (!_expanded.Add(key)) _expanded.Remove(key);
     }
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        if (TryApplyCachedMonthEnd())
+            return;
+
+        await Load();
+    }
 
     private async Task Load()
     {
@@ -463,6 +471,9 @@
             if (result.IsSuccess)
             {
                 Report = result.Value;
+                if (Report is not null)
+                    CachedMonthEnd = new MonthEndPageState(Year, Month, Report);
+
                 break;
             }
             if (result.StatusCode is not (401 or 403))
@@ -471,6 +482,20 @@
         }
 
         Loading = false;
+    }
+
+    private bool TryApplyCachedMonthEnd()
+    {
+        if (CachedMonthEnd is not { } state
+            || state.Year != Year
+            || state.Month != Month)
+        {
+            return false;
+        }
+
+        Report = state.Report;
+        Loading = false;
+        return true;
     }
 
     private async Task PaintLoadingStateAsync()
@@ -544,4 +569,9 @@
         "Partial" => "me-row-partial",
         _ => "me-row-unpaid"
     };
+
+    public sealed record MonthEndPageState(
+        int Year,
+        int Month,
+        MonthEndReportDto Report);
 }

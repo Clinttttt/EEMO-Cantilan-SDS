@@ -1,7 +1,6 @@
 @page "/payor/profile"
 @layout PayorLayout
 @attribute [Authorize(Roles = "Payor")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Payors
 @using Microsoft.AspNetCore.Components.Authorization

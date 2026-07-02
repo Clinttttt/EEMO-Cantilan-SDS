@@ -1,6 +1,5 @@
 @page "/reports/follow-up/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
-@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -304,6 +303,9 @@
     private FollowUpQueueDto? _data;
     private bool _loading = true;
 
+    [PersistentState(AllowUpdates = true)]
+    public FollowUpHistoryPageState? CachedFollowUpHistory { get; set; }
+
     private string _reason = "all";
     private string _search = "";
     private FacilityCode? _facility;
@@ -378,6 +380,9 @@
         _selYear = Years.Count > 0 ? Years[0] : _now.Year;
         _selMonth = 0;
 
+        if (TryApplyCachedFollowUpHistory())
+            return;
+
         await Load();
     }
 
@@ -432,12 +437,40 @@
         for (var attempt = 0; attempt < 5; attempt++)
         {
             var result = await ReportsApi.GetFollowUpHistoryAsync(year, month);
-            if (result.IsSuccess) { _data = result.Value; break; }
+            if (result.IsSuccess)
+            {
+                _data = result.Value;
+                if (_data is not null)
+                {
+                    CachedFollowUpHistory = new FollowUpHistoryPageState(
+                        _selYear,
+                        _selMonth,
+                        month,
+                        _data);
+                }
+
+                break;
+            }
             _data = null;
             if (result.StatusCode is not (401 or 403)) break;
             await Task.Delay(400);
         }
         _loading = false;
+    }
+
+    private bool TryApplyCachedFollowUpHistory()
+    {
+        if (CachedFollowUpHistory is not { } state
+            || state.SelectedYear != _selYear
+            || state.SelectedMonth != _selMonth
+            || state.EffectiveMonth != EffectiveMonth())
+        {
+            return false;
+        }
+
+        _data = state.Data;
+        _loading = false;
+        return true;
     }
 
     // ── Client-side filtering (reason / facility / search) over the loaded snapshot ──
@@ -479,4 +512,10 @@
 
     private static string AmountLabel(FollowUpItemDto r) =>
         r.Excused ? "Excused" : r.Amount is { } a ? "₱" + a.ToString("N0") : "—";
+
+    public sealed record FollowUpHistoryPageState(
+        int SelectedYear,
+        int SelectedMonth,
+        int EffectiveMonth,
+        FollowUpQueueDto Data);
 }
