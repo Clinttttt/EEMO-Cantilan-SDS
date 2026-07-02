@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -35,6 +37,14 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 new(AppClaimTypes.Role, role),
                 new(AppClaimTypes.IsActive, user.IsActive.ToString()),
                 new(AppClaimTypes.MustChangePassword, user.MustChangePassword.ToString()),
+                // Tenant seam: users are not yet municipality-scoped (that lands in Phase 3), so every
+                // token carries the default LGU. Once users get a MunicipalityId this becomes user-driven,
+                // and the resolver/cache pick it up with no further change here.
+                new(AppClaimTypes.Municipality, TenantConstants.DefaultTenantCode),
+                // Tenant seam: users are not yet municipality-scoped (that lands in Phase 3), so every
+                // token carries the default LGU. Once users get a MunicipalityId this becomes user-driven,
+                // and the resolver/cache pick it up with no further change here.
+                new(AppClaimTypes.Municipality, TenantConstants.DefaultTenantCode),
             };
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);

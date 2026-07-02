@@ -38,7 +38,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddSingleton<MemoryEemoCacheInvalidator>();
             service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
             service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();
-            service.AddScoped<ITenantContext, StaticTenantContext>();
+            service.AddScoped<ITenantContext, ClaimTenantContext>();
  
             
             // Repositories

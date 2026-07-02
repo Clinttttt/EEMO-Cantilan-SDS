@@ -17,5 +17,6 @@ namespace EEMOCantilanSDS.Application.Common
         public const string Username = "username";
         public const string IsActive = "is_active";
         public const string MustChangePassword = "must_change_password";
+        public const string Municipality = "municipality";
     }
 }

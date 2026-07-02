@@ -21,4 +21,11 @@ public interface ICurrentUserService
     /// Collection attribution uses this so admin-recorded entries are never mis-attributed to a collector.
     /// </summary>
     Guid? CollectorId { get; }
+
+    /// <summary>
+    /// The authenticated user's LGU/municipality code, read from the token's municipality claim.
+    /// Null when there is no authenticated request (background jobs, tests) — callers fall back to
+    /// the default tenant. Users are not yet municipality-scoped, so today this is the default LGU.
+    /// </summary>
+    string? MunicipalityCode { get; }
 }
