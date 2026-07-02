@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.Suggestions;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -27,6 +28,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
 
         public DbSet<Facility> Facilities { get; set; }
+        public DbSet<Municipality> Municipalities { get; set; }
         public DbSet<Stall> Stalls { get; set; }
         public DbSet<Contract> Contracts { get; set; }
 

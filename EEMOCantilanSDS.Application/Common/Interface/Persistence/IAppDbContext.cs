@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 using EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 using EEMOCantilanSDS.Domain.Entities.Suggestions;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -18,6 +19,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
     public interface IAppDbContext
     {
         DbSet<Facility> Facilities { get; }
+        DbSet<Municipality> Municipalities { get; }
         DbSet<Stall> Stalls { get; }
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
