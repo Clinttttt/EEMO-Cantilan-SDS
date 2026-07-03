@@ -438,6 +438,17 @@
                                 </div>
                             }
 
+                            @if (eff == "collected" && IsDay && IsFishPayor)
+                            {
+                                <div class="ce-or ce-fish">
+                                    <label class="ce-or-label">Fish Weight <span class="ce-or-opt">(kg — adds ₱1/kg on top of the ₱30 daily fee)</span></label>
+                                    <div class="ce-fish-row">
+                                        <input class="ce-or-input ce-fish-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" @bind="CurrentFishKilos" @bind:event="oninput" />
+                                        <span class="ce-fish-unit">kg</span>
+                                    </div>
+                                </div>
+                            }
+
                             @if (!string.IsNullOrEmpty(_saveError))
                             {
                                 <div class="ce-form-error">@_saveError</div>
@@ -526,6 +537,10 @@
     private bool _saving;
     private string? _saveError;
     private readonly Dictionary<string, string> _orNumbers = new();
+    private readonly Dictionary<string, string> _fishKilos = new();
+
+    // NPM Fish Area payors owe ₱1/kg on top of the ₱30 daily fee, so a collected fish day can carry a weight.
+    private bool IsFishPayor => IsNpm && SelectedStall is not null && SelectedStall.Section == "Fish Area";
 
     protected override async Task OnInitializedAsync()
     {
@@ -769,7 +784,22 @@
     }
 
     // ── Drawer ──
-    private void OpenDay(int d) { if (_marketClosedDays.Contains(d) || DayStatus(d) == "na") return; _drawerKind = "day"; _drawerDay = d; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
+    private void OpenDay(int d)
+    {
+        if (_marketClosedDays.Contains(d) || DayStatus(d) == "na") return;
+        _drawerKind = "day"; _drawerDay = d; _pendingStatus = null; _ackEdit = false; _saveError = null;
+        SeedFishKilos();
+        _drawerOpen = true;
+    }
+
+    // Pre-fill the fish-weight box from an already-recorded collection so re-recording keeps the value.
+    private void SeedFishKilos()
+    {
+        if (!IsFishPayor) return;
+        var key = new DateOnly(_year, _month, _drawerDay).ToString("yyyy-MM-dd");
+        if (_npmMonth is not null && _npmMonth.Collections.TryGetValue(key, out var c) && c.FishKilos is { } kg && kg > 0)
+            _fishKilos[CurrentKey] = ((int)kg).ToString();
+    }
     private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
     private void CloseDrawer() { _drawerOpen = false; _pendingStatus = null; _ackEdit = false; _saveError = null; }
 
@@ -791,6 +821,19 @@
     {
         get => _orNumbers.GetValueOrDefault(CurrentKey, "");
         set => _orNumbers[CurrentKey] = value ?? "";
+    }
+
+    private string CurrentFishKilos
+    {
+        get => _fishKilos.GetValueOrDefault(CurrentKey, "");
+        set => _fishKilos[CurrentKey] = value ?? "";
+    }
+
+    // Parsed fish weight for the current day — only for Fish Area payors; null (no fish fee) otherwise.
+    private decimal? FishKilosValue()
+    {
+        if (!IsFishPayor) return null;
+        return decimal.TryParse(CurrentFishKilos, out var k) && k > 0 ? k : null;
     }
 
     private void ChooseStatus(string status)
@@ -824,7 +867,7 @@
             var date = new DateOnly(_year, _month, _drawerDay);
             var cmd = _pendingStatus switch
             {
-                "collected" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: true, ORNumber: or),
+                "collected" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: true, FishKilos: FishKilosValue(), ORNumber: or),
                 "missed" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: false, IsAbsent: false),
                 _ => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: false, IsAbsent: true)
             };
@@ -870,6 +913,7 @@
         if (res.IsSuccess)
         {
             _orNumbers.Remove(CurrentKey);
+            _fishKilos.Remove(CurrentKey);
             await LoadPeriod();
             CloseDrawer();
         }

@@ -334,3 +334,9 @@
     .ce-stats { grid-template-columns: repeat(2, 1fr); }
     .ce-months { grid-template-columns: repeat(3, 1fr); }
 }
+
+
+/* ── Fish weight input (NPM Fish Area — ₱1/kg on top of the daily fee) ── */
+.ce-fish-row { display: flex; align-items: center; gap: 8px; max-width: 280px; }
+.ce-fish-input { max-width: none; flex: 1; }
+.ce-fish-unit { font-size: 12px; font-weight: 800; color: var(--text-muted); }
