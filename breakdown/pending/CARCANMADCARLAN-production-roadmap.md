@@ -197,6 +197,7 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 |---|---|---|---|
 | 0 | Safety net & baseline lock | ✅ Complete | Integration goldens + CI gate; 441/441 green |
 | 1 | Municipality registry + selector wiring | ✅ Complete | Registry: entity + migration + seed + tests; selector/branding wiring deferred (separate landing) |
+| 1.5 | Public read-only registry API | ✅ Complete (code) | `GET /api/municipalities` (`GetMunicipalitiesQuery` + `MunicipalityRepository`, anonymous, non-sensitive fields); 442/442 green. Landing consumption deferred until deployed (stable URL + CORS). |
 | 2 | Live tenant seam (claim-bound) | ✅ Complete | Claim in JWT + `ClaimTenantContext`; tenant still `cantilan-sds` |
 | — | Hardening Track | ◑ Partial — ops pending | Code-side done (probes, cookie policy, externalized JWT key, CI); runbook drives ops |
 | A | **Production Checkpoint A (Cantilan live)** | Pending ops verification | Code-side ready; runbook ops actions remain (secrets in host, TLS, backups, monitoring) |
@@ -205,6 +206,21 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 | 5 | Runtime routing + multi-LGU capability | Not started | Enables a 2nd LGU |
 | 6 | Onboarding workspace + first real LGU | Not started | Proof of expansion |
 | B | **Production Checkpoint B (multi-LGU)** | Pending | After 3–6 |
+
+**Working status (latest session):**
+- **CARCANMADCARLAN demo — presentation-only, decoupled, no backend writes.** The public landing rollout
+  pipeline and the platform admin console (`apps/admin` in the `stalltrack-landing` monorepo) implement the
+  full journey: Assessment → Onboarding (comprehensive config workspace: facility pipeline cards mapped to
+  archetypes, sections + section fees, per-head animal rates, fixed/metered add-on fees, Administrator
+  account, branding + logo) → Validation (config-derived dry-run: Facilities · Total units · Rates & fees ·
+  Collection models) → Activation (branded letterhead + Head account-activation link). See
+  `CARCANMADCARLAN-onboarding-flow.md`.
+- **Phase 1.5 registry API** built + tested (`GET /api/municipalities`, 442/442). Not deployed; the landing
+  still uses its static `municipalities.js`.
+- **Live Cantilan:** admin **sign-out** surfaced on the Settings page (reuses the existing revoke-on-logout
+  pipeline; no new auth built).
+- **Deferred (unchanged):** Phase 3+ until a real second LGU; Cantilan production/hardening ops until a
+  go-decision.
 
 ---
 
@@ -234,7 +250,7 @@ items in a prerequisite phase.
 ### Phase 1 — Municipality registry + selector wiring  ◑ (backend registry done)
 - [x] `Municipality` entity + EF configuration + migration created — `Domain/Entities/Tenancy/Municipality.cs`, `MunicipalityConfiguration`, migration `20260702065757_AddMunicipalityRegistry` (additive: creates only the `Municipalities` table)
 - [x] Cantilan seeded as `Active` and `IsDefault`; Carrascal/Madrid/Carmen/Lanuza seeded as `Upcoming` — `MunicipalitySeeder` (+ `Phase1/MunicipalitySeederTests`, idempotent)
-- [ ] Public selector badges are driven by `Municipality.Status` — DEFERRED: the public selector is a separate static landing project (`stalltrack-landing`, decoupled by design). Connecting it to the registry needs a small read-only public API; the landing currently drives its own status data.
+- [~] Public selector badges are driven by `Municipality.Status` — the read-only public API now EXISTS (`GET /api/municipalities` → `GetMunicipalitiesQuery`/`MunicipalityRepository`, `[AllowAnonymous]`, non-sensitive fields; `Phase1/GetMunicipalitiesQueryTests`). Landing consumption still deferred until the API is deployed (stable URL + CORS); planned as a build-time snapshot with the current static `municipalities.js` as fallback.
 - [~] Active card routes to the LGU login; Upcoming cards route to a rollout status page — already built in the landing project (data-driven within that project), not yet from the DB registry
 - [ ] Cantilan branding (name, seal, report header, office label) is read from the `Municipality` record — DEFERRED: portal branding is still static; can be sourced from the registry in a follow-up
 - [x] No operational tables changed; Phase 0 snapshots still pass — additive migration only; **437/437 tests green** (incl. Phase 0 goldens)
