@@ -160,6 +160,7 @@
     font-variant-numeric: tabular-nums;
 }
 .me-table th.me-num, .me-table td.me-num { text-align: center; font-variant-numeric: tabular-nums; }
+.me-table td.me-mono { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 11.5px; letter-spacing: .3px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
 .me-table tfoot td { border-top: 2px solid var(--border); border-bottom: none; padding-top: 9px; }
 .me-table tfoot td:first-child { text-align: left; }
 .me-row-unpaid { background: rgba(139, 58, 58, 0.04); }

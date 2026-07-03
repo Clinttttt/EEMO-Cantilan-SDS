@@ -268,6 +268,8 @@
                             <thead>
                                 <tr>
                                     <th>@payorCol</th>
+                                    <th>Date</th>
+                                    <th>OR No.</th>
                                     <th>@detailCol</th>
                                     <th class="me-num">@qtyCol</th>
                                     <th class="me-num">Total Collected</th>
@@ -279,7 +281,6 @@
                                     var key = $"{f.Code}|{tp.Payor}";
                                     var expandable = tp.RecordCount > 1;
                                     var isOpen = _expanded.Contains(key);
-                                    var only = tp.Records.Count == 1 ? tp.Records[0] : null;
                                     <tr class="me-txn-row @(expandable ? "me-expandable" : "")" @onclick="() => Toggle(key, expandable)">
                                         <td>
                                             @if (expandable)
@@ -287,11 +288,9 @@
                                                 <span class="me-caret @(isOpen ? "open" : "")">&#9654;</span>
                                             }
                                             <span class="me-txn-payor">@tp.Payor</span>
-                                            @if (only is not null)
-                                            {
-                                                <span class="me-txn-inline">· @only.Date@(string.IsNullOrWhiteSpace(only.ORNumber) ? "" : " · OR " + only.ORNumber)</span>
-                                            }
                                         </td>
+                                        <td>@TxnDateCell(tp)</td>
+                                        <td class="me-mono">@TxnOrCell(tp)</td>
                                         <td>@(string.IsNullOrWhiteSpace(tp.Summary) ? "—" : tp.Summary)</td>
                                         <td class="me-num">@tp.Quantity</td>
                                         <td class="me-num">@Money(tp.TotalCollected)</td>
@@ -301,7 +300,11 @@
                                         @foreach (var r in tp.Records)
                                         {
                                             <tr class="me-txn-detail">
-                                                <td colspan="3">@r.Date · @r.Description@(string.IsNullOrWhiteSpace(r.ORNumber) ? "" : " · OR " + r.ORNumber)</td>
+                                                <td></td>
+                                                <td>@r.Date</td>
+                                                <td class="me-mono">@(string.IsNullOrWhiteSpace(r.ORNumber) ? "—" : r.ORNumber)</td>
+                                                <td>@r.Description</td>
+                                                <td></td>
                                                 <td class="me-num">@Money(r.Amount)</td>
                                             </tr>
                                         }
@@ -310,7 +313,7 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td colspan="3"><strong>Subtotal — @f.Name</strong></td>
+                                    <td colspan="5"><strong>Subtotal — @f.Name</strong></td>
                                     <td class="me-num"><strong>@Money(collectedShown)</strong></td>
                                 </tr>
                             </tfoot>
@@ -555,6 +558,39 @@
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    // Aggregate Date/OR for a transaction payor row. A single date/OR shows directly; multiple values
+    // (a payor with several receipts across the month) collapse to a professional summary, with the
+    // per-record breakdown available in the expandable detail rows.
+    private static string TxnDateCell(MonthEndTxnPayorDto tp)
+    {
+        var dates = tp.Records
+            .Select(r => r.Date)
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Distinct()
+            .ToList();
+        return dates.Count switch
+        {
+            0 => "—",
+            1 => dates[0],
+            _ => "Various"
+        };
+    }
+
+    private static string TxnOrCell(MonthEndTxnPayorDto tp)
+    {
+        var ors = tp.Records
+            .Where(r => !string.IsNullOrWhiteSpace(r.ORNumber))
+            .Select(r => r.ORNumber!)
+            .Distinct()
+            .ToList();
+        return ors.Count switch
+        {
+            0 => "—",
+            1 => ors[0],
+            _ => $"{ors.Count} ORs"
+        };
+    }
 
     private static string StatusClass(string status) => status switch
     {
