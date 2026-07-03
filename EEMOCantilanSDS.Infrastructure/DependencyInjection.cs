@@ -48,6 +48,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ICollectorRepository, CollectorRepository>();
             service.AddScoped<IStallRepository, StallRepository>();
             service.AddScoped<IFacilityRepository, FacilityRepository>();
+            service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
             service.AddScoped<IPaymentRepository, PaymentRepository>();
             service.AddScoped<IStallMonthlyExceptionRepository, StallMonthlyExceptionRepository>();
             service.AddScoped<INpmMarketClosureRepository, NpmMarketClosureRepository>();
