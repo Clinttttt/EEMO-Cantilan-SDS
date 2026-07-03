@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
@@ -9,7 +11,9 @@ namespace EEMOCantilanSDS.Application.Command.Admins.ToggleAdminStatus;
 public class ToggleAdminStatusCommandHandler(
     IAdminRepository adminRepo,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<ToggleAdminStatusCommand, Result<bool>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<ToggleAdminStatusCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ToggleAdminStatusCommand request, CancellationToken cancellationToken)
     {
@@ -36,6 +40,7 @@ public class ToggleAdminStatusCommandHandler(
         else admin.Deactivate(actor);
 
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
         return Result<bool>.Success(true);
     }
 }

@@ -33,8 +33,9 @@ namespace EEMOCantilanSDS.Infrastructure
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
-            service.AddMemoryCache();
-            service.AddSingleton<EemoCacheOptions>();
+            var eemoCacheOptions = new EemoCacheOptions();
+            service.AddMemoryCache(options => options.SizeLimit = eemoCacheOptions.SizeLimit);
+            service.AddSingleton(eemoCacheOptions);
             service.AddSingleton<MemoryEemoCacheInvalidator>();
             service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
             service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();

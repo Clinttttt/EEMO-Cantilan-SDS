@@ -2,9 +2,12 @@ using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
 using EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
 using EEMOCantilanSDS.Application.Command.Admins.ToggleAdminStatus;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Testing.Support;
 using Moq;
 
 namespace EEMOCantilanSDS.Testing;
@@ -28,11 +31,18 @@ public class AdminCommandHandlerTests
     {
         var repo = new Mock<IAdminRepository>();
         var uow = new Mock<IUnitOfWork>();
+        var cacheInvalidator = new Mock<IEemoCacheInvalidator>();
+        var tenantContext = new Mock<ITenantContext>();
+        tenantContext.SetupGet(t => t.TenantCode).Returns("cantilan");
         AdminUser? added = null;
         repo.Setup(r => r.AddAsync(It.IsAny<AdminUser>(), It.IsAny<CancellationToken>()))
             .Callback<AdminUser, CancellationToken>((a, _) => added = a)
             .Returns(Task.CompletedTask);
-        var handler = new CreateAdminCommandHandler(repo.Object, uow.Object);
+        var handler = new CreateAdminCommandHandler(
+            repo.Object,
+            uow.Object,
+            cacheInvalidator.Object,
+            tenantContext.Object);
 
         var result = await handler.Handle(
             new CreateAdminCommand("Maria Santos", "maria", "maria@eemo.gov", "Secret123!", AdminRole.Admin),
@@ -43,13 +53,21 @@ public class AdminCommandHandlerTests
         Assert.Equal(AdminRole.Admin, added!.Role);
         Assert.Equal("maria", result.Value!.Username);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        cacheInvalidator.Verify(
+            c => c.InvalidateReferenceDataAsync("cantilan", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public async Task Toggle_NotFound_Returns404()
     {
         var (repo, user, uow) = Mocks(null);
-        var handler = new ToggleAdminStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ToggleAdminStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new ToggleAdminStatusCommand(Guid.NewGuid(), Activate: true), CancellationToken.None);
 
@@ -64,7 +82,12 @@ public class AdminCommandHandlerTests
         user.SetupGet(c => c.UserId).Returns(admin.Id); // acting on own account
         // Another active SuperAdmin exists, so only the self-guard should trip.
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(1);
-        var handler = new ToggleAdminStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ToggleAdminStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
@@ -81,7 +104,12 @@ public class AdminCommandHandlerTests
         var (repo, user, uow) = Mocks(admin);
         user.SetupGet(c => c.UserId).Returns(Guid.NewGuid()); // a different head is acting
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(0);
-        var handler = new ToggleAdminStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ToggleAdminStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
@@ -96,7 +124,12 @@ public class AdminCommandHandlerTests
         var admin = NewAdmin(AdminRole.Admin);
         var (repo, user, uow) = Mocks(admin);
         user.SetupGet(c => c.UserId).Returns(Guid.NewGuid());
-        var handler = new ToggleAdminStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ToggleAdminStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
@@ -111,7 +144,12 @@ public class AdminCommandHandlerTests
         var admin = NewAdmin(AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(admin);
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(0);
-        var handler = new UpdateAdminCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new UpdateAdminCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),
@@ -128,7 +166,12 @@ public class AdminCommandHandlerTests
         var admin = NewAdmin(AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(admin);
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(1);
-        var handler = new UpdateAdminCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new UpdateAdminCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),

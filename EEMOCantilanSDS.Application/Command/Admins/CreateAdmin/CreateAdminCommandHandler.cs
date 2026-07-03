@@ -1,4 +1,6 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -6,7 +8,11 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
 
-public class CreateAdminCommandHandler(IAdminRepository adminRepo, IUnitOfWork uow)
+public class CreateAdminCommandHandler(
+    IAdminRepository adminRepo,
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext)
     : IRequestHandler<CreateAdminCommand, Result<AdminDto>>
 {
     public async Task<Result<AdminDto>> Handle(CreateAdminCommand request, CancellationToken cancellationToken)
@@ -20,6 +26,7 @@ public class CreateAdminCommandHandler(IAdminRepository adminRepo, IUnitOfWork u
 
         await adminRepo.AddAsync(admin, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 
         var dto = new AdminDto(
             admin.Id,

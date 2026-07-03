@@ -42,6 +42,9 @@ public static class EemoCacheKeys
     public static string ClosedAccounts(string tenantCode)
         => $"{NormalizeTenant(tenantCode)}:stalls:closed-accounts";
 
+    public static string ClosedAccounts(string tenantCode, DateOnly asOf)
+        => $"{NormalizeTenant(tenantCode)}:stalls:closed-accounts:{asOf:yyyy-MM-dd}";
+
     internal static string NormalizeTenant(string tenantCode)
         => string.IsNullOrWhiteSpace(tenantCode)
             ? "default"

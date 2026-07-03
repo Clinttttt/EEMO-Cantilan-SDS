@@ -1,4 +1,6 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -7,7 +9,11 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Collectors.CreateCollector;
 
-public class CreateCollectorCommandHandler(ICollectorRepository collectorRepo, IUnitOfWork uow) 
+public class CreateCollectorCommandHandler(
+    ICollectorRepository collectorRepo,
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) 
     : IRequestHandler<CreateCollectorCommand, Result<CollectorDto>>
 {
     public async Task<Result<CollectorDto>> Handle(CreateCollectorCommand request, CancellationToken cancellationToken)
@@ -25,6 +31,7 @@ public class CreateCollectorCommandHandler(ICollectorRepository collectorRepo, I
 
         await collectorRepo.AddFacilityAssignmentsAsync(collector.Id, request.AssignedFacilities, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 
         var savedCollector = await collectorRepo.GetByIdAsync(collector.Id, cancellationToken);
 

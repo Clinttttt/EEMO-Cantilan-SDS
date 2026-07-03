@@ -1,9 +1,12 @@
 using EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector;
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Testing.Support;
 using Moq;
 
 namespace EEMOCantilanSDS.Testing;
@@ -27,20 +30,36 @@ public class CollectorCommandHandlerTests
     {
         var collector = NewCollector(); // starts active
         var (repo, user, uow) = Mocks(collector);
-        var handler = new ToggleCollectorStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var cacheInvalidator = new Mock<IEemoCacheInvalidator>();
+        var tenantContext = new Mock<ITenantContext>();
+        tenantContext.SetupGet(t => t.TenantCode).Returns("cantilan");
+        var handler = new ToggleCollectorStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            cacheInvalidator.Object,
+            tenantContext.Object);
 
         var result = await handler.Handle(new ToggleCollectorStatusCommand(collector.Id, Activate: false), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.False(collector.IsActive);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        cacheInvalidator.Verify(
+            c => c.InvalidateReferenceDataAsync("cantilan", It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
     public async Task Toggle_NotFound_Returns404()
     {
         var (repo, user, uow) = Mocks(null);
-        var handler = new ToggleCollectorStatusCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new ToggleCollectorStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(new ToggleCollectorStatusCommand(Guid.NewGuid(), Activate: true), CancellationToken.None);
 
@@ -56,7 +75,12 @@ public class CollectorCommandHandlerTests
         repo.Setup(r => r.ReplaceFacilityAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<List<FacilityCode>>(), It.IsAny<CancellationToken>()))
             .Callback<Guid, List<FacilityCode>, CancellationToken>((_, codes, _) => replacedWith = codes)
             .Returns(Task.CompletedTask);
-        var handler = new UpdateCollectorCommandHandler(repo.Object, user.Object, uow.Object);
+        var handler = new UpdateCollectorCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
             new UpdateCollectorCommand(collector.Id, "New Name", "0999", "new@eemo.gov", new() { FacilityCode.NPM, FacilityCode.TCC }),

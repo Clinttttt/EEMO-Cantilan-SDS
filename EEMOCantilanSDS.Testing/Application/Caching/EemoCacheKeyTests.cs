@@ -80,9 +80,11 @@ public class EemoCacheKeyTests
     [Fact]
     public void ClosedAccountsRegions_SubscribeToReferenceData()
     {
+        var asOf = new DateOnly(2026, 7, 3);
         var regions = EemoCacheRegions.ClosedAccountsRegions("tenant");
 
         Assert.Equal("tenant:stalls:closed-accounts", EemoCacheKeys.ClosedAccounts("tenant"));
+        Assert.Equal("tenant:stalls:closed-accounts:2026-07-03", EemoCacheKeys.ClosedAccounts("tenant", asOf));
         Assert.Contains(EemoCacheRegions.ReferenceData("tenant"), regions);
         Assert.Contains(EemoCacheRegions.ActivityFeed("tenant"), regions);
     }

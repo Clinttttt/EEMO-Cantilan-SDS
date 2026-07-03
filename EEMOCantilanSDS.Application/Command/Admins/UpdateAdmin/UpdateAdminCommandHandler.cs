@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
@@ -9,7 +11,9 @@ namespace EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 public class UpdateAdminCommandHandler(
     IAdminRepository adminRepo,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<UpdateAdminCommand, Result<bool>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<UpdateAdminCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateAdminCommand request, CancellationToken cancellationToken)
     {
@@ -39,6 +43,7 @@ public class UpdateAdminCommandHandler(
         admin.ChangeRole(request.Role, actor);
 
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
         return Result<bool>.Success(true);
     }
 }

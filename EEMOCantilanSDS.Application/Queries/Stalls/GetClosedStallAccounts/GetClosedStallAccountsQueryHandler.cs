@@ -17,7 +17,8 @@ public class GetClosedStallAccountsQueryHandler(
     public async Task<Result<IReadOnlyList<ClosedStallAccountDto>>> Handle(
         GetClosedStallAccountsQuery request, CancellationToken ct)
     {
-        var key = EemoCacheKeys.ClosedAccounts(tenantContext.TenantCode);
+        var asOf = PhilippineTime.Today;
+        var key = EemoCacheKeys.ClosedAccounts(tenantContext.TenantCode, asOf);
         var regions = EemoCacheRegions.ClosedAccountsRegions(tenantContext.TenantCode);
         var result = await cache.GetOrCreateAsync(
             key,

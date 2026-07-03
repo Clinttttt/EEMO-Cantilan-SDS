@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
@@ -8,7 +10,9 @@ namespace EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 public sealed class UpdateCollectorProfileCommandHandler(
     ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork) : IRequestHandler<UpdateCollectorProfileCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<UpdateCollectorProfileCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateCollectorProfileCommand request, CancellationToken ct)
     {
@@ -27,6 +31,7 @@ public sealed class UpdateCollectorProfileCommandHandler(
             currentUser.Username ?? "Collector");
 
         await unitOfWork.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
         return Result<bool>.Success(true);
     }
 }

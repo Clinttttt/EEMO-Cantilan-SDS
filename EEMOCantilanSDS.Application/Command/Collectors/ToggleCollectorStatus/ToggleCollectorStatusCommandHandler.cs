@@ -1,5 +1,7 @@
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
@@ -8,7 +10,9 @@ namespace EEMOCantilanSDS.Application.Command.Collectors.ToggleCollectorStatus;
 public class ToggleCollectorStatusCommandHandler(
     ICollectorRepository collectorRepo,
     ICurrentUserService currentUser,
-    IUnitOfWork uow) : IRequestHandler<ToggleCollectorStatusCommand, Result<bool>>
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<ToggleCollectorStatusCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ToggleCollectorStatusCommand request, CancellationToken cancellationToken)
     {
@@ -20,6 +24,7 @@ public class ToggleCollectorStatusCommandHandler(
         else collector.Deactivate(actor);
 
         await uow.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
         return Result<bool>.Success(true);
     }
 }
