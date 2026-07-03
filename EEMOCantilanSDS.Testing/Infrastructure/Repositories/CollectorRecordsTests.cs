@@ -43,6 +43,30 @@ public class CollectorRecordsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task Slaughter_GroupsMultipleAnimalsUnderOneReceipt()
+    {
+        // One slaughter OR covers a customer's whole visit — several animal rows under the same OR are
+        // ONE receipt and must render as a single feed card, with the per-animal breakdown preserved.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        ctx.Add(SlaughterTransaction.CreateHog(Guid.NewGuid(), me, "Jericho Rosales", 1, "OR-464773", Today));
+        ctx.Add(SlaughterTransaction.CreateLargeAnimal(Guid.NewGuid(), me, "Jericho Rosales", AnimalType.Carabao, 1, "OR-464773", Today));
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var records = await repo.GetCollectorRecordsAsync(me, FacilityCode.SLH, Today, Today, CancellationToken.None);
+
+        var receipt = Assert.Single(records);                       // ONE card, not two
+        Assert.Equal("Jericho Rosales", receipt.PayorName);
+        Assert.Equal("OR-464773", receipt.ORNumber);
+        Assert.NotNull(receipt.SlaughterLines);
+        Assert.Equal(2, receipt.SlaughterLines!.Count);             // both animal lines preserved for the popup
+        Assert.Equal(receipt.Amount, receipt.SlaughterLines.Sum(l => l.Amount)); // card total == sum of lines
+        Assert.Equal(receipt.Amount, receipt.AmountPaid);
+    }
+
+    [Fact]
     public async Task RespectsDateRange()
     {
         await using var ctx = NewContext();

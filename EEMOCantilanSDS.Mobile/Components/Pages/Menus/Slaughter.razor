@@ -11,6 +11,7 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@implements IDisposable
 
 <div class="page-shell">
     <div class="header">
@@ -67,7 +68,7 @@
 
             <div class="section-label">Today's Transactions</div>
 
-            @if (!Collection.Transactions.Any())
+            @if (!Collection.Transactions.Any() && QueuedReceipts.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">No transactions yet</div>
@@ -76,6 +77,36 @@
             }
             else
             {
+                @foreach (var q in QueuedReceipts)
+                {
+                    <div class="tx-card tx-card-queued">
+                        <div class="tx-left-bar tx-left-bar-queued"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@q.Owner</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        <span class="tx-tag">@q.Lines.First().Label</span>
+                                        @if (q.Lines.Count > 1)
+                                        {
+                                            <span class="tx-tag">+@(q.Lines.Count - 1) more</span>
+                                        }
+                                        <span class="tx-or">@q.TotalHeads head@(q.TotalHeads == 1 ? "" : "s")</span>
+                                        @if (!string.IsNullOrWhiteSpace(q.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @q.ORNumber</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-amount">@FormatCurrency(q.Total)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
                 @foreach (var r in GroupedReceipts)
                 {
                     <button class="tx-card" type="button" @onclick="() => OpenReceipt(r)">
@@ -412,6 +443,17 @@
     private DateOnly SelectedDate;
     private bool ShowSheet;
 
+    // Offline captures for this day (Kind = Slaughter), grouped into receipts for the "Queued · Offline" cards.
+    private IReadOnlyList<QueuedReceipt> QueuedReceipts = Array.Empty<QueuedReceipt>();
+    private bool _disposed;
+
+    private sealed record QueuedLine(string Label, int Heads, decimal Amount);
+    private sealed record QueuedReceipt(string Owner, string? ORNumber, IReadOnlyList<QueuedLine> Lines)
+    {
+        public int TotalHeads => Lines.Sum(l => l.Heads);
+        public decimal Total => Lines.Sum(l => l.Amount);
+    }
+
     // Receipt view (grouped transaction)
     private bool ShowReceipt;
     private SlaughterReceipt? SelectedReceipt;
@@ -552,6 +594,9 @@
 
         SelectedDate = Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
         await LoadCollectionAsync();
+
+        Sync.Changed += OnSyncChanged;
+        await RefreshQueuedAsync();
     }
 
     private async Task LoadCollectionAsync()
@@ -820,6 +865,7 @@
                 });
             }
 
+            await RefreshQueuedAsync();
             CloseSheet();
             IsSaving = false;
             return;
@@ -854,6 +900,50 @@
     {
         ShowSheet = false;
         SheetError = null;
+    }
+
+    // Build the "Queued · Offline" receipt cards from this collector's pending SLH captures for the day.
+    private async Task RefreshQueuedAsync()
+    {
+        var pending = await Sync.GetAllAsync();
+        QueuedReceipts = pending
+            .Where(o => o.Kind == OfflineOperationKind.Slaughter
+                     && o.BusinessDate == SelectedDate
+                     && o.LocalStatus != PendingLocalStatus.Synced)
+            .GroupBy(o => new { o.OwnerName, OR = o.ORNumber ?? string.Empty })
+            .Select(g => new QueuedReceipt(
+                g.Key.OwnerName ?? "—",
+                g.First().ORNumber,
+                g.Select(o => new QueuedLine(
+                    o.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(o.CustomAnimalType)
+                        ? o.CustomAnimalType!
+                        : (o.AnimalType?.ToString() ?? "Animal"),
+                    o.NumberOfHeads ?? 0,
+                    o.Amount)).ToList()))
+            .ToList();
+    }
+
+    // Sync events fire off the UI thread — marshal before touching state. A queued item that syncs
+    // drops off here and reappears (from the server) after the next load.
+    private async void OnSyncChanged()
+    {
+        if (_disposed) return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (_disposed) return;
+                await RefreshQueuedAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* navigated away */ }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Sync.Changed -= OnSyncChanged;
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";

@@ -11,6 +11,7 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@implements IDisposable
 
 <div class="page-shell">
     <div class="header">
@@ -79,7 +80,7 @@
 
             <div class="section-label">Vendor Attendance</div>
 
-            @if (!FilteredAttendances.Any())
+            @if (!FilteredAttendances.Any() && QueuedVendors.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">No vendors yet</div>
@@ -88,6 +89,34 @@
             }
             else
             {
+                @foreach (var q in QueuedVendors)
+                {
+                    <div class="tx-card tx-card-queued">
+                        <div class="tx-left-bar tx-left-bar-queued"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@q.Vendor</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        @if (!string.IsNullOrWhiteSpace(q.Goods))
+                                        {
+                                            <span class="tx-tag">@q.Goods</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(q.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @q.ORNumber</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-amount">@FormatCurrency(q.Fee)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
                 @foreach (var a in FilteredAttendances)
                 {
                     <button class="tx-card" type="button" @onclick="() => OpenVendorAction(a)">
@@ -296,6 +325,11 @@
     private string Goods = string.Empty;
     private string AddORNumber = string.Empty;
 
+    // Offline vendor captures (Kind = TpmVendor) for this market day, shown as "Queued · Offline" cards.
+    private IReadOnlyList<QueuedVendor> QueuedVendors = Array.Empty<QueuedVendor>();
+    private bool _disposed;
+    private sealed record QueuedVendor(string Vendor, string? Goods, string? ORNumber, decimal Fee);
+
     private IReadOnlyList<string> KnownGoods => Collection?.KnownGoods ?? Array.Empty<string>();
     private IReadOnlyList<MobileTpmKnownVendorDto> KnownVendors => Collection?.KnownVendors ?? Array.Empty<MobileTpmKnownVendorDto>();
     private IReadOnlyList<string> KnownVendorNames => KnownVendors.Select(v => v.Name).ToList();
@@ -320,6 +354,9 @@
         }
 
         await LoadCollectionAsync();
+
+        Sync.Changed += OnSyncChanged;
+        await RefreshQueuedAsync();
     }
 
     private async Task LoadCollectionAsync()
@@ -446,6 +483,7 @@
                 Amount = Collection?.VendorFee ?? 100m
             });
 
+            await RefreshQueuedAsync();
             CloseSheets();
             IsSaving = false;
             return;
@@ -574,4 +612,38 @@
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+
+    // Build the "Queued · Offline" vendor cards from this collector's pending TPM captures for the market day.
+    private async Task RefreshQueuedAsync()
+    {
+        var marketDate = Collection?.MarketDate ?? DateOnly.FromDateTime(DateTime.Now);
+        var pending = await Sync.GetAllAsync();
+        QueuedVendors = pending
+            .Where(o => o.Kind == OfflineOperationKind.TpmVendor
+                     && o.BusinessDate == marketDate
+                     && o.LocalStatus != PendingLocalStatus.Synced)
+            .Select(o => new QueuedVendor(o.VendorName ?? "—", o.Goods, o.ORNumber, o.Amount))
+            .ToList();
+    }
+
+    private async void OnSyncChanged()
+    {
+        if (_disposed) return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (_disposed) return;
+                await RefreshQueuedAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* navigated away */ }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Sync.Changed -= OnSyncChanged;
+    }
 }

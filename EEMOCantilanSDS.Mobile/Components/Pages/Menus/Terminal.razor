@@ -11,6 +11,7 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@implements IDisposable
 
 <div class="page-shell">
     <div class="header">
@@ -124,7 +125,7 @@
 
             <div class="section-label">Today's Trips</div>
 
-            @if (!Collection.TodayTrips.Any())
+            @if (!Collection.TodayTrips.Any() && QueuedTrips.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">No trips yet</div>
@@ -133,6 +134,38 @@
             }
             else
             {
+                @foreach (var q in QueuedTrips)
+                {
+                    <div class="tx-card tx-card-queued">
+                        <div class="tx-left-bar tx-left-bar-queued"></div>
+                        <div class="tx-body">
+                            <div class="tx-row-main">
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@q.Driver</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        @if (!string.IsNullOrWhiteSpace(q.Plate))
+                                        {
+                                            <span class="tx-tag">@q.Plate</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(q.Route))
+                                        {
+                                            <span class="tx-or">@q.Route</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(q.ORNumber))
+                                        {
+                                            <span class="tx-or">OR @q.ORNumber</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    <span class="tx-trip-amount">@FormatCurrency(q.Fee)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
                 @foreach (var trip in Collection.TodayTrips)
                 {
                     <div class="tx-card" @onclick="() => OpenTripReceipt(trip)">
@@ -409,6 +442,11 @@
     private string Route = string.Empty;
     private string ORNumber = string.Empty;
 
+    // Offline trip captures (Kind = Trip) for today, shown as "Queued · Offline" cards.
+    private IReadOnlyList<QueuedTrip> QueuedTrips = Array.Empty<QueuedTrip>();
+    private bool _disposed;
+    private sealed record QueuedTrip(string Driver, string? Plate, string? Route, string? ORNumber, decimal Fee);
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -429,6 +467,9 @@
         }
 
         await LoadCollectionAsync();
+
+        Sync.Changed += OnSyncChanged;
+        await RefreshQueuedAsync();
     }
 
     private async Task LoadCollectionAsync()
@@ -613,6 +654,7 @@
                 Amount = Collection?.TripFee ?? 30m
             });
 
+            await RefreshQueuedAsync();
             CloseQuickTripSheet();
             IsSaving = false;
             return;
@@ -742,6 +784,7 @@
                 Amount = Collection!.TripFee
             });
 
+            await RefreshQueuedAsync();
             CloseSheet();
             IsSaving = false;
             return;
@@ -778,6 +821,40 @@
         ShowSheet = false;
         SelectedTransporter = null;
         SheetError = null;
+    }
+
+    // Build the "Queued · Offline" trip cards from this collector's pending TRM captures for the day.
+    private async Task RefreshQueuedAsync()
+    {
+        var today = Collection?.Date ?? DateOnly.FromDateTime(DateTime.Now);
+        var pending = await Sync.GetAllAsync();
+        QueuedTrips = pending
+            .Where(o => o.Kind == OfflineOperationKind.Trip
+                     && o.BusinessDate == today
+                     && o.LocalStatus != PendingLocalStatus.Synced)
+            .Select(o => new QueuedTrip(o.DriverName ?? "—", o.PlateNumber, o.Route, o.ORNumber, o.Amount))
+            .ToList();
+    }
+
+    private async void OnSyncChanged()
+    {
+        if (_disposed) return;
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                if (_disposed) return;
+                await RefreshQueuedAsync();
+                StateHasChanged();
+            });
+        }
+        catch { /* navigated away */ }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Sync.Changed -= OnSyncChanged;
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";

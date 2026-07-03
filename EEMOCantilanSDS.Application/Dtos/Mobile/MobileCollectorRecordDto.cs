@@ -27,4 +27,15 @@ public sealed record MobileCollectorRecordDto(
     bool IsAdminRecorded = false,
     // True for an NPM daily collection marked Absent/Excused (₱0 owed, no OR) — shown distinctly so
     // the collector's "marked absent" actions appear on the feed, never counted as a paid collection.
-    bool IsAbsent = false);
+    bool IsAbsent = false,
+    // Slaughterhouse only: the per-animal-type breakdown of the receipt. One SLH OR covers a customer's
+    // whole visit, so multiple animal rows are grouped into ONE record here, with each line shown in the
+    // detail popup. Null for every other facility (and for single-line receipts it still carries the one line).
+    IReadOnlyList<MobileSlaughterLineDto>? SlaughterLines = null);
+
+/// <summary>One animal-type line within a slaughterhouse receipt (for the grouped record's detail view).</summary>
+public sealed record MobileSlaughterLineDto(
+    string AnimalType,
+    int Heads,
+    decimal RatePerHead,
+    decimal Amount);

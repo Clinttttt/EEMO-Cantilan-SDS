@@ -135,17 +135,42 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 {
                     s.ORNumber,
                     s.OwnerName,
+                    s.AnimalType,
+                    s.CustomAnimalType,
                     s.RatePerHead,
                     s.NumberOfHeads,
+                    s.TransactionDate,
                     IsAdmin = s.CollectorId == null,
                     When = s.UpdatedAt ?? s.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
 
-            results.AddRange(rows.Select(s => new MobileCollectorRecordDto(
-                s.ORNumber ?? "—", s.OwnerName, FacilityCode.SLH, string.Empty, null,
-                "Slaughter", s.RatePerHead * s.NumberOfHeads, s.RatePerHead * s.NumberOfHeads, false, PhilippineTime.ToPhilippineTime(s.When),
-                IsAdminRecorded: s.IsAdmin)));
+            // One slaughter OR covers a customer's whole visit, so several animal rows can share a
+            // receipt. Group per receipt → ONE feed card per receipt (total amount), with the animal
+            // breakdown carried for the detail popup. Key by OR when present, else by owner + date
+            // (an unreceipted batch captured in one visit).
+            var slhGroups = rows.GroupBy(r => !string.IsNullOrWhiteSpace(r.ORNumber)
+                ? $"OR::{r.ORNumber}"
+                : $"OD::{r.OwnerName}|{r.TransactionDate:yyyy-MM-dd}");
+
+            results.AddRange(slhGroups.Select(g =>
+            {
+                var total = g.Sum(x => x.RatePerHead * x.NumberOfHeads);
+                var lines = g
+                    .OrderBy(x => string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType)
+                    .Select(x => new MobileSlaughterLineDto(
+                        string.IsNullOrWhiteSpace(x.CustomAnimalType) ? x.AnimalType.ToString() : x.CustomAnimalType!,
+                        x.NumberOfHeads,
+                        x.RatePerHead,
+                        x.RatePerHead * x.NumberOfHeads))
+                    .ToList();
+                var first = g.First();
+                return new MobileCollectorRecordDto(
+                    first.ORNumber ?? "—", first.OwnerName, FacilityCode.SLH, string.Empty, null,
+                    "Slaughter", total, total, false, PhilippineTime.ToPhilippineTime(g.Max(x => x.When)),
+                    IsAdminRecorded: g.All(x => x.IsAdmin),
+                    SlaughterLines: lines);
+            }));
         }
 
         // ── Transport terminal — collection event = RecordedAt ──

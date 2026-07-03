@@ -439,3 +439,28 @@
 .tx-or { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .tx-col-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+
+/* ── Queued · Offline transaction card ──────────────────────── */
+.tx-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.tx-badge.badge-queued {
+    color: #e8cc76;
+    background: var(--navy-primary);
+}
+
+.tx-card-queued {
+    border-style: dashed;
+    cursor: default;
+}
+
+.tx-left-bar-queued {
+    background: #c8a84b;
+}
