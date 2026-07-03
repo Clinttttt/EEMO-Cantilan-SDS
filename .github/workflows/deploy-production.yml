@@ -22,8 +22,8 @@ env:
   ACR_LOGIN_SERVER: acrstalltrackclint2026.azurecr.io
   API_APP_NAME: stalltrack-api-clint-2026
   PORTAL_APP_NAME: stalltrack-web-clint-2026
-  API_HEALTH_URL: https://api.stalltrack.site/health
-  PORTAL_URL: https://eemo.stalltrack.site/login
+  API_HEALTH_URL: https://stalltrack-api-clint-2026-g9awcrbed5fdakh8.southeastasia-01.azurewebsites.net/health
+  PORTAL_URL: https://stalltrack-web-clint-2026-g0h0hzadbwe2frd7.southeastasia-01.azurewebsites.net/login
 
 jobs:
   verify:
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://eemo.stalltrack.site
+      url: https://stalltrack-web-clint-2026-g0h0hzadbwe2frd7.southeastasia-01.azurewebsites.net
 
     steps:
       - name: Check out source
