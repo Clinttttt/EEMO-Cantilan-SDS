@@ -25,20 +25,29 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
         var all = facility is null;
         var results = new List<TransactionFeedDto>();
 
+        // Resolve collector names once (small table) to attribute each row: collector-recorded rows show
+        // the collector's name; admin/head-recorded rows (CollectorId null) fall back to the audit actor.
+        var collectors = await context.CollectorUsers
+            .AsNoTracking()
+            .ToDictionaryAsync(
+                c => c.Id,
+                c => string.IsNullOrWhiteSpace(c.FullName) ? (c.Username ?? "Collector") : c.FullName!,
+                ct);
+
         if (all || facility is FacilityCode.NPM or FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE)
-            results.AddRange(await StallPaymentRowsAsync(facility, onDate, limit, ct));
+            results.AddRange(await StallPaymentRowsAsync(facility, onDate, limit, collectors, ct));
 
         if (all || facility is FacilityCode.NPM)
-            results.AddRange(await DailyCollectionRowsAsync(onDate, limit, ct));
+            results.AddRange(await DailyCollectionRowsAsync(onDate, limit, collectors, ct));
 
         if (all || facility is FacilityCode.SLH)
-            results.AddRange(await SlaughterRowsAsync(onDate, limit, ct));
+            results.AddRange(await SlaughterRowsAsync(onDate, limit, collectors, ct));
 
         if (all || facility is FacilityCode.TRM)
-            results.AddRange(await TripRowsAsync(onDate, limit, ct));
+            results.AddRange(await TripRowsAsync(onDate, limit, collectors, ct));
 
         if (all || facility is FacilityCode.TPM)
-            results.AddRange(await AttendanceRowsAsync(onDate, limit, ct));
+            results.AddRange(await AttendanceRowsAsync(onDate, limit, collectors, ct));
 
         return results
             .OrderByDescending(r => r.OccurredAt)
@@ -46,7 +55,16 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
             .ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> StallPaymentRowsAsync(FacilityCode? facility, DateOnly? onDate, int limit, CancellationToken ct)
+    // Attribution: collector-recorded rows resolve to the collector's name; admin/head-recorded rows
+    // (CollectorId null) fall back to the audit actor stored in CreatedBy.
+    private static string Recorder(Guid? collectorId, string? createdBy, IReadOnlyDictionary<Guid, string> collectors)
+    {
+        if (collectorId is { } id)
+            return collectors.TryGetValue(id, out var name) ? name : "Collector";
+        return string.IsNullOrWhiteSpace(createdBy) ? "Admin" : createdBy!;
+    }
+
+    private async Task<List<TransactionFeedDto>> StallPaymentRowsAsync(FacilityCode? facility, DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.PaymentRecords.AsNoTracking().Where(p => p.Status != PaymentStatus.Unpaid);
         if (facility is not null)
@@ -77,6 +95,8 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 p.ORNumber,
                 p.BillingYear,
                 p.BillingMonth,
+                p.CollectorId,
+                p.CreatedBy,
                 When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
             })
             .ToListAsync(ct);
@@ -94,11 +114,12 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 string.IsNullOrWhiteSpace(r.Occupant) ? "Stall " + r.StallNo : r.Occupant!,
                 $"Stall {r.StallNo} · for {period}",
                 "Monthly Rent", amount, r.ORNumber,
-                r.Status == PaymentStatus.Paid ? "Paid" : "Partial");
+                r.Status == PaymentStatus.Paid ? "Paid" : "Partial",
+                Recorder(r.CollectorId, r.CreatedBy, collectors));
         }).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> DailyCollectionRowsAsync(DateOnly? onDate, int limit, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> DailyCollectionRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.DailyCollections.AsNoTracking().Where(d => d.IsPaid);
         if (onDate is { } d)
@@ -117,6 +138,8 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 d.DailyFee,
                 d.FishKilos,
                 d.ORNumber,
+                d.CollectorId,
+                d.CreatedBy,
                 d.CollectionDate
             })
             .ToListAsync(ct);
@@ -128,11 +151,12 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 r.Id, r.Code, r.FacilityName, r.CollectionDate.ToDateTime(TimeOnly.MinValue), false,
                 string.IsNullOrWhiteSpace(r.Occupant) ? "Stall " + r.StallNo : r.Occupant!,
                 $"Stall {r.StallNo}",
-                "Daily Fee", amount, r.ORNumber, "Paid");
+                "Daily Fee", amount, r.ORNumber, "Paid",
+                Recorder(r.CollectorId, r.CreatedBy, collectors));
         }).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(DateOnly? onDate, int limit, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.SlaughterTransactions.AsNoTracking();
         if (onDate is { } d)
@@ -151,6 +175,8 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 s.NumberOfHeads,
                 s.RatePerHead,
                 s.ORNumber,
+                s.CollectorId,
+                s.CreatedBy,
                 s.TransactionDate
             })
             .ToListAsync(ct);
@@ -171,11 +197,12 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                     first.TransactionDate.ToDateTime(TimeOnly.MinValue), false,
                     first.OwnerName,
                     animals,
-                    "Slaughter", g.Sum(x => x.RatePerHead * x.NumberOfHeads), first.ORNumber, "Paid");
+                    "Slaughter", g.Sum(x => x.RatePerHead * x.NumberOfHeads), first.ORNumber, "Paid",
+                    Recorder(first.CollectorId, first.CreatedBy, collectors));
             }).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> TripRowsAsync(DateOnly? onDate, int limit, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> TripRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.TrmTrips.AsNoTracking();
         if (onDate is { } d)
@@ -195,6 +222,8 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 t.Route,
                 t.Fee,
                 t.ORNumber,
+                t.CollectorId,
+                t.CreatedBy,
                 When = t.RecordedAt
             })
             .ToListAsync(ct);
@@ -203,10 +232,11 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
             r.Id, FacilityCode.TRM, "Transport Terminal", PhilippineTime.ToPhilippineTime(r.When), true,
             r.DriverName,
             $"{r.PlateNumber} · {r.Route}",
-            "Terminal Trip", r.Fee, r.ORNumber, "Paid")).ToList();
+            "Terminal Trip", r.Fee, r.ORNumber, "Paid",
+            Recorder(r.CollectorId, r.CreatedBy, collectors))).ToList();
     }
 
-    private async Task<List<TransactionFeedDto>> AttendanceRowsAsync(DateOnly? onDate, int limit, CancellationToken ct)
+    private async Task<List<TransactionFeedDto>> AttendanceRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
         var q = context.TpmAttendances.AsNoTracking().Where(a => a.IsPaid);
         if (onDate is { } d)
@@ -222,6 +252,8 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
                 a.Vendor.Goods,
                 a.Fee,
                 a.ORNumber,
+                a.CollectorId,
+                a.CreatedBy,
                 a.MarketDate
             })
             .ToListAsync(ct);
@@ -230,6 +262,7 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
             r.Id, FacilityCode.TPM, "Tabo-an Public Market", r.MarketDate.ToDateTime(TimeOnly.MinValue), false,
             r.VendorName,
             r.Goods,
-            "Market Day", r.Fee, r.ORNumber, "Paid")).ToList();
+            "Market Day", r.Fee, r.ORNumber, "Paid",
+            Recorder(r.CollectorId, r.CreatedBy, collectors))).ToList();
     }
 }

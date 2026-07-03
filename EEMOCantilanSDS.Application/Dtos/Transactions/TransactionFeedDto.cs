@@ -19,5 +19,6 @@ public record TransactionFeedDto(
     string Kind,           // "Monthly Rent", "Daily Fee", "Slaughter", "Terminal Trip", "Market Day"
     decimal Amount,
     string? ORNumber,
-    string Status          // "Paid" / "Partial"
+    string Status,         // "Paid" / "Partial"
+    string RecordedBy      // collector's name, or the admin/head who recorded it (audit actor)
 );

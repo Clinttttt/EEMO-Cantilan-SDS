@@ -92,7 +92,7 @@ public class GetFinancialReportQueryHandlerTests
         feed.Setup(f => f.GetRecentTransactionsAsync(It.IsAny<FacilityCode?>(), It.IsAny<DateOnly?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
-                new TransactionFeedDto(Guid.NewGuid(), FacilityCode.NPM, "New Public Market", new DateTime(2026, 3, 25), true, "Luz Cano", "5", "Daily Fee", 930m, "OR-9", "Paid")
+                new TransactionFeedDto(Guid.NewGuid(), FacilityCode.NPM, "New Public Market", new DateTime(2026, 3, 25), true, "Luz Cano", "5", "Daily Fee", 930m, "OR-9", "Paid", "Admin")
             });
 
         var handler = new GetFinancialReportQueryHandler(

@@ -64,6 +64,34 @@ public class TransactionFeedTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task GetRecent_AttributesRecorder_CollectorNameOrAdminActor()
+    {
+        var context = NewContext();
+        var slhFac = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        context.Facilities.Add(slhFac);
+
+        // A registered collector who recorded one receipt on the mobile app.
+        var collector = EEMOCantilanSDS.Domain.Entities.Users.CollectorUser.Create(
+            "Maria Santos", "EMP-01", "msantos", "m@eemo.gov", "0917", "Passw0rd!");
+        context.CollectorUsers.Add(collector);
+
+        var date = new DateOnly(2026, 6, 11);
+        // Collector-recorded (CollectorId set) → shows the collector's full name.
+        context.SlaughterTransactions.Add(
+            SlaughterTransaction.CreateHog(slhFac.Id, collector.Id, "Owner A", 1, "OR-COL-1", date));
+        // Admin/head-recorded (CollectorId null, audit actor "head") → shows the actor.
+        context.SlaughterTransactions.Add(
+            SlaughterTransaction.CreateHog(slhFac.Id, null, "Owner B", 1, "OR-ADM-1", date, createdBy: "head"));
+        await context.SaveChangesAsync();
+
+        var repo = new TransactionFeedRepository(context);
+        var feed = await repo.GetRecentTransactionsAsync(FacilityCode.SLH, null, 100, CancellationToken.None);
+
+        Assert.Equal("Maria Santos", feed.Single(t => t.ORNumber == "OR-COL-1").RecordedBy);
+        Assert.Equal("head", feed.Single(t => t.ORNumber == "OR-ADM-1").RecordedBy);
+    }
+
+    [Fact]
     public async Task GetRecent_FacilityFilter_ReturnsOnlyThatFacility()
     {
         var context = NewContext();

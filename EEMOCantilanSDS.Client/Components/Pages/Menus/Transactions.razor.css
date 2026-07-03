@@ -262,3 +262,6 @@
     color: var(--text-subtle);
     font-weight: 500;
 }
+
+/* Recorded-by column — subtle, secondary to the money columns. */
+.txn-recorder { color: var(--text-subtle); font-size: 12px; white-space: nowrap; }

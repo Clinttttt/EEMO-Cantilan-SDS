@@ -122,6 +122,7 @@
                         <th class="txn-num">Amount</th>
                         <th>OR No.</th>
                         <th>Status</th>
+                        <th>Recorded by</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -152,6 +153,7 @@
                             <td class="txn-num txn-amount">&#8369;@g.Total.ToString("N2")</td>
                             <td class="txn-or">@(string.IsNullOrEmpty(t.ORNumber) ? "—" : t.ORNumber)</td>
                             <td><span class="txn-status @(t.Status == "Paid" ? "paid" : "partial")">@t.Status</span></td>
+                            <td class="txn-recorder">@t.RecordedBy</td>
                         </tr>
 
                         @if (g.IsGroup && expanded)
@@ -166,6 +168,7 @@
                                         <div class="txn-subref">@line.Reference</div>
                                     </td>
                                     <td class="txn-num txn-subamount">&#8369;@line.Amount.ToString("N2")</td>
+                                    <td></td>
                                     <td></td>
                                     <td></td>
                                 </tr>
@@ -331,9 +334,27 @@
         if (paintLoading)
             await PaintLoadingAsync();
 
-        var result = await TransactionsApi.GetRecentAsync(ActiveFilter, SelectedDate, 200);
-        Feed = result.IsSuccess && result.Value is not null ? result.Value : Array.Empty<TransactionFeedDto>();
-        CachedTransactions = new TransactionsPageState(ActiveFilter, SelectedDate, Feed.ToList());
+        // Cold-start resilience: during prerender the JWT may not be attached yet, so the API can return
+        // 401/403 before the circuit is ready. Retry briefly, and NEVER persist a failed/empty-by-error
+        // load — otherwise the cached empty feed is served on the interactive pass and every refresh,
+        // and the reload is skipped (the "refresh shows 0" bug).
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var result = await TransactionsApi.GetRecentAsync(ActiveFilter, SelectedDate, 200);
+            if (result.IsSuccess)
+            {
+                Feed = result.Value ?? Array.Empty<TransactionFeedDto>();
+                CachedTransactions = new TransactionsPageState(ActiveFilter, SelectedDate, Feed.ToList());
+                IsLoading = false;
+                return;
+            }
+            if (result.StatusCode is not (401 or 403))
+                break;
+            await Task.Delay(400);
+        }
+
+        // Failed load: show an empty feed but do NOT cache it, so the next lifecycle/refresh retries.
+        Feed = Array.Empty<TransactionFeedDto>();
         IsLoading = false;
     }
 
