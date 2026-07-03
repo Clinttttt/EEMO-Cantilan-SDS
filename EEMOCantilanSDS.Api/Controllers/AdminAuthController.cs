@@ -9,6 +9,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -18,6 +19,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 public class AdminAuthController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> LoginAsync([FromBody] LoginCommand request)
     {
         var result = await Sender.Send(request);
@@ -29,6 +31,7 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     [HttpPost("refresh-token")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> RefreshAsync([FromBody] RefreshTokenCommand request)
     {
         var refreshToken = string.IsNullOrWhiteSpace(request?.RefreshToken)

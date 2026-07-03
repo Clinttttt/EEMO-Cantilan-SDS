@@ -36,7 +36,9 @@ if (app.Environment.IsDevelopment())
 
 if (!app.Environment.IsDevelopment())
 {
+    app.UseHsts();
     app.UseHttpsRedirection();
+    app.UseMiddleware<SecurityHeadersMiddleware>();
 }
 
 
@@ -48,6 +50,8 @@ app.UseCookiePolicy(new CookiePolicyOptions
 });
 
 app.UseRouting();
+
+app.UseRateLimiter();
 
 app.UseCors("AllowClient");
 

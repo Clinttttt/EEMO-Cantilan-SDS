@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -13,6 +14,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 public class CollectorAuthController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> LoginAsync([FromBody] CollectorLoginCommand request)
     {
         var result = await Sender.Send(request);
@@ -20,6 +22,7 @@ public class CollectorAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     [HttpPost("refresh-token")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> RefreshAsync([FromBody] RefreshTokenCommand request)
     {
         var result = await Sender.Send(request);

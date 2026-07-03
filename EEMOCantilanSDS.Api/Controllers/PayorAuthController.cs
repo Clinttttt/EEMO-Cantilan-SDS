@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Dtos;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -15,6 +16,7 @@ public class PayorAuthController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost("activate")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> ActivateAsync([FromBody] ActivatePayorAccountCommand request)
     {
         var result = await Sender.Send(request);
@@ -23,6 +25,7 @@ public class PayorAuthController(ISender sender) : ApiBaseController(sender)
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> LoginAsync([FromBody] PayorLoginCommand request)
     {
         var result = await Sender.Send(request);
@@ -31,6 +34,7 @@ public class PayorAuthController(ISender sender) : ApiBaseController(sender)
 
     [HttpPost("refresh-token")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> RefreshAsync([FromBody] RefreshTokenCommand request)
     {
         var result = await Sender.Send(request);
