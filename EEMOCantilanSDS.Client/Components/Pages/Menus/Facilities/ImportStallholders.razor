@@ -76,7 +76,7 @@
                 <div>
                     <div class="imp-hero-eyebrow">@(_facility.ShortCode + SectionSuffix) · Bulk Import</div>
                     <div class="imp-hero-title">Import @_facility.Name Stallholders</div>
-                    <div class="imp-hero-sub">Upload a list, review &amp; edit, then save — instead of adding vendors one by one.</div>
+                    <div class="imp-hero-sub">Upload a list, review &amp; edit, then save.</div>
                 </div>
             </div>
             <div class="imp-steps">
@@ -223,6 +223,18 @@
                 </div>
             </div>
 
+            @if (_autoContinued)
+            {
+                <div class="imp-continue-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                    <span>
+                        Some numbers already exist in <strong>@_facility.Name@SectionSuffix</strong> — the batch was
+                        renumbered to continue from <strong>#@(_existingMax + 1)</strong> so nothing conflicts.
+                        You can still edit any Stall / Space No. below.
+                    </span>
+                </div>
+            }
+
             <div class="imp-table-wrap">
                 <table class="imp-table">
                     <thead>
@@ -263,10 +275,11 @@
                                         }
                                         else
                                         {
-                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "")"
+                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
                                                    type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
                                                    value="@GetCell(row, col.Key)"
                                                    placeholder="@col.Placeholder"
+                                                   title="@(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "This occupant is already an active stallholder in this facility." : null)"
                                                    @oninput="e => SetCell(row, col.Key, e.Value?.ToString())" />
                                         }
                                     </td>
@@ -327,6 +340,13 @@
     private BulkImportResultDto? _result;
     private string? _saveError;
 
+    // Auto-continue stall numbering: when imported numbers would collide with the facility's existing
+    // stalls, renumber the batch to continue after the current highest number so nothing conflicts.
+    private int _existingMax;
+    private bool _autoContinued;
+    // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
+    private readonly HashSet<string> _existingOccupants = new(StringComparer.OrdinalIgnoreCase);
+
     private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
 
     protected override void OnParametersSet()
@@ -362,6 +382,9 @@
         _loaded = false;
         _fileName = string.Empty;
         _uploadError = null;
+        _autoContinued = false;
+        _existingMax = 0;
+        _existingOccupants.Clear();
     }
 
     public record NpmSectionOption(string Name, string Desc, string Css, string Icon);
@@ -379,7 +402,85 @@
     private void AddRow()
     {
         if (_facility is null) return;
-        _rows.Add(NewRow(_facility));
+        var row = NewRow(_facility);
+        // Continue numbering from the highest number already in the facility or the current batch.
+        var batchMax = _rows.Select(r => ParseStallInt(GetCell(r, "stallNo"))).DefaultIfEmpty(0).Max();
+        row["stallNo"] = (Math.Max(_existingMax, batchMax) + 1).ToString();
+        _rows.Add(row);
+    }
+
+    private static int ParseStallInt(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 0;
+        var m = System.Text.RegularExpressions.Regex.Match(value, @"\d+");
+        return m.Success && int.TryParse(m.Value, out var n) ? n : 0;
+    }
+
+    // Case-insensitive, whitespace-collapsed name key so "Juan  Dela Cruz" and "juan dela cruz" match.
+    private static string NormalizeName(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s+", " ");
+
+    // True when an ACTIVE stallholder with this exact (normalized) name already exists in the facility.
+    // Informational only — a person may legitimately hold more than one stall, so this never blocks saving.
+    private bool OccupantExists(string? name)
+    {
+        var n = NormalizeName(name);
+        return n.Length > 0 && _existingOccupants.Contains(n);
+    }
+
+    // Renumber the batch to continue after the facility's current highest stall number — but only when
+    // an imported number would actually collide (existing number, blank, or an in-file duplicate).
+    // Non-conflicting files keep their own numbers. The admin can still edit any cell afterward, and the
+    // server's per-row uniqueness check remains the final guard.
+    private async Task ApplyContinuedNumberingAsync()
+    {
+        _autoContinued = false;
+        _existingMax = 0;
+        _existingOccupants.Clear();
+        if (_facility is null || _rows.Count == 0) return;
+
+        try
+        {
+            var section = RequiresSection ? MapSection(_section) : null;
+            var res = await StallsApi.GetStallHoldersListAsync(_facility.Code, section);
+            if (!res.IsSuccess || res.Value is null) return;
+
+            var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in res.Value.Sections.SelectMany(s => s.Rows))
+            {
+                var sn = (r.StallNo ?? string.Empty).Trim();
+                if (sn.Length > 0) existing.Add(sn);
+                _existingMax = Math.Max(_existingMax, ParseStallInt(sn));
+
+                // Track active occupants so the review table can flag likely duplicates (not closed ones).
+                if (!r.IsClosed)
+                {
+                    var on = NormalizeName(r.ActualOccupant);
+                    if (on.Length > 0) _existingOccupants.Add(on);
+                }
+            }
+
+            // Conflict = an imported number already exists, is blank, or repeats within the file.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var conflict = false;
+            foreach (var row in _rows)
+            {
+                var sn = GetCell(row, "stallNo").Trim();
+                if (sn.Length == 0 || existing.Contains(sn) || !seen.Add(sn)) { conflict = true; break; }
+            }
+
+            if (!conflict) return;
+
+            for (var i = 0; i < _rows.Count; i++)
+                _rows[i]["stallNo"] = (_existingMax + 1 + i).ToString();
+            _autoContinued = true;
+        }
+        catch
+        {
+            // If the lookup fails, keep the file's numbers as-is; the server still validates uniqueness.
+        }
     }
 
     private void RemoveRow(int index)
@@ -394,13 +495,14 @@
         return row;
     }
 
-    private void LoadSample()
+    private async Task LoadSample()
     {
         if (_facility is null) return;
         _fileName = string.Empty;
         _uploadError = null;
         _rows = _facility.Sample.Select(r => new Dictionary<string, string>(r)).ToList();
         _loaded = true;
+        await ApplyContinuedNumberingAsync();
     }
 
     private async Task OnFileChange(InputFileChangeEventArgs e)
@@ -449,6 +551,7 @@
 
             _rows = rows;
             _loaded = true;
+            await ApplyContinuedNumberingAsync();
         }
         catch (Exception)
         {
@@ -761,6 +864,9 @@
         _uploadError = null;
         _result = null;
         _saveError = null;
+        _autoContinued = false;
+        _existingMax = 0;
+        _existingOccupants.Clear();
     }
 
     private string TemplateDataUri
