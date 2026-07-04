@@ -3,6 +3,7 @@ using System;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EEMOCantilanSDS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704074343_ScopeUniqueConstraintsPerMunicipality")]
+    partial class ScopeUniqueConstraintsPerMunicipality
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -173,9 +176,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Archetype")
-                        .HasColumnType("integer");
-
                     b.Property<int>("Code")
                         .HasColumnType("integer");
 
@@ -233,62 +233,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Facilities", (string)null);
-                });
-
-            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.FacilityRate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateOnly>("EffectiveDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("FacilityCode")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<Guid>("MunicipalityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("RateKey")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MunicipalityId", "FacilityCode", "RateKey", "EffectiveDate")
-                        .IsUnique();
-
-                    b.ToTable("FacilityRates", (string)null);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", b =>

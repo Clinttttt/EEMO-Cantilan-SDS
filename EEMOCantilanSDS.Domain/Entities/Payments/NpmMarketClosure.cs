@@ -10,8 +10,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
     /// <see cref="DailyCollection.IsAbsent"/>: a closure excuses ALL stalls at once. Clearing a closure
     /// hard-deletes the row (audited as a delete).
     /// </summary>
-    public class NpmMarketClosure : AuditableEntity
+    public class NpmMarketClosure : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public DateOnly ClosureDate { get; private set; }
         public MarketClosureReason Reason { get; private set; }
         public string? Remarks { get; private set; }

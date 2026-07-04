@@ -7,8 +7,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
     /// Links a <see cref="PayorUser"/> to a <see cref="Stall"/> they may view and pay for. A payor can
     /// hold several stalls, so this is a many-to-one (payor → stalls) join created during activation.
     /// </summary>
-    public class PayorStallLink : BaseEntity
+    public class PayorStallLink : BaseEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid PayorUserId { get; private set; }
         public Guid StallId { get; private set; }
 

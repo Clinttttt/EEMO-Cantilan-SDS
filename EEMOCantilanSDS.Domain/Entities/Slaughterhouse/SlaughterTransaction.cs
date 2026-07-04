@@ -10,8 +10,10 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
 {
-    public class SlaughterTransaction : AuditableEntity
+    public class SlaughterTransaction : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid FacilityId { get; private set; }
         public Guid? CollectorId { get; private set; }
         public string OwnerName { get; private set; } = string.Empty;

@@ -43,6 +43,28 @@ if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsAtStartup"))
     await context.Database.MigrateAsync();
     await FacilitySeeder.SeedAsync(context);
     await MunicipalitySeeder.SeedAsync(context);
+    await FacilityRateSeeder.SeedAsync(context);
+}
+
+// Resolve the default municipality once for tenant scoping. Best-effort: the municipality query filter
+// is a no-op until this is set, so a DB hiccup here cannot take the app down or hide data.
+using (var tenantScope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = tenantScope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var accessor = tenantScope.ServiceProvider
+            .GetRequiredService<EEMOCantilanSDS.Application.Common.Tenancy.ICurrentMunicipalityAccessor>();
+        var defaultMunicipalityId = await db.Municipalities.IgnoreQueryFilters()
+            .Where(m => m.IsDefault)
+            .Select(m => m.Id)
+            .FirstOrDefaultAsync();
+        accessor.Set(defaultMunicipalityId);
+    }
+    catch
+    {
+        // Leave unresolved — the tenant filter stays a no-op until it can be resolved later.
+    }
 }
 
 if (app.Environment.IsDevelopment())

@@ -9,8 +9,11 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Facilities
 {
-    public class Stall : AuditableEntity
+    public class Stall : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
+
         public Guid FacilityId { get; private set; }
         public string StallNo { get; private set; } = string.Empty;
         public StallStatus Status { get; private set; } = StallStatus.Active;

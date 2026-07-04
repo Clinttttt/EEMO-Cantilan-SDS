@@ -8,8 +8,10 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Payments
 {
-    public class DailyCollection : AuditableEntity
+    public class DailyCollection : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
         public Guid? CollectorId { get; private set; }
         public DateOnly CollectionDate { get; private set; }

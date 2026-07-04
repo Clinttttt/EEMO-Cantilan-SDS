@@ -6,8 +6,10 @@ namespace EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 /// Represents a registered transporter (driver) at the Transport Terminal.
 /// Each trip they make costs ₱30 terminal fee.
 /// </summary>
-public class TrmTransporter : AuditableEntity
+public class TrmTransporter : AuditableEntity, IMunicipalityOwned
 {
+    /// <inheritdoc />
+    public Guid MunicipalityId { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public string Organization { get; private set; } = string.Empty;
     public string DefaultRoute { get; private set; } = string.Empty;

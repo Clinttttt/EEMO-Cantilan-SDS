@@ -62,11 +62,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             // Same-table OR-uniqueness backstops per utility (global cross-column/cross-table uniqueness
             // is enforced in the app layer, which also allows one receipt to cover both utilities on a bill).
-            builder.HasIndex(x => x.ElecORNumber)
+            builder.HasIndex(x => new { x.MunicipalityId, x.ElecORNumber })
                 .IsUnique()
                 .HasFilter("\"ElecORNumber\" IS NOT NULL AND \"ElecORNumber\" <> ''");
 
-            builder.HasIndex(x => x.WaterORNumber)
+            builder.HasIndex(x => new { x.MunicipalityId, x.WaterORNumber })
                 .IsUnique()
                 .HasFilter("\"WaterORNumber\" IS NOT NULL AND \"WaterORNumber\" <> ''");
 

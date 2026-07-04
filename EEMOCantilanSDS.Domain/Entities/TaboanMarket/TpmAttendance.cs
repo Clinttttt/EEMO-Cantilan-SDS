@@ -7,8 +7,10 @@ namespace EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 /// Represents a vendor's attendance record for a specific Friday market day.
 /// Each vendor pays ₱100 per market day.
 /// </summary>
-public class TpmAttendance : AuditableEntity
+public class TpmAttendance : AuditableEntity, IMunicipalityOwned
 {
+    /// <inheritdoc />
+    public Guid MunicipalityId { get; private set; }
     public Guid VendorId { get; private set; }
     public Guid? CollectorId { get; private set; }
     public DateOnly MarketDate { get; private set; }

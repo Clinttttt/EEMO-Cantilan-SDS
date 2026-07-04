@@ -10,8 +10,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
     /// NPM (daily collection) uses per-day <see cref="DailyCollection.IsAbsent"/> instead; this is the
     /// monthly-facility equivalent. Clearing an exception hard-deletes the row (audited as a delete).
     /// </summary>
-    public class StallMonthlyException : AuditableEntity
+    public class StallMonthlyException : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
         public int BillingYear { get; private set; }
         public int BillingMonth { get; private set; }

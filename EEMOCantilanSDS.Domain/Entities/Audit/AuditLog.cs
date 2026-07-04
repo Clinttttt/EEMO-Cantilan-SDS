@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Audit
 {
-    public class AuditLog : BaseEntity
+    public class AuditLog : BaseEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public string ActorId { get; private set; } = string.Empty;
         public string ActorName { get; private set; } = string.Empty;
         public string ActorRole { get; private set; } = string.Empty;   // "Admin", "Collector"

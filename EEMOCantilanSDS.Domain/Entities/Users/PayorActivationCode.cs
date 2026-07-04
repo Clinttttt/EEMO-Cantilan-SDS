@@ -10,8 +10,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
     /// one payor account: a code may only be issued for a number that is not already registered or
     /// pending on another stall, so activation never merges two different occupants.
     /// </summary>
-    public class PayorActivationCode : AuditableEntity
+    public class PayorActivationCode : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public string Code { get; private set; } = string.Empty;
         public string ContactNumber { get; private set; } = string.Empty;
         public Guid StallId { get; private set; }

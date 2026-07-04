@@ -26,10 +26,12 @@ namespace EEMOCantilanSDS.Infrastructure
         public static IServiceCollection AddInfrastructureService(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddScoped<AuditSaveChangesInterceptor>();
+            service.AddSingleton<MunicipalityStampInterceptor>();
             service.AddDbContext<AppDbContext>((sp, options) =>
             {
                 options.UseNpgsql(configuration.GetConnectionString("DefaultConnection"));
                 options.AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>());
+                options.AddInterceptors(sp.GetRequiredService<MunicipalityStampInterceptor>());
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -40,6 +42,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
             service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();
             service.AddScoped<ITenantContext, ClaimTenantContext>();
+            service.AddSingleton<ICurrentMunicipalityAccessor, CurrentMunicipalityAccessor>();
  
             
             // Repositories

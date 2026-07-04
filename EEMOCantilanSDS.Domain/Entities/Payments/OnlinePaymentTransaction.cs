@@ -9,8 +9,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
     /// hand-off (checkout session) and the received payment, then carries through to staff OR encoding.
     /// The OR number is NEVER auto-generated here — it is encoded by staff via <see cref="CompleteWithOr"/>.
     /// </summary>
-    public class OnlinePaymentTransaction : AuditableEntity
+    public class OnlinePaymentTransaction : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public string Reference { get; private set; } = string.Empty;     // internal, e.g. EEMO-OP-20260613-AB12CD34
         public Guid PayorUserId { get; private set; }
         public Guid PaymentRecordId { get; private set; }

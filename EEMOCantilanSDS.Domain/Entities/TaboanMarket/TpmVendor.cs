@@ -6,8 +6,11 @@ namespace EEMOCantilanSDS.Domain.Entities.TaboanMarket;
 /// Represents a vendor registered for Tabo-an Public Market (TPM).
 /// TPM operates every Friday where vendors pay ₱100 per market day.
 /// </summary>
-public class TpmVendor : AuditableEntity
+public class TpmVendor : AuditableEntity, IMunicipalityOwned
 {
+    /// <inheritdoc />
+    public Guid MunicipalityId { get; private set; }
+
     public string VendorName { get; private set; } = string.Empty;
     public string Goods { get; private set; } = string.Empty;
     public bool IsActive { get; private set; } = true;

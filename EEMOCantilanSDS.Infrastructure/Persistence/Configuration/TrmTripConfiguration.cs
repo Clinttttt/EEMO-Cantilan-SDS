@@ -49,7 +49,7 @@ public class TrmTripConfiguration : IEntityTypeConfiguration<TrmTrip>
 
         // Same-table backstop for OR uniqueness (concurrency safety net).
         // Global cross-table uniqueness is enforced in the application layer.
-        builder.HasIndex(t => t.ORNumber)
+        builder.HasIndex(t => new { t.MunicipalityId, t.ORNumber })
             .IsUnique()
             .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 

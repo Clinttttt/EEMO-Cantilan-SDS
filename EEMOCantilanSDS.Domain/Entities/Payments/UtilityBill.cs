@@ -13,8 +13,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
     /// stall fee and fish-kilo fee. Readings/rates are entered by an admin; payment can be collected by
     /// an admin (web) or a collector (mobile, incl. offline replay via <see cref="ClientOperationId"/>).
     /// </summary>
-    public class UtilityBill : AuditableEntity
+    public class UtilityBill : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
         // Who collected the (latest) payment (a collector). Null when an admin collected.
         public Guid? CollectorId { get; private set; }

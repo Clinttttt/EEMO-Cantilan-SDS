@@ -9,8 +9,10 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Payments
 {
-    public class PaymentRecord : AuditableEntity
+    public class PaymentRecord : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
         public Guid? CollectorId { get; private set; }
         public int BillingYear { get; private set; }

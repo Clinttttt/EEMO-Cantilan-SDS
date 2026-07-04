@@ -7,8 +7,10 @@ namespace EEMOCantilanSDS.Domain.Entities.TransportTerminal;
 /// Represents a single trip departure recorded at the Transport Terminal.
 /// Each trip costs ₱30 terminal fee paid by the driver.
 /// </summary>
-public class TrmTrip : AuditableEntity
+public class TrmTrip : AuditableEntity, IMunicipalityOwned
 {
+    /// <inheritdoc />
+    public Guid MunicipalityId { get; private set; }
     public Guid? TransporterId { get; private set; }
     public Guid? CollectorId { get; private set; }
     public int TripNumber { get; private set; }

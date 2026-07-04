@@ -9,8 +9,11 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Users
 {
-    public class CollectorFacilityAssignment : BaseEntity
+    public class CollectorFacilityAssignment : BaseEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
+
         public Guid CollectorId { get; private set; }
         public Guid FacilityId { get; private set; }
         public FacilityCode FacilityCode { get; private set; }

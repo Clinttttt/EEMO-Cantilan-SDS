@@ -78,7 +78,7 @@ public class TpmAttendanceConfiguration : IEntityTypeConfiguration<TpmAttendance
 
         // Same-table backstop for OR uniqueness (concurrency safety net).
         // Global cross-table uniqueness is enforced in the application layer.
-        builder.HasIndex(a => a.ORNumber)
+        builder.HasIndex(a => new { a.MunicipalityId, a.ORNumber })
             .IsUnique()
             .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 

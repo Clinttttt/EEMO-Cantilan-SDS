@@ -196,13 +196,13 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 | Phase | Title | State | Notes |
 |---|---|---|---|
 | 0 | Safety net & baseline lock | ✅ Complete | Integration goldens + CI gate; 441/441 green |
-| 1 | Municipality registry + selector wiring | ✅ Complete | Registry: entity + migration + seed + tests; selector/branding wiring deferred (separate landing) |
+| 1 | Municipality registry + selector wiring | ✅ Complete | Registry (entity + migration + seed + tests) + landing selector now driven by the deployed `/api/municipalities` via a build-time snapshot with static fallback; portal branding-from-record still deferred |
 | 1.5 | Public read-only registry API | ✅ Complete (code) | `GET /api/municipalities` (`GetMunicipalitiesQuery` + `MunicipalityRepository`, anonymous, non-sensitive fields); 442/442 green. Landing consumption deferred until deployed (stable URL + CORS). |
 | 2 | Live tenant seam (claim-bound) | ✅ Complete | Claim in JWT + `ClaimTenantContext`; tenant still `cantilan-sds` |
 | — | Hardening Track | ◑ Partial — ops pending | Code-side done (probes, cookie policy, externalized JWT key, CI); runbook drives ops |
 | A | **Production Checkpoint A (Cantilan live)** | Pending ops verification | Code-side ready; runbook ops actions remain (secrets in host, TLS, backups, monitoring) |
-| 3 | Data isolation model | Not started — deferred | Until a real second LGU; highest risk (snapshot-gated) |
-| 4 | Facility & rate configurability | Not started | Snapshot-gated, archetype decoupling |
+| 3 | Data isolation model | ✅ Complete (structural) | `IMunicipalityOwned` + `MunicipalityId` (21 entities) + backfill + central global query filters + write-stamping interceptor + per-municipality unique constraints; isolation tests; **458/458 byte-for-byte**. Phase-5 follow-up: re-scope app-layer uniqueness checks + flip the default-tenant fallback |
+| 4 | Facility & rate configurability | ◑ Partial | 4A archetype (`Facility.Archetype`, decoupled) + 4B-i per-LGU `FacilityRate` table & seed (today's exact values) done — **458/458 byte-for-byte**. 4B-ii (rewire fee calcs to read the table) + collection-rules-as-data **deferred** until a real 2nd LGU with different rates (Guiding Rule #5) |
 | 5 | Runtime routing + multi-LGU capability | Not started | Enables a 2nd LGU |
 | 6 | Onboarding workspace + first real LGU | Not started | Proof of expansion |
 | B | **Production Checkpoint B (multi-LGU)** | Pending | After 3–6 |
@@ -247,11 +247,11 @@ items in a prerequisite phase.
 > reconcile to identical totals (₱2,650 collected / ₱2,400 outstanding / 52% rate).
 
 
-### Phase 1 — Municipality registry + selector wiring  ◑ (backend registry done)
+### Phase 1 — Municipality registry + selector wiring  ◑ (registry + selector wiring done; portal branding-from-record deferred)
 - [x] `Municipality` entity + EF configuration + migration created — `Domain/Entities/Tenancy/Municipality.cs`, `MunicipalityConfiguration`, migration `20260702065757_AddMunicipalityRegistry` (additive: creates only the `Municipalities` table)
 - [x] Cantilan seeded as `Active` and `IsDefault`; Carrascal/Madrid/Carmen/Lanuza seeded as `Upcoming` — `MunicipalitySeeder` (+ `Phase1/MunicipalitySeederTests`, idempotent)
-- [~] Public selector badges are driven by `Municipality.Status` — the read-only public API now EXISTS (`GET /api/municipalities` → `GetMunicipalitiesQuery`/`MunicipalityRepository`, `[AllowAnonymous]`, non-sensitive fields; `Phase1/GetMunicipalitiesQueryTests`). Landing consumption still deferred until the API is deployed (stable URL + CORS); planned as a build-time snapshot with the current static `municipalities.js` as fallback.
-- [~] Active card routes to the LGU login; Upcoming cards route to a rollout status page — already built in the landing project (data-driven within that project), not yet from the DB registry
+- [x] Public selector badges are driven by `Municipality.Status` — the read-only public API (`GET /api/municipalities`, `[AllowAnonymous]`) is **deployed**, and the landing consumes it via a **build-time snapshot** (`apps/landing/src/data/municipalities.registry.json`, refreshed by `scripts/sync-municipalities.mjs` — a server-side build fetch, so no CORS) that overlays `status`/`active` onto the static `municipalities.js`, which remains the fallback if the registry is unreachable. Verified: live sync + bad-URL fallback + `vite build` all green.
+- [x] Active card routes to the LGU login; Upcoming cards route to a rollout status page — now driven from the registry status (Active → portal `href`; otherwise → `/municipalities/{code}` rollout page), with the portal `href` exposed only while Active
 - [ ] Cantilan branding (name, seal, report header, office label) is read from the `Municipality` record — DEFERRED: portal branding is still static; can be sourced from the registry in a follow-up
 - [x] No operational tables changed; Phase 0 snapshots still pass — additive migration only; **437/437 tests green** (incl. Phase 0 goldens)
 - [x] Cantilan portal is visually unchanged — no portal/operational code touched
@@ -281,24 +281,24 @@ items in a prerequisite phase.
 - [ ] Cantilan verified in the production environment (login, record payment, daily collection, reports, mobile)
 - [ ] Backups and rollback path confirmed
 
-### Phase 3 — Data isolation model
-- [ ] `IMunicipalityOwned { Guid MunicipalityId }` marker interface introduced
-- [ ] Applied to Facility, Stall, Contract, PaymentRecord, DailyCollection, SlaughterTransaction, TRM/TPM entities, users, AuditLog
-- [ ] Migration adds `MunicipalityId` and backfills all existing rows to Cantilan's Id
-- [ ] EF Core global query filters on `MunicipalityId` applied centrally in `AppDbContext`
-- [ ] Writes stamp `MunicipalityId` from the tenant context (interceptor)
-- [ ] Unique constraints (username, OR number) scoped per municipality
-- [ ] Verified a query cannot return cross-tenant rows — isolation tests prove one LGU's data never appears in another's views, with explicit guards for the filter-bypass paths: `IgnoreQueryFilters()`, raw SQL, and background/scheduled jobs that don't run under a user token
-- [ ] Phase 0 snapshots pass byte-for-byte (no financial change)
+### Phase 3 — Data isolation model  ✅ (structural isolation complete; verified byte-for-byte)
+- [x] `IMunicipalityOwned { Guid MunicipalityId }` marker interface introduced — `Domain/Common/IMunicipalityOwned.cs`
+- [x] Applied to Facility, Stall, Contract, PaymentRecord, DailyCollection, UtilityBill, StallMonthlyException, NpmMarketClosure, OnlinePaymentTransaction, SlaughterTransaction, TRM/TPM entities, users (via `BaseUser`), CollectorFacilityAssignment, PayorActivationCode, PayorStallLink, AuditLog (21 types)
+- [x] Migration adds `MunicipalityId` and backfills all existing rows to Cantilan's Id — `AddMunicipalityIdToOwnedEntities` (atomic backfill via `IsDefault` subquery; safe no-op if none)
+- [x] EF Core global query filters on `MunicipalityId` applied centrally in `AppDbContext` — combined with soft-delete per entity category; resolved from `ICurrentMunicipalityAccessor` (startup-loaded default); no-op while empty so single-tenant is unchanged
+- [x] Writes stamp `MunicipalityId` from the tenant context (interceptor) — `MunicipalityStampInterceptor` (default municipality, cached)
+- [x] Unique constraints scoped per municipality — composite `(MunicipalityId, …)` for user Username/Email, Facility.Code, OR numbers (DailyCollection/PaymentRecord/TrmTrip/TpmAttendance/UtilityBill elec+water), NpmMarketClosure.ClosureDate — `ScopeUniqueConstraintsPerMunicipality`
+- [x] Verified a query cannot return cross-tenant rows — `Phase3/MunicipalityIsolationTests` (scoped read, `IgnoreQueryFilters` escape hatch, empty-tenant no-op). Filter-bypass paths audited: no raw SQL; `IgnoreQueryFilters` sites are either global-by-nature (ClientOperationId/Municipality/gateway ref) or conservative `bool` uniqueness checks (never leaky). **Phase-5 follow-up:** re-scope the app-layer OR/username/email uniqueness checks to the current municipality once scoped users go live.
+- [x] Phase 0 snapshots pass byte-for-byte (no financial change) — **458/458 green** at every increment
 
-### Phase 4 — Facility & rate configurability
-- [ ] Billing archetype introduced (`DailyStall, MonthlyRental, WeeklyMarket, PerTrip, PerHead, Custom`)
-- [ ] Cantilan facilities mapped to archetypes; `FacilityCode` retained during migration
-- [ ] Facility *identity* (data) decoupled from facility *behavior* (archetype)
-- [ ] Fixed `FeeRates` ordinance rates moved to a per-facility/per-LGU `Rate` table with `EffectiveDate`
-- [ ] Cantilan rates seeded with today's exact values
-- [ ] Collection cycle/due rules represented as data
-- [ ] Phase 0 snapshots pass byte-for-byte (no financial change)
+### Phase 4 — Facility & rate configurability  ◑ (archetype + rate table done; fee-calc rewire deferred)
+- [x] Billing archetype introduced (`DailyStall, MonthlyRental, WeeklyMarket, PerTrip, PerHead, Custom`) — `Domain/Enums` `BillingArchetype`
+- [x] Cantilan facilities mapped to archetypes; `FacilityCode` retained during migration — `Facility.Archetype` (stored) + `Facility.DefaultArchetypeFor`; migration `AddFacilityBillingArchetype` backfills by code
+- [x] Facility *identity* (data) decoupled from facility *behavior* (archetype) — archetype is an independent column, not derived at read time
+- [~] Fixed `FeeRates` ordinance rates moved to a per-facility/per-LGU `Rate` table with `EffectiveDate` — **table + seed DONE** (`FacilityRate` + `FeeRateKey` + `FacilityRateConfiguration` + migration `AddFacilityRatesTable`); the **calculation rewire** (fee sites reading from the table via a resolver) is **DEFERRED** to a snapshot-gated increment when a real 2nd LGU has different rates (Guiding Rule #5 — zero single-tenant benefit, highest-risk financial change)
+- [x] Cantilan rates seeded with today's exact values — `FacilityRateSeeder` seeds the 6 fixed rates from the `FeeRates` constants (effective 2020-01-01), wired at startup
+- [ ] Collection cycle/due rules represented as data — DEFERRED with the fee-calc rewire (4B-ii)
+- [x] Phase 0 snapshots pass byte-for-byte (no financial change) — **458/458 green**; nothing reads archetype/rates yet, so behavior is unchanged
 
 ### Phase 5 — Runtime routing + multi-LGU capability
 - [ ] Subdomain (or path prefix) resolves pre-login branding

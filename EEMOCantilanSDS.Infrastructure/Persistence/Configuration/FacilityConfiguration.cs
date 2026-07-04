@@ -20,6 +20,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.Code)
                 .IsRequired()
                 .HasConversion<int>();
+
+            builder.Property(s => s.Archetype)
+                .IsRequired()
+                .HasConversion<int>();
             
             builder.Property(s => s.Name)
                 .IsRequired()
@@ -36,7 +40,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasDefaultValue(true);
 
-            builder.HasIndex(s => s.Code).IsUnique();
+            builder.HasIndex(s => new { s.MunicipalityId, s.Code }).IsUnique();
 
             builder.HasMany(s=> s.Stalls)
                 .WithOne(s=> s.Facility)

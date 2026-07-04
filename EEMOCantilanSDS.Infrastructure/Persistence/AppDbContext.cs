@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -14,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -21,14 +23,31 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 {
     public class AppDbContext : DbContext, IAppDbContext
     {
+        private readonly ICurrentMunicipalityAccessor? _municipality;
+
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
         }
+
+        // DI constructor: supplies the tenant accessor used by the municipality global query filter and
+        // the write-stamping interceptor. The options-only ctor above keeps bare/test construction working.
+        public AppDbContext(DbContextOptions<AppDbContext> options, ICurrentMunicipalityAccessor municipality) : base(options)
+        {
+            _municipality = municipality;
+        }
+
+        /// <summary>
+        /// The municipality the current context is scoped to. <see cref="Guid.Empty"/> when unresolved
+        /// (no accessor / not yet loaded, e.g. bare test contexts) — in which case the tenant filter is a
+        /// no-op and nothing is hidden. Read live so the value resolved at startup is always current.
+        /// </summary>
+        public Guid CurrentMunicipalityId => _municipality?.MunicipalityId ?? Guid.Empty;
 
 
 
         public DbSet<Facility> Facilities { get; set; }
         public DbSet<Municipality> Municipalities { get; set; }
+        public DbSet<FacilityRate> FacilityRates { get; set; }
         public DbSet<Stall> Stalls { get; set; }
         public DbSet<Contract> Contracts { get; set; }
 
@@ -69,25 +88,58 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-            ApplySoftDeleteQueryFilters(modelBuilder);
+            ApplyQueryFilters(modelBuilder);
         }
 
-        private static void ApplySoftDeleteQueryFilters(ModelBuilder modelBuilder)
+        private static readonly MethodInfo OwnedAuditableFilterMethod =
+            typeof(AppDbContext).GetMethod(nameof(SetOwnedAuditableFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly MethodInfo OwnedFilterMethod =
+            typeof(AppDbContext).GetMethod(nameof(SetOwnedFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
+        private static readonly MethodInfo SoftDeleteFilterMethod =
+            typeof(AppDbContext).GetMethod(nameof(SetSoftDeleteFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        /// <summary>
+        /// Applies global query filters per entity (TPH root) type, combining:
+        ///  • soft-delete (<c>!IsDeleted</c>) for <see cref="AuditableEntity"/> types, and
+        ///  • municipality isolation for <see cref="IMunicipalityOwned"/> types.
+        /// The municipality clause is a no-op while <see cref="CurrentMunicipalityId"/> is empty (unresolved /
+        /// tests), so this cannot change Cantilan's single-tenant results. EF re-evaluates the id per query.
+        /// </summary>
+        private void ApplyQueryFilters(ModelBuilder modelBuilder)
         {
-            var auditableRootTypes = modelBuilder.Model.GetEntityTypes()
-                .Where(entityType => entityType.BaseType is null
-                    && typeof(AuditableEntity).IsAssignableFrom(entityType.ClrType));
-
-            foreach (var entityType in auditableRootTypes)
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => t.BaseType is null))
             {
-                var parameter = Expression.Parameter(entityType.ClrType, "entity");
-                var isDeleted = Expression.Property(parameter, nameof(AuditableEntity.IsDeleted));
-                var filter = Expression.Lambda(
-                    Expression.Equal(isDeleted, Expression.Constant(false)),
-                    parameter);
+                var clr = entityType.ClrType;
+                var owned = typeof(IMunicipalityOwned).IsAssignableFrom(clr);
+                var auditable = typeof(AuditableEntity).IsAssignableFrom(clr);
 
-                entityType.SetQueryFilter(filter);
+                var method = (owned, auditable) switch
+                {
+                    (true, true) => OwnedAuditableFilterMethod,
+                    (true, false) => OwnedFilterMethod,
+                    (false, true) => SoftDeleteFilterMethod,
+                    _ => null
+                };
+
+                method?.MakeGenericMethod(clr).Invoke(this, new object[] { modelBuilder });
             }
         }
+
+        // Tenant-owned + soft-deletable: hide soft-deleted rows AND rows of other municipalities.
+        private void SetOwnedAuditableFilter<T>(ModelBuilder modelBuilder) where T : class =>
+            modelBuilder.Entity<T>().HasQueryFilter(e =>
+                !EF.Property<bool>(e, nameof(AuditableEntity.IsDeleted))
+                && (CurrentMunicipalityId == Guid.Empty
+                    || EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId));
+
+        // Tenant-owned but not soft-deletable (e.g. AuditLog, join links): municipality isolation only.
+        private void SetOwnedFilter<T>(ModelBuilder modelBuilder) where T : class =>
+            modelBuilder.Entity<T>().HasQueryFilter(e =>
+                CurrentMunicipalityId == Guid.Empty
+                || EF.Property<Guid>(e, nameof(IMunicipalityOwned.MunicipalityId)) == CurrentMunicipalityId);
+
+        // Not tenant-owned (e.g. Municipality) but soft-deletable: preserve the original soft-delete filter.
+        private void SetSoftDeleteFilter<T>(ModelBuilder modelBuilder) where T : class =>
+            modelBuilder.Entity<T>().HasQueryFilter(e => !EF.Property<bool>(e, nameof(AuditableEntity.IsDeleted)));
     }
 }

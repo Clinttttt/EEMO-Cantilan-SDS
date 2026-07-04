@@ -26,8 +26,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.FullName)
                 .HasMaxLength(100);
 
-         builder.HasIndex(x => x.Username).IsUnique();
-            builder.HasIndex(x => x.Email).IsUnique();
+         builder.HasIndex(x => new { x.MunicipalityId, x.Username }).IsUnique();
+            builder.HasIndex(x => new { x.MunicipalityId, x.Email }).IsUnique();
 
             builder.Property(s=> s.PasswordHash)
                 .IsRequired()

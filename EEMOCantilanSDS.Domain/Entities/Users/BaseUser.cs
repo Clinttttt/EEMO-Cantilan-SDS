@@ -8,8 +8,11 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Users
 {
-    public abstract class BaseUser : AuditableEntity
+    public abstract class BaseUser : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; protected set; }
+
         public string? FullName { get; protected set; }
         public string? Username { get; protected set; } 
         public string? Email { get; protected set; }

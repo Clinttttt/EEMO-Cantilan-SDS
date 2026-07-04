@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             // One active closure per date (the market is facility-wide). Filtered on IsDeleted as a
             // safe backstop so a cleared row could never block re-closing the same date.
-            builder.HasIndex(x => x.ClosureDate)
+            builder.HasIndex(x => new { x.MunicipalityId, x.ClosureDate })
                 .IsUnique()
                 .HasFilter("\"IsDeleted\" = false");
 

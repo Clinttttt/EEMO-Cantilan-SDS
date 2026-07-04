@@ -3,6 +3,7 @@ using System;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EEMOCantilanSDS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260704065733_AddMunicipalityIdToOwnedEntities")]
+    partial class AddMunicipalityIdToOwnedEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -173,9 +176,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Archetype")
-                        .HasColumnType("integer");
-
                     b.Property<int>("Code")
                         .HasColumnType("integer");
 
@@ -229,66 +229,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MunicipalityId", "Code")
+                    b.HasIndex("Code")
                         .IsUnique();
 
                     b.ToTable("Facilities", (string)null);
-                });
-
-            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.FacilityRate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateOnly>("EffectiveDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("FacilityCode")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<Guid>("MunicipalityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("RateKey")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MunicipalityId", "FacilityCode", "RateKey", "EffectiveDate")
-                        .IsUnique();
-
-                    b.ToTable("FacilityRates", (string)null);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", b =>
@@ -462,7 +406,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
-                    b.HasIndex("MunicipalityId", "ORNumber")
+                    b.HasIndex("ORNumber")
                         .IsUnique()
                         .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
@@ -519,7 +463,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MunicipalityId", "ClosureDate")
+                    b.HasIndex("ClosureDate")
                         .IsUnique()
                         .HasFilter("\"IsDeleted\" = false");
 
@@ -716,7 +660,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
-                    b.HasIndex("MunicipalityId", "ORNumber")
+                    b.HasIndex("ORNumber")
                         .IsUnique()
                         .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
@@ -899,11 +843,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
-                    b.HasIndex("MunicipalityId", "ElecORNumber")
+                    b.HasIndex("ElecORNumber")
                         .IsUnique()
                         .HasFilter("\"ElecORNumber\" IS NOT NULL AND \"ElecORNumber\" <> ''");
 
-                    b.HasIndex("MunicipalityId", "WaterORNumber")
+                    b.HasIndex("WaterORNumber")
                         .IsUnique()
                         .HasFilter("\"WaterORNumber\" IS NOT NULL AND \"WaterORNumber\" <> ''");
 
@@ -1127,7 +1071,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
-                    b.HasIndex("MunicipalityId", "ORNumber")
+                    b.HasIndex("ORNumber")
                         .IsUnique()
                         .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
@@ -1405,11 +1349,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
-                    b.HasIndex("TransporterId");
-
-                    b.HasIndex("MunicipalityId", "ORNumber")
+                    b.HasIndex("ORNumber")
                         .IsUnique()
                         .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
+
+                    b.HasIndex("TransporterId");
 
                     b.ToTable("TrmTrips", (string)null);
                 });
@@ -1498,10 +1442,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MunicipalityId", "Email")
+                    b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("MunicipalityId", "Username")
+                    b.HasIndex("Username")
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);

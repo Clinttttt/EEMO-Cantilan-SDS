@@ -17,6 +17,31 @@ namespace EEMOCantilanSDS.Domain.Enums
         TRM = 7,   // Transport Terminal
         TPM = 8,   // Tabo-an Public Market
     }
+
+    // Billing BEHAVIOUR of a facility, decoupled from its FacilityCode identity (Phase 4). The code says
+    // WHICH facility it is; the archetype says HOW it bills — so another LGU can map its own facilities to
+    // the right billing behaviour as data, without new code per facility.
+    public enum BillingArchetype
+    {
+        DailyStall = 1,     // per-day stall fee (NPM)
+        MonthlyRental = 2,  // monthly stall/space rental (TCC/NCC/BBQ/ICE)
+        WeeklyMarket = 3,   // per-vendor per market day (TPM)
+        PerTrip = 4,        // per-trip fee (TRM)
+        PerHead = 5,        // per-head fee (SLH)
+        Custom = 99,
+    }
+
+    // Identifies a FIXED ordinance fee rate stored per-LGU in the FacilityRate table (Phase 4). Range /
+    // negotiated rates (TCC/NCC/BBQ/ICE monthly) are NOT here — those come from Stall.MonthlyRate.
+    public enum FeeRateKey
+    {
+        NpmDailyStall = 1,    // NPM — ₱ per day
+        NpmFishPerKilo = 2,   // NPM Fish — ₱ per kilo
+        SlhHogPerHead = 3,    // SLH — ₱ per hog head
+        SlhLargePerHead = 4,  // SLH — ₱ per large-animal head
+        TpmVendorDay = 5,     // TPM — ₱ per vendor per market day
+        TrmPerTrip = 6,       // TRM — ₱ per trip
+    }
     public enum MarketSection
     {
         VegetableArea = 1,

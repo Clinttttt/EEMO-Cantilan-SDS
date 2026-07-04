@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 
 namespace EEMOCantilanSDS.Domain.Entities.Facilities
 {
-    public class Contract : AuditableEntity
+    public class Contract : AuditableEntity, IMunicipalityOwned
     {
+        /// <inheritdoc />
+        public Guid MunicipalityId { get; private set; }
         public Guid StallId { get; private set; }
         public string? ORNumber { get; private set; }
         public string ActualOccupant { get; private set; } = string.Empty;
