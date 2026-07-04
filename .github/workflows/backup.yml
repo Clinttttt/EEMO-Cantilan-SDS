@@ -67,8 +67,8 @@ jobs:
         run: |
           az postgres flexible-server firewall-rule create \
             --resource-group "$RESOURCE_GROUP" \
-            --name "${{ vars.PG_SERVER_NAME }}" \
-            --rule-name "ghbackup-${GITHUB_RUN_ID}" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghbackup-${GITHUB_RUN_ID}" \
             --start-ip-address "${{ steps.ip.outputs.ip }}" \
             --end-ip-address "${{ steps.ip.outputs.ip }}"
 
@@ -99,8 +99,8 @@ jobs:
         run: |
           az postgres flexible-server firewall-rule delete \
             --resource-group "$RESOURCE_GROUP" \
-            --name "${{ vars.PG_SERVER_NAME }}" \
-            --rule-name "ghbackup-${GITHUB_RUN_ID}" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghbackup-${GITHUB_RUN_ID}" \
             --yes || true
 
 # ─────────────────────────────────────────────────────────────────────────────
