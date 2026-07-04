@@ -51,13 +51,13 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Install PostgreSQL client
-        # pg_dump must be >= the server's major version. Azure Flexible Server GA is
-        # PostgreSQL <= 16; if your server is 17, change this to postgresql-client-17.
+        # pg_dump must be >= the server's major version. The server is PostgreSQL 18,
+        # so install client 18 from the PGDG apt repo.
         run: |
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-16
+          sudo apt-get install -y postgresql-client-18
 
       - name: Detect runner public IP
         id: ip
