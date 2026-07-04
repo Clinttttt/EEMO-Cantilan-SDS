@@ -330,7 +330,7 @@ public partial class FacilityReportsRepository
             {
                 var s = stallById[g.Key];
                 return new DelinquentStallDto(
-                    codeById[s.FacilityId], s.StallNo, s.Occupant, g.Count(), g.Sum(p => p.BalanceDue));
+                    codeById[s.FacilityId], s.StallNo, s.Occupant, g.Count(), g.Sum(p => p.BalanceDue), s.Id);
             })
             .OrderByDescending(d => d.MonthsUnpaid)
             .ThenByDescending(d => d.OutstandingBalance)

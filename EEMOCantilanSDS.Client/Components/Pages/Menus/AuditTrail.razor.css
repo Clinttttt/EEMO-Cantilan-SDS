@@ -290,13 +290,20 @@ select.af-input::-ms-expand { display: none; }
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--bg-icon);
     display: grid;
     place-items: center;
-    font-size: 0.72rem;
-    font-weight: 700;
     flex-shrink: 0;
+}
+
+.ac-avatar svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: var(--text-subtle);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 .ac-actor-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }

@@ -576,7 +576,9 @@
             cursor = res.Value.NextCursor;
         }
 
-        foreach (var s in all.Where(s => s.Status == StallStatus.Active))
+        // Exclude payors whose contract term has already lapsed (expired) — they are handled on
+        // Closed Accounts / Past follow-up, not here. Reuses the same rule as the facility vendor list.
+        foreach (var s in all.Where(s => s.Status == StallStatus.Active && StallContractStatus.IsCurrentVendor(s)))
         {
             _payors.Add(new CeStall(
                 s.Id, s.StallNo, string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!,

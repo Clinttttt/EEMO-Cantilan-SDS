@@ -4,9 +4,10 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
-@using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber
+@using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
@@ -266,6 +267,10 @@
                                                         {
                                                             <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenAddOr(it)">@it.Action<span class="fq-action-arrow">→</span></button>
                                                         }
+                                                        else if (CanRecordMonthlyPayment(it))
+                                                        {
+                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenMonthlyPayment(it)">Record payment<span class="fq-action-arrow">→</span></button>
+                                                        }
                                                         else if (it.Action == "Pay Bill" && it.StallId.HasValue)
                                                         {
                                                             <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenUtilityBill(it)">@it.Action<span class="fq-action-arrow">→</span></button>
@@ -385,6 +390,127 @@
                       OnClose="CloseUtilityBill"
                       OnSaved="OnUtilityBillSaved"
                       RequireUpdateConfirmation="true" />
+}
+
+@if (_monthlyPaymentItem is not null)
+{
+    <div class="fq-modal-overlay" @onclick="CloseMonthlyPayment">
+        <div class="fq-modal fq-pay-modal" @onclick:stopPropagation="true">
+            <div class="fq-modal-head">
+                <div>
+                    <div class="fq-modal-title">Record payment — @_monthlyPaymentItem.Person</div>
+                    <div class="fq-modal-sub">@_monthlyPaymentItem.Identifier · @_monthlyPaymentItem.Facility · @_monthlyPaymentItem.Reason</div>
+                </div>
+                <button type="button" class="fq-modal-x" @onclick="CloseMonthlyPayment" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="fq-modal-body">
+                @if (_monthlyPaymentLoading)
+                {
+                    <div class="fq-or-state">Loading open billing months…</div>
+                }
+                else if (_monthlyPaymentError is not null && _monthlyPaymentRows.Count == 0)
+                {
+                    <div class="fq-or-state fq-or-error">@_monthlyPaymentError</div>
+                }
+                else if (_monthlyPaymentRows.Count == 0)
+                {
+                    <div class="fq-or-state">No open monthly payment record was found for this account.</div>
+                }
+                else
+                {
+                    var selected = SelectedMonthlyPaymentRow;
+                    <div class="fq-pay-note">
+                        Select the billing month being settled. Arrears and delinquent balances can cover more than one month, so this records one official payment update at a time.
+                    </div>
+
+                    <label class="fq-pay-field">
+                        <span>Billing period</span>
+                        <select class="fq-pay-select" value="@_monthlyPaymentPeriodKey" @onchange="OnMonthlyPaymentPeriodChanged" disabled="@_monthlyPaymentSaving">
+                            @foreach (var row in _monthlyPaymentRows)
+                            {
+                                <option value="@row.Key">@row.Label — @Currency(row.BalanceDue) balance</option>
+                            }
+                        </select>
+                    </label>
+
+                    @if (selected is not null)
+                    {
+                        <div class="fq-pay-summary">
+                            <div><span>Total bill</span><strong>@Currency(selected.TotalBill)</strong></div>
+                            <div><span>Already recorded</span><strong>@Currency(selected.AmountPaid)</strong></div>
+                            <div><span>Open balance</span><strong class="fq-pay-due">@Currency(selected.BalanceDue)</strong></div>
+                        </div>
+
+                        <div class="fq-pay-status-row" role="group" aria-label="Payment status">
+                            <button type="button" class="fq-pay-status @(_monthlyPaymentStatus == PaymentStatus.Paid ? "on" : "")"
+                                    @onclick="() => SetMonthlyPaymentStatus(PaymentStatus.Paid)"
+                                    disabled="@_monthlyPaymentSaving">
+                                Paid in full
+                            </button>
+                            <button type="button" class="fq-pay-status @(_monthlyPaymentStatus == PaymentStatus.Partial ? "on" : "")"
+                                    @onclick="() => SetMonthlyPaymentStatus(PaymentStatus.Partial)"
+                                    disabled="@_monthlyPaymentSaving">
+                                Partial
+                            </button>
+                        </div>
+
+                        @if (_monthlyPaymentStatus == PaymentStatus.Partial)
+                        {
+                            <label class="fq-pay-field">
+                                <span>Total amount paid after this update</span>
+                                <input class="fq-pay-input" type="number" step="0.01" min="0"
+                                       value="@_monthlyPaymentAmount"
+                                       @oninput="OnMonthlyPaymentAmountInput"
+                                       disabled="@_monthlyPaymentSaving" />
+                                <small>Current recorded amount: @Currency(selected.AmountPaid). Enter the new total paid for @selected.Label, not only the added cash.</small>
+                            </label>
+                        }
+
+                        <label class="fq-pay-field">
+                            <span>Official receipt number</span>
+                            <input class="fq-pay-input" type="text" maxlength="30" placeholder="e.g. OR-2026-001"
+                                   @bind="_monthlyPaymentOr"
+                                   @bind:event="oninput"
+                                   disabled="@_monthlyPaymentSaving" />
+                        </label>
+
+                        <label class="fq-pay-field">
+                            <span>Remarks <em>optional</em></span>
+                            <input class="fq-pay-input" type="text" maxlength="200" placeholder="e.g. Paid at EEMO office"
+                                   @bind="_monthlyPaymentRemarks"
+                                   @bind:event="oninput"
+                                   disabled="@_monthlyPaymentSaving" />
+                        </label>
+
+                        @if (_monthlyPaymentError is not null)
+                        {
+                            <div class="fq-pay-error">@_monthlyPaymentError</div>
+                        }
+
+                        @if (_monthlyPaymentConfirming)
+                        {
+                            <div class="fq-pay-confirm">
+                                <strong>Confirm payment update</strong>
+                                <span>
+                                    This will mark @selected.Label as
+                                    @(_monthlyPaymentStatus == PaymentStatus.Paid ? "paid in full" : $"partial with {Currency(_monthlyPaymentAmount)} total paid")
+                                    using OR @_monthlyPaymentOr.Trim().
+                                </span>
+                            </div>
+                        }
+                    }
+                }
+            </div>
+
+            <div class="fq-modal-foot fq-pay-foot">
+                <button type="button" class="fq-or-confirm-no" @onclick="CloseMonthlyPayment" disabled="@_monthlyPaymentSaving">Cancel</button>
+                <button type="button" class="fq-modal-done" @onclick="SaveMonthlyPayment" disabled="@(_monthlyPaymentSaving || _monthlyPaymentLoading || _monthlyPaymentRows.Count == 0)">
+                    @(_monthlyPaymentSaving ? "Saving…" : _monthlyPaymentConfirming ? "Confirm & save" : "Save payment")
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -754,6 +880,247 @@
     }
 
     // ── Section metadata (presentation only; ids match the server's Section field) ──
+    // Monthly arrears/delinquency payment from follow-up rows.
+    private FollowUpItemDto? _monthlyPaymentItem;
+    private bool _monthlyPaymentLoading;
+    private bool _monthlyPaymentSaving;
+    private bool _monthlyPaymentConfirming;
+    private string? _monthlyPaymentError;
+    private string _monthlyPaymentPeriodKey = string.Empty;
+    private PaymentStatus _monthlyPaymentStatus = PaymentStatus.Paid;
+    private decimal _monthlyPaymentAmount;
+    private string _monthlyPaymentOr = string.Empty;
+    private string _monthlyPaymentRemarks = string.Empty;
+    private List<MonthlyPaymentRow> _monthlyPaymentRows = new();
+
+    private sealed record MonthlyPaymentRow(
+        string Key,
+        string Label,
+        int Year,
+        int Month,
+        PaymentStatus Status,
+        decimal TotalBill,
+        decimal AmountPaid,
+        decimal BalanceDue,
+        string? ORNumber);
+
+    private MonthlyPaymentRow? SelectedMonthlyPaymentRow =>
+        _monthlyPaymentRows.FirstOrDefault(r => r.Key == _monthlyPaymentPeriodKey);
+
+    private static bool CanRecordMonthlyPayment(FollowUpItemDto item) =>
+        item.StallId.HasValue
+        && item.Facility != FacilityCode.NPM
+        && item.Amount.GetValueOrDefault() > 0m
+        && item.ReasonKind is "delinquent" or "arrears";
+
+    private async Task OpenMonthlyPayment(FollowUpItemDto item)
+    {
+        if (!CanRecordMonthlyPayment(item) || item.StallId is null)
+            return;
+
+        _monthlyPaymentItem = item;
+        _monthlyPaymentRows = new();
+        _monthlyPaymentPeriodKey = string.Empty;
+        _monthlyPaymentStatus = PaymentStatus.Paid;
+        _monthlyPaymentAmount = 0m;
+        _monthlyPaymentOr = string.Empty;
+        _monthlyPaymentRemarks = string.Empty;
+        _monthlyPaymentError = null;
+        _monthlyPaymentConfirming = false;
+        _monthlyPaymentLoading = true;
+
+        var result = await PaymentsApi.GetPaymentHistoryAsync(item.StallId.Value);
+        if (!result.IsSuccess || result.Value is null)
+        {
+            _monthlyPaymentError = result.Error ?? "Unable to load this stall's open billing months.";
+            _monthlyPaymentLoading = false;
+            return;
+        }
+
+        var asOfKey = AsOf.Year * 100 + AsOf.Month;
+        _monthlyPaymentRows = result.Value
+            .Select(ToMonthlyPaymentRow)
+            .Where(r => r is not null)
+            .Select(r => r!)
+            .Where(r => r.BalanceDue > 0m && r.Status != PaymentStatus.Paid)
+            .Where(r =>
+            {
+                var key = r.Year * 100 + r.Month;
+                return item.ReasonKind switch
+                {
+                    "delinquent" or "arrears" => key < asOfKey,
+                    _ => false
+                };
+            })
+            .OrderBy(r => r.Year)
+            .ThenBy(r => r.Month)
+            .ToList();
+
+        _monthlyPaymentPeriodKey = _monthlyPaymentRows.FirstOrDefault()?.Key ?? string.Empty;
+        SeedMonthlyPaymentInputs();
+        _monthlyPaymentLoading = false;
+    }
+
+    private static MonthlyPaymentRow? ToMonthlyPaymentRow(PaymentHistoryDto history)
+    {
+        if (history.IsExcused || string.IsNullOrWhiteSpace(history.Period))
+            return null;
+
+        if (!DateOnly.TryParseExact(
+                history.Period,
+                "yyyy-MM",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var period))
+        {
+            return null;
+        }
+
+        var label = new DateTime(period.Year, period.Month, 1)
+            .ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+        return new MonthlyPaymentRow(
+            history.Period,
+            label,
+            period.Year,
+            period.Month,
+            history.Status,
+            history.TotalBill,
+            history.AmountPaid,
+            history.BalanceDue,
+            history.ORNumber);
+    }
+
+    private void OnMonthlyPaymentPeriodChanged(ChangeEventArgs e)
+    {
+        _monthlyPaymentPeriodKey = e.Value?.ToString() ?? string.Empty;
+        SeedMonthlyPaymentInputs();
+    }
+
+    private void SetMonthlyPaymentStatus(PaymentStatus status)
+    {
+        _monthlyPaymentStatus = status == PaymentStatus.Partial ? PaymentStatus.Partial : PaymentStatus.Paid;
+        _monthlyPaymentConfirming = false;
+        _monthlyPaymentError = null;
+        SeedMonthlyPaymentAmount();
+    }
+
+    private void SeedMonthlyPaymentInputs()
+    {
+        _monthlyPaymentStatus = PaymentStatus.Paid;
+        _monthlyPaymentOr = string.Empty;
+        _monthlyPaymentRemarks = string.Empty;
+        _monthlyPaymentConfirming = false;
+        _monthlyPaymentError = null;
+        SeedMonthlyPaymentAmount();
+    }
+
+    private void SeedMonthlyPaymentAmount()
+    {
+        var row = SelectedMonthlyPaymentRow;
+        _monthlyPaymentAmount = row is null
+            ? 0m
+            : _monthlyPaymentStatus == PaymentStatus.Partial
+                ? Math.Max(row.AmountPaid, 0m)
+                : row.TotalBill;
+    }
+
+    private void OnMonthlyPaymentAmountInput(ChangeEventArgs e)
+    {
+        _monthlyPaymentConfirming = false;
+        _monthlyPaymentError = null;
+        if (decimal.TryParse(e.Value?.ToString(), out var value))
+            _monthlyPaymentAmount = Math.Max(0m, value);
+        else
+            _monthlyPaymentAmount = 0m;
+    }
+
+    private Task CloseMonthlyPayment()
+    {
+        _monthlyPaymentItem = null;
+        _monthlyPaymentRows = new();
+        _monthlyPaymentPeriodKey = string.Empty;
+        _monthlyPaymentError = null;
+        _monthlyPaymentConfirming = false;
+        _monthlyPaymentLoading = false;
+        _monthlyPaymentSaving = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveMonthlyPayment()
+    {
+        if (_monthlyPaymentItem?.StallId is not { } stallId)
+            return;
+
+        var row = SelectedMonthlyPaymentRow;
+        if (row is null)
+        {
+            _monthlyPaymentError = "Select a billing period first.";
+            return;
+        }
+
+        var orNumber = _monthlyPaymentOr.Trim();
+        if (string.IsNullOrWhiteSpace(orNumber))
+        {
+            _monthlyPaymentError = "Enter the official receipt number before saving.";
+            _monthlyPaymentConfirming = false;
+            return;
+        }
+
+        decimal? partialAmount = null;
+        if (_monthlyPaymentStatus == PaymentStatus.Partial)
+        {
+            if (_monthlyPaymentAmount <= row.AmountPaid)
+            {
+                _monthlyPaymentError = $"Partial total must be greater than the current recorded amount ({Currency(row.AmountPaid)}).";
+                _monthlyPaymentConfirming = false;
+                return;
+            }
+
+            if (_monthlyPaymentAmount >= row.TotalBill)
+            {
+                _monthlyPaymentError = "Use Paid in full when the amount reaches the total bill.";
+                _monthlyPaymentConfirming = false;
+                return;
+            }
+
+            partialAmount = _monthlyPaymentAmount;
+        }
+
+        if (!_monthlyPaymentConfirming)
+        {
+            _monthlyPaymentError = null;
+            _monthlyPaymentConfirming = true;
+            return;
+        }
+
+        _monthlyPaymentSaving = true;
+        _monthlyPaymentError = null;
+
+        var result = await PaymentsApi.RecordPaymentAsync(new RecordPaymentCommand(
+            stallId,
+            row.Year,
+            row.Month,
+            _monthlyPaymentStatus,
+            partialAmount,
+            string.IsNullOrWhiteSpace(_monthlyPaymentRemarks) ? null : _monthlyPaymentRemarks.Trim(),
+            orNumber));
+
+        _monthlyPaymentSaving = false;
+        _monthlyPaymentConfirming = false;
+
+        if (!result.IsSuccess)
+        {
+            _monthlyPaymentError = result.Error ?? "Unable to record this payment.";
+            return;
+        }
+
+        await CloseMonthlyPayment();
+        await Load();
+    }
+
+    private static string Currency(decimal value) => $"₱{value:N0}";
+
     private sealed record SectionDef(int Id, string Title, string Sub, string Tone, string Icon);
 
     private static readonly SectionDef[] Sections =

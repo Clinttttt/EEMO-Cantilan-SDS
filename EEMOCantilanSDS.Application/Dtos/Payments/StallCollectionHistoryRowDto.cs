@@ -10,5 +10,8 @@ public sealed record StallCollectionHistoryRowDto(
     string Status,
     decimal Amount,
     string? ORNumber,
-    string? CollectorName
+    string? CollectorName,
+    // Display-only attribution: who recorded the collection — the field collector when present,
+    // otherwise the admin/Head resolved from the audit actor. Never affects any financial value.
+    string? RecordedByName = null
 );

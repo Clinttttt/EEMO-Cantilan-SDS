@@ -40,7 +40,12 @@ public class GetFollowUpQueueQueryHandler(
         var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
         var unreceipted = await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
-        var contracts = await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct);
+        // Live queue shows only contracts EXPIRING SOON (still active). Already-EXPIRED contracts are a
+        // past concern and belong on Past follow-up (the history handler keeps them via its as-of scope),
+        // so they are excluded here to stop them counting/showing in the active queue.
+        var contracts = (await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
+            .Where(c => !c.IsExpired)
+            .ToList();
         var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
         var dto = FollowUpComposer.Compose(

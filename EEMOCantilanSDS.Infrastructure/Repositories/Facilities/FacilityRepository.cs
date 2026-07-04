@@ -50,20 +50,42 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
 
     public async Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct)
     {
-        // One server-side query. Unpaid = active, occupied stalls with no Paid record for the month.
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        // Unpaid = active, occupied stalls with no Paid record for the month — where "occupied" means a
+        // contract whose TERM covers the month (active AND EffectivityDate ≤ monthEnd ≤ ExpiryDate), i.e.
+        // Contract.OverlapsPeriod. This EXCLUDES payors whose contract has already expired (IsActive alone
+        // would wrongly keep them). Expiry (EffectivityDate.AddYears(DurationYears)) is evaluated in memory
+        // to avoid unreliable SQL date-arithmetic translation; only minimal columns are projected first.
         // Soft-deleted rows are excluded by the global query filters.
-        return await context.Facilities
+        var facilities = await context.Facilities
             .AsNoTracking()
             .OrderBy(f => f.Code)
-            .Select(f => new FacilitySidebarSummaryDto(
+            .Select(f => new
+            {
                 f.Code,
                 f.Name,
                 f.ShortName,
-                f.Stalls.Count(s => s.Status == StallStatus.Active
-                    && s.Contracts.Any(c => c.IsActive)
-                    && !s.PaymentRecords.Any(p => p.BillingYear == year
-                        && p.BillingMonth == month
-                        && p.Status == PaymentStatus.Paid))))
+                Stalls = f.Stalls
+                    .Where(s => s.Status == StallStatus.Active)
+                    .Select(s => new
+                    {
+                        Contracts = s.Contracts.Select(c => new { c.IsActive, c.EffectivityDate, c.DurationYears }),
+                        HasPaid = s.PaymentRecords.Any(p => p.BillingYear == year
+                            && p.BillingMonth == month
+                            && p.Status == PaymentStatus.Paid)
+                    })
+            })
             .ToListAsync(ct);
+
+        return facilities.Select(f => new FacilitySidebarSummaryDto(
+            f.Code,
+            f.Name,
+            f.ShortName,
+            f.Stalls.Count(s => !s.HasPaid
+                && s.Contracts.Any(c => c.IsActive
+                    && c.EffectivityDate <= monthEnd
+                    && monthStart <= c.EffectivityDate.AddYears(c.DurationYears))))).ToList();
     }
 }

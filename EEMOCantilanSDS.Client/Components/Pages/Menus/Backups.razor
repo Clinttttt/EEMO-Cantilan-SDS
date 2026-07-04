@@ -1,0 +1,333 @@
+@page "/settings/backups"
+@using Microsoft.AspNetCore.Authorization
+@using EEMOCantilanSDS.Application.Dtos.Backup
+@using EEMOCantilanSDS.Domain.Common
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@inject IBackupApiClient BackupApi
+@inject IJSRuntime JS
+
+@*
+    Backups — Head-only (SuperAdmin) on-demand database backups.
+    Everything is proxied through api/backup/*: the page triggers the GitHub Actions backup workflow,
+    lists recent runs, and downloads the latest artifact. The GitHub token lives strictly server-side
+    and is never sent to or reachable by the browser. No in-app restore/upload — restore is a
+    documented, controlled ops procedure only.
+*@
+
+<PageTitle>EEMO Admin — Backups</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Backups</div>
+        <div class="topbar-breadcrumb">
+            <span>EEMO Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span>Settings</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Backups</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @_now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    <!-- ── How backups work ── -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Database backups</div>
+                <div class="set-card-sub">How your data is protected</div>
+            </div>
+        </div>
+        <div class="bk-info-grid">
+            <div class="bk-info">
+                <div class="bk-info-key">Automated daily</div>
+                <div class="bk-info-val">A full backup runs every day at <strong>01:00 Philippine time</strong> via CI.</div>
+            </div>
+            <div class="bk-info">
+                <div class="bk-info-key">Point-in-time recovery</div>
+                <div class="bk-info-val"><strong>7-day Azure PITR</strong> lets ops restore to any moment in the last week.</div>
+            </div>
+            <div class="bk-info">
+                <div class="bk-info-key">This page</div>
+                <div class="bk-info-val">Run an <strong>on-demand backup</strong> now and download the latest backup file.</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── On-demand actions ── -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><polyline points="21 3 21 9 15 9" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">On-demand backup</div>
+                <div class="set-card-sub">Trigger a backup or download the most recent one</div>
+            </div>
+        </div>
+
+        <div class="bk-actions">
+            <button class="bk-btn bk-btn-primary" @onclick="RunBackupAsync" disabled="@(_running || _downloading)">
+                @if (_running)
+                {
+                    <span class="bk-spin" aria-hidden="true"></span>
+                    <span>Starting backup…</span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><polyline points="21 3 21 9 15 9" /></svg>
+                    <span>Run backup now</span>
+                }
+            </button>
+
+            <button class="bk-btn bk-btn-ghost" @onclick="DownloadLatestAsync" disabled="@(_running || _downloading)">
+                @if (_downloading)
+                {
+                    <span class="bk-spin bk-spin-dark" aria-hidden="true"></span>
+                    <span>Preparing download…</span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    <span>Download latest backup</span>
+                }
+            </button>
+        </div>
+
+        @if (_message is not null)
+        {
+            <div class="bk-alert @(_messageOk ? "bk-alert-ok" : "bk-alert-err")" role="status">
+                @_message
+            </div>
+        }
+    </section>
+
+    <!-- ── Recent backups ── -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Recent backups</div>
+                <div class="set-card-sub">The latest backup runs</div>
+            </div>
+            <button class="set-link bk-refresh" @onclick="LoadRunsAsync" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
+        </div>
+
+        @if (_loadingRuns)
+        {
+            <div class="bk-rows">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="bk-run bk-run-sk">
+                        <div class="sk bk-sk-pill"></div>
+                        <div class="sk bk-sk-line"></div>
+                        <div class="sk bk-sk-short"></div>
+                    </div>
+                }
+            </div>
+        }
+        else if (_runsError is not null)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">Couldn't load recent backups</div>
+                <div class="bk-empty-text">@_runsError</div>
+                <button class="set-retry" @onclick="LoadRunsAsync">Try again</button>
+            </div>
+        }
+        else if (_runs is null || _runs.Count == 0)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">No backups yet</div>
+                <div class="bk-empty-text">Once a backup runs, it will appear here.</div>
+            </div>
+        }
+        else
+        {
+            <table class="set-table bk-table">
+                <thead>
+                    <tr><th>When (PH time)</th><th>Trigger</th><th>Status</th><th class="set-th-r">Details</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var run in _runs)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(run.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</td>
+                            <td>@TriggerLabel(run.Event)</td>
+                            <td><span class="bk-pill @PillClass(run)">@StatusLabel(run)</span></td>
+                            <td class="set-td-r">
+                                @if (!string.IsNullOrWhiteSpace(run.HtmlUrl))
+                                {
+                                    <a class="set-link" href="@run.HtmlUrl" target="_blank" rel="noopener">View log<span class="set-link-arrow">→</span></a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <!-- ── Restore (read-only info, no upload) ── -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Restoring a backup</div>
+                <div class="set-card-sub">A controlled ops procedure — not performed in-app</div>
+            </div>
+        </div>
+        <p class="bk-restore-text">
+            Restores are deliberate, high-impact operations run by an operator, never from this dashboard.
+            There are two supported paths:
+        </p>
+        <div class="bk-restore-step">
+            <div class="bk-restore-step-title">1 · Restore a downloaded backup</div>
+            <div class="bk-restore-step-text">Download the latest backup above, then run <code>pg_restore</code> against the target database:</div>
+            <pre class="bk-code"><code>pg_restore --no-owner --no-privileges --clean --if-exists -d "postgresql://user:pass@@host:5432/dbname?sslmode=require" backup.dump</code></pre>
+        </div>
+        <div class="bk-restore-step">
+            <div class="bk-restore-step-title">2 · Azure point-in-time recovery</div>
+            <div class="bk-restore-step-text">For recovery to a specific moment within the last 7 days, use Azure PITR to provision a restored server, then repoint the app's connection string.</div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private readonly DateTime _now = PhilippineTime.Now;
+
+    private IReadOnlyList<BackupRunDto>? _runs;
+    private bool _loadingRuns = true;
+    private string? _runsError;
+
+    private bool _running;
+    private bool _downloading;
+    private string? _message;
+    private bool _messageOk;
+
+    protected override async Task OnInitializedAsync() => await LoadRunsAsync();
+
+    private async Task LoadRunsAsync()
+    {
+        _loadingRuns = true;
+        _runsError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await BackupApi.GetRecentRunsAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _runs = result.Value;
+        }
+        else
+        {
+            _runsError = string.IsNullOrWhiteSpace(result.Error)
+                ? "Recent backups could not be retrieved."
+                : result.Error;
+        }
+
+        _loadingRuns = false;
+    }
+
+    private async Task RunBackupAsync()
+    {
+        _running = true;
+        _message = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await BackupApi.TriggerBackupAsync();
+        if (result.IsSuccess)
+        {
+            _messageOk = true;
+            _message = "Backup started. It may take a minute to appear below.";
+            // Give GitHub a moment to register the run, then refresh the list.
+            await Task.Delay(4000);
+            await LoadRunsAsync();
+        }
+        else
+        {
+            _messageOk = false;
+            _message = string.IsNullOrWhiteSpace(result.Error)
+                ? "The backup could not be started. Please try again."
+                : result.Error;
+        }
+
+        _running = false;
+    }
+
+    private async Task DownloadLatestAsync()
+    {
+        _downloading = true;
+        _message = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await BackupApi.GetLatestAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            var artifact = result.Value;
+            await JS.InvokeVoidAsync("downloadFileFromBytes",
+                artifact.FileName, Convert.ToBase64String(artifact.Content), artifact.ContentType);
+            _messageOk = true;
+            _message = $"Downloading {artifact.FileName}.";
+        }
+        else
+        {
+            _messageOk = false;
+            _message = string.IsNullOrWhiteSpace(result.Error)
+                ? "No backup is available to download yet."
+                : result.Error;
+        }
+
+        _downloading = false;
+    }
+
+    private static string TriggerLabel(string? evt) => evt switch
+    {
+        "schedule" => "Scheduled",
+        "workflow_dispatch" => "Manual",
+        null or "" => "—",
+        _ => char.ToUpper(evt[0]) + evt[1..]
+    };
+
+    private static string StatusLabel(BackupRunDto run)
+    {
+        if (string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            return run.Conclusion switch
+            {
+                "success" => "Success",
+                "failure" => "Failed",
+                "cancelled" => "Cancelled",
+                null or "" => "Completed",
+                _ => char.ToUpper(run.Conclusion[0]) + run.Conclusion[1..]
+            };
+
+        return run.Status switch
+        {
+            "in_progress" => "In progress",
+            "queued" => "Queued",
+            "" => "Unknown",
+            _ => char.ToUpper(run.Status[0]) + run.Status[1..]
+        };
+    }
+
+    private static string PillClass(BackupRunDto run)
+    {
+        var completed = string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase);
+        if (completed)
+            return run.Conclusion switch
+            {
+                "success" => "bk-pill-ok",
+                "failure" or "cancelled" or "timed_out" => "bk-pill-err",
+                _ => "bk-pill-warn"
+            };
+
+        // queued / in_progress / anything not yet concluded.
+        return "bk-pill-warn";
+    }
+}

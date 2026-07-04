@@ -206,7 +206,9 @@
                             <div class="ac-time-sub">@ph.ToString("MMM d, yyyy")</div>
                         </div>
                         <div class="ac-actor">
-                            <div class="ac-avatar">@Initials(log.ActorDisplayName)</div>
+                            <div class="ac-avatar" aria-hidden="true">
+                                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                            </div>
                             <div class="ac-actor-text">
                                 <div class="ac-actor-name">@log.ActorDisplayName</div>
                                 <div class="ac-actor-role">@log.ActorRole</div>
@@ -388,7 +390,10 @@
 
     private async Task SetAction(string? action)
     {
-        _action = action;
+        // Toggle: re-clicking the active action card clears the filter back to all events.
+        var next = (action is not null && _action == action) ? null : action;
+        if (next == _action) return; // e.g. clicking "Total Events" while already showing all
+        _action = next;
         _page = 1;
         await ReloadAsync();
     }
@@ -525,14 +530,6 @@
 
     // Stored audit timestamps are UTC; the UI shows Philippine time (UTC+8, no DST).
     private static DateTime ToPh(DateTime utc) => utc.AddHours(8);
-
-    private static string Initials(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "?";
-        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpper();
-        return string.Concat(parts[0][0], parts[^1][0]).ToUpper();
-    }
 
     // Brief, professional labels for the audited entity types (the filter value stays the class name).
     private static readonly Dictionary<string, string> EntityLabels = new()

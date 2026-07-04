@@ -24,7 +24,8 @@ public class RecordDailyCollectionCommandHandler(
         if (stall is null)
             return Result<bool>.NotFound();
 
-        if (currentUser.Role == "Collector")
+        var isCollectorRequest = currentUser.Role == "Collector";
+        if (isCollectorRequest)
         {
             if (currentUser.CollectorId is not { } actingCollectorId || stall.Facility is null)
                 return Result<bool>.Forbidden();
@@ -45,6 +46,16 @@ public class RecordDailyCollectionCommandHandler(
 
         if (existing is not null)
         {
+            if (isCollectorRequest &&
+                existing.CollectorId is { } recordedCollectorId &&
+                collectorId is { } actingCollectorId &&
+                recordedCollectorId != actingCollectorId)
+            {
+                return Result<bool>.Failure(
+                    "This daily collection was already recorded by another collector. Refresh the record before making changes.",
+                    409);
+            }
+
             if (request.IsAbsent)
             {
                 existing.MarkAbsent(recordedBy);

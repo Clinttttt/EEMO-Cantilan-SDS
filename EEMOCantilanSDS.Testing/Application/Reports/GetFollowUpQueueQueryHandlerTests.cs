@@ -131,10 +131,11 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.True(excused.Excused);
         Assert.Equal(0m, excused.Amount);
 
-        // Contract expired → immediate, with a profile deep link.
-        var contract = Assert.Single(items, i => i.ReasonKind == "contract");
-        Assert.Equal(1, contract.Section);
-        Assert.Equal("/profile/ice/02", contract.Link);
+        // Expired contract is EXCLUDED from the LIVE queue — an already-expired contract is a closed
+        // account (surfaced on the Closed Accounts page and via the Follow-up History handler), not a
+        // live action item. Only contracts EXPIRING SOON (still active) surface here, so with the only
+        // seeded contract-attention row being expired, no "contract" item appears.
+        Assert.DoesNotContain(items, i => i.ReasonKind == "contract");
 
         // Online payment awaiting OR → Missing OR, Encode OR action.
         var missingOr = Assert.Single(items, i => i.ReasonKind == "missingor");

@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -11,6 +12,22 @@ namespace EEMOCantilanSDS.Testing;
 
 public class RecordDailyCollectionCommandHandlerTests
 {
+    private static Stall StallInFacility(FacilityCode code)
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "A-1", 900m, ApplicableFees.DailyRental);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(code, code.ToString(), code.ToString()));
+        return stall;
+    }
+
+    private static CollectorUser CollectorWith(params FacilityCode[] codes)
+    {
+        var collector = CollectorUser.Create("Maria", "EEMO-2026-010", "maria", "maria@eemo.gov", "0917", "Secret123!");
+        foreach (var code in codes)
+            collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), code));
+        return collector;
+    }
+
     // Regression: previously the handler hardcoded collectorId: Guid.Empty / createdBy: "System",
     // so collector daily-collection stats were structurally always zero.
     [Fact]
@@ -192,6 +209,88 @@ public class RecordDailyCollectionCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.True(existing.IsPaid);
         Assert.Equal("X-1", existing.ORNumber);
+    }
+
+    [Fact]
+    public async Task Collector_CannotOverwriteDailyCollectionRecordedByAnotherCollector_OnSharedFacility()
+    {
+        var firstCollectorId = Guid.NewGuid();
+        var secondCollector = CollectorWith(FacilityCode.NPM);
+        var stall = StallInFacility(FacilityCode.NPM);
+        var collectionDate = new DateOnly(2026, 6, 6);
+        var existing = DailyCollection.Create(stall.Id, collectionDate, "collector-a");
+        existing.MarkPaid("OR-A", firstCollectorId, null, "collector-a");
+
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var uow = new Mock<IUnitOfWork>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        dailyRepo.Setup(r => r.GetByStallAndDateAsync(stall.Id, collectionDate, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        collectorRepo.Setup(r => r.GetByIdAsync(secondCollector.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(secondCollector);
+        currentUser.SetupGet(c => c.Role).Returns("Collector");
+        currentUser.SetupGet(c => c.CollectorId).Returns(secondCollector.Id);
+        currentUser.SetupGet(c => c.Username).Returns("collector-b");
+
+        var handler = new RecordDailyCollectionCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(
+            new RecordDailyCollectionCommand(stall.Id, collectionDate, IsPaid: true, ORNumber: "OR-B"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(firstCollectorId, existing.CollectorId);
+        Assert.Equal("OR-A", existing.ORNumber);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Collector_CanUpdateOwnDailyCollection_OnSharedFacility()
+    {
+        var collector = CollectorWith(FacilityCode.NPM);
+        var stall = StallInFacility(FacilityCode.NPM);
+        var collectionDate = new DateOnly(2026, 6, 6);
+        var existing = DailyCollection.Create(stall.Id, collectionDate, "collector-a");
+        existing.MarkPaid("OR-A", collector.Id, null, "collector-a");
+
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var collectorRepo = new Mock<ICollectorRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var uow = new Mock<IUnitOfWork>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync("OR-A", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        dailyRepo.Setup(r => r.GetByStallAndDateAsync(stall.Id, collectionDate, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existing);
+        collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collector);
+        currentUser.SetupGet(c => c.Role).Returns("Collector");
+        currentUser.SetupGet(c => c.CollectorId).Returns(collector.Id);
+        currentUser.SetupGet(c => c.Username).Returns("collector-a");
+        uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var handler = new RecordDailyCollectionCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(
+            new RecordDailyCollectionCommand(stall.Id, collectionDate, IsPaid: true, FishKilos: 2m, ORNumber: "OR-A"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(collector.Id, existing.CollectorId);
+        Assert.Equal("OR-A", existing.ORNumber);
+        Assert.Equal(2m, existing.FishKilos);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

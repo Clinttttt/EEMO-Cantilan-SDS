@@ -541,7 +541,7 @@
                                             <th>Status</th>
                                             <th class="prof-ch-r">Amount</th>
                                             <th>OR No.</th>
-                                            <th>Collector</th>
+                                            <th>Recorded By</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -553,7 +553,7 @@
                                                 <td><span class="prof-ch-pill prof-ch-@row.Status.ToLowerInvariant()">@row.Status</span></td>
                                                 <td class="prof-ch-r mono">@(row.Amount > 0 ? $"₱{row.Amount:N0}" : "—")</td>
                                                 <td class="mono">@(string.IsNullOrWhiteSpace(row.ORNumber) ? "—" : row.ORNumber)</td>
-                                                <td>@(string.IsNullOrWhiteSpace(row.CollectorName) ? "—" : row.CollectorName)</td>
+                                                <td>@(row.CollectorName ?? row.RecordedByName ?? "—")</td>
                                             </tr>
                                         }
                                     </tbody>

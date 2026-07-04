@@ -117,7 +117,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 g.Key.Code,
                 g.Key.StallNo,
                 string.IsNullOrWhiteSpace(g.Key.Occupant) ? string.Empty : g.Key.Occupant!,
-                g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)),
+                // Daily fee only — the ₱1/kg fish surcharge is tracked separately (as in the NPM/Export
+                // reports), so it is excluded from this "Daily receipt · OR" amount.
+                g.Sum(x => x.DailyFee),
                 g.Count(),
                 IsDaily: true,
                 StallId: g.First().StallId));
@@ -183,12 +185,18 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         // Non-NPM facilities are billed monthly — the payment record is the source of truth.
         if (stall?.Facility?.Code != FacilityCode.NPM)
         {
+            // Display-only recorder attribution: field collector when set, else the admin/Head
+            // captured in the audit actor (UpdatedBy ?? CreatedBy). Both lookups built once (no N+1).
+            var monthlyCollectorNames = await LoadCollectorNamesAsync(payments.Select(p => p.CollectorId), ct);
+            var monthlyAdminNames = await LoadAdminNamesAsync(payments.Select(p => p.UpdatedBy ?? p.CreatedBy), ct);
+
             return payments
                 .OrderByDescending(p => p.BillingYear)
                 .ThenByDescending(p => p.BillingMonth)
                 .Select(p => new PaymentHistoryDto(
                     $"{p.BillingYear:0000}-{p.BillingMonth:00}",
-                    p.Status, p.TotalBill, p.AmountPaid, p.BalanceDue, p.ORNumber, p.PaidAt, null))
+                    p.Status, p.TotalBill, p.AmountPaid, p.BalanceDue, p.ORNumber, p.PaidAt, null,
+                    RecordedByName: ResolveRecorderName(p.CollectorId, p.UpdatedBy ?? p.CreatedBy, monthlyCollectorNames, monthlyAdminNames)))
                 .ToList();
         }
 
@@ -267,8 +275,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 if (collectableDays > 0 && billableDays == 0 && absentDays > 0)
                 {
                     result.Add(new PaymentHistoryDto(
-                        period, PaymentStatus.Paid, 0m, 0m, 0m, null, null, null, IsExcused: true));
-                }
+                        period, PaymentStatus.Paid, 0m, 0m, 0m, null, null, null, IsExcused: true));                }
                 continue;
             }
 
@@ -284,7 +291,8 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 balance,
                 last?.ORNumber,
                 last is not null ? last.CollectionDate.ToDateTime(TimeOnly.MinValue) : null,
-                last?.CollectorId is Guid lcid && collectorNames.TryGetValue(lcid, out var ln) ? ln : null));
+                last?.CollectorId is Guid lcid && collectorNames.TryGetValue(lcid, out var ln) ? ln : null,
+                RecordedByName: last?.CollectorId is Guid rcid && collectorNames.TryGetValue(rcid, out var rln) ? rln : null));
         }
 
         return result;
@@ -462,7 +470,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                     d.IsPaid ? "Paid" : "Absent",
                     d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m) : 0m,
                     d.ORNumber,
-                    d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null)).ToList(),
+                    d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null,
+                    // NPM daily collections are collector-driven; the recorder is the collector (or none).
+                    RecordedByName: d.CollectorId is Guid rcid && names.TryGetValue(rcid, out var rnm) ? rnm : null)).ToList(),
                 NextCursor = paged.NextCursor,
                 HasMore = paged.HasMore
             };
@@ -479,6 +489,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
         var mPaged = await mq.ToCursorPagedResultAsync(pageSize, p => (DateTime?)new DateTime(p.BillingYear, p.BillingMonth, 1), ct);
         var mNames = await LoadCollectorNamesAsync(mPaged.Items.Select(p => p.CollectorId), ct);
+        // Admin/Head-recorded monthly payments carry no CollectorId — resolve the recorder from the
+        // audit actor (UpdatedBy ?? CreatedBy) so the history attributes them instead of showing "—".
+        var mAdminNames = await LoadAdminNamesAsync(mPaged.Items.Select(p => p.UpdatedBy ?? p.CreatedBy), ct);
 
         return new CursorPagedResult<StallCollectionHistoryRowDto>
         {
@@ -488,7 +501,8 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 p.Status.ToString(),
                 p.AmountPaid,
                 p.ORNumber,
-                p.CollectorId is Guid cid && mNames.TryGetValue(cid, out var nm) ? nm : null)).ToList(),
+                p.CollectorId is Guid cid && mNames.TryGetValue(cid, out var nm) ? nm : null,
+                RecordedByName: ResolveRecorderName(p.CollectorId, p.UpdatedBy ?? p.CreatedBy, mNames, mAdminNames))).ToList(),
             NextCursor = mPaged.NextCursor,
             HasMore = mPaged.HasMore
         };
@@ -504,6 +518,40 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .AsNoTracking()
             .Where(c => ids.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.FullName ?? string.Empty, ct);
+    }
+
+    // Resolves admin/Head display names from audit actors (username → full name). Admin-recorded
+    // entries carry no CollectorId; the actor is captured in the audit CreatedBy/UpdatedBy. Mirrors
+    // DashboardRepository's adminNames mapping. Built once per page (no N+1).
+    private async Task<Dictionary<string, string>> LoadAdminNamesAsync(IEnumerable<string?> actors, CancellationToken ct)
+    {
+        var keys = actors.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a!).Distinct().ToList();
+        if (keys.Count == 0)
+            return new Dictionary<string, string>();
+        return await context.AdminUsers
+            .AsNoTracking()
+            .Where(a => a.Username != null && keys.Contains(a.Username))
+            .ToDictionaryAsync(a => a.Username!, a => a.FullName ?? a.Username!, ct);
+    }
+
+    // Display-only recorder attribution (mirrors DashboardRepository.ResolveRecorder): the field
+    // collector when a CollectorId is set, otherwise the admin/Head resolved from the audit actor,
+    // falling back to the raw actor. Returns null when nothing is known (UI renders it as "—").
+    private static string? ResolveRecorderName(
+        Guid? collectorId,
+        string? actor,
+        IReadOnlyDictionary<Guid, string> collectorNames,
+        IReadOnlyDictionary<string, string> adminNames)
+    {
+        if (collectorId is { } id
+            && collectorNames.TryGetValue(id, out var collector)
+            && !string.IsNullOrWhiteSpace(collector))
+            return collector;
+
+        if (!string.IsNullOrWhiteSpace(actor))
+            return adminNames.TryGetValue(actor, out var admin) ? admin : actor;
+
+        return null;
     }
 
     // Days in [start, end] where the stall is active and under an effective contract (NPM-style).

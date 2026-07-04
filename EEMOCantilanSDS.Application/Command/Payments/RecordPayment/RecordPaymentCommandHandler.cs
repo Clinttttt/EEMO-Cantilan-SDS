@@ -35,7 +35,8 @@ public class RecordPaymentCommandHandler(
 
         // Collectors may only record against a facility they are assigned to. Admins/heads
         // (any non-Collector role) record from the web and are not assignment-restricted.
-        if (currentUser.Role == "Collector")
+        var isCollectorRequest = currentUser.Role == "Collector";
+        if (isCollectorRequest)
         {
             if (currentUser.CollectorId is not { } actingCollectorId || stall.Facility is null)
                 return Result<bool>.Forbidden();
@@ -85,6 +86,16 @@ public class RecordPaymentCommandHandler(
             var existingPayment = await paymentRepository.GetByIdAsync(existingPaymentDto.Id, ct);
             if (existingPayment == null)
                 return Result<bool>.NotFound();
+
+            if (isCollectorRequest &&
+                existingPayment.CollectorId is { } recordedCollectorId &&
+                collectorId is { } actingCollectorId &&
+                recordedCollectorId != actingCollectorId)
+            {
+                return Result<bool>.Failure(
+                    "This payment was already recorded by another collector. Refresh the record before making changes.",
+                    409);
+            }
                 
             existingPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
             if (existingPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))

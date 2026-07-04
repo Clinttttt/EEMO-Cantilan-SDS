@@ -78,18 +78,21 @@
             <div class="ex-control-block ex-control-grow">
                 <span class="ex-control-label">Export</span>
                 <div class="ex-actions">
-                    <button class="ex-btn ex-btn-primary" type="button" @onclick="Print">
+                  
+                    <button class="ex-btn" type="button" @onclick="Print"
+                            title="Opens the print dialog — choose a printer for a paper copy.">
                         <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                         Print
-                    </button>
-                    <button class="ex-btn" type="button" @onclick="SaveAsPdf">
-                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                        Save as PDF
                     </button>
                     <a class="ex-btn" download="@CsvFileName" href="@CsvHref">
                         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                         Download CSV
                     </a>
+                      <button class="ex-btn ex-btn-primary" type="button" @onclick="SaveAsPdf"
+                            title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination to download this report.">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                        Save as PDF
+                    </button>
                 </div>
             </div>
         </div>

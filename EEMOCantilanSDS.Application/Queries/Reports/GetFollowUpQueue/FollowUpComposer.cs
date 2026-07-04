@@ -75,7 +75,8 @@ public static class FollowUpComposer
                 Period: periodLabel,
                 Status: $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
                 Action: "View vendor",
-                Link: ProfileLink(d.FacilityCode, d.StallNo)));
+                Link: ProfileLink(d.FacilityCode, d.StallNo),
+                StallId: d.StallId));
         }
 
         // ── 2) Per stall-facility compliance: current-period unpaid/partial, excused, NPM missed-daily ──
@@ -95,7 +96,7 @@ public static class FollowUpComposer
                         s.StallNo.StartsWith("Stall", StringComparison.OrdinalIgnoreCase) ? s.StallNo : $"Stall {s.StallNo}",
                         0m, true, periodLabel,
                         s.Status is "Absent" or "Excused" ? "Excused · full period" : $"Excused · {s.AbsentDays} days",
-                        "Verify absence", ProfileLink(code, s.StallNo)));
+                        "Verify absence", ProfileLink(code, s.StallNo), s.StallId));
                     continue;
                 }
 
@@ -111,7 +112,7 @@ public static class FollowUpComposer
                         code, Model(code), Named(s.Occupant), $"Stall {s.StallNo}",
                         s.Balance, false, periodLabel,
                         isPartial ? "Partial" : "Unpaid",
-                        "View vendor", ProfileLink(code, s.StallNo)));
+                        "View vendor", ProfileLink(code, s.StallNo), s.StallId));
                 }
             }
 

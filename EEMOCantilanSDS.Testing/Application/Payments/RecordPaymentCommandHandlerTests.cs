@@ -134,6 +134,61 @@ public class RecordPaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task Collector_CannotOverwritePaymentRecordedByAnotherCollector_OnSharedFacility()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var firstCollectorId = Guid.NewGuid();
+        var secondCollector = CollectorWith(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, secondCollector, "Collector", secondCollector.Id);
+
+        var existing = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "collector-a");
+        existing.UpdateStatus(PaymentStatus.Paid, 0m, null, "collector-a", firstCollectorId);
+        existing.SetOrNumber("OR-A", "collector-a");
+
+        var dtoId = Guid.NewGuid();
+        paymentRepo.Setup(r => r.GetPaymentRecordAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Paid, "OR-A", 2400m, null, null, null, 2400m, 0m));
+        paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var result = await handler.Handle(
+            new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "OR-B"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(firstCollectorId, existing.CollectorId);
+        Assert.Equal("OR-A", existing.ORNumber);
+        paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Collector_CanUpdateOwnExistingPayment_OnSharedFacility()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var collector = CollectorWith(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, collector, "Collector", collector.Id);
+
+        var existing = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "collector-a");
+        existing.UpdateStatus(PaymentStatus.Partial, 1000m, null, "collector-a", collector.Id);
+        existing.SetOrNumber("OR-A", "collector-a");
+
+        var dtoId = Guid.NewGuid();
+        paymentRepo.Setup(r => r.GetPaymentRecordAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Partial, "OR-A", 2400m, null, null, null, 1000m, 1400m));
+        paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+        paymentRepo.Setup(r => r.IsORNumberUniqueAsync("OR-A", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var result = await handler.Handle(
+            new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "OR-A"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(collector.Id, existing.CollectorId);
+        Assert.Equal(PaymentStatus.Paid, existing.Status);
+        paymentRepo.Verify(r => r.UpdateAsync(existing, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task NpmStall_IsRejected_NoMonthlyRecordCreated()
     {
         // NPM is collected daily (₱30/day). A monthly PaymentRecord must never be created for it —

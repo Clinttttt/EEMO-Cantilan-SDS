@@ -13,5 +13,6 @@ public record DelinquentStallDto(
     string StallNo,
     string Occupant,
     int MonthsUnpaid,
-    decimal OutstandingBalance
+    decimal OutstandingBalance,
+    Guid? StallId = null
 );

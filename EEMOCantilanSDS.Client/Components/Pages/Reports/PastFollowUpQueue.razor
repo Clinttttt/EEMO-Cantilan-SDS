@@ -2,8 +2,20 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Dtos.DailyCollections
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
+@using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber
+@using EEMOCantilanSDS.Application.Requests.TransportTerminal
+@using EEMOCantilanSDS.Application.Requests.TaboanMarket
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IReportsApiClient ReportsApi
+@inject IDailyCollectionApiClient DailyApi
+@inject ITrmApiClient TrmApi
+@inject ITpmApiClient TpmApi
+@inject ISlaughterApiClient SlhApi
+@inject IJSRuntime JS
 
 @*
     Follow-up History — the SAME layout and tables as the live queue (hero summary, filter bar, urgency
@@ -276,7 +288,14 @@
                                                 case "action":
                                                     <td>
                                                         <div class="fh-action-cell">
-                                                            <a class="fh-action" href="@r.Link">@r.Action<span class="fh-action-arrow">→</span></a>
+                                                            @if (r.Action == "Add OR")
+                                                            {
+                                                                <button type="button" class="fh-action fh-action-btn" @onclick="() => OpenAddOr(r)">@r.Action<span class="fh-action-arrow">→</span></button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <a class="fh-action" href="@r.Link">@r.Action<span class="fh-action-arrow">→</span></a>
+                                                            }
                                                         </div>
                                                     </td>
                                                     break;
@@ -293,7 +312,288 @@
     }
 </div>
 
+@if (_orItem is not null)
+{
+    <div class="fq-modal-overlay" @onclick="CloseAddOr">
+        <div class="fq-modal" @onclick:stopPropagation="true">
+            <div class="fq-modal-head">
+                <div>
+                    <div class="fq-modal-title">Add OR — @_orItem.Person</div>
+                    <div class="fq-modal-sub">@_orItem.Identifier · @_orItem.Facility · @_orItem.Period</div>
+                </div>
+                <button type="button" class="fq-modal-x" @onclick="CloseAddOr" aria-label="Close">&times;</button>
+            </div>
+            <div class="fq-modal-body">
+                @if (_orLoading)
+                {
+                    <div class="fq-or-state">Loading records…</div>
+                }
+                else if (_orError is not null)
+                {
+                    <div class="fq-or-state fq-or-error">@_orError</div>
+                }
+                else if (_orRows.Count == 0)
+                {
+                    <div class="fq-or-state">All records for this entry already have an OR number.</div>
+                }
+                else
+                {
+                    <div class="fq-or-note">Enter the official receipt (OR) number for each record still missing one. Each OR must be unique. For the slaughterhouse, one OR covers a whole visit (all animals on that date).</div>
+                    <div class="fq-or-list">
+                        @foreach (var r in _orRows)
+                        {
+                            <div class="fq-or-row @(r.Saved ? "fq-or-rowdone" : "")">
+                                <div class="fq-or-day">
+                                    <div class="fq-or-date">@r.Label</div>
+                                    <div class="fq-or-amt">₱@r.Amount.ToString("N0")</div>
+                                </div>
+                                @if (r.Saved)
+                                {
+                                    <div class="fq-or-done"><span class="fq-or-check">✓</span> OR @r.Input</div>
+                                }
+                                else if (r.Confirming)
+                                {
+                                    <div class="fq-or-confirm">
+                                        <span class="fq-or-confirm-q">Save OR <strong>@r.Input.Trim()</strong>?</span>
+                                        <button type="button" class="fq-or-confirm-yes" @onclick="() => SaveOrDay(r)" disabled="@r.Saving">
+                                            @(r.Saving ? "Saving…" : "Confirm")
+                                        </button>
+                                        <button type="button" class="fq-or-confirm-no" @onclick="() => CancelConfirm(r)" disabled="@r.Saving">Cancel</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <input class="fq-or-input" placeholder="OR number" maxlength="50" @bind="r.Input" @bind:event="oninput" disabled="@r.Saving" />
+                                    <button type="button" class="fq-or-save"
+                                            @onclick="() => BeginSave(r)"
+                                            disabled="@(r.Saving || string.IsNullOrWhiteSpace(r.Input))">
+                                        Save
+                                    </button>
+                                }
+                                @if (r.Error is not null)
+                                {
+                                    <div class="fq-or-rowerr">@r.Error</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="fq-modal-foot">
+                <button type="button" class="fq-modal-done" @onclick="CloseAddOr">Done</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    // ── Inline Add-OR (records missing a receipt number) ───────────────────────────
+    // Works for every facility model. Reuses each facility's existing OR-save; for SLH one OR
+    // covers a whole visit (all animal rows on that date). Period comes from the loaded history
+    // snapshot (a past period), not "today".
+    private enum OrModel { NpmDaily, Monthly, Trm, Tpm, Slh }
+
+    private sealed class OrRow
+    {
+        public string Label { get; init; } = "";
+        public decimal Amount { get; init; }
+        public string Input { get; set; } = "";
+        public bool Saving { get; set; }
+        public bool Saved { get; set; }
+        public bool Confirming { get; set; }
+        public string? Error { get; set; }
+        public DateOnly Date { get; init; }   // NPM day / SLH visit date
+        public Guid RecordId { get; init; }    // monthly PaymentId / TRM TripId / TPM AttendanceId
+    }
+
+    private FollowUpItemDto? _orItem;
+    private OrModel _orModel;
+    private bool _orLoading;
+    private string? _orError;
+    private bool _orSavedAny;
+    private List<OrRow> _orRows = new();
+
+    private static OrModel ModelFor(FacilityCode f) => f switch
+    {
+        FacilityCode.NPM => OrModel.NpmDaily,
+        FacilityCode.SLH => OrModel.Slh,
+        FacilityCode.TRM => OrModel.Trm,
+        FacilityCode.TPM => OrModel.Tpm,
+        _ => OrModel.Monthly,   // TCC / NCC / BBQ / ICE
+    };
+
+    // Mirrors the server's display normalisation so name-keyed rows (SLH/TRM/TPM) match.
+    private static string Named(string? v) => string.IsNullOrWhiteSpace(v) ? "Unnamed occupant" : v!;
+
+    private async Task OpenAddOr(FollowUpItemDto item)
+    {
+        _orItem = item;
+        _orModel = ModelFor(item.Facility);
+        _orRows = new();
+        _orError = null;
+        _orSavedAny = false;
+        _orLoading = true;
+        // Period comes from the loaded snapshot's "as of" period, not today.
+        int y = _data?.AsOf.Year ?? _now.Year, m = _data?.AsOf.Month ?? _now.Month;
+
+        switch (_orModel)
+        {
+            case OrModel.NpmDaily:
+                if (item.StallId is { } npmStall)
+                {
+                    var r = await DailyApi.GetDailyCollectionMonthAsync(npmStall, y, m);
+                    if (r.IsSuccess && r.Value is not null)
+                        _orRows = r.Value.Collections.Values
+                            .Where(d => d.IsPaid && string.IsNullOrWhiteSpace(d.ORNumber))
+                            .OrderBy(d => d.Date)
+                            .Select(d => new OrRow
+                            {
+                                Label = d.Date.ToString("MMM d, yyyy"),
+                                Amount = FeeRates.NpmDailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+                                Date = d.Date
+                            }).ToList();
+                    else _orError = r.Error ?? "Couldn't load daily receipts.";
+                }
+                else _orError = "Missing stall reference.";
+                break;
+
+            case OrModel.Monthly:
+                if (item.StallId is { } monStall)
+                {
+                    var r = await PaymentsApi.GetPaymentRecordAsync(monStall, y, m);
+                    if (r.IsSuccess && r.Value is not null)
+                    {
+                        if (string.IsNullOrWhiteSpace(r.Value.ORNumber))
+                            _orRows = new() { new OrRow { Label = item.Period, Amount = r.Value.TotalPaid, RecordId = r.Value.Id } };
+                    }
+                    else _orError = r.Error ?? "Couldn't load the payment record.";
+                }
+                else _orError = "Missing stall reference.";
+                break;
+
+            case OrModel.Trm:
+                {
+                    var r = await TrmApi.GetTripsAsync(y, m);
+                    if (r.IsSuccess && r.Value is not null)
+                        _orRows = r.Value
+                            .Where(t => string.IsNullOrWhiteSpace(t.ORNumber) && Named(t.DriverName) == item.Person)
+                            .OrderBy(t => t.RecordedAt)
+                            .Select(t => new OrRow { Label = $"Trip #{t.TripNumber} · {t.RecordedAt:MMM d}", Amount = t.Fee, RecordId = t.Id })
+                            .ToList();
+                    else _orError = r.Error ?? "Couldn't load trips.";
+                }
+                break;
+
+            case OrModel.Tpm:
+                {
+                    var r = await TpmApi.GetMonthAttendanceAsync(y, m);
+                    if (r.IsSuccess && r.Value is not null)
+                        _orRows = r.Value
+                            .Where(a => a.IsPaid && string.IsNullOrWhiteSpace(a.ORNumber) && Named(a.VendorName) == item.Person)
+                            .OrderBy(a => a.MarketDate)
+                            .Select(a => new OrRow { Label = a.MarketDate.ToString("MMM d, yyyy"), Amount = a.Fee, RecordId = a.Id })
+                            .ToList();
+                    else _orError = r.Error ?? "Couldn't load market days.";
+                }
+                break;
+
+            case OrModel.Slh:
+                {
+                    var r = await SlhApi.GetTransactionsAsync(y, m);
+                    if (r.IsSuccess && r.Value is not null)
+                        // One OR per VISIT (owner + date), covering every animal row on that date.
+                        _orRows = r.Value
+                            .Where(t => string.IsNullOrWhiteSpace(t.ORNumber) && Named(t.OwnerName) == item.Person)
+                            .GroupBy(t => t.TransactionDate)
+                            .OrderBy(g => g.Key)
+                            .Select(g => new OrRow
+                            {
+                                Label = $"{g.Key:MMM d, yyyy} · {g.Sum(x => x.NumberOfHeads)} head{(g.Sum(x => x.NumberOfHeads) == 1 ? "" : "s")}",
+                                Amount = g.Sum(x => x.TotalAmount),
+                                Date = g.Key
+                            }).ToList();
+                    else _orError = r.Error ?? "Couldn't load slaughter receipts.";
+                }
+                break;
+        }
+        _orLoading = false;
+    }
+
+    // Step 1 — validate the entry, then ask the admin to confirm (guards against a mistyped OR
+    // before anything is written).
+    private void BeginSave(OrRow row)
+    {
+        row.Error = null;
+        var or = row.Input?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(or)) return;
+
+        // Catch the most common admin typo before committing: the same OR entered twice here.
+        if (_orRows.Any(o => !ReferenceEquals(o, row) && string.Equals((o.Input ?? string.Empty).Trim(), or, StringComparison.OrdinalIgnoreCase)))
+        {
+            row.Error = "That OR number is already entered for another item here.";
+            return;
+        }
+
+        row.Confirming = true;
+    }
+
+    private void CancelConfirm(OrRow row) => row.Confirming = false;
+
+    // Step 2 — commit, only after the admin confirms.
+    private async Task SaveOrDay(OrRow row)
+    {
+        var or = row.Input?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(or)) { row.Confirming = false; return; }
+
+        row.Saving = true;
+        row.Error = null;
+
+        Result<bool>? result = null;
+        switch (_orModel)
+        {
+            case OrModel.NpmDaily:
+                if (_orItem?.StallId is { } sid)
+                    result = await DailyApi.SaveOrNumberAsync(new SaveDailyCollectionOrNumberCommand(sid, row.Date, or));
+                break;
+            case OrModel.Monthly:
+                result = await PaymentsApi.SaveOrNumberAsync(new SaveOrNumberCommand(row.RecordId, or));
+                break;
+            case OrModel.Trm:
+                result = await TrmApi.SaveOrNumberAsync(row.RecordId, new SaveTripOrNumberRequest(or));
+                break;
+            case OrModel.Tpm:
+                result = await TpmApi.SaveOrNumberAsync(row.RecordId, new SaveOrNumberRequest(or));
+                break;
+            case OrModel.Slh:
+                if (_orItem is not null)
+                    result = await SlhApi.SaveOrNumberAsync(new SaveSlaughterOrNumberCommand(_orItem.Person, row.Date, or));
+                break;
+        }
+
+        if (result is null)
+            row.Error = "Couldn't save this OR number.";
+        else if (result.IsSuccess)
+        {
+            row.Input = or;
+            row.Saved = true;
+            _orSavedAny = true;
+        }
+        else
+            row.Error = result.Error ?? "Couldn't save this OR number.";
+
+        row.Saving = false;
+        row.Confirming = false;
+    }
+
+    private async Task CloseAddOr()
+    {
+        var reload = _orSavedAny;
+        _orItem = null;
+        _orRows = new();
+        _orSavedAny = false;
+        if (reload) await Load();   // receipted records drop off the snapshot → refresh it
+    }
+
     private readonly DateTime _now = PhilippineTime.Now;
     private List<(int Year, int Month)> Periods = new();
     private List<int> Years = new();

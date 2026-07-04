@@ -197,3 +197,138 @@
 .fh-empty-icon svg { width: 24px; height: 24px; }
 .fh-empty-title { font-size: 15px; font-weight: 800; color: var(--navy); }
 .fh-empty-sub { font-size: 13px; color: var(--text-muted); }
+
+
+/* ── Add-OR modal (ported from the live Follow-up Queue; scoped CSS does not cross components) ── */
+.fq-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 33, 55, .45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+}
+
+.fq-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 60px rgba(13, 33, 55, .28);
+    overflow: hidden;
+}
+
+.fq-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.fq-modal-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.fq-modal-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.fq-modal-x {
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 2px;
+}
+.fq-modal-x:hover { color: var(--navy); }
+
+.fq-modal-body { padding: 16px 18px; overflow-y: auto; }
+
+.fq-modal-foot {
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.fq-modal-done {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.fq-modal-done:hover { background: var(--navy-2, #112d47); }
+
+.fq-or-state { padding: 18px 4px; text-align: center; color: var(--text-subtle); font-size: 13px; }
+.fq-or-error { color: var(--red); }
+.fq-or-note { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+
+.fq-or-list { display: flex; flex-direction: column; gap: 8px; }
+
+.fq-or-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+.fq-or-rowdone { background: var(--green-bg); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+
+.fq-or-day { text-align: left; }
+.fq-or-date { font-size: 13px; font-weight: 700; color: var(--text); }
+.fq-or-amt { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.fq-or-input {
+    width: 130px;
+    padding: 6px 9px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.fq-or-input:focus { outline: none; border-color: var(--gold); }
+
+.fq-or-save {
+    background: var(--gold);
+    color: var(--navy);
+    border: none;
+    border-radius: 7px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.fq-or-save:hover:not(:disabled) { background: var(--gold-light, #e8cc76); }
+.fq-or-save:disabled { opacity: .55; cursor: default; }
+
+.fq-or-done { display: flex; align-items: center; gap: 6px; grid-column: 2 / 4; font-size: 12.5px; font-weight: 700; color: var(--green); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.fq-or-check { font-size: 13px; }
+
+/* Confirm-before-save (catches a mistyped OR) */
+.fq-or-confirm { grid-column: 2 / 4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.fq-or-confirm-q { font-size: 12.5px; color: var(--text); margin-right: auto; }
+.fq-or-confirm-q strong { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--navy); }
+.fq-or-confirm-yes {
+    background: var(--green); color: #fff; border: none; border-radius: 7px;
+    padding: 6px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.fq-or-confirm-yes:hover:not(:disabled) { background: #25664f; }
+.fq-or-confirm-yes:disabled { opacity: .6; cursor: default; }
+.fq-or-confirm-no {
+    background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.fq-or-confirm-no:hover:not(:disabled) { background: var(--bg-icon); }
+.fq-or-confirm-no:disabled { opacity: .6; cursor: default; }
+
+.fq-or-rowerr { grid-column: 1 / 4; font-size: 11.5px; color: var(--red); margin-top: 2px; }

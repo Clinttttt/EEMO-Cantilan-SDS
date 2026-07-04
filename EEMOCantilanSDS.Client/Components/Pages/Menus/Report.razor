@@ -1,4 +1,4 @@
-@page "/reports"
+﻿@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -374,13 +374,13 @@
                                             </div>
                                             <div class="fac-detail-group">
                                                 <div class="fac-detail-heading">Outstanding</div>
-                                                <div class="fac-detail-item"><span>Unpaid this period (assessed − collected)</span><strong class="fac-detail-red">@Money(nd.PeriodBalance)</strong></div>
+                                                <div class="fac-detail-item"><span>Unpaid this period</span><strong class="fac-detail-red">@Money(nd.PeriodBalance)</strong></div>
                                                 @if (nd.FullMonthCoverage > 0)
                                                 {
-                                                    <div class="fac-detail-item"><span>Full-month coverage (₱900/stall, less absent)</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
+                                                    <div class="fac-detail-item"><span>Full-month coverage  ₱900</span><strong>@Money(nd.FullMonthCoverage)</strong></div>
                                                     @if (nd.ExcusedAmount > 0)
-                                                    {
-                                                        <div class="fac-detail-item"><span>Excused (absent days)</span><strong class="fac-detail-amber">@Money(nd.ExcusedAmount)</strong></div>
+                                                    {                                            
+                                                        <div class="fac-detail-item"><span>Absent</span><strong class="fac-detail-amber">@Money(nd.ExcusedAmount)</strong></div>
                                                     }
                                                     <div class="fac-detail-item"><span>Full-month coverage balance</span><strong class="fac-detail-red">@Money(nd.FullMonthCoverageBalance)</strong></div>
                                                 }

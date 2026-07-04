@@ -365,3 +365,10 @@ FodyWeavers.xsd
 # Local development secrets — never commit (contains DB password, JWT key, API keys)
 **/appsettings.Development.json
 /.env
+
+# The VS "Backup*/" rule above (project-upgrade artifacts) unintentionally ignores
+# application source folders literally named "Backup". Re-include the real source here.
+!EEMOCantilanSDS.Application/Dtos/Backup/
+!EEMOCantilanSDS.Application/Command/Backup/
+!EEMOCantilanSDS.Application/Queries/Backup/
+!EEMOCantilanSDS.Application/**/Backup/**

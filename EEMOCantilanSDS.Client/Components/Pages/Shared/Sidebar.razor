@@ -1,6 +1,7 @@
 @using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 @implements IDisposable
@@ -40,6 +41,10 @@
         <NavLink href="/online-payments" class="@NavItemClass("/online-payments")" @onclick='() => SetPendingPath("/online-payments")'>
             <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>
             <span>Online Payments</span>
+            @if (_onlinePaymentsAwaitingOr > 0)
+            {
+                <span class="nav-badge">@_onlinePaymentsAwaitingOr</span>
+            }
         </NavLink>
 
         <div class="nav-group-label" style="margin-top:1rem;">Facilities</div>
@@ -92,9 +97,13 @@
     private string? _pendingPath;
     private readonly DateTime _statePeriod = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
+    private int _onlinePaymentsAwaitingOr;
 
     [PersistentState(AllowUpdates = true)]
     public List<FacilitySidebarSummaryDto>? FacilitySummaries { get; set; }
+
+    [PersistentState(AllowUpdates = true)]
+    public int? OnlinePaymentsAwaitingOr { get; set; }
 
     protected override void OnInitialized()
         => Nav.LocationChanged += OnLocationChanged;
@@ -153,13 +162,28 @@
         if (FacilitySummaries is not null)
         {
             ApplyFacilitySummaries(FacilitySummaries);
-            return;
+        }
+        else
+        {
+            var result = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                ApplyFacilitySummaries(result.Value.ToList());
+            }
         }
 
-        var result = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
-        if (result.IsSuccess && result.Value is not null)
+        if (OnlinePaymentsAwaitingOr is not null)
         {
-            ApplyFacilitySummaries(result.Value.ToList());
+            _onlinePaymentsAwaitingOr = OnlinePaymentsAwaitingOr.Value;
+        }
+        else
+        {
+            var awaitingOr = await OnlinePaymentsApi.GetAwaitingOrAsync();
+            if (awaitingOr.IsSuccess && awaitingOr.Value is not null)
+            {
+                _onlinePaymentsAwaitingOr = awaitingOr.Value.Count;
+                OnlinePaymentsAwaitingOr = _onlinePaymentsAwaitingOr;
+            }
         }
     }
 

@@ -93,6 +93,21 @@ namespace EEMOCantilanSDS.Infrastructure
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
 
+            // GitHub Actions backup gateway. The token is bound from configuration and applied once here
+            // as a Bearer default header — it stays server-side and is never returned to the client.
+            var gitHubBackup = new GitHubBackupOptions();
+            configuration.GetSection("GitHubBackup").Bind(gitHubBackup);
+            service.AddSingleton(gitHubBackup);
+            service.AddHttpClient<IBackupService, GitHubActionsBackupService>(client =>
+            {
+                client.BaseAddress = new Uri("https://api.github.com/");
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("StallTrack-Backup");
+                client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+                if (!string.IsNullOrWhiteSpace(gitHubBackup.Token))
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", gitHubBackup.Token);
+            });
+
             return service;
 
         }
