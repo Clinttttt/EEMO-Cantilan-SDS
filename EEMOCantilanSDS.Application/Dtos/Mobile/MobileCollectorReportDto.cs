@@ -18,7 +18,33 @@ public sealed record MobileCollectorReportDto(
     IReadOnlyList<MobileReportPeriodSummaryDto> Periods,
     IReadOnlyList<MobileReportPayeeSummaryDto> Payees,
     IReadOnlyList<MobileReportTransactionDto> Transactions,
-    IReadOnlyList<MobileReportAbsentExcusedDto> AbsentExcused);
+    IReadOnlyList<MobileReportAbsentExcusedDto> AbsentExcused,
+    // Electricity & water billing for the reporting month — kept SEPARATE from the collection totals
+    // above (utilities are a distinct meter-based charge, not the stall/daily fee). Null when the
+    // collector's facilities don't include NPM or no utility bill exists for the month.
+    MobileReportUtilitySummaryDto? Utility = null);
+
+/// <summary>Miscellaneous (electricity &amp; water) billing summary for the reporting month.</summary>
+public sealed record MobileReportUtilitySummaryDto(
+    decimal TotalCharge,
+    decimal TotalCollected,
+    decimal TotalOutstanding,
+    int BillCount,
+    int PaidCount,
+    int PartialCount,
+    int UnpaidCount,
+    IReadOnlyList<MobileReportUtilityPayeeDto> Payees);
+
+/// <summary>One payor's utility bill for the month (electricity &amp; water settle independently).</summary>
+public sealed record MobileReportUtilityPayeeDto(
+    string PayorName,
+    string? StallNo,
+    string ElecStatus,
+    string WaterStatus,
+    string OverallStatus,
+    decimal TotalCharge,
+    decimal AmountPaid,
+    decimal Balance);
 
 /// <summary>One recorded collection event — backs the "Total Collected" / "Paid Payors" detail views.</summary>
 public sealed record MobileReportTransactionDto(

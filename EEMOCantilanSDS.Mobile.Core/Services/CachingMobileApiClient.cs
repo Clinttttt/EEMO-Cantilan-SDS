@@ -32,7 +32,7 @@ public sealed class CachingMobileApiClient(
     // always hit the network when online (see ReadThroughAsync), wiping them gives no online benefit and
     // only destroys the offline copy a collector relies on after going offline.
     private static readonly string[] CollectionPrefixes =
-        { "npm", "monthly", "slaughter", "trm", "tpm" };
+        { "npm", "utility", "monthly", "slaughter", "trm", "tpm" };
 
     // ── Reads: cache on success, serve last-known on connectivity failure ───
     public Task<Result<MobileMenuDto>> GetMenuAsync() =>
@@ -52,6 +52,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
         ReadThroughAsync($"npm|{year}|{month}", () => inner.GetNpmCollectionAsync(year, month));
 
+    public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
+        ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
+
     public Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month) =>
         ReadThroughAsync($"monthly|{facility}|{year}|{month}", () => inner.GetMonthlyCollectionAsync(facility, year, month));
 
@@ -67,6 +70,9 @@ public sealed class CachingMobileApiClient(
     // ── Writes / sync: pass through, then invalidate the now-stale collection caches ──
     public Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request) =>
         InvalidatingAsync(() => inner.RecordNpmCollectionAsync(request));
+
+    public Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
+        InvalidatingAsync(() => inner.RecordNpmUtilityPaymentAsync(request));
 
     public Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request) =>
         InvalidatingAsync(() => inner.RecordMonthlyCollectionAsync(request));

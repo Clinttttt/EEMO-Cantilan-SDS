@@ -25,6 +25,12 @@
     </div>
 
     <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script>
+        window.scrollElementIntoView = (id) => {
+            const el = document.getElementById(id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+    </script>
 
 </body>
 

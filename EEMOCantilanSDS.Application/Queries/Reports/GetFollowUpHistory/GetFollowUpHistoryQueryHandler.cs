@@ -28,6 +28,7 @@ public class GetFollowUpHistoryQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
+    IUtilityBillRepository utilityBillRepository,
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions
@@ -64,11 +65,12 @@ public class GetFollowUpHistoryQueryHandler(
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
         var unreceipted = await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
+        var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
         var dto = FollowUpComposer.Compose(
             year, month, asOf,
             delinquency, facilityReports, awaitingOr,
-            slaughter, trips, attendance, unreceipted, contracts);
+            slaughter, trips, attendance, unreceipted, contracts, utilityBills);
 
         return dto;
     }

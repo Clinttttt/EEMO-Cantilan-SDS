@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistory;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -86,6 +87,10 @@ public class GetFollowUpHistoryQueryHandlerTests
         tpm.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
 
+        var utilities = new Mock<IUtilityBillRepository>();
+        utilities.Setup(u => u.GetForMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<UtilityBill>());
+
         var handler = new GetFollowUpHistoryQueryHandler(
             reports.Object,
             stalls.Object,
@@ -94,6 +99,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             slaughter.Object,
             trm.Object,
             tpm.Object,
+            utilities.Object,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());

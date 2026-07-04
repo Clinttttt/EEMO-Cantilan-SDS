@@ -31,7 +31,26 @@ public sealed record MobileCollectorRecordDto(
     // Slaughterhouse only: the per-animal-type breakdown of the receipt. One SLH OR covers a customer's
     // whole visit, so multiple animal rows are grouped into ONE record here, with each line shown in the
     // detail popup. Null for every other facility (and for single-line receipts it still carries the one line).
-    IReadOnlyList<MobileSlaughterLineDto>? SlaughterLines = null);
+    IReadOnlyList<MobileSlaughterLineDto>? SlaughterLines = null,
+    // NPM only: the stall's electricity & water bill for this record's month, shown in the detail
+    // (not on the card) so a payor keeps ONE card. Null when there is no utility bill for the month.
+    MobileRecordUtilityDto? Utility = null);
+
+/// <summary>A stall's electricity &amp; water bill attached to an NPM collection record (detail view only).</summary>
+public sealed record MobileRecordUtilityDto(
+    decimal ElecCharge,
+    string ElecStatus,
+    decimal ElecAmountPaid,
+    decimal ElecBalance,
+    string? ElecORNumber,
+    decimal WaterCharge,
+    string WaterStatus,
+    decimal WaterAmountPaid,
+    decimal WaterBalance,
+    string? WaterORNumber,
+    decimal TotalCharge,
+    decimal TotalPaid,
+    decimal Balance);
 
 /// <summary>One animal-type line within a slaughterhouse receipt (for the grouped record's detail view).</summary>
 public sealed record MobileSlaughterLineDto(

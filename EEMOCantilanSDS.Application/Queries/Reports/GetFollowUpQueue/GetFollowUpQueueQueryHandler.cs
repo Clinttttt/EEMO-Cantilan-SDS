@@ -21,7 +21,8 @@ public class GetFollowUpQueueQueryHandler(
     IPaymentRepository paymentRepository,
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
-    ITpmRepository tpmRepository
+    ITpmRepository tpmRepository,
+    IUtilityBillRepository utilityBillRepository
 ) : IRequestHandler<GetFollowUpQueueQuery, Result<FollowUpQueueDto>>
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpQueueQuery request, CancellationToken ct)
@@ -40,11 +41,12 @@ public class GetFollowUpQueueQueryHandler(
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
         var unreceipted = await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct);
+        var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
         var dto = FollowUpComposer.Compose(
             year, month, PhilippineTime.Today,
             delinquency, facilityReports, awaitingOr,
-            slaughter, trips, attendance, unreceipted, contracts);
+            slaughter, trips, attendance, unreceipted, contracts, utilityBills);
 
         return Result<FollowUpQueueDto>.Success(dto);
     }

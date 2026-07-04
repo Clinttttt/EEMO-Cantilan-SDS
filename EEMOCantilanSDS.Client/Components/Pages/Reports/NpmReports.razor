@@ -2,7 +2,9 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IUtilitiesApiClient UtilitiesApi
 @inject IJSRuntime JS
+@using EEMOCantilanSDS.Application.Dtos.Utilities
 
 <PageTitle>EEMO Admin — NPM Reports</PageTitle>
 
@@ -292,10 +294,9 @@ else if (ShowUtilityBilling)
             <section class="utility-hero">
                 <div>
                     <div class="utility-eyebrow">END-OF-MONTH CONSUMPTION BILLING</div>
-                    <h2>Electricity &amp; Water Billing Register</h2>
-                    <p>Separate workspace for NPM utility charges. Daily stall fees and fish kilo fees remain in the collection report.</p>
+                    <h2>Electricity &amp; Water Billing Reports</h2>
                 </div>
-                <div class="utility-preview-pill">Frontend preview only</div>
+                <div class="utility-preview-pill">@CurrentDate.ToString("MMMM yyyy")</div>
             </section>
 
             <div class="utility-summary-grid">
@@ -323,11 +324,19 @@ else if (ShowUtilityBilling)
 
             <section class="utility-panel">
                 <div class="utility-panel-head">
-                    <div>
-                        <h3>Payor Utility Ledger</h3>
-                        <p>Designed layout for future backend data: readings, consumption, computed charges, and payment status.</p>
+                    <div class="utility-search">
+                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                        <input type="search" placeholder="Search payor or stall no." value="@_utilSearch" @oninput="e => _utilSearch = e.Value?.ToString() ?? string.Empty" />
                     </div>
-                    <button type="button" class="utility-secondary-btn" disabled>Generate Billing Statement</button>
+                    <div class="utility-panel-head-actions">
+                        <div class="utility-section-tabs">
+                            @foreach (var sec in UtilitySections)
+                            {
+                                <button type="button" class="utility-section-tab @(_utilSection == sec ? "active" : "")" @onclick="() => _utilSection = sec">@sec</button>
+                            }
+                        </div>
+                        <button type="button" class="utility-secondary-btn" disabled>Generate Billing Statement</button>
+                    </div>
                 </div>
 
                 <div class="utility-table-wrap">
@@ -344,9 +353,9 @@ else if (ShowUtilityBilling)
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var row in UtilityRows)
+                            @foreach (var row in FilteredUtilityRows)
                             {
-                                <tr>
+                                <tr class="utility-row-click" @onclick="() => OpenStallHistory(row)" title="View full utility history">
                                     <td class="stall-no">@row.StallNo</td>
                                     <td>
                                         <strong class="utility-payor-name">@row.Payor</strong>
@@ -362,7 +371,12 @@ else if (ShowUtilityBilling)
                                         <small>&#8369;@row.WaterAmount.ToString("N2") due</small>
                                     </td>
                                     <td class="utility-due">&#8369;@row.TotalDue.ToString("N2")</td>
-                                    <td><span class="utility-status @row.StatusCss">@row.Status</span></td>
+                                    <td>
+                                        <div class="utility-status-pair">
+                                            <span class="utility-status @row.ElecStatusCss" title="Electricity charge status">E · @row.ElecStatus</span>
+                                            <span class="utility-status @row.WaterStatusCss" title="Water charge status">W · @row.WaterStatus</span>
+                                        </div>
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -370,16 +384,79 @@ else if (ShowUtilityBilling)
                 </div>
             </section>
 
-            <section class="utility-notes">
-                <div>
-                    <strong>Recommended backend fields</strong>
-                    <span>Billing month, previous/current reading, consumption, rate, amount due, OR number, status, paid date, and remarks.</span>
+            @if (ShowUtilHistory && HistoryRow is not null)
+            {
+                <div class="utility-hist-overlay" @onclick="CloseUtilHistory">
+                    <div class="utility-hist-modal" @onclick:stopPropagation="true">
+                        <div class="utility-hist-head">
+                            <div>
+                                <h3>Utility History · @HistoryRow.Payor</h3>
+                                <p>Stall @HistoryRow.StallNo · @HistoryRow.Section</p>
+                            </div>
+                            <button type="button" class="utility-hist-x" @onclick="CloseUtilHistory" aria-label="Close">&times;</button>
+                        </div>
+                        @if (UtilHistLoading)
+                        {
+                            <div class="utility-hist-state">Loading history…</div>
+                        }
+                        else if (HistoryRows is null || HistoryRows.Count == 0)
+                        {
+                            <div class="utility-hist-state">No utility bills recorded for this stall yet.</div>
+                        }
+                        else
+                        {
+                            <div class="utility-hist-wrap">
+                                <table class="utility-hist-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Period</th>
+                                            <th>Electricity (prev → cur)</th><th>kWh</th><th>Rate</th><th>Charge</th>
+                                            <th>Water (prev → cur)</th><th>cu.m</th><th>Rate</th><th>Charge</th>
+                                            <th>Total</th><th>Status</th><th>Paid</th><th>OR No.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var h in HistoryRows)
+                                        {
+                                            <tr>
+                                                <td class="uh-period">@(new DateTime(h.Year, h.Month, 1).ToString("MMM yyyy"))</td>
+                                                <td>@h.ElecPreviousReading.ToString("N0") → @h.ElecCurrentReading.ToString("N0")</td>
+                                                <td>@h.ElecConsumption.ToString("N0")</td>
+                                                <td>&#8369;@h.ElecRatePerKwh.ToString("N2")</td>
+                                                <td>&#8369;@h.ElecCharge.ToString("N2")</td>
+                                                <td>@h.WaterPreviousReading.ToString("N0") → @h.WaterCurrentReading.ToString("N0")</td>
+                                                <td>@h.WaterConsumption.ToString("N0")</td>
+                                                <td>&#8369;@h.WaterRatePerCubicMeter.ToString("N2")</td>
+                                                <td>&#8369;@h.WaterCharge.ToString("N2")</td>
+                                                <td class="uh-total">&#8369;@h.TotalCharge.ToString("N2")</td>
+                                                <td>
+                                                    <div class="utility-status-pair">
+                                                        <span class="utility-status @HistoryStatusCss(h.ElecStatus)">E · @h.ElecStatus</span>
+                                                        <span class="utility-status @HistoryStatusCss(h.WaterStatus)">W · @h.WaterStatus</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="utility-status-pair">
+                                                        <span class="uh-or">E · @(h.ElecPaidAt?.AddHours(8).ToString("MMM d, yyyy") ?? "—")</span>
+                                                        <span class="uh-or">W · @(h.WaterPaidAt?.AddHours(8).ToString("MMM d, yyyy") ?? "—")</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="utility-status-pair">
+                                                        <span class="uh-or">E · @(string.IsNullOrEmpty(h.ElecORNumber) ? "—" : h.ElecORNumber)</span>
+                                                        <span class="uh-or">W · @(string.IsNullOrEmpty(h.WaterORNumber) ? "—" : h.WaterORNumber)</span>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
                 </div>
-                <div>
-                    <strong>Financial separation</strong>
-                    <span>This page should not alter NPM collection reports. Utility billing can be posted and reconciled independently.</span>
-                </div>
-            </section>
+            }
+
         </div>
     </div>
 }
@@ -1197,6 +1274,7 @@ else
     bool ShowPrintReport = false;
     bool ShowHistory = false;
     DateTime CurrentDate = PhilippineTime.Now;
+    private UtilityRegisterDto? UtilityRegister;
     private FacilityReportsDto? R;
     private FacilityHistoryDto? History;
     private bool HistoryLoading;
@@ -1273,11 +1351,19 @@ else
         ActivePeriod = p;
         await LoadAsync();
     }
-    void ShowUtilityBillingView()
+    async Task ShowUtilityBillingView()
     {
         ShowUtilityBilling = true;
         ShowPrintReport = false;
         ShowHistory = false;
+        await LoadUtilityRegisterAsync();
+    }
+
+    async Task LoadUtilityRegisterAsync()
+    {
+        var result = await UtilitiesApi.GetRegisterAsync(CurrentDate.Year, CurrentDate.Month);
+        UtilityRegister = result.IsSuccess ? result.Value : null;
+        StateHasChanged();
     }
     async Task ShowPrintReportView()
     {
@@ -1306,7 +1392,7 @@ else
     {
         if (ShowHistory)   { CurrentDate = CurrentDate.AddYears(-1); await LoadHistoryAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(-1); await LoadAsync(); return; }
-        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(-1); return; }
+        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(-1); await LoadUtilityRegisterAsync(); return; }
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(-7),
@@ -1319,7 +1405,7 @@ else
     {
         if (ShowHistory)   { CurrentDate = CurrentDate.AddYears(1); await LoadHistoryAsync(); return; }
         if (ShowPrintReport) { CurrentDate = CurrentDate.AddMonths(1); await LoadAsync(); return; }
-        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(1); return; }
+        if (ShowUtilityBilling) { CurrentDate = CurrentDate.AddMonths(1); await LoadUtilityRegisterAsync(); return; }
         CurrentDate = ActivePeriod switch
         {
             "Weekly"  => CurrentDate.AddDays(7),
@@ -1344,14 +1430,14 @@ else
     {
         CurrentDate = new DateTime(p.Year, p.Month, 1);
         if (ShowHistory) await LoadHistoryAsync();
-        else if (ShowUtilityBilling) { /* utility view reacts to CurrentDate; no reload (matches PrevPeriod) */ }
+        else if (ShowUtilityBilling) await LoadUtilityRegisterAsync();
         else await LoadAsync();
     }
     async Task JumpToCurrent()
     {
         CurrentDate = PhilippineTime.Now;
         if (ShowHistory) await LoadHistoryAsync();
-        else if (ShowUtilityBilling) { }
+        else if (ShowUtilityBilling) await LoadUtilityRegisterAsync();
         else await LoadAsync();
     }
 
@@ -1392,6 +1478,7 @@ else
         .ToList();
 
     record UtilityBillingRow(
+        Guid StallId,
         string StallNo,
         string Payor,
         string Section,
@@ -1402,21 +1489,66 @@ else
         decimal WaterCurrent,
         decimal WaterAmount,
         string Status,
-        string Note)
+        string Note,
+        string ElecStatus,
+        string WaterStatus)
     {
         public decimal TotalDue => ElectricAmount + WaterAmount;
-        public string StatusCss => Status.Equals("Paid", StringComparison.OrdinalIgnoreCase) ? "paid"
-            : Status.Equals("Partial", StringComparison.OrdinalIgnoreCase) ? "partial"
+        public string StatusCss => Css(Status);
+        public string ElecStatusCss => Css(ElecStatus);
+        public string WaterStatusCss => Css(WaterStatus);
+        static string Css(string s) => s.Equals("Paid", StringComparison.OrdinalIgnoreCase) ? "paid"
+            : s.Equals("Partial", StringComparison.OrdinalIgnoreCase) ? "partial"
             : "unpaid";
     }
 
-    IReadOnlyList<UtilityBillingRow> UtilityRows => new List<UtilityBillingRow>
+    IReadOnlyList<UtilityBillingRow> UtilityRows =>
+        (UtilityRegister?.Rows ?? Array.Empty<UtilityRegisterRowDto>())
+        .Select(r => new UtilityBillingRow(
+            r.StallId, r.StallNo, r.Occupant, r.Section,
+            r.ElecPreviousReading, r.ElecCurrentReading, r.ElecCharge,
+            r.WaterPreviousReading, r.WaterCurrentReading, r.WaterCharge,
+            r.HasBill ? r.Status : "Unbilled",
+            r.HasBill
+                ? (r.Status == "Paid" ? "Settled for the period"
+                   : r.BalanceDue > 0 ? $"Balance \u20b1{r.BalanceDue:N2}" : "Recorded")
+                : "No reading recorded yet",
+            r.ElecStatus, r.WaterStatus))
+        .ToList();
+
+    // ── Utility register filter + search + per-payor history ──
+    string _utilSection = "All";
+    string _utilSearch = "";
+    static readonly string[] UtilitySections = { "All", "Vegetable Area", "Fish Area", "Meat Area" };
+
+    IReadOnlyList<UtilityBillingRow> FilteredUtilityRows =>
+        UtilityRows.Where(r =>
+            (_utilSection == "All" || r.Section == _utilSection)
+            && (string.IsNullOrWhiteSpace(_utilSearch)
+                || r.Payor.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)
+                || r.StallNo.Contains(_utilSearch, StringComparison.OrdinalIgnoreCase)))
+        .ToList();
+
+    bool ShowUtilHistory = false;
+    UtilityBillingRow? HistoryRow = null;
+    IReadOnlyList<UtilityHistoryRowDto>? HistoryRows = null;
+    bool UtilHistLoading = false;
+
+    async Task OpenStallHistory(UtilityBillingRow row)
     {
-        new("1", "Ana Villanueva", "Vegetable Area", 1200m, 1248m, 384m, 320m, 328m, 96m, "Unpaid", "End-of-month billing pending"),
-        new("2", "Lorna Guevarra", "Fish Area", 880m, 936m, 448m, 210m, 223m, 156m, "Partial", "Water paid, electricity pending"),
-        new("3", "Riki Buenades", "Vegetable Area", 1440m, 1502m, 496m, 415m, 426m, 132m, "Unpaid", "Requires follow-up"),
-        new("4", "Pantom Goth", "Meat Area", 690m, 724m, 272m, 188m, 195m, 84m, "Paid", "Settled for the period")
-    };
+        HistoryRow = row; ShowUtilHistory = true; UtilHistLoading = true; HistoryRows = null;
+        StateHasChanged();
+        var res = await UtilitiesApi.GetStallHistoryAsync(row.StallId);
+        HistoryRows = res.IsSuccess ? res.Value : Array.Empty<UtilityHistoryRowDto>();
+        UtilHistLoading = false;
+    }
+
+    void CloseUtilHistory() { ShowUtilHistory = false; HistoryRow = null; HistoryRows = null; }
+
+    static string HistoryStatusCss(string status) =>
+        status.Equals("Paid", StringComparison.OrdinalIgnoreCase) ? "paid"
+        : status.Equals("Partial", StringComparison.OrdinalIgnoreCase) ? "partial"
+        : "unpaid";
 
     decimal UtilityTotalDue => UtilityRows.Sum(r => r.TotalDue);
     decimal UtilityPaidTotal => UtilityRows.Where(r => r.Status == "Paid").Sum(r => r.TotalDue);

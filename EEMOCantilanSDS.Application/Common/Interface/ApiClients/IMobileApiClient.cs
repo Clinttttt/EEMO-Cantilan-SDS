@@ -17,6 +17,8 @@ public interface IMobileApiClient
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
     Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request);
+    Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month);
+    Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);

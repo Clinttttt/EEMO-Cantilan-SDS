@@ -40,6 +40,12 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request) =>
         await PostAsync<RecordMobileNpmCollectionRequest, bool>("api/Mobile/npm/collections/record", request);
 
+    public async Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
+        await GetAsync<MobileNpmUtilityDto>($"api/Mobile/npm-utility/collections?year={year}&month={month}");
+
+    public async Task<Result<bool>> RecordNpmUtilityPaymentAsync(RecordMobileUtilityPaymentRequest request) =>
+        await PostAsync<RecordMobileUtilityPaymentRequest, bool>("api/Mobile/npm-utility/pay", request);
+
     public async Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month) =>
         await GetAsync<MobileMonthlyCollectionDto>($"api/Mobile/monthly/collections?facility={facility}&year={year}&month={month}");
 

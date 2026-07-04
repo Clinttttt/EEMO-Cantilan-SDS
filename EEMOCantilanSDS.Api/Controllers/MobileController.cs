@@ -17,6 +17,8 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
+using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileSlaughterCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileTrmCollection;
@@ -92,6 +94,27 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
 
         var result = await Sender.Send(command);
         return HandleResponse(result);
+    }
+
+    [HttpGet("npm-utility/collections")]
+    public async Task<ActionResult<MobileNpmUtilityDto>> GetNpmUtilityAsync([FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new GetMobileNpmUtilityQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    [HttpPost("npm-utility/pay")]
+    public async Task<ActionResult<bool>> RecordNpmUtilityPaymentAsync([FromBody] RecordMobileUtilityPaymentRequest request)
+    {
+        var result = await Sender.Send(new RecordUtilityPaymentCommand(
+            request.BillId,
+            request.ElecStatus, request.ElecPartialAmount,
+            request.WaterStatus, request.WaterPartialAmount,
+            request.ElecORNumber, request.WaterORNumber, null, request.ClientOperationId));
+
+        return result.IsSuccess
+            ? HandleResponse(Result<bool>.Success(true))
+            : HandleResponse(Result<bool>.Failure(result.Error ?? "Unable to record the utility payment.", result.StatusCode ?? 400));
     }
 
     [HttpGet("monthly/collections")]

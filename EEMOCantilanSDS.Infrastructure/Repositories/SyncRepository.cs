@@ -20,6 +20,8 @@ public class SyncRepository(AppDbContext context) : ISyncRepository
             || await context.TrmTrips.IgnoreQueryFilters()
                    .AnyAsync(x => x.ClientOperationId == clientOperationId, cancellationToken)
             || await context.TpmAttendances.IgnoreQueryFilters()
+                   .AnyAsync(x => x.ClientOperationId == clientOperationId, cancellationToken)
+            || await context.UtilityBills.IgnoreQueryFilters()
                    .AnyAsync(x => x.ClientOperationId == clientOperationId, cancellationToken);
     }
 }

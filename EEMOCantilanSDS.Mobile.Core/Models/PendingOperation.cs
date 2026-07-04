@@ -71,6 +71,15 @@ public sealed class PendingOperation
     public string? VendorName { get; set; }
     public string? Goods { get; set; }
 
+    // ── NPM utility bill payment (electricity + water settled independently) ──
+    public Guid? UtilityBillId { get; set; }
+    public PaymentStatus? ElecStatus { get; set; }
+    public decimal? ElecPartialAmount { get; set; }
+    public PaymentStatus? WaterStatus { get; set; }
+    public decimal? WaterPartialAmount { get; set; }
+    public string? ElecORNumber { get; set; }
+    public string? WaterORNumber { get; set; }
+
     // ── Common ──
     public string? Remarks { get; set; }
 
@@ -110,5 +119,12 @@ public sealed class PendingOperation
         VendorName,
         Goods,
         Remarks,
-        IsAbsent);
+        IsAbsent,
+        UtilityBillId,
+        ElecStatus,
+        ElecPartialAmount,
+        WaterStatus,
+        WaterPartialAmount,
+        ElecORNumber,
+        WaterORNumber);
 }

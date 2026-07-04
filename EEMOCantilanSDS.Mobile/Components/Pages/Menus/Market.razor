@@ -10,6 +10,7 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@inject IJSRuntime JS
 
 <div class="page-shell">
     <div class="header">
@@ -202,7 +203,7 @@
                 </div>
             }
 
-            <button class="status-option @(!SelectedIsPaid && !SelectedIsAbsent ? "status-option-active unpaid" : "")" type="button" @onclick="() => SetStatus(false, false)">
+            <button class="status-option @(!SelectedIsPaid && !SelectedIsAbsent && !SelectedIsMisc ? "status-option-active unpaid" : "")" type="button" @onclick="() => SetStatus(false, false)">
                 <div class="status-option-icon unpaid-icon-sm">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 </div>
@@ -210,7 +211,7 @@
                     <div class="status-option-label">Not Collected</div>
                     <div class="status-option-sub">Mark this stall as unpaid for the day.</div>
                 </div>
-                @if (!SelectedIsPaid && !SelectedIsAbsent)
+                @if (!SelectedIsPaid && !SelectedIsAbsent && !SelectedIsMisc)
                 {
                     <div class="status-option-check">✓</div>
                 }
@@ -229,6 +230,84 @@
                     <div class="status-option-check">✓</div>
                 }
             </button>
+
+            <button id="misc-option" class="status-option @(SelectedIsMisc ? "status-option-active misc" : "")" type="button" @onclick="SetMisc">
+                <div class="status-option-icon misc-icon-sm">
+                    <svg viewBox="0 0 24 24"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                </div>
+                <div class="status-option-info">
+                    <div class="status-option-label">Miscellaneous</div>
+                    <div class="status-option-sub">
+                        Electricity &amp; water bill@(SelectedBill is not null ? $" · {FormatPeso(SelectedBill.BalanceDue)} due" : "")
+                    </div>
+                </div>
+                @if (SelectedIsMisc)
+                {
+                    <div class="status-option-check">✓</div>
+                }
+            </button>
+
+            @if (SelectedIsMisc)
+            {
+                @if (SelectedBill is null)
+                {
+                    <div class="misc-empty">No electricity or water bill recorded for this stall in @MonthLabel. Utility bills are entered at the office.</div>
+                }
+                else
+                {
+                    <div class="misc-pay">
+                        <div class="misc-util-head">
+                            <span class="misc-util-name">Electricity</span>
+                            <span class="misc-util-amt">
+                                @FormatPeso(SelectedBill.ElecBalanceDue)
+                                @if (SelectedBill.ElecBalanceDue < SelectedBill.ElecCharge)
+                                {
+                                    <span class="misc-util-of">of @FormatPeso(SelectedBill.ElecCharge)</span>
+                                }
+                            </span>
+                        </div>
+                        <div class="util-pay-row">
+                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Unpaid">Unpaid</button>
+                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Paid">Paid</button>
+                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Partial">Partial</button>
+                        </div>
+                        @if (MiscElecPay == PaymentStatus.Partial)
+                        {
+                            <input class="form-input" type="number" min="0" step="0.01" placeholder="Electricity partial amount" @bind="MiscElecPartial" @bind:event="oninput" />
+                        }
+                        @if (MiscElecPay != PaymentStatus.Unpaid)
+                        {
+                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
+                        }
+
+                        <div class="misc-util-head misc-util-head-gap">
+                            <span class="misc-util-name">Water</span>
+                            <span class="misc-util-amt">
+                                @FormatPeso(SelectedBill.WaterBalanceDue)
+                                @if (SelectedBill.WaterBalanceDue < SelectedBill.WaterCharge)
+                                {
+                                    <span class="misc-util-of">of @FormatPeso(SelectedBill.WaterCharge)</span>
+                                }
+                            </span>
+                        </div>
+                        <div class="util-pay-row">
+                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Unpaid">Unpaid</button>
+                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Paid">Paid</button>
+                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Partial">Partial</button>
+                        </div>
+                        @if (MiscWaterPay == PaymentStatus.Partial)
+                        {
+                            <input class="form-input" type="number" min="0" step="0.01" placeholder="Water partial amount" @bind="MiscWaterPartial" @bind:event="oninput" />
+                        }
+                        @if (MiscWaterPay != PaymentStatus.Unpaid)
+                        {
+                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                        }
+
+                        <div class="misc-collect"><span>Collecting</span><strong>@FormatPeso(MiscCollectAmount)</strong></div>
+                    </div>
+                }
+            }
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
             {
@@ -286,6 +365,7 @@
             </div>
             <div class="receipt-close-row">
                 <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
+                <button class="btn-receipt-misc" type="button" @onclick="OpenMiscFromReceipt">Misc</button>
                 <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
             </div>
         </div>
@@ -311,6 +391,32 @@
     private bool SelectedIsAbsent;
     private decimal? FishKilos;
     private string ORNumber = string.Empty;
+
+    // Miscellaneous (electricity & water bill) collection, settled from the same daily sheet.
+    private bool SelectedIsMisc;
+    private MobileUtilityBillDto? SelectedBill;
+    private PaymentStatus MiscElecPay = PaymentStatus.Unpaid;
+    private PaymentStatus MiscWaterPay = PaymentStatus.Unpaid;
+    private decimal MiscElecPartial;
+    private decimal MiscWaterPartial;
+    private string MiscElecOr = string.Empty;
+    private string MiscWaterOr = string.Empty;
+    private bool _scrollToMisc;
+    // The month's utility bills keyed by stall number, so the sheet can settle a stall's bill inline.
+    private Dictionary<string, MobileUtilityBillDto> UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
+
+    private decimal MiscCollectAmount
+    {
+        get
+        {
+            if (SelectedBill is null) return 0m;
+            var elec = MiscElecPay == PaymentStatus.Paid ? SelectedBill.ElecBalanceDue
+                     : MiscElecPay == PaymentStatus.Partial ? MiscElecPartial : 0m;
+            var water = MiscWaterPay == PaymentStatus.Paid ? SelectedBill.WaterBalanceDue
+                      : MiscWaterPay == PaymentStatus.Partial ? MiscWaterPartial : 0m;
+            return elec + water;
+        }
+    }
 
     private readonly string[] FilterOptions = ["All", "Vegetables", "Meat", "Fish"];
 
@@ -366,6 +472,7 @@
             }
 
             await RefreshQueuedOfflineAsync();
+            await LoadUtilityBillsAsync();
         }
         catch
         {
@@ -400,6 +507,24 @@
     }
 
     private bool IsQueuedOffline(MobileNpmStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
+
+    // Loads the month's electricity/water bills so a stall's bill can be settled inline from the sheet.
+    private async Task LoadUtilityBillsAsync()
+    {
+        try
+        {
+            var util = await MobileApi.GetNpmUtilityAsync(SelectedYear, SelectedMonth);
+            UtilityByStallNo = util.IsSuccess && util.Value is not null
+                ? util.Value.Bills
+                    .GroupBy(b => b.StallNo, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase)
+                : new(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase); // non-fatal; daily collection still works
+        }
+    }
 
     private IEnumerable<MobileNpmStallCollectionDto> FilteredStalls =>
         (Collection?.Stalls ?? Array.Empty<MobileNpmStallCollectionDto>())
@@ -454,6 +579,18 @@
         if (SelectedStall is not null) OpenCollectionSheet(SelectedStall);
     }
 
+    // From a collected stall's receipt: jump straight into the Miscellaneous (electricity & water)
+    // collection so the collector can settle utilities the daily fee flow didn't cover.
+    private void OpenMiscFromReceipt()
+    {
+        ShowReceipt = false;
+        if (SelectedStall is not null)
+        {
+            OpenCollectionSheet(SelectedStall);
+            SetMisc();
+        }
+    }
+
     private void CloseReceipt()
     {
         ShowReceipt = false;
@@ -467,6 +604,11 @@
         SelectedIsAbsent = stall.IsAbsentToday;
         FishKilos = stall.FishKilosToday;
         ORNumber = stall.ORNumberToday ?? string.Empty;
+        SelectedIsMisc = false;
+        SelectedBill = UtilityByStallNo.TryGetValue(stall.StallNo, out var bill) ? bill : null;
+        MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
+        MiscElecPartial = MiscWaterPartial = 0m;
+        MiscElecOr = MiscWaterOr = string.Empty;
         SheetError = null;
         ShowCollectionSheet = true;
     }
@@ -476,12 +618,37 @@
     {
         SelectedIsPaid = paid;
         SelectedIsAbsent = absent;
+        SelectedIsMisc = false;
+    }
+
+    // Selects the Miscellaneous (electricity & water bill) option and seeds each utility to Paid
+    // when it still has a balance, mirroring the office/web collection defaults.
+    private void SetMisc()
+    {
+        SelectedIsPaid = false;
+        SelectedIsAbsent = false;
+        SelectedIsMisc = true;
+        if (SelectedBill is not null)
+        {
+            MiscElecPay = SelectedBill.ElecBalanceDue > 0m ? PaymentStatus.Paid : PaymentStatus.Unpaid;
+            MiscWaterPay = SelectedBill.WaterBalanceDue > 0m ? PaymentStatus.Paid : PaymentStatus.Unpaid;
+        }
+        MiscElecPartial = MiscWaterPartial = 0m;
+        MiscElecOr = MiscWaterOr = string.Empty;
+        SheetError = null;
+        _scrollToMisc = true;
     }
 
     private async Task ConfirmCollectionAsync()
     {
         if (SelectedStall is null || Collection is null)
             return;
+
+        if (SelectedIsMisc)
+        {
+            await ConfirmMiscAsync();
+            return;
+        }
 
         IsSaving = true;
         SheetError = null;
@@ -545,6 +712,76 @@
         }
     }
 
+    // Records the stall's electricity/water bill from the sheet — online via the API, offline queued
+    // (replays idempotently on the bill via ClientOperationId), mirroring the daily-collection flow.
+    private async Task ConfirmMiscAsync()
+    {
+        if (SelectedStall is null || SelectedBill is null)
+        {
+            SheetError = "No electricity or water bill for this stall this month.";
+            return;
+        }
+        if (MiscElecPay == PaymentStatus.Unpaid && MiscWaterPay == PaymentStatus.Unpaid)
+        {
+            SheetError = "Choose Paid or Partial for electricity and/or water.";
+            return;
+        }
+        if (MiscElecPay == PaymentStatus.Partial && MiscElecPartial <= 0m) { SheetError = "Enter an electricity partial amount."; return; }
+        if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial <= 0m) { SheetError = "Enter a water partial amount."; return; }
+        if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
+        if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
+
+        IsSaving = true;
+        SheetError = null;
+        var elecPartial = MiscElecPay == PaymentStatus.Partial ? (decimal?)MiscElecPartial : null;
+        var waterPartial = MiscWaterPay == PaymentStatus.Partial ? (decimal?)MiscWaterPartial : null;
+        var elecOr = MiscElecPay != PaymentStatus.Unpaid ? MiscElecOr.Trim() : null;
+        var waterOr = MiscWaterPay != PaymentStatus.Unpaid ? MiscWaterOr.Trim() : null;
+        var orLabel = elecOr ?? waterOr;
+
+        if (!Sync.IsOnline)
+        {
+            await Sync.EnqueueAsync(new PendingOperation
+            {
+                Kind = OfflineOperationKind.NpmUtility,
+                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+                UtilityBillId = SelectedBill.BillId,
+                ElecStatus = MiscElecPay,
+                ElecPartialAmount = elecPartial,
+                WaterStatus = MiscWaterPay,
+                WaterPartialAmount = waterPartial,
+                ElecORNumber = elecOr,
+                WaterORNumber = waterOr,
+                FacilityLabel = "NPM",
+                Title = SelectedStall.PayorName,
+                Detail = $"No. {SelectedStall.StallNo} · utilities · OR {orLabel}",
+                Amount = MiscCollectAmount
+            });
+            CloseCollectionSheet();
+            IsSaving = false;
+            return;
+        }
+
+        var result = await MobileApi.RecordNpmUtilityPaymentAsync(new RecordMobileUtilityPaymentRequest(
+            SelectedBill.BillId, MiscElecPay, elecPartial, MiscWaterPay, waterPartial, elecOr, waterOr, null));
+        if (!result.IsSuccess)
+        {
+            SheetError = result.Error ?? "Unable to record the utility payment.";
+            IsSaving = false;
+            return;
+        }
+
+        CloseCollectionSheet();
+        try
+        {
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
     private void CloseCollectionSheet()
     {
         ShowCollectionSheet = false;
@@ -553,10 +790,29 @@
         SelectedIsAbsent = false;
         FishKilos = null;
         ORNumber = string.Empty;
+        SelectedIsMisc = false;
+        SelectedBill = null;
+        MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
+        MiscElecPartial = MiscWaterPartial = 0m;
+        MiscElecOr = MiscWaterOr = string.Empty;
         SheetError = null;
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+
+    // Formal 2-decimal peso for official bill amounts (electricity/water/collecting).
+    private static string FormatPeso(decimal value) => $"₱{value:N2}";
+
+    // Brings the Miscellaneous panel into view when it opens, so the sheet stays clean/structured.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollToMisc)
+        {
+            _scrollToMisc = false;
+            try { await JS.InvokeVoidAsync("scrollElementIntoView", "misc-option"); }
+            catch { /* webview not ready / sheet closed — non-fatal */ }
+        }
+    }
 
     private static string GetSectionHeading(MarketSection? section) => section switch
     {

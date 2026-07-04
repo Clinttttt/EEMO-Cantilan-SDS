@@ -485,7 +485,13 @@
 
     private void RemoveRow(int index)
     {
-        if (index >= 0 && index < _rows.Count) _rows.RemoveAt(index);
+        if (index < 0 || index >= _rows.Count) return;
+        _rows.RemoveAt(index);
+
+        // Keep an auto-continued batch contiguous after a removal (re-sequence from the facility's max).
+        if (_autoContinued)
+            for (var i = 0; i < _rows.Count; i++)
+                _rows[i]["stallNo"] = (_existingMax + 1 + i).ToString();
     }
 
     private static Dictionary<string, string> NewRow(FacilityImportConfig cfg)

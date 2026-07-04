@@ -9,7 +9,8 @@ public enum OfflineOperationKind
     MonthlyRental = 2,
     Slaughter = 3,
     Trip = 4,
-    TpmVendor = 5
+    TpmVendor = 5,
+    NpmUtility = 6
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -58,7 +59,15 @@ public sealed record SyncOfflineOperationDto(
     // common
     string? Remarks = null,
     // NPM daily: excused/absent day (₱0 owed, mutually exclusive with IsPaid)
-    bool? IsAbsent = null);
+    bool? IsAbsent = null,
+    // NPM utility bill payment (electricity + water settled independently)
+    Guid? UtilityBillId = null,
+    PaymentStatus? ElecStatus = null,
+    decimal? ElecPartialAmount = null,
+    PaymentStatus? WaterStatus = null,
+    decimal? WaterPartialAmount = null,
+    string? ElecORNumber = null,
+    string? WaterORNumber = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

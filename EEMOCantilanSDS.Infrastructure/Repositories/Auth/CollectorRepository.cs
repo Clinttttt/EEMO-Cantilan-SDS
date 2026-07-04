@@ -99,6 +99,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     d.ORNumber,
                     Payor = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
                     Code = d.Stall.Facility!.Code,
+                    d.StallId,
+                    d.CollectionDate,
                     d.Stall.StallNo,
                     d.Stall.Section,
                     d.DailyFee,
@@ -109,18 +111,24 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 })
                 .ToListAsync(cancellationToken);
 
+            // Attach each stall's electricity & water bill for the record's month — shown in the DETAIL
+            // only (kept off the card so a payor stays as one entry). Fetched once for the whole range.
+            var billMap = await BuildUtilityDetailMapAsync(
+                rows.Select(r => r.StallId).Distinct().ToList(), fromDate, toDate, cancellationToken);
+
             results.AddRange(rows.Select(d =>
             {
                 var amount = d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo);
+                var util = billMap.GetValueOrDefault((d.StallId, d.CollectionDate.Year, d.CollectionDate.Month));
                 return d.IsAbsent
                     ? new MobileCollectorRecordDto(
                         "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
                         "Absent / Excused", 0m, 0m, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, null,
-                        IsAdminRecorded: false, IsAbsent: true)
+                        IsAdminRecorded: false, IsAbsent: true, Utility: util)
                     : new MobileCollectorRecordDto(
                         d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
                         "Daily Fee", amount, amount, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, d.FishKilos,
-                        d.IsAdmin, IsAbsent: false);
+                        d.IsAdmin, IsAbsent: false, Utility: util);
             }));
         }
 
@@ -214,6 +222,46 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         }
 
         return results.OrderByDescending(r => r.CollectedAt).ToList();
+    }
+
+    // Builds a (stall, year, month) → utility bill map for the NPM record detail. Only bills that carry
+    // a charge are included; electricity/water amounts are computed in memory (they are not stored).
+    private async Task<Dictionary<(Guid StallId, int Year, int Month), MobileRecordUtilityDto>> BuildUtilityDetailMapAsync(
+        IReadOnlyList<Guid> stallIds, DateOnly fromDate, DateOnly toDate, CancellationToken ct)
+    {
+        var map = new Dictionary<(Guid, int, int), MobileRecordUtilityDto>();
+        if (stallIds.Count == 0)
+            return map;
+
+        var bills = await context.UtilityBills.AsNoTracking()
+            .Where(b => stallIds.Contains(b.StallId)
+                && (b.BillingYear > fromDate.Year || (b.BillingYear == fromDate.Year && b.BillingMonth >= fromDate.Month))
+                && (b.BillingYear < toDate.Year || (b.BillingYear == toDate.Year && b.BillingMonth <= toDate.Month)))
+            .Select(b => new
+            {
+                b.StallId, b.BillingYear, b.BillingMonth,
+                b.ElecPreviousReading, b.ElecCurrentReading, b.ElecRatePerKwh, b.ElecStatus, b.ElecPartialAmount, b.ElecORNumber,
+                b.WaterPreviousReading, b.WaterCurrentReading, b.WaterRatePerCubicMeter, b.WaterStatus, b.WaterPartialAmount, b.WaterORNumber
+            })
+            .ToListAsync(ct);
+
+        foreach (var b in bills)
+        {
+            var ec = Math.Max(0m, b.ElecCurrentReading - b.ElecPreviousReading) * b.ElecRatePerKwh;
+            var wc = Math.Max(0m, b.WaterCurrentReading - b.WaterPreviousReading) * b.WaterRatePerCubicMeter;
+            if (ec <= 0m && wc <= 0m)
+                continue; // no charge → nothing to show in the detail
+
+            var ep = b.ElecStatus == PaymentStatus.Paid ? ec : b.ElecStatus == PaymentStatus.Partial ? b.ElecPartialAmount : 0m;
+            var wp = b.WaterStatus == PaymentStatus.Paid ? wc : b.WaterStatus == PaymentStatus.Partial ? b.WaterPartialAmount : 0m;
+
+            map[(b.StallId, b.BillingYear, b.BillingMonth)] = new MobileRecordUtilityDto(
+                ec, b.ElecStatus.ToString(), ep, ec - ep, b.ElecORNumber,
+                wc, b.WaterStatus.ToString(), wp, wc - wp, b.WaterORNumber,
+                ec + wc, ep + wp, (ec + wc) - (ep + wp));
+        }
+
+        return map;
     }
 
     public async Task<MobileCollectorReportDto> GetCollectorReportAsync(
@@ -717,6 +765,56 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             absentExcusedTotal,
             selectedFacilities.Count);
 
+        // ── Miscellaneous (electricity & water) summary for the reporting month — computed SEPARATELY
+        //    from the collection totals above so the existing "Total Collected"/counts never change. ──
+        MobileReportUtilitySummaryDto? utilitySummary = null;
+        if (selectedSet.Contains(FacilityCode.NPM))
+        {
+            var ubills = await context.UtilityBills.AsNoTracking()
+                .Where(b => b.BillingYear == year && b.BillingMonth == month
+                         && (b.CollectorId == collectorId || b.CollectorId == null))
+                .Select(b => new
+                {
+                    Payor = b.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    b.Stall.StallNo,
+                    b.ElecPreviousReading, b.ElecCurrentReading, b.ElecRatePerKwh, b.ElecStatus, b.ElecPartialAmount,
+                    b.WaterPreviousReading, b.WaterCurrentReading, b.WaterRatePerCubicMeter, b.WaterStatus, b.WaterPartialAmount
+                })
+                .ToListAsync(cancellationToken);
+
+            var utilityPayees = ubills.Select(b =>
+            {
+                var ec = Math.Max(0m, b.ElecCurrentReading - b.ElecPreviousReading) * b.ElecRatePerKwh;
+                var wc = Math.Max(0m, b.WaterCurrentReading - b.WaterPreviousReading) * b.WaterRatePerCubicMeter;
+                var ep = b.ElecStatus == PaymentStatus.Paid ? ec : b.ElecStatus == PaymentStatus.Partial ? b.ElecPartialAmount : 0m;
+                var wp = b.WaterStatus == PaymentStatus.Paid ? wc : b.WaterStatus == PaymentStatus.Partial ? b.WaterPartialAmount : 0m;
+                var total = ec + wc;
+                var paid = ep + wp;
+                var overall = b.ElecStatus == PaymentStatus.Paid && b.WaterStatus == PaymentStatus.Paid ? PaymentStatus.Paid
+                            : paid <= 0m ? PaymentStatus.Unpaid : PaymentStatus.Partial;
+                return new MobileReportUtilityPayeeDto(
+                    string.IsNullOrWhiteSpace(b.Payor) ? "No active occupant" : b.Payor,
+                    b.StallNo, b.ElecStatus.ToString(), b.WaterStatus.ToString(), overall.ToString(),
+                    total, paid, total - paid);
+            })
+            .Where(r => r.TotalCharge > 0m)   // only bills that actually carry a charge
+            .OrderBy(r => r.StallNo)
+            .ToList();
+
+            if (utilityPayees.Count > 0)
+            {
+                utilitySummary = new MobileReportUtilitySummaryDto(
+                    utilityPayees.Sum(r => r.TotalCharge),
+                    utilityPayees.Sum(r => r.AmountPaid),
+                    utilityPayees.Sum(r => r.Balance),
+                    utilityPayees.Count,
+                    utilityPayees.Count(r => r.OverallStatus == nameof(PaymentStatus.Paid)),
+                    utilityPayees.Count(r => r.OverallStatus == nameof(PaymentStatus.Partial)),
+                    utilityPayees.Count(r => r.OverallStatus == nameof(PaymentStatus.Unpaid)),
+                    utilityPayees);
+            }
+        }
+
         return new MobileCollectorReportDto(
             year,
             month,
@@ -743,7 +841,8 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 .OrderByDescending(a => a.Date)
                 .ThenBy(a => a.FacilityCode)
                 .ThenBy(a => a.StallNo)
-                .ToList());
+                .ToList(),
+            utilitySummary);
     }
 
     public async Task<CollectorUser?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)

@@ -154,9 +154,20 @@
                                  OnHistoryClick="OpenHistory"
                                  OnTodayStatusClick="ToggleAbsentToday"
                                  OnAddOrClick="OpenAddOr"
+                                 OnUtilityClick="OpenUtility"
                                  OnEditClick="OpenEdit" />
 
         </div><!-- end content-area -->
+
+<UtilityBillModal Show="ShowUtility"
+                  StallId="@(UtilityStall?.StallGuid ?? Guid.Empty)"
+                  StallNo="@(UtilityStall?.StallNo ?? string.Empty)"
+                  Occupant="@(UtilityStall?.ActualOccupant ?? string.Empty)"
+                  Section="@(UtilityStall?.Section ?? string.Empty)"
+                  Year="@PhilippineTime.Now.Year"
+                  Month="@PhilippineTime.Now.Month"
+                  OnClose="CloseUtility"
+                  OnSaved="OnUtilitySaved" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -664,6 +675,13 @@
     }
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
+
+    // ── Utility bill (electricity & water) ──
+    bool ShowUtility = false;
+    NpmStall? UtilityStall = null;
+    void OpenUtility(NpmStall s) { UtilityStall = s; ShowUtility = true; }
+    void CloseUtility() { ShowUtility = false; UtilityStall = null; }
+    async Task OnUtilitySaved() => await LoadStallsFromApi();
 
     // Clicking the today-status pill toggles today's Absent state for the stall (admin/head can excuse
     // a payor who is not operating). Paid stalls are settled via the payment modal, not this pill.

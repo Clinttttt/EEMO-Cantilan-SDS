@@ -266,6 +266,10 @@
                                                         {
                                                             <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenAddOr(it)">@it.Action<span class="fq-action-arrow">→</span></button>
                                                         }
+                                                        else if (it.Action == "Pay Bill" && it.StallId.HasValue)
+                                                        {
+                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenUtilityBill(it)">@it.Action<span class="fq-action-arrow">→</span></button>
+                                                        }
                                                         else
                                                         {
                                                             <a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a>
@@ -367,6 +371,20 @@
             </div>
         </div>
     </div>
+}
+
+@if (_utilityItem is not null)
+{
+    <UtilityBillModal Show="true"
+                      StallId="@(_utilityItem.StallId ?? Guid.Empty)"
+                      StallNo="@StallNoForUtility(_utilityItem)"
+                      Occupant="@_utilityItem.Person"
+                      Section="@UtilityKindFor(_utilityItem)"
+                      Year="@AsOf.Year"
+                      Month="@AsOf.Month"
+                      OnClose="CloseUtilityBill"
+                      OnSaved="OnUtilityBillSaved"
+                      RequireUpdateConfirmation="true" />
 }
 
 @code {
@@ -697,6 +715,44 @@
         if (reload) await Load();   // receipted records drop off the queue → refresh counts
     }
 
+    // ── Utility bill payment from Miscellaneous follow-up rows ──
+    private FollowUpItemDto? _utilityItem;
+
+    private void OpenUtilityBill(FollowUpItemDto item)
+    {
+        if (item.StallId is null) return;
+        _utilityItem = item;
+    }
+
+    private Task CloseUtilityBill()
+    {
+        _utilityItem = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnUtilityBillSaved()
+    {
+        await Load();   // paid utilities drop off the queue; partials refresh their balances
+    }
+
+    private static string StallNoForUtility(FollowUpItemDto item)
+    {
+        const string prefix = "Stall ";
+        var value = item.Identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? item.Identifier[prefix.Length..]
+            : item.Identifier;
+
+        var separator = value.IndexOf(" - ", StringComparison.Ordinal);
+        return (separator >= 0 ? value[..separator] : value).Trim();
+    }
+
+    private static string UtilityKindFor(FollowUpItemDto item)
+    {
+        if (item.Reason.Contains("Electricity", StringComparison.OrdinalIgnoreCase)) return "Electricity";
+        if (item.Reason.Contains("Water", StringComparison.OrdinalIgnoreCase)) return "Water";
+        return "Utility billing";
+    }
+
     // ── Section metadata (presentation only; ids match the server's Section field) ──
     private sealed record SectionDef(int Id, string Title, string Sub, string Tone, string Icon);
 
@@ -765,6 +821,7 @@
         new("contract", "Contract"),
         new("npm", "NPM Daily"),
         new("excused", "Excused Review"),
+        new("misc", "Miscellaneous"),
     };
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
@@ -826,6 +883,7 @@
         "contract" => "file",
         "npm" => "calendar",
         "excused" => "user-check",
+        "misc" => "receipt",
         _ => "user"   // delinquent / arrears / current
     };
 

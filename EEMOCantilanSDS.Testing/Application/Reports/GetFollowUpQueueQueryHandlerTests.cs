@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -32,7 +33,9 @@ public class GetFollowUpQueueQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
-    private static GetFollowUpQueueQueryHandler Build(IReadOnlyList<UnreceiptedPaymentDto>? cash = null)
+    private static GetFollowUpQueueQueryHandler Build(
+        IReadOnlyList<UnreceiptedPaymentDto>? cash = null,
+        IReadOnlyList<UtilityBill>? utilityBills = null)
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -89,7 +92,12 @@ public class GetFollowUpQueueQueryHandlerTests
         tpm.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
 
-        return new GetFollowUpQueueQueryHandler(reports.Object, stalls.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object);
+        var utilities = new Mock<IUtilityBillRepository>();
+        utilities.Setup(u => u.GetForMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(utilityBills ?? Array.Empty<UtilityBill>());
+
+        return new GetFollowUpQueueQueryHandler(
+            reports.Object, stalls.Object, online.Object, payments.Object, slaughter.Object, trm.Object, tpm.Object, utilities.Object);
     }
 
     [Fact]
@@ -184,5 +192,44 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal(stallId, daily.StallId);       // carries the stall so the modal can act on it
         Assert.Equal(450m, daily.Amount);
         Assert.Contains("15 day", daily.Identifier);
+    }
+
+    [Fact]
+    public async Task UtilityBalances_SurfaceAsSeparateMiscellaneousRows()
+    {
+        var stallId = Guid.NewGuid();
+        var bill = UtilityBill.Create(
+            stallId, 2026, 6,
+            elecPreviousReading: 100m, elecCurrentReading: 110m, elecRatePerKwh: 10m,
+            waterPreviousReading: 20m, waterCurrentReading: 22m, waterRatePerCubicMeter: 50m);
+
+        bill.RecordPayment(
+            elecOrNumber: null,
+            waterOrNumber: null,
+            collectorId: null,
+            elecStatus: PaymentStatus.Partial,
+            elecPartialAmount: 25m,
+            waterStatus: PaymentStatus.Unpaid,
+            waterPartialAmount: null);
+
+        var handler = Build(utilityBills: new[] { bill });
+
+        var result = await handler.Handle(new GetFollowUpQueueQuery(2026, 6), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+
+        var misc = result.Value!.Items.Where(i => i.ReasonKind == "misc").ToList();
+        Assert.Equal(2, misc.Count);
+
+        var electric = Assert.Single(misc, i => i.Reason == "Electricity balance");
+        Assert.Equal(75m, electric.Amount);
+        Assert.Equal("Pay Bill", electric.Action);
+        Assert.Equal("/npm", electric.Link);
+        Assert.Equal(stallId, electric.StallId);
+        Assert.Contains("Electricity", electric.Identifier);
+        Assert.Contains("Partial", electric.Status);
+
+        var water = Assert.Single(misc, i => i.Reason == "Water balance");
+        Assert.Equal(100m, water.Amount);
+        Assert.Contains("Unpaid", water.Status);
     }
 }

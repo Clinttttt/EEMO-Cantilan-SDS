@@ -299,6 +299,31 @@
                     </div>
                 </div>
 
+                @if (Utility is not null)
+                {
+                    <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("misc"))" @onkeydown="@(e => OnCardKey(e, "misc"))">
+                        <div class="facility-icon">
+                            <svg viewBox="0 0 24 24"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                        </div>
+                        <div class="facility-info">
+                            <div class="facility-name">Miscellaneous</div>
+                            <div class="facility-meta"><span class="facility-count">Electricity &amp; water · @PeriodTitle</span></div>
+                            <div class="facility-substats">
+                                <span class="substat paid">@Utility.PaidCount paid</span>
+                                <span class="substat partial">@Utility.PartialCount partial</span>
+                                <span class="substat unpaid">@Utility.UnpaidCount unpaid</span>
+                            </div>
+                        </div>
+                        <div class="facility-amount-col">
+                            <div class="facility-amount">&#8369;@Utility.TotalCollected.ToString("N0")</div>
+                            @if (Utility.TotalOutstanding > 0)
+                            {
+                                <div class="facility-count" style="text-align:right;">&#8369;@Utility.TotalOutstanding.ToString("N0") due</div>
+                            }
+                        </div>
+                    </div>
+                }
+
                 <div class="group-spacer"></div>
                 <div class="section-label">Assigned Scope</div>
 
@@ -462,6 +487,36 @@
                                     <div class="detail-row-amt">
                                         <div class="detail-amt-val due">&#8369;@p.Balance.ToString("N0")</div>
                                         <div class="detail-amt-bal">amount due</div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        break;
+
+                    case "misc":
+                        @if (Utility is null || Utility.Payees.Count == 0)
+                        {
+                            @DetailEmpty("No electricity or water bills for this period.")
+                        }
+                        else
+                        {
+                            @foreach (var u in Utility.Payees)
+                            {
+                                <div class="detail-row">
+                                    <div class="detail-row-main">
+                                        <div class="detail-row-name">@u.PayorName</div>
+                                        <div class="detail-row-sub">@(string.IsNullOrWhiteSpace(u.StallNo) ? "NPM" : "Stall " + u.StallNo) · E · @u.ElecStatus · W · @u.WaterStatus</div>
+                                    </div>
+                                    <div class="detail-row-amt">
+                                        <div class="detail-amt-val @(u.Balance > 0 ? "" : "paid")">&#8369;@u.AmountPaid.ToString("N0")</div>
+                                        @if (u.Balance > 0)
+                                        {
+                                            <div class="detail-amt-bal">Balance &#8369;@u.Balance.ToString("N0")</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="detail-tag">@u.OverallStatus</span>
+                                        }
                                     </div>
                                 </div>
                             }
@@ -664,6 +719,7 @@
         "partial" => "Partial Payors",
         "unpaid" => "Unpaid Payors",
         "absent-excused" => "Absent / Excused",
+        "misc" => "Miscellaneous · Electricity & Water",
         _ => "Details"
     };
 
@@ -671,6 +727,7 @@
         ReportData?.Transactions ?? Array.Empty<MobileReportTransactionDto>();
     IReadOnlyList<MobileReportAbsentExcusedDto> AbsentExcusedRows =>
         ReportData?.AbsentExcused ?? Array.Empty<MobileReportAbsentExcusedDto>();
+    MobileReportUtilitySummaryDto? Utility => ReportData?.Utility;
     IEnumerable<MobileReportPayeeSummaryDto> OutstandingPayees => PayeeSummaries.Where(p => p.Balance > 0m);
     IEnumerable<MobileReportPayeeSummaryDto> PaidPayees => PayeeSummaries.Where(p => p.Status == PaymentStatus.Paid);
     IEnumerable<MobileReportPayeeSummaryDto> PartialPayees => PayeeSummaries.Where(p => p.Status == PaymentStatus.Partial);

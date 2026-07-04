@@ -1247,6 +1247,17 @@ html, body, #app {
         border-bottom: none;
     }
 
+/* Section header for the electricity & water block inside the collection record detail */
+.detail-util-head {
+    margin-top: 14px;
+    padding-bottom: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted, #8faabf);
+}
+
 .detail-key {
     font-size: 10.5px;
     color: var(--text-muted);
@@ -2149,6 +2160,13 @@ html, body, #app {
     color: var(--navy-primary); font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .btn-receipt-edit:active { background: var(--bg-page); }
+
+.btn-receipt-misc {
+    border: 1px solid var(--border); font: inherit; min-height: 44px;
+    padding: 0 24px; border-radius: 12px; background: #fff;
+    color: var(--navy-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-receipt-misc:active { background: var(--bg-page); }
 
 .btn-receipt-close {
     border: 0; font: inherit; min-height: 44px;

@@ -58,6 +58,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITrmRepository, TrmRepository>();
             service.AddScoped<ISlaughterRepository, SlaughterRepository>();
             service.AddScoped<IDailyCollectionRepository, DailyCollectionRepository>();
+            service.AddScoped<IUtilityBillRepository, EEMOCantilanSDS.Infrastructure.Repositories.Payments.UtilityBillRepository>();
             service.AddScoped<IFacilityReportsRepository, FacilityReportsRepository>();
             service.AddScoped<IDashboardRepository, DashboardRepository>();
             service.AddScoped<ITransactionFeedRepository, TransactionFeedRepository>();

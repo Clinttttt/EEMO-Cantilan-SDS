@@ -7,8 +7,25 @@ using EEMOCantilanSDS.Infrastructure;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Seeders;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Structured logging (Hardening §7 — observability): emit machine-parseable JSON
+// to stdout in non-development so the App Service log stream / any log collector can
+// query errors by property (TraceId, Method, Path). Uses the built-in JSON console
+// formatter — no external logging dependency, works on the current App Service tier.
+// Development keeps the default readable console output.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Logging.ClearProviders();
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.UseUtcTimestamp = true;
+        options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
+    });
+}
 
 builder.Services.AddApi(builder.Environment,builder.Configuration);
 builder.Services.AddInfrastructureService(builder.Configuration);

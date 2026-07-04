@@ -545,3 +545,116 @@
 .btn-confirm:disabled {
     opacity: 0.65;
 }
+
+/* Miscellaneous (electricity & water bill) option + inline pay form */
+.status-option-active.misc {
+    border-color: rgba(30, 58, 95, 0.32);
+    background: rgba(30, 58, 95, 0.06);
+}
+
+.misc-icon-sm {
+    background: #fff;
+}
+
+.misc-icon-sm svg {
+    stroke: var(--navy-primary, #1e3a5f);
+    fill: none;
+}
+
+.misc-empty {
+    font-size: 12.5px;
+    color: var(--text-muted, #8faabf);
+    background: var(--bg-page);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin: -2px 0 10px;
+    line-height: 1.4;
+}
+
+.misc-pay {
+    margin: -2px 0 10px;
+    padding: 12px 14px;
+    background: var(--bg-page);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.util-pay-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.util-pay-chip {
+    border: 1.5px solid var(--border);
+    background: #fff;
+    border-radius: 10px;
+    padding: 9px 6px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--navy-primary, #1e3a5f);
+}
+
+.util-pay-chip.on {
+    border-color: var(--navy-primary, #1e3a5f);
+    box-shadow: 0 6px 16px rgba(13, 33, 55, 0.1);
+}
+
+.misc-collect {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy-primary, #1e3a5f);
+}
+
+.misc-collect strong {
+    font-size: 15px;
+}
+
+
+/* Utility head row: name left, single formal amount right (no redundant "due") */
+.misc-util-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.misc-util-head-gap {
+    margin-top: 14px;
+}
+
+.misc-util-name {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted, #8faabf);
+}
+
+.misc-util-amt {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--navy-primary, #1e3a5f);
+    font-variant-numeric: tabular-nums;
+}
+
+.misc-util-of {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #8faabf);
+    margin-left: 6px;
+}
+
+
+.misc-or-input {
+    margin-top: 8px;
+}

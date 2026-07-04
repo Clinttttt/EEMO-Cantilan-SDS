@@ -849,10 +849,10 @@
     font-size: 11px; font-weight: 600;
     letter-spacing: .04em;
 }
-.status-badge.paid    { background: var(--green-bg); color: var(--green); }
-.status-badge.partial { background: rgba(200,168,75,.15); color: #8a6d1a; }
-.status-badge.unpaid  { background: var(--red-bg); color: var(--red); }
-.status-badge.absent  { background: rgba(200,168,75,.15); color: #8a6d1a; }
+.status-badge.paid    {  color: var(--green); }
+.status-badge.partial { color: #8a6d1a; }
+.status-badge.unpaid  {  color: var(--red); }
+.status-badge.absent  {  color: #8a6d1a; }
 .status-absent        { color: #8a6d1a; }
 
 /* Mini panel inside breakdown card */
@@ -1290,7 +1290,7 @@
 }
 .utility-panel-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
     padding: 18px 20px;
@@ -1341,6 +1341,8 @@
     font-size: 12px;
     vertical-align: middle;
 }
+.utility-table th:first-child, .utility-table td:first-child { padding-left: 24px; }
+.utility-table th:last-child, .utility-table td:last-child { padding-right: 24px; }
 .utility-table tbody tr:last-child td {
     border-bottom: none;
 }
@@ -1364,50 +1366,17 @@
 .utility-status {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 68px;
-    padding: 5px 9px;
-    border-radius: 999px;
-    font-size: 10.5px;
+    font-size: 11px;
     font-weight: 800;
+    background: none;
+    padding: 0;
+    min-width: 0;
 }
-.utility-status.paid {
-    color: var(--green);
-    background: color-mix(in srgb, var(--green) 10%, white);
-}
-.utility-status.partial {
-    color: #9a741b;
-    background: color-mix(in srgb, var(--gold) 16%, white);
-}
-.utility-status.unpaid {
-    color: var(--red);
-    background: color-mix(in srgb, var(--red-bg) 70%, white);
-}
-.utility-notes {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-.utility-notes div {
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--bg-card) 78%, var(--bg));
-}
-.utility-notes strong,
-.utility-notes span {
-    display: block;
-}
-.utility-notes strong {
-    color: var(--navy);
-    font-size: 12px;
-}
-.utility-notes span {
-    margin-top: 5px;
-    color: var(--text-muted);
-    font-size: 11.5px;
-    line-height: 1.45;
-}
+.utility-status.paid { color: var(--green); }
+.utility-status.partial { color: #9a741b; }
+.utility-status.unpaid { color: var(--red); }
+
+
 
 /* ── Responsive ──────────────────────────────────────────── */
 /* Print-ready status report */
@@ -1712,8 +1681,11 @@
     .fish-kpi-row        { gap: 16px; }
     .utility-hero,
     .utility-panel-head  { flex-direction: column; align-items: stretch; }
+    .utility-panel-head-left { flex-direction: column; align-items: stretch; }
+    .utility-panel-head-actions { justify-content: space-between; }
+    .utility-search { width: 100%; }
+    .utility-section-tabs { overflow-x: auto; }
     .utility-summary-grid,
-    .utility-notes       { grid-template-columns: 1fr; }
     .print-report-sheet  { padding: 24px 18px 30px; min-height: auto; }
     .print-report-meta,
     .print-report-summary,
@@ -1793,7 +1765,7 @@
 .rpt-fish-chart {
     display: flex;
     align-items: flex-end;
-    gap: 12px;
+    gap: 6px;
     height: 248px;
     padding: 16px 18px 10px;
     position: relative;
@@ -1817,7 +1789,7 @@
     align-items: center;
     height: 100%;
     justify-content: flex-end;
-    min-width: 26px;
+    min-width: 0;
 }
 .rpt-fish-val {
     font-size: 11px;
@@ -2792,4 +2764,100 @@
     color: var(--text-muted);
     padding: 22px 0;
     font-size: 13px;
+}
+
+/* Utility register — segmented section tabs (matches the Weekly/Monthly/Yearly look), search, clickable
+   rows, per-payor history modal */
+.utility-panel-head-left { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.utility-panel-head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+.utility-section-tabs {
+    display: flex;
+    gap: 5px;
+    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: 9px;
+    padding: 4px;
+    align-items: center;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.86);
+}
+.utility-section-tab {
+    min-height: 32px;
+    padding: 6px 16px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 650;
+    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.utility-section-tab:hover {
+    background: rgba(255,255,255,.72);
+    border-color: color-mix(in srgb, var(--border) 72%, transparent);
+    color: var(--navy);
+}
+.utility-section-tab.active {
+    background: linear-gradient(135deg, var(--navy) 0%, #123653 100%);
+    border-color: color-mix(in srgb, var(--navy) 76%, #fff);
+    color: #fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 6px 13px rgba(9,31,52,.14);
+}
+.utility-toolbar { padding: 14px 20px 0; }
+.utility-search { position: relative; display: flex; align-items: center; flex: 1 1 auto; min-width: 0; }
+.utility-search svg { position: absolute; left: 11px; width: 15px; height: 15px; fill: none; stroke: var(--text-muted); stroke-width: 2; }
+.utility-search input {
+    width: 100%; border: 1px solid var(--border); border-radius: 10px;
+    padding: 9px 12px 9px 34px; font-size: 13px; color: var(--navy); background: #fff;
+}
+.utility-search input:focus { outline: none; border-color: var(--navy-3); }
+
+.utility-row-click { cursor: pointer; }
+.utility-row-click:hover { background: var(--bg-page); }
+
+.utility-hist-overlay {
+    position: fixed; inset: 0; z-index: 4200; background: rgba(13, 33, 55, 0.5);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.utility-hist-modal {
+    background: #fff; border-radius: 16px; width: 100%; max-width: 1040px; max-height: 88vh;
+    overflow: auto; box-shadow: 0 24px 60px rgba(13, 33, 55, 0.28);
+}
+.utility-hist-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 18px 22px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: #fff;
+}
+.utility-hist-head h3 { font-size: 16px; font-weight: 800; color: var(--navy); margin: 0; }
+.utility-hist-head p { font-size: 12.5px; color: var(--text-muted); margin: 3px 0 0; }
+.utility-hist-x { border: 0; background: none; font-size: 24px; line-height: 1; color: var(--text-muted); cursor: pointer; }
+.utility-hist-state { padding: 40px 22px; text-align: center; color: var(--text-muted); font-size: 13px; }
+.utility-hist-wrap { padding: 8px 22px 22px; overflow-x: auto; }
+.utility-hist-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.utility-hist-table th {
+    text-align: left; padding: 9px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.utility-hist-table td { padding: 9px 10px; border-bottom: 1px solid var(--bg-icon); color: var(--navy); font-variant-numeric: tabular-nums; }
+.utility-hist-table .uh-period { font-weight: 800; }
+.utility-hist-table .uh-total { font-weight: 800; }
+
+/* Separate electricity/water status badges */
+.utility-status-pair { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.utility-status-pair .utility-status { font-size: 10.5px; }
+
+/* Keep the daily x-labels compact so a 31-day month fits without horizontal overflow. */
+.rpt-fish-xlabel { font-size: 9px; white-space: nowrap; }
+
+/* Stacked electricity/water OR numbers in the utility history modal */
+.uh-or {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-subtle, #6a8aa0);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }

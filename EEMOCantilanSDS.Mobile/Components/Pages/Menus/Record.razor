@@ -201,6 +201,23 @@
                 <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRecord.Amount - SelectedRecord.AmountPaid).ToString("N0"))</span></div>
             }
 
+            @if (SelectedRecord.Utility is { } u)
+            {
+                <div class="detail-util-head">Electricity &amp; Water</div>
+                <div class="detail-row">
+                    <span class="detail-key">Electricity · @u.ElecStatus@(string.IsNullOrWhiteSpace(u.ElecORNumber) ? "" : " · OR #" + u.ElecORNumber)</span>
+                    <span class="detail-val">₱@u.ElecAmountPaid.ToString("N2") / ₱@u.ElecCharge.ToString("N2")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Water · @u.WaterStatus@(string.IsNullOrWhiteSpace(u.WaterORNumber) ? "" : " · OR #" + u.WaterORNumber)</span>
+                    <span class="detail-val">₱@u.WaterAmountPaid.ToString("N2") / ₱@u.WaterCharge.ToString("N2")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Utilities Balance</span>
+                    <span class="detail-val amount-val">₱@u.Balance.ToString("N2")</span>
+                </div>
+            }
+
             <div class="sheet-btn-row">
                 <div class="btn-close" @onclick="CloseDetail">Close</div>
             </div>

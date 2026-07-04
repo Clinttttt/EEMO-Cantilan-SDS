@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
@@ -47,7 +48,8 @@ public static class FollowUpComposer
         IReadOnlyList<TrmTripDto> trips,
         IReadOnlyList<TpmVendorAttendanceDto> attendance,
         IReadOnlyList<UnreceiptedPaymentDto> unreceipted,
-        IReadOnlyList<ContractAttentionDto> contracts)
+        IReadOnlyList<ContractAttentionDto> contracts,
+        IReadOnlyList<UtilityBill> utilityBills)
     {
         var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         var items = new List<FollowUpItemDto>();
@@ -124,6 +126,15 @@ public static class FollowUpComposer
                     null, false, periodLabel,
                     "Daily coverage gap", "Open daily calendar", "/npm"));
             }
+        }
+
+        // Utility balances (NPM electricity/water): show each unpaid/partial utility as its own
+        // action row. The current domain still stores one OR number on the bill, but the follow-up
+        // presentation deliberately separates electricity from water so admin work is clear.
+        foreach (var bill in utilityBills)
+        {
+            AddUtilityBalance(items, bill, "Electricity", bill.ElecStatus, bill.ElecBalanceDue, bill.ElecConsumption, "kWh", periodLabel);
+            AddUtilityBalance(items, bill, "Water", bill.WaterStatus, bill.WaterBalanceDue, bill.WaterConsumption, "cu.m.", periodLabel);
         }
 
         // ── 3) Missing OR — online payments received but not yet receipted ──
@@ -230,6 +241,44 @@ public static class FollowUpComposer
 
     private static string ProfileLink(FacilityCode code, string stallNo) =>
         $"/profile/{code.ToString().ToLowerInvariant()}/{stallNo}";
+
+    private static void AddUtilityBalance(
+        List<FollowUpItemDto> items,
+        UtilityBill bill,
+        string utilityName,
+        PaymentStatus status,
+        decimal balance,
+        decimal consumption,
+        string unit,
+        string periodLabel)
+    {
+        if (balance <= 0m || status == PaymentStatus.Paid)
+            return;
+
+        var stallNo = bill.Stall?.StallNo ?? bill.StallId.ToString("N")[..8];
+        var occupant = bill.Stall?.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant;
+        var statusLabel = status == PaymentStatus.Partial ? "Partial" : "Unpaid";
+        var consumptionLabel = consumption > 0m
+            ? $"{consumption:N2} {unit} used"
+            : "No recorded consumption";
+
+        items.Add(new FollowUpItemDto(
+            SecThisPeriod,
+            "Normal",
+            $"{utilityName} balance",
+            "misc",
+            FacilityCode.NPM,
+            "Utility billing",
+            Named(occupant),
+            $"Stall {stallNo} - {utilityName}",
+            balance,
+            false,
+            periodLabel,
+            $"{statusLabel} - {consumptionLabel}",
+            "Pay Bill",
+            "/npm",
+            StallId: bill.StallId));
+    }
 
     private static int PriorityRank(string priority) => priority switch
     {

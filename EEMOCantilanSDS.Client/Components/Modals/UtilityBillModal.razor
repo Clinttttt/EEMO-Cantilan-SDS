@@ -1,0 +1,253 @@
+@using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityReading
+@using EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment
+@using EEMOCantilanSDS.Application.Dtos.Utilities
+@using EEMOCantilanSDS.Domain.Enums
+@inject IUtilitiesApiClient UtilitiesApi
+
+@*
+    UtilityBillModal — record an NPM stall's meter readings (electricity + water) with per-bill rates,
+    and optionally collect payment. Electricity and water are settled independently. Admin/office use.
+*@
+
+@if (Show)
+{
+    <div class="ub-overlay" @onclick="Close">
+        <div class="ub-modal" @onclick:stopPropagation="true">
+            <div class="ub-head">
+                <div>
+                    <div class="ub-title">Utility Bill · @(new DateTime(Year, Month, 1).ToString("MMMM yyyy"))</div>
+                    <div class="ub-sub">Stall @StallNo · @Occupant@(string.IsNullOrWhiteSpace(Section) ? "" : " · " + Section)</div>
+                </div>
+                <button class="ub-x" type="button" @onclick="Close" aria-label="Close">&times;</button>
+            </div>
+
+            <div class="ub-body">
+                <div class="ub-meter">
+                    <div class="ub-meter-title">Electricity <span>kWh</span></div>
+                    <div class="ub-grid3">
+                        <label>Previous<input type="number" step="0.01" min="0" @bind="ElecPrev" @bind:event="oninput" /></label>
+                        <label>Current<input type="number" step="0.01" min="0" @bind="ElecCur" @bind:event="oninput" /></label>
+                        <label>Rate ₱/kWh<input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" /></label>
+                    </div>
+                    <div class="ub-calc">@ElecConsumption.ToString("N0") kWh × ₱@ElecRate.ToString("N2") = <strong>₱@ElecCharge.ToString("N2")</strong></div>
+                    <div class="ub-status-row">
+                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => ElecPay = PaymentStatus.Unpaid">Unpaid</button>
+                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => ElecPay = PaymentStatus.Paid">Paid</button>
+                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Partial ? "on" : "")" @onclick="() => ElecPay = PaymentStatus.Partial">Partial</button>
+                    </div>
+                    @if (ElecPay == PaymentStatus.Partial)
+                    {
+                        <label class="ub-field">Electricity partial amount<input type="number" step="0.01" min="0" @bind="ElecPartial" @bind:event="oninput" /></label>
+                    }
+                    @if (ElecPay != PaymentStatus.Unpaid)
+                    {
+                        <label class="ub-field">Electricity OR number<input type="text" maxlength="50" placeholder="e.g. OR-10231" @bind="ElecOr" @bind:event="oninput" /></label>
+                    }
+                </div>
+
+                <div class="ub-meter">
+                    <div class="ub-meter-title">Water <span>cu.m</span></div>
+                    <div class="ub-grid3">
+                        <label>Previous<input type="number" step="0.01" min="0" @bind="WaterPrev" @bind:event="oninput" /></label>
+                        <label>Current<input type="number" step="0.01" min="0" @bind="WaterCur" @bind:event="oninput" /></label>
+                        <label>Rate ₱/cu.m<input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" /></label>
+                    </div>
+                    <div class="ub-calc">@WaterConsumption.ToString("N0") cu.m × ₱@WaterRate.ToString("N2") = <strong>₱@WaterCharge.ToString("N2")</strong></div>
+                    <div class="ub-status-row">
+                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => WaterPay = PaymentStatus.Unpaid">Unpaid</button>
+                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => WaterPay = PaymentStatus.Paid">Paid</button>
+                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Partial ? "on" : "")" @onclick="() => WaterPay = PaymentStatus.Partial">Partial</button>
+                    </div>
+                    @if (WaterPay == PaymentStatus.Partial)
+                    {
+                        <label class="ub-field">Water partial amount<input type="number" step="0.01" min="0" @bind="WaterPartial" @bind:event="oninput" /></label>
+                    }
+                    @if (WaterPay != PaymentStatus.Unpaid)
+                    {
+                        <label class="ub-field">Water OR number<input type="text" maxlength="50" placeholder="e.g. OR-10232" @bind="WaterOr" @bind:event="oninput" /></label>
+                    }
+                </div>
+
+                <div class="ub-total"><span>Total Utility Charge</span><strong>₱@TotalCharge.ToString("N2")</strong></div>
+
+                @if (!string.IsNullOrEmpty(Error))
+                {
+                    <div class="ub-error">@Error</div>
+                }
+
+                @if (ConfirmingUpdate)
+                {
+                    <div class="ub-confirm">
+                        <strong>Update existing utility bill?</strong>
+                        <span>This month already has saved utility details. Confirming will update the readings, payment status, partial amounts, and OR number currently shown here.</span>
+                    </div>
+                }
+            </div>
+
+            <div class="ub-foot">
+                <button type="button" class="ub-cancel" @onclick="Close" disabled="@Saving">Cancel</button>
+                <button type="button" class="ub-save" @onclick="SaveAsync" disabled="@(Saving || SeedFailed)">@(Saving ? "Saving…" : ConfirmingUpdate ? "Confirm update" : "Save")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public string StallNo { get; set; } = string.Empty;
+    [Parameter] public string Occupant { get; set; } = string.Empty;
+    [Parameter] public string Section { get; set; } = string.Empty;
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public bool RequireUpdateConfirmation { get; set; }
+
+    private decimal ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, ElecPartial, WaterPartial;
+    private PaymentStatus ElecPay = PaymentStatus.Unpaid;
+    private PaymentStatus WaterPay = PaymentStatus.Unpaid;
+    private string ElecOr = string.Empty;
+    private string WaterOr = string.Empty;
+    private string Error = string.Empty;
+    private bool Saving;
+    private bool ExistingBill;
+    private bool ExistingRecordedPayment;
+    private bool ConfirmingUpdate;
+    private bool SeedFailed;
+    private Guid _seededStall;
+    private int _seededYear;
+    private int _seededMonth;
+
+    private decimal ElecConsumption => Math.Max(0m, ElecCur - ElecPrev);
+    private decimal WaterConsumption => Math.Max(0m, WaterCur - WaterPrev);
+    private decimal ElecCharge => ElecConsumption * ElecRate;
+    private decimal WaterCharge => WaterConsumption * WaterRate;
+    private decimal TotalCharge => ElecCharge + WaterCharge;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Show && (_seededStall != StallId || _seededYear != Year || _seededMonth != Month))
+        {
+            _seededStall = StallId;
+            _seededYear = Year;
+            _seededMonth = Month;
+            Error = string.Empty; ElecOr = string.Empty; WaterOr = string.Empty;
+            ExistingBill = false; ExistingRecordedPayment = false; ConfirmingUpdate = false; SeedFailed = false;
+            ElecPay = PaymentStatus.Unpaid; WaterPay = PaymentStatus.Unpaid;
+            ElecPartial = WaterPartial = 0m;
+            ElecPrev = ElecCur = ElecRate = WaterPrev = WaterCur = WaterRate = 0m;
+
+            var seed = await UtilitiesApi.GetBillForEntryAsync(StallId, Year, Month);
+            if (seed.IsSuccess && seed.Value is { } s)
+            {
+                ElecPrev = s.ElecPreviousReading; ElecCur = s.ElecCurrentReading; ElecRate = s.ElecRatePerKwh;
+                WaterPrev = s.WaterPreviousReading; WaterCur = s.WaterCurrentReading; WaterRate = s.WaterRatePerCubicMeter;
+                if (s.Exists)
+                {
+                    ExistingBill = true;
+                    ElecPay = ParseStatus(s.ElecStatus);
+                    ElecPartial = s.ElecPartialAmount;
+                    WaterPay = ParseStatus(s.WaterStatus);
+                    WaterPartial = s.WaterPartialAmount;
+                    ElecOr = s.ElecORNumber ?? string.Empty;
+                    WaterOr = s.WaterORNumber ?? string.Empty;
+                    ExistingRecordedPayment = HasRecordedPayment(ElecPay, WaterPay, ElecOr, WaterOr);
+                }
+            }
+            else
+            {
+                SeedFailed = true;
+                Error = seed.Error ?? "Unable to load this utility bill. Close and try again.";
+            }
+            StateHasChanged();
+        }
+        else if (!Show)
+        {
+            _seededStall = Guid.Empty;
+            _seededYear = 0;
+            _seededMonth = 0;
+            ConfirmingUpdate = false;
+            SeedFailed = false;
+        }
+    }
+
+    private static PaymentStatus ParseStatus(string s) =>
+        Enum.TryParse<PaymentStatus>(s, out var v) ? v : PaymentStatus.Unpaid;
+
+    private static bool HasRecordedPayment(PaymentStatus elecStatus, PaymentStatus waterStatus, string? elecOr, string? waterOr) =>
+        elecStatus != PaymentStatus.Unpaid
+        || waterStatus != PaymentStatus.Unpaid
+        || !string.IsNullOrWhiteSpace(elecOr)
+        || !string.IsNullOrWhiteSpace(waterOr);
+
+    private Task Close()
+    {
+        ConfirmingUpdate = false;
+        return OnClose.InvokeAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (SeedFailed)
+        {
+            Error = "Unable to save because the bill details did not load correctly.";
+            return;
+        }
+
+        if (ElecCur < ElecPrev || WaterCur < WaterPrev)
+        {
+            Error = "A current reading cannot be less than the previous reading.";
+            return;
+        }
+        if (ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
+        {
+            Error = "Enter an electricity partial amount greater than ₱0.";
+            return;
+        }
+        if (WaterPay == PaymentStatus.Partial && WaterPartial <= 0m)
+        {
+            Error = "Enter a water partial amount greater than ₱0.";
+            return;
+        }
+
+        if (RequireUpdateConfirmation && ExistingBill && !ConfirmingUpdate)
+        {
+            Error = string.Empty;
+            ConfirmingUpdate = true;
+            return;
+        }
+
+        Saving = true; Error = string.Empty;
+
+        var reading = await UtilitiesApi.RecordReadingAsync(new RecordUtilityReadingCommand(
+            StallId, Year, Month, ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, null));
+        if (!reading.IsSuccess || reading.Value is null)
+        {
+            Error = reading.Error ?? "Unable to save the readings.";
+            Saving = false;
+            return;
+        }
+
+        if (ExistingRecordedPayment || ElecPay != PaymentStatus.Unpaid || WaterPay != PaymentStatus.Unpaid)
+        {
+            var payment = await UtilitiesApi.RecordPaymentAsync(new RecordUtilityPaymentCommand(
+                reading.Value.Id,
+                ElecPay, ElecPay == PaymentStatus.Partial ? ElecPartial : null,
+                WaterPay, WaterPay == PaymentStatus.Partial ? WaterPartial : null,
+                string.IsNullOrWhiteSpace(ElecOr) ? null : ElecOr.Trim(),
+                string.IsNullOrWhiteSpace(WaterOr) ? null : WaterOr.Trim(),
+                null));
+            if (!payment.IsSuccess)
+            {
+                Error = payment.Error ?? "Readings saved, but the payment could not be recorded.";
+                Saving = false;
+                return;
+            }
+        }
+
+        Saving = false;
+        await OnSaved.InvokeAsync();
+        await OnClose.InvokeAsync();
+    }
+}

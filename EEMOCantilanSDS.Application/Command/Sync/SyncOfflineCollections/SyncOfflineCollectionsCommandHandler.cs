@@ -101,6 +101,15 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                         op.ORNumber, op.ClientOperationId), ct);
                     return (r.IsSuccess, r.StatusCode, r.Error);
                 }
+                case OfflineOperationKind.NpmUtility:
+                {
+                    var r = await sender.Send(new EEMOCantilanSDS.Application.Command.Utilities.RecordUtilityPayment.RecordUtilityPaymentCommand(
+                        op.UtilityBillId ?? Guid.Empty,
+                        op.ElecStatus ?? PaymentStatus.Unpaid, op.ElecPartialAmount,
+                        op.WaterStatus ?? PaymentStatus.Unpaid, op.WaterPartialAmount,
+                        op.ElecORNumber, op.WaterORNumber, op.Remarks, op.ClientOperationId), ct);
+                    return (r.IsSuccess, r.StatusCode, r.Error);
+                }
                 default:
                     return (false, 400, "Unknown operation kind.");
             }

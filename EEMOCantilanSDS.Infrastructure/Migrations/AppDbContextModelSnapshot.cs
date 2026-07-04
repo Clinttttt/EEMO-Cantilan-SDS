@@ -700,6 +700,130 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("StallMonthlyExceptions", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BillingMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BillingYear")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CollectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("ElecCurrentReading")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ElecORNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("ElecPaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("ElecPartialAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("ElecPreviousReading")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("ElecRatePerKwh")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("ElecStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("StallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("WaterCurrentReading")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("WaterORNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime?>("WaterPaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("WaterPartialAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("WaterPreviousReading")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("WaterRatePerCubicMeter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("WaterStatus")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
+
+                    b.HasIndex("ElecORNumber")
+                        .IsUnique()
+                        .HasFilter("\"ElecORNumber\" IS NOT NULL AND \"ElecORNumber\" <> ''");
+
+                    b.HasIndex("WaterORNumber")
+                        .IsUnique()
+                        .HasFilter("\"WaterORNumber\" IS NOT NULL AND \"WaterORNumber\" <> ''");
+
+                    b.HasIndex("StallId", "BillingYear", "BillingMonth")
+                        .IsUnique();
+
+                    b.ToTable("UtilityBills", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Slaughterhouse.SlaughterTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1489,6 +1613,17 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.StallMonthlyException", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
+                        .WithMany()
+                        .HasForeignKey("StallId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Stall");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill", b =>
                 {
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Stall", "Stall")
                         .WithMany()
