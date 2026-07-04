@@ -1,0 +1,126 @@
+name: Database backup
+
+# Off-site, restorable backups of the production PostgreSQL database.
+#
+# WHY THIS EXISTS
+#   The Azure Postgres Flexible Server already keeps 7-day automated point-in-time
+#   restore (PITR) — that is the primary safety net and is independent of the F1
+#   App Service tier. This workflow adds long-term, self-held copies: a real
+#   pg_dump you can keep beyond 7 days and grab before any risky change. It runs in
+#   GitHub's CI (not the F1 app), so the "we can't auto-backup on F1" limitation
+#   does not apply here.
+#
+# WHAT IT PRODUCES
+#   A compressed, custom-format dump (pg_dump -Fc) uploaded as a build artifact,
+#   retained 90 days. Restore with:
+#       pg_restore --no-owner --no-privileges -d "<target-connection>" <file>.dump
+#
+# ONE-TIME SETUP (see the notes at the bottom of this file)
+
+on:
+  schedule:
+    - cron: '0 17 * * *'   # daily at 17:00 UTC = 01:00 Philippine time (off-peak)
+  workflow_dispatch:        # allows an on-demand backup from the Actions tab
+
+permissions:
+  contents: read
+  id-token: write           # required for Azure OIDC login
+
+concurrency:
+  group: database-backup
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-stalltrack-prod
+
+jobs:
+  backup:
+    name: pg_dump to artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install PostgreSQL client
+        # pg_dump must be >= the server's major version. Azure Flexible Server GA is
+        # PostgreSQL <= 16; if your server is 17, change this to postgresql-client-17.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Detect runner public IP
+        id: ip
+        run: echo "ip=$(curl -fsSL https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Open a temporary firewall rule for this runner
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "${{ vars.PG_SERVER_NAME }}" \
+            --rule-name "ghbackup-${GITHUB_RUN_ID}" \
+            --start-ip-address "${{ steps.ip.outputs.ip }}" \
+            --end-ip-address "${{ steps.ip.outputs.ip }}"
+
+      - name: Run pg_dump (compressed, restorable custom format)
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}   # passed via env, never on the command line
+          PGSSLMODE: require                        # Azure Postgres requires TLS
+        run: |
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          FILE="stalltrack-backup-${STAMP}.dump"
+          echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
+          pg_dump -Fc -Z 6 --no-owner --no-privileges -f "$FILE"
+          ls -lh "$FILE"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_FILE }}
+          path: ${{ env.BACKUP_FILE }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Remove the temporary firewall rule
+        if: always()   # always clean up, even if the dump failed, so no rule lingers
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "${{ vars.PG_SERVER_NAME }}" \
+            --rule-name "ghbackup-${GITHUB_RUN_ID}" \
+            --yes || true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONE-TIME SETUP
+#
+# 1. Repository variable (Settings → Secrets and variables → Actions → Variables):
+#      PG_SERVER_NAME   the Flexible Server RESOURCE name (e.g. psql-stalltrack),
+#                       NOT the full hostname.
+#
+# 2. Repository secrets (Settings → Secrets and variables → Actions → Secrets):
+#      PG_HOST          <server>.postgres.database.azure.com
+#      PG_DATABASE      the database name (e.g. stalltrack)
+#      PG_USER          the admin login
+#      PG_PASSWORD      the admin password
+#    (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID already exist for deploy.)
+#
+# 3. RBAC: the OIDC identity must be able to manage firewall rules on the server.
+#    Contributor on rg-stalltrack-prod (already used for deploy) covers this. Verify
+#    with the first manual "Run workflow" before relying on the schedule.
+#
+# 4. This file only takes effect once it is on the default branch (master) on GitHub.
+#    Pushing it does NOT trigger a production deploy (deploy ignores .github/**).
+#
+# RESTORE (to a fresh/target database):
+#      pg_restore --no-owner --no-privileges --clean --if-exists \
+#        -d "postgresql://user:pass@host:5432/dbname?sslmode=require" backup.dump
+# ─────────────────────────────────────────────────────────────────────────────
