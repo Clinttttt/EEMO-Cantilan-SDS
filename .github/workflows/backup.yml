@@ -37,6 +37,10 @@ jobs:
   backup:
     name: pg_dump to artifact
     runs-on: ubuntu-latest
+    # Reuse the existing Azure federated credential, which is registered for the
+    # OIDC subject "repo:...:environment:production" (same as the deploy job). Without
+    # this, the subject is "...:ref:refs/heads/master", which Azure does not recognize.
+    environment: production
 
     steps:
       - name: Sign in to Azure with OpenID Connect
