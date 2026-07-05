@@ -117,7 +117,7 @@
                 <div class="set-card-title">Recent backups</div>
                 <div class="set-card-sub">The latest backup runs</div>
             </div>
-            <button class="set-link bk-refresh" @onclick="LoadRunsAsync" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
+            <button class="set-link bk-refresh" @onclick="() => LoadRunsAsync()" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
         </div>
 
         @if (_loadingRuns)
@@ -138,7 +138,7 @@
             <div class="bk-empty">
                 <div class="bk-empty-title">Couldn't load recent backups</div>
                 <div class="bk-empty-text">@_runsError</div>
-                <button class="set-retry" @onclick="LoadRunsAsync">Try again</button>
+                <button class="set-retry" @onclick="() => LoadRunsAsync()">Try again</button>
             </div>
         }
         else if (_runs is null || _runs.Count == 0)
@@ -179,7 +179,7 @@
                 <div class="set-card-title">Recent restores</div>
                 <div class="set-card-sub">The latest restore runs</div>
             </div>
-            <button class="set-link bk-refresh" @onclick="LoadRestoreRunsAsync" disabled="@_loadingRestoreRuns">Refresh<span class="set-link-arrow">↻</span></button>
+            <button class="set-link bk-refresh" @onclick="() => LoadRestoreRunsAsync()" disabled="@_loadingRestoreRuns">Refresh<span class="set-link-arrow">↻</span></button>
         </div>
 
         @if (_loadingRestoreRuns)
@@ -200,7 +200,7 @@
             <div class="bk-empty">
                 <div class="bk-empty-title">Couldn't load recent restores</div>
                 <div class="bk-empty-text">@_restoreRunsError</div>
-                <button class="set-retry" @onclick="LoadRestoreRunsAsync">Try again</button>
+                <button class="set-retry" @onclick="() => LoadRestoreRunsAsync()">Try again</button>
             </div>
         }
         else if (_restoreRuns is null || _restoreRuns.Count == 0)
@@ -505,6 +505,7 @@
     private bool _logLoading;
     private string? _logError;
     private CancellationTokenSource? _logPollCts;   // drives live auto-refresh while a run is in progress
+    private CancellationTokenSource? _listPollCts;  // auto-refreshes the run lists while any run is active
 
     protected override async Task OnInitializedAsync()
     {
@@ -512,46 +513,82 @@
         await LoadRestoreRunsAsync();
     }
 
-    private async Task LoadRunsAsync()
+    private async Task LoadRunsAsync(bool silent = false)
     {
-        _loadingRuns = true;
-        _runsError = null;
-        await InvokeAsync(StateHasChanged);
+        if (!silent)
+        {
+            _loadingRuns = true;
+            _runsError = null;
+            await InvokeAsync(StateHasChanged);
+        }
 
         var result = await BackupApi.GetRecentRunsAsync();
         if (result.IsSuccess && result.Value is not null)
-        {
             _runs = result.Value;
-        }
-        else
-        {
+        else if (!silent)
             _runsError = string.IsNullOrWhiteSpace(result.Error)
                 ? "Recent backups could not be retrieved."
                 : result.Error;
-        }
 
         _loadingRuns = false;
+        if (!silent) MaybeStartListPolling();
     }
 
-    private async Task LoadRestoreRunsAsync()
+    private async Task LoadRestoreRunsAsync(bool silent = false)
     {
-        _loadingRestoreRuns = true;
-        _restoreRunsError = null;
-        await InvokeAsync(StateHasChanged);
+        if (!silent)
+        {
+            _loadingRestoreRuns = true;
+            _restoreRunsError = null;
+            await InvokeAsync(StateHasChanged);
+        }
 
         var result = await BackupApi.GetRecentRestoreRunsAsync();
         if (result.IsSuccess && result.Value is not null)
-        {
             _restoreRuns = result.Value;
-        }
-        else
-        {
+        else if (!silent)
             _restoreRunsError = string.IsNullOrWhiteSpace(result.Error)
                 ? "Recent restores could not be retrieved."
                 : result.Error;
-        }
 
         _loadingRestoreRuns = false;
+        if (!silent) MaybeStartListPolling();
+    }
+
+    private static bool RunIsTerminal(BackupRunDto r) =>
+        string.Equals(r.Status, "completed", StringComparison.OrdinalIgnoreCase);
+
+    private bool AnyRunActive() =>
+        (_runs?.Any(r => !RunIsTerminal(r)) ?? false) || (_restoreRuns?.Any(r => !RunIsTerminal(r)) ?? false);
+
+    // While any backup/restore run is still queued or in progress, silently re-fetch both lists every
+    // 5s so their status updates on their own (no need to open the log or hit Refresh). Stops when all
+    // runs have settled, after ~10 minutes, or on dispose.
+    private void MaybeStartListPolling()
+    {
+        if (_listPollCts is not null || !AnyRunActive()) return;
+        var cts = new CancellationTokenSource();
+        _listPollCts = cts;
+        _ = PollListsAsync(cts.Token);
+    }
+
+    private async Task PollListsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            var ticks = 0;
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadRunsAsync(silent: true);
+                await LoadRestoreRunsAsync(silent: true);
+                await InvokeAsync(StateHasChanged);
+                if (!AnyRunActive() || ++ticks >= 120) break;
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { /* stop quietly */ }
+        finally { _listPollCts = null; }
     }
 
     private async Task RunBackupAsync()
@@ -759,6 +796,8 @@
     {
         _logPollCts?.Cancel();
         _logPollCts?.Dispose();
+        _listPollCts?.Cancel();
+        _listPollCts?.Dispose();
         _toastCts?.Cancel();
         _toastCts?.Dispose();
     }

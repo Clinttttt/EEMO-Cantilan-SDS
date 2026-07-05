@@ -101,7 +101,9 @@ jobs:
           echo "Restoring from backup run $LATEST"
           rm -rf ./_restore && mkdir -p ./_restore
           gh run download "$LATEST" --dir ./_restore --repo "$GITHUB_REPOSITORY"
-          DUMP=$(find ./_restore -name '*.dump' | head -n1)
+          # gh unpacks each artifact into a DIRECTORY named after the artifact (which ends in
+          # ".dump"); the real archive is the FILE inside it — match files only, not the directory.
+          DUMP=$(find ./_restore -type f -name '*.dump' | head -n1)
           if [ -z "$DUMP" ]; then
             echo "Downloaded backup contained no .dump file." >&2
             exit 1
