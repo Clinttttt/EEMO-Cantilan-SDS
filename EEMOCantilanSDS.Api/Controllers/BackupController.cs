@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Command.Backup.TriggerRestore;
 using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRunDetail;
 using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRuns;
 using EEMOCantilanSDS.Application.Queries.Backup.GetLatestBackupArtifact;
+using EEMOCantilanSDS.Application.Queries.Backup.GetRestoreRuns;
 using EEMOCantilanSDS.Application.Requests.Backup;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -45,6 +46,15 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.BackupRunDto>>> RunsAsync()
     {
         var result = await Sender.Send(new GetBackupRunsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>List recent restore workflow runs (newest first).</summary>
+    [HttpGet("restore-runs")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.BackupRunDto>>> RestoreRunsAsync()
+    {
+        var result = await Sender.Send(new GetRestoreRunsQuery());
         return HandleResponse(result);
     }
 

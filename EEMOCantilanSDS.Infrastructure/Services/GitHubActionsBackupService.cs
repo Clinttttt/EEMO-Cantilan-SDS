@@ -58,9 +58,25 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
     {
         try
         {
-            var runs = await FetchRunsAsync(count, ct);
+            var runs = await FetchRunsAsync(options.WorkflowFileName, count, ct);
             if (runs is null)
                 return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent backups.", 502);
+
+            return Result<IReadOnlyList<BackupRunDto>>.Success(runs);
+        }
+        catch (Exception)
+        {
+            return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not reach the backup service. Please try again.", 502);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRestoreRunsAsync(int count, CancellationToken ct)
+    {
+        try
+        {
+            var runs = await FetchRunsAsync(options.RestoreWorkflowFileName, count, ct);
+            if (runs is null)
+                return Result<IReadOnlyList<BackupRunDto>>.Failure("Could not load recent restores.", 502);
 
             return Result<IReadOnlyList<BackupRunDto>>.Success(runs);
         }
@@ -192,9 +208,9 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
     }
 
     /// <summary>Fetch workflow runs and map them into DTOs; null on a non-success response.</summary>
-    private async Task<IReadOnlyList<BackupRunDto>?> FetchRunsAsync(int count, CancellationToken ct)
+    private async Task<IReadOnlyList<BackupRunDto>?> FetchRunsAsync(string workflowFileName, int count, CancellationToken ct)
     {
-        var runsEl = await FetchRunsRawAsync(count, ct);
+        var runsEl = await FetchRunsRawAsync(workflowFileName, count, ct);
         if (runsEl is null)
             return null;
 
@@ -222,8 +238,12 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
 
     /// <summary>Raw workflow_runs array (cloned so it outlives the JsonDocument); null on non-success.</summary>
     private async Task<JsonElement?> FetchRunsRawAsync(int count, CancellationToken ct)
+        => await FetchRunsRawAsync(options.WorkflowFileName, count, ct);
+
+    /// <summary>Raw workflow_runs array for a specific workflow file (cloned so it outlives the JsonDocument); null on non-success.</summary>
+    private async Task<JsonElement?> FetchRunsRawAsync(string workflowFileName, int count, CancellationToken ct)
     {
-        var url = $"repos/{options.Owner}/{options.Repo}/actions/workflows/{options.WorkflowFileName}/runs?per_page={count}";
+        var url = $"repos/{options.Owner}/{options.Repo}/actions/workflows/{workflowFileName}/runs?per_page={count}";
         using var response = await http.GetAsync(url, ct);
         if (!response.IsSuccessStatusCode)
             return null;

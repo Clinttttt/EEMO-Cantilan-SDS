@@ -22,6 +22,9 @@ public class BackupApiClient(HttpClient http) : HandleResponse(http), IBackupApi
     public async Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync() =>
         await GetAsync<IReadOnlyList<BackupRunDto>>("api/backup/runs");
 
+    public async Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRestoreRunsAsync() =>
+        await GetAsync<IReadOnlyList<BackupRunDto>>("api/backup/restore-runs");
+
     public async Task<Result<BackupRunDetailDto>> GetRunDetailAsync(long runId) =>
         await GetAsync<BackupRunDetailDto>($"api/backup/runs/{runId}");
 

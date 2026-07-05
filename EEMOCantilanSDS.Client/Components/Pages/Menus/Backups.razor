@@ -171,6 +171,68 @@
         }
     </section>
 
+    <!-- ── Recent restores ── -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Recent restores</div>
+                <div class="set-card-sub">The latest restore runs</div>
+            </div>
+            <button class="set-link bk-refresh" @onclick="LoadRestoreRunsAsync" disabled="@_loadingRestoreRuns">Refresh<span class="set-link-arrow">↻</span></button>
+        </div>
+
+        @if (_loadingRestoreRuns)
+        {
+            <div class="bk-rows">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="bk-run bk-run-sk">
+                        <div class="sk bk-sk-pill"></div>
+                        <div class="sk bk-sk-line"></div>
+                        <div class="sk bk-sk-short"></div>
+                    </div>
+                }
+            </div>
+        }
+        else if (_restoreRunsError is not null)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">Couldn't load recent restores</div>
+                <div class="bk-empty-text">@_restoreRunsError</div>
+                <button class="set-retry" @onclick="LoadRestoreRunsAsync">Try again</button>
+            </div>
+        }
+        else if (_restoreRuns is null || _restoreRuns.Count == 0)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">No restores yet</div>
+                <div class="bk-empty-text">When you run a restore, it will appear here.</div>
+            </div>
+        }
+        else
+        {
+            <table class="set-table bk-table">
+                <thead>
+                    <tr><th>When (PH time)</th><th>Trigger</th><th>Status</th><th class="set-th-r">Details</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var run in _restoreRuns)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(run.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</td>
+                            <td>@TriggerLabel(run.Event)</td>
+                            <td><span class="bk-pill @PillClass(run)">@StatusLabel(run)</span></td>
+                            <td class="set-td-r">
+                                <button class="set-link bk-viewlog" @onclick="() => OpenLog(run)">View log<span class="set-link-arrow">→</span></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
     <!-- ── Danger zone: destructive restore ── -->
     <section class="bk-danger">
         <div class="bk-danger-head">
@@ -415,6 +477,10 @@
     private bool _loadingRuns = true;
     private string? _runsError;
 
+    private IReadOnlyList<BackupRunDto>? _restoreRuns;
+    private bool _loadingRestoreRuns = true;
+    private string? _restoreRunsError;
+
     private bool _running;
     private bool _downloading;
     private string? _message;
@@ -440,7 +506,11 @@
     private string? _logError;
     private CancellationTokenSource? _logPollCts;   // drives live auto-refresh while a run is in progress
 
-    protected override async Task OnInitializedAsync() => await LoadRunsAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRunsAsync();
+        await LoadRestoreRunsAsync();
+    }
 
     private async Task LoadRunsAsync()
     {
@@ -461,6 +531,27 @@
         }
 
         _loadingRuns = false;
+    }
+
+    private async Task LoadRestoreRunsAsync()
+    {
+        _loadingRestoreRuns = true;
+        _restoreRunsError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await BackupApi.GetRecentRestoreRunsAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _restoreRuns = result.Value;
+        }
+        else
+        {
+            _restoreRunsError = string.IsNullOrWhiteSpace(result.Error)
+                ? "Recent restores could not be retrieved."
+                : result.Error;
+        }
+
+        _loadingRestoreRuns = false;
     }
 
     private async Task RunBackupAsync()
@@ -544,8 +635,9 @@
             _showRestoreConfirm = false;
             _restorePassword = string.Empty;      // clear the password on success
             _restoreSubmitting = false;
-            await ShowToastAsync(true, "Restore started — the run will appear below.");
-            await LoadRunsAsync();                 // surface the restore run in the list (it polls live)
+            await ShowToastAsync(true, "Restore started — watch it under Recent restores.");
+            await LoadRunsAsync();                 // a safety backup runs first, so refresh backups too
+            await LoadRestoreRunsAsync();          // surface the new restore run in the list (it polls live)
             return;
         }
 

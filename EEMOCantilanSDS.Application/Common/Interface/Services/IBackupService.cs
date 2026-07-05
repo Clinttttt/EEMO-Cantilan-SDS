@@ -22,6 +22,9 @@ public interface IBackupService
     /// <summary>List the most recent backup workflow runs, newest first.</summary>
     Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync(int count, CancellationToken ct);
 
+    /// <summary>List the most recent restore workflow runs, newest first.</summary>
+    Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRestoreRunsAsync(int count, CancellationToken ct);
+
     /// <summary>Detailed view of one run: run-level summary plus its flattened step timeline.</summary>
     Task<Result<BackupRunDetailDto>> GetRunDetailAsync(long runId, CancellationToken ct);
 
