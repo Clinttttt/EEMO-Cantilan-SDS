@@ -91,6 +91,9 @@
         <svg viewBox="0 0 24 24"><polyline points="@(SidebarCollapsed ? "9 6 15 12 9 18" : "15 18 9 12 15 6")" /></svg>
     </button>
 </aside>
+
+@* Cross-page "restore complete" popup — persists across navigation via the always-mounted Sidebar. *@
+<RestoreWatcher />
 @code {
     private bool SidebarCollapsed;
     private string _portalLabel = "Admin Portal";

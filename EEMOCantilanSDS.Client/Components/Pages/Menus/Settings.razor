@@ -39,15 +39,153 @@
 
     @if (_loading)
     {
-        <div class="set-skeleton" aria-hidden="true">
-            <div class="sk sk-hero"></div>
-            <div class="set-grid">
-                <div class="sk-card"><div class="sk sk-head"></div><div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div><div class="sk sk-line"></div></div>
-                <div class="sk-card"><div class="sk sk-head"></div><div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div><div class="sk sk-line"></div></div>
-                <div class="sk-card"><div class="sk sk-head"></div><div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div></div>
-                <div class="sk-card"><div class="sk sk-head"></div><div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line short"></div></div>
+        <div class="set-skeleton" aria-busy="true" aria-label="Loading system settings">
+            <div class="vs-hero">
+                <div class="vs-hero-left">
+                    <div class="vs-hero-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="vs-hero-eyebrow">EEMO Admin · System</div>
+                        <div class="vs-hero-title">Settings</div>
+                        <div class="vs-hero-sub">System configuration · read-only</div>
+                    </div>
+                </div>
+                <div class="vs-hero-stats">
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        @if (i > 0)
+                        {
+                            <div class="vs-hero-divider"></div>
+                        }
+                        <div class="vs-hero-stat">
+                            <div class="sk sk-stat-val"></div>
+                            <div class="sk sk-stat-key"></div>
+                            <div class="sk sk-stat-sub"></div>
+                        </div>
+                    }
+                </div>
             </div>
-            <div class="sk-card sk-wide"><div class="sk sk-head"></div><div class="sk sk-line"></div><div class="sk sk-line"></div><div class="sk sk-line"></div></div>
+
+            <div class="set-grid">
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Office &amp; LGU Profile</div>
+                            <div class="set-card-sub">Identity used on the portal, reports &amp; receipts</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
+                        }
+                    </div>
+                    <div class="set-note"><span class="sk sk-note-line"></span></div>
+                </section>
+
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Security &amp; Access Policy</div>
+                            <div class="set-card-sub">Authentication rules · not account lists</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
+                        }
+                    </div>
+                    <div class="set-links">
+                        <span class="sk sk-link"></span>
+                        <span class="sk sk-link"></span>
+                    </div>
+                </section>
+
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Collection &amp; Billing Rules</div>
+                            <div class="set-card-sub">Policies the system enforces</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        @for (var i = 0; i < 7; i++)
+                        {
+                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
+                        }
+                    </div>
+                </section>
+
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">System Information</div>
+                            <div class="set-card-sub">About this installation</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
+                        }
+                    </div>
+                </section>
+
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Backups &amp; Restore</div>
+                            <div class="set-card-sub">Database backups and recovery</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        @for (var i = 0; i < 3; i++)
+                        {
+                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
+                        }
+                    </div>
+                    <div class="set-links">
+                        <span class="sk sk-link"></span>
+                    </div>
+                </section>
+            </div>
+
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">Facility Collection Rules</div>
+                        <div class="set-card-sub">How each facility is billed</div>
+                    </div>
+                    <span class="sk sk-link"></span>
+                </div>
+                <table class="set-table">
+                    <thead>
+                        <tr><th>Facility</th><th>Collection model</th><th>Rate</th><th class="set-th-r">Cadence</th></tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <tr>
+                                <td><span class="sk sk-table-main"></span></td>
+                                <td><span class="sk sk-table-cell"></span></td>
+                                <td><span class="sk sk-table-cell"></span></td>
+                                <td class="set-td-r"><span class="sk sk-table-cell sk-table-right"></span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
         </div>
     }
     else if (_error is not null)
@@ -201,6 +339,9 @@
                     <a class="set-link" href="/settings/backups">Open backups<span class="set-link-arrow">→</span></a>
                 </div>
             </section>
+
+            <!-- ── Database health (live PostgreSQL metrics) ── -->
+            <DatabaseHealthPanel />
 
         </div>
 

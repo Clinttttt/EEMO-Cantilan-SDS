@@ -70,6 +70,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IOnlinePaymentRepository, OnlinePaymentRepository>();
             service.AddScoped<ISyncRepository, SyncRepository>();
             service.AddScoped<IAuditRepository, AuditRepository>();
+            service.AddScoped<IDatabaseHealthRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.DatabaseHealthRepository>();
 
 
             // Services

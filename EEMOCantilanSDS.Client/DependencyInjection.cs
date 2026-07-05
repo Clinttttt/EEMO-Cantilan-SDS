@@ -115,6 +115,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IAuditApiClient, AuditApiClient>(configuration);
             service.AddApiHttpClient<IReportsApiClient, ReportsApiClient>(configuration);
             service.AddApiHttpClient<IBackupApiClient, BackupApiClient>(configuration);
+            service.AddApiHttpClient<IDatabaseHealthApiClient, DatabaseHealthApiClient>(configuration);
 
             return service;
         }

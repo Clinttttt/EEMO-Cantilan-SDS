@@ -1,0 +1,204 @@
+@using EEMOCantilanSDS.Application.Dtos.SystemHealth
+@inject IDatabaseHealthApiClient DatabaseHealthApi
+@inject IJSRuntime JS
+@implements IDisposable
+@*
+    Database health — Head/Admin-only live PostgreSQL panel on the Settings page.
+    Reads a read-only snapshot from api/database-health (pg_* system views) and self-refreshes every
+    ~5s. No host CPU/memory, no secrets — only what the database reports about itself.
+*@
+
+<section class="set-card dh-card">
+    <div class="set-card-head">
+        <div class="set-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
+        </div>
+        <div class="set-card-titles">
+            <div class="set-card-title">Database health</div>
+            <div class="set-card-sub">Live PostgreSQL metrics · read-only</div>
+        </div>
+        @if (_model is not null && _error is null)
+        {
+            <span class="dh-live" title="Auto-refreshing"><span class="dh-live-dot"></span>Live</span>
+        }
+    </div>
+
+    @if (_model is null && _error is null)
+    {
+        <div class="set-rows">
+            @for (var i = 0; i < 6; i++)
+            {
+                <div class="set-row"><span class="sk dh-sk-key"></span><span class="sk dh-sk-val"></span></div>
+            }
+        </div>
+    }
+    else if (_error is not null && _model is null)
+    {
+        <div class="dh-empty">
+            <div class="dh-empty-title">Couldn't load database health</div>
+            <div class="dh-empty-text">@_error</div>
+        </div>
+    }
+    else if (_model is not null)
+    {
+        <div class="set-rows">
+            <div class="set-row dh-row-stack">
+                <span class="set-key">Connections</span>
+                <span class="set-val dh-conn-val">
+                    <span class="dh-conn-nums">
+                        <strong>@_model.TotalConnections</strong> / @_model.MaxConnections
+                        <span class="dh-conn-sub">@_model.ActiveConnections active · @_model.IdleConnections idle</span>
+                    </span>
+                    <span class="dh-bar" role="progressbar" aria-valuenow="@_model.TotalConnections" aria-valuemin="0" aria-valuemax="@_model.MaxConnections">
+                        <span class="dh-bar-fill @ConnBarClass()" style="width:@(ConnPercent().ToString("0.#"))%"></span>
+                    </span>
+                </span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Cache hit</span>
+                <span class="set-val"><span class="dh-metric @CacheClass()">@_model.CacheHitRatioPct.ToString("0.0")%</span></span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Blocking queries</span>
+                <span class="set-val"><span class="dh-metric @CountClass(_model.BlockedQueries)">@_model.BlockedQueries</span></span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Deadlocks</span>
+                <span class="set-val"><span class="dh-metric @CountClass(_model.Deadlocks)">@_model.Deadlocks</span></span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Database size</span>
+                <span class="set-val mono">@FormatBytes(_model.DatabaseSizeBytes)</span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Longest query</span>
+                <span class="set-val">@FormatSeconds(_model.LongestQuerySeconds)</span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Uptime</span>
+                <span class="set-val">@FormatUptime(_model.UptimeSince)</span>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private DatabaseHealthDto? _model;
+    private string? _error;
+    private CancellationTokenSource? _pollCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+            _ = PollAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await DatabaseHealthApi.GetHealthAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _model = result.Value;
+            _error = null;
+        }
+        else if (_model is null)
+        {
+            _error = string.IsNullOrWhiteSpace(result.Error)
+                ? "Database health metrics are currently unavailable."
+                : result.Error;
+        }
+    }
+
+    // Self-refresh every 5s. Keeps the last good snapshot if a single poll transiently fails.
+    private async Task PollAsync()
+    {
+        var cts = new CancellationTokenSource();
+        _pollCts = cts;
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(cts.Token))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { /* disposed */ }
+        catch { /* stop polling quietly, last snapshot stays shown */ }
+    }
+
+    private double ConnPercent()
+    {
+        if (_model is null || _model.MaxConnections <= 0) return 0;
+        var pct = (double)_model.TotalConnections / _model.MaxConnections * 100;
+        return pct < 0 ? 0 : pct > 100 ? 100 : pct;
+    }
+
+    private string ConnBarClass()
+    {
+        var pct = ConnPercent();
+        if (pct >= 90) return "dh-bar-err";
+        if (pct >= 70) return "dh-bar-warn";
+        return "dh-bar-ok";
+    }
+
+    private string CacheClass()
+        => _model is not null && _model.CacheHitRatioPct >= 90 ? "dh-ok" : "dh-warn";
+
+    private static string CountClass(long value) => value > 0 ? "dh-err" : "dh-ok";
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] units = { "B", "KB", "MB", "GB", "TB", "PB" };
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+        return unit == 0 ? $"{size:0} {units[unit]}" : $"{size:0.0} {units[unit]}";
+    }
+
+    private static string FormatSeconds(double? seconds)
+    {
+        if (seconds is null || seconds.Value <= 0) return "—";
+        var total = (int)Math.Round(seconds.Value);
+        if (total < 60) return $"{total}s";
+        var m = total / 60;
+        var s = total % 60;
+        if (m < 60) return $"{m}m {s:D2}s";
+        var h = m / 60;
+        m %= 60;
+        return $"{h}h {m:D2}m";
+    }
+
+    private static string FormatUptime(DateTime? sinceUtc)
+    {
+        if (sinceUtc is null) return "—";
+        var span = DateTime.UtcNow - DateTime.SpecifyKind(sinceUtc.Value, DateTimeKind.Utc);
+        if (span < TimeSpan.Zero) return "—";
+        if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours}h";
+        if (span.TotalHours >= 1) return $"{span.Hours}h {span.Minutes}m";
+        if (span.TotalMinutes >= 1) return $"{span.Minutes}m";
+        return $"{span.Seconds}s";
+    }
+
+    public void Dispose()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+    }
+}

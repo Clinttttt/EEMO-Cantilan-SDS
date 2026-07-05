@@ -1,0 +1,229 @@
+/* Database health panel — self-contained set-card styling (component-scoped CSS does not inherit
+   the Settings page's scoped .set-card rules, so the look is replicated here using shared tokens). */
+
+.set-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, 0.04);
+}
+
+.set-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.set-card-icon {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    display: grid;
+    place-items: center;
+}
+
+.set-card-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.set-card-titles {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.set-card-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.set-card-sub {
+    font-size: 0.78rem;
+    color: var(--text-subtle);
+    margin-top: 0.1rem;
+}
+
+/* Live badge */
+.dh-live {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--green);
+    background: var(--green-bg);
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.dh-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: dh-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dh-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* Rows */
+.set-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+}
+
+.set-row:last-child {
+    border-bottom: none;
+}
+
+.set-key {
+    color: var(--text-subtle);
+    font-weight: 500;
+}
+
+.set-val {
+    color: var(--text);
+    font-weight: 600;
+    text-align: right;
+}
+
+.set-val.mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+}
+
+/* Connections row with usage bar */
+.dh-row-stack {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.dh-conn-val {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    text-align: left;
+}
+
+.dh-conn-nums {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.dh-conn-nums strong {
+    font-size: 1.05rem;
+}
+
+.dh-conn-sub {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: var(--text-subtle);
+    margin-left: auto;
+}
+
+.dh-bar {
+    display: block;
+    width: 100%;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--bg-icon);
+    overflow: hidden;
+}
+
+.dh-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+}
+
+.dh-bar-ok { background: var(--green); }
+.dh-bar-warn { background: var(--gold); }
+.dh-bar-err { background: var(--red); }
+
+/* Metric emphasis */
+.dh-metric {
+    font-weight: 700;
+}
+
+.dh-ok { color: var(--green); }
+.dh-warn { color: var(--gold); }
+
+.dh-err {
+    color: var(--red);
+    background: var(--red-bg);
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+}
+
+/* Empty / error state */
+.dh-empty {
+    padding: 1.5rem 0.5rem;
+    text-align: center;
+}
+
+.dh-empty-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.dh-empty-text {
+    font-size: 0.82rem;
+    color: var(--text-subtle);
+    margin-top: 0.3rem;
+}
+
+/* Skeleton */
+.sk {
+    display: inline-block;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--bg-icon) 25%, #f4f7fa 37%, var(--bg-icon) 63%);
+    background-size: 400% 100%;
+    animation: dh-shimmer 1.4s ease infinite;
+}
+
+.dh-sk-key {
+    width: 38%;
+    height: 12px;
+}
+
+.dh-sk-val {
+    width: 22%;
+    height: 12px;
+}
+
+@keyframes dh-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}

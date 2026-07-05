@@ -672,6 +672,10 @@
             _showRestoreConfirm = false;
             _restorePassword = string.Empty;      // clear the password on success
             _restoreSubmitting = false;
+            // Marker for the cross-page RestoreWatcher: it polls the restore-runs feed from here on and
+            // shows a success/failure popup on whatever admin page the Head is on when the run settles.
+            try { await JS.InvokeVoidAsync("localStorage.setItem", "eemo.restore.pending", DateTime.UtcNow.ToString("o")); }
+            catch { /* non-fatal — the toast + Recent restores list still cover this page */ }
             await ShowToastAsync(true, "Restore started — watch it under Recent restores.");
             await LoadRunsAsync();                 // a safety backup runs first, so refresh backups too
             await LoadRestoreRunsAsync();          // surface the new restore run in the list (it polls live)

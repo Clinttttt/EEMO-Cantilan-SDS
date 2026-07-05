@@ -1,0 +1,151 @@
+/* RestoreWatcher — cross-page success/failure modal. Fixed overlay, government-restrained styling. */
+
+.rw-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(13, 33, 55, 0.55);
+    display: grid;
+    place-items: center;
+    padding: 1.25rem;
+    animation: rw-fade 0.15s ease;
+}
+
+.rw-modal {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.75rem 1.6rem 1.4rem;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(13, 33, 55, 0.28);
+    animation: rw-pop 0.18s ease;
+}
+
+.rw-close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text-subtle);
+    border-radius: 8px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rw-close:hover {
+    background: var(--bg-icon);
+    color: var(--text);
+}
+
+.rw-close svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 2;
+    fill: none;
+}
+
+.rw-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    margin: 0.25rem auto 1rem;
+    display: grid;
+    place-items: center;
+}
+
+.rw-icon svg {
+    width: 30px;
+    height: 30px;
+}
+
+.rw-ok .rw-icon {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.rw-err .rw-icon {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.rw-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.rw-body {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-subtle);
+    margin-top: 0.55rem;
+}
+
+.rw-foot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 1.4rem;
+}
+
+.rw-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--navy-3);
+    text-decoration: none;
+    padding: 0.55rem 0.6rem;
+    border-radius: 9px;
+    transition: color 0.15s ease;
+}
+
+.rw-link:hover {
+    color: var(--navy);
+}
+
+.rw-arrow {
+    transition: transform 0.15s ease;
+}
+
+.rw-link:hover .rw-arrow {
+    transform: translateX(2px);
+}
+
+.rw-btn {
+    border: none;
+    background: var(--navy);
+    color: #fff;
+    font-size: 0.86rem;
+    font-weight: 600;
+    padding: 0.6rem 1.35rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.rw-btn:hover {
+    background: var(--navy-2);
+}
+
+@keyframes rw-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes rw-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
