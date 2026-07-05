@@ -27,6 +27,21 @@ namespace EEMOCantilanSDS.Infrastructure.Services
 
         public string CreateToken(BaseUser user, string role)
         {
+            // Cache/tenant namespace: carry the USER's municipality TenantCode so each LGU has a distinct
+            // cache namespace (no cross-tenant collision). A Cantilan user resolves to "cantilan-sds"
+            // (== TenantConstants.DefaultTenantCode), and an unresolved/empty municipality also falls back
+            // to the default — so Cantilan's claim is byte-for-byte identical to before. Sync query is fine:
+            // token creation is infrequent.
+            var tenantCode = context.Municipalities
+                .IgnoreQueryFilters()
+                .Where(m => m.Id == user.MunicipalityId)
+                .Select(m => m.TenantCode)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(tenantCode))
+            {
+                tenantCode = TenantConstants.DefaultTenantCode;
+            }
+
             var claim = new List<Claim>
             {
                 new(AppClaimTypes.UserId, user.Id.ToString()),
@@ -36,10 +51,9 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 new(AppClaimTypes.Role, role),
                 new(AppClaimTypes.IsActive, user.IsActive.ToString()),
                 new(AppClaimTypes.MustChangePassword, user.MustChangePassword.ToString()),
-                // Tenant seam: users are not yet municipality-scoped (that lands in Phase 3), so every
-                // token carries the default LGU. Once users get a MunicipalityId this becomes user-driven,
-                // and the resolver/cache pick it up with no further change here.
-                new(AppClaimTypes.Municipality, TenantConstants.DefaultTenantCode),
+                // Tenant seam: the cache/tenant namespace is the user's municipality TenantCode. Cantilan
+                // (and any token-less/unresolved flow) yields the default "cantilan-sds" — unchanged today.
+                new(AppClaimTypes.Municipality, tenantCode),
                 // Per-request tenant identity: the authenticated user's municipality id (Phase 5). The EF
                 // global query filter and write-stamp resolve the current LGU from this claim; token-less
                 // flows fall back to the default municipality (Cantilan).

@@ -33,6 +33,16 @@ public class MunicipalitySeederTests : RepositoryTestBase
         // Exactly one default LGU.
         Assert.Single(all, m => m.IsDefault);
 
+        // Each LGU has a distinct, stable cache namespace (TenantCode). Cantilan == the live
+        // DefaultTenantCode so its cache/claim are byte-for-byte unchanged; the rest are distinct.
+        Assert.Equal("cantilan-sds", cantilan.TenantCode);
+        Assert.Equal("carrascal", all.Single(m => m.Code == "CARRASCAL").TenantCode);
+        Assert.Equal("madrid", all.Single(m => m.Code == "MADRID").TenantCode);
+        Assert.Equal("carmen", all.Single(m => m.Code == "CARMEN").TenantCode);
+        Assert.Equal("lanuza", all.Single(m => m.Code == "LANUZA").TenantCode);
+        // All TenantCodes are unique (no cross-tenant cache collision).
+        Assert.Equal(all.Count, all.Select(m => m.TenantCode).Distinct().Count());
+
         // Every other LGU is an Upcoming, non-default rollout slot.
         Assert.All(all.Where(m => m.Code != "CANTILAN"), m =>
         {

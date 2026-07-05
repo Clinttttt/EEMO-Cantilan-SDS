@@ -16,6 +16,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasMaxLength(30);
 
+            builder.Property(x => x.TenantCode)
+                .IsRequired()
+                .HasMaxLength(64);
+
             builder.Property(x => x.Name)
                 .IsRequired()
                 .HasMaxLength(120);
@@ -46,6 +50,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasDefaultValue(true);
 
             builder.HasIndex(x => x.Code).IsUnique();
+            builder.HasIndex(x => x.TenantCode).IsUnique();
 
             builder.Property(x => x.CreatedAt).IsRequired();
             builder.Property(x => x.CreatedBy).HasMaxLength(100);

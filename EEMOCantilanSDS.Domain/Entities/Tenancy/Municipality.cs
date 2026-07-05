@@ -16,6 +16,13 @@ public class Municipality : AuditableEntity
 {
     /// <summary>Stable machine code, e.g. CANTILAN, CARRASCAL. Unique, upper-cased.</summary>
     public string Code { get; private set; } = string.Empty;
+    /// <summary>
+    /// Stable, per-LGU cache/tenant namespace carried in the JWT <c>municipality</c> claim and used by
+    /// <c>ITenantContext.TenantCode</c> to isolate each municipality's cache. Cantilan is "cantilan-sds"
+    /// (equal to <c>TenantConstants.DefaultTenantCode</c>) so its behaviour is unchanged; every other LGU
+    /// gets a distinct code so a second tenant cannot collide with Cantilan's namespace. Unique.
+    /// </summary>
+    public string TenantCode { get; private set; } = string.Empty;
     public string Name { get; private set; } = string.Empty;
     public string Province { get; private set; } = string.Empty;
     public string? Address { get; private set; }
@@ -35,6 +42,7 @@ public class Municipality : AuditableEntity
         string name,
         string province,
         MunicipalityStatus status,
+        string tenantCode = "",
         string officeName = "",
         string? address = null,
         string? sealPath = null,
@@ -45,6 +53,7 @@ public class Municipality : AuditableEntity
         {
             Id = Guid.NewGuid(),
             Code = code.Trim().ToUpperInvariant(),
+            TenantCode = tenantCode,
             Name = name,
             Province = province,
             OfficeName = officeName,

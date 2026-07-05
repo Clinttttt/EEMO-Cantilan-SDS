@@ -20,13 +20,14 @@ public static class MunicipalitySeeder
         {
             Municipality.Create(
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
+                tenantCode: "cantilan-sds",
                 officeName: "Economic Enterprise and Management Office (EEMO)",
                 isDefault: true),
 
-            Municipality.Create("CARRASCAL", "Carrascal", "Surigao del Sur", MunicipalityStatus.Upcoming),
-            Municipality.Create("MADRID", "Madrid", "Surigao del Sur", MunicipalityStatus.Upcoming),
-            Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Upcoming),
-            Municipality.Create("LANUZA", "Lanuza", "Surigao del Sur", MunicipalityStatus.Upcoming),
+            Municipality.Create("CARRASCAL", "Carrascal", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "carrascal"),
+            Municipality.Create("MADRID", "Madrid", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "madrid"),
+            Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "carmen"),
+            Municipality.Create("LANUZA", "Lanuza", "Surigao del Sur", MunicipalityStatus.Upcoming, tenantCode: "lanuza"),
         };
 
         await context.Municipalities.AddRangeAsync(municipalities);
