@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 @inject IBackupApiClient BackupApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.RestoreNotifier Notifier
 @implements IDisposable
 
 @*
@@ -470,40 +471,6 @@
     </div>
 }
 
-@* ── Restore complete popup (shown on this page when a restore triggered here finishes) ── *@
-@if (_showRestoreDone)
-{
-    <div class="bk-modal-overlay" @onclick="CloseRestoreDone">
-        <div class="bk-modal" role="dialog" aria-modal="true"
-             aria-label="@(_restoreDoneSuccess ? "Database restored" : "Restore did not complete")"
-             @onclick:stopPropagation="true">
-            <div class="bk-modal-head">
-                <div class="bk-modal-titles">
-                    <div class="bk-modal-title">@(_restoreDoneSuccess ? "Database restored" : "Restore did not complete")</div>
-                    <div class="bk-modal-sub">@_restoreDoneWhen</div>
-                </div>
-                <span class="bk-pill @(_restoreDoneSuccess ? "bk-pill-ok" : "bk-pill-err") bk-modal-pill">@(_restoreDoneSuccess ? "Success" : "Failed")</span>
-                <button class="bk-modal-close" @onclick="CloseRestoreDone" aria-label="Close">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-            <div class="bk-modal-body">
-                @if (_restoreDoneSuccess)
-                {
-                    <p class="bk-restore-text">The database was restored from the latest backup. A pre-restore safety backup was taken first — see <strong>Recent backups</strong> above.</p>
-                }
-                else
-                {
-                    <p class="bk-restore-text">The restore did not complete and was rolled back — your data is unchanged. A pre-restore safety backup was taken. Open the run's <strong>View log</strong> for details.</p>
-                }
-            </div>
-            <div class="bk-modal-foot">
-                <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="CloseRestoreDone">Close</button>
-            </div>
-        </div>
-    </div>
-}
-
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
 
@@ -616,10 +583,10 @@
             {
                 await LoadRunsAsync(silent: true);
                 await LoadRestoreRunsAsync(silent: true);
-                CheckRestoreCompletion();
+                // Once the triggered restore's run has appeared (now tracked by AnyRunActive), drop the
+                // pre-appearance watch so the poll settles normally when the run finishes.
+                if (_restoreWatchSince is not null && AnyRunActive()) _restoreWatchSince = null;
                 await InvokeAsync(StateHasChanged);
-                // Keep polling while a run is active OR we're still waiting for a triggered restore to
-                // appear and finish. Cap ~20 min (restore = safety backup + download + pg_restore).
                 if ((!AnyRunActive() && _restoreWatchSince is null) || ++ticks >= 240) break;
             }
         }
@@ -709,8 +676,10 @@
             _showRestoreConfirm = false;
             _restorePassword = string.Empty;      // clear the password on success
             _restoreSubmitting = false;
-            // Watch for THIS restore's completion via the existing (bounded) run-list poll, then show a
-            // completion popup on this page. No global/background watcher — the poll stops when runs settle.
+            // Cross-page completion popup: the scoped RestoreNotifier runs ONE bounded poll and raises an
+            // event when the run settles, so the Head sees a success/failure modal on ANY admin page.
+            Notifier.Watch();
+            // Also drives the on-page Recent-restores list refresh until the run appears (then AnyRunActive takes over).
             _restoreWatchSince = DateTime.UtcNow;
             await ShowToastAsync(true, "Restore started — watch it under Recent restores.");
             await LoadRunsAsync();                 // a safety backup runs first, so refresh backups too
@@ -725,32 +694,9 @@
         _restoreSubmitting = false;
     }
 
-    // ── On-page "restore complete" popup ──
-    // Driven by the existing bounded run-list poll (PollListsAsync) — no global/background watcher, so it
-    // can never destabilize navigation. Shows once when the restore we triggered here finishes.
+    // Drives the Recent-restores list poll until the triggered restore's run appears (see PollListsAsync).
+    // The completion POPUP is handled cross-page by RestoreNotifier + RestoreCompletionToast.
     private DateTime? _restoreWatchSince;
-    private long? _restoreDoneShownRunId;
-    private bool _showRestoreDone;
-    private bool _restoreDoneSuccess;
-    private string _restoreDoneWhen = string.Empty;
-
-    private void CheckRestoreCompletion()
-    {
-        if (_restoreWatchSince is not { } since) return;
-        var newest = _restoreRuns?.FirstOrDefault();
-        if (newest is null) return;
-        if (!string.Equals(newest.Status, "completed", StringComparison.OrdinalIgnoreCase)) return;
-        if (newest.CreatedAt.ToUniversalTime() < since.AddSeconds(-60)) return;   // not the run we triggered
-        if (_restoreDoneShownRunId == newest.Id) return;                          // already shown
-
-        _restoreDoneShownRunId = newest.Id;
-        _restoreWatchSince = null;
-        _restoreDoneSuccess = string.Equals(newest.Conclusion, "success", StringComparison.OrdinalIgnoreCase);
-        _restoreDoneWhen = PhilippineTime.ToPhilippineTime(newest.CreatedAt).ToString("MMM d, yyyy · h:mm tt");
-        _showRestoreDone = true;
-    }
-
-    private void CloseRestoreDone() => _showRestoreDone = false;
 
     private async Task OpenLog(BackupRunDto run)
     {

@@ -1,0 +1,75 @@
+@using EEMOCantilanSDS.Client.Services
+@inject RestoreNotifier Notifier
+@implements IDisposable
+
+@*
+    RestoreCompletionToast — cross-page "restore complete" popup. Mounted once in the sidebar (on every
+    admin page). It ONLY subscribes to RestoreNotifier.Changed and renders a modal when a watched restore
+    finishes — it runs NO timer of its own, so it can never destabilize navigation. The bounded polling
+    lives entirely in the scoped RestoreNotifier and runs only while a restore is being watched.
+*@
+
+@if (_show)
+{
+    <div class="rw-overlay" @onclick="Close">
+        <div class="rw-modal @(Notifier.Success ? "rw-ok" : "rw-err")" role="dialog" aria-modal="true"
+             aria-label="@(Notifier.Success ? "Database restored" : "Restore did not complete")"
+             @onclick:stopPropagation="true">
+            <button class="rw-close" @onclick="Close" aria-label="Close">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+
+            <div class="rw-icon">
+                @if (Notifier.Success)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                }
+            </div>
+
+            <div class="rw-title">@(Notifier.Success ? "Database restored" : "Restore did not complete")</div>
+            <div class="rw-body">
+                @if (Notifier.Success)
+                {
+                    <text>The database was restored from the latest backup (finished @Notifier.WhenLabel). A pre-restore safety backup was taken first.</text>
+                }
+                else
+                {
+                    <text>The restore failed and was rolled back — your data is unchanged (a safety backup was taken).</text>
+                }
+            </div>
+
+            <div class="rw-foot">
+                <a class="rw-link" href="/settings/backups" @onclick="Close">View details<span class="rw-arrow">→</span></a>
+                <button class="rw-btn" @onclick="Close">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _show;
+
+    protected override void OnInitialized()
+    {
+        Notifier.Changed += OnChanged;
+        if (Notifier.Completed) _show = true;   // completed just before this component mounted
+    }
+
+    private void OnChanged() => InvokeAsync(() =>
+    {
+        _show = true;
+        StateHasChanged();
+    });
+
+    private void Close()
+    {
+        _show = false;
+        Notifier.Acknowledge();
+    }
+
+    public void Dispose() => Notifier.Changed -= OnChanged;
+}
