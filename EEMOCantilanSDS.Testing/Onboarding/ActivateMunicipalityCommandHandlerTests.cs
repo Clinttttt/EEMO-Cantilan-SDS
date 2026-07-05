@@ -89,7 +89,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.True(result.IsSuccess);
                 Assert.Equal(carmenId, result.Value!.MunicipalityId);
                 Assert.Equal("carmen.head", result.Value.AdminUsername);
-                Assert.False(string.IsNullOrWhiteSpace(result.Value.TemporaryPassword));
+                Assert.False(string.IsNullOrWhiteSpace(result.Value.ActivationToken));
                 Assert.Equal(2, result.Value.FacilitiesCreated);
                 Assert.Equal(2, result.Value.RatesCreated);
             }
@@ -119,6 +119,8 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 Assert.Equal(carmenId, head.MunicipalityId);
                 Assert.Equal(AdminRole.SuperAdmin, head.Role);
                 Assert.True(head.MustChangePassword);
+                Assert.False(head.IsActive);                                  // inactive until the Head activates
+                Assert.False(string.IsNullOrEmpty(head.ActivationTokenHash));  // one-time link token issued
             }
 
             // Isolation: the operator's own (Cantilan) scope sees none of Carmen's rows.

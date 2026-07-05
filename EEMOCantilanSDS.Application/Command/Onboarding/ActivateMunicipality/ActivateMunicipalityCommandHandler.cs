@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -110,15 +111,18 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     r.FacilityCode, r.Key, r.Amount, RateEffectiveFrom, municipality.Id, "Activation"));
             }
 
-            // 4) Head account — provisioned in a must-set-password state; the temp secret is returned once.
-            var temporaryPassword = GenerateTemporaryPassword();
+            // 4) Head account — provisioned INACTIVE with a one-time activation token. The Head sets their
+            //    own password through the secure link; the placeholder password is random and never disclosed.
+            var (activationToken, activationTokenHash) = GenerateActivationToken();
             var head = AdminUser.Create(
                 request.Administrator.FullName.Trim(),
                 username,
                 request.Administrator.Email.Trim(),
-                temporaryPassword,
+                GenerateTemporaryPassword(),
                 AdminRole.SuperAdmin,
-                municipality.Id);
+                municipality.Id,
+                isActive: false);
+            head.SetActivationToken(activationTokenHash, DateTime.UtcNow.AddDays(7));
             context.AdminUsers.Add(head);
 
             // One SaveChanges => one transaction => all-or-nothing.
@@ -128,10 +132,20 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 municipality.Id,
                 municipality.Code,
                 head.Username!,
-                temporaryPassword,
+                activationToken,
                 request.Facilities.Count,
                 request.Rates.Count,
                 stallsCreated));
+        }
+
+        // A url-safe, cryptographically-random one-time activation token; only its SHA-256 hash is stored.
+        private static (string raw, string hash) GenerateActivationToken()
+        {
+            Span<byte> bytes = stackalloc byte[32];
+            RandomNumberGenerator.Fill(bytes);
+            var raw = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            var hash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
+            return (raw, hash);
         }
 
         // Cryptographically-random one-time password that satisfies upper/lower/digit/symbol complexity.

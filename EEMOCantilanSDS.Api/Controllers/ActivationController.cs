@@ -1,7 +1,9 @@
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
+using EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -23,6 +25,19 @@ public class ActivationController : ApiBaseController
     /// <summary>Commits an onboarding configuration and takes the target municipality live.</summary>
     [HttpPost("municipality")]
     public async Task<ActionResult<ActivationResultDto>> ActivateMunicipalityAsync([FromBody] ActivateMunicipalityCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Completes a provisioned Head's activation via their one-time link token: sets their password and
+    /// activates the account. Anonymous (the token is the credential) and rate-limited.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("set-password")]
+    public async Task<ActionResult<bool>> SetPasswordAsync([FromBody] SetAdminPasswordByTokenCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

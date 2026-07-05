@@ -108,15 +108,15 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
   "municipalityId": "1c9f...-guid",
   "municipalityCode": "CARMEN",
   "adminUsername": "carmen.head",
-  "temporaryPassword": "Aa1!K7x…",   // one-time; see §6
+  "activationToken": "3f9a2b…",      // one-time; build the Head's set-password link from this — see §6
   "facilitiesCreated": 2,
   "ratesCreated": 4,
   "stallsCreated": 94
 }
 ```
 
-On success the LGU is **Active**, its facilities/rates exist under its own `MunicipalityId`, and its Head is
-provisioned in a **must-change-password** state.
+On success the LGU is **Active**, its facilities/rates/stalls exist under its own `MunicipalityId`, and its Head is
+provisioned **inactive** with a one-time activation token (it becomes active when the Head sets their password).
 
 ---
 
@@ -156,16 +156,26 @@ The onboarding workspace captures a richer config; map it down to the contract a
 
 ---
 
-## 6. Head account & first sign-in
+## 6. Head account & first sign-in (activation link)
 
-- The response's `temporaryPassword` is generated server-side and returned **exactly once** (never stored in
-  plaintext, never retrievable again).
-- Convey it to the Head through your branded activation message. The Head signs in at the portal with
-  `adminUsername` + the temporary password and is **forced to set a new password** on first login
-  (`MustChangePassword`). After that they invite/create their own admins and collectors and begin entering
+- Activation provisions the Head **inactive** and returns a one-time `activationToken` (stored server-side
+  only as a hash, expires in 7 days). Build the Head's secure link from it, e.g.
+  `https://{lgu}.stalltrack.site/activate/{activationToken}`, and send it in your branded activation message.
+- The Head opens the link and **sets their own password** by calling:
+
+  ```
+  POST /api/activation/set-password          (anonymous, rate-limited)
+  Content-Type: application/json
+
+  { "token": "<activationToken>", "newPassword": "<their password>" }
+  ```
+  - Password rules: ≥ 8 chars, at least one letter and one digit.
+  - Success `200` → account is **active**, password set, token consumed (single-use).
+  - Failure `400` returns a generic "invalid or expired" message (no account enumeration); the token is also
+    single-use and expires in 7 days.
+- After activating, the Head signs in normally and creates their own admins/collectors and enters
   payors/stalls in the portal.
-- (Roadmap: a tokenized "set your password" link may replace the temporary password later; the contract above
-  is unaffected.)
+- No password is ever set by the operator or returned by the API — only the one-time link token.
 
 ---
 

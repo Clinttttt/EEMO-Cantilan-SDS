@@ -15,7 +15,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             username,string 
             email,string password,
             AdminRole role,
-            Guid municipalityId = default)
+            Guid municipalityId = default,
+            bool isActive = true)
         {
             return new AdminUser
             {
@@ -27,7 +28,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 PasswordHash = new PasswordHasher<BaseUser>()
                                    .HashPassword(null!, password),
                 Role = role,
-                IsActive = true,
+                IsActive = isActive,
                 MustChangePassword = true,  
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System"

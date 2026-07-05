@@ -52,15 +52,16 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     public record ActivationRate(FacilityCode FacilityCode, FeeRateKey Key, decimal Amount);
 
     /// <summary>
-    /// Result of a successful activation. <see cref="TemporaryPassword"/> is generated server-side and must
-    /// be conveyed to the Head so they can sign in once and set their own password (the account is created
-    /// with MustChangePassword). It is returned exactly once and never stored in plaintext.
+    /// Result of a successful activation. <see cref="ActivationToken"/> is a one-time secret generated
+    /// server-side (stored only as a hash) — the platform builds the Head's set-password link from it
+    /// (e.g. <c>https://{lgu}.stalltrack.site/activate/{token}</c>). The Head is provisioned inactive and
+    /// becomes active only after setting their password through that link. Returned exactly once.
     /// </summary>
     public record ActivationResultDto(
         Guid MunicipalityId,
         string MunicipalityCode,
         string AdminUsername,
-        string TemporaryPassword,
+        string ActivationToken,
         int FacilitiesCreated,
         int RatesCreated,
         int StallsCreated);

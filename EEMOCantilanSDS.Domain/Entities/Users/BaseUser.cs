@@ -27,7 +27,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public string? RefreshToken { get; protected set; }
         public DateTime? RefreshTokenExpiryTime { get; protected set; }
 
-        
+        // One-time account-activation token (hashed at rest). Set when an account is provisioned in an
+        // inactive, must-set-password state (e.g. an LGU Head at municipality activation); cleared once the
+        // user sets their own password through the secure link.
+        public string? ActivationTokenHash { get; protected set; }
+        public DateTime? ActivationTokenExpiry { get; protected set; }
+
         public void SetRefreshToken(string token, DateTime expiry)
         {
             RefreshToken = token;
@@ -41,6 +46,37 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         {
             RefreshToken = null;
             RefreshTokenExpiryTime = null;
+        }
+
+        /// <summary>Stamps a one-time activation token (store the HASH, never the raw token).</summary>
+        public void SetActivationToken(string tokenHash, DateTime expiry)
+        {
+            ActivationTokenHash = tokenHash;
+            ActivationTokenExpiry = expiry;
+        }
+
+        /// <summary>True when the supplied token hash matches an unexpired activation token.</summary>
+        public bool IsActivationTokenValid(string tokenHash)
+            => !string.IsNullOrEmpty(ActivationTokenHash)
+               && ActivationTokenHash == tokenHash
+               && ActivationTokenExpiry.HasValue
+               && ActivationTokenExpiry.Value > DateTime.UtcNow;
+
+        /// <summary>
+        /// Completes activation: sets the user's chosen password, activates the account, and clears the
+        /// one-time token and the must-change flag (they just chose their own password). Also clears any
+        /// lockout so they can sign in immediately.
+        /// </summary>
+        public void CompleteActivation(string newPassword)
+        {
+            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            IsActive = true;
+            MustChangePassword = false;
+            FailedAttempts = 0;
+            LockedUntil = null;
+            ActivationTokenHash = null;
+            ActivationTokenExpiry = null;
+            UpdatedAt = DateTime.UtcNow;
         }
 
         /// <summary>

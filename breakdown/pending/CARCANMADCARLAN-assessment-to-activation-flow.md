@@ -178,9 +178,9 @@ the contract at activation; the rest is entered in the portal later or is a plan
 **Also demo-ahead-of-backend:**
 - **Subdomains** (`carmen.stalltrack.site`) — pre-login branding/subdomain routing is Phase 5 (not started);
   the backend is a single host today. The activation email's subdomain link is presentational until then.
-- **Head activation LINK** — the backend currently returns a **one-time temporary password** (reusing the
-  established `MustChangePassword` first-login pattern). A tokenized "set your password" link is the intended
-  refinement; the activation contract is unaffected either way.
+- **Head activation LINK** — ✅ implemented: activation provisions the Head **inactive** and returns a one-time
+  `activationToken`; the Head sets their own password via `POST /api/activation/set-password` (anonymous,
+  rate-limited, single-use, 7-day expiry). Build the link as `https://{lgu}.stalltrack.site/activate/{token}`.
 
 ---
 
@@ -191,13 +191,16 @@ the contract at activation; the rest is entered in the portal later or is a plan
 - ✅ **Per-LGU fee math (Phase 4B-ii)** — NPM/SLH/TPM/TRM fees resolve from the LGU's `FacilityRate` rows
   (constant fallback → Cantilan byte-for-byte).
 - ✅ **Activation API (Phase 6)** — `POST /api/activation/municipality`, platform-operator-authorized
-  (default-LGU SuperAdmin), atomic commit of branding + facilities + rates + Head. Guards: default LGU and
-  already-active are rejected. Returns a one-time temp password.
-- ◻ **Platform wiring** — `stalltrack-platform` still needs to call the live endpoint at the Activate click
-  (replace demo local-state). Contract: `CARCANMADCARLAN-activation-api-integration.md`.
-- ◻ **Deferred backend extensions** (do "sooner" per direction): sections + section fees, metered add-on fees,
-  unit/stall provisioning, OR-series config, subdomain/pre-login branding (Phase 5), tokenized Head activation
-  link, and a **Settings screen so an LGU can edit its own fees/branding after go-live**.
+  (default-LGU SuperAdmin), atomic commit of branding + facilities + rates + **stalls/units** + Head. Guards:
+  default LGU and already-active are rejected. Head provisioned **inactive** with a one-time activation token;
+  activated via `POST /api/activation/set-password` (anonymous, rate-limited, single-use).
+- ✅ **Self-service editing** — Head edits own fees (`PUT /api/facility-rates`) + branding
+  (`PUT /api/municipality-profile`), today-forward, per-tenant.
+- ◻ **Platform wiring** — `stalltrack-platform` still needs to call the live endpoints. Contract:
+  `CARCANMADCARLAN-activation-api-integration.md`.
+- ◻ **Deferred backend extensions**: OR-series generation, custom SLH animal types at activation, metered
+  add-on fee readings (portal ops), subdomain/pre-login branding (Phase 5), mobile offline-cache namespacing,
+  and the Client Settings UI for the self-service endpoints.
 
 ---
 
