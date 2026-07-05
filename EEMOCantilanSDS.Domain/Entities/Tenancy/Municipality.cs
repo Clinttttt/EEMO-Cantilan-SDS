@@ -73,6 +73,20 @@ public class Municipality : AuditableEntity
         IsActive = true;
     }
 
+    /// <summary>
+    /// Applies the onboarding branding (office label, address, seal) captured during onboarding. Used at
+    /// activation to stamp the LGU's official identity onto its registry record. Only overwrites a field
+    /// when a non-empty value is supplied, so partial profiles never blank existing data.
+    /// </summary>
+    public void ApplyOnboardingProfile(string? officeName, string? address, string? sealPath, string updatedBy = "System")
+    {
+        if (!string.IsNullOrWhiteSpace(officeName)) OfficeName = officeName.Trim();
+        if (!string.IsNullOrWhiteSpace(address)) Address = address.Trim();
+        if (!string.IsNullOrWhiteSpace(sealPath)) SealPath = sealPath.Trim();
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
     public void MarkUpcoming()
     {
         Status = MunicipalityStatus.Upcoming;

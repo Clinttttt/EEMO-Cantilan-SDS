@@ -14,11 +14,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public static AdminUser Create(string fullName,string
             username,string 
             email,string password,
-            AdminRole role)
+            AdminRole role,
+            Guid municipalityId = default)
         {
             return new AdminUser
             {
                 Id = Guid.NewGuid(),
+                MunicipalityId = municipalityId,
                 FullName = fullName,
                 Username = username,
                 Email = email,

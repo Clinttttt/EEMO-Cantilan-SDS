@@ -1,0 +1,47 @@
+using System;
+using System.Collections.Generic;
+using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
+using MediatR;
+
+namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
+{
+    /// <summary>
+    /// Platform-operator action that turns a staged onboarding configuration into a live, isolated LGU
+    /// (Phase 6 activation). Atomically: applies the LGU's branding + flips it to Active, creates its
+    /// facilities and fixed rates under its own <c>MunicipalityId</c>, and provisions its Head account in a
+    /// must-set-password state. Cantilan (the default LGU) can never be a target. Everything commits in one
+    /// transaction, so a failure leaves the municipality Upcoming with no partial data.
+    /// </summary>
+    public record ActivateMunicipalityCommand(
+        string MunicipalityCode,
+        ActivationBranding Branding,
+        ActivationAdministrator Administrator,
+        IReadOnlyList<ActivationFacility> Facilities,
+        IReadOnlyList<ActivationRate> Rates) : IRequest<Result<ActivationResultDto>>;
+
+    /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
+    public record ActivationBranding(string OfficeName, string? Address, string? SealPath);
+
+    /// <summary>The single LGU owner (Head/SuperAdmin) provisioned at activation.</summary>
+    public record ActivationAdministrator(string FullName, string Username, string Email);
+
+    /// <summary>A facility to create for the LGU, mapped to a code + billing archetype during onboarding.</summary>
+    public record ActivationFacility(FacilityCode Code, string Name, string ShortName, BillingArchetype Archetype);
+
+    /// <summary>A fixed ordinance rate to seed for the LGU (range/monthly-rental facilities carry no fixed rate).</summary>
+    public record ActivationRate(FacilityCode FacilityCode, FeeRateKey Key, decimal Amount);
+
+    /// <summary>
+    /// Result of a successful activation. <see cref="TemporaryPassword"/> is generated server-side and must
+    /// be conveyed to the Head so they can sign in once and set their own password (the account is created
+    /// with MustChangePassword). It is returned exactly once and never stored in plaintext.
+    /// </summary>
+    public record ActivationResultDto(
+        Guid MunicipalityId,
+        string MunicipalityCode,
+        string AdminUsername,
+        string TemporaryPassword,
+        int FacilitiesCreated,
+        int RatesCreated);
+}

@@ -31,11 +31,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
            string name,
            string shortName,
            string? description = null,
-           BillingArchetype? archetype = null)
+           BillingArchetype? archetype = null,
+           Guid municipalityId = default)
         {
             return new Facility
             {
                 Id = Guid.NewGuid(),
+                MunicipalityId = municipalityId,
                 Code = code,
                 Name = name,
                 ShortName = shortName,
