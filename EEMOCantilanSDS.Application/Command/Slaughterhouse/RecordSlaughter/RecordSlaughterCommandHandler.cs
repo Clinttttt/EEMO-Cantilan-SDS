@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -16,6 +17,7 @@ public class RecordSlaughterCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordSlaughterCommand request, CancellationToken ct)
@@ -41,6 +43,11 @@ public class RecordSlaughterCommandHandler(
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
 
+        // Resolve this municipality's per-head rates as of the transaction date (constant fallback, so
+        // Cantilan stamps the same ₱250 hog / ₱365 large totals). The audit breakdown stays as the ordinance
+        // components; only the per-head total is data-driven in Phase 4B.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+
         SlaughterTransaction transaction = request.AnimalType switch
         {
             AnimalType.Hog => SlaughterTransaction.CreateHog(
@@ -50,7 +57,8 @@ public class RecordSlaughterCommandHandler(
                 request.NumberOfHeads,
                 request.ORNumber,
                 request.TransactionDate,
-                recordedBy),
+                recordedBy,
+                ratePerHead: rateSnapshot.Resolve(FeeRateKey.SlhHogPerHead, request.TransactionDate)),
 
             AnimalType.Carabao or AnimalType.Cow => SlaughterTransaction.CreateLargeAnimal(
                 facility.Id,
@@ -60,7 +68,8 @@ public class RecordSlaughterCommandHandler(
                 request.NumberOfHeads,
                 request.ORNumber,
                 request.TransactionDate,
-                recordedBy),
+                recordedBy,
+                ratePerHead: rateSnapshot.Resolve(FeeRateKey.SlhLargePerHead, request.TransactionDate)),
 
             AnimalType.Other => SlaughterTransaction.CreateCustomAnimal(
                 facility.Id,

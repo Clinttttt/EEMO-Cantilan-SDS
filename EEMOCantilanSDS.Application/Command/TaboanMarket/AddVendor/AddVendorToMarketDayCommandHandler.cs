@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -16,6 +17,7 @@ public class AddVendorToMarketDayCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
 {
     public async Task<Result<TpmVendorAttendanceDto>> Handle(AddVendorToMarketDayCommand request, CancellationToken ct)
@@ -48,7 +50,12 @@ public class AddVendorToMarketDayCommandHandler(
         if (existingAttendance != null)
             return Result<TpmVendorAttendanceDto>.Failure("Vendor already added to this market day.");
 
-        var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate);
+        // Resolve this municipality's per-vendor market-day fee as of the market date (constant fallback,
+        // so Cantilan stamps the same ₱100).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var vendorFee = rateSnapshot.Resolve(FeeRateKey.TpmVendorDay, request.MarketDate);
+
+        var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate, fee: vendorFee);
 
         if (request.ClientOperationId is { } clientOpId)
             attendance.SetClientOperationId(clientOpId);

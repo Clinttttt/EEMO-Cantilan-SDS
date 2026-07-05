@@ -1,8 +1,8 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
-using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -12,6 +12,7 @@ public sealed class GetMobileTpmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     ITpmRepository tpmRepository,
     ISuggestionRepository suggestionRepository,
+    IFeeRateResolver feeRateResolver,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileTpmCollectionQuery, Result<MobileTpmCollectionDto>>
 {
     public async Task<Result<MobileTpmCollectionDto>> Handle(GetMobileTpmCollectionQuery request, CancellationToken ct)
@@ -58,10 +59,14 @@ public sealed class GetMobileTpmCollectionQueryHandler(
             .OrderBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // The per-vendor fee shown to the collector is this municipality's current rate (constant fallback).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var vendorFee = rateSnapshot.Resolve(FeeRateKey.TpmVendorDay, marketDate);
+
         return Result<MobileTpmCollectionDto>.Success(new MobileTpmCollectionDto(
             marketDate,
             isMarketDay,
-            FeeRates.TpmVendorFee,
+            vendorFee,
             attendances.Count,
             attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
             attendances,

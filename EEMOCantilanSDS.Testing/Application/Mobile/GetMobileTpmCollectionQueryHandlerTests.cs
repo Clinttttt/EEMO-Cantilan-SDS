@@ -27,7 +27,7 @@ public class GetMobileTpmCollectionQueryHandlerTests
         suggestionRepo.Setup(r => r.GetHiddenValuesAsync(It.IsAny<SuggestionType>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlySet<string>)new HashSet<string>());
 
-        return (new GetMobileTpmCollectionQueryHandler(collectorRepo.Object, tpmRepo.Object, suggestionRepo.Object, currentUser.Object), tpmRepo);
+        return (new GetMobileTpmCollectionQueryHandler(collectorRepo.Object, tpmRepo.Object, suggestionRepo.Object, CacheTestDoubles.FeeRateResolver, currentUser.Object), tpmRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

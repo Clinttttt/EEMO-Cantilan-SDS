@@ -76,7 +76,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
          int heads,
          string orNumber,
          DateOnly transactionDate,
-         string createdBy = "System")
+         string createdBy = "System",
+         decimal? ratePerHead = null)
         {
             return new SlaughterTransaction
             {
@@ -86,7 +87,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 OwnerName = ownerName,
                 AnimalType = AnimalType.Hog,
                 NumberOfHeads = heads,
-                RatePerHead = FeeRates.SlhHogTotalPerHead,
+                RatePerHead = ratePerHead ?? FeeRates.SlhHogTotalPerHead,
                 SlaughterFee = FeeRates.SlhHogSlaughterFee,
                 AntemortemFee = FeeRates.SlhHogAntemortem,
                 TableCharge = FeeRates.SlhHogTableCharge,
@@ -105,7 +106,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
           int heads,
           string orNumber,
           DateOnly transactionDate,
-          string createdBy = "System")
+          string createdBy = "System",
+          decimal? ratePerHead = null)
         {
             if (animalType == AnimalType.Hog)
                 throw new ArgumentException("Use CreateHog() for hog transactions.", nameof(animalType));
@@ -118,7 +120,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Slaughterhouse
                 OwnerName = ownerName,
                 AnimalType = animalType,
                 NumberOfHeads = heads,
-                RatePerHead = FeeRates.SlhLargeTotalPerHead,
+                RatePerHead = ratePerHead ?? FeeRates.SlhLargeTotalPerHead,
                 SlaughterFee = FeeRates.SlhLargeSlaughterFee,
                 SlaughterPermit = FeeRates.SlhLargePermit,
                 AntemortemFee = FeeRates.SlhLargeAntemortem,

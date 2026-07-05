@@ -31,7 +31,8 @@ public class TpmAttendance : AuditableEntity, IMunicipalityOwned
     public static TpmAttendance Create(
         Guid vendorId,
         DateOnly marketDate,
-        string createdBy = "System")
+        string createdBy = "System",
+        decimal? fee = null)
     {
         if (marketDate.DayOfWeek != DayOfWeek.Friday)
             throw new ArgumentException("Market date must be a Friday.", nameof(marketDate));
@@ -41,7 +42,7 @@ public class TpmAttendance : AuditableEntity, IMunicipalityOwned
             Id = Guid.NewGuid(),
             VendorId = vendorId,
             MarketDate = marketDate,
-            Fee = FeeRates.TpmVendorFee,
+            Fee = fee ?? FeeRates.TpmVendorFee,
             IsPaid = false,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = createdBy
