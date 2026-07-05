@@ -184,3 +184,42 @@
 .ca-loading ::deep .ca-sk-center { margin-left: auto; margin-right: auto; }
 .ca-loading ::deep .ca-sk-gap { margin-top: 8px; }
 .ca-table-skeleton { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+
+
+/* ── Per-facility sub-group within a year ── */
+.ca-fac-group {
+    margin-top: 14px;
+}
+
+.ca-fac-group:first-of-type {
+    margin-top: 8px;
+}
+
+.ca-fac-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    background: var(--bg-icon, #eef2f6);
+    border-left: 3px solid var(--gold, #c8a84b);
+    border-radius: 6px;
+}
+
+.ca-fac-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--navy, #0d2137);
+    letter-spacing: 0.01em;
+}
+
+.ca-fac-stats {
+    font-size: 0.78rem;
+    color: var(--text-subtle, #6a8aa0);
+}
+
+.ca-fac-stats strong {
+    color: var(--text, #0d2137);
+}

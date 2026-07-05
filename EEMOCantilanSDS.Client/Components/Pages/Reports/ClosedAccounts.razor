@@ -174,7 +174,7 @@
 
             @foreach (var grp in groups)
             {
-                var yr = grp.OrderBy(r => r.FacilityName).ThenByDescending(r => EndOf(r)).ToList();
+                var yr = grp.ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
                         <span class="ca-year-label">@grp.Key</span>
@@ -184,72 +184,82 @@
                         </span>
                     </div>
 
-                    <table class="ca-table">
-                        <thead>
-                            <tr>
-                                <th class="ca-c">#</th>
-                                <th class="ca-c">Status</th>
-                                <th>Facility</th>
-                                <th class="ca-c">Stall</th>
-                                <th>Last Occupant</th>
-                                <th>Name on Contract</th>
-                                <th class="ca-c">Period (Effectivity → End)</th>
-                                <th class="ca-r">Lifetime Collected</th>
-                                <th class="ca-r">Uncollected</th>
-                                <th>Recorded By</th>
-                                <th class="ca-act no-print">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @{ var n = 1; string? prevFac = null; }
-                            @foreach (var r in yr)
-                            {
-                                var grpStart = r.FacilityName != prevFac;
-                                <tr class="@(grpStart ? "ca-grp-start" : "ca-cont")">
-                                    <td class="ca-c">@n</td>
-                                    <td class="ca-c ca-status-text">@r.State</td>
-                                    <td class="ca-fac-cell">@(grpStart ? r.FacilityName : "")</td>
-                                    <td class="ca-c">@r.StallNo</td>
-                                    <td class="ca-fw">@r.Occupant</td>
-                                    <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ContractName) ? "—" : r.ContractName)</td>
-                                    <td class="ca-c ca-period">@r.EffectivityDate.ToString("MMM yyyy") <span>→</span> @EndOf(r).ToString("MMM d, yyyy")</td>
-                                    <td class="ca-r">@Money(r.LifetimeCollected)</td>
-                                    <td class="ca-r">
-                                        @if (r.Uncollected > 0)
-                                        {
-                                            <span class="ca-amt-due">@Money(r.Uncollected)</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="ca-amt-clear">@Money(0)</span>
-                                        }
-                                    </td>
-                                    <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ClosedBy) ? "—" : r.ClosedBy)</td>
-                                    <td class="ca-act no-print">
-                                        @if (r.State == InactiveAccountState.Closed)
-                                        {
-                                            <button class="ca-row-btn ca-row-reopen" type="button" @onclick="() => OpenReopen(r)">Reopen</button>
-                                        }
-                                        else
-                                        {
-                                            <button class="ca-row-btn ca-row-renew" type="button" @onclick="() => OpenRenew(r)">Renew</button>
-                                        }
-                                    </td>
-                                </tr>
-                                prevFac = r.FacilityName;
-                                n++;
-                            }
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="7"><strong>Subtotal — @yr.Count account@(yr.Count != 1 ? "s" : "")</strong></td>
-                                <td class="ca-r"><strong>@Money(yr.Sum(r => r.LifetimeCollected))</strong></td>
-                                <td class="ca-r"><strong>@Money(yr.Sum(r => r.Uncollected))</strong></td>
-                                <td></td>
-                                <td class="ca-act no-print"></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                    @foreach (var facGrp in yr.GroupBy(r => r.FacilityName).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                    {
+                        var facRows = facGrp.OrderByDescending(r => EndOf(r)).ToList();
+                        <div class="ca-fac-group">
+                            <div class="ca-fac-head">
+                                <span class="ca-fac-title">@facGrp.Key</span>
+                                <span class="ca-fac-stats">
+                                    <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
+                                    <strong>@Money(facRows.Sum(r => r.Uncollected))</strong> uncollected
+                                </span>
+                            </div>
+
+                            <table class="ca-table">
+                                <thead>
+                                    <tr>
+                                        <th class="ca-c">#</th>
+                                        <th class="ca-c">Status</th>
+                                        <th class="ca-c">Stall</th>
+                                        <th>Last Occupant</th>
+                                        <th>Name on Contract</th>
+                                        <th class="ca-c">Period (Effectivity → End)</th>
+                                        <th class="ca-r">Lifetime Collected</th>
+                                        <th class="ca-r">Uncollected</th>
+                                        <th>Recorded By</th>
+                                        <th class="ca-act no-print">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ var n = 1; }
+                                    @foreach (var r in facRows)
+                                    {
+                                        <tr>
+                                            <td class="ca-c">@n</td>
+                                            <td class="ca-c ca-status-text">@r.State</td>
+                                            <td class="ca-c">@r.StallNo</td>
+                                            <td class="ca-fw">@r.Occupant</td>
+                                            <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ContractName) ? "—" : r.ContractName)</td>
+                                            <td class="ca-c ca-period">@r.EffectivityDate.ToString("MMM yyyy") <span>→</span> @EndOf(r).ToString("MMM d, yyyy")</td>
+                                            <td class="ca-r">@Money(r.LifetimeCollected)</td>
+                                            <td class="ca-r">
+                                                @if (r.Uncollected > 0)
+                                                {
+                                                    <span class="ca-amt-due">@Money(r.Uncollected)</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="ca-amt-clear">@Money(0)</span>
+                                                }
+                                            </td>
+                                            <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ClosedBy) ? "—" : r.ClosedBy)</td>
+                                            <td class="ca-act no-print">
+                                                @if (r.State == InactiveAccountState.Closed)
+                                                {
+                                                    <button class="ca-row-btn ca-row-reopen" type="button" @onclick="() => OpenReopen(r)">Reopen</button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="ca-row-btn ca-row-renew" type="button" @onclick="() => OpenRenew(r)">Renew</button>
+                                                }
+                                            </td>
+                                        </tr>
+                                        n++;
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="6"><strong>Subtotal — @facRows.Count account@(facRows.Count != 1 ? "s" : "")</strong></td>
+                                        <td class="ca-r"><strong>@Money(facRows.Sum(r => r.LifetimeCollected))</strong></td>
+                                        <td class="ca-r"><strong>@Money(facRows.Sum(r => r.Uncollected))</strong></td>
+                                        <td></td>
+                                        <td class="ca-act no-print"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
                 </div>
             }
 
