@@ -36,6 +36,11 @@ public interface IStallRepository
     Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);
+    /// <summary>
+    /// All stalls in a facility (section-scoped for NPM) with their contracts, TRACKED — used by bulk
+    /// import to decide per row whether to create a new stall or renew an existing expired/closed one.
+    /// </summary>
+    Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct);
     Task AddAsync(Stall stall, CancellationToken ct);
     Task AddContractAsync(Contract contract, CancellationToken ct);
     Task UpdateAsync(Stall stall, CancellationToken ct);

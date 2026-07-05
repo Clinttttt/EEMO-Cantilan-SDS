@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -13,6 +14,28 @@ public class BulkImportStallholdersCommandHandlerTests
     private readonly Mock<IStallRepository> _stallRepo = new();
     private readonly Mock<IFacilityRepository> _facilityRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
+
+    public BulkImportStallholdersCommandHandlerTests()
+    {
+        // Default: the facility has no existing stalls. Renewal/skip tests override this.
+        _stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(
+                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<Stall>());
+    }
+
+    // Builds an existing stall carrying one contract. expiredYearsAgo>0 makes it EXPIRED (lapsed term);
+    // otherwise the term covers today (actively occupied).
+    private static Stall ExistingStall(string stallNo, string occupant, bool active, MarketSection? section = null)
+    {
+        var stall = Stall.Create(Guid.NewGuid(), stallNo, 900m, ApplicableFees.BaseRental, section);
+        var effectivity = active ? PhilippineTime.Today.AddYears(-1) : new DateOnly(2020, 1, 1);
+        stall.Contracts.Add(Contract.Create(stall.Id, occupant, occupant, effectivity, 3, 900m));
+        return stall;
+    }
+
+    private void SetupExisting(FacilityCode code, MarketSection? section, params Stall[] stalls)
+        => _stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(code, section, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(stalls);
 
     private BulkImportStallholdersCommandHandler Handler()
         => new(_stallRepo.Object, _facilityRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
@@ -118,18 +141,63 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     [Fact]
-    public async Task ExistingStallNo_IsReported_AndNothingSaved()
+    public async Task ExistingExpiredStall_IsRenewed_NotDuplicated()
     {
         SetupFacility(FacilityCode.TCC);
-        SetupUnique(false); // collides with an existing stall
-        var cmd = new BulkImportStallholdersCommand(FacilityCode.TCC, null,
-            new List<ImportStallRow> { Row(1, "Juan", "1") });
+        var existing = ExistingStall("5", "Old Tenant", active: false);
+        SetupExisting(FacilityCode.TCC, null, existing);
+        Contract? added = null;
+        _stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()))
+            .Callback<Contract, CancellationToken>((c, _) => added = c).Returns(Task.CompletedTask);
 
-        var result = await Handler().Handle(cmd, CancellationToken.None);
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "New Tenant", "5") }),
+            CancellationToken.None);
 
         Assert.Equal(0, result.Value!.CreatedCount);
-        Assert.Contains("already exists", result.Value.Results.Single().Error);
+        Assert.Equal(1, result.Value.RenewedCount);
+        Assert.Equal(0, result.Value.FailedCount);
+        // Reuses the SAME stall (no new stall) with a fresh contract; the lapsed contract is terminated.
+        _stallRepo.Verify(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()), Times.Never);
+        _stallRepo.Verify(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(existing.Id, added!.StallId);
+        Assert.Equal("New Tenant", added.ActualOccupant);
+        Assert.False(existing.Contracts.Single().IsActive); // old term ended
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExistingActiveStall_IsSkipped_NotOverwritten()
+    {
+        SetupFacility(FacilityCode.TCC);
+        SetupExisting(FacilityCode.TCC, null, ExistingStall("5", "Current Tenant", active: true));
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "New Tenant", "5") }),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Equal(0, result.Value.RenewedCount);
+        Assert.Equal(1, result.Value.FailedCount);
+        Assert.Contains("active contract", result.Value.Results.Single().Error);
         _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SameNameAsActiveOccupant_IsSkipped_NotDuplicated()
+    {
+        SetupFacility(FacilityCode.TCC);
+        SetupExisting(FacilityCode.TCC, null, ExistingStall("1", "Juan Dela Cruz", active: true));
+
+        // Import the same person (case/spacing-insensitive) onto a NEW number → skipped, never duplicated.
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "juan  dela cruz", "9") }),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Equal(1, result.Value.FailedCount);
+        Assert.Contains("already an active stallholder", result.Value.Results.Single().Error);
+        _stallRepo.Verify(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

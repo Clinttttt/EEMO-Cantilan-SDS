@@ -690,6 +690,21 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
+    public async Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct)
+    {
+        // Tracked (no AsNoTracking) so import renewals — terminating old contracts, reopening a closed
+        // stall, adding a new contract — are persisted on SaveChanges.
+        var query = context.Stalls
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == facilityCode);
+
+        query = facilityCode == FacilityCode.NPM
+            ? query.Where(s => s.Section == section)
+            : query.Where(s => s.Section == null);
+
+        return await query.ToListAsync(ct);
+    }
+
     public async Task AddAsync(Stall stall, CancellationToken ct)
     {
         await context.Stalls.AddAsync(stall, ct);

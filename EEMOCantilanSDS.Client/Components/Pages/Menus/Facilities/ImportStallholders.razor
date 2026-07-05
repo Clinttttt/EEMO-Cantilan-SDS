@@ -8,6 +8,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
@@ -103,7 +104,12 @@
                     }
                 </div>
                 <div class="imp-state-title">
-                    @($"{_result.CreatedCount} {_facility.Name}{SectionSuffix} stallholder{(_result.CreatedCount == 1 ? "" : "s")} imported")
+                    @{ var _imported = _result.CreatedCount + _result.RenewedCount; }
+                    @($"{_imported} {_facility.Name}{SectionSuffix} stallholder{(_imported == 1 ? "" : "s")} imported")
+                    @if (_result.RenewedCount > 0)
+                    {
+                        <span> (@_result.CreatedCount new · @_result.RenewedCount renewed)</span>
+                    }
                 </div>
                 <div class="imp-state-text">
                     @if (_result.FailedCount == 0)
@@ -119,7 +125,7 @@
                 @if (_result.FailedCount > 0)
                 {
                     <div class="imp-result-errors">
-                        @foreach (var r in _result.Results.Where(r => !r.Created))
+                        @foreach (var r in _result.Results.Where(r => !r.Created && !r.Renewed))
                         {
                             <div class="imp-result-err-row">
                                 <span class="imp-result-err-row-no">Row @r.RowNumber</span>
@@ -451,15 +457,21 @@
             foreach (var r in res.Value.Sections.SelectMany(s => s.Rows))
             {
                 var sn = (r.StallNo ?? string.Empty).Trim();
+
+                // Expired (term lapsed) or closed stalls are VACANT/reusable — their numbers are free for the
+                // import to reuse (the server renews the same stall). Only ACTIVE stalls block a number or
+                // push the continue-from counter, matching the import's create-vs-renew rule. This is why a
+                // fresh batch reuses the vacated slots instead of jumping past every historical number.
+                var expired = PhilippineTime.Today > r.EffectivityDate.AddYears(r.DurationYears);
+                var reusable = r.IsClosed || expired;
+                if (reusable) continue;
+
                 if (sn.Length > 0) existing.Add(sn);
                 _existingMax = Math.Max(_existingMax, ParseStallInt(sn));
 
-                // Track active occupants so the review table can flag likely duplicates (not closed ones).
-                if (!r.IsClosed)
-                {
-                    var on = NormalizeName(r.ActualOccupant);
-                    if (on.Length > 0) _existingOccupants.Add(on);
-                }
+                // Flag likely duplicates only against genuinely active stallholders (the server skips these).
+                var on = NormalizeName(r.ActualOccupant);
+                if (on.Length > 0) _existingOccupants.Add(on);
             }
 
             // Conflict = an imported number already exists, is blank, or repeats within the file.

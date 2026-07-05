@@ -35,11 +35,24 @@ public class BulkImportStallholdersCommandHandler(
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now));
 
+        // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED
+        // stall number renews that stall instead of being rejected, while an ACTIVE stall is protected.
+        var existingStalls = await stallRepo.GetStallsWithContractsByFacilityAsync(request.FacilityCode, section, ct);
+        var today = PhilippineTime.Today;
+
+        var existingByNo = new Dictionary<string, Stall>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in existingStalls)
+            existingByNo[s.StallNo] = s;
+
+        // Occupants with a CURRENT active contract — re-importing one would duplicate a live payor, so skip.
+        var activeOccupants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in existingStalls.Where(s => IsActivelyOccupied(s, today)))
+            foreach (var c in s.Contracts.Where(c => c.IsCollectableOn(today)))
+                activeOccupants.Add(NormalizeName(c.ActualOccupant));
+
         var results = new List<BulkImportRowResult>();
-        var stallsToAdd = new List<Stall>();
-        var contractsToAdd = new List<Contract>();
-        // Tracks stall numbers used within this batch (case-insensitive) to catch in-file duplicates,
-        // which the per-row DB uniqueness check cannot see (nothing is saved until the end).
+        var newStalls = new List<Stall>();
+        var newContracts = new List<Contract>();
         var usedStallNos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in request.Rows)
@@ -47,56 +60,78 @@ public class BulkImportStallholdersCommandHandler(
             var stallNo = (row.StallNo ?? string.Empty).Trim();
             var occupant = (row.ActualOccupant ?? string.Empty).Trim();
 
-            var error = await ValidateRowAsync(request.FacilityCode, section, stallNo, occupant, row, usedStallNos, ct);
+            var error = ValidateRow(stallNo, occupant, row, usedStallNos);
             if (error is not null)
             {
-                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, error));
+                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false, error));
+                continue;
+            }
+
+            // Never duplicate a live payor — the office renews their existing stall instead.
+            if (activeOccupants.Contains(NormalizeName(occupant)))
+            {
+                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false,
+                    $"'{occupant}' is already an active stallholder — renew that stall instead of importing."));
+                usedStallNos.Add(stallNo);
                 continue;
             }
 
             var fees = ApplicableFees.BaseRental;
             if (isNpm && section == MarketSection.FishSection)
                 fees |= ApplicableFees.FishFee; // fish stalls always carry the ₱1/kg fee
+            var areaLocation = ParseNccAreaLocation(request.FacilityCode, row.AreaLocation);
+            var effectivity = DateOnly.FromDateTime(row.EffectivityDate ?? PhilippineTime.Now);
+            var nameOnContract = string.IsNullOrWhiteSpace(row.NameOnContract) ? null : row.NameOnContract!.Trim();
+            var areaSqm = row.AreaSqm.HasValue && row.AreaSqm.Value > 0 ? row.AreaSqm : null;
 
-            NccAreaLocation? areaLocation = ParseNccAreaLocation(request.FacilityCode, row.AreaLocation);
+            if (existingByNo.TryGetValue(stallNo, out var existing))
+            {
+                // An active contract still occupies this stall — cannot import over it.
+                if (IsActivelyOccupied(existing, today))
+                {
+                    results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false,
+                        $"Stall {stallNo} is occupied by an active contract."));
+                    usedStallNos.Add(stallNo);
+                    continue;
+                }
 
+                // Expired or closed → RENEW: end any lapsed term, reopen if closed, refresh rate/area, and
+                // start a fresh contract on the SAME stall (its number is reused, no duplicate row).
+                foreach (var c in existing.Contracts.Where(c => c.IsActive).ToList())
+                    c.Terminate(Actor);
+                if (existing.Status == StallStatus.Closed)
+                    existing.Reopen(Actor);
+                existing.UpdateRates(row.MonthlyRate, isNpm ? npmDailyRate : existing.DailyRate, Actor);
+                if (areaSqm.HasValue)
+                    existing.UpdateAreaInfo(areaSqm, existing.AreaNote, existing.Remarks, Actor);
+
+                newContracts.Add(Contract.Create(
+                    existing.Id, occupant, nameOnContract, effectivity, row.ContractYears,
+                    row.MonthlyRate, row.ActualMonthlyRental, null, Actor));
+
+                usedStallNos.Add(stallNo);
+                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, true, null));
+                continue;
+            }
+
+            // Genuinely new stall number → create a new stall + contract.
             var stall = Stall.Create(
-                facility.Id,
-                stallNo,
-                row.MonthlyRate,
-                fees,
-                section,
-                areaLocation,
-                row.AreaSqm.HasValue && row.AreaSqm.Value > 0 ? row.AreaSqm : null,
-                null,
-                isNpm ? npmDailyRate : null,
-                null,
-                StallType.Permanent,
-                Actor);
-
-            var contract = Contract.Create(
-                stall.Id,
-                occupant,
-                string.IsNullOrWhiteSpace(row.NameOnContract) ? null : row.NameOnContract!.Trim(),
-                DateOnly.FromDateTime(row.EffectivityDate ?? PhilippineTime.Now),
-                row.ContractYears,
-                row.MonthlyRate,
-                row.ActualMonthlyRental,
-                null,
-                Actor);
-
-            stallsToAdd.Add(stall);
-            contractsToAdd.Add(contract);
+                facility.Id, stallNo, row.MonthlyRate, fees, section, areaLocation, areaSqm, null,
+                isNpm ? npmDailyRate : null, null, StallType.Permanent, Actor);
+            newStalls.Add(stall);
+            newContracts.Add(Contract.Create(
+                stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,
+                row.MonthlyRate, row.ActualMonthlyRental, null, Actor));
             usedStallNos.Add(stallNo);
-            results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, null));
+            results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, false, null));
         }
 
-        if (stallsToAdd.Count > 0)
+        if (newStalls.Count > 0 || newContracts.Count > 0)
         {
-            // IDs are assigned at creation, so stalls and their contracts persist in one transaction.
-            foreach (var stall in stallsToAdd)
+            // New stalls + all new contracts (incl. renewals on tracked existing stalls) persist together.
+            foreach (var stall in newStalls)
                 await stallRepo.AddAsync(stall, ct);
-            foreach (var contract in contractsToAdd)
+            foreach (var contract in newContracts)
                 await stallRepo.AddContractAsync(contract, ct);
 
             await uow.SaveChangesAsync(ct);
@@ -104,23 +139,33 @@ public class BulkImportStallholdersCommandHandler(
         }
 
         var created = results.Count(r => r.Created);
-        var dto = new BulkImportResultDto(request.Rows.Count, created, results.Count - created, results);
+        var renewed = results.Count(r => r.Renewed);
+        var failed = results.Count(r => !r.Created && !r.Renewed);
+        var dto = new BulkImportResultDto(request.Rows.Count, created, renewed, failed, results);
         return Result<BulkImportResultDto>.Success(dto);
     }
+
+    // Case-insensitive, whitespace-collapsed name key so "Juan  Dela Cruz" and "juan dela cruz" match.
+    private static string NormalizeName(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s+", " ");
+
+    // A stall is actively occupied when it is Active AND has a contract whose term covers today —
+    // the only case an imported row must NOT overwrite.
+    private static bool IsActivelyOccupied(Stall s, DateOnly today) =>
+        s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsCollectableOn(today));
 
     private const decimal MaxAmount = 1_000_000m; // sanity cap to catch mis-parsed/garbage numbers
     private const double MaxArea = 100_000d;
 
     // Mirrors CreateStallCommandValidator's rules, but returns a per-row message instead of failing
     // the whole batch. Lengths match the DB columns (varchar(100)); also enforces in-file uniqueness.
-    private async Task<string?> ValidateRowAsync(
-        FacilityCode facilityCode,
-        MarketSection? section,
+    private static string? ValidateRow(
         string stallNo,
         string occupant,
         ImportStallRow row,
-        HashSet<string> usedStallNos,
-        CancellationToken ct)
+        HashSet<string> usedStallNos)
     {
         if (string.IsNullOrWhiteSpace(occupant))
             return "Actual occupant is required.";
@@ -158,10 +203,8 @@ public class BulkImportStallholdersCommandHandler(
         if (usedStallNos.Contains(stallNo))
             return "Duplicate stall number in this file.";
 
-        var unique = await stallRepo.IsStallNoUniqueAsync(facilityCode, section, stallNo, ct);
-        if (!unique)
-            return "Stall number already exists in this facility.";
-
+        // Existing stall numbers are NOT rejected here anymore — the handler decides create vs. renew
+        // (an expired/closed stall's number is reused via renewal; an active one is protected).
         return null;
     }
 
