@@ -29,7 +29,7 @@ public class GetMobileTrmCollectionQueryHandlerTests
         suggestionRepo.Setup(r => r.GetHiddenValuesAsync(It.IsAny<SuggestionType>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlySet<string>)new HashSet<string>());
 
-        return (new GetMobileTrmCollectionQueryHandler(collectorRepo.Object, trmRepo.Object, suggestionRepo.Object, currentUser.Object), trmRepo);
+        return (new GetMobileTrmCollectionQueryHandler(collectorRepo.Object, trmRepo.Object, suggestionRepo.Object, CacheTestDoubles.FeeRateResolver, currentUser.Object), trmRepo);
     }
 
     private static CollectorUser CollectorWith(params FacilityCode[] codes)

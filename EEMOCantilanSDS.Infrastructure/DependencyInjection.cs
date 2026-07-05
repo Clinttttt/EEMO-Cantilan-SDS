@@ -1,8 +1,10 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Infrastructure.Caching;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Payments;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
@@ -48,6 +50,9 @@ namespace EEMOCantilanSDS.Infrastructure
             // it reads the resolved id off the DbContext, not via DI.
             service.AddSingleton<DefaultMunicipalityStore>();
             service.AddScoped<ICurrentMunicipalityAccessor, CurrentMunicipalityAccessor>();
+            // Per-LGU fixed-rate resolution (Phase 4B): reads the current municipality's FacilityRate rows,
+            // falling back to the FeeRates constants so Cantilan is byte-for-byte unchanged.
+            service.AddScoped<IFeeRateResolver, FeeRateResolver>();
  
             
             // Repositories

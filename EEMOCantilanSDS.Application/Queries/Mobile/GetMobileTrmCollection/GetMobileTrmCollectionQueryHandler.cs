@@ -1,8 +1,8 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
-using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -12,6 +12,7 @@ public sealed class GetMobileTrmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     ITrmRepository trmRepository,
     ISuggestionRepository suggestionRepository,
+    IFeeRateResolver feeRateResolver,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileTrmCollectionQuery, Result<MobileTrmCollectionDto>>
 {
     public async Task<Result<MobileTrmCollectionDto>> Handle(GetMobileTrmCollectionQuery request, CancellationToken ct)
@@ -39,9 +40,13 @@ public sealed class GetMobileTrmCollectionQueryHandler(
         var orgs = knownOrgs.Where(o => !hiddenOrgs.Contains(o)).ToList();
         var drivers = knownDrivers.Where(d => !hiddenDrivers.Contains(d)).ToList();
 
+        // The per-trip fee shown to the collector is this municipality's current rate (constant fallback).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var tripFee = rateSnapshot.Resolve(FeeRateKey.TrmPerTrip, PhilippineTime.Today);
+
         return Result<MobileTrmCollectionDto>.Success(new MobileTrmCollectionDto(
             PhilippineTime.Today,
-            FeeRates.TrmTripFee,
+            tripFee,
             todayTrips.Count,
             todayTrips.Sum(t => t.Fee),
             transporters.Count,

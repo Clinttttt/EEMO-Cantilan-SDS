@@ -125,7 +125,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
         return new TrmOverviewDto
         {
-            CollectedToday = todayTrips.Count * FeeRates.TrmTripFee,
+            CollectedToday = todayTrips.Sum(t => t.Fee),
             TripsToday = todayTrips.Count,
             TotalTransporters = totalTransporters,
             PendingORCount = todayTrips.Count(t => string.IsNullOrEmpty(t.ORNumber))
@@ -291,7 +291,7 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
             PlateNumber = transporter.PlateNumber,
             TripsToday = tripsToday,
             TotalTrips = allTrips.Count,
-            TotalFees = allTrips.Count * FeeRates.TrmTripFee,
+            TotalFees = allTrips.Sum(t => t.Fee),
             TripHistory = allTrips
         };
     }

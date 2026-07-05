@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -16,6 +17,7 @@ public class RecordTripCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<RecordTripCommand, Result<TrmTripDto>>
 {
     public async Task<Result<TrmTripDto>> Handle(RecordTripCommand request, CancellationToken ct)
@@ -50,6 +52,15 @@ public class RecordTripCommandHandler(
         var organization = transporter?.Organization
             ?? (string.IsNullOrWhiteSpace(request.Organization) ? "Non-associated" : request.Organization.Trim());
 
+        // Resolve this municipality's per-trip fee as of the trip's business date (falls back to the
+        // ordinance constant, so Cantilan stamps the same ₱30 as before).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var occurredAt = request.OccurredAt ?? DateTime.UtcNow;
+        var tripBusinessDate = occurredAt.Kind == DateTimeKind.Utc
+            ? PhilippineTime.ToPhilippineTime(occurredAt)
+            : occurredAt;
+        var tripFee = rateSnapshot.Resolve(FeeRateKey.TrmPerTrip, DateOnly.FromDateTime(tripBusinessDate));
+
         var trip = TrmTrip.Create(
             request.TransporterId,
             tripNumber,
@@ -61,7 +72,8 @@ public class RecordTripCommandHandler(
             collectorId: currentUser.CollectorId,
             remarks: request.Remarks,
             createdBy: currentUser.Username ?? "Admin",
-            recordedAt: request.OccurredAt);
+            recordedAt: request.OccurredAt,
+            fee: tripFee);
 
         if (request.ClientOperationId is { } clientOpId)
             trip.SetClientOperationId(clientOpId);

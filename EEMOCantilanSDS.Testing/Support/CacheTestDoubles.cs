@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 
 namespace EEMOCantilanSDS.Testing.Support;
@@ -8,6 +9,15 @@ internal static class CacheTestDoubles
     public static IEemoCacheInvalidator Invalidator { get; } = new NullEemoCacheInvalidator();
     public static ITenantContext Tenant { get; } = new TestTenantContext();
     public static IEemoAppCache PassthroughCache { get; } = new PassthroughEemoAppCache();
+
+    /// <summary>Resolver with no data rows — every rate falls back to the FeeRates ordinance constant.</summary>
+    public static IFeeRateResolver FeeRateResolver { get; } = new StubFeeRateResolver();
+}
+
+internal sealed class StubFeeRateResolver : IFeeRateResolver
+{
+    public Task<FeeRateSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(new FeeRateSnapshot(Array.Empty<FeeRateEntry>()));
 }
 
 internal sealed class TestTenantContext : ITenantContext

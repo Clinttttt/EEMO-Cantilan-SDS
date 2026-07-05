@@ -42,7 +42,8 @@ public class TrmTrip : AuditableEntity, IMunicipalityOwned
         Guid? collectorId = null,
         string? remarks = null,
         string createdBy = "System",
-        DateTime? recordedAt = null)
+        DateTime? recordedAt = null,
+        decimal? fee = null)
     {
         if (string.IsNullOrWhiteSpace(driverName))
             throw new ArgumentException("Driver name is required.", nameof(driverName));
@@ -63,7 +64,7 @@ public class TrmTrip : AuditableEntity, IMunicipalityOwned
             PlateNumber = plateNumber.Trim().ToUpper(),
             Organization = string.IsNullOrWhiteSpace(organization) ? "Non-associated" : organization.Trim(),
             Route = route.Trim(),
-            Fee = FeeRates.TrmTripFee,
+            Fee = fee ?? FeeRates.TrmTripFee,
             ORNumber = orNumber.Trim(),
             RecordedAt = recordedAt ?? DateTime.UtcNow,
             Remarks = remarks?.Trim(),
