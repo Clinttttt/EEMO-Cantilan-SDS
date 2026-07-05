@@ -19,6 +19,8 @@ namespace EEMOCantilanSDS.Api.Middleware
             headers["X-Frame-Options"] = "DENY";
             headers["Referrer-Policy"] = "no-referrer";
             headers["X-Permitted-Cross-Domain-Policies"] = "none";
+            headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+            headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
             headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'";
             return _next(context);
         }

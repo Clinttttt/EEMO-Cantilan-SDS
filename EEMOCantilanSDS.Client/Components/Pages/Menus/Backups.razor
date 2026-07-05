@@ -600,7 +600,7 @@
     // runs have settled, after ~10 minutes, or on dispose.
     private void MaybeStartListPolling()
     {
-        if (_listPollCts is not null || !AnyRunActive()) return;
+        if (_listPollCts is not null || (!AnyRunActive() && _restoreWatchSince is null)) return;
         var cts = new CancellationTokenSource();
         _listPollCts = cts;
         _ = PollListsAsync(cts.Token);
@@ -618,7 +618,9 @@
                 await LoadRestoreRunsAsync(silent: true);
                 CheckRestoreCompletion();
                 await InvokeAsync(StateHasChanged);
-                if (!AnyRunActive() || ++ticks >= 120) break;
+                // Keep polling while a run is active OR we're still waiting for a triggered restore to
+                // appear and finish. Cap ~20 min (restore = safety backup + download + pg_restore).
+                if ((!AnyRunActive() && _restoreWatchSince is null) || ++ticks >= 240) break;
             }
         }
         catch (OperationCanceledException) { }
