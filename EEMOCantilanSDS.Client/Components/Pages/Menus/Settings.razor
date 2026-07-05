@@ -37,185 +37,28 @@
 
 <div class="content-area">
 
-    @if (_loading)
-    {
-        <div class="set-skeleton" aria-busy="true" aria-label="Loading system settings">
-            <div class="vs-hero">
-                <div class="vs-hero-left">
-                    <div class="vs-hero-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="3" />
-                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="vs-hero-eyebrow">EEMO Admin · System</div>
-                        <div class="vs-hero-title">Settings</div>
-                        <div class="vs-hero-sub">System configuration · read-only</div>
-                    </div>
-                </div>
-                <div class="vs-hero-stats">
-                    @for (var i = 0; i < 4; i++)
-                    {
-                        @if (i > 0)
-                        {
-                            <div class="vs-hero-divider"></div>
-                        }
-                        <div class="vs-hero-stat">
-                            <div class="sk sk-stat-val"></div>
-                            <div class="sk sk-stat-key"></div>
-                            <div class="sk sk-stat-sub"></div>
-                        </div>
-                    }
-                </div>
+    @{ var loaded = _model is not null; }
+
+    <!-- ── Hero (shell is always visible; only the stat values skeletonize) ── -->
+    <div class="vs-hero">
+        <div class="vs-hero-left">
+            <div class="vs-hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+                </svg>
             </div>
-
-            <div class="set-grid">
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Office &amp; LGU Profile</div>
-                            <div class="set-card-sub">Identity used on the portal, reports &amp; receipts</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
-                        }
-                    </div>
-                    <div class="set-note"><span class="sk sk-note-line"></span></div>
-                </section>
-
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Security &amp; Access Policy</div>
-                            <div class="set-card-sub">Authentication rules · not account lists</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
-                        }
-                    </div>
-                    <div class="set-links">
-                        <span class="sk sk-link"></span>
-                        <span class="sk sk-link"></span>
-                    </div>
-                </section>
-
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Collection &amp; Billing Rules</div>
-                            <div class="set-card-sub">Policies the system enforces</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @for (var i = 0; i < 7; i++)
-                        {
-                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
-                        }
-                    </div>
-                </section>
-
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">System Information</div>
-                            <div class="set-card-sub">About this installation</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
-                        }
-                    </div>
-                </section>
-
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Backups &amp; Restore</div>
-                            <div class="set-card-sub">Database backups and recovery</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @for (var i = 0; i < 3; i++)
-                        {
-                            <div class="set-row"><span class="sk sk-row-key"></span><span class="sk sk-row-val"></span></div>
-                        }
-                    </div>
-                    <div class="set-links">
-                        <span class="sk sk-link"></span>
-                    </div>
-                </section>
+            <div>
+                <div class="vs-hero-eyebrow">EEMO Admin · System</div>
+                <div class="vs-hero-title">Settings</div>
+                <div class="vs-hero-sub">System configuration · read-only</div>
             </div>
-
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Facility Collection Rules</div>
-                        <div class="set-card-sub">How each facility is billed</div>
-                    </div>
-                    <span class="sk sk-link"></span>
-                </div>
-                <table class="set-table">
-                    <thead>
-                        <tr><th>Facility</th><th>Collection model</th><th>Rate</th><th class="set-th-r">Cadence</th></tr>
-                    </thead>
-                    <tbody>
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <tr>
-                                <td><span class="sk sk-table-main"></span></td>
-                                <td><span class="sk sk-table-cell"></span></td>
-                                <td><span class="sk sk-table-cell"></span></td>
-                                <td class="set-td-r"><span class="sk sk-table-cell sk-table-right"></span></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </section>
         </div>
-    }
-    else if (_error is not null)
-    {
-        <div class="set-state">
-            <div class="set-state-title">Couldn't load settings</div>
-            <div class="set-state-text">@_error</div>
-            <button class="set-retry" @onclick="LoadAsync">Try again</button>
-        </div>
-    }
-    else if (_model is not null)
-    {
-        <!-- ── Hero ── -->
-        <div class="vs-hero">
-            <div class="vs-hero-left">
-                <div class="vs-hero-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3" />
-                        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                    </svg>
-                </div>
-                <div>
-                    <div class="vs-hero-eyebrow">EEMO Admin · System</div>
-                    <div class="vs-hero-title">Settings</div>
-                    <div class="vs-hero-sub">System configuration · read-only</div>
-                </div>
-            </div>
-            <div class="vs-hero-stats">
+        <div class="vs-hero-stats">
+            @if (loaded)
+            {
                 <div class="vs-hero-stat">
-                    <div class="vs-hero-val">@_model.Facilities.Count</div>
+                    <div class="vs-hero-val">@_model!.Facilities.Count</div>
                     <div class="vs-hero-key">Facilities</div>
                     <div class="vs-hero-sub2">Configured</div>
                 </div>
@@ -237,9 +80,35 @@
                     <div class="vs-hero-key">Version</div>
                     <div class="vs-hero-sub2">@_model.System.ApplicationName</div>
                 </div>
-            </div>
+            }
+            else
+            {
+                @for (var i = 0; i < 4; i++)
+                {
+                    @if (i > 0)
+                    {
+                        <div class="vs-hero-divider"></div>
+                    }
+                    <div class="vs-hero-stat">
+                        <Skeleton Width="72px" Height="20px" Radius="7px" Class="set-sk-center" />
+                        <Skeleton Width="92px" Height="10px" Radius="5px" Class="set-sk-center set-sk-gap" />
+                        <Skeleton Width="76px" Height="9px" Radius="5px" Class="set-sk-center set-sk-gap" />
+                    </div>
+                }
+            }
         </div>
+    </div>
 
+    @if (_error is not null)
+    {
+        <div class="set-state">
+            <div class="set-state-title">Couldn't load settings</div>
+            <div class="set-state-text">@_error</div>
+            <button class="set-retry" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+    else
+    {
         <div class="set-grid">
 
             <!-- ── Office / LGU Profile ── -->
@@ -252,13 +121,30 @@
                     </div>
                 </div>
                 <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Office</span><span class="set-val">@_model.Office.Office</span></div>
-                    <div class="set-row"><span class="set-key">Municipality</span><span class="set-val">@_model.Office.Municipality</span></div>
-                    <div class="set-row"><span class="set-key">Province</span><span class="set-val">@_model.Office.Province</span></div>
-                    <div class="set-row"><span class="set-key">System name</span><span class="set-val">@_model.Office.SystemName</span></div>
-                    <div class="set-row"><span class="set-key">Receipts issued by</span><span class="set-val">@_model.Office.ReceiptsIssuedBy</span></div>
+                    @if (loaded)
+                    {
+                        <div class="set-row"><span class="set-key">Office</span><span class="set-val">@_model!.Office.Office</span></div>
+                        <div class="set-row"><span class="set-key">Municipality</span><span class="set-val">@_model.Office.Municipality</span></div>
+                        <div class="set-row"><span class="set-key">Province</span><span class="set-val">@_model.Office.Province</span></div>
+                        <div class="set-row"><span class="set-key">System name</span><span class="set-val">@_model.Office.SystemName</span></div>
+                        <div class="set-row"><span class="set-key">Receipts issued by</span><span class="set-val">@_model.Office.ReceiptsIssuedBy</span></div>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
+                        }
+                    }
                 </div>
-                <div class="set-note">Becomes editable via per-LGU configuration in the CARCANMADCARLAN release.</div>
+                @if (loaded)
+                {
+                    <div class="set-note">Becomes editable via per-LGU configuration in the CARCANMADCARLAN release.</div>
+                }
+                else
+                {
+                    <div class="set-note"><Skeleton Width="82%" Height="12px" Radius="6px" /></div>
+                }
             </section>
 
             <!-- ── Security & Access Policy ── -->
@@ -271,11 +157,21 @@
                     </div>
                 </div>
                 <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model.Security.AccessTokenMinutes minutes</span></div>
-                    <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days · hashed, single-use</span></div>
-                    <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts → @_model.Security.LockoutMinutes-min lock</span></div>
-                    <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the EEMO Head</span></div>
-                    <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
+                    @if (loaded)
+                    {
+                        <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model!.Security.AccessTokenMinutes minutes</span></div>
+                        <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days · hashed, single-use</span></div>
+                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts → @_model.Security.LockoutMinutes-min lock</span></div>
+                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the EEMO Head</span></div>
+                        <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
+                        }
+                    }
                 </div>
                 <div class="set-links">
                     <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
@@ -293,13 +189,23 @@
                     </div>
                 </div>
                 <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Current period</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM yyyy") <span class="set-pill pill-ok">Open</span></span></div>
-                    <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">≥ @_model.Collection.DelinquentThresholdMonths unpaid months</span></div>
-                    <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">@_model.Collection.ArrearsMinMonths–@_model.Collection.ArrearsMaxMonths unpaid months</span></div>
-                    <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
-                    <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
-                    <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">₱0 owed · never unpaid</span></div>
-                    <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
+                    @if (loaded)
+                    {
+                        <div class="set-row"><span class="set-key">Current period</span><span class="set-val">@_model!.System.ServerDate.ToString("MMMM yyyy") <span class="set-pill pill-ok">Open</span></span></div>
+                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">≥ @_model.Collection.DelinquentThresholdMonths unpaid months</span></div>
+                        <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">@_model.Collection.ArrearsMinMonths–@_model.Collection.ArrearsMaxMonths unpaid months</span></div>
+                        <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
+                        <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
+                        <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">₱0 owed · never unpaid</span></div>
+                        <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 7; i++)
+                        {
+                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
+                        }
+                    }
                 </div>
             </section>
  <!-- ── Database health (live PostgreSQL metrics) ── -->
@@ -334,11 +240,21 @@
                     </div>
                 </div>
                 <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model.System.ApplicationName</span></div>
-                    <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
-                    <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
-                    <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
-                    <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
+                    @if (loaded)
+                    {
+                        <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model!.System.ApplicationName</span></div>
+                        <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
+                        <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
+                        <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
+                        <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
+                        }
+                    }
                 </div>
             </section>
            
@@ -351,7 +267,7 @@
                 <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
                 <div class="set-card-titles">
                     <div class="set-card-title">Facility Collection Rules</div>
-                    <div class="set-card-sub">How each of the @_model.Facilities.Count facilities is billed</div>
+                    <div class="set-card-sub">@(loaded ? $"How each of the {_model!.Facilities.Count} facilities is billed" : "How each facility is billed")</div>
                 </div>
                 <a class="set-link" href="/reports/collections">Closures &amp; exceptions<span class="set-link-arrow">→</span></a>
             </div>
@@ -360,14 +276,29 @@
                     <tr><th>Facility</th><th>Collection model</th><th>Rate</th><th class="set-th-r">Cadence</th></tr>
                 </thead>
                 <tbody>
-                    @foreach (var f in _model.Facilities)
+                    @if (loaded)
                     {
-                        <tr>
-                            <td><span class="set-fac">@f.Name</span><span class="set-code">@f.Code</span></td>
-                            <td>@f.Model</td>
-                            <td>@f.Rate</td>
-                            <td class="set-td-r">@f.Cadence</td>
-                        </tr>
+                        @foreach (var f in _model!.Facilities)
+                        {
+                            <tr>
+                                <td><span class="set-fac">@f.Name</span><span class="set-code">@f.Code</span></td>
+                                <td>@f.Model</td>
+                                <td>@f.Rate</td>
+                                <td class="set-td-r">@f.Cadence</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <tr>
+                                <td><Skeleton Width="160px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="110px" Height="12px" Radius="6px" /></td>
+                                <td><Skeleton Width="110px" Height="12px" Radius="6px" /></td>
+                                <td class="set-td-r"><Skeleton Width="86px" Height="12px" Radius="6px" Class="set-sk-right" /></td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -408,7 +339,6 @@
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
     private SystemSettingsDto? _model;
-    private bool _loading = true;
     private string? _error;
     private bool _confirmLogout;
     private bool _loggingOut;
@@ -429,7 +359,6 @@
         if (CachedSettings is not null)
         {
             _model = CachedSettings;
-            _loading = false;
             return;
         }
 
@@ -438,7 +367,6 @@
 
     private async Task LoadAsync()
     {
-        _loading = true;
         _error = null;
         await PaintLoadingStateAsync();
 
@@ -454,8 +382,6 @@
                 ? "The system configuration could not be retrieved."
                 : result.Error;
         }
-
-        _loading = false;
     }
 
     private async Task PaintLoadingStateAsync()
