@@ -176,6 +176,11 @@ Independent of tenancy; needed for Checkpoint A:
 - Do not derive the tenant from a header, route, or the public selector — only from the validated token claim.
 - Do not build the full onboarding workspace (Phase 6) before a second LGU is actually needed.
 - Do not hardcode another LGU's facilities/rates without validating them first.
+- Do not let a per-LGU Head trigger **backup/restore** or view **database-health** once a second LGU exists:
+  these run over the **whole shared database** (a restore rolls back *every* LGU; a backup dump contains
+  *all* LGUs' data; DB-health metrics are DB-wide). They are **platform-operator** operations — in Phase 5
+  gate them behind a platform/operator role, not a per-LGU `SuperAdmin`. Safe as-is while Cantilan is the
+  only LGU (the in-app backup/restore/DB-health shipped in the hardening pass are correct for single-tenant).
 
 ---
 

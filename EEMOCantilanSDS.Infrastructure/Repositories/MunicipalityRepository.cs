@@ -13,4 +13,11 @@ public class MunicipalityRepository(AppDbContext context) : IMunicipalityReposit
             .OrderByDescending(m => m.IsDefault)
             .ThenBy(m => m.Name)
             .ToListAsync(ct);
+
+    public async Task<Municipality?> GetDefaultAsync(CancellationToken ct)
+        => await context.Municipalities
+            .AsNoTracking()
+            .OrderByDescending(m => m.IsDefault)
+            .ThenBy(m => m.Name)
+            .FirstOrDefaultAsync(ct);
 }

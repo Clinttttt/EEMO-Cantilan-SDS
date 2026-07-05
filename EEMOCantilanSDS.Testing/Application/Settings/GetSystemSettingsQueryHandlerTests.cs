@@ -1,11 +1,19 @@
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Queries.Settings.GetSystemSettings;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Testing;
 
 public class GetSystemSettingsQueryHandlerTests
 {
-    private static readonly GetSystemSettingsQueryHandler Handler = new();
+    // Office identity (name + province) is now sourced from the default Municipality record. The seeded
+    // Cantilan values equal the OfficeProfile constants, so the assertions below still hold — proving the
+    // record-sourcing changes nothing that is displayed.
+    private static readonly GetSystemSettingsQueryHandler Handler =
+        new(new FakeMunicipalityRepository(Municipality.Create(
+            "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, isDefault: true)));
 
     [Fact]
     public async Task Returns_values_sourced_from_the_live_domain_constants()
@@ -69,5 +77,14 @@ public class GetSystemSettingsQueryHandlerTests
         var result = await Handler.Handle(new GetSystemSettingsQuery(environment!), CancellationToken.None);
 
         Assert.Equal("Unknown", result.Value!.System.Environment);
+    }
+
+    // Minimal fake — the handler only calls GetDefaultAsync to source the LGU name/province.
+    private sealed class FakeMunicipalityRepository(Municipality? def) : IMunicipalityRepository
+    {
+        public Task<IReadOnlyList<Municipality>> GetAllAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<Municipality>>(def is null ? Array.Empty<Municipality>() : new[] { def });
+
+        public Task<Municipality?> GetDefaultAsync(CancellationToken ct) => Task.FromResult(def);
     }
 }

@@ -1,21 +1,28 @@
 using EEMOCantilanSDS.Application.Dtos.Settings;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Settings.GetSystemSettings;
 
-public class GetSystemSettingsQueryHandler
+public class GetSystemSettingsQueryHandler(IMunicipalityRepository municipalityRepository)
     : IRequestHandler<GetSystemSettingsQuery, Result<SystemSettingsDto>>
 {
     private const string TimeZoneLabel = "Philippine Standard Time (UTC+8)";
 
-    public Task<Result<SystemSettingsDto>> Handle(GetSystemSettingsQuery request, CancellationToken ct)
+    public async Task<Result<SystemSettingsDto>> Handle(GetSystemSettingsQuery request, CancellationToken ct)
     {
+        // LGU identity (name + province) is sourced from the Municipality registry record so the portal
+        // reflects the DB rather than hardcoded constants (multi-LGU readiness). The office label, system
+        // name and receipt line remain app-level for now. Nothing changes for Cantilan — the record's
+        // Name/Province equal the constants — and it falls back to the constants if the registry is empty.
+        var lgu = await municipalityRepository.GetDefaultAsync(ct);
+
         var office = new OfficeProfileDto(
             OfficeProfile.Office,
-            OfficeProfile.Municipality,
-            OfficeProfile.Province,
+            string.IsNullOrWhiteSpace(lgu?.Name) ? OfficeProfile.Municipality : lgu!.Name,
+            string.IsNullOrWhiteSpace(lgu?.Province) ? OfficeProfile.Province : lgu!.Province,
             OfficeProfile.SystemName,
             OfficeProfile.ReceiptsIssuedBy);
 
@@ -44,7 +51,7 @@ public class GetSystemSettingsQueryHandler
         var facilities = BuildFacilities();
 
         var dto = new SystemSettingsDto(office, security, collection, system, facilities);
-        return Task.FromResult(Result<SystemSettingsDto>.Success(dto));
+        return Result<SystemSettingsDto>.Success(dto);
     }
 
     // Fixed ordinance rates come straight from FeeRates; per-stall monthly rentals are stored per

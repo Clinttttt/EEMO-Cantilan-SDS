@@ -98,6 +98,11 @@ billing **archetype** and marked *Done* once its rate is set:
    live operational tables as it is entered. Only **Activation** commits it, under the new `MunicipalityId`.
 2. **Behind the goldens.** The commit path runs behind the Phase 0 snapshot tests, so provisioning a second
    LGU can never move Cantilan's financial numbers (roadmap Guiding Rule #1).
+3. **Backup / restore / DB-health are platform-operator, whole-database operations.** The in-app backup,
+   restore, and database-health tools (shipped for Cantilan in the hardening pass) act on the **entire shared
+   database** — a restore rolls back *every* LGU, a backup dump holds *all* LGUs' data, and health metrics are
+   DB-wide. In the multi-LGU world they must be exposed to a **platform operator**, never a per-LGU Head
+   (Phase 5). They are correct and safe as-is while Cantilan is the only LGU.
 
 ---
 
