@@ -28,4 +28,11 @@ public interface ICurrentUserService
     /// the default tenant. Users are not yet municipality-scoped, so today this is the default LGU.
     /// </summary>
     string? MunicipalityCode { get; }
+
+    /// <summary>
+    /// The authenticated user's municipality id, read from the token's <c>municipality_id</c> claim.
+    /// Null when there is no authenticated request (background jobs, tests, token-less flows) — callers
+    /// fall back to the default municipality (Cantilan). This is the per-request tenant identity.
+    /// </summary>
+    Guid? MunicipalityId { get; }
 }

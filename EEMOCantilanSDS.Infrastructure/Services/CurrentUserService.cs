@@ -35,6 +35,11 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         public string? MunicipalityCode =>
             accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.Municipality);
 
+        public Guid? MunicipalityId =>
+            Guid.TryParse(accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.MunicipalityId), out var id)
+                ? id
+                : null;
+
         public AdminUserDto? GetCurrentUser() =>
        IsAuthenticated ? MapToDto(accessor.HttpContext!.User) : null;
         private static AdminUserDto? MapToDto(ClaimsPrincipal principal)

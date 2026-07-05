@@ -1,5 +1,5 @@
 using EEMOCantilanSDS.Domain.Common;
-using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -7,15 +7,14 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Interceptors
 {
     /// <summary>
     /// Stamps <see cref="IMunicipalityOwned.MunicipalityId"/> on inserted tenant-owned entities so every
-    /// row is attributed to a municipality. Until users are municipality-scoped (Phase 5), this is the
-    /// <b>default</b> municipality (Cantilan), resolved from the DB once and cached process-wide (its id
-    /// is stable). Rows that already carry a municipality id are left untouched; if no default
-    /// municipality exists yet, rows are left unstamped (the Phase 3 filter is added only after backfill).
+    /// row is attributed to a municipality. The id is resolved per-request off the current
+    /// <see cref="AppDbContext"/> (<see cref="AppDbContext.CurrentMunicipalityId"/>), which reflects the
+    /// authenticated user's municipality, falling back to the default (Cantilan) for token-less flows.
+    /// Rows that already carry a municipality id are left untouched; if the context is unresolved
+    /// (<see cref="Guid.Empty"/>), rows are left unstamped (single-tenant / test path unchanged).
     /// </summary>
     public sealed class MunicipalityStampInterceptor : SaveChangesInterceptor
     {
-        private static Guid _defaultMunicipalityId;
-
         public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
         {
             Stamp(eventData.Context);
@@ -38,26 +37,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Interceptors
                 .ToList();
             if (pending.Count == 0) return;
 
-            var municipalityId = ResolveDefaultMunicipalityId(context);
-            if (municipalityId == Guid.Empty) return; // no default municipality yet — leave unstamped
+            // Resolve the current request's municipality off the context (per-request, Phase 5).
+            var municipalityId = context is AppDbContext db ? db.CurrentMunicipalityId : Guid.Empty;
+            if (municipalityId == Guid.Empty) return; // unresolved tenant — leave unstamped
 
             foreach (var entry in pending)
                 entry.Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = municipalityId;
-        }
-
-        // Default municipality id is stable, so resolve once from the DB and cache it for the process.
-        // Bypasses query filters so a soft-delete/tenant filter can never hide it.
-        private static Guid ResolveDefaultMunicipalityId(DbContext context)
-        {
-            if (_defaultMunicipalityId != Guid.Empty) return _defaultMunicipalityId;
-
-            var id = context.Set<Municipality>().IgnoreQueryFilters()
-                .Where(m => m.IsDefault)
-                .Select(m => m.Id)
-                .FirstOrDefault();
-
-            if (id != Guid.Empty) _defaultMunicipalityId = id;
-            return id;
         }
     }
 }

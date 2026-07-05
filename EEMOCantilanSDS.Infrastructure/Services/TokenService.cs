@@ -40,6 +40,10 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 // token carries the default LGU. Once users get a MunicipalityId this becomes user-driven,
                 // and the resolver/cache pick it up with no further change here.
                 new(AppClaimTypes.Municipality, TenantConstants.DefaultTenantCode),
+                // Per-request tenant identity: the authenticated user's municipality id (Phase 5). The EF
+                // global query filter and write-stamp resolve the current LGU from this claim; token-less
+                // flows fall back to the default municipality (Cantilan).
+                new(AppClaimTypes.MunicipalityId, user.MunicipalityId.ToString()),
             };
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
