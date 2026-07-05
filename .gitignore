@@ -371,4 +371,5 @@ FodyWeavers.xsd
 !EEMOCantilanSDS.Application/Dtos/Backup/
 !EEMOCantilanSDS.Application/Command/Backup/
 !EEMOCantilanSDS.Application/Queries/Backup/
+!EEMOCantilanSDS.Application/Requests/Backup/
 !EEMOCantilanSDS.Application/**/Backup/**

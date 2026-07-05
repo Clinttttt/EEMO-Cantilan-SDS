@@ -36,6 +36,24 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
     }
 
+    public async Task<Result<bool>> TriggerRestoreAsync(CancellationToken ct)
+    {
+        try
+        {
+            var url = $"repos/{options.Owner}/{options.Repo}/actions/workflows/{options.RestoreWorkflowFileName}/dispatches";
+            using var response = await http.PostAsJsonAsync(url, new { @ref = options.Ref }, ct);
+
+            if (response.StatusCode == HttpStatusCode.NoContent)
+                return Result<bool>.Success(true);
+
+            return Result<bool>.Failure(FriendlyMessage(response.StatusCode, "start the restore"), (int)response.StatusCode);
+        }
+        catch (Exception)
+        {
+            return Result<bool>.Failure("Could not reach the backup service. Please try again.", 502);
+        }
+    }
+
     public async Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync(int count, CancellationToken ct)
     {
         try

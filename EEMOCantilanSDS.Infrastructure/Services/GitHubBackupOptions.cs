@@ -10,6 +10,7 @@ public class GitHubBackupOptions
     public string Owner { get; set; } = string.Empty;
     public string Repo { get; set; } = string.Empty;
     public string WorkflowFileName { get; set; } = string.Empty;
+    public string RestoreWorkflowFileName { get; set; } = string.Empty;
     public string Ref { get; set; } = string.Empty;
     public string Token { get; set; } = string.Empty;
 }

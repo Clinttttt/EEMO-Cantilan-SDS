@@ -10,6 +10,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IBackupApiClient
 {
     Task<Result<bool>> TriggerBackupAsync();
+    Task<Result<bool>> TriggerRestoreAsync(string confirmationPhrase, string password);
     Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync();
     Task<Result<BackupRunDetailDto>> GetRunDetailAsync(long runId);
     Task<Result<BackupArtifact>> GetLatestAsync();

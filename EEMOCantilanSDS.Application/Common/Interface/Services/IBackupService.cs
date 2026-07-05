@@ -12,6 +12,13 @@ public interface IBackupService
     /// <summary>Dispatch the backup workflow (workflow_dispatch) on the configured ref.</summary>
     Task<Result<bool>> TriggerBackupAsync(CancellationToken ct);
 
+    /// <summary>
+    /// Dispatch the destructive restore workflow (workflow_dispatch) on the configured ref. The
+    /// workflow takes a safety backup first, then atomically restores the latest backup. Authorization
+    /// and re-authentication are enforced by the command handler before this is ever called.
+    /// </summary>
+    Task<Result<bool>> TriggerRestoreAsync(CancellationToken ct);
+
     /// <summary>List the most recent backup workflow runs, newest first.</summary>
     Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync(int count, CancellationToken ct);
 

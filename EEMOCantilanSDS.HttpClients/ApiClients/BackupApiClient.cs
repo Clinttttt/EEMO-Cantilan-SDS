@@ -15,6 +15,10 @@ public class BackupApiClient(HttpClient http) : HandleResponse(http), IBackupApi
     public async Task<Result<bool>> TriggerBackupAsync() =>
         await PostAsync<bool>("api/backup/run");
 
+    public async Task<Result<bool>> TriggerRestoreAsync(string confirmationPhrase, string password) =>
+        await PostAsync<object, bool>("api/backup/restore",
+            new { ConfirmationPhrase = confirmationPhrase, Password = password });
+
     public async Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync() =>
         await GetAsync<IReadOnlyList<BackupRunDto>>("api/backup/runs");
 

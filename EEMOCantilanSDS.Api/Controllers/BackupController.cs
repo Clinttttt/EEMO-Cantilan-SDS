@@ -1,7 +1,9 @@
 using EEMOCantilanSDS.Application.Command.Backup.TriggerBackup;
+using EEMOCantilanSDS.Application.Command.Backup.TriggerRestore;
 using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRunDetail;
 using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRuns;
 using EEMOCantilanSDS.Application.Queries.Backup.GetLatestBackupArtifact;
+using EEMOCantilanSDS.Application.Requests.Backup;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +24,18 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<bool>> RunAsync()
     {
         var result = await Sender.Send(new TriggerBackupCommand());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Trigger the destructive restore workflow. Head-only. The confirmation phrase and the admin
+    /// password are both re-verified server-side in the handler before anything is dispatched.
+    /// </summary>
+    [HttpPost("restore")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> RestoreAsync([FromBody] RestoreRequest request)
+    {
+        var result = await Sender.Send(new TriggerRestoreCommand(request.ConfirmationPhrase, request.Password));
         return HandleResponse(result);
     }
 

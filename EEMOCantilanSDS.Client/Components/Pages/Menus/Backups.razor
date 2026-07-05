@@ -171,6 +171,93 @@
         }
     </section>
 
+    <!-- ── Danger zone: destructive restore ── -->
+    <section class="bk-danger">
+        <div class="bk-danger-head">
+            <div class="bk-danger-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+            </div>
+            <div class="bk-danger-titles">
+                <div class="bk-danger-title">Danger zone</div>
+                <div class="bk-danger-sub">Irreversible operation — restores the entire database</div>
+            </div>
+        </div>
+        <div class="bk-danger-body">
+            <div class="bk-danger-copy">
+                <div class="bk-danger-copy-title">Restore latest backup</div>
+                <div class="bk-danger-copy-text">
+                    Replaces <strong>all current data</strong> with the most recent backup. A safety backup is
+                    taken automatically first. Best run when the system is idle. Requires re-authentication.
+                </div>
+            </div>
+            <button class="bk-btn bk-btn-danger" type="button" @onclick="OpenRestoreConfirm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg>
+                <span>Restore latest backup</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- ── Restore confirmation (hard-confirm danger modal) ── -->
+    @if (_showRestoreConfirm)
+    {
+        <div class="bk-modal-overlay" @onclick="CloseRestoreConfirm">
+            <div class="bk-modal bk-modal-danger" role="dialog" aria-modal="true" aria-label="Confirm database restore" @onclick:stopPropagation="true">
+                <div class="bk-modal-head">
+                    <div class="bk-modal-titles">
+                        <div class="bk-modal-title">Restore latest backup</div>
+                        <div class="bk-modal-sub">This action cannot be undone</div>
+                    </div>
+                    <button class="bk-modal-close" @onclick="CloseRestoreConfirm" aria-label="Close" disabled="@_restoreSubmitting">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="bk-modal-body">
+                    <div class="bk-warn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                        <div class="bk-warn-text">
+                            This <strong>replaces all current data</strong> with the most recent backup — anything
+                            recorded since that backup will be <strong>permanently lost</strong>. A safety backup is
+                            taken automatically first. Best run when the system is idle.
+                        </div>
+                    </div>
+
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-restore-phrase">Type <code>RESTORE</code> to confirm</label>
+                        <input id="bk-restore-phrase" class="bk-input" type="text" autocomplete="off"
+                               placeholder="RESTORE" @bind="_restorePhrase" @bind:event="oninput"
+                               disabled="@_restoreSubmitting" />
+                    </div>
+
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-restore-pass">Confirm your admin password</label>
+                        <input id="bk-restore-pass" class="bk-input" type="password" autocomplete="off"
+                               placeholder="Password" @bind="_restorePassword" @bind:event="oninput"
+                               disabled="@_restoreSubmitting" />
+                    </div>
+
+                    @if (_restoreError is not null)
+                    {
+                        <div class="bk-alert bk-alert-err" role="alert">@_restoreError</div>
+                    }
+                </div>
+                <div class="bk-modal-foot">
+                    <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="CloseRestoreConfirm" disabled="@_restoreSubmitting">Cancel</button>
+                    <button class="bk-btn bk-btn-danger" @onclick="SubmitRestoreAsync" disabled="@(!CanConfirmRestore || _restoreSubmitting)">
+                        @if (_restoreSubmitting)
+                        {
+                            <span class="bk-spin" aria-hidden="true"></span>
+                            <span>Starting restore…</span>
+                        }
+                        else
+                        {
+                            <span>Restore now</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- ── Restore instructions (opened from the On-demand card's "Restore help" icon) ── -->
     @if (_showRestore)
     {
@@ -335,6 +422,17 @@
     private bool _showRestore;                        // restore-instructions modal
     private CancellationTokenSource? _toastCts;       // auto-dismiss timer for the toast
 
+    // Destructive restore confirmation modal
+    private bool _showRestoreConfirm;
+    private string _restorePhrase = string.Empty;
+    private string _restorePassword = string.Empty;
+    private bool _restoreSubmitting;
+    private string? _restoreError;
+
+    private bool CanConfirmRestore =>
+        string.Equals(_restorePhrase.Trim(), "RESTORE", StringComparison.Ordinal)
+        && !string.IsNullOrEmpty(_restorePassword);
+
     // Run pipeline modal
     private BackupRunDto? _logRun;
     private BackupRunDetailDto? _logDetail;
@@ -410,6 +508,52 @@
         }
 
         _downloading = false;
+    }
+
+    // ── Destructive restore ──
+    private void OpenRestoreConfirm()
+    {
+        _restorePhrase = string.Empty;
+        _restorePassword = string.Empty;
+        _restoreError = null;
+        _restoreSubmitting = false;
+        _showRestoreConfirm = true;
+    }
+
+    private void CloseRestoreConfirm()
+    {
+        if (_restoreSubmitting) return;   // don't close mid-flight
+        _showRestoreConfirm = false;
+        _restoreError = null;
+        _restorePassword = string.Empty;  // always clear the password when the modal closes
+    }
+
+    private async Task SubmitRestoreAsync()
+    {
+        if (!CanConfirmRestore || _restoreSubmitting) return;
+
+        _restoreSubmitting = true;
+        _restoreError = null;
+        await InvokeAsync(StateHasChanged);
+
+        // The confirmation phrase and password are ALSO re-verified server-side; this is just the UX gate.
+        var result = await BackupApi.TriggerRestoreAsync(_restorePhrase, _restorePassword);
+
+        if (result.IsSuccess)
+        {
+            _showRestoreConfirm = false;
+            _restorePassword = string.Empty;      // clear the password on success
+            _restoreSubmitting = false;
+            await ShowToastAsync(true, "Restore started — the run will appear below.");
+            await LoadRunsAsync();                 // surface the restore run in the list (it polls live)
+            return;
+        }
+
+        // Failure: keep the modal open, show the error inline, do NOT clear the password.
+        _restoreError = string.IsNullOrWhiteSpace(result.Error)
+            ? "The restore could not be started. Please try again."
+            : result.Error;
+        _restoreSubmitting = false;
     }
 
     private async Task OpenLog(BackupRunDto run)

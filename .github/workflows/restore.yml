@@ -1,0 +1,138 @@
+name: Database restore
+
+# DANGER: replaces the production database with the most recent successful backup.
+#
+# Triggered ONLY on demand (workflow_dispatch), and in the app only after a Head re-enters
+# their password AND types the RESTORE confirmation phrase (verified server-side).
+#
+# SAFETY DESIGN
+#   1. Takes a fresh "pre-restore" pg_dump FIRST and uploads it as an artifact — so the exact
+#      state before the restore is always recoverable if anything goes wrong.
+#   2. Restores inside a SINGLE TRANSACTION (--single-transaction --exit-on-error): if any part
+#      fails, the whole restore rolls back and the database is left unchanged.
+#   3. Uses the same temporary single-IP firewall pattern as the backup workflow, always removed.
+#
+# Best run when the system is idle (a deliberate maintenance action); active connections can
+# block the transactional --clean.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write      # Azure OIDC
+  actions: read        # download the latest backup artifact via gh
+
+concurrency:
+  group: database-restore
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-stalltrack-prod
+
+jobs:
+  restore:
+    name: safety-backup then restore latest
+    runs-on: ubuntu-latest
+    environment: production          # OIDC subject match (same as backup/deploy)
+
+    steps:
+      - name: Sign in to Azure with OpenID Connect
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+
+      - name: Detect runner public IP
+        id: ip
+        run: echo "ip=$(curl -fsSL https://api.ipify.org)" >> "$GITHUB_OUTPUT"
+
+      - name: Open a temporary firewall rule for this runner
+        run: |
+          az postgres flexible-server firewall-rule create \
+            --resource-group "$RESOURCE_GROUP" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghrestore-${GITHUB_RUN_ID}" \
+            --start-ip-address "${{ steps.ip.outputs.ip }}" \
+            --end-ip-address "${{ steps.ip.outputs.ip }}"
+
+      - name: Safety backup BEFORE restoring (pre-restore snapshot)
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          FILE="stalltrack-pre-restore-${STAMP}.dump"
+          echo "SAFETY_FILE=$FILE" >> "$GITHUB_ENV"
+          pg_dump -Fc -Z 6 --no-owner --no-privileges -f "$FILE"
+          ls -lh "$FILE"
+
+      - name: Upload pre-restore safety backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SAFETY_FILE }}
+          path: ${{ env.SAFETY_FILE }}
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Download the latest successful backup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST=$(gh run list --workflow backup.yml --status completed \
+            --json databaseId,conclusion \
+            --jq '[.[] | select(.conclusion=="success")][0].databaseId')
+          if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
+            echo "No successful backup run found to restore from." >&2
+            exit 1
+          fi
+          echo "Restoring from backup run $LATEST"
+          rm -rf ./_restore && mkdir -p ./_restore
+          gh run download "$LATEST" --dir ./_restore --repo "$GITHUB_REPOSITORY"
+          DUMP=$(find ./_restore -name '*.dump' | head -n1)
+          if [ -z "$DUMP" ]; then
+            echo "Downloaded backup contained no .dump file." >&2
+            exit 1
+          fi
+          echo "RESTORE_DUMP=$DUMP" >> "$GITHUB_ENV"
+
+      - name: Restore (atomic — rolls back entirely on any error)
+        env:
+          PGHOST: ${{ secrets.PG_HOST }}
+          PGDATABASE: ${{ secrets.PG_DATABASE }}
+          PGUSER: ${{ secrets.PG_USER }}
+          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGSSLMODE: require
+        run: |
+          echo "Restoring $RESTORE_DUMP into $PGDATABASE"
+          pg_restore --no-owner --no-privileges --clean --if-exists \
+            --single-transaction --exit-on-error \
+            -d "$PGDATABASE" "$RESTORE_DUMP"
+          echo "Restore completed successfully."
+
+      - name: Remove the temporary firewall rule
+        if: always()
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --resource-group "$RESOURCE_GROUP" \
+            --server-name "${{ vars.PG_SERVER_NAME }}" \
+            --name "ghrestore-${GITHUB_RUN_ID}" \
+            --yes || true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reuses the SAME repo variable/secrets as backup.yml (PG_SERVER_NAME var; PG_HOST/
+# PG_DATABASE/PG_USER/PG_PASSWORD secrets; AZURE_* vars) and the same OIDC firewall role.
+# Recovery: if a restore ever goes wrong, download the "stalltrack-pre-restore-*.dump"
+# artifact from this run and pg_restore it back.
+# ─────────────────────────────────────────────────────────────────────────────
