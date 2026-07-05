@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -25,6 +26,22 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public Guid MunicipalityId => id;
             public void Set(Guid municipalityId) { }
         }
+
+        // Fake caller for the platform-operator authorization check.
+        private sealed class FakeCurrentUser(Guid? municipalityId, string? role) : ICurrentUserService
+        {
+            public bool IsAuthenticated => true;
+            public Guid? UserId => Guid.NewGuid();
+            public string? Username => "operator";
+            public string? Role => role;
+            public Guid? CollectorId => null;
+            public string? MunicipalityCode => null;
+            public Guid? MunicipalityId => municipalityId;
+            public EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser.AdminUserDto? GetCurrentUser() => null;
+        }
+
+        // The platform operator = a SuperAdmin of the default (Cantilan) municipality.
+        private static ICurrentUserService Operator(Guid defaultMunicipalityId) => new FakeCurrentUser(defaultMunicipalityId, "SuperAdmin");
 
         private static DbContextOptions<AppDbContext> Options() =>
             new DbContextOptionsBuilder<AppDbContext>()
@@ -67,7 +84,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // Handler runs as the platform operator (Cantilan-scoped context).
             using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
             {
-                var result = await new ActivateMunicipalityCommandHandler(ctx).Handle(CarmenConfig(), default);
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(CarmenConfig(), default);
 
                 Assert.True(result.IsSuccess);
                 Assert.Equal(carmenId, result.Value!.MunicipalityId);
@@ -120,7 +137,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx).Handle(CarmenConfig(code: "CANTILAN"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(CarmenConfig(code: "CANTILAN"), default);
 
             Assert.False(result.IsSuccess);
         }
@@ -132,11 +149,11 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var first = await new ActivateMunicipalityCommandHandler(ctx).Handle(CarmenConfig(), default);
+            var first = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(CarmenConfig(), default);
             Assert.True(first.IsSuccess);
 
             using var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var second = await new ActivateMunicipalityCommandHandler(ctx2).Handle(CarmenConfig(), default);
+            var second = await new ActivateMunicipalityCommandHandler(ctx2, Operator(cantilanId)).Handle(CarmenConfig(), default);
             Assert.False(second.IsSuccess);
         }
 
@@ -147,9 +164,39 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             var (cantilanId, _) = await SeedRegistryAsync(options);
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
-            var result = await new ActivateMunicipalityCommandHandler(ctx).Handle(CarmenConfig(code: "NOWHERE"), default);
+            var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(CarmenConfig(code: "NOWHERE"), default);
 
             Assert.False(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task Activate_NonPlatformOperator_Forbidden()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            // A SuperAdmin of a NON-default LGU (Carmen) is not the platform operator.
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, new FakeCurrentUser(carmenId, "SuperAdmin"))
+                    .Handle(CarmenConfig(), default);
+                Assert.False(result.IsSuccess);
+            }
+
+            // An Admin (not SuperAdmin) of the default LGU is likewise rejected.
+            using (var ctx2 = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result2 = await new ActivateMunicipalityCommandHandler(ctx2, new FakeCurrentUser(cantilanId, "Admin"))
+                    .Handle(CarmenConfig(), default);
+                Assert.False(result2.IsSuccess);
+            }
+
+            // The Upcoming municipality must remain Upcoming after rejected attempts.
+            using (var verify = new AppDbContext(options))
+            {
+                var carmen = await verify.Municipalities.IgnoreQueryFilters().FirstAsync(m => m.Id == carmenId);
+                Assert.Equal(MunicipalityStatus.Upcoming, carmen.Status);
+            }
         }
     }
 }

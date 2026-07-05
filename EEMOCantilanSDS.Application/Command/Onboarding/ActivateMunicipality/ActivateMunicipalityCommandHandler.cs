@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -13,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 {
-    public class ActivateMunicipalityCommandHandler(IAppDbContext context)
+    public class ActivateMunicipalityCommandHandler(IAppDbContext context, ICurrentUserService currentUser)
         : IRequestHandler<ActivateMunicipalityCommand, Result<ActivationResultDto>>
     {
         // Rates are seeded effective from a base date early enough to cover any billing period, so the
@@ -22,6 +23,23 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
         public async Task<Result<ActivationResultDto>> Handle(ActivateMunicipalityCommand request, CancellationToken ct)
         {
+            // Platform-operator authorization: onboarding a new LGU is a system-owner action, so only a
+            // SuperAdmin of the DEFAULT municipality (Cantilan) may run it. A per-LGU Head can never
+            // provision another municipality. (Defense-in-depth alongside the controller's [Authorize].)
+            var defaultMunicipalityId = await context.Municipalities
+                .IgnoreQueryFilters()
+                .Where(m => m.IsDefault)
+                .Select(m => (Guid?)m.Id)
+                .FirstOrDefaultAsync(ct);
+
+            var isPlatformOperator =
+                string.Equals(currentUser.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && defaultMunicipalityId is not null
+                && currentUser.MunicipalityId == defaultMunicipalityId;
+
+            if (!isPlatformOperator)
+                return Result<ActivationResultDto>.Forbidden();
+
             var code = request.MunicipalityCode.Trim().ToUpperInvariant();
 
             // Municipality is a global reference table (not tenant-owned); load it directly.
