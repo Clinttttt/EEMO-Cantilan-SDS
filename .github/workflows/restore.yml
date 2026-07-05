@@ -91,6 +91,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LATEST=$(gh run list --workflow backup.yml --status completed \
+            --repo "$GITHUB_REPOSITORY" \
             --json databaseId,conclusion \
             --jq '[.[] | select(.conclusion=="success")][0].databaseId')
           if [ -z "$LATEST" ] || [ "$LATEST" = "null" ]; then
