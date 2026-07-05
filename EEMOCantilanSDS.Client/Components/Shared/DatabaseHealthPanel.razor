@@ -89,13 +89,20 @@
 </section>
 
 @code {
+    // Last snapshot kept across navigation so revisiting Settings renders instantly (no skeleton
+    // flash — that was the perceived "flick"). DB health is global, non-sensitive aggregate data,
+    // so a shared static snapshot is fine; the 5s poll keeps it fresh.
+    private static DatabaseHealthDto? _lastKnown;
+
     private DatabaseHealthDto? _model;
     private string? _error;
     private CancellationTokenSource? _pollCts;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAsync();
+        _model = _lastKnown;          // instant on revisit; the poll refreshes it shortly
+        if (_model is null)
+            await LoadAsync();        // first-ever load shows the skeleton once
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -110,6 +117,7 @@
         if (result.IsSuccess && result.Value is not null)
         {
             _model = result.Value;
+            _lastKnown = result.Value;
             _error = null;
         }
         else if (_model is null)
