@@ -1,4 +1,5 @@
 using System.Globalization;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
@@ -20,7 +21,8 @@ public class GetCollectionReportQueryHandler(
     IFacilityReportsRepository reportsRepository,
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
-    ITpmRepository tpmRepository
+    ITpmRepository tpmRepository,
+    IFeeRateResolver feeRateResolver
 ) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
@@ -31,6 +33,14 @@ public class GetCollectionReportQueryHandler(
         var year = request.Year;
         var month = request.Month;
         var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+        // Resolve the municipality's NPM rates as of the report month (falls back to the ordinance
+        // constants, so Cantilan figures are unchanged). The 30-day full-month reference = daily × 30.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var asOf = new DateOnly(year, month, 1);
+        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var npmMonthly = npmDaily * 30m;
 
         var facilities = new List<CollectionFacilityDto>();
 
@@ -46,11 +56,11 @@ public class GetCollectionReportQueryHandler(
             var rentals = report.StallCompliance.Select(s =>
             {
                 // NPM full-month coverage (₱900 reference less excused/absent days), same as Month-End.
-                var coverage = isNpm ? Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee) : 0m;
+                var coverage = isNpm ? Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) : 0m;
                 var coverageBalance = isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m;
-                var rate = isNpm ? (s.DailyRate > 0 ? s.DailyRate : FeeRates.NpmDailyFee) : s.MonthlyRate;
+                var rate = isNpm ? (s.DailyRate > 0 ? s.DailyRate : npmDaily) : s.MonthlyRate;
                 var fishKilos = isNpm ? npmFishByStall.GetValueOrDefault(s.StallId) : 0m;
-                var fishFee = fishKilos * FeeRates.NpmFishFeePerKilo;
+                var fishFee = fishKilos * fishRate;
                 return new CollectionRentalRowDto(
                     s.StallNo, s.Section ?? string.Empty, s.Occupant, rate, s.Status,
                     s.AmountPaid, s.Balance, s.ORNumber, coverage, coverageBalance, fishKilos, fishFee);

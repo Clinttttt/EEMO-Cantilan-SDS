@@ -179,6 +179,10 @@ public partial class FacilityReportsRepository
             return (0, 0m);
         }
 
+        // Local copy of the resolved fish rate so it embeds cleanly as a query parameter (EF) and
+        // in the in-memory bill math below. Defaults to the ordinance constant for Cantilan.
+        var npmFish = _npmFishRate;
+
         // Get all payment records and filter in memory
         var allPaymentRecords = await _context.PaymentRecords
             .AsNoTracking()
@@ -207,7 +211,7 @@ public partial class FacilityReportsRepository
                 {
                     StallId = g.Key,
                     TotalCollected = g.Sum(dc => dc.DailyFee
-                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m))
+                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * npmFish : 0m))
                 })
                 .ToDictionaryAsync(x => x.StallId, x => x.TotalCollected, ct)
             : new Dictionary<Guid, decimal>();
@@ -226,7 +230,7 @@ public partial class FacilityReportsRepository
                 totalBill = pr.BaseRentalAmount
                     + (pr.ElecAmount ?? 0)
                     + (pr.WaterAmount ?? 0)
-                    + (pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
+                    + (pr.FishKilos.HasValue ? pr.FishKilos.Value * npmFish : 0);
 
                 amountPaid = pr.Status == PaymentStatus.Paid
                     ? totalBill

@@ -134,6 +134,7 @@ public class GetDailyCollectionMonthQueryHandlerTests
         return new GetDailyCollectionMonthQueryHandler(
             dailyCollectionRepository.Object,
             stallRepository.Object,
+            CacheTestDoubles.FeeRateResolver,
             marketClosureRepository.Object);
     }
 

@@ -53,6 +53,7 @@ public class CantilanMonthEndBaselineTests : RepositoryTestBase
             new SlaughterRepository(context),
             new TrmRepository(context),
             new TpmRepository(context),
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());

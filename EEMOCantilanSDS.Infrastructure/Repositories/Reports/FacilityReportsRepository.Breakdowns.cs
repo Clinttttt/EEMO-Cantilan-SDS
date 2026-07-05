@@ -64,7 +64,7 @@ public partial class FacilityReportsRepository
 
         var dailyFeeFromCollections = collectableDailyCollections.Sum(dc => dc.DailyFee);
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
-            ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo
+            ? dc.FishKilos.Value * _npmFishRate
             : 0m);
 
         // Daily fee from monthly payments (BaseRentalAmount = daily fee equivalent)
@@ -75,7 +75,7 @@ public partial class FacilityReportsRepository
         // Fish fee from monthly payments
         var fishFeeFromMonthly = periodPaymentRecords
             .Where(pr => pr.Status == PaymentStatus.Paid && IsWholeBillingMonthSelected(pr, startDate, endDate))
-            .Sum(pr => pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m);
+            .Sum(pr => pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m);
 
         // Calculate fish kilo comparison (first half vs second half of period)
         var totalFishKilos = collectableDailyCollections.Sum(dc => dc.FishKilos ?? 0m)
@@ -217,7 +217,7 @@ public partial class FacilityReportsRepository
             s => Enumerable.Range(0, monthEnd.Day).Select(i => monthStart.AddDays(i)).Where(d => CollectableOn(s, d)).ToList());
         var prepaidDaysByStall = stalls.ToDictionary(
             s => s.Id,
-            s => FeeRates.NpmDailyFee > 0 ? (int)Math.Floor(rentPaidByStall.GetValueOrDefault(s.Id) / FeeRates.NpmDailyFee) : 0);
+            s => _npmDailyRate > 0 ? (int)Math.Floor(rentPaidByStall.GetValueOrDefault(s.Id) / _npmDailyRate) : 0);
 
         bool CoveredOn(Stall s, DateOnly d)
         {

@@ -15,7 +15,7 @@ public class BulkImportStallholdersCommandHandlerTests
     private readonly Mock<IUnitOfWork> _uow = new();
 
     private BulkImportStallholdersCommandHandler Handler()
-        => new(_stallRepo.Object, _facilityRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        => new(_stallRepo.Object, _facilityRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
     private void SetupFacility(FacilityCode code)
         => _facilityRepo.Setup(r => r.GetByCodeAsync(code, It.IsAny<CancellationToken>()))

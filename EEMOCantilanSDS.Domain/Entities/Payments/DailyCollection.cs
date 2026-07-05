@@ -41,14 +41,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public static DailyCollection Create(
             Guid stallId,
             DateOnly collectionDate,
-            string createdBy = "System")
+            string createdBy = "System",
+            decimal? dailyFee = null)
         {
             return new DailyCollection
             {
                 Id = Guid.NewGuid(),
                 StallId = stallId,
                 CollectionDate = collectionDate,
-                DailyFee = FeeRates.NpmDailyFee,
+                // Stamp the current municipality's resolved daily fee (falls back to the ordinance
+                // constant, so Cantilan stamps the same ₱30 as before).
+                DailyFee = dailyFee ?? FeeRates.NpmDailyFee,
                 IsPaid = false,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = createdBy

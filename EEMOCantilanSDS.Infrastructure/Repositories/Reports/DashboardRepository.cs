@@ -1,17 +1,27 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Dashboard;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class DashboardRepository(AppDbContext context, IFacilityReportsRepository facilityReports) : IDashboardRepository
+public class DashboardRepository(AppDbContext context, IFacilityReportsRepository facilityReports, IFeeRateResolver feeRateResolver) : IDashboardRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public DashboardRepository(AppDbContext context, IFacilityReportsRepository facilityReports) : this(context, facilityReports, new FeeRateResolver(context)) { }
+
     public async Task<DashboardOverviewDto> GetOverviewAsync(int year, int month, CancellationToken ct)
     {
+        // Resolve the municipality's NPM fish rate as of the period (falls back to the ordinance
+        // constant, so Cantilan's recent-transaction amounts are unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+
         var facilities = await context.Facilities
             .AsNoTracking()
             .OrderBy(f => f.Code)
@@ -169,7 +179,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             })
             .ToListAsync(ct))
             .Select(d => new RecentRow(d.ORNumber ?? "", d.Occupant ?? "", d.Code,
-                d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo, d.CollectorId, d.CreatedBy, At: d.At)));
+                d.DailyFee + (d.FishKilos ?? 0) * npmFish, d.CollectorId, d.CreatedBy, At: d.At)));
 
         // One slaughter receipt (OR) can cover several animal-type line-items, each stored as its
         // own row. Collapse them into a single feed entry showing the receipt's total amount.

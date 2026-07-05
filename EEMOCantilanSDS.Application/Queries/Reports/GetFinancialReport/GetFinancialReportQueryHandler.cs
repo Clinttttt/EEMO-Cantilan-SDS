@@ -1,5 +1,6 @@
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -24,6 +25,7 @@ public class GetFinancialReportQueryHandler(
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
     ITransactionFeedRepository transactionFeedRepository,
+    IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions
@@ -69,6 +71,14 @@ public class GetFinancialReportQueryHandler(
     {
         bool InScope(FacilityCode c) => request.Facility is null || request.Facility == c;
 
+        // Resolve the municipality's NPM rates as of the report period (falls back to the ordinance
+        // constants, so Cantilan figures are unchanged). Full-month reference = daily × 30.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var asOf = new DateOnly(request.Year, request.Month ?? 12, 1);
+        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var npmMonthly = npmDaily * 30m;
+
         var facilityRows = new List<FinancialFacilityRowDto>();
         var stallTrend = new Dictionary<string, (decimal Collected, decimal Unpaid)>();
 
@@ -91,8 +101,8 @@ public class GetFinancialReportQueryHandler(
             int paid, expected;
             if (code == FacilityCode.NPM)
             {
-                paid = (int)Math.Round((report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m) / FeeRates.NpmDailyFee);
-                expected = (int)Math.Round(report.StallCompliance.Sum(s => s.ExpectedBill) / FeeRates.NpmDailyFee);
+                paid = (int)Math.Round((report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m) / npmDaily);
+                expected = (int)Math.Round(report.StallCompliance.Sum(s => s.ExpectedBill) / npmDaily);
             }
             else
             {
@@ -108,7 +118,7 @@ public class GetFinancialReportQueryHandler(
             {
                 var dailyFee = report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m;
                 var fishFee = report.FeeTypeBreakdown?.FishFeeAmount ?? 0m;
-                var fishKilos = FeeRates.NpmFishFeePerKilo > 0m ? fishFee / FeeRates.NpmFishFeePerKilo : 0m;
+                var fishKilos = npmFish > 0m ? fishFee / npmFish : 0m;
                 // Mirror the Month-End report exactly: full-month coverage and its balance are summed
                 // PER STALL — each NPM stall's fixed 30-day ₱900 reference, and max(0, ₱900 − that stall's
                 // amount paid) — so the Financial and Month-End reports reconcile stall-for-stall. Coverage
@@ -121,10 +131,10 @@ public class GetFinancialReportQueryHandler(
                     // Mirror the Month-End report: each NPM stall's ₱900 full-month reference LESS its
                     // excused/absent days (₱30/day), and the balance against that absent-adjusted
                     // reference — so the Financial and Month-End reports reconcile stall-for-stall.
-                    coverage = report.StallCompliance.Sum(s => Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee));
+                    coverage = report.StallCompliance.Sum(s => Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily));
                     coverageBalance = report.StallCompliance.Sum(s =>
-                        Math.Max(0m, Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee) - s.AmountPaid));
-                    excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * FeeRates.NpmDailyFee);
+                        Math.Max(0m, Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) - s.AmountPaid));
+                    excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * npmDaily);
                 }
                 detail = new NpmFacilityDetailDto(
                     DailyFeeCollected: dailyFee,

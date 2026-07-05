@@ -1,8 +1,10 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +18,26 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 /// when rows were entered. Computed entity properties (TotalBill, AmountPaid, TotalAmount) are
 /// re-derived in memory from stored columns since they are not translatable to SQL.
 /// </summary>
-public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedRepository
+public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : ITransactionFeedRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public TransactionFeedRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
+    // Resolved NPM fish rate for the in-flight feed build; defaults to the ordinance constant so
+    // Cantilan is byte-for-byte, refreshed per call in GetRecentTransactionsAsync.
+    private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+
     public async Task<IReadOnlyList<TransactionFeedDto>> GetRecentTransactionsAsync(
         FacilityCode? facility, DateOnly? onDate, int limit, CancellationToken ct = default)
     {
         if (limit <= 0) limit = 100;
         var all = facility is null;
         var results = new List<TransactionFeedDto>();
+
+        // Resolve the municipality's fish rate as of the requested date (falls back to the ordinance
+        // constant, so Cantilan's feed amounts are unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        _npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, onDate ?? DateOnly.FromDateTime(PhilippineTime.Now));
 
         // Resolve collector names once (small table) to attribute each row: collector-recorded rows show
         // the collector's name; admin/head-recorded rows (CollectorId null) fall back to the audit actor.
@@ -104,7 +118,7 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
         return rows.Select(r =>
         {
             var total = r.BaseRentalAmount + (r.ElecAmount ?? 0) + (r.WaterAmount ?? 0)
-                        + (r.FishKilos.HasValue ? r.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
+                        + (r.FishKilos.HasValue ? r.FishKilos.Value * _npmFishRate : 0);
             var amount = r.Status == PaymentStatus.Paid ? total
                        : r.Status == PaymentStatus.Partial ? r.PartialAmount
                        : 0m;
@@ -146,7 +160,7 @@ public class TransactionFeedRepository(AppDbContext context) : ITransactionFeedR
 
         return rows.Select(r =>
         {
-            var amount = r.DailyFee + (r.FishKilos.HasValue ? r.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
+            var amount = r.DailyFee + (r.FishKilos.HasValue ? r.FishKilos.Value * _npmFishRate : 0);
             return new TransactionFeedDto(
                 r.Id, r.Code, r.FacilityName, r.CollectionDate.ToDateTime(TimeOnly.MinValue), false,
                 string.IsNullOrWhiteSpace(r.Occupant) ? "Stall " + r.StallNo : r.Occupant!,

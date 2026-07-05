@@ -67,7 +67,7 @@ public class GetCollectionReportQueryHandlerTests
                 new TpmVendorAttendanceDto { Id = Guid.NewGuid(), VendorName = "Skip Me", Goods = "Fish", IsPaid = false, ORNumber = null, Fee = 100m, MarketDate = new DateOnly(2026, 6, 12) },
             });
 
-        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object);
+        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, CacheTestDoubles.FeeRateResolver);
     }
 
     [Fact]

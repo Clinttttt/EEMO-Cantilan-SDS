@@ -119,6 +119,7 @@ public class GetMonthEndReportQueryHandlerTests
             slaughterRepo.Object,
             trmRepo.Object,
             tpmRepo.Object,
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions()), reportsRepo);
@@ -214,6 +215,7 @@ public class GetMonthEndReportQueryHandlerTests
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
             EmptyTpmRepo(),
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());
@@ -259,6 +261,7 @@ public class GetMonthEndReportQueryHandlerTests
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
             EmptyTpmRepo(),
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());

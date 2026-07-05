@@ -1,9 +1,11 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
@@ -16,6 +18,7 @@ public class RecordDailyCollectionCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
@@ -83,10 +86,16 @@ public class RecordDailyCollectionCommandHandler(
         }
         else
         {
+            // Stamp the current municipality's resolved daily fee as of the collection date (falls back
+            // to the ordinance constant, so Cantilan stamps the same ₱30).
+            var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+            var dailyFee = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, request.CollectionDate);
+
             var newCollection = DailyCollection.Create(
                 stallId: request.StallId,
                 collectionDate: request.CollectionDate,
-                createdBy: recordedBy);
+                createdBy: recordedBy,
+                dailyFee: dailyFee);
 
             if (request.ClientOperationId is { } clientOpId)
                 newCollection.SetClientOperationId(clientOpId);

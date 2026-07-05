@@ -1,5 +1,6 @@
 using System.Globalization;
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
@@ -26,6 +27,7 @@ public class GetMonthEndReportQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
+    IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions
@@ -52,6 +54,13 @@ public class GetMonthEndReportQueryHandler(
     {
         var facilities = new List<MonthEndFacilityDto>();
 
+        // Resolve the municipality's NPM rates as of the report month (falls back to the ordinance
+        // constants, so Cantilan figures are unchanged). Full-month reference = daily × 30.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var asOf = new DateOnly(request.Year, request.Month, 1);
+        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var npmMonthly = npmDaily * 30m;
+
         // ── Rental facilities: per-payor compliance + summary from the canonical report aggregation ──
         foreach (var code in RentalFacilities)
         {
@@ -69,7 +78,7 @@ public class GetMonthEndReportQueryHandler(
                     // Excused/absent days are not owed, so they lower the full-month (₱900) reference:
                     // coverage = ₱900 − (absent days × ₱30). A fully-absent month references ₱0.
                     var coverage = isNpm
-                        ? Math.Max(0m, FeeRates.NpmMonthlyFee - s.AbsentDays * FeeRates.NpmDailyFee)
+                        ? Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily)
                         : 0m;
                     return new MonthEndPayorDto(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,

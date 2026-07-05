@@ -1,20 +1,30 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Vendors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public sealed class VendorRepository(AppDbContext context) : IVendorRepository
+public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IVendorRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public VendorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
     public async Task<VendorRegistryDto> GetVendorRegistryAsync(
         int year,
         int month,
         CancellationToken cancellationToken = default)
     {
+        // Resolve the municipality's NPM fish rate as of the period (falls back to the ordinance
+        // constant, so Cantilan's outstanding total is unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(cancellationToken);
+        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+
         var stalls = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
@@ -60,7 +70,7 @@ public sealed class VendorRepository(AppDbContext context) : IVendorRepository
             if (payment == null)
                 return s.MonthlyRate;
 
-            var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0);
+            var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * npmFish : 0);
             var amountPaid = payment.Status == PaymentStatus.Paid ? totalBill : payment.Status == PaymentStatus.Partial ? payment.PartialAmount : 0;
             return totalBill - amountPaid;
         });

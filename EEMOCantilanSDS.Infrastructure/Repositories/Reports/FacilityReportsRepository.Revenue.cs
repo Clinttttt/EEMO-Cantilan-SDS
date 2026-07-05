@@ -32,22 +32,22 @@ public partial class FacilityReportsRepository
     /// Paid → base rental + utilities (+ fish fee when <paramref name="includeFish"/>);
     /// Partial → the partial amount; Unpaid → nothing.
     /// </summary>
-    private static decimal RecognizedRevenue(PaymentRecord pr, bool includeFish) => pr.Status switch
+    private decimal RecognizedRevenue(PaymentRecord pr, bool includeFish) => pr.Status switch
     {
         PaymentStatus.Paid => pr.BaseRentalAmount
             + (pr.ElecAmount ?? 0)
             + (pr.WaterAmount ?? 0)
-            + (includeFish && pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+            + (includeFish && pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m),
         PaymentStatus.Partial => pr.PartialAmount,
         _ => 0m
     };
 
-    private static decimal CalculateNpmDailyObligation(DateOnly startDate, DateOnly endDate)
+    private decimal CalculateNpmDailyObligation(DateOnly startDate, DateOnly endDate)
     {
         if (endDate < startDate)
             return 0m;
 
-        return (endDate.DayNumber - startDate.DayNumber + 1) * FeeRates.NpmDailyFee;
+        return (endDate.DayNumber - startDate.DayNumber + 1) * _npmDailyRate;
     }
 
     private static bool IsContractCollectableOn(Contract contract, DateOnly date)
@@ -83,8 +83,8 @@ public partial class FacilityReportsRepository
         return days;
     }
 
-    private static decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
-        => CountNpmCollectableDays(stall, startDate, endDate, absentDates) * FeeRates.NpmDailyFee;
+    private decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
+        => CountNpmCollectableDays(stall, startDate, endDate, absentDates) * _npmDailyRate;
 
     private async Task<List<Stall>> LoadNpmCollectableStallsAsync(Guid facilityId, CancellationToken ct)
     {
@@ -111,7 +111,7 @@ public partial class FacilityReportsRepository
             .ToListAsync(ct);
     }
 
-    private static decimal CalculateNpmExpectedDailyFeeRevenue(IEnumerable<Stall> stalls, DateOnly startDate, DateOnly endDate)
+    private decimal CalculateNpmExpectedDailyFeeRevenue(IEnumerable<Stall> stalls, DateOnly startDate, DateOnly endDate)
     {
         if (endDate < startDate)
             return 0m;
@@ -119,7 +119,7 @@ public partial class FacilityReportsRepository
         return stalls.Sum(s => CalculateNpmDailyObligation(s, startDate, endDate));
     }
 
-    private static decimal CalculateNpmSelectedBill(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
+    private decimal CalculateNpmSelectedBill(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
     {
         var bill = CalculateNpmDailyObligation(
             startDate > new DateOnly(pr.BillingYear, pr.BillingMonth, 1) ? startDate : new DateOnly(pr.BillingYear, pr.BillingMonth, 1),
@@ -131,18 +131,18 @@ public partial class FacilityReportsRepository
             return bill;
 
         return bill
-            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m);
+            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m);
     }
 
-    private static decimal CalculateNpmAdditionalCharges(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
+    private decimal CalculateNpmAdditionalCharges(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
     {
         if (!IsWholeBillingMonthSelected(pr, startDate, endDate))
             return 0m;
 
-        return pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m;
+        return pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m;
     }
 
-    private static decimal RecognizedNpmPaymentRevenue(PaymentRecord pr, DateOnly startDate, DateOnly endDate, Stall? stall = null)
+    private decimal RecognizedNpmPaymentRevenue(PaymentRecord pr, DateOnly startDate, DateOnly endDate, Stall? stall = null)
     {
         if (pr.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
             return 0m;
@@ -164,7 +164,7 @@ public partial class FacilityReportsRepository
             return dailyRevenue;
 
         return dailyRevenue
-            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m);
+            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m);
     }
 
     private static bool IsWholeBillingMonthSelected(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
@@ -174,7 +174,7 @@ public partial class FacilityReportsRepository
         return startDate <= monthStart && endDate >= monthEnd;
     }
 
-    private static decimal RecognizedNpmDailyFeeRevenue(PaymentRecord pr, DateOnly startDate, DateOnly endDate, Stall? stall = null)
+    private decimal RecognizedNpmDailyFeeRevenue(PaymentRecord pr, DateOnly startDate, DateOnly endDate, Stall? stall = null)
     {
         if (pr.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
             return 0m;
@@ -197,14 +197,14 @@ public partial class FacilityReportsRepository
         return AllocatePrepaidDailyAmountToRange(paidTowardDailyFee, monthStart, overlapStart, overlapEnd);
     }
 
-    private static decimal AllocatePrepaidDailyAmountToCollectableRange(
+    private decimal AllocatePrepaidDailyAmountToCollectableRange(
         decimal prepaidAmount,
         Stall stall,
         DateOnly monthStart,
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        if (prepaidAmount <= 0m || FeeRates.NpmDailyFee <= 0m || rangeEnd < rangeStart)
+        if (prepaidAmount <= 0m || _npmDailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 
         var monthEnd = new DateOnly(monthStart.Year, monthStart.Month, DateTime.DaysInMonth(monthStart.Year, monthStart.Month));
@@ -215,12 +215,12 @@ public partial class FacilityReportsRepository
                 collectableDays.Add(date);
         }
 
-        var fullCoveredDays = (int)Math.Floor(prepaidAmount / FeeRates.NpmDailyFee);
-        var remainder = prepaidAmount % FeeRates.NpmDailyFee;
+        var fullCoveredDays = (int)Math.Floor(prepaidAmount / _npmDailyRate);
+        var remainder = prepaidAmount % _npmDailyRate;
         var amount = collectableDays
             .Take(fullCoveredDays)
             .Where(d => d >= rangeStart && d <= rangeEnd)
-            .Sum(_ => FeeRates.NpmDailyFee);
+            .Sum(_ => _npmDailyRate);
 
         if (remainder > 0m && collectableDays.Count > fullCoveredDays)
         {
@@ -232,17 +232,17 @@ public partial class FacilityReportsRepository
         return amount;
     }
 
-    private static decimal AllocatePrepaidDailyAmountToRange(
+    private decimal AllocatePrepaidDailyAmountToRange(
         decimal prepaidAmount,
         DateOnly monthStart,
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        if (prepaidAmount <= 0m || FeeRates.NpmDailyFee <= 0m || rangeEnd < rangeStart)
+        if (prepaidAmount <= 0m || _npmDailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 
-        var fullCoveredDays = (int)Math.Floor(prepaidAmount / FeeRates.NpmDailyFee);
-        var remainder = prepaidAmount % FeeRates.NpmDailyFee;
+        var fullCoveredDays = (int)Math.Floor(prepaidAmount / _npmDailyRate);
+        var remainder = prepaidAmount % _npmDailyRate;
         var rangeStartIndex = rangeStart.DayNumber - monthStart.DayNumber;
         var rangeEndIndex = rangeEnd.DayNumber - monthStart.DayNumber;
 
@@ -252,7 +252,7 @@ public partial class FacilityReportsRepository
             ? Math.Max(0, Math.Min(rangeEndIndex, lastFullIndex) - Math.Max(rangeStartIndex, firstFullIndex) + 1)
             : 0;
 
-        var amount = fullDaysInRange * FeeRates.NpmDailyFee;
+        var amount = fullDaysInRange * _npmDailyRate;
         var remainderDayIndex = fullCoveredDays;
         if (remainder > 0m && rangeStartIndex <= remainderDayIndex && remainderDayIndex <= rangeEndIndex)
             amount += remainder;
@@ -304,7 +304,7 @@ public partial class FacilityReportsRepository
 
         var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
             && IsUnderContractOn(stall, dc.CollectionDate)
-                ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
+                ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
                 : 0m);
 
         return dailyRevenue + monthlyRevenue;

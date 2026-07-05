@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
@@ -8,13 +9,17 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class StallRepository(AppDbContext context) : IStallRepository
+public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IStallRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
     /// <summary>
     /// Occupied stalls whose active contract is expired or expiring within <paramref name="withinMonths"/>.
     /// Expiry (= effectivity + duration years) is a domain-computed value, so the active contracts are
@@ -78,6 +83,12 @@ public class StallRepository(AppDbContext context) : IStallRepository
         var monthEnd = monthStart.AddMonths(1).AddDays(-1);
         var effectiveEnd = GetEffectiveCollectionEnd(monthStart, monthEnd, collectionDate);
 
+        // Resolve the municipality's NPM rates as of the collection date (falls back to the ordinance
+        // constants, so Cantilan's mobile figures are unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, collectionDate);
+        var npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, collectionDate);
+
         var stalls = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Contracts)
@@ -107,7 +118,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 .FirstOrDefault();
             var collectableToday = contract is not null && contract.IsCollectableOn(collectionDate);
 
-            var dailyRate = s.DailyRate ?? FeeRates.NpmDailyFee;
+            var dailyRate = s.DailyRate ?? npmDailyRate;
             var todayCollection = s.DailyCollections.FirstOrDefault(d => d.CollectionDate == collectionDate);
             var paidCollections = s.DailyCollections
                 .Where(d => d.IsPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd)
@@ -121,7 +132,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd);
             var daysMissed = Math.Max(0, collectableDays - daysCollected - absentDays);
             var monthCollectedAmount = paidCollections.Sum(d =>
-                d.DailyFee + (d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo));
+                d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate));
 
             return new MobileNpmStallCollectionDto(
                 s.Id,
@@ -156,7 +167,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
             rows.Count,
             collectedToday.Count,
             pendingToday.Count,
-            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo)),
+            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * npmFishRate)),
             pendingToday.Sum(r => r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),
@@ -549,6 +560,12 @@ public class StallRepository(AppDbContext context) : IStallRepository
     {
         var today = PhilippineTime.Today;
 
+        // Resolve the municipality's NPM rates as of today (falls back to the ordinance constants, so
+        // Cantilan's lifetime/uncollected figures are unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, today);
+        var npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, today);
+
         // Candidates: closed stalls, or active stalls whose active contract has lapsed. A stall with no
         // active contract is "vacant" (not an inactive ACCOUNT), so the active-contract filter excludes it.
         // Expiry (= effectivity + duration years) is a domain-computed value that Npgsql cannot translate
@@ -606,7 +623,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
 
             // Lifetime collected = every peso actually received (status-independent).
             var lifetimeCollected = isNpm
-                ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m))
+                ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFishRate : 0m))
                 : stallPayments.Sum(p => p.AmountPaid);
 
             decimal uncollected = 0m;
@@ -617,7 +634,7 @@ public class StallRepository(AppDbContext context) : IStallRepository
                 for (var d = contract.EffectivityDate; d <= endDate && d <= contractExpiry; d = d.AddDays(1))
                 {
                     if (stallAbsent.Contains(d) || paidDates.Contains(d)) continue;
-                    uncollected += FeeRates.NpmDailyFee;
+                    uncollected += npmDailyRate;
                 }
             }
             else

@@ -242,7 +242,7 @@ public partial class FacilityReportsRepository
                 s.Section.HasValue ? SectionLabel(s.Section) : s.AreaLocation?.ToString() ?? string.Empty,
                 s.Type.ToString(),
                 s.MonthlyRate,
-                s.DailyRate ?? (includeFish ? FeeRates.NpmDailyFee : 0m),
+                s.DailyRate ?? (includeFish ? _npmDailyRate : 0m),
                 status,
                 amountPaid,
                 balance,

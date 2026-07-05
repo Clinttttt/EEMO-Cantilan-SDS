@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Extensions;
@@ -6,13 +7,17 @@ using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class PaymentRepository(AppDbContext context) : IPaymentRepository
+public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IPaymentRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public PaymentRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
     public async Task<PaymentRecord?> GetByIdAsync(Guid id, CancellationToken ct)
     {
         return await context.PaymentRecords.FirstOrDefaultAsync(p => p.Id == id, ct);
@@ -58,6 +63,10 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
+        // Resolve the municipality's NPM fish rate as of the period (constant fallback → Cantilan unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, monthStart);
+
         // Online payments also leave ORNumber null until staff encode it, but they have their own
         // awaiting-OR queue (keyed by an OnlinePaymentTransaction). Exclude them here so a payment is
         // never listed under both "online awaiting OR" and "cash awaiting OR".
@@ -89,7 +98,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             p.StallNo,
             string.IsNullOrWhiteSpace(p.Occupant) ? string.Empty : p.Occupant!,
             p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0)
-                + (p.FishKilos.HasValue ? p.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+                + (p.FishKilos.HasValue ? p.FishKilos.Value * npmFish : 0m),
             1,
             IsDaily: false,
             StallId: p.StallId));
@@ -207,6 +216,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
         // paid day of the month regardless of whether the date has arrived yet.
         var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
         var windowEnd = new DateOnly(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month));
+        // Resolve the municipality's NPM rates (constant fallback → Cantilan unchanged); each month's
+        // ₱/day obligation is resolved as of that month below.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var dailies = await context.DailyCollections
             .AsNoTracking()
             .Where(dc => dc.StallId == stallId && dc.IsPaid
@@ -259,7 +271,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
             var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
             var billableDays = Math.Max(0, collectableDays - absentDays);
-            var bill = billableDays * FeeRates.NpmDailyFee;
+            var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthStart);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -327,6 +339,10 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
             .ToListAsync(ct);
 
         var isNpm = stall.Facility?.Code == FacilityCode.NPM;
+
+        // Resolve the municipality's NPM rates (constant fallback → Cantilan unchanged); each month's
+        // ₱/day obligation is resolved as of that month below.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
         var windowStart = new DateOnly(startDate.Year, startDate.Month, 1);
         var windowEnd = new DateOnly(now.Year, now.Month, DateTime.DaysInMonth(now.Year, now.Month));
@@ -396,7 +412,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                 // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
-                var bill = billableDays * FeeRates.NpmDailyFee;
+                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthStart);
                 if (bill <= 0m)
                     continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
@@ -449,6 +465,9 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
 
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
+            // Resolve the municipality's NPM fish rate (constant fallback → Cantilan unchanged).
+            var npmFish = (await feeRateResolver.GetSnapshotAsync(ct))
+                .Resolve(FeeRateKey.NpmFishPerKilo, PhilippineTime.Today);
             // NPM: one row per recorded daily collection (paid or absent), newest first; cursor = date.
             var q = context.DailyCollections.AsNoTracking()
                 .Where(d => d.StallId == stallId && (d.IsPaid || d.IsAbsent));
@@ -468,7 +487,7 @@ public class PaymentRepository(AppDbContext context) : IPaymentRepository
                     d.CollectionDate.ToDateTime(TimeOnly.MinValue),
                     payorName,
                     d.IsPaid ? "Paid" : "Absent",
-                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m) : 0m,
+                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) : 0m,
                     d.ORNumber,
                     d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null,
                     // NPM daily collections are collector-driven; the recorder is the collector (or none).

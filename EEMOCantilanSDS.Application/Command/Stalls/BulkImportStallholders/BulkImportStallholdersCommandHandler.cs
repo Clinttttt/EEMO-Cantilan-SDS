@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Caching;
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
@@ -15,6 +16,7 @@ public class BulkImportStallholdersCommandHandler(
     IFacilityRepository facilityRepo,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
+    IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext) : IRequestHandler<BulkImportStallholdersCommand, Result<BulkImportResultDto>>
 {
     private const string Actor = "Admin"; // matches CreateStallCommandHandler (no per-request user attribution)
@@ -27,6 +29,11 @@ public class BulkImportStallholdersCommandHandler(
 
         var isNpm = request.FacilityCode == FacilityCode.NPM;
         var section = isNpm ? request.Section : null;
+
+        // Resolve the current municipality's NPM daily fee (falls back to the ordinance constant, so
+        // Cantilan seeds the same ₱30 DailyRate). Imported NPM stalls are stamped with this rate.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now));
 
         var results = new List<BulkImportRowResult>();
         var stallsToAdd = new List<Stall>();
@@ -62,7 +69,7 @@ public class BulkImportStallholdersCommandHandler(
                 areaLocation,
                 row.AreaSqm.HasValue && row.AreaSqm.Value > 0 ? row.AreaSqm : null,
                 null,
-                isNpm ? FeeRates.NpmDailyFee : null,
+                isNpm ? npmDailyRate : null,
                 null,
                 StallType.Permanent,
                 Actor);

@@ -95,7 +95,7 @@ public partial class FacilityReportsRepository
 
             var dailyRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
                 && IsUnderContractOn(stall, dc.CollectionDate)
-                    ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)
+                    ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
                     : 0m);
 
             var dailyFeeRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
@@ -315,7 +315,7 @@ public partial class FacilityReportsRepository
                 .ToDictionary(
                     g => g.Key,
                     g => g.Sum(dc => dc.DailyFee
-                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m)));
+                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)));
         }
         else
         {

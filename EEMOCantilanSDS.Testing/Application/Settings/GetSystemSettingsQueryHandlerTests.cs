@@ -13,7 +13,7 @@ public class GetSystemSettingsQueryHandlerTests
     // record-sourcing changes nothing that is displayed.
     private static readonly GetSystemSettingsQueryHandler Handler =
         new(new FakeMunicipalityRepository(Municipality.Create(
-            "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)));
+            "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)), CacheTestDoubles.FeeRateResolver);
 
     [Fact]
     public async Task Returns_values_sourced_from_the_live_domain_constants()

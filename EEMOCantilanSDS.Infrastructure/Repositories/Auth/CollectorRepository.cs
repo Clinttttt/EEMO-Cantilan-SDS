@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -7,13 +8,29 @@ using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class CollectorRepository(AppDbContext context) : ICollectorRepository
+public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : ICollectorRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public CollectorRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
+    // Current municipality's resolved NPM rates for the in-flight query; default to the ordinance
+    // constants so Cantilan is byte-for-byte, refreshed per public method via LoadNpmRatesAsync.
+    private decimal _npmDailyRate = FeeRates.NpmDailyFee;
+    private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+
+    private async Task LoadNpmRatesAsync(DateOnly asOf, CancellationToken ct)
+    {
+        var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+    }
+
     public async Task<CollectorUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await context.CollectorUsers
@@ -29,6 +46,9 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         // facility names, so a blank placeholder is fine here.
         var (startUtc, _) = PhilippineTime.DayUtcRange(fromDate);
         var (_, endUtc) = PhilippineTime.DayUtcRange(toDate);
+
+        await LoadNpmRatesAsync(toDate, cancellationToken);
+        var npmFish = _npmFishRate;
 
         // The Records feed shows the collector's OWN collections plus admin/office-recorded entries
         // (CollectorId == null) at the facilities they're assigned to — the latter are tagged so
@@ -75,7 +95,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             results.AddRange(rows.Select(r =>
             {
                 var full = r.BaseRentalAmount + (r.ElecAmount ?? 0) + (r.WaterAmount ?? 0)
-                           + ((r.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo);
+                           + ((r.FishKilos ?? 0) * npmFish);
                 var partial = r.Status == PaymentStatus.Partial;
                 return new MobileCollectorRecordDto(
                     r.ORNumber ?? "—", r.Payor ?? "—", r.Code, string.Empty, r.StallNo,
@@ -118,7 +138,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
             results.AddRange(rows.Select(d =>
             {
-                var amount = d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo);
+                var amount = d.DailyFee + ((d.FishKilos ?? 0) * npmFish);
                 var util = billMap.GetValueOrDefault((d.StallId, d.CollectionDate.Year, d.CollectionDate.Month));
                 return d.IsAbsent
                     ? new MobileCollectorRecordDto(
@@ -296,6 +316,10 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         var collectionEnd = new DateOnly(fromDate.Year, fromDate.Month, DateTime.DaysInMonth(fromDate.Year, fromDate.Month));
         var monthStart = new DateOnly(year, month, 1);
 
+        await LoadNpmRatesAsync(toDate, cancellationToken);
+        var npmFish = _npmFishRate;
+        var npmDaily = _npmDailyRate;
+
         if (selectedSet.Contains(FacilityCode.NPM))
         {
             var npmStalls = await context.Stalls
@@ -376,7 +400,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 d.StallNo,
                 d.Payor ?? "No active occupant",
                 d.CollectionDate,
-                d.DailyFee + d.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo,
+                d.DailyFee + d.FishKilos.GetValueOrDefault() * npmFish,
                 false,
                 d.When,
                 d.ORNumber)));
@@ -412,7 +436,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                     .OrderByDescending(c => c.EffectivityDate)
                     .FirstOrDefault();
 
-                var dailyRate = s.DailyRate ?? FeeRates.NpmDailyFee;
+                var dailyRate = s.DailyRate ?? npmDaily;
                 var stallPayments = periodNpmPaymentRecords
                     .Where(p => p.StallId == s.Id)
                     .ToList();
@@ -497,7 +521,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 var fullAmount = p.BaseRentalAmount
                     + p.ElecAmount.GetValueOrDefault()
                     + p.WaterAmount.GetValueOrDefault()
-                    + p.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo;
+                    + p.FishKilos.GetValueOrDefault() * npmFish;
                 var paidAmount = p.Status == PaymentStatus.Partial ? p.PartialAmount : fullAmount;
 
                 return new CollectorReportTransaction(
@@ -861,15 +885,20 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         if (collector is null)
             return null;
 
+        // Lifetime figure; resolve the municipality's fish rate as of today (constant fallback → Cantilan
+        // unchanged). A local captures cleanly as an EF query parameter.
+        var npmFish = (await feeRateResolver.GetSnapshotAsync(cancellationToken))
+            .Resolve(FeeRateKey.NpmFishPerKilo, DateOnly.FromDateTime(PhilippineTime.Now));
+
         // ── Lifetime collected (recognized) across every facility type this collector handled ──
         var monthlyTotal = await context.PaymentRecords
             .Where(p => p.CollectorId == collectorId)
             .SumAsync(p => p.Status == PaymentStatus.Paid
-                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * npmFish)
                 : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken);
         var dailyTotal = await context.DailyCollections
             .Where(d => d.CollectorId == collectorId && d.IsPaid)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), cancellationToken);
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * npmFish), cancellationToken);
         var slaughterTotal = await context.SlaughterTransactions
             .Where(s => s.CollectorId == collectorId)
             .SumAsync(s => s.RatePerHead * s.NumberOfHeads, cancellationToken);
@@ -927,6 +956,10 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
 
         var collectorIds = collectors.Select(c => c.Id).ToList();
 
+        // Resolve the municipality's fish rate as of the period (constant fallback → Cantilan unchanged).
+        var npmFish = (await feeRateResolver.GetSnapshotAsync(cancellationToken))
+            .Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+
         // Aggregate payment stats per collector in ONE query (was N queries in a loop).
         var paymentStats = await context.PaymentRecords
             .Where(p => p.CollectorId != null && collectorIds.Contains(p.CollectorId.Value)
@@ -936,7 +969,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             {
                 CollectorId = g.Key,
                 Total = g.Sum(p => p.Status == PaymentStatus.Paid
-                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo
+                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + (p.FishKilos ?? 0) * npmFish
                     : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m),
                 Count = g.Count()
             })
@@ -951,7 +984,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
+                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -1014,18 +1047,22 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         if (collector is null)
             return null;
 
+        // Resolve this municipality's fish rate for the period (constant fallback -> Cantilan ₱1/kg).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(cancellationToken);
+        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+
         var collectedThisMonth = await context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id && 
                         p.BillingYear == year && 
                         p.BillingMonth == month)
             .SumAsync(p => p.Status == PaymentStatus.Paid
-                          ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                          ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * fishRate)
                           : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken) +
             await context.DailyCollections
             .Where(d => d.CollectorId == collector.Id && 
                         d.CollectionDate.Year == year && 
                         d.CollectionDate.Month == month)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo), cancellationToken);
+            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate), cancellationToken);
 
         var (mStartUtc, mEndUtc) = PhilippineTime.MonthUtcRange(year, month);
 
@@ -1065,7 +1102,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 p.Stall.Facility!.Code,
                 "Stall Rental",
                 p.Status == PaymentStatus.Paid
-                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo)
+                    ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * fishRate)
                     : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m,
                 p.Status.ToString(),
                 p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt))
@@ -1082,7 +1119,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 d.Stall.Facility!.Code,
                 "Daily Fee",
-                d.DailyFee + ((d.FishKilos ?? 0) * FeeRates.NpmFishFeePerKilo),
+                d.DailyFee + ((d.FishKilos ?? 0) * fishRate),
                 "Paid",
                 d.UpdatedAt ?? d.CreatedAt))
             .ToListAsync(cancellationToken);
@@ -1253,7 +1290,7 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         return startDate <= monthStart && endDate >= monthEnd;
     }
 
-    private static decimal RecognizedNpmPaymentRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
+    private decimal RecognizedNpmPaymentRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
     {
         if (payment.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(payment.BillingYear, payment.BillingMonth, startDate, endDate))
             return 0m;
@@ -1262,10 +1299,10 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         if (!IsWholeBillingMonthSelected(payment, startDate, endDate) || payment.Status != PaymentStatus.Paid)
             return dailyRevenue;
 
-        return dailyRevenue + payment.FishKilos.GetValueOrDefault() * FeeRates.NpmFishFeePerKilo;
+        return dailyRevenue + payment.FishKilos.GetValueOrDefault() * _npmFishRate;
     }
 
-    private static decimal RecognizedNpmDailyFeeRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
+    private decimal RecognizedNpmDailyFeeRevenue(PaymentRecord payment, DateOnly startDate, DateOnly endDate, Stall stall)
     {
         if (payment.Status == PaymentStatus.Unpaid || !IsPaymentInDateRange(payment.BillingYear, payment.BillingMonth, startDate, endDate))
             return 0m;
@@ -1285,17 +1322,17 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
         return AllocatePrepaidDailyAmountToCollectableRange(paidTowardDailyFee, stall, monthStart, overlapStart, overlapEnd);
     }
 
-    private static bool NpmPaymentCoversDate(PaymentRecord payment, DateOnly date, Stall stall) =>
+    private bool NpmPaymentCoversDate(PaymentRecord payment, DateOnly date, Stall stall) =>
         RecognizedNpmDailyFeeRevenue(payment, date, date, stall) > 0m;
 
-    private static decimal AllocatePrepaidDailyAmountToCollectableRange(
+    private decimal AllocatePrepaidDailyAmountToCollectableRange(
         decimal prepaidAmount,
         Stall stall,
         DateOnly monthStart,
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        if (prepaidAmount <= 0m || FeeRates.NpmDailyFee <= 0m || rangeEnd < rangeStart)
+        if (prepaidAmount <= 0m || _npmDailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 
         var monthEnd = new DateOnly(monthStart.Year, monthStart.Month, DateTime.DaysInMonth(monthStart.Year, monthStart.Month));
@@ -1306,12 +1343,12 @@ public class CollectorRepository(AppDbContext context) : ICollectorRepository
                 collectableDays.Add(date);
         }
 
-        var fullCoveredDays = (int)Math.Floor(prepaidAmount / FeeRates.NpmDailyFee);
-        var remainder = prepaidAmount % FeeRates.NpmDailyFee;
+        var fullCoveredDays = (int)Math.Floor(prepaidAmount / _npmDailyRate);
+        var remainder = prepaidAmount % _npmDailyRate;
         var amount = collectableDays
             .Take(fullCoveredDays)
             .Where(d => d >= rangeStart && d <= rangeEnd)
-            .Sum(_ => FeeRates.NpmDailyFee);
+            .Sum(_ => _npmDailyRate);
 
         if (remainder > 0m && collectableDays.Count > fullCoveredDays)
         {

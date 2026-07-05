@@ -101,6 +101,7 @@ public class GetFinancialReportQueryHandlerTests
             trm.Object,
             tpm.Object,
             feed.Object,
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());

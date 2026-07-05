@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -5,15 +6,35 @@ using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 // Entry partial of FacilityReportsRepository: public IFacilityReportsRepository methods. Helpers live in sibling FacilityReportsRepository.*.cs partial files.
-public partial class FacilityReportsRepository(AppDbContext context) : IFacilityReportsRepository
+public partial class FacilityReportsRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IFacilityReportsRepository
 {
+    // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
+    public FacilityReportsRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
     private readonly AppDbContext _context = context;
+    private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
+
+    // Current municipality's resolved NPM rates for the in-flight report. Initialized to the ordinance
+    // constants so any code path resolves to Cantilan's numbers by default (byte-for-byte); each public
+    // entry point refreshes them for its period via LoadNpmRatesAsync before the helpers run.
+    private decimal _npmDailyRate = FeeRates.NpmDailyFee;
+    private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+
+    // Loads this tenant's NPM daily + fish rates as of the report period. With no data rows the snapshot
+    // returns the ordinance constants, so Cantilan is unchanged; a second LGU gets its own rates.
+    private async Task LoadNpmRatesAsync(DateOnly asOf, CancellationToken ct)
+    {
+        var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
+        _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+    }
 
     public async Task<FacilityReportsDto> GetFacilityReportsAsync(
         FacilityCode facilityCode,
@@ -37,6 +58,8 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
 
         var (currentStart, currentEnd) = CalculateDateRange(period, year, month, weekNumber);
         var (previousStart, previousEnd) = CalculatePreviousPeriodDateRange(period, year, month, weekNumber);
+
+        await LoadNpmRatesAsync(currentEnd, ct);
 
         decimal currentRevenue;
         decimal previousRevenue;
@@ -106,6 +129,8 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
         var facilityId = facility.Id;
         var today = PhilippineTime.Today;
 
+        await LoadNpmRatesAsync(new DateOnly(year, 12, 31), ct);
+
         // Current year: only months that have started. Past years: all 12. Future years: none.
         var maxMonth = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
 
@@ -147,6 +172,8 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
     {
         var (start, end) = CalculateMonthlyDateRange(year, month);
 
+        await LoadNpmRatesAsync(end, ct);
+
         var collected = facilityCode == FacilityCode.NPM
             ? await CalculateNpmRevenueAsync(facilityId, start, end, ct)
             : await CalculateMonthlyRentalRevenueAsync(facilityId, start, end, ct);
@@ -163,7 +190,7 @@ public partial class FacilityReportsRepository(AppDbContext context) : IFacility
         if (facilityCode == FacilityCode.NPM)
         {
             var breakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, start, end, ct);
-            paidTransactions = (int)Math.Round((breakdown?.DailyFeeAmount ?? 0m) / FeeRates.NpmDailyFee);
+            paidTransactions = (int)Math.Round((breakdown?.DailyFeeAmount ?? 0m) / _npmDailyRate);
         }
         else
         {

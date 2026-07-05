@@ -70,6 +70,7 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
             new TrmRepository(context),
             new TpmRepository(context),
             new TransactionFeedRepository(context),
+            CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());

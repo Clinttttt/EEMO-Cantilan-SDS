@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Domain.Common;
@@ -10,6 +11,7 @@ namespace EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectio
 public class GetDailyCollectionMonthQueryHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IStallRepository stallRepository,
+    IFeeRateResolver feeRateResolver,
     INpmMarketClosureRepository marketClosureRepository) : IRequestHandler<GetDailyCollectionMonthQuery, Result<DailyCollectionMonthDto>>
 {
     public async Task<Result<DailyCollectionMonthDto>> Handle(GetDailyCollectionMonthQuery request, CancellationToken ct)
@@ -119,8 +121,14 @@ public class GetDailyCollectionMonthQueryHandler(
         }
 
         var daysMissed    = Math.Max(0, validDays - daysCollectedPast - daysAbsentPast - daysClosedPast);
-        var totalDailyFee = daysCollected * FeeRates.NpmDailyFee;
-        var totalFishFee  = totalFishKilos * FeeRates.NpmFishFeePerKilo;
+        // Resolve the municipality's NPM rates as of the report month (falls back to the ordinance
+        // constants, so Cantilan totals are unchanged).
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var asOf = new DateOnly(request.Year, request.Month, 1);
+        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var totalDailyFee = daysCollected * npmDaily;
+        var totalFishFee  = totalFishKilos * fishRate;
         var grandTotal    = totalDailyFee + totalFishFee;
         // Fully settled when every collectable day from contract start is collected, excused, or closed.
         var fullMonthDays = Math.Max(0, daysInMonth - contractStartDay + 1);
