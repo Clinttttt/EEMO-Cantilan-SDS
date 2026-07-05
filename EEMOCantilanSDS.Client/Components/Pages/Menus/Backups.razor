@@ -676,11 +676,15 @@
             _showRestoreConfirm = false;
             _restorePassword = string.Empty;      // clear the password on success
             _restoreSubmitting = false;
-            // Cross-page completion popup: the scoped RestoreNotifier runs ONE bounded poll and raises an
-            // event when the run settles, so the Head sees a success/failure modal on ANY admin page.
-            Notifier.Watch();
+            // Cross-page completion popup: RestoreNotifier runs ONE bounded poll and raises an event when
+            // the run settles, so the Head sees a success/failure modal on ANY admin page. The localStorage
+            // marker lets the popup survive even a full page navigation (the toast resumes the watch on mount).
+            var triggeredAt = DateTime.UtcNow;
+            try { await JS.InvokeVoidAsync("localStorage.setItem", "eemo.restore.await", triggeredAt.ToString("o")); }
+            catch { /* non-fatal */ }
+            Notifier.Watch(triggeredAt);
             // Also drives the on-page Recent-restores list refresh until the run appears (then AnyRunActive takes over).
-            _restoreWatchSince = DateTime.UtcNow;
+            _restoreWatchSince = triggeredAt;
             await ShowToastAsync(true, "Restore started — watch it under Recent restores.");
             await LoadRunsAsync();                 // a safety backup runs first, so refresh backups too
             await LoadRestoreRunsAsync();          // surface the new restore run in the list (it polls live)

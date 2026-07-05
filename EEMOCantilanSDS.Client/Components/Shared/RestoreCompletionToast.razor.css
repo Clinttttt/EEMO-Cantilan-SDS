@@ -1,151 +1,169 @@
-/* RestoreCompletionToast — cross-page success/failure modal. Fixed overlay, government-restrained. */
+/* RestoreCompletionToast — official, government-restrained restore result dialog. */
 
-.rw-overlay {
+.rc-overlay {
     position: fixed;
     inset: 0;
-    z-index: 1200;
-    background: rgba(13, 33, 55, 0.55);
+    z-index: 1300;
+    background: rgba(13, 33, 55, 0.58);
+    backdrop-filter: blur(2px);
     display: grid;
     place-items: center;
     padding: 1.25rem;
-    animation: rw-fade 0.15s ease;
+    animation: rc-fade 0.16s ease;
 }
 
-.rw-modal {
+.rc-dialog {
     position: relative;
     width: 100%;
-    max-width: 420px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.75rem 1.6rem 1.4rem;
-    text-align: center;
-    box-shadow: 0 24px 60px rgba(13, 33, 55, 0.28);
-    animation: rw-pop 0.18s ease;
+    max-width: 460px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #dde4ea);
+    border-radius: 18px;
+    padding: 2rem 1.75rem 1.5rem;
+    box-shadow: 0 30px 70px rgba(13, 33, 55, 0.32);
+    overflow: hidden;
+    animation: rc-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.rw-close {
+/* Top accent strip signals outcome without shouting. */
+.rc-accent {
     position: absolute;
-    top: 0.85rem;
-    right: 0.85rem;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+}
+.rc-ok .rc-accent { background: linear-gradient(90deg, var(--green, #2d7a5f), #3fa079); }
+.rc-err .rc-accent { background: linear-gradient(90deg, var(--red, #8b3a3a), #b25757); }
+
+.rc-x {
+    position: absolute;
+    top: 0.95rem;
+    right: 0.95rem;
     width: 32px;
     height: 32px;
     border: none;
     background: transparent;
-    color: var(--text-subtle);
+    color: var(--text-subtle, #6a8aa0);
     border-radius: 8px;
     cursor: pointer;
     display: grid;
     place-items: center;
     transition: background 0.15s ease, color 0.15s ease;
 }
+.rc-x:hover { background: var(--bg-icon, #eef2f6); color: var(--text, #0d2137); }
+.rc-x svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2; fill: none; }
 
-.rw-close:hover {
-    background: var(--bg-icon);
-    color: var(--text);
-}
+.rc-head { text-align: center; }
 
-.rw-close svg {
-    width: 18px;
-    height: 18px;
-    stroke: currentColor;
-    stroke-width: 2;
-    fill: none;
-}
-
-.rw-icon {
-    width: 62px;
-    height: 62px;
+.rc-badge {
+    width: 58px;
+    height: 58px;
     border-radius: 50%;
-    margin: 0.25rem auto 1rem;
+    margin: 0.25rem auto 0.9rem;
     display: grid;
     place-items: center;
 }
+.rc-badge svg { width: 28px; height: 28px; }
+.rc-ok .rc-badge { background: var(--green-bg, #e6f4ef); color: var(--green, #2d7a5f); }
+.rc-err .rc-badge { background: var(--red-bg, #fdf0f0); color: var(--red, #8b3a3a); }
 
-.rw-icon svg {
-    width: 30px;
-    height: 30px;
+.rc-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--gold, #b8860b);
+    margin-bottom: 0.25rem;
 }
 
-.rw-ok .rw-icon {
-    background: var(--green-bg);
-    color: var(--green);
-}
-
-.rw-err .rw-icon {
-    background: var(--red-bg);
-    color: var(--red);
-}
-
-.rw-title {
-    font-size: 1.15rem;
+.rc-title {
+    font-size: 1.3rem;
     font-weight: 800;
-    color: var(--text);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
+    color: var(--text, #0d2137);
 }
 
-.rw-body {
+.rc-lead {
     font-size: 0.9rem;
     line-height: 1.5;
-    color: var(--text-subtle);
-    margin-top: 0.55rem;
+    color: var(--text-subtle, #6a8aa0);
+    margin: 0.5rem auto 0;
+    max-width: 34ch;
 }
 
-.rw-foot {
+/* Official detail block — like a receipt/record summary. */
+.rc-detail {
+    margin-top: 1.35rem;
+    border: 1px solid var(--border, #dde4ea);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg, #f8fafc);
+}
+.rc-row {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.62rem 0.9rem;
+    font-size: 0.84rem;
+}
+.rc-row + .rc-row { border-top: 1px solid var(--border, #dde4ea); }
+.rc-k { color: var(--text-subtle, #6a8aa0); font-weight: 500; }
+.rc-v { color: var(--text, #0d2137); font-weight: 600; text-align: right; }
+
+.rc-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+.rc-pill-ok { background: var(--green-bg, #e6f4ef); color: var(--green, #2d7a5f); }
+.rc-pill-err { background: var(--red-bg, #fdf0f0); color: var(--red, #8b3a3a); }
+
+.rc-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
     margin-top: 1.4rem;
 }
-
-.rw-link {
+.rc-link {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     font-size: 0.86rem;
     font-weight: 600;
-    color: var(--navy-3);
+    color: var(--navy-3, #1e3a5f);
     text-decoration: none;
-    padding: 0.55rem 0.6rem;
-    border-radius: 9px;
+    padding: 0.5rem 0.35rem;
+    border-radius: 8px;
     transition: color 0.15s ease;
 }
+.rc-link:hover { color: var(--navy, #0d2137); }
+.rc-arrow { transition: transform 0.15s ease; }
+.rc-link:hover .rc-arrow { transform: translateX(2px); }
 
-.rw-link:hover {
-    color: var(--navy);
-}
-
-.rw-arrow {
-    transition: transform 0.15s ease;
-}
-
-.rw-link:hover .rw-arrow {
-    transform: translateX(2px);
-}
-
-.rw-btn {
+.rc-btn {
     border: none;
-    background: var(--navy);
+    background: var(--navy, #0d2137);
     color: #fff;
-    font-size: 0.86rem;
+    font-size: 0.88rem;
     font-weight: 600;
-    padding: 0.6rem 1.35rem;
-    border-radius: 9px;
+    padding: 0.62rem 1.5rem;
+    border-radius: 10px;
     cursor: pointer;
     transition: background 0.15s ease;
 }
+.rc-btn:hover { background: var(--navy-2, #112d47); }
 
-.rw-btn:hover {
-    background: var(--navy-2);
-}
-
-@keyframes rw-fade {
+@keyframes rc-fade {
     from { opacity: 0; }
     to { opacity: 1; }
 }
-
-@keyframes rw-pop {
-    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+@keyframes rc-pop {
+    from { opacity: 0; transform: translateY(10px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
 }

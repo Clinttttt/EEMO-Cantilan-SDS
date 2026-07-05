@@ -1,75 +1,170 @@
+@using System.Globalization
+@using System.Text.Json
 @using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @inject RestoreNotifier Notifier
+@inject IBackupApiClient BackupApi
+@inject IJSRuntime JS
 @implements IDisposable
 
 @*
-    RestoreCompletionToast — cross-page "restore complete" popup. Mounted once in the sidebar (on every
-    admin page). It ONLY subscribes to RestoreNotifier.Changed and renders a modal when a watched restore
-    finishes — it runs NO timer of its own, so it can never destabilize navigation. The bounded polling
-    lives entirely in the scoped RestoreNotifier and runs only while a restore is being watched.
+    RestoreCompletionToast — cross-page "restore complete" dialog. Mounted once in the sidebar (present
+    on every admin page). It shows a professional success/failure dialog wherever the Head is when a
+    restore finishes. It survives ANY navigation:
+      • same circuit (SPA nav / staying): the scoped RestoreNotifier's bounded poll raises Changed;
+      • full navigation / refresh: on mount it re-reads a persisted result, or resumes the watch if a
+        restore is still pending.
+    It runs NO timer of its own — the only (bounded, self-terminating) poll lives in the scoped notifier,
+    active solely while a restore is being watched.
 *@
 
 @if (_show)
 {
-    <div class="rw-overlay" @onclick="Close">
-        <div class="rw-modal @(Notifier.Success ? "rw-ok" : "rw-err")" role="dialog" aria-modal="true"
-             aria-label="@(Notifier.Success ? "Database restored" : "Restore did not complete")"
-             @onclick:stopPropagation="true">
-            <button class="rw-close" @onclick="Close" aria-label="Close">
+    <div class="rc-overlay" @onclick="Close">
+        <div class="rc-dialog @(_success ? "rc-ok" : "rc-err")" role="alertdialog" aria-modal="true"
+             aria-labelledby="rc-title" @onclick:stopPropagation="true">
+
+            <div class="rc-accent"></div>
+
+            <button class="rc-x" @onclick="Close" aria-label="Close">
                 <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
 
-            <div class="rw-icon">
-                @if (Notifier.Success)
-                {
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                }
-                else
-                {
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                }
+            <div class="rc-head">
+                <div class="rc-badge">
+                    @if (_success)
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                    }
+                </div>
+                <div class="rc-eyebrow">Database Restore</div>
+                <div class="rc-title" id="rc-title">@(_success ? "Database restored" : "Restore unsuccessful")</div>
+                <div class="rc-lead">
+                    @(_success
+                        ? "The production database has been restored from the most recent backup."
+                        : "The restore did not complete and was automatically rolled back.")
+                </div>
             </div>
 
-            <div class="rw-title">@(Notifier.Success ? "Database restored" : "Restore did not complete")</div>
-            <div class="rw-body">
-                @if (Notifier.Success)
-                {
-                    <text>The database was restored from the latest backup (finished @Notifier.WhenLabel). A pre-restore safety backup was taken first.</text>
-                }
-                else
-                {
-                    <text>The restore failed and was rolled back — your data is unchanged (a safety backup was taken).</text>
-                }
+            <div class="rc-detail">
+                <div class="rc-row">
+                    <span class="rc-k">Status</span>
+                    <span class="rc-v"><span class="rc-pill @(_success ? "rc-pill-ok" : "rc-pill-err")">@(_success ? "Success" : "Failed")</span></span>
+                </div>
+                <div class="rc-row">
+                    <span class="rc-k">Finished</span>
+                    <span class="rc-v">@(_when.Length > 0 ? _when : "just now")</span>
+                </div>
+                <div class="rc-row">
+                    <span class="rc-k">Source</span>
+                    <span class="rc-v">Latest verified backup</span>
+                </div>
+                <div class="rc-row">
+                    <span class="rc-k">Safety backup</span>
+                    <span class="rc-v">@(_success ? "Taken before restore" : "Taken — data unchanged")</span>
+                </div>
             </div>
 
-            <div class="rw-foot">
-                <a class="rw-link" href="/settings/backups" @onclick="Close">View details<span class="rw-arrow">→</span></a>
-                <button class="rw-btn" @onclick="Close">Close</button>
+            <div class="rc-foot">
+                <a class="rc-link" href="/settings/backups" @onclick="Close">View details<span class="rc-arrow">→</span></a>
+                <button class="rc-btn" @onclick="Close">Close</button>
             </div>
         </div>
     </div>
 }
 
 @code {
+    private const string AwaitKey = "eemo.restore.await";
+    private const string ResultKey = "eemo.restore.result";
+    private const string ShownKey = "eemo.restore.shown";
+
     private bool _show;
+    private bool _success;
+    private string _when = string.Empty;
 
     protected override void OnInitialized()
     {
         Notifier.Changed += OnChanged;
-        if (Notifier.Completed) _show = true;   // completed just before this component mounted
+        // Completion that happened moments before this instance mounted (same circuit).
+        if (Notifier.Completed)
+            ShowResult(Notifier.Success, Notifier.WhenLabel);
     }
 
-    private void OnChanged() => InvokeAsync(() =>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _show = true;
-        StateHasChanged();
+        if (!firstRender || _show) return;
+        try
+        {
+            // A completed result may be persisted from a prior circuit (finished before a full nav/refresh).
+            var resultJson = await JS.InvokeAsync<string?>("localStorage.getItem", ResultKey);
+            if (!string.IsNullOrWhiteSpace(resultJson))
+            {
+                var r = JsonSerializer.Deserialize<StoredResult>(resultJson);
+                var shown = await JS.InvokeAsync<string?>("localStorage.getItem", ShownKey);
+                if (r is not null && !string.Equals(r.RunId.ToString(), shown, StringComparison.Ordinal))
+                {
+                    ShowResult(r.Success, r.When);
+                    return;
+                }
+            }
+
+            // Otherwise, if a restore is still pending (triggered, not yet resolved), resume watching it.
+            var awaiting = await JS.InvokeAsync<string?>("localStorage.getItem", AwaitKey);
+            if (!string.IsNullOrWhiteSpace(awaiting)
+                && DateTime.TryParse(awaiting, CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind | DateTimeStyles.AdjustToUniversal, out var since))
+            {
+                Notifier.Watch(since.ToUniversalTime());
+            }
+        }
+        catch { /* localStorage unavailable — the same-circuit event path still applies */ }
+    }
+
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        // Persist so a later navigation/circuit can still surface it once, then show now.
+        try
+        {
+            var json = JsonSerializer.Serialize(new StoredResult(Notifier.RunId, Notifier.Success, Notifier.WhenLabel));
+            await JS.InvokeVoidAsync("localStorage.setItem", ResultKey, json);
+            await JS.InvokeVoidAsync("localStorage.removeItem", AwaitKey);
+        }
+        catch { /* ignore */ }
+        ShowResult(Notifier.Success, Notifier.WhenLabel);
     });
 
-    private void Close()
+    private void ShowResult(bool success, string when)
+    {
+        _success = success;
+        _when = when;
+        _show = true;
+        StateHasChanged();
+    }
+
+    private async Task Close()
     {
         _show = false;
         Notifier.Acknowledge();
+        try
+        {
+            // Mark this run acknowledged so it does not reappear on the next navigation.
+            var json = await JS.InvokeAsync<string?>("localStorage.getItem", ResultKey);
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var r = JsonSerializer.Deserialize<StoredResult>(json);
+                if (r is not null)
+                    await JS.InvokeVoidAsync("localStorage.setItem", ShownKey, r.RunId.ToString());
+            }
+            await JS.InvokeVoidAsync("localStorage.removeItem", AwaitKey);
+        }
+        catch { /* ignore */ }
     }
 
     public void Dispose() => Notifier.Changed -= OnChanged;
+
+    private sealed record StoredResult(long RunId, bool Success, string When);
 }

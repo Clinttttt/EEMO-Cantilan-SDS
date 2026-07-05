@@ -20,20 +20,24 @@ public sealed class RestoreNotifier(IBackupApiClient backupApi) : IDisposable
 
     public bool Completed { get; private set; }
     public bool Success { get; private set; }
+    public long RunId { get; private set; }
     public string WhenLabel { get; private set; } = string.Empty;
 
     /// <summary>Raised (off the poll loop) when a watched restore finishes.</summary>
     public event Action? Changed;
 
-    /// <summary>Begin watching for the just-triggered restore to finish. Cancels any prior watch.</summary>
-    public void Watch()
+    /// <summary>
+    /// Begin watching for a restore (triggered at <paramref name="sinceUtc"/>) to finish. Cancels any
+    /// prior watch. Safe to call again after a full navigation to resume watching the same restore.
+    /// </summary>
+    public void Watch(DateTime sinceUtc)
     {
         _cts?.Cancel();
         _cts?.Dispose();
         var cts = new CancellationTokenSource();
         _cts = cts;
         Completed = false;
-        _ = RunAsync(DateTime.UtcNow, cts.Token);
+        _ = RunAsync(sinceUtc, cts.Token);
     }
 
     /// <summary>Dismiss the current notification so it does not re-show.</summary>
@@ -57,6 +61,7 @@ public sealed class RestoreNotifier(IBackupApiClient backupApi) : IDisposable
                 if (newest.CreatedAt.ToUniversalTime() < sinceUtc.AddSeconds(-60)) continue;   // not our run
 
                 Success = string.Equals(newest.Conclusion, "success", StringComparison.OrdinalIgnoreCase);
+                RunId = newest.Id;
                 WhenLabel = PhilippineTime.ToPhilippineTime(newest.CreatedAt).ToString("MMM d, yyyy · h:mm tt");
                 Completed = true;
                 Changed?.Invoke();
