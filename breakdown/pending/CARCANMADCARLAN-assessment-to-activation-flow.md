@@ -168,9 +168,9 @@ the contract at activation; the rest is entered in the portal later or is a plan
 | Facilities (code, name, short name, archetype) | ✅ committed | `facilities[]` |
 | Fixed ordinance rates (NPM daily, NPM fish/kg, SLH hog, SLH large, TPM vendor, TRM trip) | ✅ committed + **drive the LGU's fee math** (Phase 4B-ii) | `rates[]` keyed by `FeeRateKey` |
 | Monthly-rental base rate + space count (TCC/NCC/BBQ/ICE) | ⛔ not in activation | monthly rentals are **per-stall** (`Stall.MonthlyRate`), entered in the portal |
-| Market **sections** (Fish/Meat/Vegetables) + section stall counts | ⛔ not in activation (except the fish per-kilo rate key) | planned backend extension |
-| **Metered** add-on fees (Electricity/Water) | ⛔ not in activation | metered readings are portal operations |
-| **Unit counts** (stalls/spaces) | ⛔ not in activation | stalls are created in the portal |
+| Market **sections** (Fish/Meat/Vegetables) + section stall counts | ✅ committed (via `facilities[].stallGroups[].section` + `count`) | fish per-kilo rate via `NpmFishPerKilo` |
+| **Metered** add-on fees (Electricity/Water) | ◑ fee **flags** committed on stalls (`ApplicableFees.Electricity/Water`); metered *readings* are portal ops | |
+| **Unit counts** (stalls/spaces) | ✅ committed (via `stallGroups[].count`, per section/space) | stalls are the empty spaces; occupants added in the portal |
 | **OR series** (prefix/start) | ⛔ not in activation | OR numbers are manually entered per record today |
 | Custom animal types beyond hog/large | ⛔ not in activation | SLH custom rates are per-transaction today |
 | Payors/stallholders, collectors, extra admins | ⛔ never at onboarding | created in the live portal after activation |

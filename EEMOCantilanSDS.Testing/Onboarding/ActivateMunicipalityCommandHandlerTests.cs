@@ -131,6 +131,47 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Activate_ProvisionsStalls_ScopedToLgu()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            var config = new ActivateMunicipalityCommand(
+                "CARMEN",
+                new ActivationBranding("Carmen EEO", null, null),
+                new ActivationAdministrator("Maria Santos", "carmen.head", "head@carmen.gov.ph"),
+                new List<ActivationFacility>
+                {
+                    new(FacilityCode.NPM, "Carmen Public Market", "CPM", BillingArchetype.DailyStall, new List<ActivationStallGroup>
+                    {
+                        new(40, 0m, 25m, ApplicableFees.DailyRental | ApplicableFees.FishFee, MarketSection.FishSection),
+                        new(30, 0m, 25m, ApplicableFees.DailyRental, MarketSection.MeatSection),
+                    }),
+                    new(FacilityCode.TCC, "Carmen Commercial Center", "CCC", BillingArchetype.MonthlyRental, new List<ActivationStallGroup>
+                    {
+                        new(24, 2400m, null, ApplicableFees.BaseRental),
+                    }),
+                },
+                new List<ActivationRate> { new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 25m) });
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(config, default);
+                Assert.True(result.IsSuccess);
+                Assert.Equal(94, result.Value!.StallsCreated); // 40 + 30 + 24
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var stalls = await carmenCtx.Stalls.ToListAsync();
+                Assert.Equal(94, stalls.Count);
+                Assert.All(stalls, s => Assert.Equal(carmenId, s.MunicipalityId));
+                Assert.Equal(40, stalls.Count(s => s.Section == MarketSection.FishSection));
+                Assert.Equal(24, stalls.Count(s => s.MonthlyRate == 2400m));
+            }
+        }
+
+        [Fact]
         public async Task Activate_RejectsDefaultMunicipality()
         {
             var options = Options();

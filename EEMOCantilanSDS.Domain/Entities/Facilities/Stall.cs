@@ -58,11 +58,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             decimal? dailyRate = null,
             string? remarks = null,
             StallType type = StallType.Permanent,
-            string createdBy = "System")
+            string createdBy = "System",
+            Guid municipalityId = default)
         {
             return new Stall
             {
                 Id = Guid.NewGuid(),
+                MunicipalityId = municipalityId,
                 FacilityId = facilityId,
                 StallNo = stallNo,
                 MonthlyRate = monthlyRate,

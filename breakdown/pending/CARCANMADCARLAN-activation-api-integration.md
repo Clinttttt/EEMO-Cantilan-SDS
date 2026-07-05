@@ -48,7 +48,11 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
     "email": "head@carmen.gov.ph"             // required; must be a valid email
   },
   "facilities": [                             // >= 1 required
-    { "code": "NPM", "name": "Carmen Public Market", "shortName": "CPM", "archetype": "DailyStall" },
+    { "code": "NPM", "name": "Carmen Public Market", "shortName": "CPM", "archetype": "DailyStall",
+      "stallGroups": [                        // OPTIONAL — provisions the facility's stalls/units (spaces)
+        { "count": 40, "monthlyRate": 0, "dailyRate": 25.00, "fees": "DailyRental, FishFee", "section": "FishSection" },
+        { "count": 30, "monthlyRate": 0, "dailyRate": 25.00, "fees": "DailyRental", "section": "MeatSection" }
+      ] },
     { "code": "SLH", "name": "Carmen Slaughterhouse", "shortName": "CSLH", "archetype": "PerHead" }
   ],
   "rates": [                                  // fixed ordinance rates only (see §5); may be empty
@@ -76,6 +80,12 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
 | `facilities[].name` | string | ✅ | Official display name. |
 | `facilities[].shortName` | string | ✅ | Short label/acronym. |
 | `facilities[].archetype` | `BillingArchetype` | ✅ | How it bills. |
+| `facilities[].stallGroups[]` | array | — | Optional. Provisions the facility's stalls/units (spaces). Omit for transaction-only facilities (SLH/TRM/TPM). |
+| `facilities[].stallGroups[].count` | int | ✅ | Number of stalls to create (1–5000). |
+| `facilities[].stallGroups[].monthlyRate` | decimal | ✅ | Per-stall monthly rate (use for MonthlyRental; `0` for daily stalls). |
+| `facilities[].stallGroups[].dailyRate` | decimal? | — | Per-stall daily rate (daily stalls); null falls back to the facility's `NpmDailyStall` rate. |
+| `facilities[].stallGroups[].fees` | `ApplicableFees` | ✅ | Fee flags (comma-separated string). |
+| `facilities[].stallGroups[].section` | `MarketSection`? | — | Market section (Fish/Meat/Vegetables) for public markets. |
 | `rates[]` | array | ✅ (may be empty) | Fixed ordinance rates only. |
 | `rates[].facilityCode` | `FacilityCode` | ✅ | Facility the rate belongs to. |
 | `rates[].key` | `FeeRateKey` | ✅ | Which fixed rate. |
@@ -86,6 +96,8 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
 - **`FacilityCode`**: `NPM`, `TCC`, `NCC`, `BBQ`, `ICE`, `SLH`, `TRM`, `TPM`
 - **`BillingArchetype`**: `DailyStall`, `MonthlyRental`, `WeeklyMarket`, `PerTrip`, `PerHead`, `Custom`
 - **`FeeRateKey`**: `NpmDailyStall`, `NpmFishPerKilo`, `SlhHogPerHead`, `SlhLargePerHead`, `TpmVendorDay`, `TrmPerTrip`
+- **`ApplicableFees`** (flags — comma-separate): `BaseRental`, `DailyRental`, `Electricity`, `Water`, `FishFee` (or `None`)
+- **`MarketSection`**: `VegetableArea`, `FishSection`, `MeatSection`
 
 ---
 
@@ -98,7 +110,8 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
   "adminUsername": "carmen.head",
   "temporaryPassword": "Aa1!K7x…",   // one-time; see §6
   "facilitiesCreated": 2,
-  "ratesCreated": 4
+  "ratesCreated": 4,
+  "stallsCreated": 94
 }
 ```
 

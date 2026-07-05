@@ -26,8 +26,27 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     /// <summary>The single LGU owner (Head/SuperAdmin) provisioned at activation.</summary>
     public record ActivationAdministrator(string FullName, string Username, string Email);
 
-    /// <summary>A facility to create for the LGU, mapped to a code + billing archetype during onboarding.</summary>
-    public record ActivationFacility(FacilityCode Code, string Name, string ShortName, BillingArchetype Archetype);
+    /// <summary>A facility to create for the LGU, mapped to a code + billing archetype during onboarding.
+    /// <paramref name="StallGroups"/> optionally provisions the facility's stalls/units (spaces) at
+    /// activation; leave null/empty for transaction-only facilities (SLH/TRM/TPM).</summary>
+    public record ActivationFacility(
+        FacilityCode Code,
+        string Name,
+        string ShortName,
+        BillingArchetype Archetype,
+        IReadOnlyList<ActivationStallGroup>? StallGroups = null);
+
+    /// <summary>
+    /// A block of like stalls to provision for a facility — e.g. a market section (Fish · 40 stalls) or a
+    /// monthly-rental space count. Creates <see cref="Count"/> stalls, each with the given rate/fees/section.
+    /// Stalls are the empty spaces; occupants/contracts are added later in the live portal.
+    /// </summary>
+    public record ActivationStallGroup(
+        int Count,
+        decimal MonthlyRate,
+        decimal? DailyRate,
+        ApplicableFees Fees,
+        MarketSection? Section = null);
 
     /// <summary>A fixed ordinance rate to seed for the LGU (range/monthly-rental facilities carry no fixed rate).</summary>
     public record ActivationRate(FacilityCode FacilityCode, FeeRateKey Key, decimal Amount);
@@ -43,5 +62,6 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         string AdminUsername,
         string TemporaryPassword,
         int FacilitiesCreated,
-        int RatesCreated);
+        int RatesCreated,
+        int StallsCreated);
 }

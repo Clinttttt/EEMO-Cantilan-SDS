@@ -33,6 +33,13 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             {
                 f.RuleFor(x => x.Name).NotEmpty().WithMessage("Facility name is required.");
                 f.RuleFor(x => x.ShortName).NotEmpty().WithMessage("Facility short name is required.");
+                f.RuleForEach(x => x.StallGroups).ChildRules(g =>
+                {
+                    g.RuleFor(s => s.Count).InclusiveBetween(1, 5000)
+                        .WithMessage("Stall group count must be between 1 and 5000.");
+                    g.RuleFor(s => s.MonthlyRate).GreaterThanOrEqualTo(0m)
+                        .WithMessage("Stall monthly rate cannot be negative.");
+                });
             });
 
             RuleFor(x => x.Rates).NotNull();
