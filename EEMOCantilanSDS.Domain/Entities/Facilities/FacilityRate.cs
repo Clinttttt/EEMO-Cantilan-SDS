@@ -22,6 +22,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
         private FacilityRate() { }
 
+        /// <summary>Adjusts the rate amount in place (used when an edit lands on an existing effective-dated
+        /// row — e.g. the same day). History across other effective dates is preserved.</summary>
+        public void UpdateAmount(decimal amount, string updatedBy = "System")
+        {
+            Amount = amount;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public static FacilityRate Create(
             FacilityCode facilityCode,
             FeeRateKey rateKey,
