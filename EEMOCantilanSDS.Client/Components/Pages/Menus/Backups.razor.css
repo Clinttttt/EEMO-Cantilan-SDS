@@ -166,3 +166,131 @@
     margin: 0;
 }
 .bk-code code { white-space: pre; }
+
+/* ══ View log button (matches .set-link, table-aligned) ══ */
+.bk-viewlog { margin-left: auto; }
+
+/* ══ Run pipeline modal ══ */
+.bk-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 33, 55, .48);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+    animation: bkFade .14s ease;
+}
+@keyframes bkFade { from { opacity: 0; } to { opacity: 1; } }
+
+.bk-modal {
+    width: 100%;
+    max-width: 520px;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(13, 33, 55, .28);
+    overflow: hidden;
+    animation: bkPop .16s ease;
+}
+@keyframes bkPop { from { transform: translateY(8px) scale(.99); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.bk-modal-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+}
+.bk-modal-titles { flex: 1; min-width: 0; }
+.bk-modal-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.bk-modal-sub { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.bk-modal-dot { color: var(--border); }
+.bk-modal-pill { flex-shrink: 0; }
+.bk-modal-close {
+    flex-shrink: 0;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: none; border-radius: 8px;
+    color: var(--text-muted); cursor: pointer;
+    transition: background .12s ease, color .12s ease;
+}
+.bk-modal-close:hover { background: var(--bg-icon); color: var(--navy); }
+.bk-modal-close svg { width: 18px; height: 18px; }
+
+.bk-modal-body { padding: 18px; overflow-y: auto; }
+
+/* ── Step timeline (the pipeline) ── */
+.bk-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.bk-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    min-height: 34px;
+}
+/* Vertical rail connecting the dots */
+.bk-step-rail {
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+    transform: translateX(-50%);
+    z-index: 0;
+}
+.bk-step:first-child .bk-step-rail { top: 50%; }
+.bk-step:last-child .bk-step-rail { bottom: 50%; }
+
+.bk-step-dot {
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-icon);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--bg-card);
+}
+.bk-step-dot svg { width: 13px; height: 13px; }
+.bk-step-ok { background: var(--green); }
+.bk-step-err { background: var(--red); }
+.bk-step-neutral { background: var(--text-muted); }
+.bk-step-run { background: #d6a516; animation: bkPulse 1.3s ease-in-out infinite; }
+@keyframes bkPulse { 0%, 100% { box-shadow: 0 0 0 3px var(--bg-card), 0 0 0 3px rgba(214, 165, 22, .35); } 50% { box-shadow: 0 0 0 3px var(--bg-card), 0 0 0 7px rgba(214, 165, 22, .12); } }
+
+.bk-step-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--navy); }
+.bk-step-dur { flex-shrink: 0; font-size: 11.5px; font-weight: 650; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* Skeleton step rows */
+.bk-step-sk { pointer-events: none; }
+.bk-step-dot-sk { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 0 3px var(--bg-card); position: relative; z-index: 1; }
+
+/* ── Footer ── */
+.bk-modal-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+.bk-modal-github {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 650;
+    color: var(--text-muted); text-decoration: none;
+    transition: color .12s ease;
+}
+.bk-modal-github:hover { color: var(--navy); }
+.bk-modal-github .set-link-arrow { transition: transform .14s ease; }
+.bk-modal-github:hover .set-link-arrow { transform: translateX(3px); }
+.bk-modal-closebtn { margin-left: auto; padding: 8px 16px; font-size: 12.5px; }
+

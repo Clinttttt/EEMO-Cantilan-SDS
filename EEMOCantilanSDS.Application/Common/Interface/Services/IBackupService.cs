@@ -15,6 +15,9 @@ public interface IBackupService
     /// <summary>List the most recent backup workflow runs, newest first.</summary>
     Task<Result<IReadOnlyList<BackupRunDto>>> GetRecentRunsAsync(int count, CancellationToken ct);
 
+    /// <summary>Detailed view of one run: run-level summary plus its flattened step timeline.</summary>
+    Task<Result<BackupRunDetailDto>> GetRunDetailAsync(long runId, CancellationToken ct);
+
     /// <summary>Download the artifact of the newest successful backup run.</summary>
     Task<Result<BackupArtifact>> GetLatestArtifactAsync(CancellationToken ct);
 }

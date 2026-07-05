@@ -52,8 +52,64 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         }
     }
 
-    public async Task<Result<BackupArtifact>> GetLatestArtifactAsync(CancellationToken ct)
+    public async Task<Result<BackupRunDetailDto>> GetRunDetailAsync(long runId, CancellationToken ct)
     {
+        try
+        {
+            // 1) Run object → run-level summary (status/conclusion/event/times/html_url).
+            using var runResp = await http.GetAsync($"repos/{options.Owner}/{options.Repo}/actions/runs/{runId}", ct);
+            if (!runResp.IsSuccessStatusCode)
+                return Result<BackupRunDetailDto>.Failure(FriendlyMessage(runResp.StatusCode, "load this backup run"), (int)runResp.StatusCode);
+
+            using var runDoc = JsonDocument.Parse(await runResp.Content.ReadAsStringAsync(ct));
+            var run = runDoc.RootElement;
+
+            var status = ReadString(run, "status") ?? "unknown";
+            var conclusion = ReadString(run, "conclusion");
+            var evt = ReadString(run, "event");
+            var htmlUrl = ReadString(run, "html_url") ?? string.Empty;
+            var startedAt = ReadDate(run, "run_started_at") ?? ReadDate(run, "created_at");
+            var completedAt = ReadDate(run, "updated_at");
+
+            // 2) Jobs → flatten each job's steps (our backup workflow has a single job).
+            using var jobsResp = await http.GetAsync($"repos/{options.Owner}/{options.Repo}/actions/runs/{runId}/jobs", ct);
+            if (!jobsResp.IsSuccessStatusCode)
+                return Result<BackupRunDetailDto>.Failure(FriendlyMessage(jobsResp.StatusCode, "load this backup run"), (int)jobsResp.StatusCode);
+
+            using var jobsDoc = JsonDocument.Parse(await jobsResp.Content.ReadAsStringAsync(ct));
+            var steps = new List<BackupStepDto>();
+            if (jobsDoc.RootElement.TryGetProperty("jobs", out var jobs) && jobs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var job in jobs.EnumerateArray())
+                {
+                    if (!job.TryGetProperty("steps", out var jobSteps) || jobSteps.ValueKind != JsonValueKind.Array)
+                        continue;
+
+                    foreach (var step in jobSteps.EnumerateArray())
+                    {
+                        var number = step.TryGetProperty("number", out var numEl) && numEl.TryGetInt32(out var numVal)
+                            ? numVal : steps.Count + 1;
+                        var name = ReadString(step, "name") ?? "Step";
+                        var stStatus = ReadString(step, "status") ?? "unknown";
+                        var stConclusion = ReadString(step, "conclusion");
+                        var stStarted = ReadDate(step, "started_at");
+                        var stCompleted = ReadDate(step, "completed_at");
+
+                        steps.Add(new BackupStepDto(number, name, stStatus, stConclusion, stStarted, stCompleted));
+                    }
+                }
+            }
+
+            var detail = new BackupRunDetailDto(runId, status, conclusion, startedAt, completedAt, evt, htmlUrl, steps);
+            return Result<BackupRunDetailDto>.Success(detail);
+        }
+        catch (Exception)
+        {
+            return Result<BackupRunDetailDto>.Failure("Could not reach the backup service. Please try again.", 502);
+        }
+    }
+
+    public async Task<Result<BackupArtifact>> GetLatestArtifactAsync(CancellationToken ct)    {
         try
         {
             // Look a little deeper than the display count so a run of failures doesn't hide the last good backup.
@@ -161,8 +217,19 @@ public class GitHubActionsBackupService(HttpClient http, GitHubBackupOptions opt
         return runs.Clone();
     }
 
-    private static string FriendlyMessage(HttpStatusCode code, string action) => code switch
-    {
+    /// <summary>Read a string property defensively; null when absent or not a JSON string.</summary>
+    private static string? ReadString(JsonElement el, string name) =>
+        el.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+
+    /// <summary>Read a UTC timestamp property defensively; null when absent or unparseable.</summary>
+    private static DateTime? ReadDate(JsonElement el, string name) =>
+        el.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String
+        && DateTime.TryParse(p.GetString(), null,
+            System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+            out var val)
+            ? val : null;
+
+    private static string FriendlyMessage(HttpStatusCode code, string action) => code switch    {
         HttpStatusCode.Unauthorized => $"The backup service is not authorized to {action}.",
         HttpStatusCode.Forbidden => $"The backup service is not permitted to {action}.",
         HttpStatusCode.NotFound => "The backup workflow or artifact could not be found.",

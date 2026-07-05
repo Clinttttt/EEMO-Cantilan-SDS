@@ -163,10 +163,7 @@
                             <td>@TriggerLabel(run.Event)</td>
                             <td><span class="bk-pill @PillClass(run)">@StatusLabel(run)</span></td>
                             <td class="set-td-r">
-                                @if (!string.IsNullOrWhiteSpace(run.HtmlUrl))
-                                {
-                                    <a class="set-link" href="@run.HtmlUrl" target="_blank" rel="noopener">View log<span class="set-link-arrow">→</span></a>
-                                }
+                                <button class="set-link bk-viewlog" @onclick="() => OpenLog(run)">View log<span class="set-link-arrow">→</span></button>
                             </td>
                         </tr>
                     }
@@ -200,6 +197,92 @@
     </section>
 </div>
 
+@* ── Run pipeline modal ── *@
+@if (_logRun is not null)
+{
+    <div class="bk-modal-overlay" @onclick="CloseLog">
+        <div class="bk-modal" role="dialog" aria-modal="true" aria-label="Backup run details" @onclick:stopPropagation="true">
+
+            <div class="bk-modal-head">
+                <div class="bk-modal-titles">
+                    <div class="bk-modal-title">Backup run</div>
+                    <div class="bk-modal-sub">
+                        <span>@TriggerLabel(_logRun.Event)</span>
+                        <span class="bk-modal-dot">•</span>
+                        <span>@PhilippineTime.ToPhilippineTime(_logRun.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</span>
+                    </div>
+                </div>
+                <span class="bk-pill @PillClass(_logRun) bk-modal-pill">@StatusLabel(_logRun)</span>
+                <button class="bk-modal-close" @onclick="CloseLog" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="bk-modal-body">
+                @if (_logLoading)
+                {
+                    <div class="bk-steps">
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <div class="bk-step bk-step-sk">
+                                <span class="bk-step-rail"></span>
+                                <span class="sk bk-step-dot-sk"></span>
+                                <span class="sk bk-sk-line"></span>
+                                <span class="sk bk-sk-short"></span>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (_logError is not null)
+                {
+                    <div class="bk-empty">
+                        <div class="bk-empty-title">Couldn't load this run</div>
+                        <div class="bk-empty-text">@_logError</div>
+                    </div>
+                }
+                else if (_logDetail is null || _logDetail.Steps.Count == 0)
+                {
+                    <div class="bk-empty">
+                        <div class="bk-empty-title">No steps to show</div>
+                        <div class="bk-empty-text">This run hasn't reported any steps yet.</div>
+                    </div>
+                }
+                else
+                {
+                    <ol class="bk-steps">
+                        @foreach (var step in _logDetail.Steps)
+                        {
+                            <li class="bk-step">
+                                <span class="bk-step-rail"></span>
+                                <span class="bk-step-dot @StepDotClass(step)">
+                                    @if (StepIsSuccess(step))
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                    else if (StepIsFailure(step))
+                                    {
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                    }
+                                </span>
+                                <span class="bk-step-name">@step.Name</span>
+                                <span class="bk-step-dur">@StepDuration(step)</span>
+                            </li>
+                        }
+                    </ol>
+                }
+            </div>
+
+            <div class="bk-modal-foot">
+                @if (!string.IsNullOrWhiteSpace(_logRun.HtmlUrl))
+                {
+                    <a class="bk-modal-github" href="@_logRun.HtmlUrl" target="_blank" rel="noopener">Open on GitHub<span class="set-link-arrow">→</span></a>
+                }
+                <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="CloseLog">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
 
@@ -211,6 +294,12 @@
     private bool _downloading;
     private string? _message;
     private bool _messageOk;
+
+    // Run pipeline modal
+    private BackupRunDto? _logRun;
+    private BackupRunDetailDto? _logDetail;
+    private bool _logLoading;
+    private string? _logError;
 
     protected override async Task OnInitializedAsync() => await LoadRunsAsync();
 
@@ -285,6 +374,69 @@
         }
 
         _downloading = false;
+    }
+
+    private async Task OpenLog(BackupRunDto run)
+    {
+        _logRun = run;
+        _logDetail = null;
+        _logError = null;
+        _logLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await BackupApi.GetRunDetailAsync(run.Id);
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _logDetail = result.Value;
+        }
+        else
+        {
+            _logError = string.IsNullOrWhiteSpace(result.Error)
+                ? "The run details could not be retrieved."
+                : result.Error;
+        }
+
+        _logLoading = false;
+    }
+
+    private void CloseLog()
+    {
+        _logRun = null;
+        _logDetail = null;
+        _logError = null;
+        _logLoading = false;
+    }
+
+    private static bool StepIsSuccess(BackupStepDto step) =>
+        string.Equals(step.Conclusion, "success", StringComparison.OrdinalIgnoreCase);
+
+    private static bool StepIsFailure(BackupStepDto step) =>
+        step.Conclusion is "failure" or "cancelled" or "timed_out";
+
+    private static string StepDotClass(BackupStepDto step)
+    {
+        if (StepIsSuccess(step)) return "bk-step-ok";
+        if (StepIsFailure(step)) return "bk-step-err";
+        if (string.Equals(step.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            return "bk-step-neutral"; // skipped / neutral
+        return "bk-step-run"; // queued / in_progress
+    }
+
+    private static string StepDuration(BackupStepDto step)
+    {
+        if (step.StartedAt is null || step.CompletedAt is null)
+            return string.Empty;
+
+        var span = step.CompletedAt.Value - step.StartedAt.Value;
+        if (span < TimeSpan.Zero) return string.Empty;
+
+        var totalSeconds = (int)Math.Round(span.TotalSeconds);
+        if (totalSeconds < 60)
+            return $"{totalSeconds}s";
+
+        var minutes = totalSeconds / 60;
+        var seconds = totalSeconds % 60;
+        return $"{minutes}m {seconds:D2}s";
     }
 
     private static string TriggerLabel(string? evt) => evt switch

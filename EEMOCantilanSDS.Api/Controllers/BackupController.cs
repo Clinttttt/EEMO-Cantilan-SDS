@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Backup.TriggerBackup;
+using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRunDetail;
 using EEMOCantilanSDS.Application.Queries.Backup.GetBackupRuns;
 using EEMOCantilanSDS.Application.Queries.Backup.GetLatestBackupArtifact;
 using MediatR;
@@ -30,6 +31,15 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.BackupRunDto>>> RunsAsync()
     {
         var result = await Sender.Send(new GetBackupRunsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>Detailed step timeline for a single backup workflow run (the in-app "pipeline").</summary>
+    [HttpGet("runs/{runId:long}")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.BackupRunDetailDto>> DetailAsync(long runId)
+    {
+        var result = await Sender.Send(new GetBackupRunDetailQuery(runId));
         return HandleResponse(result);
     }
 
