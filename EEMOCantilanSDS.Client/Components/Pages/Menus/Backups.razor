@@ -6,6 +6,7 @@
 @rendermode InteractiveServer
 @inject IBackupApiClient BackupApi
 @inject IJSRuntime JS
+@implements IDisposable
 
 @*
     Backups — Head-only (SuperAdmin) on-demand database backups.
@@ -72,6 +73,11 @@
                 <div class="set-card-title">On-demand backup</div>
                 <div class="set-card-sub">Trigger a backup or download the most recent one</div>
             </div>
+            <button class="bk-info-btn" type="button" @onclick="() => _showRestore = true"
+                    title="How to restore a backup" aria-label="Restore instructions">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                <span>Restore help</span>
+            </button>
         </div>
 
         <div class="bk-actions">
@@ -101,13 +107,6 @@
                 }
             </button>
         </div>
-
-        @if (_message is not null)
-        {
-            <div class="bk-alert @(_messageOk ? "bk-alert-ok" : "bk-alert-err")" role="status">
-                @_message
-            </div>
-        }
     </section>
 
     <!-- ── Recent backups ── -->
@@ -172,29 +171,41 @@
         }
     </section>
 
-    <!-- ── Restore (read-only info, no upload) ── -->
-    <section class="set-card">
-        <div class="set-card-head">
-            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg></div>
-            <div class="set-card-titles">
-                <div class="set-card-title">Restoring a backup</div>
-                <div class="set-card-sub">A controlled ops procedure — not performed in-app</div>
+    <!-- ── Restore instructions (opened from the On-demand card's "Restore help" icon) ── -->
+    @if (_showRestore)
+    {
+        <div class="bk-modal-overlay" @onclick="() => _showRestore = false">
+            <div class="bk-modal" role="dialog" aria-modal="true" aria-label="Restoring a backup" @onclick:stopPropagation="true">
+                <div class="bk-modal-head">
+                    <div class="bk-modal-titles">
+                        <div class="bk-modal-title">Restoring a backup</div>
+                        <div class="bk-modal-sub">A controlled ops procedure — not performed in-app</div>
+                    </div>
+                    <button class="bk-modal-close" @onclick="() => _showRestore = false" aria-label="Close">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="bk-modal-body">
+                    <p class="bk-restore-text">
+                        Restores are deliberate, high-impact operations run by an operator, never from this dashboard.
+                        There are two supported paths:
+                    </p>
+                    <div class="bk-restore-step">
+                        <div class="bk-restore-step-title">1 · Restore a downloaded backup</div>
+                        <div class="bk-restore-step-text">Download the latest backup above, then run <code>pg_restore</code> against the target database:</div>
+                        <pre class="bk-code"><code>pg_restore --no-owner --no-privileges --clean --if-exists -d "postgresql://user:pass@@host:5432/dbname?sslmode=require" backup.dump</code></pre>
+                    </div>
+                    <div class="bk-restore-step">
+                        <div class="bk-restore-step-title">2 · Azure point-in-time recovery</div>
+                        <div class="bk-restore-step-text">For recovery to a specific moment within the last 7 days, use Azure PITR to provision a restored server, then repoint the app's connection string.</div>
+                    </div>
+                </div>
+                <div class="bk-modal-foot">
+                    <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="() => _showRestore = false">Close</button>
+                </div>
             </div>
         </div>
-        <p class="bk-restore-text">
-            Restores are deliberate, high-impact operations run by an operator, never from this dashboard.
-            There are two supported paths:
-        </p>
-        <div class="bk-restore-step">
-            <div class="bk-restore-step-title">1 · Restore a downloaded backup</div>
-            <div class="bk-restore-step-text">Download the latest backup above, then run <code>pg_restore</code> against the target database:</div>
-            <pre class="bk-code"><code>pg_restore --no-owner --no-privileges --clean --if-exists -d "postgresql://user:pass@@host:5432/dbname?sslmode=require" backup.dump</code></pre>
-        </div>
-        <div class="bk-restore-step">
-            <div class="bk-restore-step-title">2 · Azure point-in-time recovery</div>
-            <div class="bk-restore-step-text">For recovery to a specific moment within the last 7 days, use Azure PITR to provision a restored server, then repoint the app's connection string.</div>
-        </div>
-    </section>
+    }
 </div>
 
 @* ── Run pipeline modal ── *@
@@ -212,7 +223,11 @@
                         <span>@PhilippineTime.ToPhilippineTime(_logRun.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</span>
                     </div>
                 </div>
-                <span class="bk-pill @PillClass(_logRun) bk-modal-pill">@StatusLabel(_logRun)</span>
+                @if (LogIsLive)
+                {
+                    <span class="bk-live" title="Updating live"><span class="bk-live-dot"></span>Live</span>
+                }
+                <span class="bk-pill @LivePillClass() bk-modal-pill">@LiveStatusLabel()</span>
                 <button class="bk-modal-close" @onclick="CloseLog" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
@@ -283,6 +298,29 @@
     </div>
 }
 
+@* ── Toast (top-right notifications for backup actions) ── *@
+@if (_message is not null)
+{
+    <div class="bk-toast-wrap">
+        <div class="bk-toast @(_messageOk ? "bk-toast-ok" : "bk-toast-err")" role="status" aria-live="polite">
+            <span class="bk-toast-ico">
+                @if (_messageOk)
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                }
+            </span>
+            <span class="bk-toast-msg">@_message</span>
+            <button class="bk-toast-x" @onclick="DismissToast" aria-label="Dismiss">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+        </div>
+    </div>
+}
+
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
 
@@ -294,12 +332,15 @@
     private bool _downloading;
     private string? _message;
     private bool _messageOk;
+    private bool _showRestore;                        // restore-instructions modal
+    private CancellationTokenSource? _toastCts;       // auto-dismiss timer for the toast
 
     // Run pipeline modal
     private BackupRunDto? _logRun;
     private BackupRunDetailDto? _logDetail;
     private bool _logLoading;
     private string? _logError;
+    private CancellationTokenSource? _logPollCts;   // drives live auto-refresh while a run is in progress
 
     protected override async Task OnInitializedAsync() => await LoadRunsAsync();
 
@@ -333,20 +374,17 @@
         var result = await BackupApi.TriggerBackupAsync();
         if (result.IsSuccess)
         {
-            _messageOk = true;
-            _message = "Backup started. It may take a minute to appear below.";
+            await ShowToastAsync(true, "Backup started. It may take a minute to appear below.");
+            _running = false;
             // Give GitHub a moment to register the run, then refresh the list.
             await Task.Delay(4000);
             await LoadRunsAsync();
-        }
-        else
-        {
-            _messageOk = false;
-            _message = string.IsNullOrWhiteSpace(result.Error)
-                ? "The backup could not be started. Please try again."
-                : result.Error;
+            return;
         }
 
+        await ShowToastAsync(false, string.IsNullOrWhiteSpace(result.Error)
+            ? "The backup could not be started. Please try again."
+            : result.Error);
         _running = false;
     }
 
@@ -362,15 +400,13 @@
             var artifact = result.Value;
             await JS.InvokeVoidAsync("downloadFileFromBytes",
                 artifact.FileName, Convert.ToBase64String(artifact.Content), artifact.ContentType);
-            _messageOk = true;
-            _message = $"Downloading {artifact.FileName}.";
+            await ShowToastAsync(true, $"Downloading {artifact.FileName}.");
         }
         else
         {
-            _messageOk = false;
-            _message = string.IsNullOrWhiteSpace(result.Error)
+            await ShowToastAsync(false, string.IsNullOrWhiteSpace(result.Error)
                 ? "No backup is available to download yet."
-                : result.Error;
+                : result.Error);
         }
 
         _downloading = false;
@@ -378,33 +414,117 @@
 
     private async Task OpenLog(BackupRunDto run)
     {
+        _logPollCts?.Cancel();          // stop any previous run's polling
         _logRun = run;
         _logDetail = null;
         _logError = null;
         _logLoading = true;
         await InvokeAsync(StateHasChanged);
 
-        var result = await BackupApi.GetRunDetailAsync(run.Id);
+        await RefreshLogAsync(run.Id);
+        _logLoading = false;
+        await InvokeAsync(StateHasChanged);
+
+        // Live: if the run is still queued/in-progress, auto-refresh until it finishes.
+        if (_logRun is not null && !IsTerminal(_logDetail))
+            _ = PollLogAsync(run.Id);
+    }
+
+    // Re-fetch the run detail. Keeps showing the last good data if a single poll transiently fails.
+    private async Task RefreshLogAsync(long runId)
+    {
+        var result = await BackupApi.GetRunDetailAsync(runId);
         if (result.IsSuccess && result.Value is not null)
         {
             _logDetail = result.Value;
+            _logError = null;
         }
-        else
+        else if (_logDetail is null)
         {
             _logError = string.IsNullOrWhiteSpace(result.Error)
                 ? "The run details could not be retrieved."
                 : result.Error;
         }
-
-        _logLoading = false;
     }
+
+    // Poll every 3s while the modal shows this run and it hasn't concluded. Safety-capped at ~10 min.
+    private async Task PollLogAsync(long runId)
+    {
+        var cts = new CancellationTokenSource();
+        _logPollCts = cts;
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+            var ticks = 0;
+            while (await timer.WaitForNextTickAsync(cts.Token))
+            {
+                if (_logRun is null || _logRun.Id != runId) break;   // modal closed or switched runs
+                await RefreshLogAsync(runId);
+                await InvokeAsync(StateHasChanged);
+
+                if (IsTerminal(_logDetail))
+                {
+                    await LoadRunsAsync();               // reflect the final status in the list too
+                    await InvokeAsync(StateHasChanged);
+                    break;
+                }
+                if (++ticks >= 200) break;               // ~10 min hard stop
+            }
+        }
+        catch (OperationCanceledException) { /* closed / switched */ }
+        catch { /* transient failure — stop polling quietly, last data stays shown */ }
+    }
+
+    private static bool IsTerminal(BackupRunDetailDto? d) =>
+        d is not null && string.Equals(d.Status, "completed", StringComparison.OrdinalIgnoreCase);
+
+    private bool LogIsLive => _logRun is not null && _logDetail is not null && !IsTerminal(_logDetail);
 
     private void CloseLog()
     {
+        _logPollCts?.Cancel();
+        _logPollCts = null;
         _logRun = null;
         _logDetail = null;
         _logError = null;
         _logLoading = false;
+    }
+
+    // Toast: show a top-right notification and auto-dismiss it after a few seconds.
+    private async Task ShowToastAsync(bool ok, string message)
+    {
+        _messageOk = ok;
+        _message = message;
+        _toastCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _toastCts = cts;
+        await InvokeAsync(StateHasChanged);
+        _ = DismissAfterAsync(cts.Token);
+    }
+
+    private async Task DismissAfterAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            _message = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { /* replaced or dismissed */ }
+    }
+
+    private void DismissToast()
+    {
+        _toastCts?.Cancel();
+        _message = null;
+    }
+
+    public void Dispose()
+    {
+        _logPollCts?.Cancel();
+        _logPollCts?.Dispose();
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
     }
 
     private static bool StepIsSuccess(BackupStepDto step) =>
@@ -447,32 +567,35 @@
         _ => char.ToUpper(evt[0]) + evt[1..]
     };
 
-    private static string StatusLabel(BackupRunDto run)
+    private static string StatusLabel(BackupRunDto run) => StatusLabelFor(run.Status, run.Conclusion);
+
+    private static string StatusLabelFor(string status, string? conclusion)
     {
-        if (string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase))
-            return run.Conclusion switch
+        if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+            return conclusion switch
             {
                 "success" => "Success",
                 "failure" => "Failed",
                 "cancelled" => "Cancelled",
                 null or "" => "Completed",
-                _ => char.ToUpper(run.Conclusion[0]) + run.Conclusion[1..]
+                _ => char.ToUpper(conclusion[0]) + conclusion[1..]
             };
 
-        return run.Status switch
+        return status switch
         {
             "in_progress" => "In progress",
             "queued" => "Queued",
             "" => "Unknown",
-            _ => char.ToUpper(run.Status[0]) + run.Status[1..]
+            _ => char.ToUpper(status[0]) + status[1..]
         };
     }
 
-    private static string PillClass(BackupRunDto run)
+    private static string PillClass(BackupRunDto run) => PillClassFor(run.Status, run.Conclusion);
+
+    private static string PillClassFor(string status, string? conclusion)
     {
-        var completed = string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase);
-        if (completed)
-            return run.Conclusion switch
+        if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+            return conclusion switch
             {
                 "success" => "bk-pill-ok",
                 "failure" or "cancelled" or "timed_out" => "bk-pill-err",
@@ -482,4 +605,13 @@
         // queued / in_progress / anything not yet concluded.
         return "bk-pill-warn";
     }
+
+    // Modal pill/label — prefer the live detail (updated by polling) over the initial list row.
+    private string LiveStatusLabel() =>
+        _logDetail is not null ? StatusLabelFor(_logDetail.Status, _logDetail.Conclusion)
+        : _logRun is not null ? StatusLabel(_logRun) : "";
+
+    private string LivePillClass() =>
+        _logDetail is not null ? PillClassFor(_logDetail.Status, _logDetail.Conclusion)
+        : _logRun is not null ? PillClass(_logRun) : "bk-pill-warn";
 }

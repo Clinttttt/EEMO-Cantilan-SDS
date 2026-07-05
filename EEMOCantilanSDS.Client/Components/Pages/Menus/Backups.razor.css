@@ -294,3 +294,102 @@
 .bk-modal-github:hover .set-link-arrow { transform: translateX(3px); }
 .bk-modal-closebtn { margin-left: auto; padding: 8px 16px; font-size: 12.5px; }
 
+
+
+/* Live auto-refresh indicator (shown in the run modal while a run is queued/in progress) */
+.bk-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--gold, #b8860b);
+    background: color-mix(in srgb, var(--gold, #c8a84b) 14%, transparent);
+    border-radius: 999px;
+}
+
+.bk-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--gold, #c8a84b);
+    animation: bk-live-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes bk-live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .35; transform: scale(.7); }
+}
+
+/* Restore-help icon button in the On-demand card header */
+.bk-info-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-subtle, #6a8aa0);
+    background: var(--bg-icon, #eef2f6);
+    border: 1px solid var(--border, #dde4ea);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.bk-info-btn svg { width: 16px; height: 16px; }
+.bk-info-btn:hover { color: var(--navy, #0d2137); border-color: var(--text-muted, #8faabf); background: #fff; }
+
+/* Top-right toast notifications */
+.bk-toast-wrap {
+    position: fixed;
+    top: 76px;
+    right: 24px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+.bk-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    width: 360px;
+    max-width: calc(100vw - 48px);
+    padding: 13px 14px;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #dde4ea);
+    border-left: 4px solid var(--text-muted, #8faabf);
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(13, 33, 55, .16);
+    animation: bk-toast-in .28s cubic-bezier(.16, 1, .3, 1);
+}
+.bk-toast-ok { border-left-color: var(--green, #2d7a5f); }
+.bk-toast-err { border-left-color: var(--red, #8b3a3a); }
+.bk-toast-ico { flex-shrink: 0; display: inline-flex; margin-top: 1px; }
+.bk-toast-ico svg { width: 19px; height: 19px; }
+.bk-toast-ok .bk-toast-ico { color: var(--green, #2d7a5f); }
+.bk-toast-err .bk-toast-ico { color: var(--red, #8b3a3a); }
+.bk-toast-msg { flex: 1; font-size: 13.5px; line-height: 1.4; color: var(--text, #0d2137); font-weight: 500; }
+.bk-toast-x {
+    flex-shrink: 0;
+    display: inline-flex;
+    padding: 2px;
+    background: none;
+    border: none;
+    color: var(--text-muted, #8faabf);
+    cursor: pointer;
+    border-radius: 6px;
+}
+.bk-toast-x svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2.2; }
+.bk-toast-x:hover { color: var(--navy, #0d2137); background: var(--bg-icon, #eef2f6); }
+
+@keyframes bk-toast-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+}
