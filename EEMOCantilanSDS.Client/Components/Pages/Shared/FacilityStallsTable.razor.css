@@ -187,3 +187,22 @@
     color: #fff;
     border-color: var(--gold, #c8a84b);
 }
+
+/* Generic lease-table loading state: keep the table frame visible while rows load. */
+.facility-loading-table {
+    overflow-x: auto;
+}
+
+.facility-loading-table tbody tr {
+    pointer-events: none;
+}
+
+.facility-loading-table tbody tr:hover {
+    background: transparent;
+}
+
+.facility-loading-actions {
+    gap: 7px;
+    justify-content: flex-start;
+    pointer-events: none;
+}

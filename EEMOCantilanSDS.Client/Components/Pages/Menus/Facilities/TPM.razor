@@ -162,15 +162,48 @@
             }
             else if (isLoadingAttendance)
             {
-                <div class="sk-rows">
-                    @for (var _i = 0; _i < 8; _i++)
-                    {
-                        <div class="sk-row">
-                            <Skeleton Width="80%" Height="13px" Radius="6px" />
-                            <Skeleton Width="60px" Height="22px" Radius="999px" />
-                            <Skeleton Width="60%" Height="13px" Radius="6px" />
-                        </div>
-                    }
+                <div class="tpm-attendance-info tpm-loading-attendance" aria-busy="true" aria-label="Loading vendor attendance">
+                    <div class="tpm-attend-stat">
+                        <Skeleton Width="34px" Height="18px" Radius="6px" />
+                        <Skeleton Width="62px" Height="10px" Radius="6px" />
+                    </div>
+                    <div class="tpm-attend-stat">
+                        <Skeleton Width="68px" Height="18px" Radius="6px" />
+                        <Skeleton Width="70px" Height="10px" Radius="6px" />
+                    </div>
+                    <Skeleton Width="124px" Height="34px" Radius="8px" />
+                </div>
+
+                <div class="tpm-search-wrap tpm-loading-search">
+                    <Skeleton Width="100%" Height="32px" Radius="8px" />
+                </div>
+
+                <div class="tpm-vendor-table-wrap tpm-loading-table">
+                    <table class="tpm-vendor-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Vendor Name</th>
+                                <th>Goods / Product</th>
+                                <th>OR No.</th>
+                                <th>Fee</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var _i = 0; _i < 8; _i++)
+                            {
+                                <tr>
+                                    <td><Skeleton Width="18px" Height="12px" Radius="6px" /></td>
+                                    <td><Skeleton Width="115px" Height="12px" Radius="6px" /></td>
+                                    <td><Skeleton Width="96px" Height="12px" Radius="6px" /></td>
+                                    <td><Skeleton Width="76px" Height="20px" Radius="999px" /></td>
+                                    <td><Skeleton Width="52px" Height="12px" Radius="6px" /></td>
+                                    <td><Skeleton Width="58px" Height="28px" Radius="7px" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             }
             else

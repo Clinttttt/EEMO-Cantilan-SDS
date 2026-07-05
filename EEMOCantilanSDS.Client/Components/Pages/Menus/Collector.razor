@@ -74,7 +74,8 @@
                 </div>
                 <div class="vs-hero-progress">
                     @{
-                        var activeRate = (Collectors?.Count ?? 0) > 0 ? ((Collectors!.Count(c => c.IsActive) * 100) / Collectors.Count) : 0;
+                        var collectorCount = Collectors?.Count ?? 0;
+                        var activeRate = collectorCount > 0 ? ((Collectors!.Count(c => c.IsActive) * 100) / collectorCount) : 0;
                     }
                     <div class="vs-hero-progress-fill" style="width: @activeRate%;"></div>
                 </div>
@@ -114,17 +115,59 @@
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title">Collector Accounts</div>
-                    <div class="panel-count">@FilteredCollectors.Count() records</div>
+                    <div class="panel-count">@(_loading ? "Loading" : $"{FilteredCollectors.Count()} records")</div>
                 </div>
 
                 @if (_loading)
                 {
-                    <div class="sk-stack">
-                        <Skeleton Height="38px" Radius="8px" />
-                        @for (var i = 0; i < 7; i++)
-                        {
-                            <Skeleton Height="46px" Radius="8px" />
-                        }
+                    <div class="table-wrap collector-loading-table" aria-busy="true" aria-label="Loading collector accounts">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Collector</th>
+                                    <th>Employee ID</th>
+                                    <th>Assigned Facilities</th>
+                                    <th>Collected (This Month)</th>
+                                    <th>Transactions</th>
+                                    <th>Last Active</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var i = 0; i < 6; i++)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="collector-cell">
+                                                <Skeleton Width="34px" Height="34px" Radius="999px" />
+                                                <div class="collector-loading-name">
+                                                    <Skeleton Width="130px" Height="12px" Radius="6px" />
+                                                    <Skeleton Width="180px" Height="10px" Radius="5px" />
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td><Skeleton Width="76px" Height="12px" Radius="6px" /></td>
+                                        <td>
+                                            <div class="facility-tags">
+                                                <Skeleton Width="42px" Height="18px" Radius="5px" />
+                                                <Skeleton Width="42px" Height="18px" Radius="5px" />
+                                                <Skeleton Width="42px" Height="18px" Radius="5px" />
+                                            </div>
+                                        </td>
+                                        <td><Skeleton Width="86px" Height="12px" Radius="6px" /></td>
+                                        <td><Skeleton Width="44px" Height="12px" Radius="6px" /></td>
+                                        <td><Skeleton Width="92px" Height="12px" Radius="6px" /></td>
+                                        <td>
+                                            <div class="action-btns">
+                                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
                 }
                 else if (!FilteredCollectors.Any())

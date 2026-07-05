@@ -47,12 +47,42 @@
         }
         else
         {
-            <div class="sk-stack">
-                <Skeleton Height="40px" Radius="8px" />
-                @for (var _i = 0; _i < 8; _i++)
-                {
-                    <Skeleton Height="46px" Radius="8px" />
-                }
+            <div class="table-wrap facility-loading-table" aria-busy="true" aria-label="Loading stalls">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Stall No.</th>
+                            <th>Actual Occupant</th>
+                            <th>Name on Contract</th>
+                            <th>Area (sqm)</th>
+                            <th>Contract Date</th>
+                            <th>Monthly Rent</th>
+                            <th>OR No.</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var _i = 0; _i < 8; _i++)
+                        {
+                            <tr>
+                                <td><Skeleton Width="54px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="150px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="160px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="62px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="94px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="78px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
+                                <td>
+                                    <div class="action-btns facility-loading-actions">
+                                        <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                        <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                        <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
         }
     }

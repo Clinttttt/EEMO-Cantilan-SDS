@@ -77,7 +77,8 @@ namespace EEMOCantilanSDS.Mobile
         internal static string GetApiBaseUrl()
         {
             /*https://api.stalltrack.site*/
-            const string ApiBaseUrlOverride = "http://api.stalltrack.site/";
+            /* Production API — F1 App Service default host (custom domain api.stalltrack.site retired). */
+            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
                if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
                    return ApiBaseUrlOverride;
 

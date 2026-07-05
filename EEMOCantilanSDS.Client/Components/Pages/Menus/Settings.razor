@@ -37,7 +37,10 @@
 
 <div class="content-area">
 
-    @{ var loaded = _model is not null; }
+    @{
+        var loaded = _model is not null;
+        var settingsPeriod = _model?.System.ServerDate ?? _now;
+    }
 
     <!-- ── Hero (shell is always visible; only the stat values skeletonize) ── -->
     <div class="vs-hero">
@@ -55,47 +58,29 @@
             </div>
         </div>
         <div class="vs-hero-stats">
-            @if (loaded)
-            {
-                <div class="vs-hero-stat">
-                    <div class="vs-hero-val">@_model!.Facilities.Count</div>
-                    <div class="vs-hero-key">Facilities</div>
-                    <div class="vs-hero-sub2">Configured</div>
-                </div>
-                <div class="vs-hero-divider"></div>
-                <div class="vs-hero-stat">
-                    <div class="vs-hero-val">@_model.Security.Roles.Count</div>
-                    <div class="vs-hero-key">User Roles</div>
-                    <div class="vs-hero-sub2">@string.Join(" · ", _model.Security.Roles)</div>
-                </div>
-                <div class="vs-hero-divider"></div>
-                <div class="vs-hero-stat">
-                    <div class="vs-hero-val">@_model.System.ServerDate.ToString("MMM yyyy")</div>
-                    <div class="vs-hero-key">Collection Period</div>
-                    <div class="vs-hero-sub2">Open</div>
-                </div>
-                <div class="vs-hero-divider"></div>
-                <div class="vs-hero-stat">
-                    <div class="vs-hero-val">v@(_model.System.Version)</div>
-                    <div class="vs-hero-key">Version</div>
-                    <div class="vs-hero-sub2">@_model.System.ApplicationName</div>
-                </div>
-            }
-            else
-            {
-                @for (var i = 0; i < 4; i++)
-                {
-                    @if (i > 0)
-                    {
-                        <div class="vs-hero-divider"></div>
-                    }
-                    <div class="vs-hero-stat">
-                        <Skeleton Width="72px" Height="20px" Radius="7px" Class="set-sk-center" />
-                        <Skeleton Width="92px" Height="10px" Radius="5px" Class="set-sk-center set-sk-gap" />
-                        <Skeleton Width="76px" Height="9px" Radius="5px" Class="set-sk-center set-sk-gap" />
-                    </div>
-                }
-            }
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@(_model?.Facilities.Count ?? 0)</div>
+                <div class="vs-hero-key">Facilities</div>
+                <div class="vs-hero-sub2">Configured</div>
+            </div>
+            <div class="vs-hero-divider"></div>
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@(_model?.Security.Roles.Count ?? 0)</div>
+                <div class="vs-hero-key">User Roles</div>
+                <div class="vs-hero-sub2">@(loaded ? string.Join(" · ", _model!.Security.Roles) : "Role policy")</div>
+            </div>
+            <div class="vs-hero-divider"></div>
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@settingsPeriod.ToString("MMM yyyy")</div>
+                <div class="vs-hero-key">Collection Period</div>
+                <div class="vs-hero-sub2">Open</div>
+            </div>
+            <div class="vs-hero-divider"></div>
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">v@(_model?.System.Version ?? "1.0")</div>
+                <div class="vs-hero-key">Version</div>
+                <div class="vs-hero-sub2">@(_model?.System.ApplicationName ?? "EEMO System")</div>
+            </div>
         </div>
     </div>
 

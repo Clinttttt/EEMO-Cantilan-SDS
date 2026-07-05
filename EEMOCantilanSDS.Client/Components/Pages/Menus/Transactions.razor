@@ -86,19 +86,45 @@
     <div class="section-card txn-card">
         @if (IsLoading)
         {
-            <div class="sk-rows">
-                @for (var i = 0; i < 8; i++)
-                {
-                    <div class="sk-row">
-                        <Skeleton Width="78%" Height="13px" Radius="6px" />
-                        <Skeleton Width="54px" Height="22px" Radius="999px" />
-                        <Skeleton Width="82%" Height="13px" Radius="6px" />
-                        <Skeleton Width="70%" Height="13px" Radius="6px" />
-                        <Skeleton Width="60%" Height="13px" Radius="6px" />
-                        <Skeleton Width="60px" Height="22px" Radius="999px" />
-                    </div>
-                }
-            </div>
+            <table class="txn-table txn-loading-table" aria-busy="true" aria-label="Loading transactions">
+                <thead>
+                    <tr>
+                        <th>Date &amp; Time</th>
+                        <th>Facility</th>
+                        <th>Party</th>
+                        <th>Details</th>
+                        <th class="txn-num">Amount</th>
+                        <th>OR No.</th>
+                        <th>Status</th>
+                        <th>Recorded by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < 8; i++)
+                    {
+                        <tr>
+                            <td>
+                                <div class="txn-loading-stack">
+                                    <Skeleton Width="92px" Height="12px" Radius="6px" />
+                                    <Skeleton Width="64px" Height="10px" Radius="5px" />
+                                </div>
+                            </td>
+                            <td><Skeleton Width="52px" Height="22px" Radius="999px" /></td>
+                            <td><Skeleton Width="130px" Height="13px" Radius="6px" /></td>
+                            <td>
+                                <div class="txn-loading-stack">
+                                    <Skeleton Width="115px" Height="12px" Radius="6px" />
+                                    <Skeleton Width="90px" Height="10px" Radius="5px" />
+                                </div>
+                            </td>
+                            <td class="txn-num"><Skeleton Width="78px" Height="13px" Radius="6px" /></td>
+                            <td><Skeleton Width="68px" Height="13px" Radius="6px" /></td>
+                            <td><Skeleton Width="60px" Height="22px" Radius="999px" /></td>
+                            <td><Skeleton Width="92px" Height="13px" Radius="6px" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         }
         else if (!Feed.Any())
         {

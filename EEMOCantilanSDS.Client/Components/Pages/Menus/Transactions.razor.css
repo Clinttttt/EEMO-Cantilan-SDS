@@ -265,3 +265,18 @@
 
 /* Recorded-by column — subtle, secondary to the money columns. */
 .txn-recorder { color: var(--text-subtle); font-size: 12px; white-space: nowrap; }
+
+/* Loading table mirrors the real transaction feed and prevents a whole-panel shimmer jump. */
+.txn-loading-table tbody tr {
+    pointer-events: none;
+}
+
+.txn-loading-table tbody tr:hover {
+    background: transparent;
+}
+
+.txn-loading-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

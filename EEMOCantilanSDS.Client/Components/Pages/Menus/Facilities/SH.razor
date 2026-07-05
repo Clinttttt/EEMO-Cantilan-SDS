@@ -198,16 +198,44 @@
         <div class="panel">
             @if (isLoading)
             {
-                <div class="sk-rows">
+                <div class="slh-loading-table" aria-busy="true" aria-label="Loading slaughterhouse transactions">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Owner / Client</th>
+                                <th>Animal Type</th>
+                                <th>No. of Heads</th>
+                                <th>Rate / Head</th>
+                                <th>Total Amount</th>
+                                <th>OR No.</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                     @for (var _i = 0; _i < 8; _i++)
                     {
-                        <div class="sk-row">
-                            <Skeleton Width="80%" Height="13px" Radius="6px" />
-                            <Skeleton Width="60px" Height="22px" Radius="999px" />
-                            <Skeleton Width="65%" Height="13px" Radius="6px" />
-                            <Skeleton Width="55%" Height="13px" Radius="6px" />
-                        </div>
+                            <tr>
+                                <td><Skeleton Width="22px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="88px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="145px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="96px" Height="22px" Radius="999px" /></td>
+                                <td><Skeleton Width="38px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="82px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="72px" Height="18px" Radius="6px" /></td>
+                                <td>
+                                    <div class="action-btns slh-loading-actions">
+                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
+                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
+                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
+                                    </div>
+                                </td>
+                            </tr>
                     }
+                        </tbody>
+                    </table>
                 </div>
             }
             else

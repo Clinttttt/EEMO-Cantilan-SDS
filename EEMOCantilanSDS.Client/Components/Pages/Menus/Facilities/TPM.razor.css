@@ -1176,3 +1176,14 @@
         flex-wrap: wrap;
     }
 }
+
+/* Loading states mirror the real TPM attendance controls and vendor table. */
+.tpm-loading-attendance,
+.tpm-loading-search,
+.tpm-loading-table {
+    pointer-events: none;
+}
+
+.tpm-loading-table tbody tr:hover {
+    background: transparent;
+}

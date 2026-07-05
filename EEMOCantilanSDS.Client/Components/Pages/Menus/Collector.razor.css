@@ -177,6 +177,21 @@
     font-weight: 500;
 }
 
+.collector-loading-table {
+    overflow-x: auto;
+}
+
+.collector-loading-table .data-table tbody tr:hover {
+    background: transparent;
+}
+
+.collector-loading-name {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
 /* ══════════════════════════════════════════
    ACTION BUTTONS
 ══════════════════════════════════════════ */

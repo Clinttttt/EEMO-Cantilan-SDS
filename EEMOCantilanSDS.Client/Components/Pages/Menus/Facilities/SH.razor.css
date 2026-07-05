@@ -632,3 +632,21 @@
         stroke-width: 1.75;
         display: block;
     }
+
+/* Loading table mirrors the real slaughterhouse transaction table. */
+.slh-loading-table {
+    overflow-x: auto;
+}
+
+    .slh-loading-table tbody tr {
+        pointer-events: none;
+    }
+
+        .slh-loading-table tbody tr:hover {
+            background: transparent;
+        }
+
+.slh-loading-actions {
+    gap: 6px;
+    pointer-events: none;
+}

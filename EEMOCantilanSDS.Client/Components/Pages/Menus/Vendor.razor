@@ -153,12 +153,53 @@
                 <div class="panel">
                     @if (isLoading)
                     {
-                        <div class="sk-stack">
-                            <Skeleton Height="40px" Radius="8px" />
-                            @for (var _r = 0; _r < 8; _r++)
-                            {
-                                <Skeleton Height="52px" Radius="8px" />
-                            }
+                        <div class="table-wrap vendor-loading-table" aria-busy="true" aria-label="Loading vendor registry">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Stall No.</th>
+                                        <th>Actual Occupant</th>
+                                        <th>Section / Area</th>
+                                        <th>Monthly Rate</th>
+                                        <th>Contract</th>
+                                        <th>Payment</th>
+                                        <th>Status</th>
+                                        <th style="width: 280px; text-align: right;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var _r = 0; _r < 8; _r++)
+                                    {
+                                        <tr>
+                                            <td><Skeleton Width="54px" Height="13px" Radius="6px" /></td>
+                                            <td>
+                                                <div class="vendor-loading-name">
+                                                    <Skeleton Width="145px" Height="13px" Radius="6px" />
+                                                    <Skeleton Width="110px" Height="10px" Radius="5px" />
+                                                </div>
+                                            </td>
+                                            <td><Skeleton Width="92px" Height="13px" Radius="6px" /></td>
+                                            <td><Skeleton Width="80px" Height="13px" Radius="6px" /></td>
+                                            <td>
+                                                <div class="vendor-loading-name">
+                                                    <Skeleton Width="54px" Height="13px" Radius="6px" />
+                                                    <Skeleton Width="82px" Height="10px" Radius="5px" />
+                                                </div>
+                                            </td>
+                                            <td><Skeleton Width="72px" Height="22px" Radius="999px" /></td>
+                                            <td><Skeleton Width="70px" Height="22px" Radius="999px" /></td>
+                                            <td>
+                                                <div class="action-btns vendor-loading-actions" style="justify-content: flex-end;">
+                                                    <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                    <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                    <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                    <Skeleton Width="30px" Height="30px" Radius="7px" />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         </div>
                     }
                     else if (!FilteredVendors.Any())

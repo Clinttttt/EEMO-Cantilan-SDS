@@ -1368,3 +1368,19 @@
         stroke-width: 2;
         flex-shrink: 0;
     }
+
+/* Loading states keep the real TRM panel structure visible while data resolves. */
+.trm-loading-search,
+.trm-loading-list,
+.trm-loading-table {
+    pointer-events: none;
+}
+
+.trm-loading-item {
+    cursor: default;
+}
+
+    .trm-loading-item:hover,
+    .trm-loading-table tbody tr:hover {
+        background: transparent;
+    }

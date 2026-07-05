@@ -49,29 +49,76 @@
     {
         <div class="trm-columns">
             <div class="trm-panel">
-                <div class="trm-panel-header"><Skeleton Width="200px" Height="20px" Radius="6px" /></div>
-                <div class="sk-rows">
+                <div class="trm-panel-header">
+                    <div class="trm-panel-title">
+                        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+                        Registered Transporters
+                    </div>
+                    <Skeleton Width="128px" Height="34px" Radius="8px" />
+                </div>
+                <div class="trm-panel-desc">
+                    <Skeleton Width="220px" Height="12px" Radius="6px" />
+                </div>
+                <div class="trm-search-wrap trm-loading-search">
+                    <Skeleton Width="100%" Height="34px" Radius="8px" />
+                </div>
+                <div class="trm-transporter-list trm-loading-list" aria-busy="true" aria-label="Loading transporters">
                     @for (var _i = 0; _i < 6; _i++)
                     {
-                        <div class="sk-row">
-                            <Skeleton Width="60%" Height="13px" Radius="6px" />
-                            <Skeleton Width="72%" Height="13px" Radius="6px" />
-                            <Skeleton Width="50%" Height="13px" Radius="6px" />
+                        <div class="trm-transporter-item trm-loading-item">
+                            <Skeleton Width="38px" Height="38px" Radius="10px" />
+                            <div class="trm-transporter-info">
+                                <Skeleton Width="150px" Height="14px" Radius="6px" />
+                                <Skeleton Width="96px" Height="20px" Radius="999px" />
+                            </div>
+                            <div class="trm-transporter-right">
+                                <Skeleton Width="72px" Height="20px" Radius="999px" />
+                                <Skeleton Width="18px" Height="18px" Radius="6px" />
+                            </div>
                         </div>
                     }
                 </div>
             </div>
             <div class="trm-panel">
-                <div class="trm-panel-header"><Skeleton Width="160px" Height="20px" Radius="6px" /></div>
-                <div class="sk-rows">
-                    @for (var _i = 0; _i < 6; _i++)
-                    {
-                        <div class="sk-row">
-                            <Skeleton Width="60%" Height="13px" Radius="6px" />
-                            <Skeleton Width="72%" Height="13px" Radius="6px" />
-                            <Skeleton Width="50%" Height="13px" Radius="6px" />
-                        </div>
-                    }
+                <div class="trm-panel-header">
+                    <div class="trm-panel-title">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                        Today's Trip Log
+                    </div>
+                    <Skeleton Width="132px" Height="32px" Radius="8px" />
+                </div>
+                <div class="trm-panel-desc">
+                    <Skeleton Width="190px" Height="12px" Radius="6px" />
+                </div>
+                <div class="trm-search-wrap trm-loading-search">
+                    <Skeleton Width="100%" Height="34px" Radius="8px" />
+                </div>
+                <div class="trm-log-table-wrap trm-loading-table" aria-busy="true" aria-label="Loading trip log">
+                    <table class="trm-log-table">
+                        <thead>
+                            <tr>
+                                <th>TRIP NO.</th>
+                                <th>DRIVER</th>
+                                <th>ORGANIZATION</th>
+                                <th>PLATE</th>
+                                <th>ROUTE</th>
+                                <th>TIME</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var _i = 0; _i < 6; _i++)
+                            {
+                                <tr>
+                                    <td><Skeleton Width="48px" Height="13px" Radius="6px" /></td>
+                                    <td><Skeleton Width="108px" Height="13px" Radius="6px" /></td>
+                                    <td><Skeleton Width="120px" Height="13px" Radius="6px" /></td>
+                                    <td><Skeleton Width="70px" Height="18px" Radius="6px" /></td>
+                                    <td><Skeleton Width="96px" Height="13px" Radius="6px" /></td>
+                                    <td><Skeleton Width="64px" Height="13px" Radius="6px" /></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

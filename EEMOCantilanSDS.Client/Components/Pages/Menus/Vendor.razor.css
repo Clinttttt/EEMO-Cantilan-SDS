@@ -1959,4 +1959,28 @@ TABLE
     }
 }
 
+/* Loading table mirrors the real vendor registry instead of showing page-wide bars. */
+.vendor-loading-table {
+    overflow-x: auto;
+}
+
+.vendor-loading-table tbody tr {
+    pointer-events: none;
+}
+
+.vendor-loading-table tbody tr:hover {
+    background: transparent;
+}
+
+.vendor-loading-name {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.vendor-loading-actions {
+    gap: 7px;
+    pointer-events: none;
+}
+
 
