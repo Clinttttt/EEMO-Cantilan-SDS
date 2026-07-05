@@ -100,7 +100,47 @@
 
     @if (Loading)
     {
-        <div class="me-state">Loading month-end report…</div>
+        <div class="me-loading no-print" aria-busy="true" aria-label="Loading month-end report">
+            <div class="me-summary">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="me-sum-card">
+                        <Skeleton Width="64%" Height="22px" Radius="7px" Class="me-sk-center" />
+                        <Skeleton Width="48%" Height="11px" Radius="5px" Class="me-sk-center me-sk-gap" />
+                    </div>
+                }
+            </div>
+
+            <section class="me-sheet">
+                <header class="me-rpt-head">
+                    <Skeleton Width="54px" Height="54px" Radius="999px" Class="me-sk-center" />
+                    <Skeleton Width="190px" Height="9px" Radius="5px" Class="me-sk-center me-sk-gap" />
+                    <Skeleton Width="280px" Height="16px" Radius="6px" Class="me-sk-center me-sk-gap" />
+                    <Skeleton Width="220px" Height="11px" Radius="5px" Class="me-sk-center me-sk-gap" />
+                    <Skeleton Width="360px" Height="20px" Radius="999px" Class="me-sk-center me-sk-gap" />
+                </header>
+
+                @for (var section = 0; section < 2; section++)
+                {
+                    <div class="me-facility">
+                        <div class="me-fac-head">
+                            <div class="me-fac-title">
+                                <Skeleton Width="150px" Height="17px" Radius="6px" />
+                                <Skeleton Width="92px" Height="18px" Radius="999px" />
+                            </div>
+                            <Skeleton Width="220px" Height="14px" Radius="6px" />
+                        </div>
+                        <div class="me-table-skeleton">
+                            <Skeleton Height="34px" Radius="7px" />
+                            @for (var row = 0; row < 4; row++)
+                            {
+                                <Skeleton Height="32px" Radius="7px" />
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+        </div>
     }
     else if (Report is null)
     {

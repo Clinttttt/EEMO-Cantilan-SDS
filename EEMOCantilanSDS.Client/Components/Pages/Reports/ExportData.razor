@@ -100,7 +100,48 @@
 
     @if (_loading)
     {
-        <div class="ex-state no-print">Loading report…</div>
+        <div class="ex-loading no-print" aria-busy="true" aria-label="Loading export report">
+            <div class="ex-summary">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="ex-sum-card">
+                        <Skeleton Width="64%" Height="21px" Radius="7px" Class="ex-sk-center" />
+                        <Skeleton Width="50%" Height="11px" Radius="5px" Class="ex-sk-center ex-sk-gap" />
+                    </div>
+                }
+            </div>
+
+            <section class="ex-sheet">
+                <header class="ex-rpt-head">
+                    <Skeleton Width="54px" Height="54px" Radius="999px" Class="ex-sk-center" />
+                    <Skeleton Width="190px" Height="9px" Radius="5px" Class="ex-sk-center ex-sk-gap" />
+                    <Skeleton Width="280px" Height="16px" Radius="6px" Class="ex-sk-center ex-sk-gap" />
+                    <Skeleton Width="240px" Height="12px" Radius="5px" Class="ex-sk-center ex-sk-gap" />
+                    <Skeleton Width="300px" Height="16px" Radius="6px" Class="ex-sk-center ex-sk-gap" />
+                </header>
+
+                @for (var section = 0; section < 2; section++)
+                {
+                    <div class="ex-facility">
+                        <div class="ex-fac-head">
+                            <div class="ex-fac-title">
+                                <Skeleton Width="42px" Height="24px" Radius="7px" />
+                                <Skeleton Width="190px" Height="17px" Radius="6px" />
+                                <Skeleton Width="92px" Height="18px" Radius="999px" />
+                            </div>
+                            <Skeleton Width="210px" Height="14px" Radius="6px" />
+                        </div>
+                        <div class="ex-table-skeleton">
+                            <Skeleton Height="34px" Radius="7px" />
+                            @for (var row = 0; row < 4; row++)
+                            {
+                                <Skeleton Height="32px" Radius="7px" />
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+        </div>
     }
     else if (_data is null)
     {

@@ -203,7 +203,30 @@
 
     @if (_loading)
     {
-        <div class="fh-state" aria-busy="true">Loading @periodLabel…</div>
+        <div class="fh-loading" aria-busy="true" aria-label="Loading @periodLabel">
+            @for (var s = 0; s < 3; s++)
+            {
+                <section class="fh-section fh-loading-section">
+                    <div class="fh-sec-head">
+                        <span class="fh-sec-rail"></span>
+                        <Skeleton Width="24px" Height="24px" Radius="7px" />
+                        <div class="fh-loading-sec-info">
+                            <Skeleton Width="210px" Height="15px" Radius="6px" />
+                            <Skeleton Width="300px" Height="11px" Radius="5px" Class="fh-sk-gap" />
+                        </div>
+                    </div>
+                    <div class="fh-table-wrap">
+                        <div class="fh-table-skeleton">
+                            <Skeleton Height="34px" Radius="6px" />
+                            @for (var row = 0; row < 4; row++)
+                            {
+                                <Skeleton Height="40px" Radius="6px" />
+                            }
+                        </div>
+                    </div>
+                </section>
+            }
+        </div>
     }
     else if (_data is null)
     {

@@ -513,3 +513,43 @@
         page-break-inside: avoid;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   CONTEXTUAL LOADING SKELETON (screen only — mirrors hero + doc panel)
+   ══════════════════════════════════════════════════════════════ */
+.slr-loading {
+    margin-top: 4px;
+}
+
+.slr-loading ::deep .slr-sk-center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.slr-loading ::deep .slr-sk-gap {
+    margin-top: 8px;
+}
+
+/* Hero identity text column */
+.slr-hero-sk-text {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Toolbar/filter placeholder row */
+.slr-loading-toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+/* Section table placeholder: bordered like the real table, evenly spaced rows */
+.slr-table-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #cfd6de;
+    border-top: none;
+}

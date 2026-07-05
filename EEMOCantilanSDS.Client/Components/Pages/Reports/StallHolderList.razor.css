@@ -146,3 +146,28 @@
     .sh-rpt-head { margin-bottom: 18px; }
     .sh-table tbody tr:hover { background: transparent; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   CONTEXTUAL LOADING SKELETON (screen only — mirrors the holder sheet)
+   ══════════════════════════════════════════════════════════════ */
+.sh-loading {
+    margin-top: 4px;
+}
+
+.sh-loading ::deep .sh-sk-center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.sh-loading ::deep .sh-sk-gap {
+    margin-top: 8px;
+}
+
+/* Holder table placeholder: header bar + evenly spaced rows */
+.sh-table-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}

@@ -40,6 +40,82 @@
     color: var(--text-subtle);
 }
 
+.op-loading {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) minmax(180px, 28%);
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    min-height: 96px;
+    border-radius: 12px;
+    background: var(--bg-card);
+}
+
+.op-loading-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: var(--bg-icon);
+    color: var(--navy);
+}
+
+.op-loading-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.op-loading-title {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.op-loading-sub {
+    margin-top: 3px;
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: var(--text-subtle);
+}
+
+.op-loading-lines {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.op-loading-lines span {
+    position: relative;
+    overflow: hidden;
+    display: block;
+    height: 12px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--border) 72%, #fff);
+}
+
+.op-loading-lines span:last-child {
+    width: 72%;
+}
+
+.op-loading-lines span::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .72), transparent);
+    animation: opShimmer 1.1s ease-in-out infinite;
+}
+
+@keyframes opShimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
 .op-table {
     width: 100%;
     border-collapse: collapse;
@@ -119,4 +195,20 @@
 
 .op-btn:not(:disabled):hover {
     background: var(--navy-2);
+}
+
+@media (max-width: 720px) {
+    .op-loading {
+        grid-template-columns: 44px 1fr;
+    }
+
+    .op-loading-lines {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .op-loading-lines span::after {
+        animation: none;
+    }
 }

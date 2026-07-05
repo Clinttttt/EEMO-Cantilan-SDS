@@ -77,7 +77,45 @@
 
     @if (_loading)
     {
-        <div class="ca-state">Loading closed accounts…</div>
+        <div class="ca-loading no-print" aria-busy="true" aria-label="Loading closed accounts">
+            <!-- Summary KPI card skeletons -->
+            <div class="ca-summary">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="ca-sum-card">
+                        <Skeleton Width="56%" Height="21px" Radius="7px" Class="ca-sk-center" />
+                        <Skeleton Width="70%" Height="11px" Radius="5px" Class="ca-sk-center ca-sk-gap" />
+                    </div>
+                }
+            </div>
+
+            <!-- Document sheet skeleton -->
+            <section class="ca-sheet">
+                <header class="ca-rpt-head">
+                    <Skeleton Width="54px" Height="54px" Radius="999px" Class="ca-sk-center" />
+                    <Skeleton Width="190px" Height="9px" Radius="5px" Class="ca-sk-center ca-sk-gap" />
+                    <Skeleton Width="320px" Height="16px" Radius="6px" Class="ca-sk-center ca-sk-gap" />
+                    <Skeleton Width="240px" Height="11px" Radius="5px" Class="ca-sk-center ca-sk-gap" />
+                </header>
+
+                @for (var grp = 0; grp < 2; grp++)
+                {
+                    <div class="ca-year">
+                        <div class="ca-year-head">
+                            <Skeleton Width="70px" Height="16px" Radius="6px" />
+                            <Skeleton Width="220px" Height="12px" Radius="5px" />
+                        </div>
+                        <div class="ca-table-skeleton">
+                            <Skeleton Height="34px" Radius="6px" />
+                            @for (var row = 0; row < 4; row++)
+                            {
+                                <Skeleton Height="32px" Radius="6px" />
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+        </div>
     }
     else
     {

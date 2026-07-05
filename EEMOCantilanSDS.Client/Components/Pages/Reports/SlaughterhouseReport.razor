@@ -38,7 +38,62 @@
 
     @if (isLoading)
     {
-        <div class="spinner">Loading...</div>
+        <div class="slr-loading no-print" aria-busy="true" aria-label="Loading slaughterhouse report">
+            <!-- Hero banner skeleton -->
+            <div class="slr-hero slr-hero-sk">
+                <div class="slr-hero-left">
+                    <Skeleton Width="54px" Height="54px" Radius="12px" />
+                    <div class="slr-hero-sk-text">
+                        <Skeleton Width="90px" Height="10px" Radius="5px" />
+                        <Skeleton Width="180px" Height="20px" Radius="6px" Class="slr-sk-gap" />
+                        <Skeleton Width="220px" Height="11px" Radius="5px" Class="slr-sk-gap" />
+                    </div>
+                </div>
+                <div class="slr-hero-stats">
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        <div class="slr-hero-stat">
+                            <Skeleton Width="70px" Height="20px" Radius="6px" Class="slr-sk-center" />
+                            <Skeleton Width="54px" Height="9px" Radius="5px" Class="slr-sk-center slr-sk-gap" />
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Toolbar / filter skeleton -->
+            <div class="slr-loading-toolbar">
+                <Skeleton Width="240px" Height="38px" Radius="8px" />
+                <Skeleton Width="230px" Height="38px" Radius="8px" />
+                <Skeleton Width="150px" Height="38px" Radius="8px" />
+            </div>
+
+            <!-- Document panel skeleton -->
+            <div class="slr-doc-panel">
+                <div class="slr-doc-header">
+                    <Skeleton Width="64px" Height="64px" Radius="999px" Class="slr-sk-center" />
+                    <Skeleton Width="180px" Height="9px" Radius="5px" Class="slr-sk-center slr-sk-gap" />
+                    <Skeleton Width="300px" Height="16px" Radius="6px" Class="slr-sk-center slr-sk-gap" />
+                    <Skeleton Width="220px" Height="11px" Radius="5px" Class="slr-sk-center slr-sk-gap" />
+                </div>
+
+                @for (var section = 0; section < 2; section++)
+                {
+                    <div class="slr-section-block">
+                        <div class="slr-section-label-row">
+                            <Skeleton Width="120px" Height="12px" Radius="5px" />
+                            <Skeleton Width="80px" Height="10px" Radius="5px" />
+                        </div>
+                        <div class="slr-table-skeleton">
+                            <Skeleton Height="34px" Radius="6px" />
+                            @for (var row = 0; row < 4; row++)
+                            {
+                                <Skeleton Height="30px" Radius="6px" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
     }
     else
     {

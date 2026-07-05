@@ -141,7 +141,31 @@
 
             @if (Admins is null)
             {
-                <div class="empty-state"><div class="empty-title">Loading…</div></div>
+                <div class="table-wrap accounts-table-loading" aria-busy="true" aria-label="Loading administrators">
+                    <div class="acct-sk-head">
+                        @for (var i = 0; i < 6; i++)
+                        {
+                            <Skeleton Height="11px" Radius="5px" />
+                        }
+                    </div>
+                    @for (var row = 0; row < 6; row++)
+                    {
+                        <div class="acct-sk-row">
+                            <div class="acct-sk-id">
+                                <Skeleton Width="34px" Height="34px" Radius="999px" />
+                                <div class="acct-sk-idtext">
+                                    <Skeleton Width="130px" Height="12px" Radius="5px" />
+                                    <Skeleton Width="80px" Height="10px" Radius="5px" Class="acct-sk-gap" />
+                                </div>
+                            </div>
+                            <Skeleton Height="12px" Radius="5px" />
+                            <Skeleton Width="70px" Height="20px" Radius="999px" />
+                            <Skeleton Width="70px" Height="20px" Radius="999px" />
+                            <Skeleton Height="12px" Radius="5px" />
+                            <Skeleton Width="96px" Height="26px" Radius="7px" Class="acct-sk-right" />
+                        </div>
+                    }
+                </div>
             }
             else if (!FilteredAdmins.Any())
             {
@@ -259,7 +283,31 @@
 
             @if (Collectors is null)
             {
-                <div class="empty-state"><div class="empty-title">Loading…</div></div>
+                <div class="table-wrap accounts-table-loading" aria-busy="true" aria-label="Loading collectors">
+                    <div class="acct-sk-head">
+                        @for (var i = 0; i < 6; i++)
+                        {
+                            <Skeleton Height="11px" Radius="5px" />
+                        }
+                    </div>
+                    @for (var row = 0; row < 6; row++)
+                    {
+                        <div class="acct-sk-row">
+                            <div class="acct-sk-id">
+                                <Skeleton Width="34px" Height="34px" Radius="999px" />
+                                <div class="acct-sk-idtext">
+                                    <Skeleton Width="130px" Height="12px" Radius="5px" />
+                                    <Skeleton Width="80px" Height="10px" Radius="5px" Class="acct-sk-gap" />
+                                </div>
+                            </div>
+                            <Skeleton Height="12px" Radius="5px" />
+                            <Skeleton Height="12px" Radius="5px" />
+                            <Skeleton Width="70px" Height="20px" Radius="999px" />
+                            <Skeleton Height="12px" Radius="5px" />
+                            <Skeleton Width="96px" Height="26px" Radius="7px" Class="acct-sk-right" />
+                        </div>
+                    }
+                </div>
             }
             else if (!FilteredCollectors.Any())
             {

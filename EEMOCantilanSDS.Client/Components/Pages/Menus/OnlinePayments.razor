@@ -42,12 +42,23 @@
     <div class="section-card">
         @if (Loading)
         {
-            <div class="sk-stack">
-                <Skeleton Height="38px" Radius="8px" />
-                @for (var i = 0; i < 6; i++)
-                {
-                    <Skeleton Height="52px" Radius="8px" />
-                }
+            <div class="op-loading" aria-busy="true" aria-label="Checking online payments awaiting Official Receipt">
+                <div class="op-loading-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <path d="M3 9h18" />
+                        <path d="M8 15h3" />
+                        <path d="M15 15h1" />
+                    </svg>
+                </div>
+                <div class="op-loading-copy">
+                    <div class="op-loading-title">Checking online payments</div>
+                    <div class="op-loading-sub">Verifying transactions that still need a manually issued Official Receipt.</div>
+                </div>
+                <div class="op-loading-lines">
+                    <span></span>
+                    <span></span>
+                </div>
             </div>
         }
         else if (Items.Count == 0)

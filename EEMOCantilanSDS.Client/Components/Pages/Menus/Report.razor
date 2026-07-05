@@ -98,7 +98,53 @@
 
     @if (Loading && Model is null)
     {
-        <div class="rpt-state">Loading report…</div>
+        <div class="rpt-loading no-print" aria-busy="true" aria-label="Loading financial report">
+            <div class="kpi-row">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="kpi-card">
+                        <div class="kpi-body rpt-loading-kpi">
+                            <Skeleton Width="64%" Height="24px" Radius="7px" />
+                            <Skeleton Width="44%" Height="11px" Radius="5px" />
+                            <Skeleton Width="72%" Height="10px" Radius="5px" />
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="rpt-loading-grid">
+                <div class="rpt-loading-panel rpt-loading-panel-wide">
+                    <div class="rpt-loading-panel-head">
+                        <Skeleton Width="220px" Height="18px" Radius="6px" />
+                        <Skeleton Width="110px" Height="34px" Radius="9px" />
+                    </div>
+                    <div class="rpt-loading-bars">
+                        @for (var i = 0; i < 6; i++)
+                        {
+                            var height = $"{44 + (i % 3) * 18}px";
+                            <Skeleton Height="@height" Radius="8px" />
+                        }
+                    </div>
+                </div>
+
+                <div class="rpt-loading-panel">
+                    <div class="rpt-loading-panel-head">
+                        <Skeleton Width="150px" Height="18px" Radius="6px" />
+                    </div>
+                    @for (var i = 0; i < 5; i++)
+                    {
+                        <div class="rpt-loading-row">
+                            <Skeleton Width="38px" Height="38px" Radius="999px" />
+                            <div class="rpt-loading-row-text">
+                                <Skeleton Width="72%" Height="13px" Radius="6px" />
+                                <Skeleton Width="46%" Height="10px" Radius="5px" />
+                            </div>
+                            <Skeleton Width="64px" Height="13px" Radius="6px" />
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     }
     else if (Model is null)
     {

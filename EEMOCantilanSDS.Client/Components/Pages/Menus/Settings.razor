@@ -302,24 +302,9 @@
                     <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
                 </div>
             </section>
-
-            <!-- ── System Information ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">System Information</div>
-                        <div class="set-card-sub">About this installation</div>
-                    </div>
-                </div>
-                <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model.System.ApplicationName</span></div>
-                    <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
-                    <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
-                    <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
-                    <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
-                </div>
-            </section>
+ <!-- ── Database health (live PostgreSQL metrics) ── -->
+            <DatabaseHealthPanel />
+        
 
             <!-- ── Backups & Restore ── -->
             <section class="set-card">
@@ -339,9 +324,24 @@
                     <a class="set-link" href="/settings/backups">Open backups<span class="set-link-arrow">→</span></a>
                 </div>
             </section>
-
-            <!-- ── Database health (live PostgreSQL metrics) ── -->
-            <DatabaseHealthPanel />
+    <!-- ── System Information ── -->
+            <section class="set-card">
+                <div class="set-card-head">
+                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
+                    <div class="set-card-titles">
+                        <div class="set-card-title">System Information</div>
+                        <div class="set-card-sub">About this installation</div>
+                    </div>
+                </div>
+                <div class="set-rows">
+                    <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model.System.ApplicationName</span></div>
+                    <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
+                    <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
+                    <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
+                    <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
+                </div>
+            </section>
+           
 
         </div>
 

@@ -1118,3 +1118,67 @@
 
 
 
+
+/* ── Table-level loading skeleton (keeps tab chrome + panel visible) ── */
+.accounts-table-loading {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+    padding: 4px 0;
+    overflow: hidden;
+}
+
+.acct-sk-head,
+.acct-sk-row {
+    display: grid;
+    grid-template-columns: 2.2fr 2fr 1fr 1fr 1.2fr 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+}
+
+.acct-sk-head {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+}
+
+.acct-sk-row {
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+    .acct-sk-row:last-child {
+        border-bottom: none;
+    }
+
+.acct-sk-id {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.acct-sk-idtext {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.accounts-table-loading ::deep .acct-sk-gap {
+    margin-top: 6px;
+}
+
+.accounts-table-loading ::deep .acct-sk-right {
+    margin-left: auto;
+}
+
+@media (max-width: 900px) {
+    .acct-sk-head {
+        display: none;
+    }
+
+    .acct-sk-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}

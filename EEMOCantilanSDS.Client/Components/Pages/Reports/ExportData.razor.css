@@ -158,3 +158,27 @@
     .content-area { padding: 0 !important; }
     .ex-table tbody tr:hover { background: transparent; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   CONTEXTUAL LOADING SKELETON (screen only — mirrors the export sheet)
+   ══════════════════════════════════════════════════════════════ */
+.ex-loading {
+    margin-top: 4px;
+}
+
+.ex-loading ::deep .ex-sk-center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.ex-loading ::deep .ex-sk-gap {
+    margin-top: 8px;
+}
+
+/* Facility table placeholder: header bar + evenly spaced rows */
+.ex-table-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}

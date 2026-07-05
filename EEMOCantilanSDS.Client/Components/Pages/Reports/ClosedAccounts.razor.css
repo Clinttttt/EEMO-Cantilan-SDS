@@ -178,3 +178,9 @@
 }
 .ca-form input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--navy) 18%, transparent); }
 .ca-form-err { margin-top: 10px; color: var(--red); font-size: 12.5px; font-weight: 600; }
+
+/* ── Contextual loading skeleton (screen only — mirrors summary + register) ── */
+.ca-loading { margin-top: 2px; }
+.ca-loading ::deep .ca-sk-center { margin-left: auto; margin-right: auto; }
+.ca-loading ::deep .ca-sk-gap { margin-top: 8px; }
+.ca-table-skeleton { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }

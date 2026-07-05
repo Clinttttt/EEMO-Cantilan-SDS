@@ -196,3 +196,28 @@
 .me-txn-inline { color: var(--text-subtle); font-size: 11.5px; margin-left: 8px; }
 .me-txn-detail td { background: var(--bg); color: var(--text-subtle); font-size: 12px; padding-left: 26px; }
 .me-txn-detail td:last-child { color: var(--navy); }
+
+/* ══════════════════════════════════════════════════════════════
+   CONTEXTUAL LOADING SKELETON (screen only — mirrors the report sheet)
+   ══════════════════════════════════════════════════════════════ */
+.me-loading {
+    margin-top: 4px;
+}
+
+/* Centre shimmer lines inside the centred summary cards / report header */
+.me-loading ::deep .me-sk-center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.me-loading ::deep .me-sk-gap {
+    margin-top: 8px;
+}
+
+/* Facility table placeholder: header bar + evenly spaced rows */
+.me-table-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
