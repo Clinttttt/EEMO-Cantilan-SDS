@@ -16,8 +16,8 @@
                 <div class="government-logo-card">
                     <img src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan Logo" />
                 </div>
-                <div class="government-logo-card bagong-pilipinas-logo">
-                    <img src="/images/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas Logo" />
+                <div class="government-logo-card stalltrack-logo">
+                    <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
                 </div>
             </div>
             <div class="setup-brand">
@@ -55,7 +55,7 @@
             <div class="setup-step-row">
                 <div class="setup-step active">
                     <span class="step-dot"></span>
-                    <span class="step-label">Administrator Setup</span>
+                    <span class="step-label">Head Setup</span>
                 </div>
                 <div class="setup-step-line"></div>
                 <div class="setup-step">
@@ -77,7 +77,7 @@
                         <path d="M5.5 20c.5-3.5 2.8-5.5 6.5-5.5s6 2 6.5 5.5" />
                     </svg>
                 </div>
-                <div class="setup-form-title">Create Administrator Account</div>
+                <div class="setup-form-title">Create Head Account</div>
                 <div class="setup-form-desc">This account will have full access to the EEMO Revenue Collection System. Please keep your credentials secure.</div>
             </div>
 
@@ -115,7 +115,7 @@
                             <input @bind="Form.Username"
                                    type="text"
                                    class="form-input"
-                                   placeholder="e.g. admin.eemo" />
+                                   placeholder="e.g. head.admin" />
                         </div>
                         @if (GetFieldError("Username") != string.Empty)
                         {
@@ -137,7 +137,7 @@
                             <input @bind="Form.Email"
                                    type="email"
                                    class="form-input"
-                                   placeholder="e.g. eemo@cantilan.gov.ph" />
+                                   placeholder="e.g. name@lgu.gov.ph" />
                         </div>
                         @if (GetFieldError("Email") != string.Empty)
                         {
@@ -253,7 +253,7 @@
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
                             <path d="m9 12 2 2 4-4" />
                         </svg>
-                        <span>Create Administrator Account</span>
+                        <span>Create Head Account</span>
                     }
                 </button>
 
@@ -351,7 +351,7 @@
                 }
                 else
                 {
-                    ErrorMessage = result.Error ?? "Failed to create administrator account.";
+                    ErrorMessage = result.Error ?? "Failed to create Head account.";
                 }
             }
         }

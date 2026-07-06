@@ -82,7 +82,11 @@
     object-fit: cover;
 }
 
-.bagong-pilipinas-logo img {
+.government-logo-card.stalltrack-logo {
+    background: transparent;
+}
+
+.government-logo-card.stalltrack-logo img {
     object-fit: contain;
 }
 
@@ -193,10 +197,14 @@
     height: 100vh;
     padding: clamp(28px, 5vh, 60px) clamp(26px, 5.2vw, 92px);
     overflow-y: auto;
+    scrollbar-width: none;              /* Firefox — hide the vertical scrollbar */
     box-sizing: border-box;
     background-color: #eef2f7;
     background-image: linear-gradient(135deg, #fbfcfe 0%, #e9edf3 100%);
 }
+
+/* Hide the right-panel scrollbar (WebKit/Blink) — content fits; scroll stays as a fallback. */
+.setup-right::-webkit-scrollbar { width: 0; height: 0; }
 
 .setup-form-wrap {
     position: relative;
