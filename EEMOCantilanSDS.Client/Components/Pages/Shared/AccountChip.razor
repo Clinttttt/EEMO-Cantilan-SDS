@@ -1,5 +1,6 @@
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
 
 @* Topbar account chip. Reflects the signed-in user's role:
    - Head (SuperAdmin): labelled "Head" and links to account management.
@@ -11,7 +12,7 @@
         <div class="admin-avatar">@_initial</div>
         <div class="admin-info">
             <div class="admin-name">@_label</div>
-            <div class="admin-role">EEMO Office</div>
+            <div class="admin-role">@Branding.OfficeAcronym Office</div>
         </div>
     </a>
 }
@@ -21,7 +22,7 @@ else
         <div class="admin-avatar">@_initial</div>
         <div class="admin-info">
             <div class="admin-name">@_label</div>
-            <div class="admin-role">EEMO Office</div>
+            <div class="admin-role">@Branding.OfficeAcronym Office</div>
         </div>
     </div>
 }
@@ -33,6 +34,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await Branding.EnsureLoadedAsync();
         var state = await AuthState.GetAuthenticationStateAsync();
         _isHead = IsHead(state.User);
         _label = _isHead ? "Head" : "Administrator";

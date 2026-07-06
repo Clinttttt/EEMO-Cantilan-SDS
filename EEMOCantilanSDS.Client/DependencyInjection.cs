@@ -63,6 +63,7 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<CircuitHandler, ServicesAccessorCircuitHandler>();
             service.AddScoped<AuthService>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.RestoreNotifier>();
+            service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
             service.AddScoped<PayorAuthService>();
             service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();
@@ -117,6 +118,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IReportsApiClient, ReportsApiClient>(configuration);
             service.AddApiHttpClient<IBackupApiClient, BackupApiClient>(configuration);
             service.AddApiHttpClient<IDatabaseHealthApiClient, DatabaseHealthApiClient>(configuration);
+            service.AddApiHttpClient<IMunicipalitiesApiClient, MunicipalitiesApiClient>(configuration);
 
             return service;
         }

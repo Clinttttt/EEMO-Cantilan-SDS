@@ -4,12 +4,13 @@
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
 @implements IDisposable
 
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
-            <img src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+            <img src="@Branding.SealPath" alt="@Branding.Municipality" />
         </div>
         <div class="sidebar-brand-text">
             <div class="sidebar-brand-name">STALLTRACK</div>
@@ -159,6 +160,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Branding.EnsureLoadedAsync();
         var state = await AuthState.GetAuthenticationStateAsync();
         var isHead = state.User.IsInRole("SuperAdmin")
             || state.User.Claims.Any(c =>
