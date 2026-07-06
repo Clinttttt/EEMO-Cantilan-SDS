@@ -218,6 +218,43 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
+        public async Task Activate_SeedsOrSeries_ScopedToLgu()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            var config = new ActivateMunicipalityCommand(
+                "CARMEN",
+                new ActivationBranding("Carmen EEO", null, null),
+                new ActivationAdministrator("Maria Santos", "carmen.head", "head@carmen.gov.ph"),
+                new List<ActivationFacility> { new(FacilityCode.NPM, "Carmen Public Market", "CPM", BillingArchetype.DailyStall) },
+                new List<ActivationRate> { new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 25m) },
+                CustomAnimals: null,
+                OrSeries: new ActivationOrSeries("CARM-2026-", 1, 6, true));
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(config, default);
+                Assert.True(result.IsSuccess);
+                Assert.True(result.Value!.OrSeriesConfigured);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var cfg = await carmenCtx.OrSeriesConfigs.SingleAsync();
+                Assert.Equal(carmenId, cfg.MunicipalityId);
+                Assert.True(cfg.IsEnabled);
+                Assert.Equal("CARM-2026-000001", cfg.Peek());
+            }
+
+            // Cantilan (the operator's own LGU) has no OR-series of its own.
+            using (var cantilanCtx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                Assert.Empty(await cantilanCtx.OrSeriesConfigs.ToListAsync());
+            }
+        }
+
+        [Fact]
         public async Task Activate_RejectsDefaultMunicipality()        {
             var options = Options();
             var (cantilanId, _) = await SeedRegistryAsync(options);

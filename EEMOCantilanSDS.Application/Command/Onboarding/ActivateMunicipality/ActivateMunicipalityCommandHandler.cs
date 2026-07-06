@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -125,6 +126,16 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 }
             }
 
+            // 3c) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
+            //     only seeds the suggested format the portal pre-fills.
+            var orSeriesConfigured = false;
+            if (request.OrSeries is { } os)
+            {
+                context.OrSeriesConfigs.Add(OrSeriesConfig.Create(
+                    os.Prefix, os.StartNumber, os.PadWidth, os.Enabled, municipality.Id, "Activation"));
+                orSeriesConfigured = true;
+            }
+
             // 4) Head account — provisioned INACTIVE with a one-time activation token. The Head sets their
             //    own password through the secure link; the placeholder password is random and never disclosed.
             var (activationToken, activationTokenHash) = GenerateActivationToken();
@@ -150,7 +161,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 request.Facilities.Count,
                 request.Rates.Count,
                 stallsCreated,
-                customAnimalsCreated));
+                customAnimalsCreated,
+                orSeriesConfigured));
         }
 
         // A url-safe, cryptographically-random one-time activation token; only its SHA-256 hash is stored.

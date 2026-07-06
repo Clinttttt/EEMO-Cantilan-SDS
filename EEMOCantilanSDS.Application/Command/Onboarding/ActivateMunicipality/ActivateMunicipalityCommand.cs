@@ -19,7 +19,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         ActivationAdministrator Administrator,
         IReadOnlyList<ActivationFacility> Facilities,
         IReadOnlyList<ActivationRate> Rates,
-        IReadOnlyList<ActivationCustomAnimal>? CustomAnimals = null) : IRequest<Result<ActivationResultDto>>;
+        IReadOnlyList<ActivationCustomAnimal>? CustomAnimals = null,
+        ActivationOrSeries? OrSeries = null) : IRequest<Result<ActivationResultDto>>;
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
     public record ActivationBranding(string OfficeName, string? Address, string? SealPath);
@@ -60,6 +61,14 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     public record ActivationCustomAnimal(string AnimalName, decimal RatePerHead);
 
     /// <summary>
+    /// Optional Official Receipt (OR) series configuration seeded at activation. OR numbers stay manually
+    /// entered — this only seeds a suggested format (prefix + zero-padded running number) the portal can
+    /// pre-fill. <paramref name="StartNumber"/> is the first suggested number; <paramref name="PadWidth"/>
+    /// zero-pads it (0 = none); <paramref name="Enabled"/> toggles whether suggestions appear.
+    /// </summary>
+    public record ActivationOrSeries(string? Prefix, long StartNumber, int PadWidth, bool Enabled = true);
+
+    /// <summary>
     /// Result of a successful activation. <see cref="ActivationToken"/> is a one-time secret generated
     /// server-side (stored only as a hash) — the platform builds the Head's set-password link from it
     /// (e.g. <c>https://{lgu}.stalltrack.site/activate/{token}</c>). The Head is provisioned inactive and
@@ -73,5 +82,6 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         int FacilitiesCreated,
         int RatesCreated,
         int StallsCreated,
-        int CustomAnimalTypesCreated);
+        int CustomAnimalTypesCreated,
+        bool OrSeriesConfigured);
 }

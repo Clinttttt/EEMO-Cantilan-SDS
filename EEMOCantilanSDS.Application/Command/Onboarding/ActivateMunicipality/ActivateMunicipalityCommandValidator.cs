@@ -56,6 +56,17 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 a.RuleFor(x => x.RatePerHead).GreaterThanOrEqualTo(0m)
                     .WithMessage("Custom animal rate cannot be negative.");
             }).When(x => x.CustomAnimals is not null);
+
+            // OR-series is optional; when present the format must be sane.
+            When(x => x.OrSeries is not null, () =>
+            {
+                RuleFor(x => x.OrSeries!.Prefix).MaximumLength(30)
+                    .WithMessage("OR prefix cannot exceed 30 characters.");
+                RuleFor(x => x.OrSeries!.StartNumber).GreaterThanOrEqualTo(1)
+                    .WithMessage("OR start number must be at least 1.");
+                RuleFor(x => x.OrSeries!.PadWidth).InclusiveBetween(0, 12)
+                    .WithMessage("OR pad width must be between 0 and 12.");
+            });
         }
     }
 }

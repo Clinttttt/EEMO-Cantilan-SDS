@@ -20,6 +20,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
     {
         DbSet<Facility> Facilities { get; }
         DbSet<Municipality> Municipalities { get; }
+        DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
         DbSet<FacilityRate> FacilityRates { get; }
         DbSet<Stall> Stalls { get; }
         DbSet<Contract> Contracts { get; }
