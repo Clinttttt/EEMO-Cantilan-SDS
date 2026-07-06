@@ -1,5 +1,7 @@
 ﻿using EEMOCantilanSDS.Api.Services;
+using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
@@ -14,7 +16,16 @@ namespace EEMOCantilanSDS.Api
         {
 
             service.AddHttpContextAccessor();
-            service.AddAuthorization();
+            service.AddAuthorization(options =>
+            {
+                // Platform operator = a SuperAdmin of the DEFAULT (Cantilan) LGU. Whole-database operations
+                // (backup, restore, DB-health) run over the shared database across every LGU, so once a
+                // second LGU exists a per-LGU Head must never trigger them — restrict to the default-tenant
+                // SuperAdmin. While Cantilan is the only LGU this is exactly its Head, so behavior is unchanged.
+                options.AddPolicy("PlatformOperator", policy => policy.RequireAssertion(ctx =>
+                    ctx.User.IsInRole("SuperAdmin")
+                    && ctx.User.FindFirst(AppClaimTypes.Municipality)?.Value == TenantConstants.DefaultTenantCode));
+            });
             service.AddSignalR();
             service.AddScoped<IOnlinePaymentNotifier,SignalROnlinePaymentNotifier>();
             service.AddScoped<IPayorRealtimeNotifier,SignalRPayorRealtimeNotifier>();

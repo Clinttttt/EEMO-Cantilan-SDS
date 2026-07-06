@@ -12,8 +12,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 /// <summary>
-/// Head-only (SuperAdmin) database backup operations. Every endpoint proxies to the server-side
-/// <c>IBackupService</c>; the GitHub token never reaches the browser. No restore/upload is exposed.
+/// Platform-operator (default-LGU SuperAdmin) database backup operations. These run over the whole shared
+/// database across every LGU, so a per-LGU Head must not trigger them — gated by the "PlatformOperator"
+/// policy. Every endpoint proxies to the server-side <c>IBackupService</c>; the GitHub token never reaches
+/// the browser. No upload is exposed.
 /// </summary>
 [Route("api/backup")]
 [ApiController]
@@ -21,7 +23,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
 {
     /// <summary>Trigger the GitHub Actions backup workflow on demand.</summary>
     [HttpPost("run")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<ActionResult<bool>> RunAsync()
     {
         var result = await Sender.Send(new TriggerBackupCommand());
@@ -33,7 +35,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
     /// password are both re-verified server-side in the handler before anything is dispatched.
     /// </summary>
     [HttpPost("restore")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<ActionResult<bool>> RestoreAsync([FromBody] RestoreRequest request)
     {
         var result = await Sender.Send(new TriggerRestoreCommand(request.ConfirmationPhrase, request.Password));
@@ -42,7 +44,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
 
     /// <summary>List recent backup workflow runs (newest first).</summary>
     [HttpGet("runs")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.BackupRunDto>>> RunsAsync()
     {
         var result = await Sender.Send(new GetBackupRunsQuery());
@@ -51,7 +53,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
 
     /// <summary>List recent restore workflow runs (newest first).</summary>
     [HttpGet("restore-runs")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.BackupRunDto>>> RestoreRunsAsync()
     {
         var result = await Sender.Send(new GetRestoreRunsQuery());
@@ -60,7 +62,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
 
     /// <summary>Detailed step timeline for a single backup workflow run (the in-app "pipeline").</summary>
     [HttpGet("runs/{runId:long}")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<ActionResult<Application.Dtos.Backup.BackupRunDetailDto>> DetailAsync(long runId)
     {
         var result = await Sender.Send(new GetBackupRunDetailQuery(runId));
@@ -69,7 +71,7 @@ public class BackupController(ISender sender) : ApiBaseController(sender)
 
     /// <summary>Stream the latest successful backup artifact back to the Head for download.</summary>
     [HttpGet("latest")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Policy = "PlatformOperator")]
     public async Task<IActionResult> LatestAsync()
     {
         var r = await Sender.Send(new GetLatestBackupArtifactQuery());
