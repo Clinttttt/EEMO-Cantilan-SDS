@@ -830,19 +830,29 @@
     {
         IsEditingVendor = false;
         EditingStallId = 0;
+
+        // Default the Section/Category to the section the admin is currently viewing (the active card),
+        // so the stall-number suggestion (which follows VendorForm.SelectedSection) matches that section.
+        // "All Sections" has no specific section → fall back to Vegetable. Mirrors the display→value mapping.
+        var section = ActiveSection == "All"
+            ? "Vegetable"
+            : ActiveSection.Replace(" Area", "").Replace(" Section", "");
+
         VendorForm = new()
         {
             FacilityCode = "NPM",
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
-            SelectedSection = "Vegetable",
+            SelectedSection = section,
             AreaSqm = 0,
             MonthlyRate = 0,
-            ContractDate = null,
+            // Default the contract effectivity date to today (business day) — the admin can still change it.
+            ContractDate = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue),
             ContractYears = 0,
             AreaLocation = string.Empty,
-            FeeTypes = new()
+            // NPM stalls carry Electricity + Water by default (they can be unchecked in the modal).
+            FeeTypes = new() { "Electricity", "Water" }
         };
         VendorErrorMessage = string.Empty;
         VendorFieldErrors.Clear();
