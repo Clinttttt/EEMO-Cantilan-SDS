@@ -163,13 +163,19 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             .GroupBy(u => u.StallId)
             .ToDictionary(g => g.Key, g => g.First().Status);
 
-        return collections
-            .GroupBy(c => c.StallId)
-            .Select(g =>
+        // Build a row for every stall with EITHER daily-collection activity OR a current-month utility
+        // bill. A stall that only has an (unpaid) utility bill and no daily collections yet must still
+        // surface its utility status, so the operational card's utility icon can colour it (red = unpaid).
+        var collectionsByStall = collections.GroupBy(c => c.StallId).ToDictionary(g => g.Key, g => g.ToList());
+        var stallIds = collectionsByStall.Keys.Union(utilityByStall.Keys);
+
+        return stallIds
+            .Select(stallId =>
             {
-                var paid = g.Where(x => x.IsPaid).ToList();
+                var rows = collectionsByStall.TryGetValue(stallId, out var r) ? r : new();
+                var paid = rows.Where(x => x.IsPaid).ToList();
                 return new NpmStallDailyStatusDto(
-                    g.Key,
+                    stallId,
                     paid.Any(x => x.CollectionDate == today),
                     paid.Select(x => x.CollectionDate).Distinct().Count(),
                     paid.Count > 0 ? paid.Max(x => x.CollectionDate) : (DateOnly?)null,
@@ -177,11 +183,11 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                     paid.OrderByDescending(x => x.CollectionDate)
                         .Select(x => x.ORNumber)
                         .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or)),
-                    g.Any(x => x.IsAbsent && x.CollectionDate == today),
+                    rows.Any(x => x.IsAbsent && x.CollectionDate == today),
                     // OR of the single most-recent paid day (may be blank → that day is awaiting an OR).
                     paid.OrderByDescending(x => x.CollectionDate).FirstOrDefault()?.ORNumber,
                     // Current-month utility (elec+water) bill status (null when no bill this month).
-                    utilityByStall.TryGetValue(g.Key, out var us) ? us : (PaymentStatus?)null);
+                    utilityByStall.TryGetValue(stallId, out var us) ? us : (PaymentStatus?)null);
             })
             .ToList();
     }
