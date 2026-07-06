@@ -202,7 +202,7 @@
     position: relative;
     z-index: 1;
     width: 100%;
-    max-width: 640px;
+    max-width: 680px;
 }
 
 .login-card {
@@ -439,6 +439,22 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Security reassurance note (under the submit button) ── */
+.setup-secure-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 0 6px;
+    color: #64788f;
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.setup-secure-note svg { width: 16px; height: 16px; flex-shrink: 0; stroke: #4a7c59; }
 
 /* ── Footer ── */
 .setup-form-footer {
