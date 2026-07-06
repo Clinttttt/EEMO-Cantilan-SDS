@@ -137,7 +137,7 @@
                                 </button>
                                 @if (OnUtilityClick.HasDelegate)
                                 {
-                                    <button class="action-btn" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
+                                    <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
                                     </button>
                                 }
@@ -214,7 +214,7 @@
                                 </button>
                                 @if (OnUtilityClick.HasDelegate)
                                 {
-                                    <button class="action-btn" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
+                                    <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
                                     </button>
                                 }
@@ -384,6 +384,21 @@
     {
         var property = stall?.GetType().GetProperty(propertyName);
         return property != null ? (T?)property.GetValue(stall) ?? default! : default!;
+    }
+
+    // Utility (electricity+water) bill status → icon colour class. Read reflectively as a string so this
+    // generic table stays decoupled from the enum; a stall DTO without a "UtilityStatus" property (or a
+    // null value = no bill this month) yields no class, so the icon stays neutral. Icon only, not the card.
+    private string GetUtilityClass(TStall stall)
+    {
+        var status = GetPropertyValue<object>(stall, "UtilityStatus")?.ToString();
+        return status switch
+        {
+            "Paid" => "util-paid",         // both electricity & water settled → green
+            "Partial" => "util-partial",   // one/partially settled → gold
+            "Unpaid" => "util-unpaid",     // billed but nothing paid → red
+            _ => string.Empty              // no bill this month → neutral
+        };
     }
 
     private string GetRowClass(TStall stall)

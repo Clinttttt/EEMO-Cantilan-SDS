@@ -206,3 +206,23 @@
     justify-content: flex-start;
     pointer-events: none;
 }
+
+
+
+/* ── Utility (electricity + water) bill status — colours the ICON ONLY, never the button background ──
+   green = both settled · gold = one/partial · red = billed but unpaid · (no class = no bill → neutral).
+   The bolt svg uses stroke="currentColor", so setting the svg colour/stroke tints only the glyph. */
+.action-btn.util-paid svg {
+    color: var(--green, #2d7a5f);
+    stroke: var(--green, #2d7a5f);
+}
+
+.action-btn.util-partial svg {
+    color: var(--gold, #c8a84b);
+    stroke: var(--gold, #c8a84b);
+}
+
+.action-btn.util-unpaid svg {
+    color: var(--red, #8b3a3a);
+    stroke: var(--red, #8b3a3a);
+}

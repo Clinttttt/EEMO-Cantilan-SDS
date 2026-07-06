@@ -1,5 +1,7 @@
 namespace EEMOCantilanSDS.Application.Dtos.Payments;
 
+using EEMOCantilanSDS.Domain.Enums;
+
 /// <summary>
 /// Per-stall daily-collection status for the NPM operational table (current month, as of today).
 /// NPM is collected daily (₱30/day), so the operationally useful signal is "did they pay today",
@@ -18,5 +20,8 @@ public record NpmStallDailyStatusDto(
     // OR of the SINGLE most-recent paid day (LastPaidDate) — may be blank when that day was collected
     // without an OR. Distinct from LastORNumber (most-recent NON-blank OR): this lets the admin card
     // show the latest day truthfully (blank => "awaiting OR") instead of an older day's OR.
-    string? LastPaidORNumber = null
+    string? LastPaidORNumber = null,
+    // Current-month electricity+water bill status for the stall (Paid = both settled, Partial = one/
+    // partially settled, Unpaid = billed but nothing paid). Null when no utility bill exists this month.
+    PaymentStatus? UtilityStatus = null
 );

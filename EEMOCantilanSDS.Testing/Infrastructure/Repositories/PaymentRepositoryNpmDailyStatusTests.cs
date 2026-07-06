@@ -47,6 +47,32 @@ public class PaymentRepositoryNpmDailyStatusTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task DailyStatus_IncludesCurrentMonthUtilityStatus()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Fisher Joe", "Fisher Joe", new DateOnly(2026, 1, 1), 3, 900m);
+
+        var today = PhilippineTime.Today;
+        var dc = DailyCollection.Create(stall.Id, today);
+        dc.MarkPaid("OR-1", Guid.NewGuid());
+
+        // Utility bill this month: electricity fully paid, water still unpaid → overall Partial.
+        var bill = UtilityBill.Create(stall.Id, today.Year, today.Month, 0m, 100m, 10m, 0m, 50m, 20m);
+        bill.RecordPayment("E-1", null, null, PaymentStatus.Paid, null, PaymentStatus.Unpaid, null);
+
+        context.AddRange(facility, stall, contract);
+        context.Add(dc);
+        context.Add(bill);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var row = Assert.Single(await repo.GetNpmDailyStatusAsync(FacilityCode.NPM, today.Year, today.Month, CancellationToken.None));
+        Assert.Equal(PaymentStatus.Partial, row.UtilityStatus);
+    }
+
+    [Fact]
     public async Task DailyStatus_StallWithNoCollections_IsAbsent()
     {
         var context = NewContext();

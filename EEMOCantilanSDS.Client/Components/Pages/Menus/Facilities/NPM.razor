@@ -419,6 +419,7 @@
                     PaidToday = ds?.PaidToday ?? false,
                     AbsentToday = ds?.AbsentToday ?? false,
                     DaysPaidThisMonth = ds?.DaysPaidThisMonth ?? 0,
+                    UtilityStatus = ds?.UtilityStatus,
                     LastPaidDate = ds?.LastPaidDate,
                     PaymentHistory = new()
                 });
@@ -595,6 +596,9 @@
         public bool PaidToday { get; set; }
         public bool AbsentToday { get; set; }
         public int DaysPaidThisMonth { get; set; }
+        // Current-month electricity+water bill status (Paid=both, Partial=one/partial, Unpaid=billed & none;
+        // null = no bill this month). Drives the utility icon colour on the operational card.
+        public PaymentStatus? UtilityStatus { get; set; }
         public DateOnly? LastPaidDate { get; set; }
         public string CollectorName { get; set; } = string.Empty;
         public decimal ElecReading { get; set; }

@@ -153,6 +153,16 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             .Select(dc => new { dc.StallId, dc.CollectionDate, dc.ORNumber, dc.IsPaid, dc.IsAbsent })
             .ToListAsync(ct);
 
+        // Current-month electricity+water bill status per stall. Status is a computed (derived) property,
+        // so bills are materialised first and the status computed in memory. One bill per stall/month.
+        var utilityByStall = (await context.UtilityBills
+                .AsNoTracking()
+                .Where(u => u.Stall!.Facility!.Code == facilityCode
+                    && u.BillingYear == year && u.BillingMonth == month)
+                .ToListAsync(ct))
+            .GroupBy(u => u.StallId)
+            .ToDictionary(g => g.Key, g => g.First().Status);
+
         return collections
             .GroupBy(c => c.StallId)
             .Select(g =>
@@ -169,7 +179,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                         .FirstOrDefault(or => !string.IsNullOrWhiteSpace(or)),
                     g.Any(x => x.IsAbsent && x.CollectionDate == today),
                     // OR of the single most-recent paid day (may be blank → that day is awaiting an OR).
-                    paid.OrderByDescending(x => x.CollectionDate).FirstOrDefault()?.ORNumber);
+                    paid.OrderByDescending(x => x.CollectionDate).FirstOrDefault()?.ORNumber,
+                    // Current-month utility (elec+water) bill status (null when no bill this month).
+                    utilityByStall.TryGetValue(g.Key, out var us) ? us : (PaymentStatus?)null);
             })
             .ToList();
     }
