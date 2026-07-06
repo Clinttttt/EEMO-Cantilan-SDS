@@ -41,6 +41,8 @@ namespace EEMOCantilanSDS.Domain.Enums
         SlhLargePerHead = 4,  // SLH — ₱ per large-animal head
         TpmVendorDay = 5,     // TPM — ₱ per vendor per market day
         TrmPerTrip = 6,       // TRM — ₱ per trip
+        ElecPerKwh = 7,       // NPM add-on — default ₱ per kWh (metered; 0 = admin enters per bill)
+        WaterPerCubicMeter = 8, // NPM add-on — default ₱ per m³ (metered; 0 = admin enters per bill)
     }
     public enum MarketSection
     {

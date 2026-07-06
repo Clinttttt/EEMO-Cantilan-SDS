@@ -169,7 +169,7 @@ the contract at activation; the rest is entered in the portal later or is a plan
 | Fixed ordinance rates (NPM daily, NPM fish/kg, SLH hog, SLH large, TPM vendor, TRM trip) | ✅ committed + **drive the LGU's fee math** (Phase 4B-ii) | `rates[]` keyed by `FeeRateKey` |
 | Monthly-rental base rate + space count (TCC/NCC/BBQ/ICE) | ⛔ not in activation | monthly rentals are **per-stall** (`Stall.MonthlyRate`), entered in the portal |
 | Market **sections** (Fish/Meat/Vegetables) + section stall counts | ✅ committed (via `facilities[].stallGroups[].section` + `count`) | fish per-kilo rate via `NpmFishPerKilo` |
-| **Metered** add-on fees (Electricity/Water) | ◑ fee **flags** committed on stalls (`ApplicableFees.Electricity/Water`); metered *readings* are portal ops | |
+| **Metered** add-on fees (Electricity/Water) | ✅ readings + charge fully implemented (portal); **default rate** now seedable at activation (`ElecPerKwh`/`WaterPerCubicMeter`) | consumption × rate per bill; default pre-fills the rate |
 | **Unit counts** (stalls/spaces) | ✅ committed (via `stallGroups[].count`, per section/space) | stalls are the empty spaces; occupants added in the portal |
 | **OR series** (prefix/start) | ✅ committed (via `orSeries`) as a **suggestion** config | OR numbers stay manually entered; portal pre-fills the suggestion (`GET /api/or-series/next`) |
 | Custom animal types beyond hog/large | ✅ committed (via `customAnimals[]`) | seeded to the LGU's animal registry; read via `GET /api/slaughter/animal-rates` |
@@ -207,11 +207,14 @@ the contract at activation; the rest is entered in the portal later or is a plan
 - ✅ **Pre-login branding lookup (Phase 5 backend piece)** — `GET /api/municipalities/{identifier}/branding`
   (anonymous) resolves one LGU's public branding by subdomain identifier (TenantCode or Code) for pre-login
   theming. Returns only public-safe fields.
+- ✅ **Metered utility default rate + rate read-back** — metered elec/water readings were already implemented
+  (portal); now an LGU can seed a **default** rate at activation (`ElecPerKwh`/`WaterPerCubicMeter` via
+  `rates[]`) and the portal reads its current fixed rates via `GET /api/facility-rates` to display/pre-fill.
 - ◻ **Platform wiring** — `stalltrack-platform` still needs to call the live endpoints. Contract:
   `CARCANMADCARLAN-activation-api-integration.md`.
-- ◻ **Deferred backend extensions**: metered add-on fee readings (portal ops), **subdomain routing +
-  pre-login UI** (Phase 5 frontend; backend branding lookup above is ready), mobile offline-cache
-  namespacing, and the Client Settings UI for the self-service + custom-animal + OR-series endpoints.
+- ◻ **Deferred**: **subdomain routing + pre-login UI** (Phase 5 frontend; backend branding lookup is ready),
+  mobile offline-cache namespacing, and the Client Settings UI for the self-service + custom-animal +
+  OR-series + rate endpoints.
 
 ---
 

@@ -20,6 +20,10 @@ namespace EEMOCantilanSDS.Domain.Constants
             FeeRateKey.SlhLargePerHead => FeeRates.SlhLargeTotalPerHead,
             FeeRateKey.TpmVendorDay => FeeRates.TpmVendorFee,
             FeeRateKey.TrmPerTrip => FeeRates.TrmTripFee,
+            // Metered add-ons have no ordinance constant — the rate is entered per bill. A 0 default means
+            // "unset"; an LGU may seed its own default (ElecPerKwh/WaterPerCubicMeter) at activation.
+            FeeRateKey.ElecPerKwh => 0m,
+            FeeRateKey.WaterPerCubicMeter => 0m,
             _ => throw new ArgumentOutOfRangeException(nameof(key), key, "No fee-rate default for this key.")
         };
     }

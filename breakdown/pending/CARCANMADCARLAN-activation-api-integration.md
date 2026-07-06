@@ -113,7 +113,9 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
 
 - **`FacilityCode`**: `NPM`, `TCC`, `NCC`, `BBQ`, `ICE`, `SLH`, `TRM`, `TPM`
 - **`BillingArchetype`**: `DailyStall`, `MonthlyRental`, `WeeklyMarket`, `PerTrip`, `PerHead`, `Custom`
-- **`FeeRateKey`**: `NpmDailyStall`, `NpmFishPerKilo`, `SlhHogPerHead`, `SlhLargePerHead`, `TpmVendorDay`, `TrmPerTrip`
+- **`FeeRateKey`**: `NpmDailyStall`, `NpmFishPerKilo`, `SlhHogPerHead`, `SlhLargePerHead`, `TpmVendorDay`, `TrmPerTrip`, `ElecPerKwh`, `WaterPerCubicMeter`
+  - `ElecPerKwh` / `WaterPerCubicMeter` seed the LGU's **default metered add-on rate** (₱/kWh, ₱/m³). Metered
+    consumption is still recorded per bill in the portal; this only pre-fills the rate. Omit to leave unset (0).
 - **`ApplicableFees`** (flags — comma-separate): `BaseRental`, `DailyRental`, `Electricity`, `Water`, `FishFee` (or `None`)
 - **`MarketSection`**: `VegetableArea`, `FishSection`, `MeatSection`
 
@@ -281,3 +283,16 @@ POST /api/or-series/advance     (Roles: SuperAdmin, Admin)   → returns the new
 - Call this **only after** a receipt actually used the suggested OR number, to move the counter forward.
 - The server never stamps OR values onto records; recording an OR still goes through the normal
   payment/daily/SLH/TPM/TRM record calls with the admin-confirmed value.
+
+### Current fixed rates (read-back)
+
+```
+GET /api/facility-rates        (Roles: SuperAdmin)   → the LGU's currently-effective fixed rates
+PUT /api/facility-rates        (Roles: SuperAdmin)   → edit one rate (today-forward)
+```
+```jsonc
+[ { "facilityCode": "NPM", "key": "NpmDailyStall", "amount": 30.00, "effectiveDate": "2026-01-01" },
+  { "facilityCode": "NPM", "key": "ElecPerKwh",    "amount": 12.00, "effectiveDate": "2026-01-01" } ]
+```
+Returns the latest row effective on/before today per facility + key (history collapsed; future-dated rows
+excluded). Use it to display current fees and pre-fill the metered utility default rate in the Settings UI.
