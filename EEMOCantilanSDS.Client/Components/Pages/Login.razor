@@ -329,18 +329,29 @@
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
         var hasSetupParam = query.ContainsKey("setup") && query["setup"] == "true";
-        
+
         if (hasSetupParam)
         {
             var setupStatusResult = await SetupApi.GetSetupStatusAsync();
-            
+
             if (setupStatusResult.IsSuccess && !setupStatusResult.Value!.IsSetupRequired)
             {
                 Navigation.NavigateTo("/login", replace: true);
                 return;
             }
-            
+
             IsFromSetup = true;
+            return;
+        }
+
+        // First-run guard: if no Head/administrator exists yet, the login page has nothing to
+        // authenticate against — send the visitor to the initial account-setup page instead.
+        // This mirrors AccountSetup's guard (which bounces back to /login once setup is complete),
+        // so the two pages can never loop.
+        var status = await SetupApi.GetSetupStatusAsync();
+        if (status.IsSuccess && status.Value!.IsSetupRequired)
+        {
+            Navigation.NavigateTo("/account-setup-admin", replace: true);
         }
     }
 
