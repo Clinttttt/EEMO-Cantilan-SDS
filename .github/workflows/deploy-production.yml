@@ -17,13 +17,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RESOURCE_GROUP: rg-stalltrack-prod
-  ACR_NAME: acrstalltrackclint2026
-  ACR_LOGIN_SERVER: acrstalltrackclint2026.azurecr.io
-  API_APP_NAME: stalltrack-api-clint-2026
-  PORTAL_APP_NAME: stalltrack-web-clint-2026
-  API_HEALTH_URL: https://stalltrack-api-clint-2026-g9awcrbed5fdakh8.southeastasia-01.azurewebsites.net/health
-  PORTAL_URL: https://stalltrack-web-clint-2026-g0h0hzadbwe2frd7.southeastasia-01.azurewebsites.net/login
+  RESOURCE_GROUP: stalltrack-prod-rg
+  ACR_NAME: stalltrackregistry2026
+  ACR_LOGIN_SERVER: stalltrackregistry2026.azurecr.io
+  API_APP_NAME: stalltrack-api-cly-2026
+  PORTAL_APP_NAME: stalltrack-web-cly-2026
+  API_CONTAINER_NAME: stalltrack-api
+  PORTAL_CONTAINER_NAME: stalltrack-web
+  API_HEALTH_URL: https://stalltrack-api-cly-2026-axdafcazchhfdvgq.southeastasia-01.azurewebsites.net/health
+  PORTAL_URL: https://stalltrack-web-cly-2026-etbvg2awawdxhuas.southeastasia-01.azurewebsites.net/login
 
 jobs:
   verify:
@@ -56,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://stalltrack-web-clint-2026-g0h0hzadbwe2frd7.southeastasia-01.azurewebsites.net
+      url: https://stalltrack-web-cly-2026-etbvg2awawdxhuas.southeastasia-01.azurewebsites.net
 
     steps:
       - name: Check out source
@@ -84,16 +86,18 @@ jobs:
         run: |
           docker build \
             --file EEMOCantilanSDS.Client/Dockerfile \
-            --tag "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}" \
+            --tag "$ACR_LOGIN_SERVER/stalltrack-web:${GITHUB_SHA}" \
             .
-          docker push "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}"
+          docker push "$ACR_LOGIN_SERVER/stalltrack-web:${GITHUB_SHA}"
 
       - name: Deploy API image
         run: |
-          az webapp config container set \
+          az webapp sitecontainers update \
             --resource-group "$RESOURCE_GROUP" \
             --name "$API_APP_NAME" \
-            --container-image-name "$ACR_LOGIN_SERVER/stalltrack-api:${GITHUB_SHA}"
+            --container-name "$API_CONTAINER_NAME" \
+            --image "$ACR_LOGIN_SERVER/stalltrack-api:${GITHUB_SHA}" \
+            --target-port 8080
           az webapp restart --resource-group "$RESOURCE_GROUP" --name "$API_APP_NAME"
 
       - name: Wait for API health
@@ -111,10 +115,12 @@ jobs:
 
       - name: Deploy portal image
         run: |
-          az webapp config container set \
+          az webapp sitecontainers update \
             --resource-group "$RESOURCE_GROUP" \
             --name "$PORTAL_APP_NAME" \
-            --container-image-name "$ACR_LOGIN_SERVER/stalltrack-client:${GITHUB_SHA}"
+            --container-name "$PORTAL_CONTAINER_NAME" \
+            --image "$ACR_LOGIN_SERVER/stalltrack-web:${GITHUB_SHA}" \
+            --target-port 8080
           az webapp restart --resource-group "$RESOURCE_GROUP" --name "$PORTAL_APP_NAME"
 
       - name: Wait for portal
