@@ -176,8 +176,11 @@ the contract at activation; the rest is entered in the portal later or is a plan
 | Payors/stallholders, collectors, extra admins | ⛔ never at onboarding | created in the live portal after activation |
 
 **Also demo-ahead-of-backend:**
-- **Subdomains** (`carmen.stalltrack.site`) — pre-login branding/subdomain routing is Phase 5 (not started);
-  the backend is a single host today. The activation email's subdomain link is presentational until then.
+- **Subdomains** (`carmen.stalltrack.site`) — the **backend branding lookup now exists**:
+  `GET /api/municipalities/{identifier}/branding` (anonymous) resolves one LGU's public branding (office name,
+  seal, name, status) by its subdomain identifier (TenantCode or Code), so a subdomain's login page can theme
+  itself pre-login. **Subdomain routing + the pre-login UI wiring remain frontend/Phase 5** (the backend is a
+  single host today; the activation email's subdomain link is presentational until routing lands).
 - **Head activation LINK** — ✅ implemented: activation provisions the Head **inactive** and returns a one-time
   `activationToken`; the Head sets their own password via `POST /api/activation/set-password` (anonymous,
   rate-limited, single-use, 7-day expiry). Build the link as `https://{lgu}.stalltrack.site/activate/{token}`.
@@ -201,11 +204,14 @@ the contract at activation; the rest is entered in the portal later or is a plan
 - ✅ **Config-richness — OR-series suggestion** — activation seeds a per-LGU OR-number format (`orSeries`);
   portal pre-fills a suggested next OR via `GET /api/or-series/next` and moves the counter with
   `POST /api/or-series/advance`. OR numbers remain manually entered (never auto-generated).
+- ✅ **Pre-login branding lookup (Phase 5 backend piece)** — `GET /api/municipalities/{identifier}/branding`
+  (anonymous) resolves one LGU's public branding by subdomain identifier (TenantCode or Code) for pre-login
+  theming. Returns only public-safe fields.
 - ◻ **Platform wiring** — `stalltrack-platform` still needs to call the live endpoints. Contract:
   `CARCANMADCARLAN-activation-api-integration.md`.
-- ◻ **Deferred backend extensions**: metered add-on fee readings (portal ops), subdomain/pre-login branding
-  (Phase 5), mobile offline-cache namespacing, and the Client Settings UI for the self-service +
-  custom-animal + OR-series endpoints.
+- ◻ **Deferred backend extensions**: metered add-on fee readings (portal ops), **subdomain routing +
+  pre-login UI** (Phase 5 frontend; backend branding lookup above is ready), mobile offline-cache
+  namespacing, and the Client Settings UI for the self-service + custom-animal + OR-series endpoints.
 
 ---
 
