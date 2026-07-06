@@ -175,26 +175,32 @@
             @foreach (var grp in groups)
             {
                 var yr = grp.ToList();
+                var facGroups = yr.GroupBy(r => r.FacilityName, StringComparer.OrdinalIgnoreCase)
+                                  .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
+                var singleFacility = facGroups.Count == 1;
                 <div class="ca-year">
                     <div class="ca-year-head">
-                        <span class="ca-year-label">@grp.Key</span>
+                        <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
                         <span class="ca-year-stats">
                             <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
                             <strong>@Money(yr.Sum(r => r.Uncollected))</strong> uncollected
                         </span>
                     </div>
 
-                    @foreach (var facGrp in yr.GroupBy(r => r.FacilityName).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+                    @foreach (var facGrp in facGroups)
                     {
                         var facRows = facGrp.OrderByDescending(r => EndOf(r)).ToList();
                         <div class="ca-fac-group">
-                            <div class="ca-fac-head">
-                                <span class="ca-fac-title">@facGrp.Key</span>
-                                <span class="ca-fac-stats">
-                                    <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
-                                    <strong>@Money(facRows.Sum(r => r.Uncollected))</strong> uncollected
-                                </span>
-                            </div>
+                            @if (!singleFacility)
+                            {
+                                <div class="ca-fac-head">
+                                    <span class="ca-fac-title">@facGrp.Key</span>
+                                    <span class="ca-fac-stats">
+                                        <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
+                                        <strong>@Money(facRows.Sum(r => r.Uncollected))</strong> uncollected
+                                    </span>
+                                </div>
+                            }
 
                             <table class="ca-table">
                                 <thead>
