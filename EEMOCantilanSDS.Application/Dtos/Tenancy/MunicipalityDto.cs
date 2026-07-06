@@ -26,4 +26,6 @@ public record MunicipalityBrandingDto(
     string OfficeName,
     string? SealPath,
     string Status,
-    bool IsActive);
+    bool IsActive,
+    string? OfficeAcronym = null,
+    string? Address = null);

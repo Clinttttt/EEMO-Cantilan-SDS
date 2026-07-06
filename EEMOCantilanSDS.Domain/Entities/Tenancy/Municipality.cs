@@ -30,6 +30,9 @@ public class Municipality : AuditableEntity
     public string? SealPath { get; private set; }
     /// <summary>Revenue office label, e.g. "Economic Enterprise and Management Office (EEMO)".</summary>
     public string OfficeName { get; private set; } = string.Empty;
+    /// <summary>Short office acronym for compact UI labels, e.g. "EEMO" / "LEEO". Optional (nullable);
+    /// the UI falls back to its default when absent, so Cantilan is unaffected.</summary>
+    public string? OfficeAcronym { get; private set; }
     public MunicipalityStatus Status { get; private set; }
     /// <summary>The default LGU when no tenant is resolved (Cantilan today).</summary>
     public bool IsDefault { get; private set; }
@@ -47,7 +50,8 @@ public class Municipality : AuditableEntity
         string? address = null,
         string? sealPath = null,
         bool isDefault = false,
-        string createdBy = "System")
+        string createdBy = "System",
+        string? officeAcronym = null)
     {
         return new Municipality
         {
@@ -57,6 +61,7 @@ public class Municipality : AuditableEntity
             Name = name,
             Province = province,
             OfficeName = officeName,
+            OfficeAcronym = officeAcronym,
             Address = address,
             SealPath = sealPath,
             Status = status,
@@ -78,11 +83,12 @@ public class Municipality : AuditableEntity
     /// activation to stamp the LGU's official identity onto its registry record. Only overwrites a field
     /// when a non-empty value is supplied, so partial profiles never blank existing data.
     /// </summary>
-    public void ApplyOnboardingProfile(string? officeName, string? address, string? sealPath, string updatedBy = "System")
+    public void ApplyOnboardingProfile(string? officeName, string? address, string? sealPath, string? officeAcronym = null, string updatedBy = "System")
     {
         if (!string.IsNullOrWhiteSpace(officeName)) OfficeName = officeName.Trim();
         if (!string.IsNullOrWhiteSpace(address)) Address = address.Trim();
         if (!string.IsNullOrWhiteSpace(sealPath)) SealPath = sealPath.Trim();
+        if (!string.IsNullOrWhiteSpace(officeAcronym)) OfficeAcronym = officeAcronym.Trim();
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

@@ -37,6 +37,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.OfficeName)
                 .HasMaxLength(160);
 
+            builder.Property(x => x.OfficeAcronym)
+                .HasMaxLength(30);
+
             builder.Property(x => x.Status)
                 .IsRequired()
                 .HasConversion<int>();

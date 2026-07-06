@@ -23,7 +23,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         ActivationOrSeries? OrSeries = null) : IRequest<Result<ActivationResultDto>>;
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
-    public record ActivationBranding(string OfficeName, string? Address, string? SealPath);
+    public record ActivationBranding(string OfficeName, string? Address, string? SealPath, string? OfficeAcronym = null);
 
     /// <summary>The single LGU owner (Head/SuperAdmin) provisioned at activation.</summary>
     public record ActivationAdministrator(string FullName, string Username, string Email);

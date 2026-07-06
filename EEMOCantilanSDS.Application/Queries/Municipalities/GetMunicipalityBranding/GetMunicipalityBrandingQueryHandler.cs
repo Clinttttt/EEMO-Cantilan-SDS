@@ -25,7 +25,9 @@ namespace EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalityBran
                 m.OfficeName,
                 m.SealPath,
                 m.Status.ToString(),
-                m.IsActive));
+                m.IsActive,
+                m.OfficeAcronym,
+                m.Address));
         }
     }
 }

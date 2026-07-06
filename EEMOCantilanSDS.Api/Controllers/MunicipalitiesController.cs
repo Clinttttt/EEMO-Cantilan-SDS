@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Dtos.Tenancy;
+using EEMOCantilanSDS.Application.Queries.Municipalities.GetCurrentMunicipalityBranding;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalities;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalityBranding;
 using MediatR;
@@ -29,6 +30,19 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     public async Task<ActionResult<MunicipalityBrandingDto>> GetBranding(string identifier)
     {
         var result = await Sender.Send(new GetMunicipalityBrandingQuery(identifier));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Authenticated branding for the CALLER's own LGU (post-login), resolved from the JWT municipality
+    /// claim — powers the in-app shell (office label/acronym, seal) data-driven per tenant. The literal
+    /// "current" segment takes precedence over the "{identifier}" route above.
+    /// </summary>
+    [Authorize]
+    [HttpGet("current/branding")]
+    public async Task<ActionResult<MunicipalityBrandingDto>> GetCurrentBranding()
+    {
+        var result = await Sender.Send(new GetCurrentMunicipalityBrandingQuery());
         return HandleResponse(result);
     }
 }

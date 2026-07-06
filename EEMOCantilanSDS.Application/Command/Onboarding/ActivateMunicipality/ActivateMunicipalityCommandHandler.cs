@@ -70,7 +70,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
             // 1) Stamp branding + go live.
             municipality.ApplyOnboardingProfile(
-                request.Branding.OfficeName, request.Branding.Address, request.Branding.SealPath, "Activation");
+                request.Branding.OfficeName, request.Branding.Address, request.Branding.SealPath, request.Branding.OfficeAcronym, "Activation");
             municipality.Activate();
 
             // 2) Facilities — created under the NEW LGU's id (explicit id makes the stamp interceptor skip
