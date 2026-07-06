@@ -86,5 +86,7 @@ public class GetSystemSettingsQueryHandlerTests
             Task.FromResult<IReadOnlyList<Municipality>>(def is null ? Array.Empty<Municipality>() : new[] { def });
 
         public Task<Municipality?> GetDefaultAsync(CancellationToken ct) => Task.FromResult(def);
+
+        public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult<Municipality?>(null);
     }
 }

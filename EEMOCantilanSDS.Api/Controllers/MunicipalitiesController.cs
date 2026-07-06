@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Dtos.Tenancy;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalities;
+using EEMOCantilanSDS.Application.Queries.Municipalities.GetMunicipalityBranding;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,6 +18,17 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     public async Task<ActionResult<IReadOnlyList<MunicipalityDto>>> GetMunicipalities()
     {
         var result = await Sender.Send(new GetMunicipalitiesQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Public pre-login branding for a single LGU, resolved by subdomain identifier (its TenantCode or Code).
+    /// Lets a subdomain's login page theme itself (office name, seal) before any authentication.
+    /// </summary>
+    [HttpGet("{identifier}/branding")]
+    public async Task<ActionResult<MunicipalityBrandingDto>> GetBranding(string identifier)
+    {
+        var result = await Sender.Send(new GetMunicipalityBrandingQuery(identifier));
         return HandleResponse(result);
     }
 }

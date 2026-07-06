@@ -20,4 +20,18 @@ public class MunicipalityRepository(AppDbContext context) : IMunicipalityReposit
             .OrderByDescending(m => m.IsDefault)
             .ThenBy(m => m.Name)
             .FirstOrDefaultAsync(ct);
+
+    public async Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(identifier)) return null;
+
+        var id = identifier.Trim();
+        var idLower = id.ToLowerInvariant();
+        var idUpper = id.ToUpperInvariant();
+
+        // Match by TenantCode (subdomain, case-insensitive) or the upper-cased registry Code.
+        return await context.Municipalities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.TenantCode.ToLower() == idLower || m.Code == idUpper, ct);
+    }
 }
