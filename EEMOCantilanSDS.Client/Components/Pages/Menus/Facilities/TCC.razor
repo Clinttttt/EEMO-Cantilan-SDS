@@ -101,14 +101,19 @@
         </div><!-- end content-area -->
 
 <!-- ══════════════════════════════════════════════
-     PAYMENT RECORD MODAL (Reusable Component)
+     PAYMENT RECEIPT MODAL (branded — consistent with NPM & the other facilities)
 ══════════════════════════════════════════════ -->
-<FacilityPaymentModal TStall="TccStall"
-                      Facility="TCC"
-                      Stall="PaymentStall"
-                      Show="ShowPayment"
-                      OnClose="ClosePayment"
-                      OnSave="HandleSavePayment" />
+<CollectionReceiptModal Show="ShowPayment"
+                        FacilityName="Tampak Commercial Center"
+                        PeriodLabel="@PhilippineTime.Now.ToString("MMMM yyyy")"
+                        StallNo="@(PaymentStall?.StallNo ?? string.Empty)"
+                        PayorName="@(PaymentStall?.ActualOccupant ?? string.Empty)"
+                        OrNumber="@(PaymentStall?.ORNumber ?? string.Empty)"
+                        Lines="MonthlyReceiptLines"
+                        TotalLabel="Total Paid"
+                        TotalValue="@($"₱{ReceiptPaidAmount:N2}")"
+                        NoteText="This acknowledges receipt of the monthly rental payment stated above. Keep for your records."
+                        OnClose="ClosePayment" />
 
 
 <!-- ══════════════════════════════════════════════
@@ -388,17 +393,25 @@
 
     void ClosePayment() { ShowPayment = false; PaymentStall = null; }
 
-    private async Task HandleSavePayment(FacilityPaymentModal<TccStall>.PaymentSubmitDto payment)
+    // Amount shown as "Total Paid" on the branded receipt: full rate when paid, the partial when partial.
+    private decimal ReceiptPaidAmount => PaymentStall is null ? 0m
+        : PaymentStall.IsPaid ? PaymentStall.MonthlyRate
+        : PaymentStall.IsPartial ? PaymentStall.PartialAmount
+        : 0m;
+
+    // Monthly-rental receipt lines (rate + remaining balance) — mirrors the other facilities' receipt.
+    private IReadOnlyList<CollectionReceiptModal.ReceiptLine> MonthlyReceiptLines
     {
-        if (PaymentStall != null)
+        get
         {
-            PaymentStall.ORNumber = payment.OrNumber;
-
-            // Reload from API so payment status, hero stats and mini-stats reflect the recorded payment.
-            await LoadStallsFromApi();
-
-            ShowPayment = false;
-            PaymentStall = null;
+            if (PaymentStall is null) return Array.Empty<CollectionReceiptModal.ReceiptLine>();
+            var rate = PaymentStall.MonthlyRate;
+            var balance = Math.Max(0m, rate - ReceiptPaidAmount);
+            return new List<CollectionReceiptModal.ReceiptLine>
+            {
+                new("Monthly Rental", $"₱{rate:N2}"),
+                new("Balance Due", $"₱{balance:N2}")
+            };
         }
     }
 
