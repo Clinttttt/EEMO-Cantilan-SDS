@@ -60,7 +60,17 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
     { "facilityCode": "NPM", "key": "NpmFishPerKilo", "amount": 2.00 },
     { "facilityCode": "SLH", "key": "SlhHogPerHead",  "amount": 200.00 },
     { "facilityCode": "SLH", "key": "SlhLargePerHead","amount": 300.00 }
-  ]
+  ],
+  "customAnimals": [                          // OPTIONAL — custom SLH animals beyond Hog/Carabao/Cow
+    { "animalName": "Goat",    "ratePerHead": 150.00 },
+    { "animalName": "Chicken", "ratePerHead": 20.00 }
+  ],
+  "orSeries": {                               // OPTIONAL — seeds a suggested OR-number format (see §9)
+    "prefix": "CARM-2026-",                   // optional literal prefix (≤ 30 chars)
+    "startNumber": 1,                         // first suggested number (≥ 1)
+    "padWidth": 6,                            // zero-pad width (0–12); 6 → "000001"
+    "enabled": true                           // whether the portal shows a suggestion
+  }
 }
 ```
 
@@ -90,6 +100,14 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
 | `rates[].facilityCode` | `FacilityCode` | ✅ | Facility the rate belongs to. |
 | `rates[].key` | `FeeRateKey` | ✅ | Which fixed rate. |
 | `rates[].amount` | decimal | ✅ | ₱ amount; must be ≥ 0. |
+| `customAnimals[]` | array | — | Optional. Custom SLH animal types (beyond Hog/Carabao/Cow) seeded into the LGU's animal registry. |
+| `customAnimals[].animalName` | string | ✅ | Display name; unique per LGU (≤ 100 chars). |
+| `customAnimals[].ratePerHead` | decimal | ✅ | Default per-head fee (≥ 0); admin may override per transaction. |
+| `orSeries` | object? | — | Optional. Seeds a suggested OR-number format (OR numbers stay manually entered — see §9). |
+| `orSeries.prefix` | string? | — | Literal prefix (≤ 30 chars). |
+| `orSeries.startNumber` | long | ✅* | First suggested number (≥ 1). *Required when `orSeries` is present. |
+| `orSeries.padWidth` | int | ✅* | Zero-pad width (0–12). |
+| `orSeries.enabled` | bool | — | Defaults `true`. |
 
 ### Enum values (send as strings)
 
@@ -111,7 +129,9 @@ All enums are sent as **strings** (case-insensitive). Property names are **camel
   "activationToken": "3f9a2b…",      // one-time; build the Head's set-password link from this — see §6
   "facilitiesCreated": 2,
   "ratesCreated": 4,
-  "stallsCreated": 94
+  "stallsCreated": 94,
+  "customAnimalTypesCreated": 2,     // custom SLH animals seeded (0 if none sent)
+  "orSeriesConfigured": true          // whether an OR-series suggestion was seeded
 }
 ```
 
@@ -149,10 +169,13 @@ The onboarding workspace captures a richer config; map it down to the contract a
   | `PerTrip` | TRM | `TrmPerTrip` |
   | `MonthlyRental` | TCC/NCC/BBQ/ICE | **none** — monthly rentals are per-stall (`Stall.MonthlyRate`), entered in the portal later |
 
+- **Custom SLH animals → `customAnimals[]`** (optional): the LGU's extra animal types (beyond
+  Hog/Carabao/Cow) with a default per-head rate. Read back later via `GET /api/slaughter/animal-rates`.
+- **OR-series → `orSeries`** (optional): seeds the LGU's suggested OR-number format (see §9).
 - **Not part of activation (do NOT send):** sections/section-fees beyond the fish key, add-on fees
-  (electricity/water, fixed or metered), payors/stallholders, collectors/admins, OR-series config. These are
+  (electricity/water, fixed or metered), payors/stallholders, collectors/admins. These are
   entered/created in the **live portal after activation** (payors, daily collections, staff) or are planned
-  contract extensions (sections, metered add-ons, OR series). Send only what maps to the fields above.
+  contract extensions (sections, metered add-ons). Send only what maps to the fields above.
 
 ---
 
@@ -217,3 +240,44 @@ curl -X POST "$BASE/api/activation/municipality" \
 
 > Verify the exact login response field name for the access token against `POST /api/adminauth/login` in your
 > environment before wiring (`accessToken` per the app's `TokenResponseDto`).
+
+
+
+---
+
+## 9. Post-activation read endpoints (custom animals & OR-series)
+
+These are scoped to the **caller's own LGU** automatically (via the tenant query filter) and are called by the
+LGU's portal after activation — not by the operator.
+
+### Custom SLH animal rates
+
+```
+GET /api/slaughter/animal-rates?activeOnly=true     (Roles: SuperAdmin, Admin, Collector)
+```
+Returns the LGU's custom animals seeded at activation (and any added later):
+```jsonc
+[ { "id": "…-guid", "animalName": "Goat", "ratePerHead": 150.00, "isActive": true } ]
+```
+Use it to populate the SLH "record transaction" screen's custom-animal picker with a default rate the admin
+may override per transaction.
+
+### OR-series suggestion
+
+> **Important:** OR numbers remain **manually entered** by admins (never auto-generated). These endpoints only
+> surface a *suggested* next value the portal pre-fills; the admin confirms or overrides it.
+
+```
+GET  /api/or-series/next        (Roles: SuperAdmin, Admin)
+```
+```jsonc
+{ "enabled": true, "suggestion": "CARM-2026-000001", "prefix": "CARM-2026-", "nextNumber": 1, "padWidth": 6 }
+```
+- `enabled: false` (or `suggestion: null`) → no config, or the series is disabled; show a plain OR input.
+
+```
+POST /api/or-series/advance     (Roles: SuperAdmin, Admin)   → returns the new suggestion string, e.g. "CARM-2026-000002"
+```
+- Call this **only after** a receipt actually used the suggested OR number, to move the counter forward.
+- The server never stamps OR values onto records; recording an OR still goes through the normal
+  payment/daily/SLH/TPM/TRM record calls with the admin-confirmed value.

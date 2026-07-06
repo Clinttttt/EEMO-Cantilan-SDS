@@ -171,8 +171,8 @@ the contract at activation; the rest is entered in the portal later or is a plan
 | Market **sections** (Fish/Meat/Vegetables) + section stall counts | ✅ committed (via `facilities[].stallGroups[].section` + `count`) | fish per-kilo rate via `NpmFishPerKilo` |
 | **Metered** add-on fees (Electricity/Water) | ◑ fee **flags** committed on stalls (`ApplicableFees.Electricity/Water`); metered *readings* are portal ops | |
 | **Unit counts** (stalls/spaces) | ✅ committed (via `stallGroups[].count`, per section/space) | stalls are the empty spaces; occupants added in the portal |
-| **OR series** (prefix/start) | ⛔ not in activation | OR numbers are manually entered per record today |
-| Custom animal types beyond hog/large | ⛔ not in activation | SLH custom rates are per-transaction today |
+| **OR series** (prefix/start) | ✅ committed (via `orSeries`) as a **suggestion** config | OR numbers stay manually entered; portal pre-fills the suggestion (`GET /api/or-series/next`) |
+| Custom animal types beyond hog/large | ✅ committed (via `customAnimals[]`) | seeded to the LGU's animal registry; read via `GET /api/slaughter/animal-rates` |
 | Payors/stallholders, collectors, extra admins | ⛔ never at onboarding | created in the live portal after activation |
 
 **Also demo-ahead-of-backend:**
@@ -196,11 +196,16 @@ the contract at activation; the rest is entered in the portal later or is a plan
   activated via `POST /api/activation/set-password` (anonymous, rate-limited, single-use).
 - ✅ **Self-service editing** — Head edits own fees (`PUT /api/facility-rates`) + branding
   (`PUT /api/municipality-profile`), today-forward, per-tenant.
+- ✅ **Config-richness — custom SLH animals** — activation seeds per-LGU custom animal types + default per-head
+  rates (`customAnimals[]`); portal reads them via `GET /api/slaughter/animal-rates`.
+- ✅ **Config-richness — OR-series suggestion** — activation seeds a per-LGU OR-number format (`orSeries`);
+  portal pre-fills a suggested next OR via `GET /api/or-series/next` and moves the counter with
+  `POST /api/or-series/advance`. OR numbers remain manually entered (never auto-generated).
 - ◻ **Platform wiring** — `stalltrack-platform` still needs to call the live endpoints. Contract:
   `CARCANMADCARLAN-activation-api-integration.md`.
-- ◻ **Deferred backend extensions**: OR-series generation, custom SLH animal types at activation, metered
-  add-on fee readings (portal ops), subdomain/pre-login branding (Phase 5), mobile offline-cache namespacing,
-  and the Client Settings UI for the self-service endpoints.
+- ◻ **Deferred backend extensions**: metered add-on fee readings (portal ops), subdomain/pre-login branding
+  (Phase 5), mobile offline-cache namespacing, and the Client Settings UI for the self-service +
+  custom-animal + OR-series endpoints.
 
 ---
 
