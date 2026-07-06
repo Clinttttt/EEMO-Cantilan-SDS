@@ -6,6 +6,8 @@
 @rendermode InteractiveServer
 @inject IBackupApiClient BackupApi
 @inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
 @inject EEMOCantilanSDS.Client.Services.RestoreNotifier Notifier
 @implements IDisposable
 
@@ -510,6 +512,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Whole-database backups are platform-operator (Cantilan Head) only, matching the API policy. A
+        // per-LGU Head or a Cantilan Admin who reaches this URL directly is bounced to the dashboard
+        // instead of seeing 403 "couldn't load" cards. (The Settings link is also hidden for them.)
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var isSuperAdmin = state.User.IsInRole("SuperAdmin")
+            || state.User.Claims.Any(c => string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
+        if (!(isSuperAdmin && string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase)))
+        {
+            Nav.NavigateTo("/menu", replace: true);
+            return;
+        }
+
         await LoadRunsAsync();
         await LoadRestoreRunsAsync();
     }

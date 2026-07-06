@@ -6,6 +6,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject ISettingsApiClient SettingsApi
 @inject AuthService AuthService
+@inject AuthenticationStateProvider AuthState
 
 @*
     Settings — read-only system configuration overview.
@@ -193,11 +194,16 @@
                     }
                 </div>
             </section>
- <!-- ── Database health (live PostgreSQL metrics) ── -->
-            <DatabaseHealthPanel />
+ <!-- ── Database health (live PostgreSQL metrics) — platform operator (Cantilan Head) only ── -->
+            @if (_isPlatformOperator)
+            {
+                <DatabaseHealthPanel />
+            }
         
 
-            <!-- ── Backups & Restore ── -->
+            <!-- ── Backups & Restore — platform operator (Cantilan Head) only ── -->
+            @if (_isPlatformOperator)
+            {
             <section class="set-card">
                 <div class="set-card-head">
                     <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
@@ -215,6 +221,7 @@
                     <a class="set-link" href="/settings/backups">Open backups<span class="set-link-arrow">→</span></a>
                 </div>
             </section>
+            }
     <!-- ── System Information ── -->
             <section class="set-card">
                 <div class="set-card-head">
@@ -327,6 +334,20 @@
     private string? _error;
     private bool _confirmLogout;
     private bool _loggingOut;
+    // Platform operator = the default-LGU (Cantilan) SuperAdmin — the only role allowed the whole-database
+    // tools (DB health, backups). Matches the API "PlatformOperator" policy exactly, so a per-LGU Head or a
+    // Cantilan Admin never sees those cards (and never hits their 403).
+    private bool _isPlatformOperator;
+
+    private async Task<bool> ResolvePlatformOperatorAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var isSuperAdmin = state.User.IsInRole("SuperAdmin")
+            || state.User.Claims.Any(c => string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
+        return isSuperAdmin && string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase);
+    }
 
     private async Task SignOutAsync()
     {
@@ -341,6 +362,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _isPlatformOperator = await ResolvePlatformOperatorAsync();
+
         if (CachedSettings is not null)
         {
             _model = CachedSettings;
