@@ -941,10 +941,13 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
     public async Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, CancellationToken cancellationToken = default)
     {
         var normalized = usernameOrEmployeeId.Trim();
+        // Login derives the tenant from the user, so span every LGU (bypass the tenant filter) while still
+        // excluding soft-deleted accounts. Subdomain-scoped login is the Phase-5 refinement.
         return await context.CollectorUsers
+            .IgnoreQueryFilters()
             .Include(c => c.FacilityAssignments)
             .FirstOrDefaultAsync(c =>
-                c.Username == normalized || c.EmployeeId == normalized,
+                !c.IsDeleted && (c.Username == normalized || c.EmployeeId == normalized),
                 cancellationToken);
     }
 

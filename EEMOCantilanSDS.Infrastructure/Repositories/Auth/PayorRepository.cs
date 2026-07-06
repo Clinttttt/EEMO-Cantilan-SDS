@@ -14,8 +14,11 @@ public class PayorRepository(AppDbContext context) : IPayorRepository
     public async Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default)
     {
         var normalized = contactNumber.Trim();
+        // Login derives the tenant from the user, so span every LGU (bypass the tenant filter) while still
+        // excluding soft-deleted accounts. Subdomain-scoped login is the Phase-5 refinement.
         return await context.PayorUsers
-            .FirstOrDefaultAsync(p => p.Username == normalized, ct);
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => !p.IsDeleted && p.Username == normalized, ct);
     }
 
     public async Task<PayorActivationCode?> GetActivationCodeAsync(string code, CancellationToken ct = default)
