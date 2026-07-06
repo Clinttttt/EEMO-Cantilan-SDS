@@ -207,12 +207,31 @@ Treat Phases 3–6 as the funded expansion path, beginning Phase 3 only when a s
 | — | Hardening Track | ◑ Partial — ops pending | Code-side done (probes, cookie policy, externalized JWT key, CI); runbook drives ops |
 | A | **Production Checkpoint A (Cantilan live)** | Pending ops verification | Code-side ready; runbook ops actions remain (secrets in host, TLS, backups, monitoring) |
 | 3 | Data isolation model | ✅ Complete (structural) | `IMunicipalityOwned` + `MunicipalityId` (21 entities) + backfill + central global query filters + write-stamping interceptor + per-municipality unique constraints; isolation tests; **458/458 byte-for-byte**. Phase-5 follow-up: re-scope app-layer uniqueness checks + flip the default-tenant fallback |
-| 4 | Facility & rate configurability | ◑ Partial | 4A archetype (`Facility.Archetype`, decoupled) + 4B-i per-LGU `FacilityRate` table & seed (today's exact values) done — **458/458 byte-for-byte**. 4B-ii (rewire fee calcs to read the table) + collection-rules-as-data **deferred** until a real 2nd LGU with different rates (Guiding Rule #5) |
-| 5 | Runtime routing + multi-LGU capability | Not started | Enables a 2nd LGU |
-| 6 | Onboarding workspace + first real LGU | Not started | Proof of expansion |
+| 4 | Facility & rate configurability | ✅ (fee-calc rewire done) | 4A archetype + 4B-i `FacilityRate` table/seed + **4B-ii fee-calc rewire DONE** — NPM/SLH/TPM/TRM fees resolve per-LGU from `FacilityRate` via `IFeeRateResolver` (constant fallback → Cantilan byte-for-byte); metered utility default-rate keys (`ElecPerKwh`/`WaterPerCubicMeter`) added. Collection-cycle-as-data still deferred (Guiding Rule #5). **513/513** |
+| 5 | Runtime routing + multi-LGU capability | ◑ Partial | Login tenant-claim-scoped; **pre-login branding backend** (`GET /api/municipalities/{id}/branding`) + live subdomains (`console`/`api.stalltrack.site`); **#1 per-LGU uniqueness scoping** (OR/username/email) + **#2 platform-operator gating** (backup/restore/DB-health → `PlatformOperator` policy) shipped. Remaining: subdomain routing + pre-login UI (frontend), mobile offline-cache namespacing, default-tenant-fallback flip (apply when LGU #2 activates) |
+| 6 | Onboarding workspace + first real LGU | ◑ Backend ready | **Activation API live**: `POST /api/activation/municipality` (atomic branding+facilities+rates+stalls+custom-animals+OR-series+Head) + one-time set-password link (`POST /api/activation/set-password`); read-backs `GET /api/slaughter/animal-rates`, `/api/or-series/next`, `/api/facility-rates`. Remaining: platform-console wiring (separate repo) + onboard one real LGU end-to-end |
 | B | **Production Checkpoint B (multi-LGU)** | Pending | After 3–6 |
 
 **Working status (latest session):**
+- **Second live environment stood up (`clysullano` Azure sub):** API `stalltrack-api-cly-2026` + Client
+  `stalltrack-web-cly-2026` + Postgres `stalltrack-postgres-cly-2026`, behind subdomains
+  `api.stalltrack.site` / `console.stalltrack.site` (custom domains + TLS). CI/CD retargeted
+  (`deploy-production.yml` → site-containers, port 8080, new ACR `stalltrackregistry2026`) with a fresh
+  GitHub OIDC service principal.
+- **Phase 4B-ii shipped** — per-LGU fee resolution wired into NPM/SLH/TPM/TRM (constant fallback → Cantilan
+  byte-for-byte).
+- **Phase 5 hardening shipped** — pre-login branding endpoint; **#1** per-LGU uniqueness scoping
+  (OR/username/email, soft-delete-preserving); **#2** `PlatformOperator` policy gating backup/restore/DB-health.
+- **Phase 6 backend shipped + deployed** — activation API + one-time set-password link + config-richness
+  (stalls/sections, custom SLH animals, OR-series) + rate read-back. Contract:
+  `CARCANMADCARLAN-activation-api-integration.md`. **Remaining: run one real onboarding** via the platform
+  console (Codex repo) or the live activation API (platform-operator Head login), then flip the default-tenant
+  fallback to reject-on-missing-claim.
+- **Fresh-deploy fix** — `MunicipalitySeeder` now runs before `FacilitySeeder`, which stamps the default
+  municipality id (previously facilities seeded with an empty tenant id → hidden by the query filter).
+- Suite at **513/513**; Cantilan goldens byte-for-byte throughout.
+
+**Working status (prior session):**
 - **CARCANMADCARLAN demo — presentation-only, decoupled, no backend writes.** The public landing rollout
   pipeline and the platform admin console (`apps/admin` in the `stalltrack-landing` monorepo) implement the
   full journey: Assessment → Onboarding (comprehensive config workspace: facility pipeline cards mapped to
