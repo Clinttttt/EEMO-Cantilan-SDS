@@ -41,8 +41,8 @@ if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsAtStartup"))
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await context.Database.MigrateAsync();
-    await FacilitySeeder.SeedAsync(context);
     await MunicipalitySeeder.SeedAsync(context);
+    await FacilitySeeder.SeedAsync(context);
     await FacilityRateSeeder.SeedAsync(context);
 }
 
