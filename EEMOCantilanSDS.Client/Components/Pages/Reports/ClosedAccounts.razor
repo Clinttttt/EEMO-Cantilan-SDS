@@ -14,6 +14,8 @@
    Scope: stall facilities only (NPM/TCC/NCC/BBQ/ICE). Data: GET /api/stalls/closed-accounts.
    ─────────────────────────────────────────────────────────────────────────────── *@
 
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
+
 <PageTitle>EEMO Admin — Closed Accounts</PageTitle>
 
 <header class="topbar no-print">
@@ -149,10 +151,10 @@
                 <tfoot><tr><td><div class="ca-frame-space"></div></td></tr></tfoot>
                 <tbody><tr><td>
             <header class="ca-rpt-head">
-                <img class="ca-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+                <img class="ca-seal" src="@Branding.SealPath" alt="LGU Cantilan" />
                 <div class="ca-gov">Republic of the Philippines</div>
-                <div class="ca-org">Economic Enterprise &amp; Management Office</div>
-                <div class="ca-muni">Municipality of Cantilan, Surigao del Sur</div>
+                <div class="ca-org">@Branding.OfficeName</div>
+                <div class="ca-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                 <div class="ca-doc">Register of Closed &amp; Expired Stall Accounts</div>
                 <div class="ca-doc-scope">@(_year?.ToString() ?? "All Years")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
                 <div class="ca-doc-period">As of @PhilippineTime.Today.ToString("MMMM d, yyyy")</div>
@@ -271,7 +273,7 @@
 
             <div class="ca-rpt-foot">
                 <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
-                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Reviewed by</span><strong>Head, @Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
                 </td></tr></tbody>

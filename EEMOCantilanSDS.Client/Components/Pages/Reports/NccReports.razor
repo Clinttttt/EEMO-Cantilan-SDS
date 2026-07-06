@@ -4,6 +4,8 @@
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
 
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
+
 <PageTitle>EEMO Admin — NCC Reports</PageTitle>
 
 <!-- ══ Topbar ══ -->
@@ -70,16 +72,16 @@
     <div class="rpt-content print-document-content">
         <section class="print-report-sheet status-sheet">
             <header class="print-report-header">
-                <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <img class="print-report-logo" src="@Branding.SealPath" alt="LGU Cantilan logo" />
                 <div class="print-republic">Republic of the Philippines</div>
-                <h2>Economic Enterprise &amp; Management Office</h2>
-                <p>Municipality of Cantilan, Surigao del Sur</p>
+                <h2>@Branding.OfficeName</h2>
+                <p>Municipality of @Branding.Municipality, @Branding.Province</p>
                 <div class="print-report-title">New Commercial Center — Current Status Report</div>
             </header>
             <div class="print-report-meta">
                 <div><span>Facility</span><strong>New Commercial Center</strong></div>
                 <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
-                <div><span>Prepared By</span><strong>EEMO Office</strong></div>
+                <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
             <div class="print-report-summary">
@@ -128,7 +130,7 @@
             }
             <div class="print-report-signatures">
                 <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
-                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Reviewed by</span><strong>Head, @Branding.OfficeAcronym Office</strong></div>
                 <div><span>Received by</span><strong>Authorized Representative</strong></div>
             </div>
         </section>
@@ -140,16 +142,16 @@ else if (ShowHistory)
     <div class="rpt-content print-document-content">
         <section class="print-report-sheet history-sheet">
             <header class="print-report-header">
-                <img class="print-report-logo" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan logo" />
+                <img class="print-report-logo" src="@Branding.SealPath" alt="LGU Cantilan logo" />
                 <div class="print-republic">Republic of the Philippines</div>
-                <h2>Economic Enterprise &amp; Management Office</h2>
-                <p>Municipality of Cantilan, Surigao del Sur</p>
+                <h2>@Branding.OfficeName</h2>
+                <p>Municipality of @Branding.Municipality, @Branding.Province</p>
                 <div class="print-report-title">New Commercial Center — Collection History</div>
             </header>
             <div class="print-report-meta">
                 <div><span>Facility</span><strong>New Commercial Center</strong></div>
                 <div><span>Year</span><strong>@CurrentDate.Year</strong></div>
-                <div><span>Prepared By</span><strong>EEMO Office</strong></div>
+                <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
             </div>
 
@@ -238,7 +240,7 @@ else if (ShowHistory)
 
             <div class="print-report-signatures">
                 <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
-                <div><span>Reviewed by</span><strong>Head, EEMO Office</strong></div>
+                <div><span>Reviewed by</span><strong>Head, @Branding.OfficeAcronym Office</strong></div>
                 <div><span>Received by</span><strong>Authorized Representative</strong></div>
             </div>
         </section>

@@ -30,7 +30,7 @@ public class GetMunicipalitiesQueryTests : RepositoryTestBase
         Assert.True(list[0].IsDefault);
         Assert.True(list[0].IsActive);
         Assert.Equal("Active", list[0].Status);
-        Assert.Contains("EEMO", list[0].OfficeName);
+        Assert.Contains("Economic Enterprise", list[0].OfficeName);
 
         // Exactly one default.
         Assert.Single(list, m => m.IsDefault);
