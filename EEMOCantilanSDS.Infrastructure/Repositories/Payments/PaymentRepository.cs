@@ -603,13 +603,17 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
     {
-        // OR (receipt) numbers must stay globally unique even against soft-deleted records,
-        // so bypass the global IsDeleted filter for these existence checks.
-        if (await context.PaymentRecords.IgnoreQueryFilters().AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
-        if (await context.DailyCollections.IgnoreQueryFilters().AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
-        if (await context.SlaughterTransactions.IgnoreQueryFilters().AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
-        if (await context.TpmAttendances.IgnoreQueryFilters().AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
-        if (await context.TrmTrips.IgnoreQueryFilters().AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
+        // OR (receipt) numbers must stay unique even against soft-deleted records, so bypass the global
+        // IsDeleted filter. Scope to the caller's municipality when it is resolved, so a second LGU may
+        // reuse an OR number that only exists in another LGU. Token-less/setup flows have an empty tenant
+        // (mid == Guid.Empty) and keep the original global check — for Cantilan (the only tenant with data)
+        // the scoped and global results are identical.
+        var mid = context.CurrentMunicipalityId;
+        if (await context.PaymentRecords.IgnoreQueryFilters().AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == orNumber, ct)) return false;
+        if (await context.DailyCollections.IgnoreQueryFilters().AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == orNumber, ct)) return false;
+        if (await context.SlaughterTransactions.IgnoreQueryFilters().AnyAsync(s => (mid == Guid.Empty || s.MunicipalityId == mid) && s.ORNumber == orNumber, ct)) return false;
+        if (await context.TpmAttendances.IgnoreQueryFilters().AnyAsync(a => (mid == Guid.Empty || a.MunicipalityId == mid) && a.ORNumber == orNumber, ct)) return false;
+        if (await context.TrmTrips.IgnoreQueryFilters().AnyAsync(t => (mid == Guid.Empty || t.MunicipalityId == mid) && t.ORNumber == orNumber, ct)) return false;
         return true;
     }
 

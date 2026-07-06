@@ -1198,18 +1198,22 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
 
     public async Task<bool> IsEmployeeIdUniqueAsync(string employeeId, CancellationToken cancellationToken = default)
     {
-        // Uniqueness must consider soft-deleted users too (their rows still exist), so bypass the global filter.
-        return !await context.CollectorUsers.IgnoreQueryFilters().AnyAsync(c => c.EmployeeId == employeeId, cancellationToken);
+        // Uniqueness must consider soft-deleted users too (their rows still exist), so bypass the global
+        // filter — but scope to the caller's municipality when resolved (empty tenant → global fallback).
+        var mid = context.CurrentMunicipalityId;
+        return !await context.CollectorUsers.IgnoreQueryFilters().AnyAsync(c => (mid == Guid.Empty || c.MunicipalityId == mid) && c.EmployeeId == employeeId, cancellationToken);
     }
 
     public async Task<bool> IsUsernameUniqueAsync(string username, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, cancellationToken);
+        var mid = context.CurrentMunicipalityId;
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => (mid == Guid.Empty || u.MunicipalityId == mid) && u.Username == username, cancellationToken);
     }
 
     public async Task<bool> IsEmailUniqueAsync(string email, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email, cancellationToken);
+        var mid = context.CurrentMunicipalityId;
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => (mid == Guid.Empty || u.MunicipalityId == mid) && u.Email == email, cancellationToken);
     }
 
     public async Task AddFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default)

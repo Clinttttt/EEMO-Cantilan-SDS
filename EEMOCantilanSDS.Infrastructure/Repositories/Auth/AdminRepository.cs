@@ -44,12 +44,16 @@ public class AdminRepository(AppDbContext context) : IAdminRepository
     // bypasses the global IsDeleted filter so we don't report a taken name as available.
     public async Task<bool> IsUsernameUniqueAsync(string username, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username, cancellationToken);
+        // Bypass the soft-delete filter (a taken name must not read as available) but scope to the caller's
+        // municipality when resolved — usernames are unique per LGU. Empty tenant (first-admin setup) → global.
+        var mid = context.CurrentMunicipalityId;
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => (mid == Guid.Empty || u.MunicipalityId == mid) && u.Username == username, cancellationToken);
     }
 
     public async Task<bool> IsEmailUniqueAsync(string email, CancellationToken cancellationToken = default)
     {
-        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email, cancellationToken);
+        var mid = context.CurrentMunicipalityId;
+        return !await context.Users.IgnoreQueryFilters().AnyAsync(u => (mid == Guid.Empty || u.MunicipalityId == mid) && u.Email == email, cancellationToken);
     }
 
     public async Task<int> CountOtherActiveSuperAdminsAsync(Guid excludingId, CancellationToken cancellationToken = default)
