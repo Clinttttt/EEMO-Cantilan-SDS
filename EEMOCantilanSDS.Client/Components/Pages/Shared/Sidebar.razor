@@ -49,11 +49,14 @@
 
         <div class="nav-group-label" style="margin-top:1rem;">Facilities</div>
 
-        @foreach (var fc in Enum.GetValues<FacilityCode>())
+        @* Data-driven: render only the facilities THIS LGU operates (from the tenant-scoped summaries),
+           ordered by Code to preserve the historical nav order. Cantilan returns all 8, so its sidebar is
+           unchanged; a second LGU shows only its own. Falls back to nothing until summaries load. *@
+        @foreach (var f in (FacilitySummaries ?? new()).OrderBy(f => f.Code))
         {
-            if (!Display.TryGetValue(fc, out var display)) { continue; }
-            var unpaid = _unpaidByCode.GetValueOrDefault(fc);
-            var href = "/facility/" + fc.ToString().ToLower();
+            if (!Display.TryGetValue(f.Code, out var display)) { continue; }
+            var unpaid = _unpaidByCode.GetValueOrDefault(f.Code);
+            var href = "/facility/" + f.Code.ToString().ToLower();
             <NavLink href="@href" class="@NavItemClass(href)" @onclick="() => SetPendingPath(href)">
                 @((MarkupString)display.Icon)
                 <span>@display.Label</span>
