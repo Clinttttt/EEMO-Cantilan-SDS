@@ -144,18 +144,69 @@
                 </div>
             </div>
 
-            <!-- ── Stalls Table (Reusable Component) ── -->
-            <FacilityStallsTable TStall="NpmStall"
-                                 Facility="NPM"
-                                 ColumnSet="Operational"
-                                 IsLoading="_loading"
-                                 FilteredStalls="FilteredStalls"
-                                 OnPaymentClick="OpenPayment"
-                                 OnHistoryClick="OpenHistory"
-                                 OnTodayStatusClick="ToggleAbsentToday"
-                                 OnAddOrClick="OpenAddOr"
-                                 OnUtilityClick="OpenUtility"
-                                 OnEditClick="OpenEdit" />
+            <!-- ── Stalls Table(s) ── -->
+            @* All Sections view splits into one table per section (Vegetable · Fish · Meat);
+               a specific section tab (or the loading state) shows a single table. *@
+            @if (_loading || ActiveSection != "All")
+            {
+                <FacilityStallsTable TStall="NpmStall"
+                                     Facility="NPM"
+                                     ColumnSet="Operational"
+                                     IsLoading="_loading"
+                                     FilteredStalls="FilteredStalls"
+                                     OnPaymentClick="OpenPayment"
+                                     OnHistoryClick="OpenHistory"
+                                     OnTodayStatusClick="ToggleAbsentToday"
+                                     OnAddOrClick="OpenAddOr"
+                                     OnUtilityClick="OpenUtility"
+                                     OnEditClick="OpenEdit" />
+            }
+            else
+            {
+                var sectionGroups = Sections
+                    .Select(sec => (sec.Key, sec.Value.Icon, Stalls: FilteredStallsFor(sec.Key).ToList()))
+                    .Where(g => g.Stalls.Count > 0)
+                    .ToList();
+
+                @if (sectionGroups.Count == 0)
+                {
+                    <FacilityStallsTable TStall="NpmStall"
+                                         Facility="NPM"
+                                         ColumnSet="Operational"
+                                         IsLoading="false"
+                                         FilteredStalls="FilteredStalls"
+                                         OnPaymentClick="OpenPayment"
+                                         OnHistoryClick="OpenHistory"
+                                         OnTodayStatusClick="ToggleAbsentToday"
+                                         OnAddOrClick="OpenAddOr"
+                                         OnUtilityClick="OpenUtility"
+                                         OnEditClick="OpenEdit" />
+                }
+                else
+                {
+                    @foreach (var g in sectionGroups)
+                    {
+                        <div class="npm-sec-group">
+                            <div class="npm-sec-group-head">
+                                <span class="npm-sec-group-icon">@((MarkupString)g.Icon)</span>
+                                <span class="npm-sec-group-title">@g.Key</span>
+                                <span class="npm-sec-group-count">@g.Stalls.Count @(g.Stalls.Count == 1 ? "stall" : "stalls")</span>
+                            </div>
+                            <FacilityStallsTable TStall="NpmStall"
+                                                 Facility="NPM"
+                                                 ColumnSet="Operational"
+                                                 IsLoading="false"
+                                                 FilteredStalls="g.Stalls"
+                                                 OnPaymentClick="OpenPayment"
+                                                 OnHistoryClick="OpenHistory"
+                                                 OnTodayStatusClick="ToggleAbsentToday"
+                                                 OnAddOrClick="OpenAddOr"
+                                                 OnUtilityClick="OpenUtility"
+                                                 OnEditClick="OpenEdit" />
+                        </div>
+                    }
+                }
+            }
 
         </div><!-- end content-area -->
 
@@ -643,9 +694,18 @@
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
     int CollectionRate => (int)Math.Round(Report?.CollectionRate ?? 0m);
 
-    IEnumerable<NpmStall> FilteredStalls => Stalls.Where(s =>
+    IEnumerable<NpmStall> FilteredStalls => Stalls
+        .Where(s => (ActiveSection == "All" || s.Section == ActiveSection) && MatchesStatusAndSearch(s))
+        .OrderBy(s => s.StallNo);
+
+    // Section-scoped list (status + search applied, section fixed) used to render one
+    // table per section in the "All Sections" view. Mirrors FilteredStalls' predicate.
+    IEnumerable<NpmStall> FilteredStallsFor(string section) => Stalls
+        .Where(s => s.Section == section && MatchesStatusAndSearch(s))
+        .OrderBy(s => s.StallNo);
+
+    bool MatchesStatusAndSearch(NpmStall s)
     {
-        if (ActiveSection != "All" && s.Section != ActiveSection) return false;
         bool matchStatus = ActiveStatus switch
         {
             "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
@@ -659,7 +719,7 @@
             || s.StallNo.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || s.ContractName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
         return matchStatus && matchSearch;
-    }).OrderBy(s => s.StallNo);
+    }
 
     string GetPayPillClass(NpmStall s) =>
         s.IsPartial ? "pill-partial" :
