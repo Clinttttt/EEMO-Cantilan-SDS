@@ -480,6 +480,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
             var paged = await q.ToCursorPagedResultAsync(pageSize, d => d.CollectionDate.ToDateTime(TimeOnly.MinValue), ct);
             var names = await LoadCollectorNamesAsync(paged.Items.Select(d => d.CollectorId), ct);
+            // Admin/Head-recorded daily collections carry no CollectorId — resolve the recorder from the
+            // audit actor (UpdatedBy ?? CreatedBy) so they attribute the admin instead of showing "—".
+            var dAdminNames = await LoadAdminNamesAsync(paged.Items.Select(d => d.UpdatedBy ?? d.CreatedBy), ct);
 
             return new CursorPagedResult<StallCollectionHistoryRowDto>
             {
@@ -490,8 +493,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                     d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) : 0m,
                     d.ORNumber,
                     d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null,
-                    // NPM daily collections are collector-driven; the recorder is the collector (or none).
-                    RecordedByName: d.CollectorId is Guid rcid && names.TryGetValue(rcid, out var rnm) ? rnm : null)).ToList(),
+                    // Recorder: the field collector when set, else the admin/Head resolved from the actor.
+                    RecordedByName: ResolveRecorderName(d.CollectorId, d.UpdatedBy ?? d.CreatedBy, names, dAdminNames))).ToList(),
                 NextCursor = paged.NextCursor,
                 HasMore = paged.HasMore
             };
