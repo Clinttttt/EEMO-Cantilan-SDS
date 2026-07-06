@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -111,6 +112,19 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     r.FacilityCode, r.Key, r.Amount, RateEffectiveFrom, municipality.Id, "Activation"));
             }
 
+            // 3b) Custom slaughterhouse animal types (beyond Hog/Carabao/Cow) with their default per-head
+            //     rates — seeded into the LGU's own registry so the SLH record screen can offer them later.
+            var customAnimalsCreated = 0;
+            if (request.CustomAnimals is { Count: > 0 })
+            {
+                foreach (var a in request.CustomAnimals)
+                {
+                    context.SlaughterAnimalRates.Add(SlaughterAnimalRate.Create(
+                        a.AnimalName, a.RatePerHead, municipality.Id, "Activation"));
+                    customAnimalsCreated++;
+                }
+            }
+
             // 4) Head account — provisioned INACTIVE with a one-time activation token. The Head sets their
             //    own password through the secure link; the placeholder password is random and never disclosed.
             var (activationToken, activationTokenHash) = GenerateActivationToken();
@@ -135,7 +149,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 activationToken,
                 request.Facilities.Count,
                 request.Rates.Count,
-                stallsCreated));
+                stallsCreated,
+                customAnimalsCreated));
         }
 
         // A url-safe, cryptographically-random one-time activation token; only its SHA-256 hash is stored.

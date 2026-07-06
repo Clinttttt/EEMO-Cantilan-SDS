@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetOwnerTransactionHist
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterHistory;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterOverview;
 using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterTransactions;
+using EEMOCantilanSDS.Application.Queries.Slaughterhouse.GetSlaughterAnimalRates;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -83,6 +84,15 @@ public class SlaughterController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<ClientProfileDto>> GetClientProfile(string ownerName)
     {
         var query = new GetClientProfileQuery(ownerName);
+        var result = await sender.Send(query);
+        return HandleResponse(result);
+    }
+
+    /// <summary>Lists the caller LGU's custom animal types + default per-head rates (for the SLH record screen).</summary>
+    [HttpGet("animal-rates")]
+    public async Task<ActionResult<IReadOnlyList<SlaughterAnimalRateDto>>> GetAnimalRates([FromQuery] bool activeOnly = true)
+    {
+        var query = new GetSlaughterAnimalRatesQuery(activeOnly);
         var result = await sender.Send(query);
         return HandleResponse(result);
     }

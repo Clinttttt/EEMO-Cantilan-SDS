@@ -47,6 +47,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             {
                 r.RuleFor(x => x.Amount).GreaterThanOrEqualTo(0m).WithMessage("Rate amount cannot be negative.");
             });
+
+            // Custom SLH animals are optional; when present each needs a name and a non-negative rate.
+            RuleForEach(x => x.CustomAnimals).ChildRules(a =>
+            {
+                a.RuleFor(x => x.AnimalName).NotEmpty().WithMessage("Custom animal name is required.")
+                    .MaximumLength(100).WithMessage("Custom animal name cannot exceed 100 characters.");
+                a.RuleFor(x => x.RatePerHead).GreaterThanOrEqualTo(0m)
+                    .WithMessage("Custom animal rate cannot be negative.");
+            }).When(x => x.CustomAnimals is not null);
         }
     }
 }

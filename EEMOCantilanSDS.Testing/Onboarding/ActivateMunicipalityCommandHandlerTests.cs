@@ -174,8 +174,51 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
-        public async Task Activate_RejectsDefaultMunicipality()
+        public async Task Activate_SeedsCustomAnimals_ScopedToLgu()
         {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            var config = new ActivateMunicipalityCommand(
+                "CARMEN",
+                new ActivationBranding("Carmen EEO", null, null),
+                new ActivationAdministrator("Maria Santos", "carmen.head", "head@carmen.gov.ph"),
+                new List<ActivationFacility>
+                {
+                    new(FacilityCode.SLH, "Carmen Slaughterhouse", "CSLH", BillingArchetype.PerHead),
+                },
+                new List<ActivationRate> { new(FacilityCode.SLH, FeeRateKey.SlhHogPerHead, 200m) },
+                new List<ActivationCustomAnimal>
+                {
+                    new("Goat", 150m),
+                    new("Chicken", 20m),
+                });
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(config, default);
+                Assert.True(result.IsSuccess);
+                Assert.Equal(2, result.Value!.CustomAnimalTypesCreated);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var animals = await carmenCtx.SlaughterAnimalRates.ToListAsync();
+                Assert.Equal(2, animals.Count);
+                Assert.All(animals, a => Assert.Equal(carmenId, a.MunicipalityId));
+                Assert.All(animals, a => Assert.True(a.IsActive));
+                Assert.Equal(150m, animals.First(a => a.AnimalName == "Goat").RatePerHead);
+            }
+
+            // Cantilan (the operator's own LGU) has no custom animals of its own.
+            using (var cantilanCtx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                Assert.Empty(await cantilanCtx.SlaughterAnimalRates.ToListAsync());
+            }
+        }
+
+        [Fact]
+        public async Task Activate_RejectsDefaultMunicipality()        {
             var options = Options();
             var (cantilanId, _) = await SeedRegistryAsync(options);
 

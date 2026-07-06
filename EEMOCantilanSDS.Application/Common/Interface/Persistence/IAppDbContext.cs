@@ -29,6 +29,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
         DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }
         DbSet<SlaughterTransaction> SlaughterTransactions { get; }
+        DbSet<SlaughterAnimalRate> SlaughterAnimalRates { get; }
         DbSet<TpmVendor> TpmVendors { get; }
         DbSet<TpmAttendance> TpmAttendances { get; }
         DbSet<TrmTransporter> TrmTransporters { get; }

@@ -2,6 +2,14 @@ using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 
+/// <summary>A per-LGU custom slaughterhouse animal type and its default per-head rate.</summary>
+public record SlaughterAnimalRateDto(
+    Guid Id,
+    string AnimalName,
+    decimal RatePerHead,
+    bool IsActive
+);
+
 public record SlaughterTransactionDto(
     Guid Id,
     string OwnerName,

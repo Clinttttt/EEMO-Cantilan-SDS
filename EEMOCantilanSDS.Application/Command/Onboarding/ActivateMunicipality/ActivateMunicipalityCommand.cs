@@ -18,7 +18,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         ActivationBranding Branding,
         ActivationAdministrator Administrator,
         IReadOnlyList<ActivationFacility> Facilities,
-        IReadOnlyList<ActivationRate> Rates) : IRequest<Result<ActivationResultDto>>;
+        IReadOnlyList<ActivationRate> Rates,
+        IReadOnlyList<ActivationCustomAnimal>? CustomAnimals = null) : IRequest<Result<ActivationResultDto>>;
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
     public record ActivationBranding(string OfficeName, string? Address, string? SealPath);
@@ -52,6 +53,13 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     public record ActivationRate(FacilityCode FacilityCode, FeeRateKey Key, decimal Amount);
 
     /// <summary>
+    /// A custom slaughterhouse animal type (beyond the built-in Hog/Carabao/Cow) with its default per-head
+    /// rate, seeded into the LGU's animal registry at activation. When recording an SLH transaction for this
+    /// animal, the portal offers the name + this rate as a default the admin may still override.
+    /// </summary>
+    public record ActivationCustomAnimal(string AnimalName, decimal RatePerHead);
+
+    /// <summary>
     /// Result of a successful activation. <see cref="ActivationToken"/> is a one-time secret generated
     /// server-side (stored only as a hash) — the platform builds the Head's set-password link from it
     /// (e.g. <c>https://{lgu}.stalltrack.site/activate/{token}</c>). The Head is provisioned inactive and
@@ -64,5 +72,6 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         string ActivationToken,
         int FacilitiesCreated,
         int RatesCreated,
-        int StallsCreated);
+        int StallsCreated,
+        int CustomAnimalTypesCreated);
 }
