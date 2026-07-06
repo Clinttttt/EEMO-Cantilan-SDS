@@ -44,17 +44,16 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         int? weekNumber,
         CancellationToken ct)
     {
-        // Get facility ID
+        // Get facility ID. A tenant may not operate every facility archetype (e.g. an LGU with no
+        // NCC/BBQ/ICE). Rather than failing the whole multi-facility report, treat an absent facility
+        // as one with no stalls/records: Guid.Empty matches no rows, so every helper below naturally
+        // yields a zeroed section for it. Cantilan operates all facilities, so this fallback is never
+        // taken there and its figures stay byte-for-byte identical.
         var facility = await _context.Facilities
             .AsNoTracking()
             .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
 
-        if (facility == null)
-        {
-            throw new InvalidOperationException($"Facility with code {facilityCode} not found");
-        }
-
-        var facilityId = facility.Id;
+        var facilityId = facility?.Id ?? Guid.Empty;
 
         var (currentStart, currentEnd) = CalculateDateRange(period, year, month, weekNumber);
         var (previousStart, previousEnd) = CalculatePreviousPeriodDateRange(period, year, month, weekNumber);
