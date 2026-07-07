@@ -99,6 +99,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Onboarding
             Touch(updatedBy);
         }
 
+        /// <summary>LGU submitted its onboarding config — advance to the Validation stage.</summary>
+        public void SubmitForValidation(string updatedBy)
+        {
+            Stage = "Validation";
+            Touch(updatedBy);
+        }
+
+        /// <summary>Operator approved the validation dry-run — advance to the Activation stage.</summary>
+        public void ApproveValidation(string updatedBy)
+        {
+            Stage = "Activation";
+            Touch(updatedBy);
+        }
+
+        /// <summary>Operator returned the config for corrections — back to the Onboarding stage.</summary>
+        public void ReturnToOnboarding(string updatedBy)
+        {
+            Stage = "Onboarding";
+            Touch(updatedBy);
+        }
+
         private void Touch(string updatedBy)
         {
             UpdatedAt = DateTime.UtcNow;

@@ -59,6 +59,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Onboarding
             Touch(updatedBy);
         }
 
+        /// <summary>Re-open a submitted draft for corrections (operator returned it).</summary>
+        public void Reopen(string updatedBy)
+        {
+            IsSubmittedForValidation = false;
+            SubmittedAt = null;
+            Touch(updatedBy);
+        }
+
         private void Touch(string updatedBy)
         {
             UpdatedAt = DateTime.UtcNow;

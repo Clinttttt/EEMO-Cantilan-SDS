@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Command.Onboarding.ApproveOnboardingValidation;
+using EEMOCantilanSDS.Application.Command.Onboarding.ReturnOnboardingToDraft;
 using EEMOCantilanSDS.Application.Command.Onboarding.SubmitOnboarding;
 using EEMOCantilanSDS.Application.Command.Onboarding.UpdateOnboardingConfig;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -144,6 +146,78 @@ namespace EEMOCantilanSDS.Testing.Onboarding
                 .Handle(new GetOnboardingDraftByRequestQuery(requestId), default);
             Assert.False(forbidden.IsSuccess);
             Assert.Equal(403, forbidden.StatusCode);
+        }
+
+        // Seeds a default LGU + an approved request (Onboarding) + a linked draft with config; returns ids/token.
+        private static async Task<(Guid cantilanId, Guid requestId, string token)> SeedApprovedWithDraftAsync(DbContextOptions<AppDbContext> options)
+        {
+            Guid cantilanId, requestId;
+            var token = "tok_" + Guid.NewGuid().ToString("N");
+            using var seed = new AppDbContext(options);
+            var cantilan = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
+            seed.Municipalities.Add(cantilan);
+            var req = AssessmentRequest.Create("Madrid", "Surigao del Sur", "LEEO", "C V", "Officer", "a@b.gov.ph", "0912", "Public Market", null, null, true, null);
+            req.Approve("https://www.stalltrack.site/onboarding/x", null, "operator");
+            seed.AssessmentRequests.Add(req);
+            var draft = OnboardingDraft.Create(req.Id, "Madrid", "Surigao del Sur", token, DateTime.UtcNow.AddDays(30));
+            draft.UpdateConfig("{\"ok\":true}", "LGU");
+            seed.OnboardingDrafts.Add(draft);
+            await seed.SaveChangesAsync();
+            cantilanId = cantilan.Id;
+            requestId = req.Id;
+            return (cantilanId, requestId, token);
+        }
+
+        [Fact]
+        public async Task Submit_Advances_Request_ToValidation_And_ApproveValidation_ToActivation()
+        {
+            var options = Options();
+            var (cantilanId, requestId, token) = await SeedApprovedWithDraftAsync(options);
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var r = await new SubmitOnboardingCommandHandler(ctx).Handle(new SubmitOnboardingCommand(token), default);
+                Assert.True(r.IsSuccess);
+            }
+            using (var ctx = new AppDbContext(options))
+            {
+                var req = await ctx.AssessmentRequests.FirstAsync(x => x.Id == requestId);
+                Assert.Equal("Validation", req.Stage);
+            }
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+                var r = await new ApproveOnboardingValidationCommandHandler(ctx, op)
+                    .Handle(new ApproveOnboardingValidationCommand(requestId), default);
+                Assert.True(r.IsSuccess);
+                Assert.Equal("Activation", r.Value!.Stage);
+            }
+        }
+
+        [Fact]
+        public async Task Return_ReopensDraft_And_StageOnboarding()
+        {
+            var options = Options();
+            var (cantilanId, requestId, token) = await SeedApprovedWithDraftAsync(options);
+
+            using (var ctx = new AppDbContext(options))
+                await new SubmitOnboardingCommandHandler(ctx).Handle(new SubmitOnboardingCommand(token), default);
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
+                var r = await new ReturnOnboardingToDraftCommandHandler(ctx, op)
+                    .Handle(new ReturnOnboardingToDraftCommand(requestId, "Please fix the rates."), default);
+                Assert.True(r.IsSuccess);
+                Assert.Equal("Onboarding", r.Value!.Stage);
+            }
+
+            using (var ctx = new AppDbContext(options))
+            {
+                var draft = await ctx.OnboardingDrafts.FirstAsync(d => d.AssessmentRequestId == requestId);
+                Assert.False(draft.IsSubmittedForValidation);
+            }
         }
     }
 }

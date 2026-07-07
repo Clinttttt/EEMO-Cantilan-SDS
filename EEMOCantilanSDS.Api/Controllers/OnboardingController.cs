@@ -1,5 +1,7 @@
 using System;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Command.Onboarding.ApproveOnboardingValidation;
+using EEMOCantilanSDS.Application.Command.Onboarding.ReturnOnboardingToDraft;
 using EEMOCantilanSDS.Application.Command.Onboarding.SubmitOnboarding;
 using EEMOCantilanSDS.Application.Command.Onboarding.UpdateOnboardingConfig;
 using EEMOCantilanSDS.Application.Dtos.Onboarding;
@@ -61,4 +63,25 @@ public class OnboardingController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(new GetOnboardingDraftByRequestQuery(assessmentRequestId));
         return HandleResponse(result);
     }
+
+    /// <summary>Approve the validation dry-run — advances the request to Activation. Platform-operator only.</summary>
+    [Authorize(Roles = "SuperAdmin")]
+    [HttpPost("by-request/{assessmentRequestId:guid}/approve-validation")]
+    public async Task<ActionResult<AssessmentRequestDto>> ApproveValidation(Guid assessmentRequestId)
+    {
+        var result = await Sender.Send(new ApproveOnboardingValidationCommand(assessmentRequestId));
+        return HandleResponse(result);
+    }
+
+    /// <summary>Return the config for corrections — reopens the draft (Onboarding). Platform-operator only.</summary>
+    [Authorize(Roles = "SuperAdmin")]
+    [HttpPost("by-request/{assessmentRequestId:guid}/return")]
+    public async Task<ActionResult<AssessmentRequestDto>> ReturnToOnboarding(Guid assessmentRequestId, [FromBody] ReturnOnboardingRequestBody? body)
+    {
+        var result = await Sender.Send(new ReturnOnboardingToDraftCommand(assessmentRequestId, body?.Note));
+        return HandleResponse(result);
+    }
 }
+
+/// <summary>Optional body for the return-to-onboarding action.</summary>
+public record ReturnOnboardingRequestBody(string? Note);

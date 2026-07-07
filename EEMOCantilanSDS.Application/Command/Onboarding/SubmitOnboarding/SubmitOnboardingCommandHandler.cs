@@ -24,6 +24,11 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SubmitOnboarding
                 return Result<OnboardingDraftDto>.Failure("Please complete your configuration before submitting for validation.");
 
             draft.SubmitForValidation("LGU");
+
+            // Advance the linked assessment request into the Validation stage.
+            var requestEntity = await context.AssessmentRequests.FirstOrDefaultAsync(r => r.Id == draft.AssessmentRequestId, ct);
+            requestEntity?.SubmitForValidation("LGU");
+
             await context.SaveChangesAsync(ct);
 
             return Result<OnboardingDraftDto>.Success(draft.ToDto());
