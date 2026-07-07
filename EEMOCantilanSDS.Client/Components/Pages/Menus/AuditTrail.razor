@@ -6,13 +6,13 @@
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IAuditApiClient AuditApi
 @implements IDisposable
-<PageTitle>EEMO Admin — Audit Trail</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Audit Trail</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Audit Trail</div>
         <div class="topbar-breadcrumb">
-            <span>EEMO Admin</span>
+            <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Audit Trail</span>
         </div>

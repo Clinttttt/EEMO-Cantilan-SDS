@@ -5,13 +5,13 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 
-<PageTitle>EEMO Admin — Online Payments</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Online Payments</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Online Payments</div>
         <div class="topbar-breadcrumb">
-            <span>EEMO Admin</span>
+            <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Awaiting OR</span>
         </div>

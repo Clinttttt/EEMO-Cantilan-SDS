@@ -7,13 +7,13 @@
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-<PageTitle>EEMO Admin — Collectors</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Collectors</PageTitle>
 
 <header class="topbar">
             <div class="topbar-left">
                 <div class="topbar-title">Collectors</div>
                 <div class="topbar-breadcrumb">
-                    <span>EEMO Admin</span>
+                    <span>@Branding.OfficeAcronym Admin</span>
                     <span class="breadcrumb-sep">/</span>
                     <span class="breadcrumb-active">Collectors</span>
                 </div>
@@ -42,7 +42,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="vs-hero-eyebrow">EEMO Admin · Collectors</div>
+                        <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Collectors</div>
                         <div class="vs-hero-title">Revenue Collectors</div>
                         <div class="vs-hero-sub">Collection Period: @_now.ToString("MMMM yyyy")</div>
                     </div>

@@ -2,13 +2,13 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Dashboard
 @inject IDashboardApiClient DashboardApi
-<PageTitle>EEMO Admin — Dashboard</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Dashboard</PageTitle>
 
 <header class="topbar">
             <div class="topbar-left">
                 <div class="topbar-title">Dashboard</div>
                 <div class="topbar-breadcrumb">
-                    <span>EEMO Admin</span>
+                    <span>@Branding.OfficeAcronym Admin</span>
                     <span class="breadcrumb-sep">/</span>
                     <span class="breadcrumb-active">Overview</span>
                 </div>
@@ -40,7 +40,7 @@
                         </svg>
                     </div>
                     <div>
-                        <div class="vs-hero-eyebrow">EEMO Admin · Overview</div>
+                        <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Overview</div>
                         <div class="vs-hero-title">Dashboard</div>
                         <div class="vs-hero-sub">Collection Period: @_now.ToString("MMMM yyyy")</div>
                     </div>

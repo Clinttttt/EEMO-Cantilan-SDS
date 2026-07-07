@@ -5,13 +5,13 @@
 @inject ITransactionsApiClient TransactionsApi
 @inject IJSRuntime JS
 
-<PageTitle>EEMO Admin — Transactions</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Transactions</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Transactions</div>
         <div class="topbar-breadcrumb">
-            <span>EEMO Admin</span>
+            <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Transactions</span>
         </div>
@@ -26,7 +26,7 @@
 
 <div class="content-area">
 
-    <FacilityHero Eyebrow="EEMO Admin · Transparency"
+    <FacilityHero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Transparency")"
                   Title="Transactions"
                   Subtitle="@(IsToday ? "Today's recorded collections across all facilities" : $"Recorded collections on {SelectedDate:MMMM d, yyyy}")"
                   Icon="@LedgerIcon"

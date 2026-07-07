@@ -9,13 +9,13 @@
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
 @attribute [Authorize(Roles = "SuperAdmin")]
-<PageTitle>EEMO Admin — Accounts</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Accounts</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Account Management</div>
         <div class="topbar-breadcrumb">
-            <span>EEMO Admin</span>
+            <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Accounts</span>
         </div>
@@ -43,7 +43,7 @@
                 </svg>
             </div>
             <div>
-                <div class="vs-hero-eyebrow">EEMO Admin · System Accounts</div>
+                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · System Accounts</div>
                 <div class="vs-hero-title">User Accounts</div>
                 <div class="vs-hero-sub">Administrators &amp; field collectors managed by the Head</div>
             </div>
