@@ -12,10 +12,10 @@
         <div class="rcpt-wrap" @onclick:stopPropagation="true">
             <div class="receipt">
                 <div class="receipt-head">
-                    <img src="/images/LGU_CANTILAN_LOGO.jpg" class="receipt-seal" alt="LGU Cantilan seal" />
+                    <img src="@Branding.SealPath" class="receipt-seal" alt="@Branding.Municipality seal" />
                     <div class="receipt-gov">Republic of the Philippines</div>
-                    <div class="receipt-org">Economic Enterprise &amp; Management Office</div>
-                    <div class="receipt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="receipt-org">@Branding.OfficeName</div>
+                    <div class="receipt-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                     <div class="receipt-doc">@FacilityName</div>
                 </div>
 

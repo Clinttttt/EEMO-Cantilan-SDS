@@ -145,10 +145,10 @@
 
         <section class="sh-sheet">
             <header class="sh-rpt-head">
-                <img class="sh-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+                <img class="sh-seal" src="@Branding.SealPath" alt="LGU Cantilan" />
                 <div class="sh-gov">Republic of the Philippines</div>
-                <div class="sh-org">Economic Enterprise &amp; Management Office</div>
-                <div class="sh-muni">Municipality of Cantilan, Surigao del Sur</div>
+                <div class="sh-org">@Branding.OfficeName</div>
+                <div class="sh-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                 <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityName(_facility.Value))</div>
             </header>
 

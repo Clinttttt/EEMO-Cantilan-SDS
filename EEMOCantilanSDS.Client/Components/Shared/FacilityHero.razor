@@ -8,7 +8,7 @@
         <div>
             <div class="facility-hero-eyebrow">@Eyebrow</div>
             <h1 class="facility-hero-title">@Title</h1>
-            <div class="facility-hero-sub">@Subtitle</div>
+            <div class="facility-hero-sub">@(string.IsNullOrWhiteSpace(Subtitle) ? $"Municipality of {Branding.Municipality}, {Branding.Province}" : Subtitle)</div>
         </div>
     </div>
 
@@ -45,7 +45,7 @@
     public string Title { get; set; } = string.Empty;
 
     [Parameter]
-    public string Subtitle { get; set; } = "Municipality of Cantilan, Surigao del Sur";
+    public string? Subtitle { get; set; }
 
     [Parameter]
     public List<HeroStat> Stats { get; set; } = new();

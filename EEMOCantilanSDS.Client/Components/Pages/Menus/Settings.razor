@@ -148,7 +148,7 @@
                         <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model!.Security.AccessTokenMinutes minutes</span></div>
                         <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days · hashed, single-use</span></div>
                         <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts → @_model.Security.LockoutMinutes-min lock</span></div>
-                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the EEMO Head</span></div>
+                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the @Branding.OfficeAcronym Head</span></div>
                         <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
                     }
                     else
