@@ -1,0 +1,319 @@
+@page "/activate/{Token}"
+@attribute [AllowAnonymous]
+
+@using EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
+@inject IActivationApiClient ActivationApi
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — Activate Your Account</PageTitle>
+
+<div class="setup-root">
+
+    <!-- Left Panel — neutral StallTrack branding (LGU-agnostic: the one-time token does not identify the LGU) -->
+    <div class="setup-left">
+        <div class="setup-left-inner">
+            <div class="setup-seal government-seals">
+                <div class="government-logo-card stalltrack-logo">
+                    <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
+                </div>
+            </div>
+            <div class="setup-brand">
+                <div class="setup-brand-label">StallTrack Platform</div>
+                <div class="setup-brand-city">Municipal Revenue System</div>
+                <div class="setup-brand-title">Activation</div>
+                <div class="setup-brand-sub">Set your administrator password to go live</div>
+            </div>
+            <div class="login-secure-access">
+                <div class="login-secure-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <rect x="9" y="10" width="6" height="5" rx="1" />
+                        <path d="M10.5 10V8.5a1.5 1.5 0 013 0V10" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="login-secure-title">Secure one-time activation</div>
+                    <p>This link is unique to your account and can be used once.</p>
+                </div>
+            </div>
+            <div class="setup-left-footer">
+                <div class="setup-system-name">StallTrack</div>
+                <div class="setup-version">Administrator Activation</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel — Form -->
+    <div class="setup-right">
+        <div class="setup-form-wrap">
+            <section class="login-card">
+
+                @if (Done)
+                {
+                    <div class="setup-form-header">
+                        <div class="login-header-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                                <path d="m9 12 2 2 4-4" />
+                            </svg>
+                        </div>
+                        <div class="setup-form-title">Account activated</div>
+                        <div class="setup-form-desc">Your password has been set. You can now sign in to your portal with your username and new password.</div>
+                    </div>
+                    <button class="setup-submit" @onclick="GoToLogin">
+                        <span>Continue to sign in</span>
+                    </button>
+                }
+                else if (string.IsNullOrWhiteSpace(Token))
+                {
+                    <div class="setup-form-header">
+                        <div class="setup-form-title">Invalid activation link</div>
+                        <div class="setup-form-desc">This activation link is missing its secure token. Please open the exact link from your activation email.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="setup-form-header">
+                        <div class="login-header-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0110 0v4" />
+                            </svg>
+                        </div>
+                        <div class="setup-form-title">Set your password</div>
+                        <div class="setup-form-desc">Create a password for your administrator account. You'll use it together with your username to sign in.</div>
+                    </div>
+
+                    <div class="setup-form">
+
+                        <!-- New Password -->
+                        <div class="form-group">
+                            <label class="form-label">New Password</label>
+                            <div class="form-input-wrap-password">
+                                <div class="form-input-wrap @(GetFieldError("Password") != string.Empty ? "form-input-error" : "")">
+                                    <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0110 0v4" />
+                                    </svg>
+                                    <input @key="@ShowPassword"
+                                           value="@Password"
+                                           @oninput="@((e) => Password = e.Value?.ToString() ?? string.Empty)"
+                                           type="@(ShowPassword ? "text" : "password")"
+                                           class="form-input form-input-password"
+                                           placeholder="Min. 8 characters, with a letter and a number" />
+                                    <button type="button" class="form-eye-btn" @onclick="TogglePassword" @onclick:stopPropagation="true">
+                                        @if (ShowPassword)
+                                        {
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                                                <line x1="1" y1="1" x2="23" y2="23" />
+                                            </svg>
+                                        }
+                                        else
+                                        {
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                            @if (GetFieldError("Password") != string.Empty)
+                            {
+                                <span class="form-error">@GetFieldError("Password")</span>
+                            }
+                        </div>
+
+                        <!-- Confirm Password -->
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <div class="form-input-wrap @(GetFieldError("ConfirmPassword") != string.Empty ? "form-input-error" : "")">
+                                <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                                </svg>
+                                <input @key="@ShowPassword"
+                                       value="@ConfirmPassword"
+                                       @oninput="@((e) => ConfirmPassword = e.Value?.ToString() ?? string.Empty)"
+                                       type="@(ShowPassword ? "text" : "password")"
+                                       class="form-input"
+                                       placeholder="Re-enter password" />
+                            </div>
+                            @if (GetFieldError("ConfirmPassword") != string.Empty)
+                            {
+                                <span class="form-error">@GetFieldError("ConfirmPassword")</span>
+                            }
+                        </div>
+
+                        <!-- Password strength -->
+                        @if (!string.IsNullOrEmpty(Password))
+                        {
+                            var strength = GetPasswordStrength(Password);
+                            <div class="pw-strength">
+                                <div class="pw-strength-bars">
+                                    <div class="pw-bar @(strength >= 1 ? "pw-bar-fill pw-" + GetStrengthClass(strength) : "")"></div>
+                                    <div class="pw-bar @(strength >= 2 ? "pw-bar-fill pw-" + GetStrengthClass(strength) : "")"></div>
+                                    <div class="pw-bar @(strength >= 3 ? "pw-bar-fill pw-" + GetStrengthClass(strength) : "")"></div>
+                                    <div class="pw-bar @(strength >= 4 ? "pw-bar-fill pw-" + GetStrengthClass(strength) : "")"></div>
+                                </div>
+                                <span class="pw-strength-label pw-@GetStrengthClass(strength)">@GetStrengthLabel(strength)</span>
+                            </div>
+                        }
+
+                        <!-- Error -->
+                        @if (!string.IsNullOrEmpty(ErrorMessage))
+                        {
+                            <div class="setup-error">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="15" y1="9" x2="9" y2="15" />
+                                    <line x1="9" y1="9" x2="15" y2="15" />
+                                </svg>
+                                @ErrorMessage
+                            </div>
+                        }
+
+                        <!-- Submit -->
+                        <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "")"
+                                @onclick="HandleSubmit"
+                                disabled="@IsLoading">
+                            @if (IsLoading)
+                            {
+                                <span class="setup-spinner"></span>
+                                <span>Activating…</span>
+                            }
+                            else
+                            {
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                                    <path d="m9 12 2 2 4-4" />
+                                </svg>
+                                <span>Activate account</span>
+                            }
+                        </button>
+
+                        <div class="setup-secure-note">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                                <path d="m9 12 2 2 4-4" />
+                            </svg>
+                            <span>Please keep your credentials secure and do not share them with anyone.</span>
+                        </div>
+
+                    </div><!-- end form -->
+                }
+
+            </section>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter] public string? Token { get; set; }
+
+    string Password = string.Empty;
+    string ConfirmPassword = string.Empty;
+    bool ShowPassword;
+    bool IsLoading;
+    bool Done;
+    string ErrorMessage = string.Empty;
+    Dictionary<string, string> FieldErrors = new();
+
+    void TogglePassword(MouseEventArgs e)
+    {
+        ShowPassword = !ShowPassword;
+        StateHasChanged();
+    }
+
+    string GetFieldError(string fieldName) => FieldErrors.TryGetValue(fieldName, out var v) ? v : string.Empty;
+
+    async Task HandleSubmit()
+    {
+        ErrorMessage = string.Empty;
+        FieldErrors.Clear();
+
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            ErrorMessage = "This activation link is invalid.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Password) || Password.Length < 8)
+        {
+            FieldErrors["Password"] = "Password must be at least 8 characters.";
+            return;
+        }
+        if (!Password.Any(char.IsLetter) || !Password.Any(char.IsDigit))
+        {
+            FieldErrors["Password"] = "Password must contain a letter and a number.";
+            return;
+        }
+        if (Password != ConfirmPassword)
+        {
+            FieldErrors["ConfirmPassword"] = "Passwords do not match.";
+            return;
+        }
+
+        IsLoading = true;
+        StateHasChanged();
+        try
+        {
+            var result = await ActivationApi.SetPasswordByTokenAsync(
+                new SetAdminPasswordByTokenCommand(Token!, Password));
+
+            if (result.IsSuccess)
+            {
+                Done = true;
+            }
+            else if (result.ValidationErrors is not null && result.ValidationErrors.Any())
+            {
+                var first = result.ValidationErrors.First();
+                FieldErrors["Password"] = first.Value.FirstOrDefault() ?? "Please choose a stronger password.";
+            }
+            else
+            {
+                ErrorMessage = result.Error ?? "We couldn't activate your account. The link may have expired or already been used.";
+            }
+        }
+        catch (Exception)
+        {
+            ErrorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    void GoToLogin() => Navigation.NavigateTo("/login?activated=1");
+
+    int GetPasswordStrength(string pw)
+    {
+        int score = 0;
+        if (pw.Length >= 8) score++;
+        if (pw.Any(char.IsUpper)) score++;
+        if (pw.Any(char.IsDigit)) score++;
+        if (pw.Any(c => !char.IsLetterOrDigit(c))) score++;
+        return score;
+    }
+
+    string GetStrengthClass(int strength) => strength switch
+    {
+        1 => "weak",
+        2 => "fair",
+        3 => "good",
+        4 => "strong",
+        _ => ""
+    };
+
+    string GetStrengthLabel(int strength) => strength switch
+    {
+        1 => "Weak",
+        2 => "Fair",
+        3 => "Good",
+        4 => "Strong",
+        _ => ""
+    };
+}

@@ -93,9 +93,16 @@ namespace EEMOCantilanSDS.Client
             });
 
             service.AddHttpClient<IPayorAuthApiClient, PayorAuthApiClient>("PayorAuthClient", client =>
-            {
-                client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
-            });
+                        {
+                            client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
+                        });
+            
+                        // Anonymous (token-in-body) client for the Head activation set-password flow — registered
+                        // WITHOUT the auth delegating handlers, like the login/payor-auth clients.
+                        service.AddHttpClient<IActivationApiClient, ActivationApiClient>("ActivationClient", client =>
+                        {
+                            client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
+                        });
 
             service.AddApiHttpClient<ISetupApiClient, SetupApiClient>(configuration);
             service.AddApiHttpClient<ISettingsApiClient, SettingsApiClient>(configuration);
