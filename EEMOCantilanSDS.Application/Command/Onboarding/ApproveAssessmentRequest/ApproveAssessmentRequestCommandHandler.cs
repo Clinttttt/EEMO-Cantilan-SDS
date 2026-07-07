@@ -1,8 +1,11 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Onboarding;
+using EEMOCantilanSDS.Application.Common.Security;
 using EEMOCantilanSDS.Application.Dtos.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
@@ -26,7 +29,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentReques
             if (entity.Status != AssessmentRequestStatus.PendingReview)
                 return Result<AssessmentRequestDto>.Failure("Only a pending request can be approved.");
 
-            entity.Approve(request.OnboardingLink, request.DecisionMessage, currentUser.Username ?? "Operator");
+            // Issue a secure onboarding link + create the LGU's staged draft.
+            var token = SecureToken.NewUrlToken();
+            var link = OnboardingLinks.Build(token);
+
+            entity.Approve(link, request.DecisionMessage, currentUser.Username ?? "Operator");
+
+            var draft = OnboardingDraft.Create(entity.Id, entity.Municipality, entity.Province, token, DateTime.UtcNow.AddDays(30));
+            context.OnboardingDrafts.Add(draft);
+
             await context.SaveChangesAsync(ct);
 
             return Result<AssessmentRequestDto>.Success(entity.ToDto());

@@ -88,6 +88,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; set; }
 
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.OnboardingDraft> OnboardingDrafts { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

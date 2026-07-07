@@ -7,9 +7,6 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentReques
         public ApproveAssessmentRequestCommandValidator()
         {
             RuleFor(x => x.Id).NotEmpty();
-            RuleFor(x => x.OnboardingLink)
-                .NotEmpty().WithMessage("An onboarding link is required to approve.")
-                .MaximumLength(300);
             RuleFor(x => x.DecisionMessage).MaximumLength(2000);
         }
     }

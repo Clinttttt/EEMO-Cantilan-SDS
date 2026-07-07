@@ -90,12 +90,14 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
             var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
             var result = await new ApproveAssessmentRequestCommandHandler(ctx, op)
-                .Handle(new ApproveAssessmentRequestCommand(requestId, "https://stalltrack.site/onboarding/madrid-abc123", "Welcome"), default);
+                .Handle(new ApproveAssessmentRequestCommand(requestId, "Welcome"), default);
 
             Assert.True(result.IsSuccess);
             Assert.Equal("Approved", result.Value!.Status);
             Assert.Equal("Onboarding", result.Value!.Stage);
-            Assert.Equal("https://stalltrack.site/onboarding/madrid-abc123", result.Value!.OnboardingLink);
+            Assert.StartsWith("https://www.stalltrack.site/onboarding/", result.Value!.OnboardingLink);
+            // Approval creates the LGU's staged onboarding draft.
+            Assert.Equal(1, await ctx.OnboardingDrafts.CountAsync(d => d.AssessmentRequestId == requestId));
         }
 
         [Fact]
@@ -116,7 +118,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             // A SuperAdmin of a DIFFERENT municipality is not the platform operator.
             var notOperator = new FakeCurrentUser(Guid.NewGuid(), "SuperAdmin");
             var result = await new ApproveAssessmentRequestCommandHandler(ctx, notOperator)
-                .Handle(new ApproveAssessmentRequestCommand(requestId, "https://x", null), default);
+                .Handle(new ApproveAssessmentRequestCommand(requestId, null), default);
 
             Assert.False(result.IsSuccess);
             Assert.Equal(403, result.StatusCode);

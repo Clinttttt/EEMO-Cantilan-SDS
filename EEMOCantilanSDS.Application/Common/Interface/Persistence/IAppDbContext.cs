@@ -45,6 +45,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.OnboardingDraft> OnboardingDrafts { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }
