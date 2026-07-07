@@ -36,9 +36,9 @@ public class OnboardingController(ISender sender) : ApiBaseController(sender)
     [IgnoreAntiforgeryToken]
     [EnableRateLimiting("auth")]
     [HttpPut("{token}")]
-    public async Task<ActionResult<OnboardingDraftDto>> UpdateConfig(string token, [FromBody] UpdateOnboardingConfigCommand command)
+    public async Task<ActionResult<OnboardingDraftDto>> UpdateConfig(string token, [FromBody] UpdateOnboardingConfigRequest? body)
     {
-        var result = await Sender.Send(command with { Token = token });
+        var result = await Sender.Send(new UpdateOnboardingConfigCommand(token, body?.ConfigJson));
         return HandleResponse(result);
     }
 
