@@ -86,6 +86,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<HiddenSuggestion> HiddenSuggestions { get; set; }
 
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

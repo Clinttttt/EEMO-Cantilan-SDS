@@ -1,0 +1,35 @@
+using System.Threading;
+using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Common.Authorization;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Dtos.Onboarding;
+using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Onboarding;
+using MediatR;
+using Microsoft.EntityFrameworkCore;
+
+namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentRequest
+{
+    public class ApproveAssessmentRequestCommandHandler(IAppDbContext context, ICurrentUserService currentUser)
+        : IRequestHandler<ApproveAssessmentRequestCommand, Result<AssessmentRequestDto>>
+    {
+        public async Task<Result<AssessmentRequestDto>> Handle(ApproveAssessmentRequestCommand request, CancellationToken ct)
+        {
+            if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
+                return Result<AssessmentRequestDto>.Forbidden();
+
+            var entity = await context.AssessmentRequests.FirstOrDefaultAsync(x => x.Id == request.Id, ct);
+            if (entity is null)
+                return Result<AssessmentRequestDto>.NotFound();
+
+            if (entity.Status != AssessmentRequestStatus.PendingReview)
+                return Result<AssessmentRequestDto>.Failure("Only a pending request can be approved.");
+
+            entity.Approve(request.OnboardingLink, request.DecisionMessage, currentUser.Username ?? "Operator");
+            await context.SaveChangesAsync(ct);
+
+            return Result<AssessmentRequestDto>.Success(entity.ToDto());
+        }
+    }
+}

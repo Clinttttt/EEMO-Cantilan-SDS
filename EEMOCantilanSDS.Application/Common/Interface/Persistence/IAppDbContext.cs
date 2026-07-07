@@ -44,6 +44,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<AuditLog> AuditLogs { get; }
         DbSet<HiddenSuggestion> HiddenSuggestions { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Onboarding.AssessmentRequest> AssessmentRequests { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }
