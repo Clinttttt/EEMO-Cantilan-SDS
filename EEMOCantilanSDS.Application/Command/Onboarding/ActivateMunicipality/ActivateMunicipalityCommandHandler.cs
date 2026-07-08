@@ -74,36 +74,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             municipality.Activate();
 
             // 2) Facilities — created under the NEW LGU's id (explicit id makes the stamp interceptor skip
-            //    them, so the operator's own tenant is never applied). Optionally provision each facility's
-            //    stalls/units (spaces); occupants/contracts are added later in the portal.
+            //    them, so the operator's own tenant is never applied). Stalls/units (and their
+            //    occupants/payors) are NEVER provisioned at onboarding/activation — they are created in the
+            //    live portal — so any StallGroups on the command are intentionally ignored.
             var stallsCreated = 0;
             foreach (var f in request.Facilities)
             {
                 var facility = Facility.Create(
                     f.Code, f.Name.Trim(), f.ShortName.Trim(), archetype: f.Archetype, municipalityId: municipality.Id);
                 context.Facilities.Add(facility);
-
-                if (f.StallGroups is { Count: > 0 })
-                {
-                    var stallNo = 0;
-                    foreach (var g in f.StallGroups)
-                    {
-                        for (var i = 0; i < g.Count; i++)
-                        {
-                            stallNo++;
-                            context.Stalls.Add(Stall.Create(
-                                facility.Id,
-                                stallNo.ToString(),
-                                g.MonthlyRate,
-                                g.Fees,
-                                section: g.Section,
-                                dailyRate: g.DailyRate,
-                                createdBy: "Activation",
-                                municipalityId: municipality.Id));
-                            stallsCreated++;
-                        }
-                    }
-                }
             }
 
             // 3) Fixed ordinance rates for the LGU.

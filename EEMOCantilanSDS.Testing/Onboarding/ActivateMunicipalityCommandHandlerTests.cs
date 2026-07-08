@@ -133,11 +133,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
 
         [Fact]
-        public async Task Activate_ProvisionsStalls_ScopedToLgu()
+        public async Task Activate_IgnoresStallGroups_CreatesNoStalls()
         {
             var options = Options();
             var (cantilanId, carmenId) = await SeedRegistryAsync(options);
 
+            // Even if a (legacy) client sends StallGroups, activation must NOT provision stalls — stalls
+            // and their occupants/payors are created in the live portal, never at onboarding.
             var config = new ActivateMunicipalityCommand(
                 "CARMEN",
                 new ActivationBranding("Carmen EEO", null, null),
@@ -160,16 +162,13 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             {
                 var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId)).Handle(config, default);
                 Assert.True(result.IsSuccess);
-                Assert.Equal(94, result.Value!.StallsCreated); // 40 + 30 + 24
+                Assert.Equal(0, result.Value!.StallsCreated);   // StallGroups ignored — no stalls provisioned
+                Assert.Equal(2, result.Value.FacilitiesCreated); // facility shells still created
             }
 
             using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
             {
-                var stalls = await carmenCtx.Stalls.ToListAsync();
-                Assert.Equal(94, stalls.Count);
-                Assert.All(stalls, s => Assert.Equal(carmenId, s.MunicipalityId));
-                Assert.Equal(40, stalls.Count(s => s.Section == MarketSection.FishSection));
-                Assert.Equal(24, stalls.Count(s => s.MonthlyRate == 2400m));
+                Assert.Empty(await carmenCtx.Stalls.ToListAsync());
             }
         }
 
