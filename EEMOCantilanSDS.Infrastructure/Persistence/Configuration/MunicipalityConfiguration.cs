@@ -31,8 +31,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.Address)
                 .HasMaxLength(300);
 
+            // Holds either a short asset path or an inline base64 data URI for the LGU's uploaded seal,
+            // so it must be unbounded text (a data URI far exceeds any small varchar limit).
             builder.Property(x => x.SealPath)
-                .HasMaxLength(300);
+                .HasColumnType("text");
 
             builder.Property(x => x.OfficeName)
                 .HasMaxLength(160);
