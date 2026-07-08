@@ -95,12 +95,18 @@ public class GetFinancialReportQueryHandlerTests
                 new TransactionFeedDto(Guid.NewGuid(), FacilityCode.NPM, "New Public Market", new DateTime(2026, 3, 25), true, "Luz Cano", "5", "Daily Fee", 930m, "OR-9", "Paid", "Admin")
             });
 
+        // Tenant operates all eight facilities (matches the always-8 expectation these tests lock in).
+        var facilities = new Mock<IFacilityRepository>();
+        facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+
         var handler = new GetFinancialReportQueryHandler(
             reports.Object,
             slaughter.Object,
             trm.Object,
             tpm.Object,
             feed.Object,
+            facilities.Object,
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,

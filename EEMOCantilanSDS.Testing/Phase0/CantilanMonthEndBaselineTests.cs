@@ -34,6 +34,11 @@ public class CantilanMonthEndBaselineTests : RepositoryTestBase
         var ncc = Facility.Create(FacilityCode.NCC, "New Commercial Center", "NCC");
         var bbq = Facility.Create(FacilityCode.BBQ, "Barbecue Stand", "BBQ");
         var ice = Facility.Create(FacilityCode.ICE, "Iceplant", "ICE");
+        // Cantilan operates all eight; the report now lists only the tenant's facilities, so all eight
+        // rows (incl. the paid-on-service SLH/TRM/TPM) must be seeded to keep the golden at 8 facilities.
+        var slh = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        var trm = Facility.Create(FacilityCode.TRM, "Transport Terminal", "TRM");
+        var tpm = Facility.Create(FacilityCode.TPM, "Tabo-an Public Market", "TPM");
 
         var paidStall = Stall.Create(tcc.Id, "101", 2_400m, ApplicableFees.BaseRental);
         var unpaidStall = Stall.Create(tcc.Id, "102", 2_400m, ApplicableFees.BaseRental);
@@ -44,7 +49,7 @@ public class CantilanMonthEndBaselineTests : RepositoryTestBase
 
         var hog = SlaughterTransaction.CreateHog(bbq.Id, null, "Pedro Cruz", 1, "OR-SLH-1", new DateOnly(Year, Month, 10));
 
-        context.AddRange(npm, tcc, ncc, bbq, ice,
+        context.AddRange(npm, tcc, ncc, bbq, ice, slh, trm, tpm,
             paidStall, unpaidStall, paidContract, unpaidContract, junePaid, hog);
         await context.SaveChangesAsync();
 
@@ -53,6 +58,7 @@ public class CantilanMonthEndBaselineTests : RepositoryTestBase
             new SlaughterRepository(context),
             new TrmRepository(context),
             new TpmRepository(context),
+            new FacilityRepository(context),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,

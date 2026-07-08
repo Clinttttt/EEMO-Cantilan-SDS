@@ -67,7 +67,11 @@ public class GetCollectionReportQueryHandlerTests
                 new TpmVendorAttendanceDto { Id = Guid.NewGuid(), VendorName = "Skip Me", Goods = "Fish", IsPaid = false, ORNumber = null, Fee = 100m, MarketDate = new DateOnly(2026, 6, 12) },
             });
 
-        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, CacheTestDoubles.FeeRateResolver);
+        var facilities = new Mock<IFacilityRepository>();
+        facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+
+        return new GetCollectionReportQueryHandler(reports.Object, slaughter.Object, trm.Object, tpm.Object, facilities.Object, CacheTestDoubles.FeeRateResolver);
     }
 
     [Fact]

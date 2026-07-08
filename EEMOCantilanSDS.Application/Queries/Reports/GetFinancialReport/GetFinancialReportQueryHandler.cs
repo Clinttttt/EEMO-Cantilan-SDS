@@ -25,6 +25,7 @@ public class GetFinancialReportQueryHandler(
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
     ITransactionFeedRepository transactionFeedRepository,
+    IFacilityRepository facilityRepository,
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
@@ -69,7 +70,11 @@ public class GetFinancialReportQueryHandler(
 
     private async Task<FinancialReportDto> BuildFinancialReportAsync(GetFinancialReportQuery request, CancellationToken ct)
     {
-        bool InScope(FacilityCode c) => request.Facility is null || request.Facility == c;
+        // Only the facilities the current tenant actually operates are reported. Cantilan has all eight
+        // seeded, so its report is unchanged; other LGUs see only their configured facilities (no phantom
+        // zero rows). Combined with the request.Facility scope filter below.
+        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+        bool InScope(FacilityCode c) => (request.Facility is null || request.Facility == c) && tenantCodes.Contains(c);
 
         // Resolve the municipality's NPM rates as of the report period (falls back to the ordinance
         // constants, so Cantilan figures are unchanged). Full-month reference = daily × 30.
@@ -258,7 +263,9 @@ public class GetFinancialReportQueryHandler(
             Amount: f.Amount)).ToList();
 
         var orderedRows = facilityRows.OrderBy(r => r.Code).ToList();
-        var facilityCount = request.Facility is null ? StallFacilities.Length + ServiceFacilities.Length : 1;
+        var facilityCount = request.Facility is null
+            ? StallFacilities.Concat(ServiceFacilities).Count(tenantCodes.Contains)
+            : 1;
 
         var dto = new FinancialReportDto(
             PeriodLabel: PeriodLabel(request),

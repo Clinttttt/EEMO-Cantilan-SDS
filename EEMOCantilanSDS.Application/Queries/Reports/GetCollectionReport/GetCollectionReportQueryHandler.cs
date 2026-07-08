@@ -22,6 +22,7 @@ public class GetCollectionReportQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
+    IFacilityRepository facilityRepository,
     IFeeRateResolver feeRateResolver
 ) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
 {
@@ -42,13 +43,17 @@ public class GetCollectionReportQueryHandler(
         var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         var npmMonthly = npmDaily * 30m;
 
+        // Only the facilities the current tenant operates are reported (no phantom zero facilities).
+        // Cantilan has all eight, so its report is unchanged.
+        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+
         var facilities = new List<CollectionFacilityDto>();
 
         // ── Rental facilities — per-stall compliance (Section = NPM market section / NCC area location) ──
         // Per-stall NPM fish kilos (₱1/kg) for the month — surfaced as a separate extra charge on the report.
         var npmFishByStall = await reportsRepository.GetNpmFishKilosByStallAsync(year, month, ct);
 
-        foreach (var code in StallFacilities)
+        foreach (var code in StallFacilities.Where(tenantCodes.Contains))
         {
             var report = await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
             var isNpm = code == FacilityCode.NPM;
@@ -109,7 +114,7 @@ public class GetCollectionReportQueryHandler(
             FacilityCode.TPM, FacilityName(FacilityCode.TPM), Model(FacilityCode.TPM), IsRental: false,
             tpmRows.Sum(r => r.Amount), 0m, Array.Empty<CollectionRentalRowDto>(), tpmRows));
 
-        var ordered = facilities.OrderBy(f => f.Code).ToList();
+        var ordered = facilities.Where(f => tenantCodes.Contains(f.Code)).OrderBy(f => f.Code).ToList();
         return Result<CollectionReportDto>.Success(new CollectionReportDto(periodLabel, PhilippineTime.Today, ordered));
     }
 

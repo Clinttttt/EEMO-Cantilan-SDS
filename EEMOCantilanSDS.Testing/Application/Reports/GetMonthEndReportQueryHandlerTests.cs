@@ -52,6 +52,15 @@ public class GetMonthEndReportQueryHandlerTests
         return m.Object;
     }
 
+    // Tenant operates all eight facilities (matches the always-8 expectation these tests lock in).
+    private static IFacilityRepository AllFacilitiesRepo()
+    {
+        var m = new Mock<IFacilityRepository>();
+        m.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+        return m.Object;
+    }
+
     private static ITrmRepository EmptyTrmRepo()
     {
         var m = new Mock<ITrmRepository>();
@@ -114,11 +123,16 @@ public class GetMonthEndReportQueryHandlerTests
                 new TpmVendorAttendanceDto { Id = Guid.NewGuid(), VendorName = "Pedro", Goods = "Fish", IsPaid = false, Fee = 100m, ORNumber = null, MarketDate = new DateOnly(2026, 6, 6) },
             });
 
+        var facilityRepo = new Mock<IFacilityRepository>();
+        facilityRepo.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+
         return (new GetMonthEndReportQueryHandler(
             reportsRepo.Object,
             slaughterRepo.Object,
             trmRepo.Object,
             tpmRepo.Object,
+            facilityRepo.Object,
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
@@ -215,6 +229,7 @@ public class GetMonthEndReportQueryHandlerTests
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
             EmptyTpmRepo(),
+            AllFacilitiesRepo(),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
@@ -261,6 +276,7 @@ public class GetMonthEndReportQueryHandlerTests
             EmptySlaughterRepo(),
             EmptyTrmRepo(),
             EmptyTpmRepo(),
+            AllFacilitiesRepo(),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,

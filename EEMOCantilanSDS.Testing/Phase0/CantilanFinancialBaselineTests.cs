@@ -42,12 +42,18 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
     {
         var context = NewContext();
 
-        // All five stall-facility rows must exist — the financial handler queries each one.
+        // All eight facility rows must exist — the financial handler now lists only the CURRENT tenant's
+        // facilities (via IFacilityRepository), and Cantilan operates all eight. Seeding the three
+        // paid-on-service rows (SLH/TRM/TPM) keeps the baseline at 8 facilities; they hold no stalls and
+        // (except the one SLH transaction below) no activity, so every money assertion is unchanged.
         var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
         var ncc = Facility.Create(FacilityCode.NCC, "New Commercial Center", "NCC");
         var bbq = Facility.Create(FacilityCode.BBQ, "Barbecue Stand", "BBQ");
         var ice = Facility.Create(FacilityCode.ICE, "Iceplant", "ICE");
+        var slh = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH");
+        var trm = Facility.Create(FacilityCode.TRM, "Transport Terminal", "TRM");
+        var tpm = Facility.Create(FacilityCode.TPM, "Tabo-an Public Market", "TPM");
 
         // TCC — monthly rental (₱2,400): one fully paid, one unpaid (no record).
         var paidStall = Stall.Create(tcc.Id, "101", 2_400m, ApplicableFees.BaseRental);
@@ -60,7 +66,7 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
         // SLH — paid on service: one hog (₱250).
         var hog = SlaughterTransaction.CreateHog(bbq.Id /* facilityId unused by month query */, null, "Pedro Cruz", 1, "OR-SLH-1", new DateOnly(Year, Month, 10));
 
-        context.AddRange(npm, tcc, ncc, bbq, ice,
+        context.AddRange(npm, tcc, ncc, bbq, ice, slh, trm, tpm,
             paidStall, unpaidStall, paidContract, unpaidContract, junePaid, hog);
         await context.SaveChangesAsync();
 
@@ -70,6 +76,7 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
             new TrmRepository(context),
             new TpmRepository(context),
             new TransactionFeedRepository(context),
+            new FacilityRepository(context),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,

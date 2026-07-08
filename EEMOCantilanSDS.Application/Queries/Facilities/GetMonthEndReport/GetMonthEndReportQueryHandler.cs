@@ -27,6 +27,7 @@ public class GetMonthEndReportQueryHandler(
     ISlaughterRepository slaughterRepository,
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
+    IFacilityRepository facilityRepository,
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
@@ -61,8 +62,12 @@ public class GetMonthEndReportQueryHandler(
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmMonthly = npmDaily * 30m;
 
+        // Only the facilities the current tenant operates are reported (no phantom zero facilities).
+        // Cantilan has all eight, so its report is unchanged.
+        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+
         // ── Rental facilities: per-payor compliance + summary from the canonical report aggregation ──
-        foreach (var code in RentalFacilities)
+        foreach (var code in RentalFacilities.Where(tenantCodes.Contains))
         {
             var report = await reportsRepository.GetFacilityReportsAsync(
                 code, ReportPeriod.Monthly, request.Year, request.Month, null, ct);
@@ -125,7 +130,7 @@ public class GetMonthEndReportQueryHandler(
                 a.Fee,
                 a.ORNumber), (string?)a.Goods))));
 
-        var ordered = facilities.OrderBy(f => f.Code).ToList();
+        var ordered = facilities.Where(f => tenantCodes.Contains(f.Code)).OrderBy(f => f.Code).ToList();
 
         var totalCollected = ordered.Sum(f => f.Collected);
         var totalOutstanding = ordered.Sum(f => f.Outstanding);
