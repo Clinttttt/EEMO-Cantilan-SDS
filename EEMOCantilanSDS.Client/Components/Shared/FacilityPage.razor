@@ -6,6 +6,7 @@
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
 <header class="topbar">
     <div class="topbar-left flex gap-2">
@@ -145,10 +146,13 @@
                 OnSectionChanged="() => {}"
                 OnToggleFee="ToggleVendorFee" />
 
-<FacilityReportsModal @bind-IsOpen="ShowReports"
+@if (CanShowReports)
+{
+    <FacilityReportsModal @bind-IsOpen="ShowReports"
                       FacilityCode="@FacilityShortCode"
                       FacilityName="@FacilityName"
                       ShowSectionBreakdown="@(FacilityCodeEnum == FacilityCode.NCC)" />
+}
 
 @code {
     [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
@@ -196,6 +200,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Facilities.EnsureLoadedAsync();
         _loading = true;
 
         if (CachedFacilityState is not null
@@ -320,35 +325,48 @@
     private int PartialCount => ActiveStalls.Count(IsPartialSelector);
     private decimal CollectedAmount => ActiveStalls.Where(IsPaidSelector).Sum(MonthlyRateSelector);
 
-    private List<Toolbar.ToolbarAction> ToolbarActions => new()
+    // Reports are only offered for facilities the current tenant actually operates. While the
+    // FacilityState catalog is still loading (Count == 0) the action is allowed so it never flickers off.
+    private bool CanShowReports =>
+        Facilities.All.Count == 0 || Facilities.All.Contains(FacilityCodeEnum);
+
+    private List<Toolbar.ToolbarAction> ToolbarActions
     {
-        new()
+        get
         {
-            Label = "Reports",
-            Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
-            ClassName = "btn-outline",
-            Title = "View Facility Reports & Analytics",
-            OnClickHandler = async () => 
-            { 
-                if (!string.IsNullOrEmpty(ReportsUrl))
-                    Navigation.NavigateTo(ReportsUrl);
-                else
+            var actions = new List<Toolbar.ToolbarAction>();
+            if (CanShowReports)
+            {
+                actions.Add(new()
                 {
-                    ShowReports = true; 
-                    StateHasChanged();
-                }
-                await Task.CompletedTask; 
+                    Label = "Reports",
+                    Icon = """<svg viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /></svg>""",
+                    ClassName = "btn-outline",
+                    Title = "View Facility Reports & Analytics",
+                    OnClickHandler = async () =>
+                    {
+                        if (!string.IsNullOrEmpty(ReportsUrl))
+                            Navigation.NavigateTo(ReportsUrl);
+                        else
+                        {
+                            ShowReports = true;
+                            StateHasChanged();
+                        }
+                        await Task.CompletedTask;
+                    }
+                });
             }
-        },
-        new()
-        {
-            Label = "Add New",
-            Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
-            ClassName = "btn-primary",
-            Title = "Add a new stall",
-            OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
+            actions.Add(new()
+            {
+                Label = "Add New",
+                Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
+                ClassName = "btn-primary",
+                Title = "Add a new stall",
+                OnClickHandler = async () => { OpenAddVendorModal(); await Task.CompletedTask; }
+            });
+            return actions;
         }
-    };
+    }
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="@FacilityShortCode.ToLower()" />;
 

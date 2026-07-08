@@ -1992,3 +1992,14 @@
 .skel-breakdown-row:nth-child(3) .skel-breakdown-bar { width: 45%; animation-delay: 0.20s; }
 .skel-breakdown-row:nth-child(4) .skel-breakdown-bar { width: 30%; animation-delay: 0.30s; }
 
+
+.empty-report-note {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: 8px;
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+    font-size: 0.85rem;
+}

@@ -156,6 +156,12 @@
                 }
                 else
                 {
+                    @if (!HasReportData)
+                    {
+                        <div class="empty-report-note">
+                            No collection data yet for this facility — figures below reflect real records only.
+                        </div>
+                    }
                     <!-- ── Summary Cards ── -->
                 <div class="summary-cards">
                     <div class="summary-card card-revenue">
@@ -705,172 +711,37 @@
         _ => $"outstanding balance across {MockPendingCount} payors"
     };
 
-    private decimal MockTotalRevenue => TotalRevenueOverride ?? ReportData?.TotalRevenue ?? GetMockTotalRevenue();
-    
-    private decimal GetMockTotalRevenue() => FacilityCode switch
-    {
-        "NPM" => 125450.00m,
-        "TCC" => 89600.00m,
-        "NCC" => 67200.00m,
-        "BBQ" => 38400.00m,
-        "ICE" => 24000.00m,
-        "TRM" => 1800.00m,
-        "TPM" => 12500.00m,
-        "SLH" => 6450.00m,
-        _ => 100000.00m
-    };
+    // True only when the modal was given real report data (or explicit real overrides). While the
+    // per-facility report API is not yet wired, this is false and the modal shows an honest empty state
+    // instead of fabricated figures.
+    private bool HasReportData =>
+        ReportData is not null
+        || TotalRevenueOverride is not null
+        || RevenueTrendOverride?.Any() == true;
 
-    private decimal MockRevenueGrowth => ReportData?.RevenueGrowthPercentage ?? GetMockRevenueGrowth();
-    
-    private decimal GetMockRevenueGrowth() => FacilityCode switch
-    {
-        "NPM" => 12.5m,
-        "TCC" => 8.3m,
-        "NCC" => 15.7m,
-        "BBQ" => 6.2m,
-        "ICE" => 4.8m,
-        "TRM" => 9.4m,
-        "TPM" => 6.8m,
-        "SLH" => 5.9m,
-        _ => 10.0m
-    };
+    private decimal MockTotalRevenue => TotalRevenueOverride ?? ReportData?.TotalRevenue ?? 0m;
 
-    private decimal MockCollectionRate => CollectionRateOverride ?? ReportData?.CollectionRate ?? GetMockCollectionRate();
+    private decimal MockRevenueGrowth => ReportData?.RevenueGrowthPercentage ?? 0m;
     
-    private int GetMockCollectionRate() => FacilityCode switch
-    {
-        "NPM" => 87,
-        "TCC" => 92,
-        "NCC" => 78,
-        "BBQ" => 85,
-        "ICE" => 95,
-        "TRM" => 90,
-        "TPM" => 82,
-        "SLH" => 100,
-        _ => 85
-    };
-
-    private decimal MockCollectionGrowth => ReportData?.CollectionGrowthPercentage ?? GetMockCollectionGrowth();
+    private decimal MockCollectionRate => CollectionRateOverride ?? ReportData?.CollectionRate ?? 0m;
     
-    private decimal GetMockCollectionGrowth() => FacilityCode switch
-    {
-        "NPM" => 5.2m,
-        "TCC" => 3.1m,
-        "NCC" => 7.4m,
-        "BBQ" => 2.8m,
-        "ICE" => 1.5m,
-        "TRM" => 4.1m,
-        "TPM" => 3.7m,
-        "SLH" => 2.5m,
-        _ => 5.0m
-    };
-
-    private int MockOccupiedStalls => OccupiedCountOverride ?? ReportData?.OccupiedStalls ?? GetMockOccupiedStalls();
+    private decimal MockCollectionGrowth => ReportData?.CollectionGrowthPercentage ?? 0m;
     
-    private int GetMockOccupiedStalls() => FacilityCode switch
-    {
-        "NPM" => 28,
-        "TCC" => 23,
-        "NCC" => 35,
-        "BBQ" => 12,
-        "ICE" => 8,
-        "TRM" => 42,
-        "TPM" => 125,
-        "SLH" => 16,
-        _ => 20
-    };
-
-    private int MockTotalStalls => TotalCountOverride ?? ReportData?.TotalStalls ?? GetMockTotalStalls();
+    private int MockOccupiedStalls => OccupiedCountOverride ?? ReportData?.OccupiedStalls ?? 0;
     
-    private int GetMockTotalStalls() => FacilityCode switch
-    {
-        "NPM" => 32,
-        "TCC" => 25,
-        "NCC" => 45,
-        "BBQ" => 15,
-        "ICE" => 10,
-        "TRM" => 42,
-        "TPM" => 125,
-        "SLH" => 16,
-        _ => 30
-    };
-
+    private int MockTotalStalls => TotalCountOverride ?? ReportData?.TotalStalls ?? 0;
+    
     private decimal MockOccupancyRate => MockTotalStalls > 0 ? (MockOccupiedStalls * 100.0m) / MockTotalStalls : 0m;
 
-    private int MockPendingCount => PendingCountOverride ?? ReportData?.PendingPaymentCount ?? GetMockPendingCount();
-    
-    private int GetMockPendingCount() => FacilityCode switch
-    {
-        "NPM" => 4,
-        "TCC" => 2,
-        "NCC" => 7,
-        "BBQ" => 3,
-        "ICE" => 2,
-        "TRM" => 4,
-        "TPM" => 18,
-        "SLH" => 0,
-        _ => 5
-    };
+    private int MockPendingCount => PendingCountOverride ?? ReportData?.PendingPaymentCount ?? 0;
 
-    private decimal MockPendingAmount => PendingAmountOverride ?? ReportData?.PendingPaymentAmount ?? GetMockPendingAmount();
-    
-    private decimal GetMockPendingAmount() => FacilityCode switch
-    {
-        "NPM" => 18200.00m,
-        "TCC" => 7200.00m,
-        "NCC" => 12800.00m,
-        "BBQ" => 6400.00m,
-        "ICE" => 4000.00m,
-        "TRM" => 120.00m,
-        "TPM" => 1800.00m,
-        "SLH" => 0.00m,
-        _ => 10000.00m
-    };
+    private decimal MockPendingAmount => PendingAmountOverride ?? ReportData?.PendingPaymentAmount ?? 0m;
 
-    private int MockPaidCount => PaidCountOverride ?? ReportData?.CollectionPerformance?.FullyPaidCount ?? GetMockPaidCount();
-    
-    private int GetMockPaidCount() => FacilityCode switch
-    {
-        "NPM" => 24,
-        "TCC" => 21,
-        "NCC" => 28,
-        "BBQ" => 10,
-        "ICE" => 7,
-        "TRM" => 56,
-        "TPM" => 102,
-        "SLH" => 22,
-        _ => 20
-    };
+    private int MockPaidCount => PaidCountOverride ?? ReportData?.CollectionPerformance?.FullyPaidCount ?? 0;
 
-    private int MockPartialCount => PartialCountOverride ?? ReportData?.CollectionPerformance?.PartiallyPaidCount ?? GetMockPartialCount();
-    
-    private int GetMockPartialCount() => FacilityCode switch
-    {
-        "NPM" => 4,
-        "TCC" => 2,
-        "NCC" => 7,
-        "BBQ" => 2,
-        "ICE" => 1,
-        "TRM" => 0,
-        "TPM" => 0,
-        "SLH" => 0,
-        _ => 3
-    };
+    private int MockPartialCount => PartialCountOverride ?? ReportData?.CollectionPerformance?.PartiallyPaidCount ?? 0;
 
-    private int MockUnpaidCount => UnpaidCountOverride ?? ReportData?.CollectionPerformance?.UnpaidCount ?? GetMockUnpaidCount();
-    
-    private int GetMockUnpaidCount() => FacilityCode switch
-    {
-        "NPM" => 4,
-        "TCC" => 2,
-        "NCC" => 10,
-        "BBQ" => 3,
-        "ICE" => 2,
-        "TRM" => 4,
-        "TPM" => 18,
-        "SLH" => 0,
-        _ => 5
-    };
+    private int MockUnpaidCount => UnpaidCountOverride ?? ReportData?.CollectionPerformance?.UnpaidCount ?? 0;
 
     private List<SectionData> MockSectionData
     {
@@ -891,7 +762,7 @@
                 }).ToList();
             }
 
-            return GetMockSectionData();
+            return new List<SectionData>();
         }
     }
 
@@ -901,22 +772,6 @@
         "Fish Area" or "Extension Area" => "#4a9eff",
         "Meat Area" => "#c8a84b",
         _ => "#2d7a5f"
-    };
-
-    private List<SectionData> GetMockSectionData() => FacilityCode switch
-    {
-        "NPM" => new()
-        {
-            new() { Name = "Vegetable Area", Revenue = 45200.00m, Percentage = 94, TotalStalls = 6, ActiveStalls = 5, ClosedStalls = 0, NoContractStalls = 1, Color = "#2d7a5f" },
-            new() { Name = "Fish Area", Revenue = 52150.00m, Percentage = 88, TotalStalls = 8, ActiveStalls = 7, ClosedStalls = 1, NoContractStalls = 0, Color = "#4a9eff" },
-            new() { Name = "Meat Area", Revenue = 28100.00m, Percentage = 78, TotalStalls = 6, ActiveStalls = 6, ClosedStalls = 0, NoContractStalls = 0, Color = "#c8a84b" }
-        },
-        "NCC" => new()
-        {
-            new() { Name = "Corner Stalls", Revenue = 38400.00m, Percentage = 57, TotalStalls = 18, ActiveStalls = 16, ClosedStalls = 1, NoContractStalls = 1, Color = "#2d7a5f" },
-            new() { Name = "Extension Area", Revenue = 28800.00m, Percentage = 43, TotalStalls = 20, ActiveStalls = 19, ClosedStalls = 0, NoContractStalls = 1, Color = "#4a9eff" }
-        },
-        _ => new()
     };
 
     private DailyCollectionStreakDto? DailyCollectionStreak
@@ -997,49 +852,9 @@
                 }).ToList();
             }
 
-            return GetMockTopStalls();
+            return new List<TopStall>();
         }
     }
-
-    private List<TopStall> GetMockTopStalls() => FacilityCode switch
-    {
-        "NPM" => new()
-        {
-            new() { StallNo = "F-12", Occupant = "Rosa Gutierrez", Revenue = 5200.00m },
-            new() { StallNo = "V-08", Occupant = "Adan Bohemian", Revenue = 4850.00m },
-            new() { StallNo = "M-05", Occupant = "Juan Santos", Revenue = 4200.00m },
-            new() { StallNo = "F-03", Occupant = "Maria Cruz", Revenue = 3950.00m }
-        },
-        "TCC" => new()
-        {
-            new() { StallNo = "TCC-01", Occupant = "Liza's Boutique", Revenue = 4800.00m },
-            new() { StallNo = "TCC-15", Occupant = "Tech Haven Store", Revenue = 4800.00m },
-            new() { StallNo = "TCC-08", Occupant = "Mang Tomas Eatery", Revenue = 3600.00m },
-            new() { StallNo = "TCC-22", Occupant = "Beauty Corner", Revenue = 3600.00m }
-        },
-        "NCC" => new()
-        {
-            new() { StallNo = "NCC-C12", Occupant = "Golden Harvest Store", Revenue = 3840.00m },
-            new() { StallNo = "NCC-C05", Occupant = "Sunrise Bakery", Revenue = 3200.00m },
-            new() { StallNo = "NCC-E18", Occupant = "Fresh Mart", Revenue = 2400.00m },
-            new() { StallNo = "NCC-C08", Occupant = "Variety Shop", Revenue = 2400.00m }
-        },
-        "BBQ" => new()
-        {
-            new() { StallNo = "BBQ-01", Occupant = "Mang Inasal BBQ", Revenue = 3200.00m },
-            new() { StallNo = "BBQ-05", Occupant = "Grill Master", Revenue = 3200.00m },
-            new() { StallNo = "BBQ-03", Occupant = "Smokey's BBQ", Revenue = 2400.00m },
-            new() { StallNo = "BBQ-08", Occupant = "BBQ King", Revenue = 1600.00m }
-        },
-        "ICE" => new()
-        {
-            new() { StallNo = "ICE-01", Occupant = "Frozen Delights", Revenue = 2000.00m },
-            new() { StallNo = "ICE-03", Occupant = "Ice Factory Co.", Revenue = 2000.00m },
-            new() { StallNo = "ICE-02", Occupant = "Cool Breeze Ice", Revenue = 1500.00m },
-            new() { StallNo = "ICE-04", Occupant = "Arctic Ice Supply", Revenue = 1000.00m }
-        },
-        _ => new()
-    };
 
     private async Task CloseModal()
     {
@@ -1198,51 +1013,8 @@
         }
         else
         {
-            // Fallback to mock data
-            chartData = (FacilityCode, SelectedPeriod) switch
-            {
-                // NPM - Daily collection facility (higher daily volumes)
-                ("NPM", "Weekly") => new[] { 15200m, 18500m, 17800m, 19200m, 16500m, 20100m, 18150m },
-                ("NPM", "Monthly") => new[] { 95000m, 102000m, 98500m, 105000m, 112000m, 125450m },
-                ("NPM", "Yearly") => new[] { 980000m, 1050000m, 1125000m, 1245000m, 1350000m },
-                
-                // TCC - Monthly rental (stable, higher rates)
-                ("TCC", "Weekly") => new[] { 18200m, 19800m, 21500m, 20100m, 22400m, 23100m, 21800m },
-                ("TCC", "Monthly") => new[] { 72000m, 76800m, 81600m, 84000m, 86400m, 89600m },
-                ("TCC", "Yearly") => new[] { 720000m, 768000m, 816000m, 864000m, 912000m },
-                
-                // NCC - Monthly rental (moderate rates, growing)
-                ("NCC", "Weekly") => new[] { 12800m, 14200m, 13500m, 15800m, 16200m, 17100m, 15600m },
-                ("NCC", "Monthly") => new[] { 48000m, 52800m, 57600m, 60000m, 64800m, 67200m },
-                ("NCC", "Yearly") => new[] { 480000m, 528000m, 576000m, 624000m, 672000m },
-                
-                // BBQ - Monthly space rental (seasonal variations)
-                ("BBQ", "Weekly") => new[] { 7200m, 8400m, 9600m, 8800m, 10200m, 9800m, 9200m },
-                ("BBQ", "Monthly") => new[] { 28800m, 32000m, 33600m, 35200m, 36800m, 38400m },
-                ("BBQ", "Yearly") => new[] { 288000m, 320000m, 336000m, 352000m, 384000m },
-                
-                // ICE - Monthly space rental (stable, lower volume)
-                ("ICE", "Weekly") => new[] { 4800m, 5200m, 5600m, 5400m, 6000m, 5800m, 5600m },
-                ("ICE", "Monthly") => new[] { 18000m, 19000m, 20000m, 21000m, 22500m, 24000m },
-                ("ICE", "Yearly") => new[] { 180000m, 190000m, 200000m, 220000m, 240000m },
-
-                // TRM - Per-trip terminal collections
-                ("TRM", "Weekly") => new[] { 1320m, 1440m, 1260m, 1530m, 1680m, 1740m, 1500m },
-                ("TRM", "Monthly") => new[] { 31200m, 33750m, 34800m, 36300m, 38100m, 39600m },
-                ("TRM", "Yearly") => new[] { 318000m, 342000m, 381000m, 418000m, 452000m },
-
-                // TPM - Friday market-day collections
-                ("TPM", "Weekly") => new[] { 8900m, 9600m, 10100m, 9300m },
-                ("TPM", "Monthly") => new[] { 38200m, 41100m, 39600m, 42500m, 44800m, 46900m },
-                ("TPM", "Yearly") => new[] { 392000m, 418000m, 455000m, 476000m, 508000m },
-
-                // SLH - Per-transaction slaughter collections
-                ("SLH", "Weekly") => new[] { 1250m, 1615m, 1865m, 2230m, 1500m, 1980m, 2115m },
-                ("SLH", "Monthly") => new[] { 4200m, 5450m, 6100m, 5800m, 6450m, 7200m },
-                ("SLH", "Yearly") => new[] { 48000m, 52000m, 58000m, 64000m, 72000m },
-                
-                _ => Array.Empty<decimal>()
-            };
+            // No real data yet — render nothing rather than fabricated revenue.
+            chartData = Array.Empty<decimal>();
         }
 
         // Calculate actual max from data
