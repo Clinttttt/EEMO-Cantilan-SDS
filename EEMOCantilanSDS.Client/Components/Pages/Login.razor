@@ -3,9 +3,11 @@
 
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 @using EEMOCantilanSDS.Client.Securities
+@using EEMOCantilanSDS.Application.Dtos.Tenancy
 @using Microsoft.AspNetCore.WebUtilities
 @inject AuthService AuthService
 @inject ISetupApiClient SetupApi
+@inject IMunicipalitiesApiClient MunicipalitiesApi
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
@@ -20,7 +22,7 @@
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
                 <div class="government-logo-card">
-                    <img src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan Logo" />
+                    <img src="@SealPath" alt="@MunicipalityName seal" />
                 </div>
                 <div class="government-logo-card stalltrack-logo">
                     <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
@@ -28,9 +30,9 @@
             </div>
             <div class="setup-brand">
                 <div class="setup-brand-label">Republic of the Philippines</div>
-                <div class="setup-brand-city">Municipality of Cantilan</div>
-                <div class="setup-brand-title">EEMO</div>
-                <div class="setup-brand-sub">Economic Enterprise and Management Office</div>
+                <div class="setup-brand-city">Municipality of @MunicipalityName</div>
+                <div class="setup-brand-title">@OfficeAcronym</div>
+                <div class="setup-brand-sub">@OfficeName</div>
             </div>
             <div class="login-secure-access">
                 <div class="login-secure-icon" aria-hidden="true">
@@ -42,7 +44,7 @@
                 </div>
                 <div>
                     <div class="login-secure-title">Secure Access Portal</div>
-                    <p>This system is for authorized EEMO personnel only.</p>
+                    <p>This system is for authorized @OfficeAcronym personnel only.</p>
                 </div>
             </div>
             <div class="setup-left-footer">
@@ -98,8 +100,8 @@
                 </div>
                 <div class="setup-form-desc">
                     @(IsFromSetup
-                        ? "Your administrator account has been created. Sign in to access the EEMO Revenue Collection System."
-                        : "Sign in to access the EEMO Revenue Collection System")
+                        ? $"Your administrator account has been created. Sign in to access the {OfficeAcronym} Revenue Collection System."
+                        : $"Sign in to access the {OfficeAcronym} Revenue Collection System")
                 </div>
             </div>
 
@@ -116,6 +118,7 @@
                         </svg>
                         <input @bind="Username"
                                @bind:event="oninput"
+                               @bind:after="OnUsernameChanged"
                                @onkeydown="HandleKeyDown"
                                type="text"
                                class="form-input"
@@ -294,7 +297,7 @@
                     <rect x="5" y="11" width="14" height="10" rx="2" />
                     <path d="M8 11V8a4 4 0 018 0v3" />
                 </svg>
-                <span>Republic of the Philippines</span><span aria-hidden="true">•</span><span>Municipality of Cantilan</span><span aria-hidden="true">•</span><span>EEMO</span>
+                <span>Republic of the Philippines</span><span aria-hidden="true">•</span><span>Municipality of @MunicipalityName</span><span aria-hidden="true">•</span><span>@OfficeAcronym</span>
             </div>
 
         </div>
@@ -323,6 +326,76 @@
     bool RememberMe = false;       // persists the username (never the password) in localStorage
     bool ShowForgotHint = false;
     const string RememberKey = "eemo_remember_username";
+
+    // ── Per-LGU branding (pre-login) ──────────────────────────────────────────
+    // Defaults are Cantilan's (the default LGU), so the panel is byte-for-byte unchanged until a
+    // recognizable username resolves another LGU. Any failure keeps these defaults (never breaks login).
+    const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
+    const string NeutralSealPath = "/images/stalltrack-seal.png";
+    string SealPath = DefaultSealPath;
+    string MunicipalityName = "Cantilan";
+    string OfficeAcronym = "EEMO";
+    string OfficeName = "Economic Enterprise and Management Office";
+    string _brandedIdentifier = string.Empty;
+    CancellationTokenSource? _brandingCts;
+
+    // Resolve the LGU from the typed username (Head usernames are "{tenant}.head", e.g. carrascal.head)
+    // and theme the login panel from that LGU's onboarding branding. Debounced; falls back to defaults.
+    async Task OnUsernameChanged()
+    {
+        var id = DeriveIdentifier(Username);
+        if (string.IsNullOrEmpty(id))
+        {
+            _brandedIdentifier = string.Empty;
+            ResetBranding();
+            return;
+        }
+        if (id == _brandedIdentifier) return;
+
+        _brandingCts?.Cancel();
+        var cts = _brandingCts = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(450, cts.Token);
+            var result = await MunicipalitiesApi.GetBrandingByIdentifierAsync(id);
+            if (cts.IsCancellationRequested) return;
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _brandedIdentifier = id;
+                ApplyBranding(result.Value);
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { /* keep current branding on any failure */ }
+    }
+
+    static string DeriveIdentifier(string? username)
+    {
+        var u = (username ?? string.Empty).Trim();
+        if (u.Length == 0) return string.Empty;
+        // The tenant slug is the part before the first separator (carrascal.head -> carrascal).
+        return u.Split('.', '@', ' ')[0].Trim().ToLowerInvariant();
+    }
+
+    void ApplyBranding(MunicipalityBrandingDto b)
+    {
+        var isCantilan = string.Equals(b.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase);
+        SealPath = !string.IsNullOrWhiteSpace(b.SealPath) ? b.SealPath!
+            : isCantilan ? DefaultSealPath : NeutralSealPath;
+        MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
+        OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
+            : isCantilan ? "EEMO" : MunicipalityName;
+        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+    }
+
+    void ResetBranding()
+    {
+        SealPath = DefaultSealPath;
+        MunicipalityName = "Cantilan";
+        OfficeAcronym = "EEMO";
+        OfficeName = "Economic Enterprise and Management Office";
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -368,6 +441,7 @@
                 Username = saved;
                 RememberMe = true;
                 StateHasChanged();
+                await OnUsernameChanged();
             }
         }
         catch

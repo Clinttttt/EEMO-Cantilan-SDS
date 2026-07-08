@@ -8,4 +8,8 @@ public interface IMunicipalitiesApiClient
     /// <summary>Branding for the signed-in user's own LGU (office name/acronym, seal), from
     /// GET /api/municipalities/current/branding. Drives the data-driven shell chrome.</summary>
     Task<Result<MunicipalityBrandingDto>> GetCurrentBrandingAsync();
+
+    /// <summary>Anonymous pre-login branding for an LGU resolved by identifier (its TenantCode or Code),
+    /// from GET /api/municipalities/{identifier}/branding. Lets the login page theme itself to the LGU.</summary>
+    Task<Result<MunicipalityBrandingDto>> GetBrandingByIdentifierAsync(string identifier);
 }

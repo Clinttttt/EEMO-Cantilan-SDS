@@ -8,4 +8,7 @@ public class MunicipalitiesApiClient(HttpClient http) : HandleResponse(http), IM
 {
     public async Task<Result<MunicipalityBrandingDto>> GetCurrentBrandingAsync() =>
         await GetAsync<MunicipalityBrandingDto>("api/municipalities/current/branding");
+
+    public async Task<Result<MunicipalityBrandingDto>> GetBrandingByIdentifierAsync(string identifier) =>
+        await GetAsync<MunicipalityBrandingDto>($"api/municipalities/{Uri.EscapeDataString(identifier)}/branding");
 }
