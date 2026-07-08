@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -17,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 {
-    public class ActivateMunicipalityCommandHandler(IAppDbContext context, ICurrentUserService currentUser)
+    public class ActivateMunicipalityCommandHandler(IAppDbContext context, ICurrentUserService currentUser, IEmailSender emailSender)
         : IRequestHandler<ActivateMunicipalityCommand, Result<ActivationResultDto>>
     {
         // Rates are seeded effective from a base date early enough to cover any billing period, so the
@@ -131,6 +132,21 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
             // One SaveChanges => one transaction => all-or-nothing.
             await context.SaveChangesAsync(ct);
+
+            // Email the Head their one-time set-password link (best-effort; the link is also shown in the
+            // console for the operator to copy). Mirrors the onboarding-approval email pattern.
+            var activationLink = ActivationLinks.Build(activationToken);
+            var emailBody =
+                $"Congratulations! {municipality.Name}'s StallTrack portal is now live.\n\n" +
+                "As the designated Administrator (Head), please use the secure link below to set your password " +
+                "and sign in for the first time. Once inside, you can add and manage your own staff (admins and " +
+                "collectors) and begin day-to-day operations.\n\n" +
+                $"Your username: {head.Username}\n" +
+                $"Set your password:\n{activationLink}\n\n" +
+                "This is a one-time link and expires in 7 days.\n\n" +
+                "— StallTrack Platform Team";
+            await emailSender.SendAsync(
+                head.Email!, head.FullName, $"{municipality.Name} — Your StallTrack portal is live", emailBody, ct);
 
             return Result<ActivationResultDto>.Success(new ActivationResultDto(
                 municipality.Id,

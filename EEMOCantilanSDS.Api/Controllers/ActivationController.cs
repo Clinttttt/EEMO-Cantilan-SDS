@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken;
+using EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +41,20 @@ public class ActivationController : ApiBaseController
     public async Task<ActionResult<bool>> SetPasswordAsync([FromBody] SetAdminPasswordByTokenCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Resolves the display context (full name, username, office) for a one-time activation token so the
+    /// set-password page can confirm the Head's identity. Anonymous (the token is the credential) and
+    /// rate-limited; returns a generic failure for any invalid/expired token.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpGet("context/{token}")]
+    public async Task<ActionResult<ActivationContextDto>> GetContextAsync(string token)
+    {
+        var result = await Sender.Send(new GetActivationContextQuery(token));
         return HandleResponse(result);
     }
 }
