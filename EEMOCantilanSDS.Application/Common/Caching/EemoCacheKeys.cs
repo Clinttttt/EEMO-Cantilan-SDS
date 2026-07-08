@@ -25,6 +25,19 @@ public static class EemoCacheKeys
     public static string MonthEndReport(string tenantCode, int year, int month)
         => $"{NormalizeTenant(tenantCode)}:reports:month-end:{year:0000}:{month:00}";
 
+    public static string FacilityReport(
+        string tenantCode,
+        FacilityCode facilityCode,
+        ReportPeriod period,
+        int year,
+        int? month,
+        int? weekNumber)
+    {
+        var monthSegment = month is int m ? m.ToString("00") : "all";
+        var weekSegment = weekNumber is int w ? w.ToString("00") : "all";
+        return $"{NormalizeTenant(tenantCode)}:reports:facility:{facilityCode.ToString().ToLowerInvariant()}:{period.ToString().ToLowerInvariant()}:{year:0000}:{monthSegment}:{weekSegment}";
+    }
+
     public static string FollowUpHistory(string tenantCode, int year, int month)
         => $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:{month:00}";
 

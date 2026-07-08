@@ -72,6 +72,30 @@ public static class EemoCacheRegions
             ReferenceData(tenantCode)
         };
 
+    public static IReadOnlyCollection<string> FacilityReportRegions(
+        string tenantCode,
+        FacilityCode facilityCode,
+        int year,
+        int? month)
+    {
+        var regions = new List<string> { Reports(tenantCode, year, month ?? 1), ReferenceData(tenantCode) };
+        if (month is int m)
+        {
+            regions.Add(Period(tenantCode, year, m));
+            regions.Add(FacilityPeriod(tenantCode, facilityCode, year, m));
+        }
+        else
+        {
+            // Yearly/weekly-without-month: invalidate on any month of the year for this facility.
+            for (var mm = 1; mm <= 12; mm++)
+            {
+                regions.Add(Period(tenantCode, year, mm));
+                regions.Add(FacilityPeriod(tenantCode, facilityCode, year, mm));
+            }
+        }
+        return regions.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     public static IReadOnlyCollection<string> FollowUpHistoryRegions(string tenantCode, int year, int month)
         => new[]
         {
