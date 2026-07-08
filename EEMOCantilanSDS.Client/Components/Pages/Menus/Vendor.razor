@@ -7,6 +7,8 @@
 @inject IVendorsApiClient VendorsApi
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyCollectionApi
 <PageTitle>@Branding.OfficeAcronym Admin — Vendors &amp; Stalls</PageTitle>
 
@@ -757,6 +759,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
+        FacilityTabs = AllFacilityTabs
+            .Where(t => FacilityCatalog.Rental.Any(c => c.ToString() == t.Code))
+            .ToList();
+        if (FacilityTabs.All(t => t.Code != ActiveFacility))
+            ActiveFacility = FacilityTabs.FirstOrDefault()?.Code ?? ActiveFacility;
+
         if (RegistryData is not null)
         {
             MapRegistryToVendors();
@@ -863,7 +872,8 @@
 
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
-    FacilityTab ActiveFacilityTab => FacilityTabs.First(f => f.Code == ActiveFacility);
+    FacilityTab ActiveFacilityTab => FacilityTabs.FirstOrDefault(f => f.Code == ActiveFacility)
+        ?? AllFacilityTabs.First(f => f.Code == ActiveFacility);
 
     // -- Facility Tab Model ----------------------------------------------------
     class FacilityTab
@@ -875,7 +885,11 @@
         public int UnpaidCount { get; set; }
     }
 
-    List<FacilityTab> FacilityTabs = new()
+    // Tabs actually shown = the tenant's stall (rental) facilities, filtered from the catalog at init.
+    private List<FacilityTab> FacilityTabs = new();
+
+    // Full catalog of stall-facility cards (icons/names). Which of these appear is data-driven per LGU.
+    private readonly List<FacilityTab> AllFacilityTabs = new()
     {
         new() { Code="NPM", Name="New Public Market",        ShortName="Public Market",   UnpaidCount=0,
             IconSvg="""<svg viewBox="0 0 24 24" ><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""" },

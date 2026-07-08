@@ -1,4 +1,4 @@
-﻿@page "/reports"
+@page "/reports"
 @attribute [Authorize(Roles = "Admin,SuperAdmin")]
 @using Microsoft.AspNetCore.Components
 @using EEMOCantilanSDS.Application.Dtos.Reports
@@ -162,7 +162,7 @@
         }
         <!-- PRINT / PDF HEADER (only visible when printing) -->
         <div class="rpt-pdf-header pdf-include">
-            <img class="rpt-pdf-logo" src="@Branding.SealPath" alt="LGU Cantilan" />
+            <img class="rpt-pdf-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
             <div class="rpt-pdf-republic">Republic of the Philippines</div>
             <div class="rpt-pdf-office">@Branding.OfficeName</div>
             <div class="rpt-pdf-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
