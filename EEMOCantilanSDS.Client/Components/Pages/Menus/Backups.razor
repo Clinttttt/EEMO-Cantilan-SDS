@@ -6,9 +6,6 @@
 @rendermode InteractiveServer
 @inject IBackupApiClient BackupApi
 @inject IJSRuntime JS
-@inject AuthenticationStateProvider AuthState
-@inject NavigationManager Nav
-@inject EEMOCantilanSDS.Client.Services.RestoreNotifier Notifier
 @implements IDisposable
 
 @*
@@ -19,13 +16,13 @@
     documented, controlled ops procedure only.
 *@
 
-<PageTitle>@Branding.OfficeAcronym Admin — Backups</PageTitle>
+<PageTitle>EEMO Admin — Backups</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
         <div class="topbar-title">Backups</div>
         <div class="topbar-breadcrumb">
-            <span>@Branding.OfficeAcronym Admin</span>
+            <span>EEMO Admin</span>
             <span class="breadcrumb-sep">/</span>
             <span>Settings</span>
             <span class="breadcrumb-sep">/</span>
@@ -55,7 +52,7 @@
         <div class="bk-info-grid">
             <div class="bk-info">
                 <div class="bk-info-key">Automated daily</div>
-                <div class="bk-info-val">A full backup runs every day at <strong>01:00 Philippine time</strong> via CI.</div>
+                <div class="bk-info-val">A full backup runs every day at <strong>01:00 Philippine time</strong> via Continuous Integration(CI).</div>
             </div>
             <div class="bk-info">
                 <div class="bk-info-key">Point-in-time recovery</div>
@@ -76,11 +73,6 @@
                 <div class="set-card-title">On-demand backup</div>
                 <div class="set-card-sub">Trigger a backup or download the most recent one</div>
             </div>
-            <button class="bk-info-btn" type="button" @onclick="() => _showRestore = true"
-                    title="How to restore a backup" aria-label="Restore instructions">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                <span>Restore help</span>
-            </button>
         </div>
 
         <div class="bk-actions">
@@ -110,6 +102,13 @@
                 }
             </button>
         </div>
+
+        @if (_message is not null)
+        {
+            <div class="bk-alert @(_messageOk ? "bk-alert-ok" : "bk-alert-err")" role="status">
+                @_message
+            </div>
+        }
     </section>
 
     <!-- ── Recent backups ── -->
@@ -120,7 +119,7 @@
                 <div class="set-card-title">Recent backups</div>
                 <div class="set-card-sub">The latest backup runs</div>
             </div>
-            <button class="set-link bk-refresh" @onclick="() => LoadRunsAsync()" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
+            <button class="set-link bk-refresh" @onclick="LoadRunsAsync" disabled="@_loadingRuns">Refresh<span class="set-link-arrow">↻</span></button>
         </div>
 
         @if (_loadingRuns)
@@ -141,7 +140,7 @@
             <div class="bk-empty">
                 <div class="bk-empty-title">Couldn't load recent backups</div>
                 <div class="bk-empty-text">@_runsError</div>
-                <button class="set-retry" @onclick="() => LoadRunsAsync()">Try again</button>
+                <button class="set-retry" @onclick="LoadRunsAsync">Try again</button>
             </div>
         }
         else if (_runs is null || _runs.Count == 0)
@@ -174,190 +173,29 @@
         }
     </section>
 
-    <!-- ── Recent restores ── -->
+    <!-- ── Restore (read-only info, no upload) ── -->
     <section class="set-card">
         <div class="set-card-head">
-            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg></div>
             <div class="set-card-titles">
-                <div class="set-card-title">Recent restores</div>
-                <div class="set-card-sub">The latest restore runs</div>
-            </div>
-            <button class="set-link bk-refresh" @onclick="() => LoadRestoreRunsAsync()" disabled="@_loadingRestoreRuns">Refresh<span class="set-link-arrow">↻</span></button>
-        </div>
-
-        @if (_loadingRestoreRuns)
-        {
-            <div class="bk-rows">
-                @for (var i = 0; i < 4; i++)
-                {
-                    <div class="bk-run bk-run-sk">
-                        <div class="sk bk-sk-pill"></div>
-                        <div class="sk bk-sk-line"></div>
-                        <div class="sk bk-sk-short"></div>
-                    </div>
-                }
-            </div>
-        }
-        else if (_restoreRunsError is not null)
-        {
-            <div class="bk-empty">
-                <div class="bk-empty-title">Couldn't load recent restores</div>
-                <div class="bk-empty-text">@_restoreRunsError</div>
-                <button class="set-retry" @onclick="() => LoadRestoreRunsAsync()">Try again</button>
-            </div>
-        }
-        else if (_restoreRuns is null || _restoreRuns.Count == 0)
-        {
-            <div class="bk-empty">
-                <div class="bk-empty-title">No restores yet</div>
-                <div class="bk-empty-text">When you run a restore, it will appear here.</div>
-            </div>
-        }
-        else
-        {
-            <table class="set-table bk-table">
-                <thead>
-                    <tr><th>When (PH time)</th><th>Trigger</th><th>Status</th><th class="set-th-r">Details</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var run in _restoreRuns)
-                    {
-                        <tr>
-                            <td>@PhilippineTime.ToPhilippineTime(run.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</td>
-                            <td>@TriggerLabel(run.Event)</td>
-                            <td><span class="bk-pill @PillClass(run)">@StatusLabel(run)</span></td>
-                            <td class="set-td-r">
-                                <button class="set-link bk-viewlog" @onclick="() => OpenLog(run)">View log<span class="set-link-arrow">→</span></button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </section>
-
-    <!-- ── Danger zone: destructive restore ── -->
-    <section class="bk-danger">
-        <div class="bk-danger-head">
-            <div class="bk-danger-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            </div>
-            <div class="bk-danger-titles">
-                <div class="bk-danger-title">Danger zone</div>
-                <div class="bk-danger-sub">Irreversible operation — restores the entire database</div>
+                <div class="set-card-title">Restoring a backup</div>
+                <div class="set-card-sub">A controlled ops procedure — not performed in-app</div>
             </div>
         </div>
-        <div class="bk-danger-body">
-            <div class="bk-danger-copy">
-                <div class="bk-danger-copy-title">Restore latest backup</div>
-                <div class="bk-danger-copy-text">
-                    Replaces <strong>all current data</strong> with the most recent backup. A safety backup is
-                    taken automatically first. Best run when the system is idle. Requires re-authentication.
-                </div>
-            </div>
-            <button class="bk-btn bk-btn-danger" type="button" @onclick="OpenRestoreConfirm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg>
-                <span>Restore latest backup</span>
-            </button>
+        <p class="bk-restore-text">
+            Restores are deliberate, high-impact operations run by an operator, never from this dashboard.
+            There are two supported paths:
+        </p>
+        <div class="bk-restore-step">
+            <div class="bk-restore-step-title">1 · Restore a downloaded backup</div>
+            <div class="bk-restore-step-text">Download the latest backup above, then run <code>pg_restore</code> against the target database:</div>
+            <pre class="bk-code"><code>pg_restore --no-owner --no-privileges --clean --if-exists -d "postgresql://user:pass@@host:5432/dbname?sslmode=require" backup.dump</code></pre>
+        </div>
+        <div class="bk-restore-step">
+            <div class="bk-restore-step-title">2 · Azure point-in-time recovery</div>
+            <div class="bk-restore-step-text">For recovery to a specific moment within the last 7 days, use Azure PITR to provision a restored server, then repoint the app's connection string.</div>
         </div>
     </section>
-
-    <!-- ── Restore confirmation (hard-confirm danger modal) ── -->
-    @if (_showRestoreConfirm)
-    {
-        <div class="bk-modal-overlay" @onclick="CloseRestoreConfirm">
-            <div class="bk-modal bk-modal-danger" role="dialog" aria-modal="true" aria-label="Confirm database restore" @onclick:stopPropagation="true">
-                <div class="bk-modal-head">
-                    <div class="bk-modal-titles">
-                        <div class="bk-modal-title">Restore latest backup</div>
-                        <div class="bk-modal-sub">This action cannot be undone</div>
-                    </div>
-                    <button class="bk-modal-close" @onclick="CloseRestoreConfirm" aria-label="Close" disabled="@_restoreSubmitting">
-                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                    </button>
-                </div>
-                <div class="bk-modal-body">
-                    <div class="bk-warn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                        <div class="bk-warn-text">
-                            This <strong>replaces all current data</strong> with the most recent backup — anything
-                            recorded since that backup will be <strong>permanently lost</strong>. A safety backup is
-                            taken automatically first. Best run when the system is idle.
-                        </div>
-                    </div>
-
-                    <div class="bk-field">
-                        <label class="bk-label" for="bk-restore-phrase">Type <code>RESTORE</code> to confirm</label>
-                        <input id="bk-restore-phrase" class="bk-input" type="text" autocomplete="off"
-                               placeholder="RESTORE" @bind="_restorePhrase" @bind:event="oninput"
-                               disabled="@_restoreSubmitting" />
-                    </div>
-
-                    <div class="bk-field">
-                        <label class="bk-label" for="bk-restore-pass">Confirm your admin password</label>
-                        <input id="bk-restore-pass" class="bk-input" type="password" autocomplete="off"
-                               placeholder="Password" @bind="_restorePassword" @bind:event="oninput"
-                               disabled="@_restoreSubmitting" />
-                    </div>
-
-                    @if (_restoreError is not null)
-                    {
-                        <div class="bk-alert bk-alert-err" role="alert">@_restoreError</div>
-                    }
-                </div>
-                <div class="bk-modal-foot">
-                    <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="CloseRestoreConfirm" disabled="@_restoreSubmitting">Cancel</button>
-                    <button class="bk-btn bk-btn-danger" @onclick="SubmitRestoreAsync" disabled="@(!CanConfirmRestore || _restoreSubmitting)">
-                        @if (_restoreSubmitting)
-                        {
-                            <span class="bk-spin" aria-hidden="true"></span>
-                            <span>Starting restore…</span>
-                        }
-                        else
-                        {
-                            <span>Restore now</span>
-                        }
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
-
-    <!-- ── Restore instructions (opened from the On-demand card's "Restore help" icon) ── -->
-    @if (_showRestore)
-    {
-        <div class="bk-modal-overlay" @onclick="() => _showRestore = false">
-            <div class="bk-modal" role="dialog" aria-modal="true" aria-label="Restoring a backup" @onclick:stopPropagation="true">
-                <div class="bk-modal-head">
-                    <div class="bk-modal-titles">
-                        <div class="bk-modal-title">Restoring a backup</div>
-                        <div class="bk-modal-sub">A controlled ops procedure — not performed in-app</div>
-                    </div>
-                    <button class="bk-modal-close" @onclick="() => _showRestore = false" aria-label="Close">
-                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                    </button>
-                </div>
-                <div class="bk-modal-body">
-                    <p class="bk-restore-text">
-                        Restores are deliberate, high-impact operations run by an operator, never from this dashboard.
-                        There are two supported paths:
-                    </p>
-                    <div class="bk-restore-step">
-                        <div class="bk-restore-step-title">1 · Restore a downloaded backup</div>
-                        <div class="bk-restore-step-text">Download the latest backup above, then run <code>pg_restore</code> against the target database:</div>
-                        <pre class="bk-code"><code>pg_restore --no-owner --no-privileges --clean --if-exists -d "postgresql://user:pass@@host:5432/dbname?sslmode=require" backup.dump</code></pre>
-                    </div>
-                    <div class="bk-restore-step">
-                        <div class="bk-restore-step-title">2 · Azure point-in-time recovery</div>
-                        <div class="bk-restore-step-text">For recovery to a specific moment within the last 7 days, use Azure PITR to provision a restored server, then repoint the app's connection string.</div>
-                    </div>
-                </div>
-                <div class="bk-modal-foot">
-                    <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="() => _showRestore = false">Close</button>
-                </div>
-            </div>
-        </div>
-    }
 </div>
 
 @* ── Run pipeline modal ── *@
@@ -375,11 +213,7 @@
                         <span>@PhilippineTime.ToPhilippineTime(_logRun.CreatedAt).ToString("MMM d, yyyy · h:mm tt")</span>
                     </div>
                 </div>
-                @if (LogIsLive)
-                {
-                    <span class="bk-live" title="Updating live"><span class="bk-live-dot"></span>Live</span>
-                }
-                <span class="bk-pill @LivePillClass() bk-modal-pill">@LiveStatusLabel()</span>
+                <span class="bk-pill @PillClass(_logRun) bk-modal-pill">@StatusLabel(_logRun)</span>
                 <button class="bk-modal-close" @onclick="CloseLog" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
@@ -450,29 +284,6 @@
     </div>
 }
 
-@* ── Toast (top-right notifications for backup actions) ── *@
-@if (_message is not null)
-{
-    <div class="bk-toast-wrap">
-        <div class="bk-toast @(_messageOk ? "bk-toast-ok" : "bk-toast-err")" role="status" aria-live="polite">
-            <span class="bk-toast-ico">
-                @if (_messageOk)
-                {
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                }
-                else
-                {
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                }
-            </span>
-            <span class="bk-toast-msg">@_message</span>
-            <button class="bk-toast-x" @onclick="DismissToast" aria-label="Dismiss">
-                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-            </button>
-        </div>
-    </div>
-}
-
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
 
@@ -480,27 +291,10 @@
     private bool _loadingRuns = true;
     private string? _runsError;
 
-    private IReadOnlyList<BackupRunDto>? _restoreRuns;
-    private bool _loadingRestoreRuns = true;
-    private string? _restoreRunsError;
-
     private bool _running;
     private bool _downloading;
     private string? _message;
     private bool _messageOk;
-    private bool _showRestore;                        // restore-instructions modal
-    private CancellationTokenSource? _toastCts;       // auto-dismiss timer for the toast
-
-    // Destructive restore confirmation modal
-    private bool _showRestoreConfirm;
-    private string _restorePhrase = string.Empty;
-    private string _restorePassword = string.Empty;
-    private bool _restoreSubmitting;
-    private string? _restoreError;
-
-    private bool CanConfirmRestore =>
-        string.Equals(_restorePhrase.Trim(), "RESTORE", StringComparison.Ordinal)
-        && !string.IsNullOrEmpty(_restorePassword);
 
     // Run pipeline modal
     private BackupRunDto? _logRun;
@@ -508,107 +302,28 @@
     private bool _logLoading;
     private string? _logError;
     private CancellationTokenSource? _logPollCts;   // drives live auto-refresh while a run is in progress
-    private CancellationTokenSource? _listPollCts;  // auto-refreshes the run lists while any run is active
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadRunsAsync();
+
+    private async Task LoadRunsAsync()
     {
-        // Whole-database backups are platform-operator (Cantilan Head) only, matching the API policy. A
-        // per-LGU Head or a Cantilan Admin who reaches this URL directly is bounced to the dashboard
-        // instead of seeing 403 "couldn't load" cards. (The Settings link is also hidden for them.)
-        var state = await AuthState.GetAuthenticationStateAsync();
-        var isSuperAdmin = state.User.IsInRole("SuperAdmin")
-            || state.User.Claims.Any(c => string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
-                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
-        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
-        if (!(isSuperAdmin && string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase)))
-        {
-            Nav.NavigateTo("/menu", replace: true);
-            return;
-        }
-
-        await LoadRunsAsync();
-        await LoadRestoreRunsAsync();
-    }
-
-    private async Task LoadRunsAsync(bool silent = false)
-    {
-        if (!silent)
-        {
-            _loadingRuns = true;
-            _runsError = null;
-            await InvokeAsync(StateHasChanged);
-        }
+        _loadingRuns = true;
+        _runsError = null;
+        await InvokeAsync(StateHasChanged);
 
         var result = await BackupApi.GetRecentRunsAsync();
         if (result.IsSuccess && result.Value is not null)
+        {
             _runs = result.Value;
-        else if (!silent)
+        }
+        else
+        {
             _runsError = string.IsNullOrWhiteSpace(result.Error)
                 ? "Recent backups could not be retrieved."
                 : result.Error;
+        }
 
         _loadingRuns = false;
-        if (!silent) MaybeStartListPolling();
-    }
-
-    private async Task LoadRestoreRunsAsync(bool silent = false)
-    {
-        if (!silent)
-        {
-            _loadingRestoreRuns = true;
-            _restoreRunsError = null;
-            await InvokeAsync(StateHasChanged);
-        }
-
-        var result = await BackupApi.GetRecentRestoreRunsAsync();
-        if (result.IsSuccess && result.Value is not null)
-            _restoreRuns = result.Value;
-        else if (!silent)
-            _restoreRunsError = string.IsNullOrWhiteSpace(result.Error)
-                ? "Recent restores could not be retrieved."
-                : result.Error;
-
-        _loadingRestoreRuns = false;
-        if (!silent) MaybeStartListPolling();
-    }
-
-    private static bool RunIsTerminal(BackupRunDto r) =>
-        string.Equals(r.Status, "completed", StringComparison.OrdinalIgnoreCase);
-
-    private bool AnyRunActive() =>
-        (_runs?.Any(r => !RunIsTerminal(r)) ?? false) || (_restoreRuns?.Any(r => !RunIsTerminal(r)) ?? false);
-
-    // While any backup/restore run is still queued or in progress, silently re-fetch both lists every
-    // 5s so their status updates on their own (no need to open the log or hit Refresh). Stops when all
-    // runs have settled, after ~10 minutes, or on dispose.
-    private void MaybeStartListPolling()
-    {
-        if (_listPollCts is not null || (!AnyRunActive() && _restoreWatchSince is null)) return;
-        var cts = new CancellationTokenSource();
-        _listPollCts = cts;
-        _ = PollListsAsync(cts.Token);
-    }
-
-    private async Task PollListsAsync(CancellationToken ct)
-    {
-        try
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-            var ticks = 0;
-            while (await timer.WaitForNextTickAsync(ct))
-            {
-                await LoadRunsAsync(silent: true);
-                await LoadRestoreRunsAsync(silent: true);
-                // Once the triggered restore's run has appeared (now tracked by AnyRunActive), drop the
-                // pre-appearance watch so the poll settles normally when the run finishes.
-                if (_restoreWatchSince is not null && AnyRunActive()) _restoreWatchSince = null;
-                await InvokeAsync(StateHasChanged);
-                if ((!AnyRunActive() && _restoreWatchSince is null) || ++ticks >= 240) break;
-            }
-        }
-        catch (OperationCanceledException) { }
-        catch { /* stop quietly */ }
-        finally { _listPollCts = null; }
     }
 
     private async Task RunBackupAsync()
@@ -620,17 +335,20 @@
         var result = await BackupApi.TriggerBackupAsync();
         if (result.IsSuccess)
         {
-            await ShowToastAsync(true, "Backup started. It may take a minute to appear below.");
-            _running = false;
+            _messageOk = true;
+            _message = "Backup started. It may take a minute to appear below.";
             // Give GitHub a moment to register the run, then refresh the list.
             await Task.Delay(4000);
             await LoadRunsAsync();
-            return;
+        }
+        else
+        {
+            _messageOk = false;
+            _message = string.IsNullOrWhiteSpace(result.Error)
+                ? "The backup could not be started. Please try again."
+                : result.Error;
         }
 
-        await ShowToastAsync(false, string.IsNullOrWhiteSpace(result.Error)
-            ? "The backup could not be started. Please try again."
-            : result.Error);
         _running = false;
     }
 
@@ -646,77 +364,19 @@
             var artifact = result.Value;
             await JS.InvokeVoidAsync("downloadFileFromBytes",
                 artifact.FileName, Convert.ToBase64String(artifact.Content), artifact.ContentType);
-            await ShowToastAsync(true, $"Downloading {artifact.FileName}.");
+            _messageOk = true;
+            _message = $"Downloading {artifact.FileName}.";
         }
         else
         {
-            await ShowToastAsync(false, string.IsNullOrWhiteSpace(result.Error)
+            _messageOk = false;
+            _message = string.IsNullOrWhiteSpace(result.Error)
                 ? "No backup is available to download yet."
-                : result.Error);
+                : result.Error;
         }
 
         _downloading = false;
     }
-
-    // ── Destructive restore ──
-    private void OpenRestoreConfirm()
-    {
-        _restorePhrase = string.Empty;
-        _restorePassword = string.Empty;
-        _restoreError = null;
-        _restoreSubmitting = false;
-        _showRestoreConfirm = true;
-    }
-
-    private void CloseRestoreConfirm()
-    {
-        if (_restoreSubmitting) return;   // don't close mid-flight
-        _showRestoreConfirm = false;
-        _restoreError = null;
-        _restorePassword = string.Empty;  // always clear the password when the modal closes
-    }
-
-    private async Task SubmitRestoreAsync()
-    {
-        if (!CanConfirmRestore || _restoreSubmitting) return;
-
-        _restoreSubmitting = true;
-        _restoreError = null;
-        await InvokeAsync(StateHasChanged);
-
-        // The confirmation phrase and password are ALSO re-verified server-side; this is just the UX gate.
-        var result = await BackupApi.TriggerRestoreAsync(_restorePhrase, _restorePassword);
-
-        if (result.IsSuccess)
-        {
-            _showRestoreConfirm = false;
-            _restorePassword = string.Empty;      // clear the password on success
-            _restoreSubmitting = false;
-            // Cross-page completion popup: RestoreNotifier runs ONE bounded poll and raises an event when
-            // the run settles, so the Head sees a success/failure modal on ANY admin page. The localStorage
-            // marker lets the popup survive even a full page navigation (the toast resumes the watch on mount).
-            var triggeredAt = DateTime.UtcNow;
-            try { await JS.InvokeVoidAsync("localStorage.setItem", "eemo.restore.await", triggeredAt.ToString("o")); }
-            catch { /* non-fatal */ }
-            Notifier.Watch(triggeredAt);
-            // Also drives the on-page Recent-restores list refresh until the run appears (then AnyRunActive takes over).
-            _restoreWatchSince = triggeredAt;
-            await ShowToastAsync(true, "Restore started — watch it under Recent restores.");
-            await LoadRunsAsync();                 // a safety backup runs first, so refresh backups too
-            await LoadRestoreRunsAsync();          // surface the new restore run in the list (it polls live)
-            return;
-        }
-
-        // Failure: keep the modal open, show the error inline, do NOT clear the password.
-        _restoreError = string.IsNullOrWhiteSpace(result.Error)
-            ? "The restore could not be started. Please try again."
-            : result.Error;
-        _restoreSubmitting = false;
-    }
-
-    // Drives the Recent-restores list poll until the triggered restore's run appears (see PollListsAsync).
-    // The completion POPUP is handled cross-page by RestoreNotifier + RestoreCompletionToast.
-    private DateTime? _restoreWatchSince;
 
     private async Task OpenLog(BackupRunDto run)
     {
@@ -796,43 +456,10 @@
         _logLoading = false;
     }
 
-    // Toast: show a top-right notification and auto-dismiss it after a few seconds.
-    private async Task ShowToastAsync(bool ok, string message)
-    {
-        _messageOk = ok;
-        _message = message;
-        _toastCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _toastCts = cts;
-        await InvokeAsync(StateHasChanged);
-        _ = DismissAfterAsync(cts.Token);
-    }
-
-    private async Task DismissAfterAsync(CancellationToken ct)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), ct);
-            _message = null;
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (OperationCanceledException) { /* replaced or dismissed */ }
-    }
-
-    private void DismissToast()
-    {
-        _toastCts?.Cancel();
-        _message = null;
-    }
-
     public void Dispose()
     {
         _logPollCts?.Cancel();
         _logPollCts?.Dispose();
-        _listPollCts?.Cancel();
-        _listPollCts?.Dispose();
-        _toastCts?.Cancel();
-        _toastCts?.Dispose();
     }
 
     private static bool StepIsSuccess(BackupStepDto step) =>
@@ -875,35 +502,32 @@
         _ => char.ToUpper(evt[0]) + evt[1..]
     };
 
-    private static string StatusLabel(BackupRunDto run) => StatusLabelFor(run.Status, run.Conclusion);
-
-    private static string StatusLabelFor(string status, string? conclusion)
+    private static string StatusLabel(BackupRunDto run)
     {
-        if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
-            return conclusion switch
+        if (string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            return run.Conclusion switch
             {
                 "success" => "Success",
                 "failure" => "Failed",
                 "cancelled" => "Cancelled",
                 null or "" => "Completed",
-                _ => char.ToUpper(conclusion[0]) + conclusion[1..]
+                _ => char.ToUpper(run.Conclusion[0]) + run.Conclusion[1..]
             };
 
-        return status switch
+        return run.Status switch
         {
             "in_progress" => "In progress",
             "queued" => "Queued",
             "" => "Unknown",
-            _ => char.ToUpper(status[0]) + status[1..]
+            _ => char.ToUpper(run.Status[0]) + run.Status[1..]
         };
     }
 
-    private static string PillClass(BackupRunDto run) => PillClassFor(run.Status, run.Conclusion);
-
-    private static string PillClassFor(string status, string? conclusion)
+    private static string PillClass(BackupRunDto run)
     {
-        if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
-            return conclusion switch
+        var completed = string.Equals(run.Status, "completed", StringComparison.OrdinalIgnoreCase);
+        if (completed)
+            return run.Conclusion switch
             {
                 "success" => "bk-pill-ok",
                 "failure" or "cancelled" or "timed_out" => "bk-pill-err",
@@ -913,13 +537,4 @@
         // queued / in_progress / anything not yet concluded.
         return "bk-pill-warn";
     }
-
-    // Modal pill/label — prefer the live detail (updated by polling) over the initial list row.
-    private string LiveStatusLabel() =>
-        _logDetail is not null ? StatusLabelFor(_logDetail.Status, _logDetail.Conclusion)
-        : _logRun is not null ? StatusLabel(_logRun) : "";
-
-    private string LivePillClass() =>
-        _logDetail is not null ? PillClassFor(_logDetail.Status, _logDetail.Conclusion)
-        : _logRun is not null ? PillClass(_logRun) : "bk-pill-warn";
 }
