@@ -64,6 +64,7 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<AuthService>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.RestoreNotifier>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
+            service.AddScoped<EEMOCantilanSDS.Client.Services.FacilityState>();
             service.AddScoped<PayorAuthService>();
             service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();

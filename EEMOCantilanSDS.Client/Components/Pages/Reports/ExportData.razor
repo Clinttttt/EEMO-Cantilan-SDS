@@ -6,6 +6,7 @@
 @using System.Text
 @inject IReportsApiClient ReportsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
 @* ───────────────────────────────────────────────────────────────────────────────
    Export Data — a clean, paper-ready collection report per facility (or all), for the
@@ -46,7 +47,7 @@
             <span class="ex-control-label">Facility</span>
             <div class="ex-filter">
                 <button class="ex-chip @(_facility is null ? "ex-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
-                @foreach (var fc in AllFacilities)
+                @foreach (var fc in Facilities.All)
                 {
                     <button class="ex-chip @(_facility == fc ? "ex-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
                 }
@@ -268,8 +269,6 @@
     public ExportDataPageState? CachedExportData { get; set; }
 
     private static readonly string[] NpmSections = { "All Sections", "Vegetable Area", "Fish Area", "Meat Area" };
-    private static readonly FacilityCode[] AllFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
 
     private string PeriodLabel => _data?.PeriodLabel ?? new DateTime(_year, _month, 1).ToString("MMMM yyyy");
     private string ScopeName =>
@@ -279,6 +278,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Facilities.EnsureLoadedAsync();
+
         if (TryApplyCachedExportData())
             return;
 

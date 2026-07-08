@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Requests.Stalls
 @inject IStallsApiClient StallsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* ───────────────────────────────────────────────────────────────────────────────
    Closed / Inactive Accounts — transparency register of CLOSED (frozen) and EXPIRED
@@ -376,7 +377,7 @@
     private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
-    private static readonly string[] Facilities = { "NPM", "TCC", "NCC", "BBQ", "ICE" };
+    private IEnumerable<string> Facilities => FacilityCatalog.Rental.Select(c => c.ToString());
     private int[] Years = Array.Empty<int>();
 
     private void OnPickYear(int? year) => _year = year;
@@ -394,6 +395,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
+
         if (CachedClosedAccounts is not null)
         {
             ApplyClosedAccounts(CachedClosedAccounts);

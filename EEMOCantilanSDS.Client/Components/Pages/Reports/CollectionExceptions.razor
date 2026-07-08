@@ -16,6 +16,7 @@
 @inject IDailyCollectionApiClient DailyApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* ───────────────────────────────────────────────────────────────────────────────
    Collection Manager — manage a payor's collection status (Paid / Unpaid / Excused).
@@ -56,7 +57,7 @@
             </div>
 
             <div class="ce-seg" role="group" aria-label="Facility">
-                @foreach (var fc in Facilities)
+                @foreach (var fc in RentalFacilityCodes)
                 {
                     <button class="ce-seg-btn @(_facility == fc ? "ce-seg-on" : "")" type="button" title="@FacilityName(fc)" @onclick="() => SelectFacility(fc)">@fc</button>
                 }
@@ -488,8 +489,10 @@
 </div>
 
 @code {
-    private static readonly string[] Facilities = { "NPM", "TCC", "NCC", "ICE", "BBQ" };
     private static readonly string[] Sections = { "All", "Vegetable Area", "Fish Area", "Meat Area" };
+
+    // Tenant's recurring-rental facilities (data-driven), rendered as the facility tabs.
+    private IEnumerable<string> RentalFacilityCodes => FacilityCatalog.Rental.Select(c => c.ToString());
 
     private static readonly RenderFragment LockGlyph = @<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>;
 
@@ -544,6 +547,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
+        // Default to a rental facility the tenant actually operates (avoids a phantom default like NPM).
+        if (!FacilityCatalog.Rental.Any(c => c.ToString() == _facility))
+            _facility = FacilityCatalog.Rental.Select(c => c.ToString()).FirstOrDefault() ?? _facility;
+
         if (CachedPayors is { } state && state.Facility == CurrentFacility)
         {
             _payors.Clear();
