@@ -10,13 +10,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
     public class AdminUser : BaseUser
     {
         public AdminRole Role { get; private set; }
+        /// <summary>
+        /// Marks a dedicated platform/console operator who manages onboarding across all LGUs — distinct from
+        /// a municipality's Head. The platform-operator authorization checks this flag. Defaults false so
+        /// ordinary municipal admins are unaffected.
+        /// </summary>
+        public bool IsPlatformOperator { get; private set; }
         private AdminUser() { }
         public static AdminUser Create(string fullName,string
             username,string 
             email,string password,
             AdminRole role,
             Guid municipalityId = default,
-            bool isActive = true)
+            bool isActive = true,
+            bool isPlatformOperator = false,
+            bool mustChangePassword = true)
         {
             return new AdminUser
             {
@@ -29,7 +37,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                                    .HashPassword(null!, password),
                 Role = role,
                 IsActive = isActive,
-                MustChangePassword = true,  
+                IsPlatformOperator = isPlatformOperator,
+                MustChangePassword = mustChangePassword,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System"
             };

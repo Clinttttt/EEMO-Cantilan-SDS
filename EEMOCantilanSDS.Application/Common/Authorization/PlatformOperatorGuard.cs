@@ -17,6 +17,20 @@ namespace EEMOCantilanSDS.Application.Common.Authorization
     {
         public static async Task<bool> IsCurrentAsync(IAppDbContext context, ICurrentUserService currentUser, CancellationToken ct)
         {
+            // Primary: a dedicated platform/console operator (the IsPlatformOperator flag), independent of any
+            // municipality's Head role.
+            if (currentUser.UserId is Guid userId)
+            {
+                var isOperator = await context.AdminUsers
+                    .IgnoreQueryFilters()
+                    .Where(u => u.Id == userId)
+                    .Select(u => (bool?)u.IsPlatformOperator)
+                    .FirstOrDefaultAsync(ct);
+                if (isOperator == true) return true;
+            }
+
+            // Backward-compatible fallback (temporary, until a dedicated console admin exists): a SuperAdmin
+            // of the DEFAULT municipality (Cantilan's Head) may still operate onboarding.
             if (!string.Equals(currentUser.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
                 return false;
 

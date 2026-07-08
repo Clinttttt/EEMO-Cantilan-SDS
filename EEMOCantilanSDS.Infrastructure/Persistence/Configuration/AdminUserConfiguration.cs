@@ -20,6 +20,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasConversion<int>();
 
+            builder.Property(s => s.IsPlatformOperator)
+                .IsRequired()
+                .HasDefaultValue(false);
+
             builder.Ignore(x => x.IsLockedOut);
         }
     }
