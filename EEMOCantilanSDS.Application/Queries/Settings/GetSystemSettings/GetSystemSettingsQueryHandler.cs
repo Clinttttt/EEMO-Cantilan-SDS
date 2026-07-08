@@ -20,12 +20,10 @@ public class GetSystemSettingsQueryHandler(
 
     public async Task<Result<SystemSettingsDto>> Handle(GetSystemSettingsQuery request, CancellationToken ct)
     {
-        // Resolve the current municipality's fixed NPM rates as of today (falls back to the ordinance
-        // constants, so Cantilan displays the same ₱30/day + ₱1/kg).
+        // The fee snapshot resolves each fixed rate to the tenant's own value, falling back to the ordinance
+        // constants, so Cantilan is byte-for-byte unchanged.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var asOf = DateOnly.FromDateTime(PhilippineTime.Now);
-        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
-        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
 
         // LGU identity (office label, name, province, receipt line) is sourced from the CURRENT tenant's
         // Municipality record — resolved the same way as the branding endpoint (JWT tenant claim → identifier)
@@ -74,37 +72,49 @@ public class GetSystemSettingsQueryHandler(
             TimeZone: TimeZoneLabel,
             ServerDate: PhilippineTime.Now);
 
-        // Only the facilities the current tenant actually operates are listed (their fee schedule). Cantilan
-        // has all eight seeded, so its list is unchanged; other LGUs show only their configured facilities.
-        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
-        var facilities = BuildFacilities(npmDaily, npmFish, tenantCodes);
+        // Only the facilities the current tenant operates are listed — using the tenant's own facility
+        // names and resolved rates. Cantilan has all eight seeded (names/rates equal the constants), so its
+        // list is unchanged; other LGUs show their own facilities, names, rates, and market day.
+        var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
+        var marketDay = lgu?.TpmMarketDay ?? DayOfWeek.Friday;
+        var facilities = BuildFacilities(rateSnapshot, asOf, facilityNames, marketDay);
 
         var dto = new SystemSettingsDto(office, security, collection, system, facilities);
         return Result<SystemSettingsDto>.Success(dto);
     }
 
-    // Fixed ordinance rates come straight from FeeRates; per-stall monthly rentals are stored per
-    // stall (admin-entered) so they are described rather than given a single number. The catalog is
-    // filtered to the tenant's actual facilities (in canonical order).
+    // Each facility is listed with the TENANT's own name (fallback to the canonical label) and its
+    // resolved fixed rate (fallback to the ordinance constants). Filtered to the tenant's actual facilities
+    // in canonical order. Cantilan's names/rates equal the constants, so it is byte-for-byte unchanged.
     private static IReadOnlyList<FacilityRuleDto> BuildFacilities(
-        decimal npmDaily, decimal npmFish, IReadOnlySet<FacilityCode> tenantCodes)
+        FeeRateSnapshot rates, DateOnly asOf, IReadOnlyDictionary<FacilityCode, string> names, DayOfWeek marketDay)
     {
+        var npmDaily = rates.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var npmFish = rates.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var slhHog = rates.Resolve(FeeRateKey.SlhHogPerHead, asOf);
+        var slhLarge = rates.Resolve(FeeRateKey.SlhLargePerHead, asOf);
+        var trmTrip = rates.Resolve(FeeRateKey.TrmPerTrip, asOf);
+        var tpmVendor = rates.Resolve(FeeRateKey.TpmVendorDay, asOf);
+
+        string Name(FacilityCode c, string fallback) =>
+            names.TryGetValue(c, out var n) && !string.IsNullOrWhiteSpace(n) ? n : fallback;
+
         var catalog = new (FacilityCode Code, FacilityRuleDto Dto)[]
         {
-            (FacilityCode.NPM, new("NPM", "New Public Market", "Daily stall",
+            (FacilityCode.NPM, new("NPM", Name(FacilityCode.NPM, "New Public Market"), "Daily stall",
                 $"₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish", "Daily")),
-            (FacilityCode.TCC, new("TCC", "Tampak Commercial Center", "Monthly rental", "Per stall contract", "Monthly")),
-            (FacilityCode.NCC, new("NCC", "New Commercial Center", "Monthly rental", "Per stall contract", "Monthly")),
-            (FacilityCode.BBQ, new("BBQ", "Barbecue Stand", "Monthly rental", "Per stall contract", "Monthly")),
-            (FacilityCode.ICE, new("ICE", "Iceplant", "Monthly rental", "Per stall contract", "Monthly")),
-            (FacilityCode.SLH, new("SLH", "Slaughterhouse", "Per-head · paid on service",
-                $"Hog ₱{FeeRates.SlhHogTotalPerHead:0} · Large ₱{FeeRates.SlhLargeTotalPerHead:0}", "Per transaction")),
-            (FacilityCode.TRM, new("TRM", "Transport Terminal", "Per-trip · paid on service",
-                $"₱{FeeRates.TrmTripFee:0}/trip", "Per trip")),
-            (FacilityCode.TPM, new("TPM", "Tabo-an Public Market", "Weekly market",
-                $"₱{FeeRates.TpmVendorFee:0}/vendor", "Fridays")),
+            (FacilityCode.TCC, new("TCC", Name(FacilityCode.TCC, "Tampak Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
+            (FacilityCode.NCC, new("NCC", Name(FacilityCode.NCC, "New Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
+            (FacilityCode.BBQ, new("BBQ", Name(FacilityCode.BBQ, "Barbecue Stand"), "Monthly rental", "Per stall contract", "Monthly")),
+            (FacilityCode.ICE, new("ICE", Name(FacilityCode.ICE, "Iceplant"), "Monthly rental", "Per stall contract", "Monthly")),
+            (FacilityCode.SLH, new("SLH", Name(FacilityCode.SLH, "Slaughterhouse"), "Per-head · paid on service",
+                $"Hog ₱{slhHog:0} · Large ₱{slhLarge:0}", "Per transaction")),
+            (FacilityCode.TRM, new("TRM", Name(FacilityCode.TRM, "Transport Terminal"), "Per-trip · paid on service",
+                $"₱{trmTrip:0}/trip", "Per trip")),
+            (FacilityCode.TPM, new("TPM", Name(FacilityCode.TPM, "Tabo-an Public Market"), "Weekly market",
+                $"₱{tpmVendor:0}/vendor", $"{marketDay}s")),
         };
 
-        return catalog.Where(x => tenantCodes.Contains(x.Code)).Select(x => x.Dto).ToList();
+        return catalog.Where(x => names.ContainsKey(x.Code)).Select(x => x.Dto).ToList();
     }
 }
