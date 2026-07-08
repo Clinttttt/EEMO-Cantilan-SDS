@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @inject IStallsApiClient StallsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* ───────────────────────────────────────────────────────────────────────────────
    All-facilities Stall Holder List. Only the rental/stall facilities have stall
@@ -202,8 +203,7 @@
 </div>
 
 @code {
-    private static readonly FacilityCode[] StallFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+    private IReadOnlyList<FacilityCode> StallFacilities => FacilityCatalog.Rental;
 
     private readonly Dictionary<FacilityCode, StallHoldersListDto> _data = new();
     private bool _loading = true;
@@ -221,6 +221,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
+
         if (CachedStallHolders is not null)
         {
             ApplyStallHolders(CachedStallHolders);

@@ -1,6 +1,8 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Queries.Settings.GetSystemSettings;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 
@@ -11,9 +13,16 @@ public class GetSystemSettingsQueryHandlerTests
     // Office identity (name + province) is now sourced from the default Municipality record. The seeded
     // Cantilan values equal the OfficeProfile constants, so the assertions below still hold — proving the
     // record-sourcing changes nothing that is displayed.
+    // Office identity (label, name, province, receipts) is now sourced from the CURRENT tenant's Municipality
+    // record (falling back to the default LGU). The seeded Cantilan values equal the OfficeProfile constants,
+    // so the assertions below still hold. Facilities are filtered to the tenant's actual facilities; the fake
+    // facility repo returns all eight so Cantilan's list is unchanged.
     private static readonly GetSystemSettingsQueryHandler Handler =
         new(new FakeMunicipalityRepository(Municipality.Create(
-            "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)), CacheTestDoubles.FeeRateResolver);
+                "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
+            new FakeFacilityRepository(Enum.GetValues<FacilityCode>()),
+            CacheTestDoubles.Tenant,
+            CacheTestDoubles.FeeRateResolver);
 
     [Fact]
     public async Task Returns_values_sourced_from_the_live_domain_constants()
@@ -87,6 +96,25 @@ public class GetSystemSettingsQueryHandlerTests
 
         public Task<Municipality?> GetDefaultAsync(CancellationToken ct) => Task.FromResult(def);
 
-        public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult<Municipality?>(null);
+        public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult(def);
+    }
+
+    // Minimal fake — the handler only calls GetFacilityNamesAsync to learn which facilities the tenant has.
+    private sealed class FakeFacilityRepository(IEnumerable<FacilityCode> codes) : IFacilityRepository
+    {
+        private readonly IReadOnlyDictionary<FacilityCode, string> _names =
+            codes.ToDictionary(c => c, c => c.ToString());
+
+        public Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct) =>
+            Task.FromResult(_names);
+
+        public Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct) =>
+            Task.FromResult<Facility?>(null);
+
+        public Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct) =>
+            throw new NotImplementedException();
+
+        public Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct) =>
+            throw new NotImplementedException();
     }
 }

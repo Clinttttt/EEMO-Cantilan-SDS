@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITransactionsApiClient TransactionsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — Transactions</PageTitle>
 
@@ -280,20 +281,12 @@
 
     private record FilterOption(FacilityCode? Code, string Label);
 
-    private static readonly FilterOption[] Filters =
-    {
-        new(null,              "All"),
-        new(FacilityCode.NPM,  "NPM"),
-        new(FacilityCode.TCC,  "TCC"),
-        new(FacilityCode.NCC,  "NCC"),
-        new(FacilityCode.BBQ,  "BBQ Stand"),
-        new(FacilityCode.ICE,  "Iceplant"),
-        new(FacilityCode.SLH,  "Slaughterhouse"),
-        new(FacilityCode.TRM,  "Transport"),
-        new(FacilityCode.TPM,  "Tabo-an"),
-    };
+    private IReadOnlyList<FilterOption> Filters =>
+        new List<FilterOption> { new(null, "All") }
+            .Concat(FacilityCatalog.All.Select(c => new FilterOption(c, FacilityCatalog.NameOf(c))))
+            .ToList();
 
-    private string ActiveLabel => Filters.First(f => f.Code == ActiveFilter).Label;
+    private string ActiveLabel => Filters.FirstOrDefault(f => f.Code == ActiveFilter)?.Label ?? "All";
 
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
@@ -304,6 +297,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (CachedTransactions is { } state
             && state.ActiveFilter == ActiveFilter
             && state.SelectedDate == SelectedDate)

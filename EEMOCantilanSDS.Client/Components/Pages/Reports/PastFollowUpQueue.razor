@@ -15,6 +15,7 @@
 @inject ITrmApiClient TrmApi
 @inject ITpmApiClient TpmApi
 @inject ISlaughterApiClient SlhApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IJSRuntime JS
 
 @*
@@ -193,7 +194,7 @@
             </div>
             <div class="fh-filters" role="group" aria-label="Filter by facility">
                 <button type="button" class="fh-chip @(_facility is null ? "fh-chip-active" : "")" @onclick="@(() => _facility = null)">All Facilities</button>
-                @foreach (var fc in AllFacilities)
+                @foreach (var fc in FacilityCatalog.All)
                 {
                     <button type="button" class="fh-chip @(_facility == fc ? "fh-chip-active" : "")" @onclick="@(() => _facility = fc)">@fc</button>
                 }
@@ -643,11 +644,7 @@
         ("misc", "Miscellaneous"),
     };
 
-    private static readonly FacilityCode[] AllFacilities =
-    {
-        FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ,
-        FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM,
-    };
+    private static readonly FacilityCode[] AllFacilities = System.Array.Empty<FacilityCode>();
 
     // Same urgency bands as the live queue (consistency).
     private sealed record SecDef(int Id, string Title, string Sub, string Tone);
@@ -693,6 +690,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         for (var i = 1; i <= 12; i++)
         {
             var d = _now.AddMonths(-i);

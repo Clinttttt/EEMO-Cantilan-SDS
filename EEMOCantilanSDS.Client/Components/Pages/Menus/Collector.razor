@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>@Branding.OfficeAcronym Admin — Collectors</PageTitle>
 
@@ -298,7 +299,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Employee ID <span class="req">*</span></label>
-                        <input class="form-input" type="text" placeholder="e.g. EEMO-2025-001"
+                        <input class="form-input" type="text" placeholder="e.g. EMP-2025-001"
                                @bind="Form.EmployeeId" @bind:event="oninput" />
                     </div>
                 </div>
@@ -312,7 +313,7 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email Address</label>
-                        <input class="form-input" type="email" placeholder="collector@cantilan.gov.ph"
+                        <input class="form-input" type="email" placeholder="collector@lgu.gov.ph"
                                @bind="Form.Email" @bind:event="oninput" />
                     </div>
                 </div>
@@ -497,6 +498,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         _loading = true;
         if (Collectors is not null)
         {
@@ -541,17 +543,8 @@
     });
 
     class FacilityOption { public FacilityCode Code { get; set; } public string Name { get; set; } = ""; }
-    readonly List<FacilityOption> AvailableFacilities = new()
-    {
-        new() { Code=FacilityCode.NPM, Name="New Public Market" },
-        new() { Code=FacilityCode.TCC, Name="Tampak Commercial Center" },
-        new() { Code=FacilityCode.NCC, Name="New Commercial Center" },
-        new() { Code=FacilityCode.BBQ, Name="Barbecue Stand" },
-        new() { Code=FacilityCode.ICE, Name="Iceplant" },
-        new() { Code=FacilityCode.SLH, Name="Slaughterhouse" },
-        new() { Code=FacilityCode.TRM, Name="Transport Terminal" },
-        new() { Code=FacilityCode.TPM, Name="Tabo-an Public Market" },
-    };
+    List<FacilityOption> AvailableFacilities =>
+        FacilityCatalog.All.Select(c => new FacilityOption { Code = c, Name = FacilityCatalog.NameOf(c) }).ToList();
 
     // ── Form ──────────────────────────────────────────────────────────────────
     class CollectorForm

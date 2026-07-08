@@ -39,9 +39,9 @@
             <span class="rpt-scope-sep"></span>
             <span class="rpt-scope-item">Frequency <strong>@FrequencyLabel</strong></span>
         </div>
-        <div class="rpt-scope-coverage" title="All EEMO facilities are included; collection cycles differ by facility model">
+        <div class="rpt-scope-coverage" title="All @Branding.OfficeAcronym facilities are included; collection cycles differ by facility model">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-            <strong>@(Model?.FacilityCount ?? 8) facilities</strong>&nbsp;· mixed collection cycles
+            <strong>@(Model?.FacilityCount ?? FacilityCatalog.All.Count) facilities</strong>&nbsp;· mixed collection cycles
         </div>
     </div>
 
@@ -452,7 +452,7 @@
             </div>
             <div class="rpt-legend-note">
                 <span class="rpt-legend-dot"></span>
-                All EEMO facilities are included regardless of collection model.
+                All @Branding.OfficeAcronym facilities are included regardless of collection model.
                 Per-head (SLH), per-trip (TRM) and weekly-market (TPM) facilities are paid on service at the point of collection, so they carry no recurring unpaid balance and show a 100% rate.
             </div>
         </div>

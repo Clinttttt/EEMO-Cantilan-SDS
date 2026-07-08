@@ -12,6 +12,7 @@
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
 @inject IReportsApiClient ReportsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyApi
 @inject IPaymentsApiClient PaymentsApi
 @inject ITrmApiClient TrmApi
@@ -121,7 +122,7 @@
             </div>
             <div class="fq-filters" role="group" aria-label="Filter by facility">
                 <button type="button" class="fq-chip @(_facility is null ? "fq-chip-active" : "")" @onclick="@(() => SelectFacility(null))">All Facilities</button>
-                @foreach (var fc in AllFacilities)
+                @foreach (var fc in FacilityCatalog.All)
                 {
                     <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@fc</button>
                 }
@@ -477,7 +478,7 @@
 
                         <label class="fq-pay-field">
                             <span>Remarks <em>optional</em></span>
-                            <input class="fq-pay-input" type="text" maxlength="200" placeholder="e.g. Paid at EEMO office"
+                            <input class="fq-pay-input" type="text" maxlength="200" placeholder="e.g. Paid at @Branding.OfficeAcronym office"
                                    @bind="_monthlyPaymentRemarks"
                                    @bind:event="oninput"
                                    disabled="@_monthlyPaymentSaving" />
@@ -562,11 +563,7 @@
         catch { /* storage unavailable — the hide still applies for this session */ }
     }
 
-    private static readonly FacilityCode[] AllFacilities =
-    {
-        FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ,
-        FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
-    };
+
 
     private DateOnly AsOf => _data?.AsOf ?? PhilippineTime.Today;
     private string PeriodLabel => _data?.PeriodLabel ?? PhilippineTime.Now.ToString("MMMM yyyy");
@@ -574,6 +571,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         var now = PhilippineTime.Now;
         if (CachedFollowUpQueue is { } state
             && state.Year == now.Year

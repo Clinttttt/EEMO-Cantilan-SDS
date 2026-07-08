@@ -430,7 +430,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Email Address <span class="req">*</span></label>
-                <input class="form-input" type="email" placeholder="admin@cantilan.gov.ph"
+                <input class="form-input" type="email" placeholder="admin@lgu.gov.ph"
                        @bind="AdminForm.Email" @bind:event="oninput" />
             </div>
         </div>
@@ -686,7 +686,7 @@
                     <div class="acct-avatar acct-avatar-lg">@Initials(ProfileAdmin.FullName)</div>
                     <div>
                         <div class="eemo-modal-title">@ProfileAdmin.FullName</div>
-                        <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head · @Branding.OfficeAcronym Office" : "Administrator")</div>
+                        <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? $"Head · {Branding.OfficeAcronym} Office" : "Administrator")</div>
                     </div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowAdminProfile = false">

@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
 <PageTitle>@Branding.OfficeAcronym Admin — Month-End Report</PageTitle>
 
@@ -77,7 +78,7 @@
         </div>
         <div class="me-filter">
             <button class="me-chip @(_facility is null ? "me-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
-            @foreach (var fc in AllFacilities)
+            @foreach (var fc in Facilities.All)
             {
                 <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
             }
@@ -390,9 +391,6 @@
     public MonthEndPageState? CachedMonthEnd { get; set; }
 
     // ── Facility filter + search (client-side view filtering; never alters the underlying figures) ──
-    private static readonly FacilityCode[] AllFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
-
     private FacilityCode? _facility;     // null = all facilities
     private string _search = "";
 
@@ -495,6 +493,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Facilities.EnsureLoadedAsync();
+
         if (TryApplyCachedMonthEnd())
             return;
 
