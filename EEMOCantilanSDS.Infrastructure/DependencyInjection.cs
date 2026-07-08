@@ -53,6 +53,8 @@ namespace EEMOCantilanSDS.Infrastructure
             // Per-LGU fixed-rate resolution (Phase 4B): reads the current municipality's FacilityRate rows,
             // falling back to the FeeRates constants so Cantilan is byte-for-byte unchanged.
             service.AddScoped<IFeeRateResolver, FeeRateResolver>();
+            // Per-LGU Tabo-an market weekday (defaults to Friday) — reads the tenant's Municipality record.
+            service.AddScoped<ITpmMarketDayProvider, TpmMarketDayProvider>();
  
             
             // Repositories

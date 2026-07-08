@@ -38,6 +38,10 @@ public class Municipality : AuditableEntity
     public bool IsDefault { get; private set; }
     public bool IsActive { get; private set; } = true;
 
+    /// <summary>The weekday this LGU holds its weekly (Tabo-an) market. Null = Friday (the Cantilan default),
+    /// so existing behaviour and Phase-0 goldens are unchanged; other LGUs set their own day at activation.</summary>
+    public DayOfWeek? TpmMarketDay { get; private set; }
+
     private Municipality() { }
 
     public static Municipality Create(
@@ -51,7 +55,8 @@ public class Municipality : AuditableEntity
         string? sealPath = null,
         bool isDefault = false,
         string createdBy = "System",
-        string? officeAcronym = null)
+        string? officeAcronym = null,
+        DayOfWeek? tpmMarketDay = null)
     {
         return new Municipality
         {
@@ -67,6 +72,7 @@ public class Municipality : AuditableEntity
             Status = status,
             IsDefault = isDefault,
             IsActive = status == MunicipalityStatus.Active,
+            TpmMarketDay = tpmMarketDay,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = createdBy
         };
@@ -83,12 +89,13 @@ public class Municipality : AuditableEntity
     /// activation to stamp the LGU's official identity onto its registry record. Only overwrites a field
     /// when a non-empty value is supplied, so partial profiles never blank existing data.
     /// </summary>
-    public void ApplyOnboardingProfile(string? officeName, string? address, string? sealPath, string? officeAcronym = null, string updatedBy = "System")
+    public void ApplyOnboardingProfile(string? officeName, string? address, string? sealPath, string? officeAcronym = null, string updatedBy = "System", DayOfWeek? tpmMarketDay = null)
     {
         if (!string.IsNullOrWhiteSpace(officeName)) OfficeName = officeName.Trim();
         if (!string.IsNullOrWhiteSpace(address)) Address = address.Trim();
         if (!string.IsNullOrWhiteSpace(sealPath)) SealPath = sealPath.Trim();
         if (!string.IsNullOrWhiteSpace(officeAcronym)) OfficeAcronym = officeAcronym.Trim();
+        if (tpmMarketDay is not null) TpmMarketDay = tpmMarketDay;
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
     }

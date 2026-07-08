@@ -13,6 +13,7 @@ public sealed class GetMobileTpmCollectionQueryHandler(
     ITpmRepository tpmRepository,
     ISuggestionRepository suggestionRepository,
     IFeeRateResolver feeRateResolver,
+    ITpmMarketDayProvider marketDayProvider,
     ICurrentUserService currentUser) : IRequestHandler<GetMobileTpmCollectionQuery, Result<MobileTpmCollectionDto>>
 {
     public async Task<Result<MobileTpmCollectionDto>> Handle(GetMobileTpmCollectionQuery request, CancellationToken ct)
@@ -27,9 +28,10 @@ public sealed class GetMobileTpmCollectionQueryHandler(
         if (!collector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.TPM))
             return Result<MobileTpmCollectionDto>.Forbidden();
 
+        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
         var today = PhilippineTime.Today;
-        var isMarketDay = today.DayOfWeek == DayOfWeek.Friday;
-        var marketDate = MostRecentFriday(today);
+        var isMarketDay = today.DayOfWeek == marketDay;
+        var marketDate = MostRecentMarketDay(today, marketDay);
 
         var attendances = await tpmRepository.GetVendorAttendanceAsync(marketDate, ct);
 
@@ -74,10 +76,10 @@ public sealed class GetMobileTpmCollectionQueryHandler(
             knownVendors));
     }
 
-    // Today if it is a Friday, otherwise the most recent past Friday.
-    private static DateOnly MostRecentFriday(DateOnly today)
+    // Today if it is the market day, otherwise the most recent past market day.
+    private static DateOnly MostRecentMarketDay(DateOnly today, DayOfWeek marketDay)
     {
-        int diff = ((int)today.DayOfWeek - (int)DayOfWeek.Friday + 7) % 7;
+        int diff = ((int)today.DayOfWeek - (int)marketDay + 7) % 7;
         return today.AddDays(-diff);
     }
 }

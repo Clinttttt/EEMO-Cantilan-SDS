@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.TaboanMarket;
@@ -7,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class TpmRepository(AppDbContext context) : ITpmRepository
+public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDayProvider) : ITpmRepository
 {
     public async Task<TpmVendor?> GetVendorByIdAsync(Guid id, CancellationToken ct = default)
         => await context.TpmVendors.FirstOrDefaultAsync(v => v.Id == id, ct);
@@ -60,10 +61,12 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
         var paidCount = attendances.Count(a => a.IsPaid);
         var totalAttendances = attendances.Count;
 
+        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
+
         return new TpmOverviewDto
         {
             CollectedThisMonth = attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
-            FridaysThisMonth = GetFridaysInMonth(year, month).Count,
+            FridaysThisMonth = GetMarketDaysInMonth(year, month, marketDay).Count,
             VendorEntriesThisMonth = totalAttendances,
             CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0
         };
@@ -212,21 +215,20 @@ public class TpmRepository(AppDbContext context) : ITpmRepository
             goods);
     }
 
-    private static List<DateOnly> GetFridaysInMonth(int year, int month)
+    private static List<DateOnly> GetMarketDaysInMonth(int year, int month, DayOfWeek marketDay)
     {
-  
-        var fridays = new List<DateOnly>();
+        var days = new List<DateOnly>();
         var date = new DateOnly(year, month, 1);
-        
-        while (date.DayOfWeek != DayOfWeek.Friday)
+
+        while (date.DayOfWeek != marketDay)
             date = date.AddDays(1);
-        
+
         while (date.Month == month)
         {
-            fridays.Add(date);
+            days.Add(date);
             date = date.AddDays(7);
         }
-        
-        return fridays;
+
+        return days;
     }
 }

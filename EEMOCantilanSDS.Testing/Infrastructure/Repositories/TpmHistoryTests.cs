@@ -34,7 +34,7 @@ public class TpmHistoryTests : RepositoryTestBase
             Paid(veggieA.Id, Feb02));
         await context.SaveChangesAsync();
 
-        var repo = new TpmRepository(context);
+        var repo = new TpmRepository(context, CacheTestDoubles.TpmMarketDay);
         var history = await repo.GetHistoryAsync(2024, CancellationToken.None);
 
         Assert.Equal(2024, history.Year);
@@ -75,7 +75,7 @@ public class TpmHistoryTests : RepositoryTestBase
     public async Task GetHistory_FutureYear_ReturnsNoMonthlyRows()
     {
         var context = NewContext();
-        var repo = new TpmRepository(context);
+        var repo = new TpmRepository(context, CacheTestDoubles.TpmMarketDay);
 
         var history = await repo.GetHistoryAsync(2999, CancellationToken.None);
 

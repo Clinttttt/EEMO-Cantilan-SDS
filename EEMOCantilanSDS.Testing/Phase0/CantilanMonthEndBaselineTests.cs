@@ -57,7 +57,7 @@ public class CantilanMonthEndBaselineTests : RepositoryTestBase
             new FacilityReportsRepository(context),
             new SlaughterRepository(context),
             new TrmRepository(context),
-            new TpmRepository(context),
+            new TpmRepository(context, CacheTestDoubles.TpmMarketDay),
             new FacilityRepository(context),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,

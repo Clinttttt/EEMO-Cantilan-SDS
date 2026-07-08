@@ -32,10 +32,11 @@ public class TpmAttendance : AuditableEntity, IMunicipalityOwned
         Guid vendorId,
         DateOnly marketDate,
         string createdBy = "System",
-        decimal? fee = null)
+        decimal? fee = null,
+        DayOfWeek marketDay = DayOfWeek.Friday)
     {
-        if (marketDate.DayOfWeek != DayOfWeek.Friday)
-            throw new ArgumentException("Market date must be a Friday.", nameof(marketDate));
+        if (marketDate.DayOfWeek != marketDay)
+            throw new ArgumentException($"Market date must be a {marketDay}.", nameof(marketDate));
 
         return new TpmAttendance
         {

@@ -18,6 +18,7 @@ public class AddVendorToMarketDayCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
+    ITpmMarketDayProvider marketDayProvider,
     ITenantContext tenantContext) : IRequestHandler<AddVendorToMarketDayCommand, Result<TpmVendorAttendanceDto>>
 {
     public async Task<Result<TpmVendorAttendanceDto>> Handle(AddVendorToMarketDayCommand request, CancellationToken ct)
@@ -35,6 +36,11 @@ public class AddVendorToMarketDayCommandHandler(
                 return Result<TpmVendorAttendanceDto>.Forbidden();
             }
         }
+
+        // The market date must fall on THIS LGU's configured market weekday (Cantilan = Friday by default).
+        var marketDay = await marketDayProvider.GetMarketDayAsync(ct);
+        if (request.MarketDate.DayOfWeek != marketDay)
+            return Result<TpmVendorAttendanceDto>.Failure($"Market date must be a {marketDay}.");
 
         var existingVendors = await tpmRepo.GetAllVendorsAsync(ct);
         var vendor = existingVendors.FirstOrDefault(v =>
@@ -55,7 +61,7 @@ public class AddVendorToMarketDayCommandHandler(
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var vendorFee = rateSnapshot.Resolve(FeeRateKey.TpmVendorDay, request.MarketDate);
 
-        var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate, fee: vendorFee);
+        var attendance = TpmAttendance.Create(vendor.Id, request.MarketDate, fee: vendorFee, marketDay: marketDay);
 
         if (request.ClientOperationId is { } clientOpId)
             attendance.SetClientOperationId(clientOpId);

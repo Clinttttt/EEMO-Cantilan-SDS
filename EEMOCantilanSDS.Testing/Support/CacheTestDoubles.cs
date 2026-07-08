@@ -12,6 +12,14 @@ internal static class CacheTestDoubles
 
     /// <summary>Resolver with no data rows — every rate falls back to the FeeRates ordinance constant.</summary>
     public static IFeeRateResolver FeeRateResolver { get; } = new StubFeeRateResolver();
+
+    /// <summary>Market-day provider fixed to Friday (the Cantilan default) for existing tests.</summary>
+    public static EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider TpmMarketDay { get; } = new StubTpmMarketDayProvider();
+}
+
+internal sealed class StubTpmMarketDayProvider : EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider
+{
+    public Task<DayOfWeek> GetMarketDayAsync(CancellationToken ct = default) => Task.FromResult(DayOfWeek.Friday);
 }
 
 internal sealed class StubFeeRateResolver : IFeeRateResolver
