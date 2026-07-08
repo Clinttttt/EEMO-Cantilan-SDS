@@ -200,7 +200,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Facilities.EnsureLoadedAsync();
+        // Load the tenant's facility catalog in the background — it only gates the Reports button
+        // (CanShowReports defaults to visible until loaded), so it must never delay navigation/first paint.
+        _ = LoadFacilityCatalogAsync();
         _loading = true;
 
         if (CachedFacilityState is not null
@@ -329,6 +331,12 @@
     // FacilityState catalog is still loading (Count == 0) the action is allowed so it never flickers off.
     private bool CanShowReports =>
         Facilities.All.Count == 0 || Facilities.All.Contains(FacilityCodeEnum);
+
+    private async Task LoadFacilityCatalogAsync()
+    {
+        await Facilities.EnsureLoadedAsync();
+        await InvokeAsync(StateHasChanged);
+    }
 
     private List<Toolbar.ToolbarAction> ToolbarActions
     {
