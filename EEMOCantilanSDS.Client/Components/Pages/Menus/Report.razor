@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @inject IReportsApiClient ReportsApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>Financial Reports — @Branding.OfficeAcronym Admin</PageTitle>
 
@@ -542,28 +543,28 @@
     private async Task OnYearChanged(string value) { SelectedYear = value; await Load(); }
     private async Task OnMonthChanged(string value) { SelectedMonth = value; await Load(); }
 
-    private static readonly List<(string Code, string Label)> FacilityOptions = new()
+    // Data-driven: "All" + the tenant's actual facilities.
+    private List<(string Code, string Label)> FacilityOptions
     {
-        ("All", "All Facilities"),
-        ("NPM", "New Public Market"),
-        ("TCC", "Tampak Comm."),
-        ("NCC", "New Comm. Center"),
-        ("BBQ", "BBQ Stand"),
-        ("ICE", "Iceplant"),
-        ("SLH", "Slaughterhouse"),
-        ("TRM", "Transport Terminal"),
-        ("TPM", "Tabo-an Market"),
-    };
+        get
+        {
+            var opts = new List<(string Code, string Label)> { ("All", "All Facilities") };
+            opts.AddRange(FacilityCatalog.All.Select(c => (c.ToString(), FacilityCatalog.NameOf(c))));
+            return opts;
+        }
+    }
 
     // Authoritative scope labels (fall back to selection before/while loading).
     private string PeriodLabel => Model?.PeriodLabel
         ?? (ActiveTab == "Monthly" ? $"{SelectedMonth} {SelectedYear}" : SelectedYear);
     private string ScopeLabel => Model?.ScopeLabel
-        ?? (SelectedFacility == "All" ? "All facilities" : FacilityOptions.First(o => o.Code == SelectedFacility).Label);
+        ?? (SelectedFacility == "All" ? "All facilities" : FacilityOptions.FirstOrDefault(o => o.Code == SelectedFacility).Label ?? SelectedFacility);
     private string FrequencyLabel => Model?.Frequency ?? ActiveTab;
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
+
         if (TryApplyCachedFinancialReport())
             return;
 
