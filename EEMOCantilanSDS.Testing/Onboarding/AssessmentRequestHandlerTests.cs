@@ -40,6 +40,11 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             public EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser.AdminUserDto? GetCurrentUser() => null;
         }
 
+        private sealed class NoOpEmailSender : EEMOCantilanSDS.Application.Common.Interface.Services.IEmailSender
+        {
+            public Task<bool> SendAsync(string toEmail, string? toName, string subject, string body, System.Threading.CancellationToken ct = default) => Task.FromResult(false);
+        }
+
         private static DbContextOptions<AppDbContext> Options() =>
             new DbContextOptionsBuilder<AppDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -89,7 +94,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
             var op = new FakeCurrentUser(cantilanId, "SuperAdmin");
-            var result = await new ApproveAssessmentRequestCommandHandler(ctx, op)
+            var result = await new ApproveAssessmentRequestCommandHandler(ctx, op, new NoOpEmailSender())
                 .Handle(new ApproveAssessmentRequestCommand(requestId, "Welcome"), default);
 
             Assert.True(result.IsSuccess);
@@ -117,7 +122,7 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId));
             // A SuperAdmin of a DIFFERENT municipality is not the platform operator.
             var notOperator = new FakeCurrentUser(Guid.NewGuid(), "SuperAdmin");
-            var result = await new ApproveAssessmentRequestCommandHandler(ctx, notOperator)
+            var result = await new ApproveAssessmentRequestCommandHandler(ctx, notOperator, new NoOpEmailSender())
                 .Handle(new ApproveAssessmentRequestCommand(requestId, null), default);
 
             Assert.False(result.IsSuccess);
@@ -173,3 +178,4 @@ namespace EEMOCantilanSDS.Testing.Onboarding
         }
     }
 }
+

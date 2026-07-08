@@ -88,6 +88,12 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ITokenService, TokenService>();
             service.AddScoped<IOnlinePaymentUrlBuilder, OnlinePaymentUrlBuilder>();
 
+            // Transactional email (SMTP). Bound once; a no-op until configured (Email__Host / Email__FromEmail).
+            var emailOptions = new EEMOCantilanSDS.Infrastructure.Services.EmailOptions();
+            configuration.GetSection("Email").Bind(emailOptions);
+            service.AddSingleton(emailOptions);
+            service.AddScoped<IEmailSender, EEMOCantilanSDS.Infrastructure.Services.SmtpEmailSender>();
+
             // Online payment gateway (PayMongo hosted checkout, GCash). Secret-key Basic auth is
             // applied once here; the key is the username with an empty password, base64-encoded.
             var payMongo = configuration.GetSection("PayMongo");

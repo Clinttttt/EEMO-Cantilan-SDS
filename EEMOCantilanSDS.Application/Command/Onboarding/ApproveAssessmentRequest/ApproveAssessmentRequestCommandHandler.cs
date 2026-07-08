@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentRequest
 {
-    public class ApproveAssessmentRequestCommandHandler(IAppDbContext context, ICurrentUserService currentUser)
+    public class ApproveAssessmentRequestCommandHandler(IAppDbContext context, ICurrentUserService currentUser, IEmailSender emailSender)
         : IRequestHandler<ApproveAssessmentRequestCommand, Result<AssessmentRequestDto>>
     {
         public async Task<Result<AssessmentRequestDto>> Handle(ApproveAssessmentRequestCommand request, CancellationToken ct)
@@ -39,6 +39,13 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ApproveAssessmentReques
             context.OnboardingDrafts.Add(draft);
 
             await context.SaveChangesAsync(ct);
+
+            // Email the LGU the approval + onboarding link (best-effort; the link is also shown in the console).
+            var message = string.IsNullOrWhiteSpace(request.DecisionMessage)
+                ? $"Your StallTrack assessment for {entity.Municipality} has been approved. Please continue with onboarding using the secure link below."
+                : request.DecisionMessage!.Trim();
+            var body = $"{message}\n\nYour secure onboarding link:\n{link}\n\n— StallTrack Platform Team";
+            await emailSender.SendAsync(entity.OfficialEmail, entity.FocalPerson, $"StallTrack assessment — {entity.Municipality}", body, ct);
 
             return Result<AssessmentRequestDto>.Success(entity.ToDto());
         }
