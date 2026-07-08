@@ -15,15 +15,29 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public const string DefaultOfficeName = "Economic Enterprise & Management Office";
     public const string DefaultOfficeAcronym = "EEMO";
     public const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
+    // Neutral platform seal for a non-default LGU that hasn't uploaded its own — never Cantilan's.
+    public const string NeutralSealPath = "/images/stalltrack-seal.png";
     public const string DefaultMunicipality = "Cantilan";
     public const string DefaultProvince = "Surigao del Sur";
 
     private MunicipalityBrandingDto? _branding;
     private Task? _loadTask;
 
+    // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
+    // unchanged and other LGUs only briefly show the default before their branding resolves.
+    private bool IsDefaultTenant =>
+        _branding is null || string.Equals(_branding.Code, "CANTILAN", System.StringComparison.OrdinalIgnoreCase);
+
     public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);
-    public string OfficeAcronym => Nonempty(_branding?.OfficeAcronym, DefaultOfficeAcronym);
-    public string SealPath => Nonempty(_branding?.SealPath, DefaultSealPath);
+    // A set acronym wins; Cantilan falls back to EEMO; any other LGU without an acronym falls back to its
+    // own municipality name (never "EEMO").
+    public string OfficeAcronym =>
+        !string.IsNullOrWhiteSpace(_branding?.OfficeAcronym) ? _branding!.OfficeAcronym!
+        : IsDefaultTenant ? DefaultOfficeAcronym : Municipality;
+    // A set seal wins; otherwise Cantilan keeps its own logo and every other LGU gets the neutral seal.
+    public string SealPath =>
+        !string.IsNullOrWhiteSpace(_branding?.SealPath) ? _branding!.SealPath!
+        : IsDefaultTenant ? DefaultSealPath : NeutralSealPath;
     public string Municipality => Nonempty(_branding?.Name, DefaultMunicipality);
     public string Province => Nonempty(_branding?.Province, DefaultProvince);
 

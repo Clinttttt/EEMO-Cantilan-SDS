@@ -134,7 +134,7 @@
             <div class="panel-header">
                 <div>
                     <div class="panel-title">Administrator Accounts</div>
-                    <div class="panel-subtitle">Web portal access · managed by the Head (EEMO Office)</div>
+                    <div class="panel-subtitle">Web portal access · managed by the Head (@Branding.OfficeAcronym Office)</div>
                 </div>
                 <div class="panel-count">@FilteredAdmins.Count() records</div>
             </div>
@@ -686,7 +686,7 @@
                     <div class="acct-avatar acct-avatar-lg">@Initials(ProfileAdmin.FullName)</div>
                     <div>
                         <div class="eemo-modal-title">@ProfileAdmin.FullName</div>
-                        <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head · EEMO Office" : "Administrator")</div>
+                        <div class="eemo-modal-sub">@(ProfileAdmin.Role == AdminRole.SuperAdmin ? "Head · @Branding.OfficeAcronym Office" : "Administrator")</div>
                     </div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowAdminProfile = false">
