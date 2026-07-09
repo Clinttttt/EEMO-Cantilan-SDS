@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @inject ITpmApiClient TpmApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — TPM Reports</PageTitle>
 
@@ -18,7 +19,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         <div>
-            <div class="rpt-eyebrow">FACILITY · TPM · REPORTS</div>
+            <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.TPM) · REPORTS</div>
             <div class="rpt-title">Tabo-an Public Market Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
@@ -434,6 +435,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (TryApplyCachedReport())
             return;
 

@@ -1,4 +1,6 @@
 @* FacilityHero.razor — Reusable hero banner for all facilities *@
+@using EEMOCantilanSDS.Domain.Enums
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <div class="facility-hero">
     <div class="facility-hero-left">
@@ -6,8 +8,8 @@
             @Icon
         </div>
         <div>
-            <div class="facility-hero-eyebrow">@Eyebrow</div>
-            <h1 class="facility-hero-title">@Title</h1>
+            <div class="facility-hero-eyebrow">@EffectiveEyebrow</div>
+            <h1 class="facility-hero-title">@EffectiveTitle</h1>
             <div class="facility-hero-sub">@(string.IsNullOrWhiteSpace(Subtitle) ? $"Municipality of {Branding.Municipality}, {Branding.Province}" : Subtitle)</div>
         </div>
     </div>
@@ -38,11 +40,31 @@
     [Parameter]
     public RenderFragment Icon { get; set; } = default!;
 
+    /// <summary>
+    /// When set, the eyebrow ("FACILITY · {short}") and title are resolved from the tenant's own facility
+    /// catalog (data-driven per LGU). Falls back to the canonical Cantilan name/acronym before load, so the
+    /// default LGU is unchanged. When null, the explicit <see cref="Eyebrow"/>/<see cref="Title"/> are used.
+    /// </summary>
+    [Parameter]
+    public FacilityCode? Code { get; set; }
+
     [Parameter]
     public string Eyebrow { get; set; } = string.Empty;
 
     [Parameter]
     public string Title { get; set; } = string.Empty;
+
+    private string EffectiveEyebrow =>
+        Code is { } c ? $"FACILITY · {FacilityCatalog.ShortNameOf(c)}" : Eyebrow;
+
+    private string EffectiveTitle =>
+        Code is { } c ? FacilityCatalog.NameOf(c) : Title;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Code is not null)
+            await FacilityCatalog.EnsureLoadedAsync();
+    }
 
     [Parameter]
     public string? Subtitle { get; set; }

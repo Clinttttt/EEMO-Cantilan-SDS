@@ -11,8 +11,9 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IDailyCollectionApiClient DailyCollectionApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>@Branding.OfficeAcronym Admin — New Public Market</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.NPM)</PageTitle>
 
 <!-- Topbar -->
 <header class="topbar">
@@ -21,11 +22,11 @@
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                 </a>
                 <div>
-                    <div class="topbar-title">New Public Market</div>
+                    <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.NPM)</div>
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">NPM — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
+                        <span class="breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.NPM) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
                     </div>
                 </div>
             </div>
@@ -42,6 +43,7 @@
 
             <!-- ── NPM Hero Banner ── -->
             <FacilityHero 
+                Code="FacilityCode.NPM"
                 Eyebrow="FACILITY · NPM"
                 Title="New Public Market"
                 Icon="@NpmIcon"
@@ -338,6 +340,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         ResetState();
         InitializeToolbarActions();
         var now = DateTime.Now;

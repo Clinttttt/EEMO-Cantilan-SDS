@@ -63,7 +63,28 @@ public class FacilityState(IFacilitiesApiClient api)
 
     public static bool IsRental(FacilityCode code) => RentalCodes.Contains(code);
 
-    /// <summary>The tenant's own name for a facility (fallback = the code).</summary>
+    // Canonical Cantilan display names/acronyms — used as the fallback before the tenant catalog loads (and
+    // for any facility not in the catalog), so the default LGU renders byte-for-byte identically to the old
+    // hardcoded values and never flickers a bare code. A loaded tenant catalog always wins.
+    private static readonly Dictionary<FacilityCode, (string Name, string ShortName)> Canonical = new()
+    {
+        [FacilityCode.NPM] = ("New Public Market", "NPM"),
+        [FacilityCode.TCC] = ("Tampak Commercial Center", "TCC"),
+        [FacilityCode.NCC] = ("New Commercial Center", "NCC"),
+        [FacilityCode.BBQ] = ("Barbecue Stand", "BBQ"),
+        [FacilityCode.ICE] = ("Iceplant", "ICE"),
+        [FacilityCode.SLH] = ("Slaughterhouse", "SLH"),
+        [FacilityCode.TRM] = ("Transport Terminal", "TRM"),
+        [FacilityCode.TPM] = ("Tabo-an Public Market", "TPM"),
+    };
+
+    /// <summary>The tenant's own name for a facility (fallback = the canonical Cantilan name, then the code).</summary>
     public string NameOf(FacilityCode code) =>
-        _facilities?.FirstOrDefault(f => f.Code == code)?.Name ?? code.ToString();
+        _facilities?.FirstOrDefault(f => f.Code == code)?.Name
+        ?? (Canonical.TryGetValue(code, out var c) ? c.Name : code.ToString());
+
+    /// <summary>The tenant's own short acronym for a facility (fallback = the canonical Cantilan acronym, then the code).</summary>
+    public string ShortNameOf(FacilityCode code) =>
+        _facilities?.FirstOrDefault(f => f.Code == code)?.ShortName
+        ?? (Canonical.TryGetValue(code, out var c) ? c.ShortName : code.ToString());
 }

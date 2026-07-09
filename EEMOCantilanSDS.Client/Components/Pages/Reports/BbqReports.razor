@@ -3,6 +3,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — BBQ Reports</PageTitle>
 
@@ -16,7 +17,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 2 7.5a2.5 2.5 0 01-5 0z"/><path d="M12.5 14.5a2.5 2.5 0 002.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 2 7.5a2.5 2.5 0 01-2.5 2.5z"/><path d="M4 18h16"/></svg>
         </div>
         <div>
-            <div class="rpt-eyebrow">FACILITY · BBQ · REPORTS</div>
+            <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.BBQ) · REPORTS</div>
             <div class="rpt-title">BBQ Stand Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
@@ -525,6 +526,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (TryApplyCachedReport())
             return;
 

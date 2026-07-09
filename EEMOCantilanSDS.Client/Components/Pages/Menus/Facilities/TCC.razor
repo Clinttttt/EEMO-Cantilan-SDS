@@ -11,8 +11,9 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>@Branding.OfficeAcronym Admin — Tampak Commercial Center</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.TCC)</PageTitle>
 
 <!-- Topbar -->
 <header class="topbar">
@@ -21,11 +22,11 @@
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                 </a>
                 <div>
-                    <div class="topbar-title">Tampak Commercial Center</div>
+                    <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.TCC)</div>
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <span class="breadcrumb-active">TCC — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
+                        <span class="breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TCC) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
                     </div>
                 </div>
             </div>
@@ -42,6 +43,7 @@
 
             <!-- ── Hero Banner ── -->
             <FacilityHero 
+                Code="FacilityCode.TCC"
                 Eyebrow="FACILITY · TCC"
                 Title="Tampak Commercial Center"
                 Icon="@TccIcon"
@@ -168,6 +170,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         ResetState();
         var now = DateTime.Now;
         if (CachedTccPage is { } state

@@ -9,8 +9,9 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject ITrmApiClient TrmApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>@Branding.OfficeAcronym Admin — Transport Terminal</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.TRM)</PageTitle>
 
 <!-- ── Topbar ── -->
 <header class="topbar">
@@ -19,11 +20,11 @@
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
-            <div class="topbar-title">Transport Terminal</div>
+            <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.TRM)</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">TRM — @PhilippineTime.Now.ToString("MMMM d, yyyy")</span>
+                <span class="breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TRM) — @PhilippineTime.Now.ToString("MMMM d, yyyy")</span>
             </div>
         </div>
     </div>
@@ -39,7 +40,8 @@
 <div class="content-area">
 
         <!-- ── Hero Banner ── -->
-        <FacilityHero Eyebrow="FACILITY · TRM"
+        <FacilityHero Code="FacilityCode.TRM"
+                      Eyebrow="FACILITY · TRM"
                       Title="Transport Terminal"
                       Icon="@TrmIcon"
                       Stats="@HeroStats"
@@ -652,6 +654,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         var today = DateOnly.FromDateTime(DateTime.Now);
         if (CachedTrmPage is { } state && state.Date == today)
         {

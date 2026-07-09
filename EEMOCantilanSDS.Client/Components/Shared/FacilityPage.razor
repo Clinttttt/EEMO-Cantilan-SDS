@@ -14,11 +14,11 @@
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
-            <div class="topbar-title">@FacilityName</div>
+            <div class="topbar-title">@Facilities.NameOf(FacilityCodeEnum)</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">@FacilityShortCode — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
+                <span class="breadcrumb-active">@Facilities.ShortNameOf(FacilityCodeEnum) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
             </div>
         </div>
     </div>
@@ -38,8 +38,8 @@
                         @FacilityIcon
                     </div>
                     <div>
-                        <div class="tcc-hero-eyebrow">Facility · @FacilityShortCode</div>
-                        <div class="tcc-hero-title">@FacilityName</div>
+                        <div class="tcc-hero-eyebrow">Facility · @Facilities.ShortNameOf(FacilityCodeEnum)</div>
+                        <div class="tcc-hero-title">@Facilities.NameOf(FacilityCodeEnum)</div>
                         <div class="tcc-hero-sub">Municipality of @Branding.Municipality, @Branding.Province</div>
                     </div>
                 </div>

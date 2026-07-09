@@ -9,7 +9,8 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
-<PageTitle>@Branding.OfficeAcronym Admin — Slaughterhouse</PageTitle>
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.SLH)</PageTitle>
 
 <!-- Topbar -->
 <header class="topbar">
@@ -18,11 +19,11 @@
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
-            <div class="topbar-title">Slaughterhouse</div>
+            <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.SLH)</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">Slaughterhouse — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
+                <span class="breadcrumb-active">@FacilityCatalog.NameOf(FacilityCode.SLH) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
             </div>
         </div>
     </div>
@@ -38,7 +39,8 @@
 <div class="content-area">
 
         <!-- -- SLH Hero Banner -- -->
-        <FacilityHero Eyebrow="FACILITY · SLH"
+        <FacilityHero Code="FacilityCode.SLH"
+                      Eyebrow="FACILITY · SLH"
                       Title="Slaughterhouse"
                       Icon="@SlhIcon"
                       Stats="@HeroStats"
@@ -519,6 +521,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (CachedSlaughterFacility is { } state
             && state.Year == CurrentYear
             && state.Month == CurrentMonth)

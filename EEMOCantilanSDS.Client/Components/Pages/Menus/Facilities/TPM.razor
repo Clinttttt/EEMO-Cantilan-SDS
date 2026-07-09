@@ -8,8 +8,9 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITpmApiClient TpmApi
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>@Branding.OfficeAcronym Admin — Tabo-an Public Market</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.TPM)</PageTitle>
 
 <!-- ── Topbar ── -->
 <header class="tpm-topbar">
@@ -18,11 +19,11 @@
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
-            <div class="tpm-topbar-title">Tabo-an Public Market</div>
+            <div class="tpm-topbar-title">@FacilityCatalog.NameOf(FacilityCode.TPM)</div>
             <div class="tpm-topbar-breadcrumb">
                 <a href="/menu" class="tpm-breadcrumb-link">Dashboard</a>
                 <span class="tpm-breadcrumb-sep">/</span>
-                <span class="tpm-breadcrumb-active">TPM — @CalendarMonth.ToString("MMMM yyyy")</span>
+                <span class="tpm-breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TPM) — @CalendarMonth.ToString("MMMM yyyy")</span>
             </div>
         </div>
     </div>
@@ -38,6 +39,7 @@
 
     <!-- ── Hero Banner ── -->
     <FacilityHero
+        Code="FacilityCode.TPM"
         Eyebrow="FACILITY · TPM"
         Title="Tabo-an Public Market"
         Icon="@TpmIcon"
@@ -489,6 +491,7 @@
     // ── Lifecycle ─────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (CachedTpmPage is { } state
             && state.Year == CalendarMonth.Year
             && state.Month == CalendarMonth.Month)

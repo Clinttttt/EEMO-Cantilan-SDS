@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — TCC Reports</PageTitle>
 
@@ -17,7 +18,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
         </div>
         <div>
-            <div class="rpt-eyebrow">FACILITY · TCC · REPORTS</div>
+            <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.TCC) · REPORTS</div>
             <div class="rpt-title">Tampak Commercial Center Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
@@ -527,6 +528,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (TryApplyCachedReport())
             return;
 

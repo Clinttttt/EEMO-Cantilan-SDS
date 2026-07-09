@@ -3,8 +3,9 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
-<PageTitle>@Branding.OfficeAcronym Admin — New Commercial Center</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(FacilityCode.NCC)</PageTitle>
 
 <FacilityPage TStall="NccStall"
               FacilityCodeEnum="FacilityCode.NCC"
@@ -27,6 +28,11 @@
               ReportsUrl="/ncc/reports" />
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+    }
+
     private RenderFragment NccIcon => @<svg viewBox="0 0 24 24" class="npm-icon-svg" style="width: 24px; height: 24px; stroke: var(--gold); fill: none; stroke-width: 2;"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>;
 
     public class NccStall

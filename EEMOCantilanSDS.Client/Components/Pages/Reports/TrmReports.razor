@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject ITrmApiClient TrmApi
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — TRM Reports</PageTitle>
 
@@ -17,7 +18,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
         </div>
         <div>
-            <div class="rpt-eyebrow">FACILITY · TRM · REPORTS</div>
+            <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.TRM) · REPORTS</div>
             <div class="rpt-title">Transport Terminal Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
@@ -476,6 +477,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         if (TryApplyCachedReport())
             return;
 
