@@ -25,4 +25,7 @@ public interface IFacilitiesApiClient
     Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync();
 
     Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command);
+
+    /// <summary>Sets/updates one fixed ordinance rate for the caller's LGU (effective today, never retroactive).</summary>
+    Task<Result<bool>> SetFacilityRateAsync(FacilityCode facilityCode, FeeRateKey key, decimal amount);
 }

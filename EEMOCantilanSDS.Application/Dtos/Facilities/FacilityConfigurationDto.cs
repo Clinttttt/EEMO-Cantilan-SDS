@@ -18,9 +18,13 @@ public record ConfiguredFacilityDto(
     string BillingModel,
     bool IsActive,
     int StallCount,
-    IReadOnlyList<FacilityRateLineDto> Rates);
+    IReadOnlyList<ConfiguredRateDto> Rates);
 
-public record FacilityRateLineDto(string Label, decimal Amount);
+/// <summary>
+/// A configurable fixed rate for a facility: the current effective amount (a customised row, else the
+/// ordinance default), with the key name so the UI can send an edit, and whether it is customised.
+/// </summary>
+public record ConfiguredRateDto(string Key, string Label, decimal Amount, bool IsCustom);
 
 public record AvailableFacilityDto(
     string Code,

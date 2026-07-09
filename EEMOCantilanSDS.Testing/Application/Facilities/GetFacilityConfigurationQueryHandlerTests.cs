@@ -8,7 +8,7 @@ namespace EEMOCantilanSDS.Testing;
 public class GetFacilityConfigurationQueryHandlerTests
 {
     private static ConfiguredFacilityDto Configured(string code) =>
-        new(code, code, code, null, "Custom", true, 0, new List<FacilityRateLineDto>());
+        new(code, code, code, null, "Custom", true, 0, new List<ConfiguredRateDto>());
 
     [Fact]
     public async Task ReturnsConfigured_AndAvailableIsCanonicalMinusConfigured()

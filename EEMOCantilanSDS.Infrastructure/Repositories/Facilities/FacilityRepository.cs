@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -62,19 +63,28 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
             .Select(g => g.OrderByDescending(x => x.EffectiveDate).First())
             .ToList();
 
-        return facilities.Select(f => new ConfiguredFacilityDto(
-            f.Code.ToString(),
-            f.Name,
-            f.ShortName,
-            f.Description,
-            FacilityDisplay.BillingModel(f.Archetype),
-            f.IsActive,
-            f.StallCount,
-            currentRates
-                .Where(r => r.FacilityCode == f.Code)
-                .OrderBy(r => r.RateKey)
-                .Select(r => new FacilityRateLineDto(FacilityDisplay.RateLabel(r.RateKey), r.Amount))
-                .ToList())).ToList();
+        return facilities.Select(f =>
+        {
+            // Every applicable key for this facility, showing its current effective amount — a customised
+            // row if present, otherwise the ordinance default — so the config view is complete, not just
+            // the keys that happen to have a row. Monthly-rental facilities have no fixed keys.
+            var lines = FacilityRateKeys.For(f.Code).Select(key =>
+            {
+                var row = currentRates.FirstOrDefault(r => r.FacilityCode == f.Code && r.RateKey == key);
+                var amount = row?.Amount ?? FeeRateDefaults.For(key);
+                return new ConfiguredRateDto(key.ToString(), FacilityDisplay.RateLabel(key), amount, row is not null);
+            }).ToList();
+
+            return new ConfiguredFacilityDto(
+                f.Code.ToString(),
+                f.Name,
+                f.ShortName,
+                f.Description,
+                FacilityDisplay.BillingModel(f.Archetype),
+                f.IsActive,
+                f.StallCount,
+                lines);
+        }).ToList();
     }
 
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)

@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -40,4 +41,7 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
 
     public async Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command) =>
         await PostAsync<AddFacilityCommand, bool>("api/Facilities", command);
+
+    public async Task<Result<bool>> SetFacilityRateAsync(FacilityCode facilityCode, FeeRateKey key, decimal amount) =>
+        await PutAsync<SetFacilityRateCommand, bool>("api/facility-rates", new SetFacilityRateCommand(facilityCode, key, amount));
 }

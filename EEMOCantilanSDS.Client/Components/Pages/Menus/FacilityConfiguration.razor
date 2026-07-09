@@ -1,14 +1,16 @@
 @page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
+@using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
 
 @*
-    Facility Configuration (Phase A — read-only). The Head's view of their own municipality's facilities:
-    billing model, active status, unit count, and current fixed rates, plus the standard facility types
-    still available to add. No writes here — adding/editing arrives in the next phase. Head (SuperAdmin)
-    only; the API scopes every row to the caller's tenant, so Cantilan and every LGU see only their own.
+    Facility Configuration. The Head's own municipality only (API scopes every row to the caller's tenant).
+    Read: configured facilities with billing model, status, unit count, and current effective rates.
+    Write (safe/additive): add a standard type with a custom name; set the LGU's own fixed ordinance rates
+    (SetFacilityRate — effective today, never retroactive). No changes to the enum-keyed collection/report
+    core, so Cantilan and the Phase-0 goldens are unaffected.
 *@
 
 <PageTitle>@Branding.OfficeAcronym Admin — Facility Configuration</PageTitle>
@@ -50,7 +52,7 @@
             <div>
                 <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Facilities</div>
                 <div class="vs-hero-title">Facility Configuration</div>
-                <div class="vs-hero-sub">Your municipality's facilities · read-only</div>
+                <div class="vs-hero-sub">Your municipality's facilities &amp; ordinance rates</div>
             </div>
         </div>
         <div class="vs-hero-stats">
@@ -92,7 +94,7 @@
                 </div>
                 <div class="set-card-titles">
                     <div class="set-card-title">Configured facilities</div>
-                    <div class="set-card-sub">@(loaded ? $"{configuredCount} facilit{(configuredCount == 1 ? "y" : "ies")} your municipality operates" : "Facilities your municipality operates")</div>
+                    <div class="set-card-sub">@(loaded ? $"{configuredCount} facilit{(configuredCount == 1 ? "y" : "ies")} · select one to configure its rates" : "Select a facility to configure its rates")</div>
                 </div>
             </div>
 
@@ -105,7 +107,6 @@
                             <Skeleton Width="52px" Height="52px" Radius="12px" />
                             <Skeleton Width="70%" Height="14px" Radius="6px" />
                             <Skeleton Width="45%" Height="11px" Radius="6px" />
-                            <Skeleton Width="100%" Height="11px" Radius="6px" />
                             <Skeleton Width="100%" Height="11px" Radius="6px" />
                         </div>
                     }
@@ -120,7 +121,7 @@
                 <div class="fac-grid">
                     @foreach (var f in _model!.Configured)
                     {
-                        <article class="fac-card @(f.IsActive ? "" : "fac-card-inactive")">
+                        <button type="button" class="fac-card fac-card-btn @(f.IsActive ? "" : "fac-card-inactive")" @onclick="() => OpenConfigure(f)">
                             <div class="fac-card-top">
                                 <div class="fac-badge">@f.ShortName</div>
                                 <div class="fac-titles">
@@ -147,7 +148,7 @@
                             <div class="fac-rates">
                                 @if (f.Rates.Count == 0)
                                 {
-                                    <div class="fac-rate-none">Rates entered per transaction</div>
+                                    <div class="fac-rate-none">Rents set per stall</div>
                                 }
                                 else
                                 {
@@ -161,7 +162,8 @@
                                     }
                                 }
                             </div>
-                        </article>
+                            <span class="fac-card-cta">Configure <span aria-hidden="true">→</span></span>
+                        </button>
                     }
                 </div>
             }
@@ -197,10 +199,7 @@
                 <div class="avail-grid">
                     @foreach (var a in _model!.Available)
                     {
-                        <button type="button"
-                                class="avail-tile avail-tile-btn @(_selectedCode == a.Code ? "avail-tile-active" : "")"
-                                @onclick="() => SelectAvailable(a)"
-                                title="@("Add " + a.Name)">
+                        <button type="button" class="avail-tile avail-tile-btn" @onclick="() => OpenAdd(a)" title="@("Add " + a.Name)">
                             <div class="avail-tile-badge">@a.ShortName</div>
                             <div class="avail-tile-body">
                                 <div class="avail-tile-name">@a.Name</div>
@@ -210,67 +209,159 @@
                         </button>
                     }
                 </div>
-
-                @if (_selectedCode is not null)
-                {
-                    <div class="fac-addform">
-                        <div class="fac-addform-head">
-                            <div class="fac-addform-title">Add @_selectedBaseName</div>
-                            <div class="fac-addform-sub">Billing model: <strong>@_selectedModel</strong> · set by the facility type</div>
-                        </div>
-                        <div class="fac-addform-grid">
-                            <label class="fac-field fac-field-full">
-                                <span class="fac-field-label">Facility name</span>
-                                <input class="fac-input" @bind="_addName" @bind:event="oninput" maxlength="120" placeholder="@_selectedBaseName" />
-                            </label>
-                            <label class="fac-field">
-                                <span class="fac-field-label">Short name</span>
-                                <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
-                            </label>
-                            <label class="fac-field fac-field-wide">
-                                <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
-                                <input class="fac-input" @bind="_addDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
-                            </label>
-                        </div>
-                        @if (_addError is not null)
-                        {
-                            <div class="fac-addform-error">@_addError</div>
-                        }
-                        <div class="fac-addform-actions">
-                            <button class="fac-btn fac-btn-ghost" @onclick="CancelAdd" disabled="@_adding">Cancel</button>
-                            <button class="fac-btn fac-btn-primary"
-                                    @onclick="SubmitAdd"
-                                    disabled="@(_adding || string.IsNullOrWhiteSpace(_addName) || string.IsNullOrWhiteSpace(_addShortName))">
-                                @(_adding ? "Adding…" : "Add facility")
-                            </button>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="fac-note">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                        Select a facility type above to add it to your municipality. Fixed fees start at the standard ordinance rates until you customise them; monthly-rental rates are set per stall.
-                    </div>
-                }
             }
         </section>
     }
 </div>
 
+@* ── Configuration drawer (slide-over) ── *@
+@if (_drawer != DrawerMode.None)
+{
+    <div class="cfg-scrim" @onclick="CloseDrawer"></div>
+    <aside class="cfg-drawer" role="dialog" aria-modal="true">
+
+        @if (_drawer == DrawerMode.Add && _addTarget is not null)
+        {
+            <div class="cfg-head">
+                <div class="cfg-head-eyebrow">Add facility</div>
+                <div class="cfg-head-title">@_addTarget.Name</div>
+                <div class="cfg-head-sub">@_addTarget.BillingModel · @_addTarget.Code</div>
+                <button class="cfg-close" @onclick="CloseDrawer" aria-label="Close">✕</button>
+            </div>
+
+            <div class="cfg-body">
+                <div class="cfg-section-label">Identity</div>
+                <label class="fac-field">
+                    <span class="fac-field-label">Facility name</span>
+                    <input class="fac-input" @bind="_addName" @bind:event="oninput" maxlength="120" placeholder="@_addTarget.Name" />
+                </label>
+                <label class="fac-field">
+                    <span class="fac-field-label">Short name</span>
+                    <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
+                </label>
+                <label class="fac-field">
+                    <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
+                    <input class="fac-input" @bind="_addDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
+                </label>
+
+                <div class="cfg-hint">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                    Fixed fees start at the standard ordinance rates and can be adjusted after adding. Monthly-rental rates are set per stall.
+                </div>
+
+                @if (_addError is not null)
+                {
+                    <div class="cfg-error">@_addError</div>
+                }
+            </div>
+
+            <div class="cfg-foot">
+                <button class="fac-btn fac-btn-ghost" @onclick="CloseDrawer" disabled="@_busy">Cancel</button>
+                <button class="fac-btn fac-btn-primary" @onclick="SubmitAdd"
+                        disabled="@(_busy || string.IsNullOrWhiteSpace(_addName) || string.IsNullOrWhiteSpace(_addShortName))">
+                    @(_busy ? "Adding…" : "Add facility")
+                </button>
+            </div>
+        }
+        else if (_drawer == DrawerMode.Configure && _cfgFacility is not null)
+        {
+            <div class="cfg-head">
+                <div class="cfg-head-eyebrow">Configure facility</div>
+                <div class="cfg-head-title">@_cfgFacility.Name</div>
+                <div class="cfg-head-sub">@_cfgFacility.BillingModel · @_cfgFacility.Code</div>
+                <button class="cfg-close" @onclick="CloseDrawer" aria-label="Close">✕</button>
+            </div>
+
+            <div class="cfg-body">
+                <div class="cfg-summary">
+                    <div class="cfg-summary-item"><span>Status</span><strong class="@(_cfgFacility.IsActive ? "cfg-on" : "cfg-off")">@(_cfgFacility.IsActive ? "Active" : "Inactive")</strong></div>
+                    <div class="cfg-summary-item"><span>Billing</span><strong>@_cfgFacility.BillingModel</strong></div>
+                    @if (_cfgFacility.StallCount > 0)
+                    {
+                        <div class="cfg-summary-item"><span>Units</span><strong>@_cfgFacility.StallCount</strong></div>
+                    }
+                </div>
+
+                <div class="cfg-section-label">Fixed ordinance rates</div>
+
+                @if (_cfgFacility.Rates.Count == 0)
+                {
+                    <div class="cfg-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                        This facility has no fixed ordinance rate. Monthly rents are set per stall on the Vendors &amp; Stalls page.
+                    </div>
+                }
+                else
+                {
+                    <div class="cfg-rate-list">
+                        @foreach (var r in _cfgFacility.Rates)
+                        {
+                            <div class="cfg-rate">
+                                <div class="cfg-rate-info">
+                                    <span class="cfg-rate-label">@r.Label</span>
+                                    @if (!r.IsCustom)
+                                    {
+                                        <span class="cfg-rate-tag">default</span>
+                                    }
+                                </div>
+                                <div class="cfg-rate-input">
+                                    <span class="cfg-peso">₱</span>
+                                    <input type="number" step="0.01" min="0" inputmode="decimal"
+                                           value="@FormatRate(_rateEdits.GetValueOrDefault(r.Key, r.Amount))"
+                                           @onchange="e => SetRateEdit(r.Key, e.Value?.ToString())" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="cfg-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></svg>
+                        Rate changes take effect today and are never applied retroactively — already-billed periods keep their original amounts.
+                    </div>
+                }
+
+                @if (_cfgError is not null)
+                {
+                    <div class="cfg-error">@_cfgError</div>
+                }
+                @if (_cfgSuccess is not null)
+                {
+                    <div class="cfg-success">@_cfgSuccess</div>
+                }
+            </div>
+
+            <div class="cfg-foot">
+                <button class="fac-btn fac-btn-ghost" @onclick="CloseDrawer" disabled="@_busy">Close</button>
+                @if (_cfgFacility.Rates.Count > 0)
+                {
+                    <button class="fac-btn fac-btn-primary" @onclick="SaveRates" disabled="@(_busy || !HasRateChanges())">
+                        @(_busy ? "Saving…" : "Save rates")
+                    </button>
+                }
+            </div>
+        }
+    </aside>
+}
+
 @code {
     private FacilityConfigurationDto? _model;
     private string? _error;
 
-    // ── Add-facility form state ──
-    private string? _selectedCode;
-    private string _selectedBaseName = string.Empty;
-    private string _selectedModel = string.Empty;
+    private enum DrawerMode { None, Add, Configure }
+    private DrawerMode _drawer = DrawerMode.None;
+    private bool _busy;
+
+    // Add
+    private AvailableFacilityDto? _addTarget;
     private string _addName = string.Empty;
     private string _addShortName = string.Empty;
     private string _addDescription = string.Empty;
-    private bool _adding;
     private string? _addError;
+
+    // Configure
+    private ConfiguredFacilityDto? _cfgFacility;
+    private readonly Dictionary<string, decimal> _rateEdits = new();
+    private string? _cfgError;
+    private string? _cfgSuccess;
 
     protected override async Task OnInitializedAsync()
     {
@@ -286,58 +377,109 @@
 
         var result = await FacilitiesApi.GetFacilityConfigurationAsync();
         if (result.IsSuccess && result.Value is not null)
-        {
             _model = result.Value;
-        }
         else
-        {
-            _error = string.IsNullOrWhiteSpace(result.Error)
-                ? "The facility configuration could not be retrieved."
-                : result.Error;
-        }
+            _error = string.IsNullOrWhiteSpace(result.Error) ? "The facility configuration could not be retrieved." : result.Error;
     }
 
-    private void SelectAvailable(AvailableFacilityDto a)
+    // ── Drawer control ──
+    private void OpenAdd(AvailableFacilityDto a)
     {
-        _selectedCode = a.Code;
-        _selectedBaseName = a.Name;
-        _selectedModel = a.BillingModel;
+        _addTarget = a;
         _addName = a.Name;
         _addShortName = a.ShortName;
         _addDescription = string.Empty;
         _addError = null;
+        _drawer = DrawerMode.Add;
     }
 
-    private void CancelAdd()
+    private void OpenConfigure(ConfiguredFacilityDto f)
     {
-        _selectedCode = null;
-        _addError = null;
+        _cfgFacility = f;
+        _rateEdits.Clear();
+        foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
+        _cfgError = null;
+        _cfgSuccess = null;
+        _drawer = DrawerMode.Configure;
     }
 
+    private void CloseDrawer()
+    {
+        _drawer = DrawerMode.None;
+        _addTarget = null;
+        _cfgFacility = null;
+    }
+
+    // ── Add ──
     private async Task SubmitAdd()
     {
-        if (_selectedCode is null || _adding) return;
-        _adding = true;
+        if (_addTarget is null || _busy) return;
+        _busy = true;
         _addError = null;
 
         var result = await FacilitiesApi.AddFacilityAsync(new AddFacilityCommand(
-            _selectedCode,
-            _addName.Trim(),
-            _addShortName.Trim(),
+            _addTarget.Code, _addName.Trim(), _addShortName.Trim(),
             string.IsNullOrWhiteSpace(_addDescription) ? null : _addDescription.Trim()));
 
-        _adding = false;
-
+        _busy = false;
         if (result.IsSuccess)
         {
-            _selectedCode = null;
-            await LoadAsync(); // the new facility moves from Available → Configured
+            CloseDrawer();
+            await LoadAsync();
         }
         else
         {
-            _addError = string.IsNullOrWhiteSpace(result.Error)
-                ? "Couldn't add the facility. Please try again."
-                : result.Error;
+            _addError = string.IsNullOrWhiteSpace(result.Error) ? "Couldn't add the facility. Please try again." : result.Error;
+        }
+    }
+
+    // ── Rates ──
+    private static string FormatRate(decimal v) => v.ToString("0.##");
+
+    private void SetRateEdit(string key, string? raw)
+    {
+        if (decimal.TryParse(raw, out var d) && d >= 0m) _rateEdits[key] = decimal.Round(d, 2);
+    }
+
+    private bool HasRateChanges()
+        => _cfgFacility is not null && _cfgFacility.Rates.Any(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount);
+
+    private async Task SaveRates()
+    {
+        if (_cfgFacility is null || _busy) return;
+        _busy = true;
+        _cfgError = null;
+        _cfgSuccess = null;
+
+        var code = Enum.Parse<FacilityCode>(_cfgFacility.Code);
+        var changed = _cfgFacility.Rates.Where(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount).ToList();
+
+        foreach (var r in changed)
+        {
+            var key = Enum.Parse<FeeRateKey>(r.Key);
+            var res = await FacilitiesApi.SetFacilityRateAsync(code, key, _rateEdits[r.Key]);
+            if (!res.IsSuccess)
+            {
+                _cfgError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't save a rate. Please try again." : res.Error;
+                _busy = false;
+                return;
+            }
+        }
+
+        _busy = false;
+        await LoadAsync();
+
+        // Re-bind the drawer to the refreshed facility so the saved amounts + "default→custom" tags update.
+        _cfgFacility = _model?.Configured.FirstOrDefault(x => string.Equals(x.Code, code.ToString(), StringComparison.OrdinalIgnoreCase));
+        if (_cfgFacility is not null)
+        {
+            _rateEdits.Clear();
+            foreach (var r in _cfgFacility.Rates) _rateEdits[r.Key] = r.Amount;
+            _cfgSuccess = changed.Count > 0 ? $"{changed.Count} rate{(changed.Count == 1 ? "" : "s")} updated." : null;
+        }
+        else
+        {
+            CloseDrawer();
         }
     }
 }
