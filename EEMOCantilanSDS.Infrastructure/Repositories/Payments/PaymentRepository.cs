@@ -613,17 +613,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         // IsDeleted filter. Scope to the caller's municipality when it is resolved, so a second LGU may
         // reuse an OR number that only exists in another LGU. Token-less/setup flows have an empty tenant
         // (mid == Guid.Empty) and keep the original global check — for Cantilan (the only tenant with data)
-        // the scoped and global results are identical.
-        var mid = context.CurrentMunicipalityId;
-        if (await context.PaymentRecords.IgnoreQueryFilters().AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == orNumber, ct)) return false;
-        if (await context.DailyCollections.IgnoreQueryFilters().AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == orNumber, ct)) return false;
-        if (await context.SlaughterTransactions.IgnoreQueryFilters().AnyAsync(s => (mid == Guid.Empty || s.MunicipalityId == mid) && s.ORNumber == orNumber, ct)) return false;
-        if (await context.TpmAttendances.IgnoreQueryFilters().AnyAsync(a => (mid == Guid.Empty || a.MunicipalityId == mid) && a.ORNumber == orNumber, ct)) return false;
-        if (await context.TrmTrips.IgnoreQueryFilters().AnyAsync(t => (mid == Guid.Empty || t.MunicipalityId == mid) && t.ORNumber == orNumber, ct)) return false;
-        // Cross-module: an OR encoded on a utility (electricity/water) bill must also be unique against collections.
-        if (await context.UtilityBills.IgnoreQueryFilters().AnyAsync(b => (mid == Guid.Empty || b.MunicipalityId == mid)
-                && ((b.ElecORNumber != null && b.ElecORNumber == orNumber) || (b.WaterORNumber != null && b.WaterORNumber == orNumber)), ct)) return false;
-        return true;
+        // the scoped and global results are identical. Delegated to the shared registry so the module list
+        // (payments, daily, slaughter, TPM, TRM, utilities) can never drift between callers.
+        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
     }
 
     public async Task AddAsync(PaymentRecord payment, CancellationToken ct)

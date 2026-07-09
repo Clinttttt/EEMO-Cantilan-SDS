@@ -298,12 +298,6 @@ public class TrmRepository(AppDbContext context) : ITrmRepository
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
     {
-        if (await context.TrmTrips.AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
-        if (await context.TpmAttendances.AnyAsync(a => a.ORNumber == orNumber, ct)) return false;
-        if (await context.PaymentRecords.AnyAsync(p => p.ORNumber == orNumber, ct)) return false;
-        if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
-        if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
-        if (await context.UtilityBills.AnyAsync(b => b.ElecORNumber == orNumber || b.WaterORNumber == orNumber, ct)) return false;
-        return true;
+        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
     }
 }

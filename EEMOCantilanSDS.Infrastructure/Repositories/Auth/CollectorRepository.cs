@@ -38,6 +38,17 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
+    // The occupant whose contract term COVERED the record's period — active-agnostic, since the lessee at
+    // that time may since have been replaced (a historical record must show who paid then, not today's
+    // occupant). Falls back to the most recent contract, then "—".
+    private static string PeriodOccupant(IEnumerable<Contract> contracts, DateOnly periodStart, DateOnly periodEnd)
+        => contracts.Where(c => c.EffectivityDate <= periodEnd && periodStart <= c.ExpiryDate)
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .Select(c => c.ActualOccupant)
+                    .FirstOrDefault()
+           ?? contracts.OrderByDescending(c => c.EffectivityDate).Select(c => c.ActualOccupant).FirstOrDefault()
+           ?? "—";
+
     public async Task<IReadOnlyList<MobileCollectorRecordDto>> GetCollectorRecordsAsync(
         Guid collectorId, FacilityCode? facility, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
     {
@@ -77,7 +88,9 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 .Select(p => new
                 {
                     p.ORNumber,
-                    Payor = p.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    Contracts = p.Stall!.Contracts.ToList(),
+                    p.BillingYear,
+                    p.BillingMonth,
                     Code = p.Stall.Facility!.Code,
                     p.Stall.StallNo,
                     p.Stall.Section,
@@ -97,8 +110,11 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 var full = r.BaseRentalAmount + (r.ElecAmount ?? 0) + (r.WaterAmount ?? 0)
                            + ((r.FishKilos ?? 0) * npmFish);
                 var partial = r.Status == PaymentStatus.Partial;
+                var payor = PeriodOccupant(r.Contracts,
+                    new DateOnly(r.BillingYear, r.BillingMonth, 1),
+                    new DateOnly(r.BillingYear, r.BillingMonth, DateTime.DaysInMonth(r.BillingYear, r.BillingMonth)));
                 return new MobileCollectorRecordDto(
-                    r.ORNumber ?? "—", r.Payor ?? "—", r.Code, string.Empty, r.StallNo,
+                    r.ORNumber ?? "—", payor, r.Code, string.Empty, r.StallNo,
                     "Stall Rental", full, partial ? r.PartialAmount : full, partial, PhilippineTime.ToPhilippineTime(r.When), r.Section, r.FishKilos,
                     r.IsAdmin);
             }));
@@ -117,7 +133,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 .Select(d => new
                 {
                     d.ORNumber,
-                    Payor = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                    Contracts = d.Stall!.Contracts.ToList(),
                     Code = d.Stall.Facility!.Code,
                     d.StallId,
                     d.CollectionDate,
@@ -140,13 +156,14 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
             {
                 var amount = d.DailyFee + ((d.FishKilos ?? 0) * npmFish);
                 var util = billMap.GetValueOrDefault((d.StallId, d.CollectionDate.Year, d.CollectionDate.Month));
+                var payor = PeriodOccupant(d.Contracts, d.CollectionDate, d.CollectionDate);
                 return d.IsAbsent
                     ? new MobileCollectorRecordDto(
-                        "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
+                        "—", payor, d.Code, string.Empty, d.StallNo,
                         "Absent / Excused", 0m, 0m, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, null,
                         IsAdminRecorded: false, IsAbsent: true, Utility: util)
                     : new MobileCollectorRecordDto(
-                        d.ORNumber ?? "—", d.Payor ?? "—", d.Code, string.Empty, d.StallNo,
+                        d.ORNumber ?? "—", payor, d.Code, string.Empty, d.StallNo,
                         "Daily Fee", amount, amount, false, PhilippineTime.ToPhilippineTime(d.When), d.Section, d.FishKilos,
                         d.IsAdmin, IsAbsent: false, Utility: util);
             }));

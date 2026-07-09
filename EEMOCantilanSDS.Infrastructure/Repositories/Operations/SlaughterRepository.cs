@@ -285,40 +285,13 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
 
     public async Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct = default)
     {
-        var existsInSlaughter = await context.SlaughterTransactions.AnyAsync(x => x.ORNumber == orNumber, ct);
-        if (existsInSlaughter) return false;
-
-        var existsInPayments = await context.PaymentRecords.AnyAsync(x => x.ORNumber == orNumber, ct);
-        if (existsInPayments) return false;
-
-        var existsInDaily = await context.DailyCollections.AnyAsync(x => x.ORNumber == orNumber, ct);
-        if (existsInDaily) return false;
-
-        var existsInTpm = await context.TpmAttendances.AnyAsync(x => x.ORNumber == orNumber, ct);
-        if (existsInTpm) return false;
-
-        var existsInTrm = await context.TrmTrips.AnyAsync(x => x.ORNumber == orNumber, ct);
-        if (existsInTrm) return false;
-
-        var existsInUtility = await context.UtilityBills.AnyAsync(b => b.ElecORNumber == orNumber || b.WaterORNumber == orNumber, ct);
-        return !existsInUtility;
+        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct);
     }
 
     public async Task<bool> IsORNumberAvailableForReceiptAsync(string orNumber, string ownerName, DateOnly transactionDate, CancellationToken ct = default)
     {
-        // OR numbers are global across modules — an OR used elsewhere can never be reused at SLH.
-        if (await context.PaymentRecords.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
-        if (await context.DailyCollections.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
-        if (await context.TpmAttendances.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
-        if (await context.TrmTrips.AnyAsync(x => x.ORNumber == orNumber, ct)) return false;
-        if (await context.UtilityBills.AnyAsync(b => b.ElecORNumber == orNumber || b.WaterORNumber == orNumber, ct)) return false;
-
-        // Within SLH the same OR may repeat only inside one receipt (same owner + same date).
-        // Reject if it already belongs to a different owner or a different transaction date.
-        var usedByDifferentReceipt = await context.SlaughterTransactions
-            .AnyAsync(x => x.ORNumber == orNumber
-                        && (x.OwnerName != ownerName || x.TransactionDate != transactionDate), ct);
-        return !usedByDifferentReceipt;
+        // Unique across all modules, except the same OR may recur within one SLH receipt (same owner + date).
+        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct, allowSlaughterReceipt: (ownerName, transactionDate));
     }
 
     public async Task<IReadOnlyList<SlaughterTransaction>> GetTransactionsByOwnerDateORAsync(string ownerName, DateOnly date, string orNumber, CancellationToken ct = default)

@@ -324,4 +324,35 @@ public class CollectorRecordsTests : RepositoryTestBase
         Assert.Equal(60m, report.Totals.CollectedAmount);
     }
 
+    [Fact]
+    public async Task MonthlyRecord_ShowsOccupantOfTheRecordsPeriod_NotCurrentLessee()
+    {
+        // #9: a back-dated payment recorded today must show WHO occupied the stall in that billing period,
+        // not the current lessee after the stall changed hands.
+        await using var ctx = NewContext();
+        var me = Guid.NewGuid();
+
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "B-2", 2400m, ApplicableFees.BaseRental);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(stall, facility);
+        var oldContract = Contract.Create(stall.Id, "Maria (2024)", null, new DateOnly(2024, 1, 1), 1, 2400m); // expires 2025-01-01
+        var newContract = Contract.Create(stall.Id, "Juan (current)", null, new DateOnly(2025, 6, 1), 3, 2400m);
+
+        var oldPeriod = PaymentRecord.Create(stall.Id, 2024, 6, 2400m);
+        oldPeriod.UpdateStatus(PaymentStatus.Paid, 0m, "OR-OLD", "tester", me);
+        var newPeriod = PaymentRecord.Create(stall.Id, 2025, 7, 2400m);
+        newPeriod.UpdateStatus(PaymentStatus.Paid, 0m, "OR-NEW", "tester", me);
+
+        ctx.AddRange(facility, stall, oldContract, newContract, oldPeriod, newPeriod);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        // Both were recorded "today", so both appear; each must show the occupant of ITS billing period.
+        var records = await repo.GetCollectorRecordsAsync(me, FacilityCode.TCC, Today.AddDays(-1), Today.AddDays(1), CancellationToken.None);
+
+        Assert.Equal(2, records.Count);
+        Assert.Contains(records, r => r.PayorName == "Maria (2024)");
+        Assert.Contains(records, r => r.PayorName == "Juan (current)");
+    }
+
 }
