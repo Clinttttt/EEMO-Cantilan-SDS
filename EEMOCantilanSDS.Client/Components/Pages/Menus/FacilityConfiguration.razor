@@ -1,5 +1,6 @@
 @page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
 
@@ -196,19 +197,62 @@
                 <div class="avail-grid">
                     @foreach (var a in _model!.Available)
                     {
-                        <div class="avail-tile" title="@a.Name">
+                        <button type="button"
+                                class="avail-tile avail-tile-btn @(_selectedCode == a.Code ? "avail-tile-active" : "")"
+                                @onclick="() => SelectAvailable(a)"
+                                title="@("Add " + a.Name)">
                             <div class="avail-tile-badge">@a.ShortName</div>
                             <div class="avail-tile-body">
                                 <div class="avail-tile-name">@a.Name</div>
                                 <div class="avail-tile-model">@a.BillingModel</div>
                             </div>
-                        </div>
+                            <span class="avail-tile-add">+ Add</span>
+                        </button>
                     }
                 </div>
-                <div class="fac-note">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                    Adding and editing facilities from the portal is coming in the next release. Today, facilities are configured during onboarding.
-                </div>
+
+                @if (_selectedCode is not null)
+                {
+                    <div class="fac-addform">
+                        <div class="fac-addform-head">
+                            <div class="fac-addform-title">Add @_selectedBaseName</div>
+                            <div class="fac-addform-sub">Billing model: <strong>@_selectedModel</strong> · set by the facility type</div>
+                        </div>
+                        <div class="fac-addform-grid">
+                            <label class="fac-field fac-field-full">
+                                <span class="fac-field-label">Facility name</span>
+                                <input class="fac-input" @bind="_addName" @bind:event="oninput" maxlength="120" placeholder="@_selectedBaseName" />
+                            </label>
+                            <label class="fac-field">
+                                <span class="fac-field-label">Short name</span>
+                                <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
+                            </label>
+                            <label class="fac-field fac-field-wide">
+                                <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
+                                <input class="fac-input" @bind="_addDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
+                            </label>
+                        </div>
+                        @if (_addError is not null)
+                        {
+                            <div class="fac-addform-error">@_addError</div>
+                        }
+                        <div class="fac-addform-actions">
+                            <button class="fac-btn fac-btn-ghost" @onclick="CancelAdd" disabled="@_adding">Cancel</button>
+                            <button class="fac-btn fac-btn-primary"
+                                    @onclick="SubmitAdd"
+                                    disabled="@(_adding || string.IsNullOrWhiteSpace(_addName) || string.IsNullOrWhiteSpace(_addShortName))">
+                                @(_adding ? "Adding…" : "Add facility")
+                            </button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="fac-note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                        Select a facility type above to add it to your municipality. Fixed fees start at the standard ordinance rates until you customise them; monthly-rental rates are set per stall.
+                    </div>
+                }
             }
         </section>
     }
@@ -217,6 +261,16 @@
 @code {
     private FacilityConfigurationDto? _model;
     private string? _error;
+
+    // ── Add-facility form state ──
+    private string? _selectedCode;
+    private string _selectedBaseName = string.Empty;
+    private string _selectedModel = string.Empty;
+    private string _addName = string.Empty;
+    private string _addShortName = string.Empty;
+    private string _addDescription = string.Empty;
+    private bool _adding;
+    private string? _addError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,6 +293,50 @@
         {
             _error = string.IsNullOrWhiteSpace(result.Error)
                 ? "The facility configuration could not be retrieved."
+                : result.Error;
+        }
+    }
+
+    private void SelectAvailable(AvailableFacilityDto a)
+    {
+        _selectedCode = a.Code;
+        _selectedBaseName = a.Name;
+        _selectedModel = a.BillingModel;
+        _addName = a.Name;
+        _addShortName = a.ShortName;
+        _addDescription = string.Empty;
+        _addError = null;
+    }
+
+    private void CancelAdd()
+    {
+        _selectedCode = null;
+        _addError = null;
+    }
+
+    private async Task SubmitAdd()
+    {
+        if (_selectedCode is null || _adding) return;
+        _adding = true;
+        _addError = null;
+
+        var result = await FacilitiesApi.AddFacilityAsync(new AddFacilityCommand(
+            _selectedCode,
+            _addName.Trim(),
+            _addShortName.Trim(),
+            string.IsNullOrWhiteSpace(_addDescription) ? null : _addDescription.Trim()));
+
+        _adding = false;
+
+        if (result.IsSuccess)
+        {
+            _selectedCode = null;
+            await LoadAsync(); // the new facility moves from Available → Configured
+        }
+        else
+        {
+            _addError = string.IsNullOrWhiteSpace(result.Error)
+                ? "Couldn't add the facility. Please try again."
                 : result.Error;
         }
     }

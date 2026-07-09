@@ -1,4 +1,5 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+﻿using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -36,4 +37,7 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
 
     public async Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync() =>
         await GetAsync<FacilityConfigurationDto>("api/Facilities/configuration");
+
+    public async Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command) =>
+        await PostAsync<AddFacilityCommand, bool>("api/Facilities", command);
 }

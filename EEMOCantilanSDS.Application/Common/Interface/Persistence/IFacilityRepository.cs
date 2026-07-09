@@ -15,6 +15,9 @@ public interface IFacilityRepository
     /// </summary>
     Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct);
 
+    /// <summary>Adds a new facility row (tenant is stamped on save). Caller guards code-uniqueness first.</summary>
+    Task AddFacilityAsync(Facility facility, CancellationToken ct);
+
     Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct);
 }

@@ -23,6 +23,11 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
             .AsNoTracking()
             .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
     }
+    public async Task AddFacilityAsync(Facility facility, CancellationToken ct)
+    {
+        await context.Facilities.AddAsync(facility, ct);
+    }
+
     public async Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct)
     {
         var today = PhilippineTime.Today;

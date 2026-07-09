@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -22,4 +23,6 @@ public interface IFacilitiesApiClient
     Task<Result<MonthEndReportDto>> GetMonthEndReportAsync(int year, int month);
 
     Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync();
+
+    Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command);
 }

@@ -116,6 +116,8 @@ public class GetSystemSettingsQueryHandlerTests
         public Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<ConfiguredFacilityDto>>(new List<ConfiguredFacilityDto>());
 
+        public Task AddFacilityAsync(Facility facility, CancellationToken ct) => Task.CompletedTask;
+
         public Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct) =>
             throw new NotImplementedException();
 

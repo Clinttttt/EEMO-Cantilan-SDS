@@ -57,10 +57,27 @@ not inventing arbitrary new types.
   page (read-only) with an entry point under **Settings**. Pure visibility; nothing changes.
 - Lowest risk; demonstrates the capability and frames the write phases.
 
-### Phase B — Add a facility
-- `AddFacilityCommand` (Head/SuperAdmin only): creates the `Facility` (with `BillingArchetype`),
-  its `FacilityRate` rows, and — for SLH — animal types/sections, stamped to the caller's own
-  `MunicipalityId`. Rejects a duplicate code. Reuses the onboarding config concepts, scoped live.
+### Phase B — Add a facility (IMPLEMENTED)
+- `AddFacilityCommand` + validator + handler (Head/SuperAdmin only): adds one of the standard types to
+  the caller's own tenant with a **Head-chosen name/short-name** (e.g. "Madrid Night Market" backed by
+  an available slot). Billing archetype is derived from the canonical code so the collection/report
+  machinery stays correct; duplicate code per tenant is rejected (409); `MunicipalityId` is stamped on
+  save. No rate seeding needed — `FeeRateSnapshot.Resolve` already falls back **per key** to the
+  ordinance defaults, and monthly-rental rates live per stall.
+- `POST /api/facilities` [Authorize SuperAdmin]; typed client method.
+- Portal: the "available to add" tiles are now clickable → an inline add form (name/short-name/optional
+  description, billing model shown read-only) → on success the facility moves to Configured. Regression
+  tests: add success, duplicate rejected, unknown code rejected. Additive only — Cantilan/goldens intact.
+
+### Custom facility types — assessment (deferred, NOT bundled)
+Truly arbitrary custom types (beyond the 8 canonical `FacilityCode` values) are **not** safe to add in a
+single change: `FacilityCode` is referenced ~738× across ~122 files (reports, collections, mobile,
+dashboard, routing controllers keyed by `{facilityCode}`, cache keys, payor formatting). Introducing a
+non-enum facility would touch that entire surface and risk the Phase-0 financial goldens. So Phase B
+delivers flexibility via **custom naming on the standard types** instead. A future dedicated phase can
+introduce a generic "Custom" facility backed by `BillingArchetype` + a generic monthly-rental/per-
+transaction flow, built incrementally with the goldens guarding the canonical facilities — on its own,
+never rushed onto the live system.
 
 ### Phase C — Update / retire
 - Rename / short-name / description edits.
