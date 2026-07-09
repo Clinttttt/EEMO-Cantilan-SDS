@@ -68,4 +68,50 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
             Assert.False(await new PaymentRepository(ctxA).IsORNumberUniqueAsync("OR-A", CancellationToken.None));
         }
     }
+
+    // #4 regression — cross-module OR uniqueness now spans utility bills too, both directions.
+    [Fact]
+    public async Task IsORNumberUnique_FalseWhenUsedOnUtilityBill()
+    {
+        await using var ctx = NewContext();
+
+        var bill = EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill.Create(
+            Guid.NewGuid(), 2026, 7, 0, 10, 10m, 0, 5, 20m, "admin");
+        bill.RecordPayment("OR-UTIL", null, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Paid, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Unpaid, null, updatedBy: "admin");
+        ctx.Add(bill);
+        await ctx.SaveChangesAsync();
+
+        // A collection OR must be rejected when it already exists on a utility bill.
+        Assert.False(await new PaymentRepository(ctx).IsORNumberUniqueAsync("OR-UTIL", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UtilityBill_IsORNumberUnique_FalseWhenUsedByCollection_ButAllowsRemarkingSameBill()
+    {
+        await using var ctx = NewContext();
+
+        // An OR used on a slaughter receipt...
+        ctx.Add(SlaughterTransaction.CreateHog(
+            Guid.NewGuid(), Guid.NewGuid(), "owner", heads: 1, orNumber: "OR-COLL", transactionDate: new DateOnly(2026, 1, 1)));
+
+        // ...and a utility bill that already carries its own OR.
+        var bill = EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill.Create(
+            Guid.NewGuid(), 2026, 7, 0, 10, 10m, 0, 5, 20m, "admin");
+        bill.RecordPayment("OR-SELF", null, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Paid, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Unpaid, null, updatedBy: "admin");
+        ctx.Add(bill);
+        await ctx.SaveChangesAsync();
+
+        var repo = new EEMOCantilanSDS.Infrastructure.Repositories.Payments.UtilityBillRepository(ctx);
+
+        // A utility OR is rejected when it collides with a collection OR (cross-module).
+        Assert.False(await repo.IsORNumberUniqueAsync("OR-COLL", null, CancellationToken.None));
+        // But re-marking THIS bill with its own OR is still allowed (excluded by id).
+        Assert.True(await repo.IsORNumberUniqueAsync("OR-SELF", bill.Id, CancellationToken.None));
+        // A fresh OR is available.
+        Assert.True(await repo.IsORNumberUniqueAsync("OR-FRESH", null, CancellationToken.None));
+    }
 }

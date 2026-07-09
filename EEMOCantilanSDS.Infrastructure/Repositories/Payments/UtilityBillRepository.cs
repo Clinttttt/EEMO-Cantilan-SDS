@@ -42,9 +42,19 @@ public class UtilityBillRepository(AppDbContext context) : IUtilityBillRepositor
     {
         var trimmed = (orNumber ?? string.Empty).Trim();
         if (trimmed.Length == 0) return true;
-        return !await context.UtilityBills.AsNoTracking()
-            .AnyAsync(b => (excludeBillId == null || b.Id != excludeBillId)
-                        && ((b.ElecORNumber != null && b.ElecORNumber == trimmed)
-                         || (b.WaterORNumber != null && b.WaterORNumber == trimmed)), ct);
+
+        // OR (receipt) numbers must stay unique across EVERY module in this LGU (bypass the soft-delete filter
+        // so a deleted row's OR can't be reused, and scope to the current municipality). This utility bill is
+        // excluded so re-marking it (or one OR covering both its utilities) is allowed.
+        var mid = context.CurrentMunicipalityId;
+        if (await context.UtilityBills.IgnoreQueryFilters().AnyAsync(b => (mid == Guid.Empty || b.MunicipalityId == mid)
+                && (excludeBillId == null || b.Id != excludeBillId)
+                && ((b.ElecORNumber != null && b.ElecORNumber == trimmed) || (b.WaterORNumber != null && b.WaterORNumber == trimmed)), ct)) return false;
+        if (await context.PaymentRecords.IgnoreQueryFilters().AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == trimmed, ct)) return false;
+        if (await context.DailyCollections.IgnoreQueryFilters().AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == trimmed, ct)) return false;
+        if (await context.SlaughterTransactions.IgnoreQueryFilters().AnyAsync(s => (mid == Guid.Empty || s.MunicipalityId == mid) && s.ORNumber == trimmed, ct)) return false;
+        if (await context.TpmAttendances.IgnoreQueryFilters().AnyAsync(a => (mid == Guid.Empty || a.MunicipalityId == mid) && a.ORNumber == trimmed, ct)) return false;
+        if (await context.TrmTrips.IgnoreQueryFilters().AnyAsync(t => (mid == Guid.Empty || t.MunicipalityId == mid) && t.ORNumber == trimmed, ct)) return false;
+        return true;
     }
 }

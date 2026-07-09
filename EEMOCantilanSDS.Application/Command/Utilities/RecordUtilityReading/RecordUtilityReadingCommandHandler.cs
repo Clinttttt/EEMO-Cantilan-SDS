@@ -42,6 +42,15 @@ public class RecordUtilityReadingCommandHandler(
         }
         else
         {
+            // Once a utility's payment is recorded, its readings/rate determined the receipted charge and are
+            // locked — silently editing them would change a paid/receipted amount. Reject the edit (reverse the
+            // payment first); the still-unpaid utility on the same bill stays editable.
+            if (bill.WouldChangeSettledReadings(
+                    request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
+                    request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter))
+                return Result<UtilityBillDto>.Failure(
+                    "Readings can't be changed after a payment has been recorded for this bill. Reverse the payment first.", 409);
+
             bill.UpdateReadings(
                 request.ElecPreviousReading, request.ElecCurrentReading, request.ElecRatePerKwh,
                 request.WaterPreviousReading, request.WaterCurrentReading, request.WaterRatePerCubicMeter,

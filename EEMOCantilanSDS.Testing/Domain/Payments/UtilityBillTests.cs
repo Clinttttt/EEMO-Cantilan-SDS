@@ -83,4 +83,26 @@ public class UtilityBillTests
         Assert.Null(b.CollectorId);
         Assert.Null(b.PaidAt);
     }
+
+    [Fact]
+    public void WouldChangeSettledReadings_BlocksEditingAPaidUtility()
+    {
+        // Electricity paid, water still unpaid.
+        var b = Bill(0, 10, 10m, 0, 5, 20m);
+        b.RecordPayment("OR-5", null, null, PaymentStatus.Paid, null, PaymentStatus.Unpaid, null, updatedBy: "admin");
+
+        // Changing the PAID electricity reading is blocked (would alter the receipted charge)...
+        Assert.True(b.WouldChangeSettledReadings(0, 12, 10m, 0, 5, 20m));
+        // ...but the still-unpaid water reading stays editable...
+        Assert.False(b.WouldChangeSettledReadings(0, 10, 10m, 0, 9, 20m));
+        // ...and re-submitting identical values is not a change.
+        Assert.False(b.WouldChangeSettledReadings(0, 10, 10m, 0, 5, 20m));
+    }
+
+    [Fact]
+    public void WouldChangeSettledReadings_AllowsEditsWhenNothingPaid()
+    {
+        var b = Bill(0, 10, 10m, 0, 5, 20m); // no payment recorded
+        Assert.False(b.WouldChangeSettledReadings(0, 99, 15m, 0, 42, 25m));
+    }
 }

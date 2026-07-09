@@ -108,6 +108,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             };
         }
 
+        /// <summary>
+        /// A utility whose payment is already recorded has its readings/rate LOCKED — they determined the
+        /// receipted charge, so changing them would silently alter a paid/receipted amount. Returns true when
+        /// the proposed values would change a settled utility's readings (checked per-utility, so the still-
+        /// unpaid side stays editable), letting the caller reject the edit instead of corrupting history.
+        /// </summary>
+        public bool WouldChangeSettledReadings(
+            decimal elecPreviousReading, decimal elecCurrentReading, decimal elecRatePerKwh,
+            decimal waterPreviousReading, decimal waterCurrentReading, decimal waterRatePerCubicMeter)
+        {
+            var elecChanged = elecPreviousReading != ElecPreviousReading
+                || elecCurrentReading != ElecCurrentReading
+                || elecRatePerKwh != ElecRatePerKwh;
+            var waterChanged = waterPreviousReading != WaterPreviousReading
+                || waterCurrentReading != WaterCurrentReading
+                || waterRatePerCubicMeter != WaterRatePerCubicMeter;
+
+            return (elecChanged && ElecStatus != PaymentStatus.Unpaid)
+                || (waterChanged && WaterStatus != PaymentStatus.Unpaid);
+        }
+
         /// <summary>Admin edits the readings/rates (charges recompute automatically; payment untouched).</summary>
         public void UpdateReadings(
             decimal elecPreviousReading,
