@@ -50,7 +50,10 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
-        return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, settlement, uow.Object), uow, gateway, notifier);
+        var municipalityRepo = new Mock<IMunicipalityRepository>();
+        var tenantScope = new EEMOCantilanSDS.Infrastructure.Tenancy.RequestTenantScope();
+
+        return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, settlement, uow.Object, municipalityRepo.Object, tenantScope), uow, gateway, notifier);
     }
 
     [Fact]

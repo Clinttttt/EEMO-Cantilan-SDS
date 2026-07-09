@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
@@ -10,7 +11,9 @@ public class HandlePaymentWebhookCommandHandler(
     IPaymentGateway paymentGateway,
     IOnlinePaymentRepository onlinePaymentRepository,
     IOnlinePaymentSettlementService settlementService,
-    IUnitOfWork unitOfWork) : IRequestHandler<HandlePaymentWebhookCommand, Result<bool>>
+    IUnitOfWork unitOfWork,
+    IMunicipalityRepository municipalityRepository,
+    IRequestTenantScope tenantScope) : IRequestHandler<HandlePaymentWebhookCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(HandlePaymentWebhookCommand request, CancellationToken cancellationToken)
     {
@@ -32,6 +35,14 @@ public class HandlePaymentWebhookCommandHandler(
         var transaction = await onlinePaymentRepository.GetByGatewayReferenceAsync(evt.GatewayReference, cancellationToken);
         if (transaction is null)
             return Result<bool>.Success(true); // not one of ours — ack and ignore
+
+        // The webhook is anonymous, so this request would otherwise resolve to the DEFAULT tenant (Cantilan).
+        // Pin it to the transaction's own LGU so the settlement's payment-record lookup, write-stamping, and
+        // cache invalidation all run under the correct municipality (multi-LGU correctness). No-op for the
+        // default tenant, so Cantilan is unchanged.
+        var municipality = await municipalityRepository.GetByIdAsync(transaction.MunicipalityId, cancellationToken);
+        if (municipality is not null)
+            tenantScope.Use(municipality.Id, municipality.TenantCode);
 
         switch (evt.Type)
         {

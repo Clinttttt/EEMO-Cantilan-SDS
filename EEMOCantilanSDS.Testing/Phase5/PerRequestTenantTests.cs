@@ -119,7 +119,7 @@ public class PerRequestTenantTests
         var store = new DefaultMunicipalityStore();
         store.Set(Guid.NewGuid()); // some other default
 
-        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(userMunicipality), store);
+        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(userMunicipality), store, new RequestTenantScope());
 
         Assert.Equal(userMunicipality, accessor.MunicipalityId);
     }
@@ -131,7 +131,7 @@ public class PerRequestTenantTests
         var store = new DefaultMunicipalityStore();
         store.Set(cantilan); // populated once at startup
 
-        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(null), store);
+        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(null), store, new RequestTenantScope());
 
         Assert.Equal(cantilan, accessor.MunicipalityId);
     }
@@ -140,7 +140,7 @@ public class PerRequestTenantTests
     public void Accessor_SetDelegatesToStore()
     {
         var store = new DefaultMunicipalityStore();
-        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(null), store);
+        var accessor = new CurrentMunicipalityAccessor(new StubCurrentUser(null), store, new RequestTenantScope());
 
         var cantilan = Guid.NewGuid();
         accessor.Set(cantilan); // startup Set path

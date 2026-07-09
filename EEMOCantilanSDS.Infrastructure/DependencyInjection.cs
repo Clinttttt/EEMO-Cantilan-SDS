@@ -44,6 +44,9 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddSingleton<IEemoCacheInvalidator>(sp => sp.GetRequiredService<MemoryEemoCacheInvalidator>());
             service.AddSingleton<IEemoAppCache, MemoryEemoAppCache>();
             service.AddScoped<ITenantContext, ClaimTenantContext>();
+            // Optional per-request tenant override (anonymous webhook settles under the transaction's LGU).
+            // Empty by default, so ordinary requests resolve their tenant exactly as before.
+            service.AddScoped<IRequestTenantScope, RequestTenantScope>();
             // Per-request tenant resolution (Phase 5): the default municipality (Cantilan) lives in a
             // process-wide singleton, populated once at startup; the accessor resolves per-request off the
             // authenticated user, falling back to that default. The stamp interceptor stays a singleton —

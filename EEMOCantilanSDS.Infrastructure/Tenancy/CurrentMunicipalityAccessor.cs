@@ -14,10 +14,10 @@ namespace EEMOCantilanSDS.Infrastructure.Tenancy
     /// This preserves Cantilan's single-tenant behaviour byte-for-byte: token-less flows and requests whose
     /// user carries no municipality id fall straight through to the default.
     /// </summary>
-    public sealed class CurrentMunicipalityAccessor(ICurrentUserService currentUser, DefaultMunicipalityStore store)
+    public sealed class CurrentMunicipalityAccessor(ICurrentUserService currentUser, DefaultMunicipalityStore store, IRequestTenantScope scope)
         : ICurrentMunicipalityAccessor
     {
-        public Guid MunicipalityId => currentUser.MunicipalityId ?? store.Default;
+        public Guid MunicipalityId => scope.MunicipalityId ?? currentUser.MunicipalityId ?? store.Default;
 
         /// <summary>
         /// Sets the default municipality id (ignored when empty). Delegates to the singleton store so the

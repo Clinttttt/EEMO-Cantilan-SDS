@@ -16,7 +16,12 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
 
     public async Task<OnlinePaymentTransaction?> GetByGatewayReferenceAsync(string gatewayReference, CancellationToken ct = default)
     {
+        // The webhook is anonymous, so the request resolves to the DEFAULT tenant; the gateway reference is
+        // globally unique, so bypass the tenant filter here to find a transaction belonging to ANY LGU. The
+        // webhook handler then pins the request to that transaction's municipality before settling.
         return await context.OnlinePaymentTransactions
+            .IgnoreQueryFilters()
+            .Where(t => !t.IsDeleted)
             .FirstOrDefaultAsync(t => t.GatewayReference == gatewayReference, ct);
     }
 

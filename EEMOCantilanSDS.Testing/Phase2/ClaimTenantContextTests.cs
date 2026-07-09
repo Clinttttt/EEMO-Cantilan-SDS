@@ -16,7 +16,7 @@ public class ClaimTenantContextTests
     {
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(u => u.MunicipalityCode).Returns(code);
-        return new ClaimTenantContext(user.Object);
+        return new ClaimTenantContext(user.Object, new RequestTenantScope());
     }
 
     [Fact]

@@ -15,12 +15,14 @@ namespace EEMOCantilanSDS.Infrastructure.Tenancy;
 /// the previous <see cref="StaticTenantContext"/> (always the default tenant), so caches and reports
 /// are unchanged.
 /// </summary>
-public sealed class ClaimTenantContext(ICurrentUserService currentUser) : ITenantContext
+public sealed class ClaimTenantContext(ICurrentUserService currentUser, IRequestTenantScope scope) : ITenantContext
 {
     public string TenantCode
     {
         get
         {
+            if (!string.IsNullOrWhiteSpace(scope.TenantCode))
+                return scope.TenantCode!;
             var code = currentUser.MunicipalityCode;
             return string.IsNullOrWhiteSpace(code) ? TenantConstants.DefaultTenantCode : code.Trim();
         }
