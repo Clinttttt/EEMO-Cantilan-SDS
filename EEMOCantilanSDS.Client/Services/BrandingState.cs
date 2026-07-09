@@ -25,7 +25,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
 
     // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
     // unchanged and other LGUs only briefly show the default before their branding resolves.
-    private bool IsDefaultTenant =>
+    public bool IsDefaultTenant =>
         _branding is null || string.Equals(_branding.Code, "CANTILAN", System.StringComparison.OrdinalIgnoreCase);
 
     public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);

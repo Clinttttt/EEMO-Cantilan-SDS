@@ -18,6 +18,7 @@ public record DashboardOverviewDto(
 public record DashboardFacilityDto(
     FacilityCode Code,
     string Name,
+    string ShortName,
     decimal Collected,
     int UnpaidCount,
     int PaidCount,

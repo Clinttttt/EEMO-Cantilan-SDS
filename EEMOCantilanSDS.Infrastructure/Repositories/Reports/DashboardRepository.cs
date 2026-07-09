@@ -25,7 +25,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
         var facilities = await context.Facilities
             .AsNoTracking()
             .OrderBy(f => f.Code)
-            .Select(f => new { f.Id, f.Code, f.Name })
+            .Select(f => new { f.Id, f.Code, f.Name, f.ShortName })
             .ToListAsync(ct);
 
         // ── Context-aware revenue for non-stall facilities (their data lives in their own tables) ──
@@ -65,7 +65,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 var owners = slaughter.Select(x => x.OwnerName).Distinct().Count();
                 paidTransactions += slaughter.Count;
                 facilityCards.Add(new DashboardFacilityDto(
-                    f.Code, f.Name, collectedSlh,
+                    f.Code, f.Name, f.ShortName, collectedSlh,
                     UnpaidCount: 0, PaidCount: slaughter.Count, PartialCount: 0,
                     TotalVendors: owners, CollectionRate: slaughter.Count > 0 ? 100 : 0));
                 continue;
@@ -77,7 +77,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 var transporters = trips.Where(x => x.TransporterId.HasValue).Select(x => x.TransporterId).Distinct().Count();
                 paidTransactions += trips.Count;
                 facilityCards.Add(new DashboardFacilityDto(
-                    f.Code, f.Name, collectedTrm,
+                    f.Code, f.Name, f.ShortName, collectedTrm,
                     UnpaidCount: 0, PaidCount: trips.Count, PartialCount: 0,
                     TotalVendors: transporters, CollectionRate: trips.Count > 0 ? 100 : 0));
                 continue;
@@ -92,7 +92,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 var vendorsTpm = tpm.Where(x => x.IsPaid).Select(x => x.VendorId).Distinct().Count();
                 paidTransactions += paidTpm;
                 facilityCards.Add(new DashboardFacilityDto(
-                    f.Code, f.Name, collectedTpm,
+                    f.Code, f.Name, f.ShortName, collectedTpm,
                     UnpaidCount: 0, PaidCount: paidTpm, PartialCount: 0,
                     TotalVendors: vendorsTpm,
                     CollectionRate: paidTpm > 0 ? 100 : 0));
@@ -105,7 +105,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             totalPending += snap.Pending;
             paidTransactions += snap.PaidTransactions;
             facilityCards.Add(new DashboardFacilityDto(
-                f.Code, f.Name, snap.Collected,
+                f.Code, f.Name, f.ShortName, snap.Collected,
                 UnpaidCount: snap.UnpaidCount,
                 PaidCount: snap.PaidCount,
                 PartialCount: snap.PartialCount,

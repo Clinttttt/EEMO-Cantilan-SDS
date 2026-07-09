@@ -6,6 +6,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject ISettingsApiClient SettingsApi
 @inject AuthService AuthService
+@inject AuthenticationStateProvider AuthState
 
 @*
     Settings — read-only system configuration overview.
@@ -193,28 +194,30 @@
                     }
                 </div>
             </section>
- <!-- ── Database health (live PostgreSQL metrics) ── -->
-            <DatabaseHealthPanel />
-        
+ <!-- ── Database health (live PostgreSQL metrics) — platform operator (default LGU) only ── -->
+            @if (_isPlatformOperator)
+            {
+                <DatabaseHealthPanel />
 
-            <!-- ── Backups & Restore ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Backups &amp; Restore</div>
-                        <div class="set-card-sub">Database backups and recovery</div>
+                <!-- ── Backups & Restore — platform-wide (spans every LGU); operator only ── -->
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Backups &amp; Restore</div>
+                            <div class="set-card-sub">Database backups and recovery</div>
+                        </div>
                     </div>
-                </div>
-                <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Automated</span><span class="set-val">Daily · 01:00 PH time</span></div>
-                    <div class="set-row"><span class="set-key">Point-in-time recovery</span><span class="set-val">7-day Azure PITR</span></div>
-                    <div class="set-row"><span class="set-key">On-demand</span><span class="set-val">Run &amp; download backups</span></div>
-                </div>
-                <div class="set-links">
-                    <a class="set-link" href="/settings/backups">Open backups<span class="set-link-arrow">→</span></a>
-                </div>
-            </section>
+                    <div class="set-rows">
+                        <div class="set-row"><span class="set-key">Automated</span><span class="set-val">Daily · 01:00 PH time</span></div>
+                        <div class="set-row"><span class="set-key">Point-in-time recovery</span><span class="set-val">7-day Azure PITR</span></div>
+                        <div class="set-row"><span class="set-key">On-demand</span><span class="set-val">Run &amp; download backups</span></div>
+                    </div>
+                    <div class="set-links">
+                        <a class="set-link" href="/settings/backups">Open backups<span class="set-link-arrow">→</span></a>
+                    </div>
+                </section>
+            }
     <!-- ── System Information ── -->
             <section class="set-card">
                 <div class="set-card-head">
@@ -327,6 +330,7 @@
     private string? _error;
     private bool _confirmLogout;
     private bool _loggingOut;
+    private bool _isPlatformOperator;
 
     private async Task SignOutAsync()
     {
@@ -341,6 +345,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Platform operator = SuperAdmin of the DEFAULT (Cantilan) LGU. Database-health + backups are
+        // whole-database (cross-LGU) tools the API restricts to that operator, so a per-LGU Head never sees
+        // them (avoids the 403 "couldn't load" state and hides destructive platform-wide controls).
+        await Branding.EnsureLoadedAsync();
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var isSuperAdmin = authState.User.IsInRole("SuperAdmin")
+            || authState.User.Claims.Any(c =>
+                string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+        _isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant;
+
         if (CachedSettings is not null)
         {
             _model = CachedSettings;
