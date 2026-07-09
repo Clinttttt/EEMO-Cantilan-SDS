@@ -126,6 +126,28 @@
     text-decoration: none;
 }
 
+/* The facility nav labels are data-driven (the tenant's own facility names), which can be long
+   (e.g. "Madrid Commercial Center"). Let the label flex and truncate with an ellipsis so it never
+   overflows the fixed-width sidebar; the count badge keeps its natural width. */
+.sidebar ::deep .nav-item > span:not(.nav-badge) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The facility nav labels are data-driven (the tenant's own facility names), which can be long
+   (e.g. "Madrid Commercial Center"). Let the label flex and truncate with an ellipsis so it never
+   overflows the fixed-width sidebar; the count badge keeps its natural width. */
+.sidebar ::deep .nav-item > span:not(.nav-badge) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Raw SVGs inserted via MarkupString don't receive the component scope
    attribute, so expose the SVG rule globally to ensure they render
    correctly when injected as raw markup. */

@@ -24,6 +24,7 @@ namespace EEMOCantilanSDS.Application.Queries.Onboarding.GetActivationContext
 
             // Anonymous flow: look the token up across all municipalities (the request carries no tenant).
             var user = await context.Users
+                .AsNoTracking()
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.ActivationTokenHash == hash, ct);
 
