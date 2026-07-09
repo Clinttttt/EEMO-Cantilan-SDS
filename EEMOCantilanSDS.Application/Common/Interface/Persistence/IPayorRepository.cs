@@ -38,6 +38,14 @@ public interface IPayorRepository
 
     Task AddStallLinkAsync(PayorStallLink link, CancellationToken ct = default);
 
+    /// <summary>
+    /// Removes every payor→stall link for the stall. Called when a stall's occupancy changes hands
+    /// (contract transfer/renewal to a different occupant) so the OUTGOING occupant's payor account can
+    /// no longer view or pay the incoming occupant's obligations. The incoming occupant re-establishes
+    /// access by activating a fresh code. Returns the number of links removed.
+    /// </summary>
+    Task<int> RemoveStallLinksAsync(Guid stallId, CancellationToken ct = default);
+
     /// <summary>Outstanding balances for every stall linked to the payor (read-only dashboard).</summary>
     Task<IReadOnlyList<PayorStallBalanceDto>> GetBalancesAsync(Guid payorUserId, CancellationToken ct = default);
 

@@ -15,6 +15,7 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 /// </summary>
 public class RenewStallContractCommandHandler(
     IStallRepository stallRepository,
+    IPayorRepository payorRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
@@ -27,6 +28,9 @@ public class RenewStallContractCommandHandler(
             return Result<bool>.NotFound();
 
         var actor = currentUser.Username ?? "Admin";
+
+        // Capture the outgoing occupant BEFORE terminating, to detect a change of hands below.
+        var previousOccupant = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant;
 
         // End the current term(s); keep them as history (IsActive = false).
         foreach (var active in stall.Contracts.Where(c => c.IsActive).ToList())
@@ -43,6 +47,15 @@ public class RenewStallContractCommandHandler(
             createdBy: actor);
 
         await stallRepository.AddContractAsync(renewed, ct);
+
+        // If the stall changed hands (different occupant), revoke any existing payor→stall links so the
+        // OUTGOING occupant's online account can no longer view or pay the INCOMING occupant's dues. The
+        // new occupant re-links by activating a fresh code. A same-occupant renewal keeps the link intact.
+        var occupantChanged = !string.Equals(
+            previousOccupant?.Trim(), request.ActualOccupant?.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (occupantChanged)
+            await payorRepository.RemoveStallLinksAsync(stall.Id, ct);
+
         await unitOfWork.SaveChangesAsync(ct);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
 

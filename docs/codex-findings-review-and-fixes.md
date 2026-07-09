@@ -85,11 +85,26 @@ active/inactive state (`Domain/Entities/Users/PayorStallLink.cs`). Links are cre
 but not that the logged-in payor is the current occupant. So if a stall transfers to a new lessee,
 the previous payor's link persists and could still initiate payment for the current/future period.
 
-Severity in context: real integrity/authorization gap, but bounded — online payments are not yet
-live in production, and it requires the stall-transfer edge case. **Recommended fix (a proper
-follow-up, not a rushed patch):** bind payor access to a specific `ContractId`, or remove/expire the
-`PayorStallLink` when stall ownership changes, or validate the active period-contract occupant
-matches the payor link before checkout. Do this before enabling production online payments.
+Severity in context: a real authorization/data-exposure gap — and since **online payments are live in
+production**, it is not deferrable. The actual transfer path is `RenewStallContractCommandHandler`,
+which terminates the outgoing contract and creates a new one for the incoming occupant; the payor
+balance/payable queries (`GetLinkedStallsAsync`) return every linked stall with no occupant check, so
+before the fix the outgoing occupant kept seeing and could pay the incoming occupant's dues.
+
+**Fixed (implemented, not deferred):** on renewal/transfer, when the occupant actually changes
+(case-insensitive, trimmed name comparison), the stall's payor→stall links are revoked
+(`IPayorRepository.RemoveStallLinksAsync`), so the outgoing occupant's account can no longer view or
+pay the incoming occupant's obligations; the incoming occupant re-links by activating a fresh code.
+A same-occupant renewal keeps the link intact (no re-activation friction for genuine renewals).
+`InitiateOnlinePayment` then rejects the stale payor via its existing `LinkExists` guard. Regression
+tests added (occupant-changed → revoked; same occupant incl. case/whitespace → kept; missing stall →
+no-op). Suite 547/547.
+
+Residual (documented, low risk): editing an occupant name *in place* via the vendor-registry edit
+form (`Contract.UpdateOccupant`, no new term) does not revoke links — that path is a data correction,
+not a change of hands. Transfers should go through renewal (which creates a new term). Binding the
+link to a `ContractId` would also cover the in-place-edit path but needs a schema migration + backfill;
+deferred as a hardening follow-up since the primary transfer path is now closed.
 
 Also noted (accepted, non-blocking): the utility paid-amount lock will eventually need a formal
 correction/reversal workflow so admins can fix a legitimately wrong reading after payment; and the

@@ -81,6 +81,21 @@ public class PayorRepository(AppDbContext context) : IPayorRepository
         await context.PayorStallLinks.AddAsync(link, ct);
     }
 
+    public async Task<int> RemoveStallLinksAsync(Guid stallId, CancellationToken ct = default)
+    {
+        // Tenant-scoped by design: the link is municipality-owned and this runs inside the stall's tenant,
+        // so the query filter already confines removal to the current LGU's links for the stall.
+        var links = await context.PayorStallLinks
+            .Where(l => l.StallId == stallId)
+            .ToListAsync(ct);
+
+        if (links.Count == 0)
+            return 0;
+
+        context.PayorStallLinks.RemoveRange(links);
+        return links.Count;
+    }
+
     public async Task<IReadOnlyList<PayorStallBalanceDto>> GetBalancesAsync(Guid payorUserId, CancellationToken ct = default)
     {
         var stalls = await GetLinkedStallsAsync(payorUserId, ct);
