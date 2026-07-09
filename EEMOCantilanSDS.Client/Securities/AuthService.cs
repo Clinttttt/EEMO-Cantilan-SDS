@@ -11,11 +11,15 @@ public class AuthService(
     TokenService tokenService,
     ILogger<AuthService> logger)
 {
-    public async Task<bool> LoginAsync(string username, string password)
+    public async Task<bool> LoginAsync(string username, string password, string? municipalityCode = null)
     {
         try
         {
-            var loginData = new { username, password };
+            // When a municipality is specified (scoped login URL ?lgu={code}) it is sent so the API can
+            // enforce that the account belongs to that LGU. When absent the payload is unchanged.
+            object loginData = string.IsNullOrWhiteSpace(municipalityCode)
+                ? new { username, password }
+                : new { username, password, municipalityCode };
             var json = JsonSerializer.Serialize(loginData);
 
             // loginWithCookies returns null on success, or an error message string on failure.

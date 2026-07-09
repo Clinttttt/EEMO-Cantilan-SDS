@@ -339,10 +339,19 @@
     string _brandedIdentifier = string.Empty;
     CancellationTokenSource? _brandingCts;
 
+    // The LGU this login page is scoped to, from ?lgu={code} (the municipality selector links here).
+    // When set, the panel is themed to that LGU and stays locked (typing a username won't re-theme it),
+    // and the code is sent with the sign-in so the API enforces the account belongs to this LGU.
+    string LguParam = string.Empty;
+    bool _lguLocked = false;
+
     // Resolve the LGU from the typed username (Head usernames are "{tenant}.head", e.g. carrascal.head)
     // and theme the login panel from that LGU's onboarding branding. Debounced; falls back to defaults.
     async Task OnUsernameChanged()
     {
+        // A scoped login (?lgu=) pins the branding to the selected LGU — don't let typing override it.
+        if (_lguLocked) return;
+
         var id = DeriveIdentifier(Username);
         if (string.IsNullOrEmpty(id))
         {
@@ -402,6 +411,29 @@
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
         var hasSetupParam = query.ContainsKey("setup") && query["setup"] == "true";
+
+        // Scoped login from the municipality selector (?lgu={code}): theme the panel to that LGU and pin
+        // it (locked), and remember the code so the sign-in enforces the account belongs to this LGU. Any
+        // branding failure keeps the Cantilan defaults and never blocks login.
+        if (query.TryGetValue("lgu", out var lguValues))
+        {
+            var lgu = lguValues.ToString().Trim();
+            if (!string.IsNullOrEmpty(lgu))
+            {
+                LguParam = lgu;
+                _lguLocked = true;
+                try
+                {
+                    var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(lgu);
+                    if (branding.IsSuccess && branding.Value is not null)
+                    {
+                        _brandedIdentifier = lgu.ToLowerInvariant();
+                        ApplyBranding(branding.Value);
+                    }
+                }
+                catch { /* keep default branding on any failure */ }
+            }
+        }
 
         if (hasSetupParam)
         {
@@ -487,7 +519,7 @@
 
         try
         {
-            var success = await AuthService.LoginAsync(Username, Password);
+            var success = await AuthService.LoginAsync(Username, Password, LguParam);
 
             if (!success)
             {
