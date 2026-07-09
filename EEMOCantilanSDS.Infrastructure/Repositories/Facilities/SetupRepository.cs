@@ -10,9 +10,10 @@ public class SetupRepository(AppDbContext context) : ISetupRepository
 {
     public async Task<bool> IsSuperAdminExistsAsync(CancellationToken ct)
     {
-        // First-run setup provisions the DEFAULT (Cantilan) LGU's Head. In a multi-LGU deployment every
-        // other LGU has its own SuperAdmin (created at activation), so scope this to the default LGU —
-        // otherwise activating another LGU would wrongly report Cantilan's Head setup as already complete.
+        // First-run setup provisions the DEFAULT (Cantilan) LGU's HEAD. Scope to the default LGU AND exclude
+        // platform/console operators (IsPlatformOperator) — the console operator is stamped to the default
+        // municipality with the SuperAdmin role but is a DIFFERENT identity from the LGU's Head, so it must
+        // not make Cantilan's Head setup look already-done. Other LGUs' Heads are excluded by the tenant scope.
         var defaultId = await context.Municipalities.IgnoreQueryFilters()
             .Where(m => m.IsDefault)
             .Select(m => (Guid?)m.Id)
@@ -23,7 +24,7 @@ public class SetupRepository(AppDbContext context) : ISetupRepository
         return await context.Users
             .IgnoreQueryFilters()
             .OfType<AdminUser>()
-            .AnyAsync(a => a.Role == AdminRole.SuperAdmin && !a.IsDeleted && a.MunicipalityId == defaultId, ct);
+            .AnyAsync(a => a.Role == AdminRole.SuperAdmin && !a.IsDeleted && !a.IsPlatformOperator && a.MunicipalityId == defaultId, ct);
     }
 
     public async Task<Guid> GetDefaultMunicipalityIdAsync(CancellationToken ct)

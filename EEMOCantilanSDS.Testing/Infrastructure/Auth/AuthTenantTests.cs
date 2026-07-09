@@ -82,7 +82,13 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             // Cantilan has no Head yet → setup is STILL required (not blocked by Carmen's SuperAdmin).
             Assert.False(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
 
-            // Once Cantilan gets its Head, setup is complete.
+            // A platform/console operator stamped to Cantilan (IsPlatformOperator) is NOT the Cantilan Head,
+            // so setup must STILL be required — the console operator and the LGU Head are distinct identities.
+            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan.Id, isActive: true, isPlatformOperator: true));
+            await ctx.SaveChangesAsync();
+            Assert.False(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
+
+            // Once Cantilan gets its (non-platform-operator) Head, setup is complete.
             ctx.Users.Add(AdminUser.Create("Cantilan Head", "cantilan.head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan.Id, isActive: true));
             await ctx.SaveChangesAsync();
             Assert.True(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
