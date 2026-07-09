@@ -113,8 +113,12 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         public async Task<BaseUser> ValidateRefreshToken(string RefreshToken, CancellationToken cancellationToken = default)
         {
             var hashed = HashRefreshToken(RefreshToken);
-            var user = await context.Users.FirstOrDefaultAsync(
-                s => s.RefreshToken == hashed && s.IsActive, cancellationToken);
+            // The refresh request is unauthenticated (the access token has expired), so it carries no tenant
+            // claim and resolves to the DEFAULT municipality. The refresh token is a globally-unique secret,
+            // so bypass the per-tenant query filter (keep the soft-delete guard) — otherwise a non-default-LGU
+            // user's refresh would never match and they'd be logged out the moment their access token expires.
+            var user = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(
+                s => s.RefreshToken == hashed && s.IsActive && !s.IsDeleted, cancellationToken);
             if (user is null
                 || user.RefreshTokenExpiryTime <= DateTime.UtcNow
                 || (user.LockedUntil.HasValue && user.LockedUntil > DateTime.UtcNow))
@@ -128,7 +132,9 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         {
             if (string.IsNullOrWhiteSpace(refreshToken)) return;
             var hashed = HashRefreshToken(refreshToken);
-            var user = await context.Users.FirstOrDefaultAsync(s => s.RefreshToken == hashed, cancellationToken);
+            // Same as ValidateRefreshToken: the token is a global secret and logout is unauthenticated, so
+            // bypass the per-tenant filter to revoke a non-default-LGU user's token.
+            var user = await context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.RefreshToken == hashed, cancellationToken);
             if (user is null) return;
             user.ClearRefreshToken();
             await unitOfWork.SaveChangesAsync(cancellationToken);

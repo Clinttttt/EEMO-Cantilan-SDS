@@ -14,12 +14,17 @@ public class CreateFirstAdminCommandHandler(ISetupRepository setupRepository, IU
         if (isSuperAdminExists)
             return Result<bool>.Conflict();
 
+        // Stamp the Head to the DEFAULT (Cantilan) LGU explicitly, so this never depends on the request's
+        // resolved tenant (the setup call is unauthenticated).
+        var defaultMunicipalityId = await setupRepository.GetDefaultMunicipalityIdAsync(ct);
+
         var admin = AdminUser.Create(
             request.FullName,
             request.Username,
             request.Email,
             request.Password,
-            AdminRole.SuperAdmin      
+            AdminRole.SuperAdmin,
+            municipalityId: defaultMunicipalityId
         );
 
         await setupRepository.AddFirstAdminAsync(admin, ct);
