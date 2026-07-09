@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -14,11 +15,15 @@ namespace EEMOCantilanSDS.Testing.Application.OnlinePayments;
 
 public class InitiateOnlinePaymentCommandHandlerTests
 {
-    private static Stall StallInFacility(FacilityCode code, decimal monthlyRate = 2400m)
+    private static Stall StallInFacility(FacilityCode code, decimal monthlyRate = 2400m,
+        DateOnly? contractStart = null, int contractYears = 20)
     {
         var stall = Stall.Create(Guid.NewGuid(), "4", monthlyRate, ApplicableFees.BaseRental);
         typeof(Stall).GetProperty(nameof(Stall.Facility))!
             .SetValue(stall, Facility.Create(code, code.ToString(), code.ToString()));
+        // A contract so the requested period is covered (wide by default; narrow it for the out-of-term test).
+        stall.Contracts.Add(Contract.Create(
+            stall.Id, "Occupant", "Occupant", contractStart ?? new DateOnly(2020, 1, 1), contractYears, monthlyRate));
         return stall;
     }
 
@@ -86,6 +91,19 @@ public class InitiateOnlinePaymentCommandHandlerTests
     public async Task NpmFacility_IsBlocked()
     {
         var stall = StallInFacility(FacilityCode.NPM);
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task PeriodOutsideContractTerm_IsRejected()
+    {
+        // #2 regression — the stall's contract covers only 2019; a 2026 period is outside its term, so a
+        // payor must not be able to open a checkout (and create an obligation row) for it.
+        var stall = StallInFacility(FacilityCode.TCC, contractStart: new DateOnly(2019, 1, 1), contractYears: 1);
         var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true);
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
@@ -193,7 +211,8 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
     }
 
     private static (IssueOnlinePaymentOrNumberCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPayorRealtimeNotifier> notifier) Build(
-        OnlinePaymentTransaction txn, PaymentRecord record)
+        OnlinePaymentTransaction txn, PaymentRecord record,
+        string? role = null, Guid? collectorId = null, Stall? stall = null, CollectorUser? collector = null)
     {
         var onlineRepo = new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.GetByIdAsync(txn.Id, It.IsAny<CancellationToken>())).ReturnsAsync(txn);
@@ -201,14 +220,24 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         var paymentRepo = new Mock<IPaymentRepository>();
         paymentRepo.Setup(r => r.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
 
+        var stallRepo = new Mock<IStallRepository>();
+        if (stall is not null)
+            stallRepo.Setup(r => r.GetByIdAsync(record.StallId, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+
+        var collectorRepo = new Mock<ICollectorRepository>();
+        if (collector is not null && collectorId is { } cid)
+            collectorRepo.Setup(r => r.GetByIdAsync(cid, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
+
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.Username).Returns("admin");
+        currentUser.SetupGet(c => c.Role).Returns(role);
+        currentUser.SetupGet(c => c.CollectorId).Returns(collectorId);
 
         var notifier = new Mock<IPayorRealtimeNotifier>();
 
         var uow = new Mock<IUnitOfWork>();
         return (new IssueOnlinePaymentOrNumberCommandHandler(
-            onlineRepo.Object, paymentRepo.Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
+            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
     }
 
     [Fact]
@@ -245,5 +274,25 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         notifier.Verify(n => n.NotifyOrIssuedAsync(It.IsAny<Guid>(), It.IsAny<PayorOrIssuedNotification>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Collector_NotAssignedToFacility_IsForbidden()
+    {
+        // #5 regression — a collector may only receipt an online payment for a facility they're assigned to.
+        var (txn, record) = PaidPair();
+        var stall = Stall.Create(Guid.NewGuid(), "4", 2400m, ApplicableFees.BaseRental);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.TCC, "TCC", "TCC"));
+        var collectorId = Guid.NewGuid();
+        var collector = CollectorUser.Create("Col", "EMP-1", "col", "c@x.gov", "0917", "Passw0rd!"); // no assignments
+
+        var (handler, uow, _) = Build(txn, record, role: "Collector", collectorId: collectorId, stall: stall, collector: collector);
+
+        var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-X"), CancellationToken.None);
+
+        Assert.Equal(403, result.StatusCode);
+        Assert.NotEqual(OnlinePaymentStatus.Completed, txn.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }

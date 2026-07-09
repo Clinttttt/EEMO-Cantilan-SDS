@@ -12,6 +12,8 @@ namespace EEMOCantilanSDS.Application.Command.OnlinePayments.IssueOrNumber;
 public class IssueOnlinePaymentOrNumberCommandHandler(
     IOnlinePaymentRepository onlinePaymentRepository,
     IPaymentRepository paymentRepository,
+    IStallRepository stallRepository,
+    ICollectorRepository collectorRepository,
     ICurrentUserService currentUser,
     IPayorRealtimeNotifier payorNotifier,
     IUnitOfWork unitOfWork,
@@ -30,6 +32,22 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId, cancellationToken);
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", 500);
+
+        // A collector may only receipt an online payment for a facility they are assigned to; admins/heads are
+        // unrestricted. Mirrors the collector guard on utility/collection payments (prevents a collector from
+        // encoding ORs for facilities outside their assignment).
+        if (string.Equals(currentUser.Role, "Collector", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId)
+                return Result<bool>.Forbidden();
+
+            var stall = await stallRepository.GetByIdAsync(record.StallId, cancellationToken);
+            var facilityCode = stall?.Facility?.Code;
+            var collector = facilityCode is null ? null : await collectorRepository.GetByIdAsync(actingCollectorId, cancellationToken);
+            if (collector is null || facilityCode is null
+                || !collector.FacilityAssignments.Any(a => a.FacilityCode == facilityCode.Value))
+                return Result<bool>.Forbidden();
+        }
 
         var actor = currentUser.Username ?? "Admin";
 

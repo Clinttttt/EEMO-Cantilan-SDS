@@ -37,6 +37,15 @@ public class InitiateOnlinePaymentCommandHandler(
         if (stall.Facility?.Code == FacilityCode.NPM)
             return Result<InitiateOnlinePaymentResultDto>.Failure("Online payment is not available for this facility yet.", 409);
 
+        // The requested period must fall within one of the stall's contract terms. Without this a payor
+        // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
+        // expiry, or arbitrary future months), creating obligation rows for uncovered periods.
+        var periodStart = new DateOnly(request.Year, request.Month, 1);
+        var periodEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
+        if (!stall.Contracts.Any(c => c.OverlapsPeriod(periodStart, periodEnd)))
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "This billing period isn't covered by an active contract for this stall.", 409);
+
         // Find-or-create the monthly record (a current-month obligation may not have a row yet).
         var isNewRecord = false;
         var existingDto = await paymentRepository.GetPaymentRecordAsync(request.StallId, request.Year, request.Month, cancellationToken);
