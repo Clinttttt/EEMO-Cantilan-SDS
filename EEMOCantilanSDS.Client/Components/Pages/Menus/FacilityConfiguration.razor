@@ -340,6 +340,38 @@
                     </div>
                 }
 
+                <div class="cfg-section-label">Status &amp; history</div>
+                <button class="cfg-history-btn" @onclick="() => OpenHistory(_cfgFacility)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                    View collection history
+                </button>
+
+                @if (_cfgFacility.IsActive)
+                {
+                    @if (_confirmDeactivate)
+                    {
+                        <div class="cfg-danger">
+                            <div class="cfg-danger-text">Deactivate <strong>@_cfgFacility.Name</strong>? It will be hidden from the operational menus (sidebar &amp; dashboard). All history is kept and you can reactivate it anytime.</div>
+                            <div class="cfg-danger-actions">
+                                <button class="fac-btn fac-btn-ghost" @onclick="() => _confirmDeactivate = false" disabled="@_busy">Keep active</button>
+                                <button class="fac-btn fac-btn-danger" @onclick="() => SetStatus(false)" disabled="@_busy">@(_busy ? "Working…" : "Deactivate")</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="cfg-deactivate" @onclick="() => _confirmDeactivate = true" disabled="@_busy">Deactivate facility</button>
+                    }
+                }
+                else
+                {
+                    <div class="cfg-inactive-note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /></svg>
+                        Hidden from the operational menus. History stays available above; reactivate to resume collections.
+                    </div>
+                    <button class="fac-btn fac-btn-primary cfg-reactivate" @onclick="() => SetStatus(true)" disabled="@_busy">@(_busy ? "Working…" : "Reactivate facility")</button>
+                }
+
                 @if (_cfgError is not null)
                 {
                     <div class="cfg-error">@_cfgError</div>
@@ -358,6 +390,82 @@
             </div>
         }
     </aside>
+}
+
+@* ── Collection history (per-facility, reference table like the Month-End Report) ── *@
+@if (_historyOpen)
+{
+    <div class="cfg-scrim" @onclick="CloseHistory"></div>
+    <div class="hist-modal" role="dialog" aria-modal="true">
+        <div class="hist-head">
+            <div class="hist-head-titles">
+                <div class="cfg-head-eyebrow">Collection history</div>
+                <div class="hist-title">@_historyName</div>
+            </div>
+            <div class="hist-yearnav">
+                <button @onclick="() => ChangeHistoryYear(-1)" disabled="@_historyLoading" aria-label="Previous year">‹</button>
+                <span>@_historyYear</span>
+                <button @onclick="() => ChangeHistoryYear(1)" disabled="@(_historyLoading || _historyYear >= PhilippineTime.Now.Year)" aria-label="Next year">›</button>
+            </div>
+            <button class="cfg-close cfg-close-dark" @onclick="CloseHistory" aria-label="Close">✕</button>
+        </div>
+
+        <div class="hist-body">
+            @if (_historyError is not null)
+            {
+                <div class="cfg-error">@_historyError</div>
+            }
+            else if (_historyLoading || _history is null)
+            {
+                <div class="hist-loading"><span class="set-spinner"></span></div>
+            }
+            else
+            {
+                <div class="hist-section-label">Monthly · @_historyYear</div>
+                <table class="hist-table">
+                    <thead>
+                        <tr><th>Period</th><th class="hist-r">Stalls</th><th class="hist-r">Collected</th><th class="hist-r">Outstanding</th><th class="hist-r">Follow-up</th><th class="hist-r">Rate</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _history.Monthly)
+                        {
+                            <tr>
+                                <td>@row.Label</td>
+                                <td class="hist-r">@row.TotalStalls</td>
+                                <td class="hist-r">₱@row.Collected.ToString("N2")</td>
+                                <td class="hist-r">₱@row.Outstanding.ToString("N2")</td>
+                                <td class="hist-r">@row.FollowUp</td>
+                                <td class="hist-r">@row.CollectionRate.ToString("0.#")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (_history.Yearly.Count > 0)
+                {
+                    <div class="hist-section-label">Yearly summary</div>
+                    <table class="hist-table">
+                        <thead>
+                            <tr><th>Year</th><th class="hist-r">Stalls</th><th class="hist-r">Collected</th><th class="hist-r">Outstanding</th><th class="hist-r">Follow-up</th><th class="hist-r">Rate</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _history.Yearly)
+                            {
+                                <tr>
+                                    <td>@row.Label</td>
+                                    <td class="hist-r">@row.TotalStalls</td>
+                                    <td class="hist-r">₱@row.Collected.ToString("N2")</td>
+                                    <td class="hist-r">₱@row.Outstanding.ToString("N2")</td>
+                                    <td class="hist-r">@row.FollowUp</td>
+                                    <td class="hist-r">@row.CollectionRate.ToString("0.#")%</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    </div>
 }
 
 @code {
@@ -383,6 +491,16 @@
     private readonly Dictionary<string, decimal> _rateEdits = new();
     private string? _cfgError;
     private string? _cfgSuccess;
+    private bool _confirmDeactivate;
+
+    // History modal
+    private bool _historyOpen;
+    private FacilityCode _historyCode;
+    private string _historyName = string.Empty;
+    private int _historyYear = PhilippineTime.Now.Year;
+    private FacilityHistoryDto? _history;
+    private bool _historyLoading;
+    private string? _historyError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -424,6 +542,7 @@
         foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
         _cfgError = null;
         _cfgSuccess = null;
+        _confirmDeactivate = false;
         _drawer = DrawerMode.Configure;
     }
 
@@ -432,6 +551,7 @@
         _drawer = DrawerMode.None;
         _addTarget = null;
         _cfgFacility = null;
+        _confirmDeactivate = false;
     }
 
     // ── Add ──
@@ -536,5 +656,70 @@
         {
             CloseDrawer();
         }
+    }
+
+    // ── Activate / deactivate ──
+    private async Task SetStatus(bool active)
+    {
+        if (_cfgFacility is null || _busy) return;
+        _busy = true;
+        _cfgError = null;
+        _cfgSuccess = null;
+
+        var code = _cfgFacility.Code;
+        var res = await FacilitiesApi.SetFacilityStatusAsync(code, active);
+        _busy = false;
+        _confirmDeactivate = false;
+
+        if (!res.IsSuccess)
+        {
+            _cfgError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't change the facility status." : res.Error;
+            return;
+        }
+
+        await LoadAsync();
+        _cfgFacility = _model?.Configured.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
+        if (_cfgFacility is null) { CloseDrawer(); return; }
+        _cfgSuccess = active ? "Facility reactivated." : "Facility deactivated — hidden from the operational menus.";
+    }
+
+    // ── Collection history ──
+    private async Task OpenHistory(ConfiguredFacilityDto f)
+    {
+        _historyName = f.Name;
+        _historyCode = Enum.Parse<FacilityCode>(f.Code);
+        _historyYear = PhilippineTime.Now.Year;
+        _history = null;
+        _historyError = null;
+        _historyOpen = true;
+        await LoadHistory();
+    }
+
+    private async Task LoadHistory()
+    {
+        _historyLoading = true;
+        _historyError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var res = await FacilitiesApi.GetFacilityHistoryAsync(_historyCode, _historyYear);
+        _historyLoading = false;
+        if (res.IsSuccess && res.Value is not null)
+            _history = res.Value;
+        else
+            _historyError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't load the collection history." : res.Error;
+    }
+
+    private async Task ChangeHistoryYear(int delta)
+    {
+        var next = _historyYear + delta;
+        if (next > PhilippineTime.Now.Year || next < 2000) return;
+        _historyYear = next;
+        await LoadHistory();
+    }
+
+    private void CloseHistory()
+    {
+        _historyOpen = false;
+        _history = null;
     }
 }

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -32,4 +33,7 @@ public interface IFacilitiesApiClient
 
     /// <summary>Sets/updates one fixed ordinance rate for the caller's LGU (effective today, never retroactive).</summary>
     Task<Result<bool>> SetFacilityRateAsync(FacilityCode facilityCode, FeeRateKey key, decimal amount);
+
+    /// <summary>Activates or deactivates a facility (deactivated = hidden from operational menus, history kept).</summary>
+    Task<Result<bool>> SetFacilityStatusAsync(string code, bool active);
 }

@@ -126,6 +126,7 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
         // Soft-deleted rows are excluded by the global query filters.
         var facilities = await context.Facilities
             .AsNoTracking()
+            .Where(f => f.IsActive)   // deactivated facilities are hidden from the operational menu (sidebar/tabs)
             .OrderBy(f => f.Code)
             .Select(f => new
             {

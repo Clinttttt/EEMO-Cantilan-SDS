@@ -24,6 +24,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
 
         var facilities = await context.Facilities
             .AsNoTracking()
+            .Where(f => f.IsActive)   // deactivated facilities drop off the operational dashboard (history stays in reports)
             .OrderBy(f => f.Code)
             .Select(f => new { f.Id, f.Code, f.Name, f.ShortName })
             .ToListAsync(ct);
