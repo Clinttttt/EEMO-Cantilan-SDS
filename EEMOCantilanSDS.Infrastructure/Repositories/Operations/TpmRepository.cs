@@ -120,6 +120,7 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
         if (await context.DailyCollections.AnyAsync(d => d.ORNumber == orNumber, ct)) return false;
         if (await context.SlaughterTransactions.AnyAsync(s => s.ORNumber == orNumber, ct)) return false;
         if (await context.TrmTrips.AnyAsync(t => t.ORNumber == orNumber, ct)) return false;
+        if (await context.UtilityBills.AnyAsync(b => b.ElecORNumber == orNumber || b.WaterORNumber == orNumber, ct)) return false;
         return true;
     }
 

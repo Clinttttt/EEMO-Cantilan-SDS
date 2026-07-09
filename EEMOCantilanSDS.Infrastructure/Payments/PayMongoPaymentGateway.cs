@@ -125,6 +125,18 @@ public sealed class PayMongoPaymentGateway(
         if (string.IsNullOrWhiteSpace(timestamp))
             return false;
 
+        // Reject stale/future timestamps to blunt replay (settlement is also idempotent). The window is
+        // generous and configurable so legitimate provider retries within it still verify; a webhook that
+        // arrives beyond the window settles via the reconciliation fallback (payor return / staff reconcile).
+        if (!long.TryParse(timestamp, out var epochSeconds))
+            return false;
+        var toleranceMinutes = int.TryParse(configuration["PayMongo:WebhookToleranceMinutes"], out var configured) && configured > 0
+            ? configured
+            : 720; // 12h default
+        var age = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeSeconds(epochSeconds);
+        if (age > TimeSpan.FromMinutes(toleranceMinutes) || age < TimeSpan.FromMinutes(-toleranceMinutes))
+            return false;
+
         var signedPayload = $"{timestamp}.{payload}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
         var computed = Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(signedPayload))).ToLowerInvariant();

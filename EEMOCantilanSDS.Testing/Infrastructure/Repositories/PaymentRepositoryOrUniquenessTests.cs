@@ -114,4 +114,25 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         // A fresh OR is available.
         Assert.True(await repo.IsORNumberUniqueAsync("OR-FRESH", null, CancellationToken.None));
     }
+
+    // Broader OR uniqueness: the service-facility checks (SLH/TPM/TRM) now also reject a utility OR.
+    [Fact]
+    public async Task Slaughter_ORChecks_RejectUtilityOr()
+    {
+        await using var ctx = NewContext();
+
+        var bill = EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill.Create(
+            Guid.NewGuid(), 2026, 7, 0, 10, 10m, 0, 5, 20m, "admin");
+        bill.RecordPayment("OR-UTIL", null, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Paid, null,
+            EEMOCantilanSDS.Domain.Enums.PaymentStatus.Unpaid, null, updatedBy: "admin");
+        ctx.Add(bill);
+        await ctx.SaveChangesAsync();
+
+        var slh = new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterRepository(ctx);
+
+        Assert.False(await slh.IsORNumberUniqueAsync("OR-UTIL", CancellationToken.None));
+        Assert.False(await slh.IsORNumberAvailableForReceiptAsync("OR-UTIL", "Owner", new DateOnly(2026, 7, 1), CancellationToken.None));
+        Assert.True(await slh.IsORNumberUniqueAsync("OR-FRESH", CancellationToken.None));
+    }
 }
