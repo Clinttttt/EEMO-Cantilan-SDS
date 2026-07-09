@@ -392,7 +392,7 @@
     </aside>
 }
 
-@* ── Collection history (per-facility, reference table like the Month-End Report) ── *@
+@* ── Collection history (per-facility per-stall reference table, like the Month-End Report) ── *@
 @if (_historyOpen)
 {
     <div class="cfg-scrim" @onclick="CloseHistory"></div>
@@ -403,66 +403,60 @@
                 <div class="hist-title">@_historyName</div>
             </div>
             <div class="hist-yearnav">
-                <button @onclick="() => ChangeHistoryYear(-1)" disabled="@_historyLoading" aria-label="Previous year">‹</button>
-                <span>@_historyYear</span>
-                <button @onclick="() => ChangeHistoryYear(1)" disabled="@(_historyLoading || _historyYear >= PhilippineTime.Now.Year)" aria-label="Next year">›</button>
+                <button @onclick="() => ChangeMonth(-1)" disabled="@_historyLoading" aria-label="Previous month">‹</button>
+                <span>@_historyPeriodLabel</span>
+                <button @onclick="() => ChangeMonth(1)" disabled="@(_historyLoading || _isCurrentPeriod)" aria-label="Next month">›</button>
             </div>
             <button class="cfg-close cfg-close-dark" @onclick="CloseHistory" aria-label="Close">✕</button>
         </div>
+
+        @if (_report is not null && _historyError is null)
+        {
+            <div class="hist-summary">
+                <span><strong>₱@_report.TotalRevenue.ToString("N2")</strong> collected</span>
+                <span><strong class="hist-out">₱@_report.PendingPaymentAmount.ToString("N2")</strong> outstanding</span>
+                <span><strong>@_report.CollectionRate.ToString("0.#")%</strong> rate</span>
+                <span class="hist-summary-muted">@_report.OccupiedStalls of @_report.TotalStalls occupied</span>
+            </div>
+        }
 
         <div class="hist-body">
             @if (_historyError is not null)
             {
                 <div class="cfg-error">@_historyError</div>
             }
-            else if (_historyLoading || _history is null)
+            else if (_historyLoading || _report is null)
             {
                 <div class="hist-loading"><span class="set-spinner"></span></div>
             }
+            else if (_report.StallCompliance.Count == 0)
+            {
+                <div class="fac-empty">No stall-level records for @_historyPeriodLabel. This may be a per-transaction facility, or there was no activity in this period.</div>
+            }
             else
             {
-                <div class="hist-section-label">Monthly · @_historyYear</div>
                 <table class="hist-table">
                     <thead>
-                        <tr><th>Period</th><th class="hist-r">Stalls</th><th class="hist-r">Collected</th><th class="hist-r">Outstanding</th><th class="hist-r">Follow-up</th><th class="hist-r">Rate</th></tr>
+                        <tr>
+                            <th>Stall</th><th>Payor</th><th class="hist-r">Rate</th><th>Status</th>
+                            <th class="hist-r">Collected</th><th class="hist-r">Balance</th><th class="hist-r">OR No.</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        @foreach (var row in _history.Monthly)
+                        @foreach (var s in _report.StallCompliance)
                         {
                             <tr>
-                                <td>@row.Label</td>
-                                <td class="hist-r">@row.TotalStalls</td>
-                                <td class="hist-r">₱@row.Collected.ToString("N2")</td>
-                                <td class="hist-r">₱@row.Outstanding.ToString("N2")</td>
-                                <td class="hist-r">@row.FollowUp</td>
-                                <td class="hist-r">@row.CollectionRate.ToString("0.#")%</td>
+                                <td class="hist-stall">@s.StallNo</td>
+                                <td>@(string.IsNullOrWhiteSpace(s.Occupant) ? "—" : s.Occupant)</td>
+                                <td class="hist-r">@(s.MonthlyRate > 0 ? $"₱{s.MonthlyRate:N2}" : s.DailyRate > 0 ? $"₱{s.DailyRate:N2}/day" : "—")</td>
+                                <td><span class="hist-status hist-@s.Status.ToLowerInvariant()">@s.Status</span></td>
+                                <td class="hist-r">₱@s.AmountPaid.ToString("N2")</td>
+                                <td class="hist-r">@(s.Balance > 0 ? $"₱{s.Balance:N2}" : "—")</td>
+                                <td class="hist-r hist-or">@(string.IsNullOrWhiteSpace(s.ORNumber) ? "—" : s.ORNumber)</td>
                             </tr>
                         }
                     </tbody>
                 </table>
-
-                @if (_history.Yearly.Count > 0)
-                {
-                    <div class="hist-section-label">Yearly summary</div>
-                    <table class="hist-table">
-                        <thead>
-                            <tr><th>Year</th><th class="hist-r">Stalls</th><th class="hist-r">Collected</th><th class="hist-r">Outstanding</th><th class="hist-r">Follow-up</th><th class="hist-r">Rate</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var row in _history.Yearly)
-                            {
-                                <tr>
-                                    <td>@row.Label</td>
-                                    <td class="hist-r">@row.TotalStalls</td>
-                                    <td class="hist-r">₱@row.Collected.ToString("N2")</td>
-                                    <td class="hist-r">₱@row.Outstanding.ToString("N2")</td>
-                                    <td class="hist-r">@row.FollowUp</td>
-                                    <td class="hist-r">@row.CollectionRate.ToString("0.#")%</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
             }
         </div>
     </div>
@@ -498,9 +492,13 @@
     private FacilityCode _historyCode;
     private string _historyName = string.Empty;
     private int _historyYear = PhilippineTime.Now.Year;
-    private FacilityHistoryDto? _history;
+    private int _historyMonth = PhilippineTime.Now.Month;
+    private FacilityReportsDto? _report;
     private bool _historyLoading;
     private string? _historyError;
+
+    private string _historyPeriodLabel => new DateOnly(_historyYear, _historyMonth, 1).ToString("MMMM yyyy");
+    private bool _isCurrentPeriod => _historyYear == PhilippineTime.Now.Year && _historyMonth == PhilippineTime.Now.Month;
 
     protected override async Task OnInitializedAsync()
     {
@@ -689,7 +687,8 @@
         _historyName = f.Name;
         _historyCode = Enum.Parse<FacilityCode>(f.Code);
         _historyYear = PhilippineTime.Now.Year;
-        _history = null;
+        _historyMonth = PhilippineTime.Now.Month;
+        _report = null;
         _historyError = null;
         _historyOpen = true;
         await LoadHistory();
@@ -701,25 +700,28 @@
         _historyError = null;
         await InvokeAsync(StateHasChanged);
 
-        var res = await FacilitiesApi.GetFacilityHistoryAsync(_historyCode, _historyYear);
+        var res = await FacilitiesApi.GetFacilityReportsAsync(_historyCode, ReportPeriod.Monthly, _historyYear, _historyMonth);
         _historyLoading = false;
         if (res.IsSuccess && res.Value is not null)
-            _history = res.Value;
+            _report = res.Value;
         else
             _historyError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't load the collection history." : res.Error;
     }
 
-    private async Task ChangeHistoryYear(int delta)
+    private async Task ChangeMonth(int delta)
     {
-        var next = _historyYear + delta;
-        if (next > PhilippineTime.Now.Year || next < 2000) return;
-        _historyYear = next;
+        var period = new DateOnly(_historyYear, _historyMonth, 1).AddMonths(delta);
+        var now = PhilippineTime.Now;
+        if (period.Year > now.Year || (period.Year == now.Year && period.Month > now.Month)) return; // no future
+        if (period.Year < 2000) return;
+        _historyYear = period.Year;
+        _historyMonth = period.Month;
         await LoadHistory();
     }
 
     private void CloseHistory()
     {
         _historyOpen = false;
-        _history = null;
+        _report = null;
     }
 }
