@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -22,6 +23,55 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
             .AsNoTracking()
             .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
     }
+    public async Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct)
+    {
+        var today = PhilippineTime.Today;
+
+        // Facilities for the caller's tenant (global query filter scopes to the current LGU and excludes
+        // soft-deleted rows). Stall count = configured units (0 for per-head/per-trip/weekly facilities).
+        var facilities = await context.Facilities
+            .AsNoTracking()
+            .OrderBy(f => f.Code)
+            .Select(f => new
+            {
+                f.Code,
+                f.Name,
+                f.ShortName,
+                f.Description,
+                f.Archetype,
+                f.IsActive,
+                StallCount = f.Stalls.Count()
+            })
+            .ToListAsync(ct);
+
+        // Current fixed rates: the latest effective row per (facility, key) as of today. Tenant-scoped by
+        // the query filter; effective-dating keeps history intact for settled periods.
+        var rates = await context.FacilityRates
+            .AsNoTracking()
+            .Where(r => r.EffectiveDate <= today)
+            .Select(r => new { r.FacilityCode, r.RateKey, r.Amount, r.EffectiveDate })
+            .ToListAsync(ct);
+
+        var currentRates = rates
+            .GroupBy(r => new { r.FacilityCode, r.RateKey })
+            .Select(g => g.OrderByDescending(x => x.EffectiveDate).First())
+            .ToList();
+
+        return facilities.Select(f => new ConfiguredFacilityDto(
+            f.Code.ToString(),
+            f.Name,
+            f.ShortName,
+            f.Description,
+            FacilityDisplay.BillingModel(f.Archetype),
+            f.IsActive,
+            f.StallCount,
+            currentRates
+                .Where(r => r.FacilityCode == f.Code)
+                .OrderBy(r => r.RateKey)
+                .Select(r => new FacilityRateLineDto(FacilityDisplay.RateLabel(r.RateKey), r.Amount))
+                .ToList())).ToList();
+    }
+
     public async Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
     {
         var facility = await context.Facilities

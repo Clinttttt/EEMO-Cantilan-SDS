@@ -1,0 +1,245 @@
+/* Facility Configuration — component-scoped styling built on the app.css design tokens.
+   Mirrors the Settings visual language (cards, navy/gold accents) with facility-specific tiles. */
+
+.fac-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 4px;
+}
+
+.fac-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg-card);
+    position: relative;
+    overflow: hidden;
+    transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+
+.fac-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--gold);
+    opacity: .85;
+}
+
+.fac-card:hover {
+    box-shadow: 0 8px 24px rgba(13, 33, 55, .10);
+    border-color: var(--gold-light);
+    transform: translateY(-1px);
+}
+
+.fac-card-inactive {
+    opacity: .72;
+}
+
+.fac-card-inactive::before {
+    background: var(--text-muted);
+}
+
+.fac-card-skeleton {
+    gap: 10px;
+}
+
+.fac-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.fac-badge {
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--navy);
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+}
+
+.fac-titles {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.fac-name {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.25;
+}
+
+.fac-code {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: .06em;
+    margin-top: 2px;
+}
+
+.fac-pill {
+    flex: 0 0 auto;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+}
+
+.fac-pill-on {
+    color: var(--green);
+    background: var(--green-bg);
+}
+
+.fac-pill-off {
+    color: var(--text-subtle);
+    background: var(--bg-icon);
+}
+
+.fac-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+}
+
+.fac-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
+.fac-meta-item svg {
+    width: 14px;
+    height: 14px;
+    color: var(--gold);
+}
+
+.fac-rates {
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.fac-rate {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12.5px;
+}
+
+.fac-rate-label {
+    color: var(--text-subtle);
+    white-space: nowrap;
+}
+
+.fac-rate-dots {
+    flex: 1 1 auto;
+    border-bottom: 1px dotted var(--border);
+    transform: translateY(-3px);
+}
+
+.fac-rate-amt {
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.fac-rate-none {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.fac-empty {
+    padding: 22px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+}
+
+/* Available-to-add tiles */
+.avail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.avail-tile {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 12px 14px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--bg-icon) 55%, transparent);
+}
+
+.avail-tile-badge {
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: .04em;
+}
+
+.avail-tile-body {
+    min-width: 0;
+}
+
+.avail-tile-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.2;
+}
+
+.avail-tile-model {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.fac-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+.fac-note svg {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    color: var(--gold);
+    margin-top: 1px;
+}

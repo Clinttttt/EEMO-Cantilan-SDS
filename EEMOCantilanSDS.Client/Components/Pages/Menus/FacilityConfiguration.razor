@@ -1,0 +1,245 @@
+@page "/settings/facilities"
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@attribute [Authorize(Roles = "SuperAdmin")]
+@inject IFacilitiesApiClient FacilitiesApi
+
+@*
+    Facility Configuration (Phase A — read-only). The Head's view of their own municipality's facilities:
+    billing model, active status, unit count, and current fixed rates, plus the standard facility types
+    still available to add. No writes here — adding/editing arrives in the next phase. Head (SuperAdmin)
+    only; the API scopes every row to the caller's tenant, so Cantilan and every LGU see only their own.
+*@
+
+<PageTitle>@Branding.OfficeAcronym Admin — Facility Configuration</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Facility Configuration</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Facilities</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+
+    @{
+        var loaded = _model is not null;
+        var configuredCount = _model?.Configured.Count ?? 0;
+        var activeCount = _model?.Configured.Count(f => f.IsActive) ?? 0;
+        var availableCount = _model?.Available.Count ?? 0;
+    }
+
+    <!-- ── Hero ── -->
+    <div class="vs-hero">
+        <div class="vs-hero-left">
+            <div class="vs-hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
+                    <path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+                </svg>
+            </div>
+            <div>
+                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · Facilities</div>
+                <div class="vs-hero-title">Facility Configuration</div>
+                <div class="vs-hero-sub">Your municipality's facilities · read-only</div>
+            </div>
+        </div>
+        <div class="vs-hero-stats">
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@configuredCount</div>
+                <div class="vs-hero-key">Configured</div>
+                <div class="vs-hero-sub2">Operating</div>
+            </div>
+            <div class="vs-hero-divider"></div>
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@activeCount</div>
+                <div class="vs-hero-key">Active</div>
+                <div class="vs-hero-sub2">Collecting</div>
+            </div>
+            <div class="vs-hero-divider"></div>
+            <div class="vs-hero-stat">
+                <div class="vs-hero-val">@availableCount</div>
+                <div class="vs-hero-key">Available</div>
+                <div class="vs-hero-sub2">To add</div>
+            </div>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="set-state">
+            <div class="set-state-title">Couldn't load facilities</div>
+            <div class="set-state-text">@_error</div>
+            <button class="set-retry" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+    else
+    {
+        <!-- ── Configured facilities ── -->
+        <section class="set-card">
+            <div class="set-card-head">
+                <div class="set-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+                </div>
+                <div class="set-card-titles">
+                    <div class="set-card-title">Configured facilities</div>
+                    <div class="set-card-sub">@(loaded ? $"{configuredCount} facilit{(configuredCount == 1 ? "y" : "ies")} your municipality operates" : "Facilities your municipality operates")</div>
+                </div>
+            </div>
+
+            @if (!loaded)
+            {
+                <div class="fac-grid">
+                    @for (var i = 0; i < 4; i++)
+                    {
+                        <div class="fac-card fac-card-skeleton">
+                            <Skeleton Width="52px" Height="52px" Radius="12px" />
+                            <Skeleton Width="70%" Height="14px" Radius="6px" />
+                            <Skeleton Width="45%" Height="11px" Radius="6px" />
+                            <Skeleton Width="100%" Height="11px" Radius="6px" />
+                            <Skeleton Width="100%" Height="11px" Radius="6px" />
+                        </div>
+                    }
+                </div>
+            }
+            else if (configuredCount == 0)
+            {
+                <div class="fac-empty">No facilities are configured yet for this municipality.</div>
+            }
+            else
+            {
+                <div class="fac-grid">
+                    @foreach (var f in _model!.Configured)
+                    {
+                        <article class="fac-card @(f.IsActive ? "" : "fac-card-inactive")">
+                            <div class="fac-card-top">
+                                <div class="fac-badge">@f.ShortName</div>
+                                <div class="fac-titles">
+                                    <div class="fac-name">@f.Name</div>
+                                    <div class="fac-code">@f.Code</div>
+                                </div>
+                                <span class="fac-pill @(f.IsActive ? "fac-pill-on" : "fac-pill-off")">@(f.IsActive ? "Active" : "Inactive")</span>
+                            </div>
+
+                            <div class="fac-meta">
+                                <span class="fac-meta-item">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-5 8 5v13" /><path d="M9 21v-6h6v6" /></svg>
+                                    @f.BillingModel
+                                </span>
+                                @if (f.StallCount > 0)
+                                {
+                                    <span class="fac-meta-item">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+                                        @f.StallCount unit@(f.StallCount == 1 ? "" : "s")
+                                    </span>
+                                }
+                            </div>
+
+                            <div class="fac-rates">
+                                @if (f.Rates.Count == 0)
+                                {
+                                    <div class="fac-rate-none">Rates entered per transaction</div>
+                                }
+                                else
+                                {
+                                    @foreach (var r in f.Rates)
+                                    {
+                                        <div class="fac-rate">
+                                            <span class="fac-rate-label">@r.Label</span>
+                                            <span class="fac-rate-dots"></span>
+                                            <span class="fac-rate-amt">₱@r.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- ── Available to add ── -->
+        <section class="set-card">
+            <div class="set-card-head">
+                <div class="set-card-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </div>
+                <div class="set-card-titles">
+                    <div class="set-card-title">Available to add</div>
+                    <div class="set-card-sub">Standard facility types not yet configured</div>
+                </div>
+            </div>
+
+            @if (!loaded)
+            {
+                <div class="avail-grid">
+                    @for (var i = 0; i < 3; i++)
+                    {
+                        <div class="avail-tile"><Skeleton Width="60%" Height="12px" Radius="6px" /></div>
+                    }
+                </div>
+            }
+            else if (availableCount == 0)
+            {
+                <div class="fac-empty">All standard facility types are already configured.</div>
+            }
+            else
+            {
+                <div class="avail-grid">
+                    @foreach (var a in _model!.Available)
+                    {
+                        <div class="avail-tile" title="@a.Name">
+                            <div class="avail-tile-badge">@a.ShortName</div>
+                            <div class="avail-tile-body">
+                                <div class="avail-tile-name">@a.Name</div>
+                                <div class="avail-tile-model">@a.BillingModel</div>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="fac-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                    Adding and editing facilities from the portal is coming in the next release. Today, facilities are configured during onboarding.
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private FacilityConfigurationDto? _model;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Branding.EnsureLoadedAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        _model = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await FacilitiesApi.GetFacilityConfigurationAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _model = result.Value;
+        }
+        else
+        {
+            _error = string.IsNullOrWhiteSpace(result.Error)
+                ? "The facility configuration could not be retrieved."
+                : result.Error;
+        }
+    }
+}

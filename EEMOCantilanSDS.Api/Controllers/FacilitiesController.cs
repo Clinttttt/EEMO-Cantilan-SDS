@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
@@ -17,6 +18,14 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "SuperAdmin,Admin")]
 public class FacilitiesController(ISender sender) : ApiBaseController(sender)
 {
+    [HttpGet("configuration")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<FacilityConfigurationDto>> GetConfiguration()
+    {
+        var result = await Sender.Send(new GetFacilityConfigurationQuery());
+        return HandleResponse(result);
+    }
+
     [HttpGet("{facilityCode}/stalls")]
     public async Task<ActionResult<IReadOnlyList<StallDto>>> GetStalls(FacilityCode facilityCode, [FromQuery] MarketSection? section)
     {

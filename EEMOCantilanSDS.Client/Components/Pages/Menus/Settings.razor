@@ -194,6 +194,27 @@
                     }
                 </div>
             </section>
+ <!-- ── Facility Configuration — the LGU Head manages their own facilities (any tenant) ── -->
+            @if (_isHead)
+            {
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Facility Configuration</div>
+                            <div class="set-card-sub">Your facilities, billing models &amp; rates</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        <div class="set-row"><span class="set-key">Configured</span><span class="set-val">@(_model?.Facilities.Count ?? 0) facilities</span></div>
+                        <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your municipality only</span></div>
+                        <div class="set-row"><span class="set-key">Managed by</span><span class="set-val">The @Branding.OfficeAcronym Head</span></div>
+                    </div>
+                    <div class="set-links">
+                        <a class="set-link" href="/settings/facilities">Manage facilities<span class="set-link-arrow">→</span></a>
+                    </div>
+                </section>
+            }
  <!-- ── Database health (live PostgreSQL metrics) — platform operator (default LGU) only ── -->
             @if (_isPlatformOperator)
             {
@@ -331,6 +352,7 @@
     private bool _confirmLogout;
     private bool _loggingOut;
     private bool _isPlatformOperator;
+    private bool _isHead;
 
     private async Task SignOutAsync()
     {
@@ -355,6 +377,9 @@
                 string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
         _isPlatformOperator = isSuperAdmin && Branding.IsDefaultTenant;
+        // The LGU Head (SuperAdmin of ANY tenant) manages their own facilities — unlike the platform-only
+        // database/backup tools, this is available to every LGU's Head.
+        _isHead = isSuperAdmin;
 
         if (CachedSettings is not null)
         {

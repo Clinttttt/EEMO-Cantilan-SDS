@@ -20,4 +20,6 @@ public interface IFacilitiesApiClient
         int year);
 
     Task<Result<MonthEndReportDto>> GetMonthEndReportAsync(int year, int month);
+
+    Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync();
 }
