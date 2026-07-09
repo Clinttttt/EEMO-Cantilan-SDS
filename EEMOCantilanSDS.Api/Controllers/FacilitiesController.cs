@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
 using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
@@ -30,6 +31,14 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
     [HttpPost]
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> AddFacility([FromBody] AddFacilityCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPut]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> UpdateFacility([FromBody] UpdateFacilityCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

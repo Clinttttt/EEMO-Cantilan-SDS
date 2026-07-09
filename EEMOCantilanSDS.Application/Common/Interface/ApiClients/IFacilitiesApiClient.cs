@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -25,6 +26,9 @@ public interface IFacilitiesApiClient
     Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync();
 
     Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command);
+
+    /// <summary>Updates a facility's name/short-name/description for the caller's LGU (code/billing immutable).</summary>
+    Task<Result<bool>> UpdateFacilityAsync(UpdateFacilityCommand command);
 
     /// <summary>Sets/updates one fixed ordinance rate for the caller's LGU (effective today, never retroactive).</summary>
     Task<Result<bool>> SetFacilityRateAsync(FacilityCode facilityCode, FeeRateKey key, decimal amount);

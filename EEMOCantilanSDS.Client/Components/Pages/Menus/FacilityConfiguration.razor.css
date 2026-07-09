@@ -127,6 +127,7 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 16px;
     margin-top: 4px;
+    align-items: start; /* cards size to their own content — no tall empty boxes next to rate-heavy ones */
 }
 
 .fac-card {
@@ -579,6 +580,22 @@
     font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
     color: var(--text-subtle);
     margin-top: 4px;
+}
+
+.cfg-field-row { display: flex; gap: 12px; align-items: flex-end; }
+.cfg-field-row .fac-field { flex: 1 1 auto; }
+.cfg-field-code { flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; }
+.cfg-code-chip {
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 14px;
+    border-radius: 9px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: .04em;
 }
 
 .cfg-summary {

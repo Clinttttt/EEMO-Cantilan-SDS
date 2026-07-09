@@ -1,6 +1,7 @@
 @page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
+@using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
@@ -282,6 +283,26 @@
                     }
                 </div>
 
+                <div class="cfg-section-label">Identity</div>
+                <label class="fac-field">
+                    <span class="fac-field-label">Facility name</span>
+                    <input class="fac-input" @bind="_cfgName" @bind:event="oninput" maxlength="120" />
+                </label>
+                <div class="cfg-field-row">
+                    <label class="fac-field">
+                        <span class="fac-field-label">Short name</span>
+                        <input class="fac-input" @bind="_cfgShortName" @bind:event="oninput" maxlength="16" />
+                    </label>
+                    <div class="cfg-field-code">
+                        <span class="fac-field-label">Code</span>
+                        <div class="cfg-code-chip">@_cfgFacility.Code</div>
+                    </div>
+                </div>
+                <label class="fac-field">
+                    <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
+                    <input class="fac-input" @bind="_cfgDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
+                </label>
+
                 <div class="cfg-section-label">Fixed ordinance rates</div>
 
                 @if (_cfgFacility.Rates.Count == 0)
@@ -331,12 +352,9 @@
 
             <div class="cfg-foot">
                 <button class="fac-btn fac-btn-ghost" @onclick="CloseDrawer" disabled="@_busy">Close</button>
-                @if (_cfgFacility.Rates.Count > 0)
-                {
-                    <button class="fac-btn fac-btn-primary" @onclick="SaveRates" disabled="@(_busy || !HasRateChanges())">
-                        @(_busy ? "Saving…" : "Save rates")
-                    </button>
-                }
+                <button class="fac-btn fac-btn-primary" @onclick="SaveChanges" disabled="@(_busy || !HasChanges())">
+                    @(_busy ? "Saving…" : "Save changes")
+                </button>
             </div>
         }
     </aside>
@@ -359,6 +377,9 @@
 
     // Configure
     private ConfiguredFacilityDto? _cfgFacility;
+    private string _cfgName = string.Empty;
+    private string _cfgShortName = string.Empty;
+    private string _cfgDescription = string.Empty;
     private readonly Dictionary<string, decimal> _rateEdits = new();
     private string? _cfgError;
     private string? _cfgSuccess;
@@ -396,6 +417,9 @@
     private void OpenConfigure(ConfiguredFacilityDto f)
     {
         _cfgFacility = f;
+        _cfgName = f.Name;
+        _cfgShortName = f.ShortName;
+        _cfgDescription = f.Description ?? string.Empty;
         _rateEdits.Clear();
         foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
         _cfgError = null;
@@ -441,10 +465,20 @@
         if (decimal.TryParse(raw, out var d) && d >= 0m) _rateEdits[key] = decimal.Round(d, 2);
     }
 
+    private bool HasIdentityChanges()
+        => _cfgFacility is not null &&
+           (!string.Equals(_cfgName.Trim(), _cfgFacility.Name, StringComparison.Ordinal)
+            || !string.Equals(_cfgShortName.Trim(), _cfgFacility.ShortName, StringComparison.Ordinal)
+            || !string.Equals(_cfgDescription.Trim(), _cfgFacility.Description ?? string.Empty, StringComparison.Ordinal));
+
     private bool HasRateChanges()
         => _cfgFacility is not null && _cfgFacility.Rates.Any(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount);
 
-    private async Task SaveRates()
+    private bool HasChanges()
+        => !string.IsNullOrWhiteSpace(_cfgName) && !string.IsNullOrWhiteSpace(_cfgShortName)
+           && (HasIdentityChanges() || HasRateChanges());
+
+    private async Task SaveChanges()
     {
         if (_cfgFacility is null || _busy) return;
         _busy = true;
@@ -452,9 +486,26 @@
         _cfgSuccess = null;
 
         var code = Enum.Parse<FacilityCode>(_cfgFacility.Code);
-        var changed = _cfgFacility.Rates.Where(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount).ToList();
+        var changes = new List<string>();
 
-        foreach (var r in changed)
+        // 1) Identity (name / short-name / description).
+        if (HasIdentityChanges())
+        {
+            var res = await FacilitiesApi.UpdateFacilityAsync(new UpdateFacilityCommand(
+                _cfgFacility.Code, _cfgName.Trim(), _cfgShortName.Trim(),
+                string.IsNullOrWhiteSpace(_cfgDescription) ? null : _cfgDescription.Trim()));
+            if (!res.IsSuccess)
+            {
+                _cfgError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't save the facility details." : res.Error;
+                _busy = false;
+                return;
+            }
+            changes.Add("details");
+        }
+
+        // 2) Changed fixed rates (effective today, never retroactive).
+        var changedRates = _cfgFacility.Rates.Where(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount).ToList();
+        foreach (var r in changedRates)
         {
             var key = Enum.Parse<FeeRateKey>(r.Key);
             var res = await FacilitiesApi.SetFacilityRateAsync(code, key, _rateEdits[r.Key]);
@@ -465,17 +516,21 @@
                 return;
             }
         }
+        if (changedRates.Count > 0) changes.Add($"{changedRates.Count} rate{(changedRates.Count == 1 ? "" : "s")}");
 
         _busy = false;
         await LoadAsync();
 
-        // Re-bind the drawer to the refreshed facility so the saved amounts + "default→custom" tags update.
+        // Re-bind the drawer to the refreshed facility so labels + amounts + default tags update.
         _cfgFacility = _model?.Configured.FirstOrDefault(x => string.Equals(x.Code, code.ToString(), StringComparison.OrdinalIgnoreCase));
         if (_cfgFacility is not null)
         {
+            _cfgName = _cfgFacility.Name;
+            _cfgShortName = _cfgFacility.ShortName;
+            _cfgDescription = _cfgFacility.Description ?? string.Empty;
             _rateEdits.Clear();
             foreach (var r in _cfgFacility.Rates) _rateEdits[r.Key] = r.Amount;
-            _cfgSuccess = changed.Count > 0 ? $"{changed.Count} rate{(changed.Count == 1 ? "" : "s")} updated." : null;
+            _cfgSuccess = changes.Count > 0 ? $"Saved: {string.Join(" · ", changes)}." : null;
         }
         else
         {

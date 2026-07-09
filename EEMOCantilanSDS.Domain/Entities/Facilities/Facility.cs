@@ -63,5 +63,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
         public void Deactivate() => IsActive = false;
         public void Activate() => IsActive = true;
+
+        /// <summary>
+        /// Updates the facility's presentation (name, short name, description). The <see cref="Code"/> and
+        /// <see cref="Archetype"/> are immutable — they anchor the collection/report machinery — so only the
+        /// labels change. Lets a Head correct an onboarding naming artifact without re-onboarding.
+        /// </summary>
+        public void UpdateProfile(string name, string shortName, string? description, string updatedBy = "System")
+        {
+            Name = name.Trim();
+            ShortName = shortName.Trim();
+            Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
     }
 }
