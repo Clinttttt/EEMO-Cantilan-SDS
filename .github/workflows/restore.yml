@@ -28,7 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RESOURCE_GROUP: rg-stalltrack-prod
+  RESOURCE_GROUP: stalltrack-prod-rg
 
 jobs:
   restore:

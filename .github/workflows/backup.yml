@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RESOURCE_GROUP: rg-stalltrack-prod
+  RESOURCE_GROUP: stalltrack-prod-rg
 
 jobs:
   backup:
@@ -118,7 +118,7 @@ jobs:
 #    (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID already exist for deploy.)
 #
 # 3. RBAC: the OIDC identity must be able to manage firewall rules on the server.
-#    Contributor on rg-stalltrack-prod (already used for deploy) covers this. Verify
+#    Contributor on stalltrack-prod-rg (already used for deploy) covers this. Verify
 #    with the first manual "Run workflow" before relying on the schedule.
 #
 # 4. This file only takes effect once it is on the default branch (master) on GitHub.
