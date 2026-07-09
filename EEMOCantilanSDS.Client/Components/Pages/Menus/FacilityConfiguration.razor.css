@@ -1,6 +1,127 @@
 /* Facility Configuration — component-scoped styling built on the app.css design tokens.
    Mirrors the Settings visual language (cards, navy/gold accents) with facility-specific tiles. */
 
+/* ── Shared shell styles (vs-hero / set-card / set-state) are defined per-page in this codebase's
+   scoped CSS, so the subset this page uses is copied here (same values as Settings.razor.css). ── */
+
+.vs-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 24px 28px 18px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    overflow: hidden;
+    flex-wrap: wrap;
+}
+.vs-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%);
+    pointer-events: none;
+}
+.vs-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 240px; }
+.vs-hero-stats { flex: 1; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.vs-hero-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 12px;
+    background: rgba(200, 168, 75, .18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.vs-hero-icon svg {
+    width: 26px;
+    height: 26px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
+.vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
+.vs-hero-stat { padding: 0 18px; text-align: center; flex: 1; min-width: 140px; }
+.vs-hero-stat:first-child { padding-left: 0; }
+.vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
+.vs-hero-key { font-size: 10px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
+.vs-hero-sub2 { font-size: 10px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
+.vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
+@media (max-width: 1100px) {
+    .vs-hero-title { font-size: 18px; }
+    .vs-hero-val { font-size: 18px; }
+    .vs-hero-stat { padding: 0 14px; }
+}
+@media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
+@media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
+
+.set-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px 16px;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
+    margin-bottom: 18px;
+}
+.set-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.set-card-icon {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-icon);
+    color: var(--navy);
+}
+.set-card-icon svg { width: 19px; height: 19px; }
+.set-card-titles { flex: 1; min-width: 0; }
+.set-card-title { font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.set-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+
+.set-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    min-height: 320px;
+    padding: 40px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+}
+.set-state-title { font-size: 15px; font-weight: 800; color: var(--navy); }
+.set-state-text { font-size: 13px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }
+.set-retry {
+    margin-top: 4px;
+    font-size: 13px; font-weight: 650;
+    color: #fff; background: var(--navy);
+    border: none; border-radius: 9px;
+    padding: 9px 18px; cursor: pointer;
+    transition: background .14s ease;
+}
+.set-retry:hover { background: var(--navy-2); }
+
+/* ── Facility-specific ── */
 .fac-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
