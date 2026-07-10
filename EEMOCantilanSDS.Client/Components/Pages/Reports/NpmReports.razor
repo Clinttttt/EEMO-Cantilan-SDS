@@ -20,7 +20,7 @@
         </div>
         <div>
             <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.NPM) · REPORTS</div>
-            <h1 class="rpt-title">New Public Market Reports</h1>
+            <h1 class="rpt-title">@FacilityCatalog.NameOf(FacilityCode.NPM) Reports</h1>
             <div class="rpt-subtitle">@GetPeriodLabel()</div>
         </div>
     </div>
@@ -88,11 +88,11 @@
                 <div class="print-republic">Republic of the Philippines</div>
                 <h2>@Branding.OfficeName</h2>
                 <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">New Public Market Current Status Report</div>
+                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.NPM) Current Status Report</div>
             </header>
 
             <div class="print-report-meta">
-                <div><span>Facility</span><strong>New Public Market</strong></div>
+                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.NPM)</strong></div>
                 <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
                 <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
@@ -186,11 +186,11 @@ else if (ShowHistory)
                 <div class="print-republic">Republic of the Philippines</div>
                 <h2>@Branding.OfficeName</h2>
                 <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">New Public Market — Collection History</div>
+                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.NPM) — Collection History</div>
             </header>
 
             <div class="print-report-meta">
-                <div><span>Facility</span><strong>New Public Market</strong></div>
+                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.NPM)</strong></div>
                 <div><span>Year</span><strong>@CurrentDate.Year</strong></div>
                 <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
@@ -1218,7 +1218,7 @@ else
     <!-- ══ Stallholder Register ══ -->
     <div class="rpt-section-heading">
         <span class="rpt-section-rule"></span>
-        <h2>Stallholder Register — New Public Market</h2>
+        <h2>Stallholder Register — @FacilityCatalog.NameOf(FacilityCode.NPM)</h2>
     </div>
 
     <div class="rpt-compliance-table-wrap">
@@ -1240,7 +1240,7 @@ else
             <tbody>
                 @if (!RegisterRows.Any())
                 {
-                    <tr><td colspan="9" class="register-empty">No active stallholders for New Public Market.</td></tr>
+                    <tr><td colspan="9" class="register-empty">No active stallholders for @FacilityCatalog.NameOf(FacilityCode.NPM).</td></tr>
                 }
                 else
                 {

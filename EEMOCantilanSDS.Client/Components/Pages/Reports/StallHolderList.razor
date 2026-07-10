@@ -46,7 +46,7 @@
             <button class="sh-chip @(_facility is null ? "sh-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
             @foreach (var fc in StallFacilities)
             {
-                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityCatalog.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
             }
         </div>
         <div class="sh-actions">
@@ -150,7 +150,7 @@
                 <div class="sh-gov">Republic of the Philippines</div>
                 <div class="sh-org">@Branding.OfficeName</div>
                 <div class="sh-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityName(_facility.Value))</div>
+                <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityCatalog.NameOf(_facility.Value))</div>
             </header>
 
             @if (allRows.Count == 0)
@@ -167,7 +167,7 @@
                 <div class="sh-facility">
                     <div class="sh-fac-head">
                         <div class="sh-fac-title">
-                            <span class="sh-fac-name">@FacilityName(fc)</span>
+                            <span class="sh-fac-name">@FacilityCatalog.NameOf(fc)</span>
                             <span class="sh-tag">@Model(fc)</span>
                         </div>
                         <div class="sh-fac-stats">

@@ -435,6 +435,5 @@ public class GetFinancialReportQueryHandler(
 
     // Head-named custom facilities use their stored name; canonical facilities keep the fixed label.
     private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
-        FacilityCatalog.IsCustom(code) && names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n)
-            ? n : FacilityName(code);
+        names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n) ? n : FacilityName(code);
 }

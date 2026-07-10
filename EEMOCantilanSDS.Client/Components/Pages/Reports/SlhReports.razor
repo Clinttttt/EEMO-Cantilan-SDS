@@ -20,7 +20,7 @@
         </div>
         <div>
             <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.SLH) · REPORTS</div>
-            <div class="rpt-title">Slaughterhouse Reports</div>
+            <div class="rpt-title">@FacilityCatalog.NameOf(FacilityCode.SLH) Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
     </div>
@@ -68,10 +68,10 @@
                 <div class="print-republic">Republic of the Philippines</div>
                 <h2>@Branding.OfficeName</h2>
                 <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">Slaughterhouse — Collection Status Report</div>
+                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.SLH) — Collection Status Report</div>
             </header>
             <div class="print-report-meta">
-                <div><span>Facility</span><strong>Slaughterhouse</strong></div>
+                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.SLH)</strong></div>
                 <div><span>Report Period</span><strong>@CurrentDate.ToString("MMMM yyyy")</strong></div>
                 <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
@@ -151,10 +151,10 @@ else if (ShowHistory)
                 <div class="print-republic">Republic of the Philippines</div>
                 <h2>@Branding.OfficeName</h2>
                 <p>Municipality of @Branding.Municipality, @Branding.Province</p>
-                <div class="print-report-title">Slaughterhouse — Collection History</div>
+                <div class="print-report-title">@FacilityCatalog.NameOf(FacilityCode.SLH) — Collection History</div>
             </header>
             <div class="print-report-meta">
-                <div><span>Facility</span><strong>Slaughterhouse</strong></div>
+                <div><span>Facility</span><strong>@FacilityCatalog.NameOf(FacilityCode.SLH)</strong></div>
                 <div><span>Year</span><strong>@CurrentDate.Year</strong></div>
                 <div><span>Prepared By</span><strong>@Branding.OfficeAcronym Office</strong></div>
                 <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>

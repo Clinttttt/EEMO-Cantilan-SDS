@@ -280,6 +280,5 @@ public class GetMonthEndReportQueryHandler(
     // Custom facilities are Head-named, so use the tenant's stored name; canonical facilities keep their
     // fixed label (so Cantilan's report is byte-for-byte unchanged).
     private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
-        FacilityCatalog.IsCustom(code) && names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n)
-            ? n : FacilityName(code);
+        names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n) ? n : FacilityName(code);
 }

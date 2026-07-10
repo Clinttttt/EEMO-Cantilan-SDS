@@ -80,7 +80,7 @@
             <button class="me-chip @(_facility is null ? "me-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
             @foreach (var fc in Facilities.All)
             {
-                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@FacilityName(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@Facilities.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
             }
         </div>
         <div class="me-actions">
@@ -465,7 +465,7 @@
     {
         get
         {
-            var scope = _facility is null ? "All facilities" : $"{_facility} — {FacilityName(_facility.Value)}";
+            var scope = _facility is null ? "All facilities" : $"{_facility} — {Facilities.NameOf(_facility.Value)}";
             return HasSearch ? $"{scope} · matching “{_search.Trim()}”" : scope;
         }
     }
