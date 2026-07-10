@@ -1,0 +1,110 @@
+@using EEMOCantilanSDS.Application.Dtos.SystemHealth
+@inject ITenantUsageApiClient TenantUsageApi
+@*
+    Per-tenant storage panel — shown to every municipality's Head on the Settings page. It reports ONLY
+    the caller's own municipality footprint (record counts + estimated data size), scoped server-side to
+    the caller's tenant. It never shows the whole shared database (that stays on the platform-operator's
+    Database-health panel). Read-only aggregates.
+*@
+
+<section class="set-card tu-card">
+    <div class="set-card-head">
+        <div class="set-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg>
+        </div>
+        <div class="set-card-titles">
+            <div class="set-card-title">Storage usage</div>
+            <div class="set-card-sub">@Branding.OfficeAcronym data footprint · your municipality only</div>
+        </div>
+    </div>
+
+    @if (_model is null && _error is null)
+    {
+        <div class="set-rows">
+            @for (var i = 0; i < 5; i++)
+            {
+                <div class="set-row"><span class="sk tu-sk-key"></span><span class="sk tu-sk-val"></span></div>
+            }
+        </div>
+    }
+    else if (_error is not null && _model is null)
+    {
+        <div class="tu-empty">
+            <div class="tu-empty-title">Couldn't load storage usage</div>
+            <div class="tu-empty-text">@_error</div>
+        </div>
+    }
+    else if (_model is not null)
+    {
+        <div class="tu-summary">
+            <div class="tu-stat">
+                <div class="tu-stat-num mono">@FormatBytes(_model.EstimatedSizeBytes)</div>
+                <div class="tu-stat-label">Estimated data size</div>
+            </div>
+            <div class="tu-stat">
+                <div class="tu-stat-num">@_model.TotalRecords.ToString("N0")</div>
+                <div class="tu-stat-label">Total records</div>
+            </div>
+        </div>
+
+        @if (_model.Breakdown.Count > 0)
+        {
+            <div class="set-rows tu-rows">
+                @foreach (var item in _model.Breakdown)
+                {
+                    <div class="set-row">
+                        <span class="set-key">@item.Category</span>
+                        <span class="set-val">
+                            @item.Records.ToString("N0")
+                            <span class="tu-row-size mono">@FormatBytes(item.EstimatedSizeBytes)</span>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="tu-empty"><div class="tu-empty-text">No records yet for this municipality.</div></div>
+        }
+
+        <div class="tu-note">Estimated from stored row data for your municipality. Excludes index and
+            long-value storage, so actual disk use is a little higher.</div>
+    }
+</section>
+
+@code {
+    private TenantUsageDto? _model;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var result = await TenantUsageApi.GetUsageAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _model = result.Value;
+            _error = null;
+        }
+        else
+        {
+            _error = string.IsNullOrWhiteSpace(result.Error)
+                ? "Storage usage is currently unavailable."
+                : result.Error;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] units = { "B", "KB", "MB", "GB", "TB", "PB" };
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+        return unit == 0 ? $"{size:0} {units[unit]}" : $"{size:0.0} {units[unit]}";
+    }
+}

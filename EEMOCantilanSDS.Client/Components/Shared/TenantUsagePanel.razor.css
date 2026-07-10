@@ -1,0 +1,143 @@
+/* Tenant storage panel — self-contained set-card styling (component-scoped CSS does not inherit the
+   Settings page's scoped .set-card rules, so the look is replicated here using the shared tokens). */
+
+.set-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.15rem 1.25rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, 0.04);
+}
+
+.set-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.set-card-icon {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    color: var(--navy);
+    display: grid;
+    place-items: center;
+}
+
+.set-card-icon svg { width: 20px; height: 20px; }
+
+.set-card-titles { display: flex; flex-direction: column; min-width: 0; }
+
+.set-card-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.set-card-sub { font-size: 0.78rem; color: var(--text-subtle); margin-top: 0.1rem; }
+
+/* Headline stats */
+.tu-summary {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.tu-stat {
+    flex: 1 1 0;
+    background: var(--bg-icon);
+    border-radius: 12px;
+    padding: 0.85rem 0.95rem;
+    text-align: center;
+}
+
+.tu-stat-num {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--navy);
+    letter-spacing: -0.02em;
+}
+
+.tu-stat-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.2rem;
+}
+
+.mono {
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+/* Rows */
+.set-rows { display: flex; flex-direction: column; }
+
+.set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+}
+
+.set-row:last-child { border-bottom: none; }
+
+.set-key { color: var(--text-subtle); font-weight: 500; }
+
+.set-val {
+    color: var(--text);
+    font-weight: 600;
+    text-align: right;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.55rem;
+}
+
+.tu-row-size {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-subtle);
+    min-width: 62px;
+    text-align: right;
+}
+
+.tu-rows { margin-top: 0.35rem; }
+
+.tu-note {
+    margin-top: 0.85rem;
+    font-size: 0.74rem;
+    line-height: 1.35;
+    color: var(--text-subtle);
+}
+
+/* Empty / error */
+.tu-empty { padding: 1.25rem 0.5rem; text-align: center; }
+.tu-empty-title { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+.tu-empty-text { font-size: 0.82rem; color: var(--text-subtle); margin-top: 0.3rem; }
+
+/* Skeleton */
+.sk {
+    display: inline-block;
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--bg-icon) 25%, #f4f7fa 37%, var(--bg-icon) 63%);
+    background-size: 400% 100%;
+    animation: tu-shimmer 1.4s ease infinite;
+}
+
+.tu-sk-key { width: 38%; height: 12px; }
+.tu-sk-val { width: 22%; height: 12px; }
+
+@keyframes tu-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}

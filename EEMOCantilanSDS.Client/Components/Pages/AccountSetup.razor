@@ -3,18 +3,21 @@
 
 
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin
+@using EEMOCantilanSDS.Application.Dtos.Tenancy
+@using Microsoft.AspNetCore.WebUtilities
 @inject ISetupApiClient SetupApi
+@inject IMunicipalitiesApiClient MunicipalitiesApi
 @inject NavigationManager Navigation
 <PageTitle>EEMO — Initial System Setup</PageTitle>
 
 <div class="setup-root">
 
-    <!-- Left Panel — Branding -->
-    <div class="setup-left">
+    <!-- Left Panel — Branding (data-driven per ?lgu; Cantilan defaults until resolved) -->
+    <div class="setup-left @(_isDefaultBrand ? "" : "setup-left--neutral")">
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
                 <div class="government-logo-card">
-                    <img src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan Logo" />
+                    <img src="@SealPath" alt="@MunicipalityName seal" />
                 </div>
                 <div class="government-logo-card stalltrack-logo">
                     <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
@@ -22,9 +25,9 @@
             </div>
             <div class="setup-brand">
                 <div class="setup-brand-label">Republic of the Philippines</div>
-                <div class="setup-brand-city">Municipality of Cantilan</div>
-                <div class="setup-brand-title">EEMO</div>
-                <div class="setup-brand-sub">Economic Enterprise and Management Office</div>
+                <div class="setup-brand-city">Municipality of @MunicipalityName</div>
+                <div class="setup-brand-title">@OfficeAcronym</div>
+                <div class="setup-brand-sub">@OfficeName</div>
             </div>
             <div class="login-secure-access">
                 <div class="login-secure-icon" aria-hidden="true">
@@ -36,7 +39,7 @@
                 </div>
                 <div>
                     <div class="login-secure-title">Secure Access Portal</div>
-                    <p>This system is for authorized EEMO personnel only.</p>
+                    <p>This system is for authorized @OfficeAcronym personnel only.</p>
                 </div>
             </div>
             <div class="setup-left-footer">
@@ -78,7 +81,7 @@
                     </svg>
                 </div>
                 <div class="setup-form-title">Create Head Account</div>
-                <div class="setup-form-desc">This account will have full access to the EEMO Revenue Collection System. Please keep your credentials secure.</div>
+                <div class="setup-form-desc">This account will have full access to the @OfficeAcronym Revenue Collection System. Please keep your credentials secure.</div>
             </div>
 
             <!-- Form -->
@@ -292,14 +295,87 @@
     bool IsLoading = false;
     string ErrorMessage = string.Empty;
 
+    // ── Per-LGU branding (data-driven, mirrors Login) ─────────────────────────
+    // Defaults are Cantilan's, so the default LGU renders byte-for-byte unchanged. A scoped setup link
+    // (…/account-setup-admin?lgu={code}) themes the panel to that municipality. Any failure keeps defaults.
+    const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
+    const string NeutralSealPath = "/images/stalltrack-seal.png";
+    string SealPath = DefaultSealPath;
+    string MunicipalityName = "Cantilan";
+    string OfficeAcronym = "EEMO";
+    string OfficeName = "Economic Enterprise and Management Office";
+    bool _isDefaultBrand = true;
+    string? _lgu;
+
+    // Carry prerender-resolved branding into the interactive pass so the panel doesn't flash Cantilan's
+    // branding on another municipality's setup link (same technique as Login).
+    [PersistentState] public string? PBrandSeal { get; set; }
+    [PersistentState] public string? PBrandName { get; set; }
+    [PersistentState] public string? PBrandAcronym { get; set; }
+    [PersistentState] public string? PBrandOffice { get; set; }
+    [PersistentState] public bool? PBrandIsDefault { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        // Apply prerender-resolved branding up-front (correct first interactive frame, no flash).
+        if (!string.IsNullOrEmpty(PBrandName))
+        {
+            _isDefaultBrand = PBrandIsDefault ?? true;
+            if (!string.IsNullOrWhiteSpace(PBrandSeal)) SealPath = PBrandSeal;
+            MunicipalityName = PBrandName;
+            if (PBrandAcronym is not null) OfficeAcronym = PBrandAcronym;
+            if (PBrandOffice is not null) OfficeName = PBrandOffice;
+        }
+
+        // Data-driven branding from ?lgu (the scoped setup link).
+        var query = QueryHelpers.ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
+        if (query.TryGetValue("lgu", out var lguValues))
+        {
+            var lgu = lguValues.ToString().Trim();
+            if (!string.IsNullOrEmpty(lgu))
+            {
+                _lgu = lgu;
+                try
+                {
+                    var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(lgu);
+                    if (branding.IsSuccess && branding.Value is not null)
+                    {
+                        ApplyBranding(branding.Value);
+                        PersistBrand();
+                    }
+                }
+                catch { /* keep defaults on any failure */ }
+            }
+        }
+
         var setupStatusResult = await SetupApi.GetSetupStatusAsync();
-        
+
         if (setupStatusResult.IsSuccess && !setupStatusResult.Value!.IsSetupRequired)
         {
-            Navigation.NavigateTo("/login", replace: true);
+            // Preserve the LGU scope when bouncing back to login.
+            Navigation.NavigateTo("/login" + (string.IsNullOrEmpty(_lgu) ? "" : $"?lgu={_lgu}"), replace: true);
         }
+    }
+
+    void ApplyBranding(MunicipalityBrandingDto b)
+    {
+        var isCantilan = string.Equals(b.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase);
+        _isDefaultBrand = isCantilan;
+        SealPath = !string.IsNullOrWhiteSpace(b.SealPath) ? b.SealPath!
+            : isCantilan ? DefaultSealPath : NeutralSealPath;
+        MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
+        OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
+            : isCantilan ? "EEMO" : MunicipalityName;
+        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+    }
+
+    void PersistBrand()
+    {
+        PBrandSeal = SealPath;
+        PBrandName = MunicipalityName;
+        PBrandAcronym = OfficeAcronym;
+        PBrandOffice = OfficeName;
+        PBrandIsDefault = _isDefaultBrand;
     }
 
     string PasswordInputType => ShowPassword ? "text" : "password";

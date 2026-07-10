@@ -86,6 +86,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ISyncRepository, SyncRepository>();
             service.AddScoped<IAuditRepository, AuditRepository>();
             service.AddScoped<IDatabaseHealthRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.DatabaseHealthRepository>();
+            service.AddScoped<ITenantUsageRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantUsageRepository>();
 
 
             // Services

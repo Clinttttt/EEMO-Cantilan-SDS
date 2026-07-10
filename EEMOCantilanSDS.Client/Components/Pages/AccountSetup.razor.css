@@ -28,6 +28,12 @@
     background-size: cover;
 }
 
+/* Non-default LGUs: neutral navy backdrop (the building photo carries Cantilan-specific signage). */
+.setup-left--neutral {
+    background-image:
+        linear-gradient(180deg, rgba(6, 27, 49, 0.92) 0%, rgba(7, 31, 56, 0.95) 58%, rgba(5, 24, 44, 0.99) 100%);
+}
+
 .setup-left::before {
     content: '';
     position: absolute;

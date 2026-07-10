@@ -495,7 +495,8 @@
         var status = await SetupApi.GetSetupStatusAsync();
         if (status.IsSuccess && status.Value!.IsSetupRequired)
         {
-            Navigation.NavigateTo("/account-setup-admin", replace: true);
+            // Carry the LGU scope so the setup page themes to the same municipality.
+            Navigation.NavigateTo("/account-setup-admin" + (string.IsNullOrEmpty(LguParam) ? "" : $"?lgu={LguParam}"), replace: true);
         }
     }
 

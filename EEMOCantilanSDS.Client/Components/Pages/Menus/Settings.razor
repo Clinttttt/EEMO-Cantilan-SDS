@@ -216,6 +216,11 @@
                     </div>
                 </section>
             }
+            <!-- ── Storage usage (this municipality only) — every Head ── -->
+            @if (_isHead)
+            {
+                <TenantUsagePanel />
+            }
  <!-- ── Database health (live PostgreSQL metrics) — platform operator (default LGU) only ── -->
             @if (_isPlatformOperator)
             {
