@@ -306,7 +306,7 @@
 
     // Facility detection
     string FacilityCode => Facility?.ToUpper() ?? "NPM";
-    string BackLink => $"/facility/{Facility?.ToLower() ?? "npm"}";
+    string BackLink => $"/facility/{FacilityCatalog.SlugOf(ParsedCode)}";
 
     // Parse the ?facility= slug to a code (handles the 8 canonical AND custom1..5); falls back to NPM.
     private Domain.Enums.FacilityCode ParsedCode =>

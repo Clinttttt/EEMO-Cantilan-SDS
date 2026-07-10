@@ -196,7 +196,7 @@
                                 <span class="facility-progress-pct">@fac.CollectionRate%</span>
                             </div>
 
-                            <a href="/facility/@fac.Code.ToString().ToLower()" class="facility-card-btn">
+                            <a href="/facility/@EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(fac.Code, fac.ShortName, Facilities.Select(x => (x.Code, (string?)x.ShortName)))" class="facility-card-btn">
                                 @ActionLabel(fac.Code)
                                 <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
                             </a>

@@ -23,7 +23,7 @@
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
                         <span class="breadcrumb-sep">/</span>
-                        <a href="/facility/@FacilityId.ToLower()" class="breadcrumb-link">@GetFacilityName(FacilityId)</a>
+                        <a href="/facility/@FacilitySlug" class="breadcrumb-link">@GetFacilityName(FacilityId)</a>
                         <span class="breadcrumb-sep">/</span>
                         <span class="breadcrumb-active">Stall @(Stall?.StallNo ?? DisplayStallNo)</span>
                     </div>
@@ -672,6 +672,11 @@
     [Parameter]
     public string FacilityId { get; set; } = string.Empty;
 
+    // Slug for the facility link/redirect: custom facilities resolve to their acronym (…/facility/fe),
+    // canonical facilities keep their code (…/facility/npm). Falls back to the raw route value.
+    private string FacilitySlug =>
+        System.Enum.TryParse<FacilityCode>(FacilityId, true, out var _fc) ? FacilityCatalog.SlugOf(_fc) : FacilityId.ToLower();
+
     [Parameter]
     public string StallKey { get; set; } = string.Empty;
 
@@ -925,7 +930,7 @@
             else
             {
                 // Stall not found, redirect back
-                Navigation.NavigateTo("/facility/" + FacilityId.ToLower());
+                Navigation.NavigateTo("/facility/" + FacilitySlug);
             }
         }
         

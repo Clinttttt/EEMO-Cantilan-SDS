@@ -1,8 +1,4 @@
-@page "/facility/custom1"
-@page "/facility/custom2"
-@page "/facility/custom3"
-@page "/facility/custom4"
-@page "/facility/custom5"
+@page "/facility/{Slug}"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
@@ -39,17 +35,20 @@
               ReportsUrl="@($"/{_code.ToString().ToLower()}/reports")" />
 
 @code {
+    [Parameter] public string? Slug { get; set; }
+
     private FacilityCode _code = FacilityCode.Custom1;
 
     protected override async Task OnInitializedAsync()
     {
-        // Resolve which custom slot from the route (…/facility/custom3 → Custom3).
-        var last = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
-        var slug = last[(last.LastIndexOf('/') + 1)..];
-        if (Enum.TryParse<FacilityCode>(slug, ignoreCase: true, out var parsed) && FacilityCatalog is not null)
-            _code = parsed;
-
+        // The tenant catalog must be loaded before an acronym slug (…/facility/fe) can be resolved; a literal
+        // slot slug (…/facility/custom1) resolves without it. Load first, then map slug → custom code.
         await FacilityCatalog.EnsureLoadedAsync();
+
+        if (FacilityCatalog.TryResolveSlug(Slug, out var parsed) && (int)parsed >= (int)FacilityCode.Custom1)
+            _code = parsed;
+        else
+            Navigation.NavigateTo("/menu");   // unknown/non-custom slug — never render out of context.
     }
 
     private RenderFragment CustomIcon => @<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></svg>;

@@ -16,7 +16,7 @@
 <!-- ══ Topbar ══ -->
 <div class="rpt-topbar">
     <div class="rpt-topbar-left">
-        <a href="@($"/facility/{_code.ToString().ToLower()}")" class="rpt-back-btn" title="Back">
+        <a href="@($"/facility/{FacilityCatalog.SlugOf(_code)}")" class="rpt-back-btn" title="Back">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div class="rpt-topbar-icon">

@@ -88,4 +88,69 @@ public class FacilityState(IFacilitiesApiClient api)
     public string ShortNameOf(FacilityCode code) =>
         _facilities?.FirstOrDefault(f => f.Code == code)?.ShortName
         ?? (Canonical.TryGetValue(code, out var c) ? c.ShortName : code.ToString());
+
+    // ── URL slugs ────────────────────────────────────────────────────────────────────────────────────
+    // Custom facilities expose a friendly acronym slug (/facility/fe) instead of the internal slot code
+    // (/facility/custom1). Canonical facilities keep their fixed code as the slug, so Cantilan's URLs are
+    // byte-for-byte unchanged. A custom acronym can NEVER shadow a canonical route or another custom slot,
+    // and it always has a stable fallback (the slot code) that still resolves — so nothing breaks even when
+    // the acronym is blank, duplicated, or renamed.
+
+    // Slugs a custom acronym must not take (canonical codes + the reserved slot literals).
+    private static readonly HashSet<string> ReservedSlugs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "npm", "tcc", "ncc", "bbq", "ice", "slh", "trm", "tpm",
+        "custom1", "custom2", "custom3", "custom4", "custom5",
+    };
+
+    private static bool IsCustom(FacilityCode code) => (int)code >= (int)FacilityCode.Custom1;
+
+    // Lowercase, alphanumeric only ("FE" → "fe", "F-E 2" → "fe2"); empty when the acronym has no usable chars.
+    private static string Sanitize(string? s) =>
+        new string((s ?? string.Empty).ToLowerInvariant().Where(ch => (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')).ToArray());
+
+    /// <summary>
+    /// URL slug for a facility from a raw (code, shortName) pair plus its peers — for components that already
+    /// hold the tenant summaries (sidebar, dashboard) without touching the per-circuit cache. Canonical → the
+    /// fixed code; custom → the sanitized acronym, falling back to the slot code when the acronym is empty,
+    /// reserved, or already claimed by a lower-numbered custom slot (guarantees a unique, stable slug).
+    /// </summary>
+    public static string SlugFor(FacilityCode code, string? shortName, IEnumerable<(FacilityCode Code, string? ShortName)>? peers = null)
+    {
+        if (!IsCustom(code)) return code.ToString().ToLowerInvariant();
+        var slug = Sanitize(shortName);
+        if (slug.Length == 0 || ReservedSlugs.Contains(slug)) return code.ToString().ToLowerInvariant();
+        if (peers is not null)
+            foreach (var p in peers)
+                if (IsCustom(p.Code) && (int)p.Code < (int)code && Sanitize(p.ShortName) == slug)
+                    return code.ToString().ToLowerInvariant();
+        return slug;
+    }
+
+    /// <summary>URL slug for a facility using the loaded tenant catalog.</summary>
+    public string SlugOf(FacilityCode code) =>
+        SlugFor(code, ShortNameOf(code), All.Select(c => (Code: c, ShortName: (string?)ShortNameOf(c))));
+
+    /// <summary>
+    /// Resolves a URL slug back to a facility code. Accepts the literal enum name (custom1/npm — so old
+    /// bookmarks keep working) AND a custom facility's acronym (fe). Returns false when nothing matches.
+    /// </summary>
+    public bool TryResolveSlug(string? slug, out FacilityCode code)
+    {
+        code = default;
+        if (string.IsNullOrWhiteSpace(slug)) return false;
+        if (Enum.TryParse(slug, ignoreCase: true, out FacilityCode parsed) && Enum.IsDefined(parsed))
+        {
+            code = parsed;
+            return true;
+        }
+        var norm = Sanitize(slug);
+        foreach (var c in All.Where(IsCustom))
+            if (string.Equals(SlugOf(c), norm, StringComparison.OrdinalIgnoreCase))
+            {
+                code = c;
+                return true;
+            }
+        return false;
+    }
 }

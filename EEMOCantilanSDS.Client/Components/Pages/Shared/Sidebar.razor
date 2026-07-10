@@ -56,7 +56,8 @@
         {
             if (!Display.TryGetValue(f.Code, out var display)) { display = (f.Name, DefaultFacilityIcon); }
             var unpaid = _unpaidByCode.GetValueOrDefault(f.Code);
-            var href = "/facility/" + f.Code.ToString().ToLower();
+            var href = "/facility/" + EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(
+                f.Code, f.ShortName, (FacilitySummaries ?? new()).Select(x => (x.Code, (string?)x.ShortName)));
             <NavLink href="@href" class="@NavItemClass(href)" @onclick="() => SetPendingPath(href)">
                 @((MarkupString)display.Icon)
                 <span>@f.Name</span>
