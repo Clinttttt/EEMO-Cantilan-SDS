@@ -44,11 +44,12 @@ public sealed class MobileSessionService(
         return await RefreshSessionAsync() && string.IsNullOrWhiteSpace(await LoadMenuAsync(allowRefresh: false));
     }
 
-    public async Task<string?> LoginAsync(string usernameOrEmployeeId, string password)
+    public async Task<string?> LoginAsync(string usernameOrEmployeeId, string password, string? municipalityCode = null)
     {
         var result = await collectorAuthApiClient.LoginAsync(new CollectorLoginCommand(
             usernameOrEmployeeId.Trim(),
-            password));
+            password,
+            string.IsNullOrWhiteSpace(municipalityCode) ? null : municipalityCode.Trim()));
 
         if (!result.IsSuccess || result.Value is null)
         {

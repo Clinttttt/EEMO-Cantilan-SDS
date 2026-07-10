@@ -11,4 +11,7 @@ public class MunicipalitiesApiClient(HttpClient http) : HandleResponse(http), IM
 
     public async Task<Result<MunicipalityBrandingDto>> GetBrandingByIdentifierAsync(string identifier) =>
         await GetAsync<MunicipalityBrandingDto>($"api/municipalities/{Uri.EscapeDataString(identifier)}/branding");
+
+    public async Task<Result<IReadOnlyList<MunicipalityDto>>> GetMunicipalitiesAsync() =>
+        await GetAsync<IReadOnlyList<MunicipalityDto>>("api/municipalities");
 }

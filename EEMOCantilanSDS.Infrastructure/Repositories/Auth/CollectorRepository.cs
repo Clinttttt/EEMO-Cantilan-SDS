@@ -968,6 +968,21 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 cancellationToken);
     }
 
+    public async Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, Guid municipalityId, CancellationToken cancellationToken = default)
+    {
+        var normalized = usernameOrEmployeeId.Trim();
+        // Scoped login: the tenant is known up-front, so resolve the username/employee-id WITHIN that
+        // municipality. Prevents a value shared across LGUs from resolving to the wrong tenant's account
+        // (which would fail the password check against the wrong hash and block a legitimate collector).
+        return await context.CollectorUsers
+            .IgnoreQueryFilters()
+            .Include(c => c.FacilityAssignments)
+            .FirstOrDefaultAsync(c =>
+                !c.IsDeleted && c.MunicipalityId == municipalityId
+                && (c.Username == normalized || c.EmployeeId == normalized),
+                cancellationToken);
+    }
+
     public async Task<List<CollectorListDto>> GetAllCollectorsWithStatsAsync(int year, int month, CancellationToken cancellationToken = default)
     {
         var collectors = await context.CollectorUsers

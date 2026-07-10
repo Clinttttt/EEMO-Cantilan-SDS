@@ -10,6 +10,13 @@ public interface ICollectorRepository
     Task<CollectorUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CollectorUser?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default);
     Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tenant-scoped login lookup: resolves the username/employee-id WITHIN a specific municipality. Used by
+    /// the scoped collector login so a value shared across LGUs resolves to the correct tenant's account
+    /// (the global overload would return an arbitrary match).
+    /// </summary>
+    Task<CollectorUser?> GetByUsernameOrEmployeeIdAsync(string usernameOrEmployeeId, Guid municipalityId, CancellationToken cancellationToken = default);
     Task<List<CollectorListDto>> GetAllCollectorsWithStatsAsync(int year, int month, CancellationToken cancellationToken = default);
     Task<CollectorActivityDto?> GetCollectorActivityAsync(Guid collectorId, int year, int month, CancellationToken cancellationToken = default);
 

@@ -1,6 +1,8 @@
 ﻿@page "/login"
+@using EEMOCantilanSDS.Application.Dtos.Tenancy
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMunicipalitiesApiClient MunicipalitiesApi
 
 <style>
     /* ─────────────────────────────────────────────
@@ -207,6 +209,20 @@
                 color: #b0c4d4;
             }
 
+        .login-input-wrap select {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13.5px;
+            color: #0d2137;
+            background: transparent;
+            height: 100%;
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
     /* eye toggle for password */
     .pw-toggle {
         cursor: pointer;
@@ -373,6 +389,24 @@
             </div>
         }
 
+        <!-- Municipality picker — only shown when more than one LGU is live (single-tenant stays clean) -->
+        @if (_showMunicipalityPicker)
+        {
+            <div class="login-field">
+                <div class="login-label">Municipality</div>
+                <div class="login-input-wrap">
+                    <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5" /><path d="M4 9.5h16" /><path d="M5.5 11v7M9.5 11v7M14.5 11v7M18.5 11v7" /><path d="M3 20.5h18" /></svg>
+                    <select @bind="SelectedMunicipalityCode">
+                        <option value="">Select your municipality…</option>
+                        @foreach (var m in _municipalities)
+                        {
+                            <option value="@m.Code">@m.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        }
+
         <!-- Username -->
         <div class="login-field">
             <div class="login-label">Username / Employee ID</div>
@@ -443,6 +477,12 @@
     bool IsLoading = false;
     string ErrorMessage = string.Empty;
 
+    // Municipality picker: only prompt when more than one LGU is live. Single-tenant (Cantilan) shows no
+    // picker and sends no code — the backend login lookup stays global, exactly as before.
+    List<MunicipalityDto> _municipalities = new();
+    string? SelectedMunicipalityCode;
+    bool _showMunicipalityPicker = false;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -450,11 +490,27 @@
             if (await Session.RestoreSessionAsync())
             {
                 Navigation.NavigateTo("/menu", forceLoad: false);
+                return;
             }
         }
         catch (HttpRequestException)
         {
             // Stay on the login page when the server is unreachable.
+        }
+
+        // Load the live municipalities (best-effort). Only show the picker when 2+ are active.
+        try
+        {
+            var muni = await MunicipalitiesApi.GetMunicipalitiesAsync();
+            if (muni.IsSuccess && muni.Value is not null)
+            {
+                _municipalities = muni.Value.Where(m => m.IsActive).OrderBy(m => m.Name).ToList();
+                _showMunicipalityPicker = _municipalities.Count > 1;
+            }
+        }
+        catch
+        {
+            // Offline / unreachable — no picker; login stays global (works for the single-tenant case).
         }
     }
 
@@ -487,11 +543,17 @@
             return;
         }
 
+        if (_showMunicipalityPicker && string.IsNullOrWhiteSpace(SelectedMunicipalityCode))
+        {
+            ErrorMessage = "Please select your municipality.";
+            return;
+        }
+
         IsLoading = true;
 
         try
         {
-            var error = await Session.LoginAsync(Username, Password);
+            var error = await Session.LoginAsync(Username, Password, SelectedMunicipalityCode);
 
             if (string.IsNullOrWhiteSpace(error))
             {

@@ -12,4 +12,8 @@ public interface IMunicipalitiesApiClient
     /// <summary>Anonymous pre-login branding for an LGU resolved by identifier (its TenantCode or Code),
     /// from GET /api/municipalities/{identifier}/branding. Lets the login page theme itself to the LGU.</summary>
     Task<Result<MunicipalityBrandingDto>> GetBrandingByIdentifierAsync(string identifier);
+
+    /// <summary>Anonymous list of municipalities (the CARCANMADCARLAN selector), from GET /api/municipalities.
+    /// Used pre-login (e.g. the mobile collector login) to let the user pick their municipality.</summary>
+    Task<Result<IReadOnlyList<MunicipalityDto>>> GetMunicipalitiesAsync();
 }

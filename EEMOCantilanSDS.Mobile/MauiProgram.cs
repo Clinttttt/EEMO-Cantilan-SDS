@@ -48,6 +48,15 @@ namespace EEMOCantilanSDS.Mobile
                 client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
+            // Anonymous pre-login municipalities list — powers the collector login's municipality picker so
+            // the login can be scoped to the right LGU. No auth handlers (the endpoint is anonymous).
+            builder.Services.AddHttpClient<IMunicipalitiesApiClient, MunicipalitiesApiClient>(client =>
+            {
+                client.BaseAddress = new Uri(GetApiBaseUrl());
+                client.Timeout = TimeSpan.FromSeconds(10);
+                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
+            }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
+
             // Inner HTTP client (concrete) — the real network calls. IMobileApiClient is exposed as the
             // caching decorator below, so every consumer transparently gets offline read-through caching.
             builder.Services.AddHttpClient<MobileApiClient>(client =>

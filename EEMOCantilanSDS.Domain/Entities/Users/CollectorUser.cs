@@ -22,7 +22,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
        string username,
        string email,
        string contactNumber,
-       string password)
+       string password,
+       Guid municipalityId = default)
         {
             return new CollectorUser
             {
@@ -35,6 +36,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                 PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, password),
                 IsActive = true,
                 MustChangePassword = false,   // Collectors don't need forced password change
+                MunicipalityId = municipalityId,   // default (Guid.Empty) is stamped by the interceptor on save
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System"
             };
