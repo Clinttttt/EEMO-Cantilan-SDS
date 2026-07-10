@@ -12,7 +12,23 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
 {
     public async Task<Result<TokenResponseDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
-        var user = await authRepository.GetAdminByUsernameAsync(request.Username, cancellationToken);
+        // Resolve the target tenant up-front when the caller specified which LGU it is signing into (scoped
+        // login URL ?lgu={code}), so the username lookup is scoped to that municipality. A username shared
+        // across LGUs otherwise resolves to an ARBITRARY tenant's account — the password is then checked
+        // against the wrong hash and the legitimate admin is blocked (and the wrong account penalized).
+        // When no code is supplied (direct /login, first-run setup, existing clients) the lookup stays
+        // global — behaviour unchanged for the default Cantilan flow.
+        Guid? scopeMunicipalityId = null;
+        if (!string.IsNullOrWhiteSpace(request.MunicipalityCode))
+        {
+            var municipality = await municipalityRepository.GetByIdentifierAsync(request.MunicipalityCode, cancellationToken);
+            if (municipality is null) return Result<TokenResponseDto>.Forbidden();
+            scopeMunicipalityId = municipality.Id;
+        }
+
+        var user = scopeMunicipalityId is { } mid
+            ? await authRepository.GetAdminByUsernameAsync(request.Username, mid, cancellationToken)
+            : await authRepository.GetAdminByUsernameAsync(request.Username, cancellationToken);
         if (user is null) return Result<TokenResponseDto>.NotFound();
 
         if (user.IsLockedOut)
@@ -29,16 +45,11 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         if (!user.IsActive)
             return Result<TokenResponseDto>.Forbidden();
 
-        // Per-municipality login boundary. Only enforced when the caller specifies which LGU it is signing
-        // into (scoped login URL ?lgu={code}); the account must belong to that LGU. Checked AFTER the
-        // password so it never reveals whether a username exists in another LGU. When no code is supplied
-        // (direct /login, the first-run setup flow, existing clients) this is skipped — behaviour unchanged.
-        if (!string.IsNullOrWhiteSpace(request.MunicipalityCode))
-        {
-            var municipality = await municipalityRepository.GetByIdentifierAsync(request.MunicipalityCode, cancellationToken);
-            if (municipality is null || municipality.Id != user.MunicipalityId)
-                return Result<TokenResponseDto>.Forbidden();
-        }
+        // Defense-in-depth: the account must belong to the requested LGU. With the scoped lookup above this
+        // always holds; retained so no future non-scoped path can slip through. Checked AFTER the password
+        // so it never reveals whether a username exists in another LGU.
+        if (scopeMunicipalityId is { } boundaryId && boundaryId != user.MunicipalityId)
+            return Result<TokenResponseDto>.Forbidden();
 
         user.RecordLogin();
         // CreateTokenResponse persists the reset login state together with the new refresh token.

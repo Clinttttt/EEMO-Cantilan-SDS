@@ -35,8 +35,12 @@ namespace EEMOCantilanSDS.Infrastructure.Services
         public string? MunicipalityCode =>
             accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.Municipality);
 
+        // A well-formed but all-zeros claim is treated as UNRESOLVED (null), not as Guid.Empty. Returning
+        // Guid.Empty here would make the EF tenant filter a no-op (its "== Guid.Empty" disjunct), exposing
+        // every municipality's rows; null instead lets the accessor fall through to the default tenant.
         public Guid? MunicipalityId =>
             Guid.TryParse(accessor.HttpContext?.User?.FindFirstValue(AppClaimTypes.MunicipalityId), out var id)
+                && id != Guid.Empty
                 ? id
                 : null;
 

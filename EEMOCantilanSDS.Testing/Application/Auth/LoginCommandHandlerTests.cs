@@ -25,6 +25,10 @@ public class LoginCommandHandlerTests
 
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
+        // Scoped login (?lgu={code}) resolves the tenant first and uses the tenant-scoped overload; stub it
+        // to the same account so the per-municipality boundary check is what these tests exercise.
+        repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user);
         token.Setup(t => t.CreateTokenResponse(It.IsAny<AdminUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "at", RefreshToken = "rt" });
 

@@ -17,4 +17,15 @@ public class AuthRepository(AppDbContext context) : IAuthRepository
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(a => !a.IsDeleted && a.Username == username, ct);
     }
+
+    public async Task<AdminUser?> GetAdminByUsernameAsync(string username, Guid municipalityId, CancellationToken ct)
+    {
+        // Scoped login (?lgu={code}): the tenant is known up-front, so resolve the username WITHIN that
+        // municipality. This prevents a username shared across LGUs from resolving to the wrong tenant's
+        // account (which would otherwise fail the password check against the wrong hash and block a
+        // legitimate admin). Bypass the query filter but pin MunicipalityId explicitly.
+        return await context.AdminUsers
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => !a.IsDeleted && a.Username == username && a.MunicipalityId == municipalityId, ct);
+    }
 }
