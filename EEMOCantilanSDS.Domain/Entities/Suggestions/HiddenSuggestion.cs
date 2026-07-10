@@ -8,8 +8,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Suggestions;
 /// longer be suggested to collectors. Pick-lists are derived from records, so this is the only
 /// non-destructive way to stop suggesting a value (e.g. a typo) without altering historical data.
 /// </summary>
-public class HiddenSuggestion : AuditableEntity
+public class HiddenSuggestion : AuditableEntity, IMunicipalityOwned
 {
+    /// <inheritdoc />
+    public Guid MunicipalityId { get; private set; }
     public SuggestionType Type { get; private set; }
     public string Value { get; private set; } = string.Empty;
 

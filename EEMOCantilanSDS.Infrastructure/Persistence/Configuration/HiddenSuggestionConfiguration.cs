@@ -13,6 +13,8 @@ public class HiddenSuggestionConfiguration : IEntityTypeConfiguration<HiddenSugg
         builder.HasKey(h => h.Id);
         builder.Property(h => h.Id).HasColumnType("uuid");
 
+        builder.Property(h => h.MunicipalityId).IsRequired().HasColumnType("uuid");
+
         builder.Property(h => h.Type)
             .IsRequired()
             .HasColumnType("integer");
@@ -32,7 +34,8 @@ public class HiddenSuggestionConfiguration : IEntityTypeConfiguration<HiddenSugg
         builder.Property(h => h.DeletedAt).HasColumnType("timestamp with time zone");
         builder.Property(h => h.DeletedBy).HasColumnType("character varying(100)");
 
-        // One blocklist entry per (type, value)
-        builder.HasIndex(h => new { h.Type, h.Value }).IsUnique();
+        // One blocklist entry per (municipality, type, value) — scoped per LGU so each municipality keeps
+        // its own blocklist and two LGUs can independently hide the same value.
+        builder.HasIndex(h => new { h.MunicipalityId, h.Type, h.Value }).IsUnique();
     }
 }
