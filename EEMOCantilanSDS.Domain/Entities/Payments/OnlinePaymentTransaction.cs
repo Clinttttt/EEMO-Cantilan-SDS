@@ -80,12 +80,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             Status is OnlinePaymentStatus.Pending or OnlinePaymentStatus.Initiated
             && !string.IsNullOrWhiteSpace(CheckoutUrl);
 
-        /// <summary>Marks the payment as received. Caller guarantees the amount matched and the event is not a duplicate.</summary>
+        /// <summary>
+        /// Records the payment as received. Caller guarantees the amount matched and the event is not a
+        /// duplicate. A confirmed payment SUPERSEDES a prior NON-settled terminal state (Failed / Cancelled /
+        /// Expired): webhook delivery is not ordered and a payor may succeed after an earlier failed attempt
+        /// or a late expiry, so money actually received must always be recorded. Only an already-settled
+        /// transaction (Paid / Completed) is left untouched (idempotent no-op).
+        /// </summary>
         public void MarkPaid(string? paymentId, string? method, DateTime paidAt, string rawPayload)
         {
-            if (IsSettled) return;                       // idempotent no-op
-            if (IsTerminal)
-                throw new InvalidOperationException($"Cannot mark Paid from terminal state {Status}.");
+            if (IsSettled) return;                       // Paid / Completed → idempotent no-op
 
             PaymentId = paymentId;
             Method = method;

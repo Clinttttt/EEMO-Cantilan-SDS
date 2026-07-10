@@ -101,4 +101,38 @@ public class OnlinePaymentSettlementServiceTests
         Assert.NotEqual(OnlinePaymentStatus.Paid, txn.Status);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task LatePaid_AfterExpiry_StillSettles()
+    {
+        // Webhook delivery is not ordered: an 'expired' event can arrive before the 'paid' event. A
+        // confirmed payment must still be recorded (the payor's money was captured).
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);   // Unpaid
+        var (svc, payRepo, _) = Build(record);
+        var txn = PendingTxn(record.Id);
+        txn.MarkExpired("{}");                                                 // provider expiry arrived first
+
+        var result = await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);                    // recovered from Expired
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+        payRepo.Verify(r => r.UpdateAsync(record, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Paid_AfterFailedAttempt_StillSettles()
+    {
+        // A payor may fail one attempt then retry and succeed on the same checkout session.
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
+        var (svc, _, _) = Build(record);
+        var txn = PendingTxn(record.Id);
+        txn.MarkFailed("{}");                                                  // first attempt failed
+
+        var result = await svc.SettleAsync(txn, PaidEvent());                  // retry succeeded
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+    }
 }
