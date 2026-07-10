@@ -340,6 +340,16 @@
     // backdrop byte-for-byte. Set false for any other LGU so its panel uses a neutral backdrop instead of
     // Cantilan's building photo (which carries "Municipality of Cantilan" signage).
     bool _isDefaultBrand = true;
+
+    // Carry the prerender-resolved branding into the interactive (hydration) pass. Without this, the
+    // interactive circuit re-instantiates the component with the default (Cantilan) field values and paints
+    // them for a frame before the async branding re-resolves — a visible flash of Cantilan branding on
+    // another municipality's login. Persisting the resolved values makes the first interactive frame correct.
+    [PersistentState] public string? PBrandSeal { get; set; }
+    [PersistentState] public string? PBrandName { get; set; }
+    [PersistentState] public string? PBrandAcronym { get; set; }
+    [PersistentState] public string? PBrandOffice { get; set; }
+    [PersistentState] public bool? PBrandIsDefault { get; set; }
     string _brandedIdentifier = string.Empty;
     CancellationTokenSource? _brandingCts;
 
@@ -403,6 +413,16 @@
         OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
     }
 
+    // Snapshot the resolved branding so it survives the prerender → interactive handoff (no Cantilan flash).
+    void PersistBrand()
+    {
+        PBrandSeal = SealPath;
+        PBrandName = MunicipalityName;
+        PBrandAcronym = OfficeAcronym;
+        PBrandOffice = OfficeName;
+        PBrandIsDefault = _isDefaultBrand;
+    }
+
     void ResetBranding()
     {
         _isDefaultBrand = true;
@@ -414,6 +434,18 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // If the prerender already resolved an LGU's branding, apply it up-front so the interactive pass
+        // paints the correct municipality on the first frame instead of flashing the default (Cantilan)
+        // seal/backdrop while it re-resolves.
+        if (!string.IsNullOrEmpty(PBrandName))
+        {
+            _isDefaultBrand = PBrandIsDefault ?? true;
+            if (!string.IsNullOrWhiteSpace(PBrandSeal)) SealPath = PBrandSeal;
+            MunicipalityName = PBrandName;
+            if (PBrandAcronym is not null) OfficeAcronym = PBrandAcronym;
+            if (PBrandOffice is not null) OfficeName = PBrandOffice;
+        }
+
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
         var hasSetupParam = query.ContainsKey("setup") && query["setup"] == "true";
@@ -435,6 +467,7 @@
                     {
                         _brandedIdentifier = lgu.ToLowerInvariant();
                         ApplyBranding(branding.Value);
+                        PersistBrand();
                     }
                 }
                 catch { /* keep default branding on any failure */ }
