@@ -76,11 +76,13 @@ namespace EEMOCantilanSDS.Mobile
 
         internal static string GetApiBaseUrl()
         {
-            /*https://api.stalltrack.site*/
-            /* Production API — F1 App Service default host (custom domain api.stalltrack.site retired). */
+#if DEBUG
+            // ── Development only ──────────────────────────────────────────────────────────────────────
+            // Optional tunnel override so a physical device can reach the dev machine's API (ngrok is HTTPS).
+            // Set to empty to fall back to the emulator/localhost hosts below.
             const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
-               if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
-                   return ApiBaseUrlOverride;
+            if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
+                return ApiBaseUrlOverride;
 
 #if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117
@@ -91,6 +93,10 @@ namespace EEMOCantilanSDS.Mobile
             return isEmulator ? "http://10.0.2.2:5117/" : "http://localhost:5117/";
 #else
             return "http://localhost:5117/";
+#endif
+#else
+            // ── Production (RELEASE) ── HTTPS only; no dev tunnel, no cleartext HTTP.
+            return "https://api.stalltrack.site/";
 #endif
         }
     }
