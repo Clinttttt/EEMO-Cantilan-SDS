@@ -7,6 +7,7 @@
 @inject ISettingsApiClient SettingsApi
 @inject AuthService AuthService
 @inject AuthenticationStateProvider AuthState
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
     Settings — read-only system configuration overview.
@@ -290,7 +291,7 @@
                         @foreach (var f in _model!.Facilities)
                         {
                             <tr>
-                                <td><span class="set-fac">@f.Name</span><span class="set-code">@f.Code</span></td>
+                                <td><span class="set-fac">@f.Name</span><span class="set-code">@(System.Enum.TryParse<FacilityCode>(f.Code, out var _sc) ? FacilityCatalog.ShortNameOf(_sc) : f.Code)</span></td>
                                 <td>@f.Model</td>
                                 <td>@f.Rate</td>
                                 <td class="set-td-r">@f.Cadence</td>
@@ -371,6 +372,7 @@
         // whole-database (cross-LGU) tools the API restricts to that operator, so a per-LGU Head never sees
         // them (avoids the 403 "couldn't load" state and hides destructive platform-wide controls).
         await Branding.EnsureLoadedAsync();
+        await FacilityCatalog.EnsureLoadedAsync();
         var authState = await AuthState.GetAuthenticationStateAsync();
         var isSuperAdmin = authState.User.IsInRole("SuperAdmin")
             || authState.User.Claims.Any(c =>

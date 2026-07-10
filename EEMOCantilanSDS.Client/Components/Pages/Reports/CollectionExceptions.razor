@@ -949,15 +949,8 @@
         _ => string.Empty
     };
 
-    private static string FacilityName(string code) => code switch
-    {
-        "NPM" => "New Public Market",
-        "TCC" => "Tampak Commercial Center",
-        "NCC" => "New Commercial Center",
-        "ICE" => "Iceplant",
-        "BBQ" => "Barbecue Stand",
-        _ => code
-    };
+    private string FacilityName(string code) =>
+        System.Enum.TryParse<FacilityCode>(code, true, out var c) ? FacilityCatalog.NameOf(c) : code;
 
     public sealed record CollectionExceptionsPayorState(
         FacilityCode Facility,

@@ -8,6 +8,7 @@
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IDailyCollectionApiClient DailyCollectionApi
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — Stall Profile</PageTitle>
 
@@ -771,6 +772,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         await LoadStallData();
     }
 
@@ -946,6 +948,9 @@
 
     string GetFacilityName(string facilityId)
     {
+        // Canonical + custom facilities use the tenant's own name; legacy slugs fall through to the map.
+        if (System.Enum.TryParse<FacilityCode>(facilityId, true, out var _fc))
+            return FacilityCatalog.NameOf(_fc);
         return facilityId.ToLower() switch
         {
             // From Report.razor (lowercase)
