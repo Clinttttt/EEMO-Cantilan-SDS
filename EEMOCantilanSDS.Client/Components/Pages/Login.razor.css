@@ -21,6 +21,13 @@
     background-size: cover;
 }
 
+/* Non-default LGUs: neutral navy backdrop only — the building photo carries Cantilan-specific signage,
+   so it must not appear behind another municipality's branding. */
+.setup-left--neutral {
+    background-image:
+        linear-gradient(180deg, rgba(6, 27, 49, 0.92) 0%, rgba(7, 31, 56, 0.95) 58%, rgba(5, 24, 44, 0.99) 100%);
+}
+
 .setup-left::before {
     z-index: 0;
     background:

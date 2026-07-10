@@ -18,7 +18,7 @@
     <!-- ═══════════════════════════════════════
          LEFT PANEL — Branding (identical to AccountSetup)
     ═══════════════════════════════════════ -->
-    <div class="setup-left">
+    <div class="setup-left @(_isDefaultBrand ? "" : "setup-left--neutral")">
         <div class="setup-left-inner">
             <div class="setup-seal government-seals">
                 <div class="government-logo-card">
@@ -336,6 +336,10 @@
     string MunicipalityName = "Cantilan";
     string OfficeAcronym = "EEMO";
     string OfficeName = "Economic Enterprise and Management Office";
+    // True for Cantilan (the default LGU) or before any LGU resolves — keeps Cantilan's building-photo
+    // backdrop byte-for-byte. Set false for any other LGU so its panel uses a neutral backdrop instead of
+    // Cantilan's building photo (which carries "Municipality of Cantilan" signage).
+    bool _isDefaultBrand = true;
     string _brandedIdentifier = string.Empty;
     CancellationTokenSource? _brandingCts;
 
@@ -390,6 +394,7 @@
     void ApplyBranding(MunicipalityBrandingDto b)
     {
         var isCantilan = string.Equals(b.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase);
+        _isDefaultBrand = isCantilan;
         SealPath = !string.IsNullOrWhiteSpace(b.SealPath) ? b.SealPath!
             : isCantilan ? DefaultSealPath : NeutralSealPath;
         MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
@@ -400,6 +405,7 @@
 
     void ResetBranding()
     {
+        _isDefaultBrand = true;
         SealPath = DefaultSealPath;
         MunicipalityName = "Cantilan";
         OfficeAcronym = "EEMO";
