@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 
 @inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — List of Stall Holders</PageTitle>
 
@@ -307,16 +308,11 @@
     string FacilityCode => Facility?.ToUpper() ?? "NPM";
     string BackLink => $"/facility/{Facility?.ToLower() ?? "npm"}";
 
-    string FacilityName => Facility?.ToLower() switch
-    {
-        "npm" => "New Public Market",
-        "tcc" => "Tampak Commercial Center",
-        "ncc" => "New Commercial Center",
-        "bbq" => "Barbecue Stand",
-        "ice" => "Iceplant",
-        "slh" => "Slaughter House",
-        _ => "New Public Market"
-    };
+    // Parse the ?facility= slug to a code (handles the 8 canonical AND custom1..5); falls back to NPM.
+    private Domain.Enums.FacilityCode ParsedCode =>
+        System.Enum.TryParse<Domain.Enums.FacilityCode>(Facility ?? "NPM", true, out var c) ? c : Domain.Enums.FacilityCode.NPM;
+
+    string FacilityName => FacilityCatalog.NameOf(ParsedCode);
 
     bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
 
@@ -367,6 +363,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();
         var facility = Facility?.ToLower() ?? "npm";
         if (CachedStalls is { } state && state.Facility == facility)
         {
@@ -381,19 +378,8 @@
     private async Task LoadStallsFromApi()
     {
         IsLoading = true;
-        
-        var facilityCode = (Facility?.ToLower() ?? "npm") switch
-        {
-            "npm" => Domain.Enums.FacilityCode.NPM,
-            "tcc" => Domain.Enums.FacilityCode.TCC,
-            "ncc" => Domain.Enums.FacilityCode.NCC,
-            "bbq" => Domain.Enums.FacilityCode.BBQ,
-            "ice" => Domain.Enums.FacilityCode.ICE,
-            "slh" => Domain.Enums.FacilityCode.SLH,
-            _ => Domain.Enums.FacilityCode.NPM
-        };
 
-        var result = await StallsApi.GetStallHoldersListAsync(facilityCode, null, null);
+        var result = await StallsApi.GetStallHoldersListAsync(ParsedCode, null, null);
         
         if (result.IsSuccess && result.Value != null)
         {

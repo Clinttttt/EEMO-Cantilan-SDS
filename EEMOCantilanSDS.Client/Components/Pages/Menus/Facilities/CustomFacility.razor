@@ -35,7 +35,8 @@
               StallNoSelector="@(s => s.StallNo)"
               ActualOccupantSelector="@(s => s.ActualOccupant)"
               ContractNameSelector="@(s => s.ContractName)"
-              ORNumberSetter="@((s, or) => s.ORNumber = or)" />
+              ORNumberSetter="@((s, or) => s.ORNumber = or)"
+              ReportsUrl="@($"/{_code.ToString().ToLower()}/reports")" />
 
 @code {
     private FacilityCode _code = FacilityCode.Custom1;
