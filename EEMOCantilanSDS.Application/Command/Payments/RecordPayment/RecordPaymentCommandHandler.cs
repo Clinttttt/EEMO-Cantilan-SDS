@@ -87,6 +87,11 @@ public class RecordPaymentCommandHandler(
             if (existingPayment == null)
                 return Result<bool>.NotFound();
 
+            // Stamp the offline idempotency key on the UPDATE path too (not just create), so a lost-ack
+            // retry of the same queued op is caught by the sync pre-check instead of re-applying the write.
+            if (request.ClientOperationId is { } clientOpId)
+                existingPayment.SetClientOperationId(clientOpId);
+
             if (isCollectorRequest &&
                 existingPayment.CollectorId is { } recordedCollectorId &&
                 collectorId is { } actingCollectorId &&

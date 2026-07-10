@@ -60,10 +60,21 @@ using (var tenantScope = app.Services.CreateScope())
             .Select(m => m.Id)
             .FirstOrDefaultAsync();
         accessor.Set(defaultMunicipalityId);
+
+        // Surface the unhappy path: an empty default means no seeded default LGU — the tenant filter stays
+        // a no-op and token-less writes go unstamped until one exists. Log it so ops can see and correct it.
+        if (defaultMunicipalityId == Guid.Empty)
+            app.Logger.LogWarning(
+                "Tenant scoping: no default municipality (IsDefault=true) was found at startup. The tenant " +
+                "filter stays a no-op and token-less writes go unstamped until a default municipality exists.");
     }
-    catch
+    catch (Exception ex)
     {
-        // Leave unresolved — the tenant filter stays a no-op until it can be resolved later.
+        // Don't crash startup on a transient DB hiccup (F1 cold-start) — but make the failure visible.
+        // The filter stays a no-op until a restart resolves it.
+        app.Logger.LogError(ex,
+            "Tenant scoping: failed to resolve the default municipality at startup. The tenant filter stays " +
+            "a no-op until the next restart resolves it.");
     }
 }
 

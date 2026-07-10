@@ -59,6 +59,10 @@ public class RecordDailyCollectionCommandHandler(
                     409);
             }
 
+            // Stamp the offline idempotency key on the UPDATE path too so a lost-ack retry is caught.
+            if (request.ClientOperationId is { } existingOpId)
+                existing.SetClientOperationId(existingOpId);
+
             if (request.IsAbsent)
             {
                 existing.MarkAbsent(recordedBy);

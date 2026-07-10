@@ -129,6 +129,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             UpdatedBy = updatedBy;
         }
 
+        /// <summary>
+        /// Records a PARTIAL online payment: the captured amount does NOT cover the current balance (e.g. the
+        /// bill grew after the payor opened checkout). Marks Partial with the amount actually received so the
+        /// under-payment is never silently cleared as fully Paid. Online carries no collector/OR (audited via
+        /// remarks); delinquency then recomputes as arrears, not cleared.
+        /// </summary>
+        public void MarkPartiallyPaidOnline(decimal amountReceived, string remarks, string updatedBy = "Online")
+        {
+            Status = PaymentStatus.Partial;
+            CollectorId = null;
+            ORNumber = null;
+            PartialAmount = amountReceived;
+            Remarks = remarks;
+            PaidAt = DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void MarkUnpaid(string updatedBy = "System")
         {
             Status = PaymentStatus.Unpaid;

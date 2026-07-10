@@ -54,8 +54,9 @@ public class RecordUtilityPaymentCommandHandler(
             request.WaterStatus, request.WaterPartialAmount,
             request.Remarks, actor);
 
-        // Offline replay idempotency: stamp the client operation id so a re-sync is a no-op.
-        if (request.ClientOperationId is { } clientOpId && bill.ClientOperationId is null)
+        // Offline replay idempotency: stamp the client operation id on every recorded op (not just the
+        // first) so a lost-ack retry of the same queued op is caught by the sync pre-check.
+        if (request.ClientOperationId is { } clientOpId)
             bill.SetClientOperationId(clientOpId);
 
         await unitOfWork.SaveChangesAsync(ct);

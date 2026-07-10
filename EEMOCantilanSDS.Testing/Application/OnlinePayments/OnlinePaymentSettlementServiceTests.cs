@@ -135,4 +135,22 @@ public class OnlinePaymentSettlementServiceTests
         Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
         Assert.Equal(PaymentStatus.Paid, record.Status);
     }
+
+    [Fact]
+    public async Task BillGrewAfterCheckout_RecordsPartial_NotFullPaid()
+    {
+        // Captured amount was frozen at 100 when checkout opened; the balance is now 150 (a charge was
+        // added). The 100 must NOT clear the full 150 — record a partial of what was actually received.
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, 150m);   // TotalBill 150, Unpaid
+        var (svc, payRepo, _) = Build(record);
+        var txn = PendingTxn(record.Id);                                    // Amount = 100
+
+        var result = await svc.SettleAsync(txn, PaidEvent());               // evt 100 == txn 100
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);                 // money still recorded on the txn
+        Assert.Equal(PaymentStatus.Partial, record.Status);                 // NOT fully Paid
+        Assert.Equal(100m, record.PartialAmount);
+        payRepo.Verify(r => r.UpdateAsync(record, It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

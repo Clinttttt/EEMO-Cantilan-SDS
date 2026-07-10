@@ -42,7 +42,16 @@ public sealed class OnlinePaymentSettlementService(
         // attribution. Only clear the balance when the period is still outstanding (the normal case).
         if (record.Status != PaymentStatus.Paid)
         {
-            record.MarkPaidOnline($"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}");
+            var note = $"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}";
+            // Bill-changed-mid-checkout guard: the captured amount was frozen when the payor opened checkout.
+            // If the balance has since grown (e.g. staff added a utility charge), the captured amount no
+            // longer covers it — record it as PARTIAL for what was actually received rather than clearing
+            // the full (larger) balance. Only for a still-Unpaid record; every other case is unchanged.
+            if (record.Status == PaymentStatus.Unpaid && transaction.Amount < record.BalanceDue)
+                record.MarkPartiallyPaidOnline(transaction.Amount, note + " · partial (balance increased after checkout)");
+            else
+                record.MarkPaidOnline(note);
+
             await paymentRepository.UpdateAsync(record, cancellationToken);
         }
 
