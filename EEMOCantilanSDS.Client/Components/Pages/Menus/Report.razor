@@ -557,8 +557,9 @@
     // Authoritative scope labels (fall back to selection before/while loading).
     private string PeriodLabel => Model?.PeriodLabel
         ?? (ActiveTab == "Monthly" ? $"{SelectedMonth} {SelectedYear}" : SelectedYear);
-    private string ScopeLabel => Model?.ScopeLabel
-        ?? (SelectedFacility == "All" ? "All facilities" : FacilityOptions.FirstOrDefault(o => o.Code == SelectedFacility).Label ?? SelectedFacility);
+    private string ScopeLabel => SelectedFacility != "All" && Enum.TryParse<FacilityCode>(SelectedFacility, out var _slc)
+        ? FacilityCatalog.NameOf(_slc)
+        : (Model?.ScopeLabel ?? (SelectedFacility == "All" ? "All facilities" : SelectedFacility));
     private string FrequencyLabel => Model?.Frequency ?? ActiveTab;
 
     protected override async Task OnInitializedAsync()

@@ -780,17 +780,12 @@
     {
         IsLoading = true;
         
-        // Parse facility code from URL parameter
-        var facilityCode = FacilityId.ToUpper() switch
-        {
-            "NPM" => Domain.Enums.FacilityCode.NPM,
-            "TCC" => Domain.Enums.FacilityCode.TCC,
-            "NCC" => Domain.Enums.FacilityCode.NCC,
-            "BBQ" => Domain.Enums.FacilityCode.BBQ,
-            "ICE" => Domain.Enums.FacilityCode.ICE,
-            "SLH" => Domain.Enums.FacilityCode.SLH,
-            _ => Domain.Enums.FacilityCode.NPM
-        };
+        // Parse facility code from URL parameter. Enum.TryParse resolves canonical codes
+        // (NPM/TCC/…) AND custom slots (Custom1..Custom5) case-insensitively, so a custom
+        // facility profile loads its OWN stalls instead of falling through to NPM.
+        var facilityCode = Enum.TryParse<Domain.Enums.FacilityCode>(FacilityId, ignoreCase: true, out var _fc)
+            ? _fc
+            : Domain.Enums.FacilityCode.NPM;
 
         // Load stalls from API
         var stallsResult = await StallsApi.GetStallsByFacilityPaginatedAsync(facilityCode, null, null, 100);
