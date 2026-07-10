@@ -196,7 +196,7 @@
                 <button type="button" class="fh-chip @(_facility is null ? "fh-chip-active" : "")" @onclick="@(() => _facility = null)">All Facilities</button>
                 @foreach (var fc in FacilityCatalog.All)
                 {
-                    <button type="button" class="fh-chip @(_facility == fc ? "fh-chip-active" : "")" @onclick="@(() => _facility = fc)">@fc</button>
+                    <button type="button" class="fh-chip @(_facility == fc ? "fh-chip-active" : "")" @onclick="@(() => _facility = fc)">@FacilityCatalog.ShortNameOf(fc)</button>
                 }
             </div>
         </div>

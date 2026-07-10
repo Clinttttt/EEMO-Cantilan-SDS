@@ -46,7 +46,7 @@
             <button class="sh-chip @(_facility is null ? "sh-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
             @foreach (var fc in StallFacilities)
             {
-                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityCatalog.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityCatalog.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
             }
         </div>
         <div class="sh-actions">

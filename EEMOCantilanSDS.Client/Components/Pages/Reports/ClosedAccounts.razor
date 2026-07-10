@@ -56,7 +56,7 @@
             <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = null">All Facilities</button>
             @foreach (var fc in Facilities)
             {
-                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = fc">@fc</button>
+                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = fc">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc) ? FacilityCatalog.ShortNameOf(_cc) : fc)</button>
             }
         </div>
 

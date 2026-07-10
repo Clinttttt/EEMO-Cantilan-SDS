@@ -85,7 +85,7 @@
                     {
                         var fc = codes;
                         <button class="rfp-chip @(SelectedFacility == fc ? "on" : "")" title="@label" @onclick='() => SelectFacility(fc)'>
-                            @(codes == "All" ? "All" : codes)
+                            @(codes == "All" ? "All" : ChipLabel(codes))
                         </button>
                     }
                 </div>
@@ -393,7 +393,7 @@
                                         {
                                             <span class="fac-caret @(open ? "open" : "")">&#9654;</span>
                                         }
-                                        <span class="fac-code-badge">@f.Code</span> @f.Name
+                                        <span class="fac-code-badge">@FacilityCatalog.ShortNameOf(f.Code)</span> @f.Name
                                     </div>
                                 </td>
                                 <td><span class="fac-model">@f.Model</span></td>
@@ -487,7 +487,7 @@
                             <tr>
                                 <td class="tx-id">@tx.Reference</td>
                                 <td><a href="@ProfileUrl(tx.FacilityCode, tx.StallNo)" class="vendor-link">@tx.Payor</a></td>
-                                <td><span class="fac-code-badge">@tx.FacilityCode</span></td>
+                                <td><span class="fac-code-badge">@FacilityCatalog.ShortNameOf(tx.FacilityCode)</span></td>
                                 <td style="color:var(--text-muted);font-size:12.5px;">@tx.RecordedAt.ToString("MMM d, yyyy")</td>
                                 <td><span class="pay-method">@tx.Method</span></td>
                                 <td class="amount-green">@Money(tx.Amount)</td>
@@ -576,6 +576,10 @@
         ActiveTab = tab;
         await Load();
     }
+
+    // Chip label: tenant short name (canonical stays e.g. "NPM"; custom shows its Head-chosen acronym).
+    private string ChipLabel(string codes) =>
+        Enum.TryParse<FacilityCode>(codes, out var c) ? FacilityCatalog.ShortNameOf(c) : codes;
 
     private async Task SelectFacility(string code)
     {

@@ -59,7 +59,7 @@
             <div class="ce-seg" role="group" aria-label="Facility">
                 @foreach (var fc in RentalFacilityCodes)
                 {
-                    <button class="ce-seg-btn @(_facility == fc ? "ce-seg-on" : "")" type="button" title="@FacilityName(fc)" @onclick="() => SelectFacility(fc)">@fc</button>
+                    <button class="ce-seg-btn @(_facility == fc ? "ce-seg-on" : "")" type="button" title="@FacilityName(fc)" @onclick="() => SelectFacility(fc)">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc2) ? FacilityCatalog.ShortNameOf(_cc2) : fc)</button>
                 }
             </div>
 

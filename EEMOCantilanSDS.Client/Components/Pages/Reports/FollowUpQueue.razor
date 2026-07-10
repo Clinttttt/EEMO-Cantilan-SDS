@@ -124,7 +124,7 @@
                 <button type="button" class="fq-chip @(_facility is null ? "fq-chip-active" : "")" @onclick="@(() => SelectFacility(null))">All Facilities</button>
                 @foreach (var fc in FacilityCatalog.All)
                 {
-                    <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                    <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
                 }
             </div>
             <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Resolved & dismissed items from previous periods">

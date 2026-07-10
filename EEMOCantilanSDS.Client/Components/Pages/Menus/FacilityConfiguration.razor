@@ -127,7 +127,7 @@
                                 <div class="fac-badge">@f.ShortName</div>
                                 <div class="fac-titles">
                                     <div class="fac-name">@f.Name</div>
-                                    <div class="fac-code">@f.Code</div>
+                                    @if (!IsCustom(f.Code)) { <div class="fac-code">@f.Code</div> }
                                 </div>
                                 <span class="fac-pill @(f.IsActive ? "fac-pill-on" : "fac-pill-off")">@(f.IsActive ? "Active" : "Inactive")</span>
                             </div>
@@ -226,7 +226,7 @@
             <div class="cfg-head">
                 <div class="cfg-head-eyebrow">Add facility</div>
                 <div class="cfg-head-title">@_addTarget.Name</div>
-                <div class="cfg-head-sub">@_addTarget.BillingModel · @_addTarget.Code</div>
+                <div class="cfg-head-sub">@_addTarget.BillingModel@(_addTarget.IsCustom ? "" : " · " + _addTarget.Code)</div>
                 <button class="cfg-close" @onclick="CloseDrawer" aria-label="Close">✕</button>
             </div>
 
@@ -269,7 +269,7 @@
             <div class="cfg-head">
                 <div class="cfg-head-eyebrow">Configure facility</div>
                 <div class="cfg-head-title">@_cfgFacility.Name</div>
-                <div class="cfg-head-sub">@_cfgFacility.BillingModel · @_cfgFacility.Code</div>
+                <div class="cfg-head-sub">@_cfgFacility.BillingModel@(IsCustom(_cfgFacility.Code) ? "" : " · " + _cfgFacility.Code)</div>
                 <button class="cfg-close" @onclick="CloseDrawer" aria-label="Close">✕</button>
             </div>
 
@@ -293,10 +293,13 @@
                         <span class="fac-field-label">Short name</span>
                         <input class="fac-input" @bind="_cfgShortName" @bind:event="oninput" maxlength="16" />
                     </label>
-                    <div class="cfg-field-code">
-                        <span class="fac-field-label">Code</span>
-                        <div class="cfg-code-chip">@_cfgFacility.Code</div>
-                    </div>
+                    @if (!IsCustom(_cfgFacility.Code))
+                    {
+                        <div class="cfg-field-code">
+                            <span class="fac-field-label">Code</span>
+                            <div class="cfg-code-chip">@_cfgFacility.Code</div>
+                        </div>
+                    }
                 </div>
                 <label class="fac-field">
                     <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
@@ -505,6 +508,10 @@
         await Branding.EnsureLoadedAsync();
         await LoadAsync();
     }
+
+    // Custom facilities use an internal slot code (Custom1..5) that should never be shown to users — the
+    // Head-chosen short name/acronym is displayed instead.
+    private static bool IsCustom(string code) => code.StartsWith("Custom", StringComparison.OrdinalIgnoreCase);
 
     private async Task LoadAsync()
     {

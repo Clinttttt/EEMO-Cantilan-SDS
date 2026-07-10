@@ -80,7 +80,7 @@
             <button class="me-chip @(_facility is null ? "me-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
             @foreach (var fc in Facilities.All)
             {
-                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@Facilities.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@fc</button>
+                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@Facilities.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@Facilities.ShortNameOf(fc)</button>
             }
         </div>
         <div class="me-actions">
