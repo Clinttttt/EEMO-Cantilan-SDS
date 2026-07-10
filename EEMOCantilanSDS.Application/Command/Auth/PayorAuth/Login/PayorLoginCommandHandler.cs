@@ -18,7 +18,7 @@ public class PayorLoginCommandHandler(
         var payor = await payorRepository.GetByContactNumberAsync(request.ContactNumber!.Trim(), cancellationToken);
 
         if (payor is null)
-            return Result<TokenResponseDto>.NotFound();
+            return Result<TokenResponseDto>.Unauthorized();   // uniform 401 — never reveal which numbers exist
 
         if (payor.IsLockedOut)
             return Result<TokenResponseDto>.Unauthorized();

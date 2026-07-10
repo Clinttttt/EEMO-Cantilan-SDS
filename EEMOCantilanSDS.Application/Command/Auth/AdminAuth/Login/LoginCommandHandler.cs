@@ -29,7 +29,8 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         var user = scopeMunicipalityId is { } mid
             ? await authRepository.GetAdminByUsernameAsync(request.Username, mid, cancellationToken)
             : await authRepository.GetAdminByUsernameAsync(request.Username, cancellationToken);
-        if (user is null) return Result<TokenResponseDto>.NotFound();
+        // Uniform 401 for both unknown username and wrong password — never reveal which usernames exist.
+        if (user is null) return Result<TokenResponseDto>.Unauthorized();
 
         if (user.IsLockedOut)
             return Result<TokenResponseDto>.Unauthorized();

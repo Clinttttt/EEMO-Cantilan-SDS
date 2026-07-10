@@ -32,7 +32,7 @@ public class CollectorLoginCommandHandler(
             : await collectorRepository.GetByUsernameOrEmployeeIdAsync(request.UsernameOrEmployeeId!, cancellationToken);
 
         if (collector is null)
-            return Result<TokenResponseDto>.NotFound();
+            return Result<TokenResponseDto>.Unauthorized();   // uniform 401 — never reveal which accounts exist
 
         if (collector.IsLockedOut)
             return Result<TokenResponseDto>.Unauthorized();

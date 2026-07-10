@@ -75,4 +75,42 @@ public class ExceptionHandlingMiddlewareTests
         Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
         Assert.Contains("Name is required", body);
     }
+
+    // Stand-in for Npgsql.PostgresException (a SqlState property) so the middleware's reflective detection
+    // can be exercised without a hard Npgsql reference.
+    private sealed class FakePostgresException : Exception
+    {
+        public FakePostgresException(string sqlState) : base("db error") => SqlState = sqlState;
+        public string SqlState { get; }
+    }
+
+    [Fact]
+    public async Task UniqueViolation_MapsTo409Conflict()
+    {
+        var context = new DefaultHttpContext { TraceIdentifier = "t" };
+        context.Response.Body = new MemoryStream();
+
+        // EF wraps the provider exception; SqlState 23505 = unique_violation.
+        var wrapped = new Exception("update failed", new FakePostgresException("23505"));
+        var sut = new ExceptionHandlingMiddleware(_ => throw wrapped, NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task NonUniqueDbError_StillReturns500()
+    {
+        var context = new DefaultHttpContext { TraceIdentifier = "t" };
+        context.Response.Body = new MemoryStream();
+
+        // 23503 = foreign_key_violation — not a caller conflict; must stay 500.
+        var wrapped = new Exception("update failed", new FakePostgresException("23503"));
+        var sut = new ExceptionHandlingMiddleware(_ => throw wrapped, NullLogger<ExceptionHandlingMiddleware>.Instance);
+
+        await sut.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
+    }
 }
