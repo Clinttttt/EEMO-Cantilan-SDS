@@ -22,8 +22,7 @@
     overflow: hidden;
     background-color: #0b2846;
     background-image:
-        linear-gradient(180deg, rgba(6, 27, 49, 0.84) 0%, rgba(7, 31, 56, 0.91) 58%, rgba(5, 24, 44, 0.97) 100%),
-        url('/images/eemo_image.png');
+        linear-gradient(180deg, rgba(6, 27, 49, 0.92) 0%, rgba(7, 31, 56, 0.95) 58%, rgba(5, 24, 44, 0.99) 100%);
     background-position: center;
     background-size: cover;
 }
