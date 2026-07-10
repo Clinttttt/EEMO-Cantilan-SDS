@@ -1,0 +1,90 @@
+@page "/facility/custom1"
+@page "/facility/custom2"
+@page "/facility/custom3"
+@page "/facility/custom4"
+@page "/facility/custom5"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject NavigationManager Navigation
+
+@*
+    Head-added CUSTOM facility page. Custom facilities are monthly-rental, so this reuses the exact shared
+    FacilityPage the standard monthly facilities (NCC/BBQ/ICE/TCC) use — stalls, contracts, payments,
+    delinquency, and the inline reports modal — all keyed by the facility's Id. The five fixed routes map
+    to the reserved Custom1..Custom5 codes; the tenant's own name/short-name come from FacilityState.
+*@
+
+<PageTitle>@Branding.OfficeAcronym Admin — @FacilityCatalog.NameOf(_code)</PageTitle>
+
+<FacilityPage TStall="CustomStall"
+              FacilityCodeEnum="_code"
+              FacilityName="@FacilityCatalog.NameOf(_code)"
+              FacilityShortCode="@_code.ToString()"
+              FacilityDescription="Custom facility · monthly rental"
+              FacilityIcon="@CustomIcon"
+              DefaultMonthlyRate="0"
+              DefaultFeeTypes="@(new List<string>())"
+              StallMapper="@MapStall"
+              IsPaidSelector="@(s => s.IsPaid)"
+              IsPartialSelector="@(s => s.IsPartial)"
+              IsActiveSelector="@(s => s.IsActive)"
+              MonthlyRateSelector="@(s => s.MonthlyRate)"
+              PartialAmountSelector="@(s => s.PartialAmount)"
+              StallNoSelector="@(s => s.StallNo)"
+              ActualOccupantSelector="@(s => s.ActualOccupant)"
+              ContractNameSelector="@(s => s.ContractName)"
+              ORNumberSetter="@((s, or) => s.ORNumber = or)" />
+
+@code {
+    private FacilityCode _code = FacilityCode.Custom1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Resolve which custom slot from the route (…/facility/custom3 → Custom3).
+        var last = new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/');
+        var slug = last[(last.LastIndexOf('/') + 1)..];
+        if (Enum.TryParse<FacilityCode>(slug, ignoreCase: true, out var parsed) && FacilityCatalog is not null)
+            _code = parsed;
+
+        await FacilityCatalog.EnsureLoadedAsync();
+    }
+
+    private RenderFragment CustomIcon => @<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></svg>;
+
+    public class CustomStall
+    {
+        public Guid StallGuid { get; set; } = Guid.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public decimal PartialAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+        public string ORNumber { get; set; } = string.Empty;
+    }
+
+    private CustomStall MapStall(Application.Dtos.Stalls.StallDto dto, bool isPaid, bool isPartial, decimal partialAmount, string orNumber)
+    {
+        return new CustomStall
+        {
+            StallGuid = dto.Id,
+            StallNo = dto.StallNo,
+            ActualOccupant = dto.ActualOccupant ?? "N/A",
+            ContractName = dto.NameOnContract ?? "N/A",
+            AreaSqm = dto.AreaSqm ?? 0,
+            ContractDate = dto.ContractDate,
+            MonthlyRate = dto.MonthlyRate,
+            IsActive = dto.Status == StallStatus.Active,
+            ORNumber = orNumber,
+            IsPaid = isPaid,
+            IsPartial = isPartial,
+            PartialAmount = partialAmount,
+        };
+    }
+}

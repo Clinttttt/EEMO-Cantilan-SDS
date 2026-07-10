@@ -54,7 +54,7 @@
            unchanged; a second LGU shows only its own. Falls back to nothing until summaries load. *@
         @foreach (var f in (FacilitySummaries ?? new()).OrderBy(f => f.Code))
         {
-            if (!Display.TryGetValue(f.Code, out var display)) { continue; }
+            if (!Display.TryGetValue(f.Code, out var display)) { display = (f.Name, DefaultFacilityIcon); }
             var unpaid = _unpaidByCode.GetValueOrDefault(f.Code);
             var href = "/facility/" + f.Code.ToString().ToLower();
             <NavLink href="@href" class="@NavItemClass(href)" @onclick="() => SetPendingPath(href)">
@@ -213,6 +213,10 @@
         [FacilityCode.TRM] = ("Transport Terminal", """<svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>"""),
         [FacilityCode.TPM] = ("Tabo-an Market", """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>"""),
     };
+
+    // Fallback icon for facilities without a bespoke icon (e.g. Head-added custom facilities). The nav
+    // LABEL always comes from the tenant's own facility name (f.Name), so only the glyph is generic.
+    private const string DefaultFacilityIcon = """<svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>""";
 
     public void Dispose()
     {
