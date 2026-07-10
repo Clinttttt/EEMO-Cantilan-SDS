@@ -24,4 +24,21 @@ public class TenantUsageController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(new GetTenantUsageQuery());
         return HandleResponse(result);
     }
+
+    /// <summary>
+    /// Downloads a JSON export of the caller's OWN municipality data (operational/financial + audit;
+    /// credentials excluded). Scoped server-side to the caller's tenant — never another LGU, never the
+    /// whole database (that stays on the platform-operator-only backup).
+    /// </summary>
+    [HttpGet("export")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<IActionResult> ExportAsync()
+    {
+        var result = await Sender.Send(new EEMOCantilanSDS.Application.Queries.Backup.ExportTenantData.ExportTenantDataQuery());
+        if (result.IsSuccess && result.Value is not null)
+            return File(result.Value.Content, result.Value.ContentType, result.Value.FileName);
+
+        var status = result.StatusCode is 200 or 0 or null ? 500 : result.StatusCode.Value;
+        return StatusCode(status, new { IsSuccess = false, Error = result.Error });
+    }
 }

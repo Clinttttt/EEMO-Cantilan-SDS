@@ -1,5 +1,7 @@
 @using EEMOCantilanSDS.Application.Dtos.SystemHealth
+@using EEMOCantilanSDS.Application.Dtos.Backup
 @inject ITenantUsageApiClient TenantUsageApi
+@inject IJSRuntime JS
 @*
     Per-tenant storage panel — shown to every municipality's Head on the Settings page. It reports ONLY
     the caller's own municipality footprint (record counts + estimated data size), scoped server-side to
@@ -16,7 +18,24 @@
             <div class="set-card-title">Storage usage</div>
             <div class="set-card-sub">@Branding.OfficeAcronym data footprint · your municipality only</div>
         </div>
+        <button class="tu-export-btn" @onclick="ExportAsync" disabled="@(_exporting || _model is null)"
+                title="Download a JSON backup of your municipality's data">
+            @if (_exporting)
+            {
+                <span class="tu-export-spin"></span><span>Preparing…</span>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                <span>Back up my data</span>
+            }
+        </button>
     </div>
+
+    @if (_exportError is not null)
+    {
+        <div class="tu-export-err">@_exportError</div>
+    }
 
     @if (_model is null && _error is null)
     {
@@ -75,8 +94,40 @@
 @code {
     private TenantUsageDto? _model;
     private string? _error;
+    private bool _exporting;
+    private string? _exportError;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task ExportAsync()
+    {
+        if (_exporting) return;
+        _exporting = true;
+        _exportError = null;
+        try
+        {
+            var result = await TenantUsageApi.ExportAsync();
+            if (result.IsSuccess && result.Value is not null)
+            {
+                var base64 = Convert.ToBase64String(result.Value.Content);
+                await JS.InvokeVoidAsync("downloadFileFromBytes", result.Value.FileName, base64, result.Value.ContentType);
+            }
+            else
+            {
+                _exportError = string.IsNullOrWhiteSpace(result.Error)
+                    ? "Couldn't prepare your data export. Please try again."
+                    : result.Error;
+            }
+        }
+        catch
+        {
+            _exportError = "Couldn't prepare your data export. Please try again.";
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
 
     private async Task LoadAsync()
     {

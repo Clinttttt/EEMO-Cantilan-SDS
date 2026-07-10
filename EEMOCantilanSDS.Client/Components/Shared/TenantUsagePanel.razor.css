@@ -42,6 +42,48 @@
 
 .set-card-sub { font-size: 0.78rem; color: var(--text-subtle); margin-top: 0.1rem; }
 
+/* Export button */
+.tu-export-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--navy);
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.7rem;
+    border-radius: 9px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tu-export-btn:hover:not(:disabled) { background: #e7edf3; border-color: #c7d4df; }
+.tu-export-btn:disabled { opacity: 0.6; cursor: default; }
+.tu-export-btn svg { width: 15px; height: 15px; }
+
+.tu-export-spin {
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(13, 33, 55, 0.25);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: tu-spin 0.7s linear infinite;
+}
+
+@keyframes tu-spin { to { transform: rotate(360deg); } }
+
+.tu-export-err {
+    font-size: 0.78rem;
+    color: var(--red);
+    background: var(--red-bg);
+    padding: 0.5rem 0.7rem;
+    border-radius: 9px;
+    margin-bottom: 0.6rem;
+}
+
 /* Headline stats */
 .tu-summary {
     display: flex;
