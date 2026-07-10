@@ -16,6 +16,16 @@ namespace EEMOCantilanSDS.Domain.Enums
         SLH = 6,   // Slaughterhouse
         TRM = 7,   // Transport Terminal
         TPM = 8,   // Tabo-an Public Market
+
+        // Reserved slots for per-LGU CUSTOM facilities (Phase E). A custom facility is a Head-named,
+        // MONTHLY-RENTAL facility that reuses the standard stall/contract/payment/delinquency machinery
+        // (all keyed by the Facility's Id, not this code) — so it behaves exactly like TCC/NCC/BBQ/ICE.
+        // Numbered 101+ to stay clearly apart from the eight canonical codes.
+        Custom1 = 101,
+        Custom2 = 102,
+        Custom3 = 103,
+        Custom4 = 104,
+        Custom5 = 105,
     }
 
     // Billing BEHAVIOUR of a facility, decoupled from its FacilityCode identity (Phase 4). The code says

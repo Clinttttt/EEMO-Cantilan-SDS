@@ -30,7 +30,8 @@ public record AvailableFacilityDto(
     string Code,
     string Name,
     string ShortName,
-    string BillingModel);
+    string BillingModel,
+    bool IsCustom = false);
 
 /// <summary>
 /// Presentation helpers shared by the query handler and repository so a billing archetype or rate key is

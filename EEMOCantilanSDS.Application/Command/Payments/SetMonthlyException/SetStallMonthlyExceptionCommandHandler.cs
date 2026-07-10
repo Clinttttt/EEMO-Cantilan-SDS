@@ -18,7 +18,8 @@ public class SetStallMonthlyExceptionCommandHandler(
     ITenantContext tenantContext) : IRequestHandler<SetStallMonthlyExceptionCommand, Result<bool>>
 {
     private static readonly HashSet<FacilityCode> MonthlyFacilities =
-        new() { FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        new() { FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+                FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     public async Task<Result<bool>> Handle(SetStallMonthlyExceptionCommand request, CancellationToken ct)
     {

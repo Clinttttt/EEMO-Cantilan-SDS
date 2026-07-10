@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
@@ -32,6 +33,20 @@ public class GetFacilityConfigurationQueryHandler(IFacilityRepository facilityRe
                     FacilityDisplay.BillingModel(Facility.DefaultArchetypeFor(code)));
             })
             .ToList();
+
+        // Offer one Head-named custom (monthly-rental) facility if a reserved slot is still free.
+        var nextCustom = FacilityCatalog.CustomCodes
+            .Cast<FacilityCode?>()
+            .FirstOrDefault(c => !configuredCodes.Contains(c!.Value.ToString()));
+        if (nextCustom is not null)
+        {
+            available.Add(new AvailableFacilityDto(
+                nextCustom.Value.ToString(),
+                "Custom facility",
+                string.Empty,
+                "Monthly rental",
+                IsCustom: true));
+        }
 
         return Result<FacilityConfigurationDto>.Success(new FacilityConfigurationDto(configured, available));
     }

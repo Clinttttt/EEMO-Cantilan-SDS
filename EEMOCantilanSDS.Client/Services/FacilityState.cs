@@ -24,7 +24,8 @@ public class FacilityState(IFacilitiesApiClient api)
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
 
     private static readonly HashSet<FacilityCode> RentalCodes =
-        new() { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        new() { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+                FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     private IReadOnlyList<FacilitySidebarSummaryDto>? _facilities;
     private Task? _loadTask;

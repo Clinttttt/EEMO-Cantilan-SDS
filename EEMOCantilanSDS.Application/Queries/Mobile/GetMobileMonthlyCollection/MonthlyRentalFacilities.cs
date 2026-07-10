@@ -13,6 +13,12 @@ public static class MonthlyRentalFacilities
         FacilityCode.TCC,
         FacilityCode.NCC,
         FacilityCode.BBQ,
-        FacilityCode.ICE
+        FacilityCode.ICE,
+        // Custom facilities are monthly-rental too (one PaymentRecord per stall per month).
+        FacilityCode.Custom1,
+        FacilityCode.Custom2,
+        FacilityCode.Custom3,
+        FacilityCode.Custom4,
+        FacilityCode.Custom5,
     };
 }

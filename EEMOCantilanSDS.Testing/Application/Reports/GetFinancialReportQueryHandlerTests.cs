@@ -98,7 +98,7 @@ public class GetFinancialReportQueryHandlerTests
         // Tenant operates all eight facilities (matches the always-8 expectation these tests lock in).
         var facilities = new Mock<IFacilityRepository>();
         facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
         var handler = new GetFinancialReportQueryHandler(
             reports.Object,

@@ -34,6 +34,27 @@ public class AddFacilityCommandHandlerTests
     }
 
     [Fact]
+    public async Task AddsCustomFacility_AsMonthlyRental_WithHeadName()
+    {
+        var repo = new Mock<IFacilityRepository>();
+        repo.Setup(r => r.GetByCodeAsync(FacilityCode.Custom1, It.IsAny<CancellationToken>())).ReturnsAsync((Facility?)null);
+        Facility? added = null;
+        repo.Setup(r => r.AddFacilityAsync(It.IsAny<Facility>(), It.IsAny<CancellationToken>()))
+            .Callback<Facility, CancellationToken>((f, _) => added = f).Returns(Task.CompletedTask);
+        var uow = new Mock<IUnitOfWork>();
+
+        var result = await Build(repo, uow)
+            .Handle(new AddFacilityCommand("Custom1", "Night Market", "NGT", null), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(added);
+        Assert.Equal(FacilityCode.Custom1, added!.Code);
+        Assert.Equal("Night Market", added.Name);                       // Head-chosen name
+        Assert.Equal(BillingArchetype.MonthlyRental, added.Archetype);  // custom bills as monthly rental
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Rejects_WhenCodeAlreadyConfigured()
     {
         var repo = new Mock<IFacilityRepository>();

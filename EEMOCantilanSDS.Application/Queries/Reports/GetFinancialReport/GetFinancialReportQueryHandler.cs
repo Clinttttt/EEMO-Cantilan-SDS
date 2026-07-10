@@ -33,7 +33,8 @@ public class GetFinancialReportQueryHandler(
 ) : IRequestHandler<GetFinancialReportQuery, Result<FinancialReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+          FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     // Paid-on-service facilities: collected at the point of service, so no recurring unpaid balance.
     private static readonly FacilityCode[] ServiceFacilities =
@@ -73,7 +74,8 @@ public class GetFinancialReportQueryHandler(
         // Only the facilities the current tenant actually operates are reported. Cantilan has all eight
         // seeded, so its report is unchanged; other LGUs see only their configured facilities (no phantom
         // zero rows). Combined with the request.Facility scope filter below.
-        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+        var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
+        var tenantCodes = facilityNames.Keys.ToHashSet();
         bool InScope(FacilityCode c) => (request.Facility is null || request.Facility == c) && tenantCodes.Contains(c);
 
         // Resolve the municipality's NPM rates as of the report period (falls back to the ordinance
@@ -153,7 +155,7 @@ public class GetFinancialReportQueryHandler(
 
             facilityRows.Add(new FinancialFacilityRowDto(
                 Code: code,
-                Name: FacilityName(code),
+                Name: ReportName(code, facilityNames),
                 Model: FacilityModel(code),
                 PaidOnService: false,
                 Collected: report.TotalRevenue,
@@ -414,6 +416,7 @@ public class GetFinancialReportQueryHandler(
         FacilityCode.SLH => "Per-head",
         FacilityCode.TRM => "Per-trip",
         FacilityCode.TPM => "Weekly market",
+        _ when FacilityCatalog.IsCustom(code) => "Monthly rental",
         _ => "—"
     };
 
@@ -429,4 +432,9 @@ public class GetFinancialReportQueryHandler(
         FacilityCode.TPM => "Tabo-an Public Market",
         _ => code.ToString()
     };
+
+    // Head-named custom facilities use their stored name; canonical facilities keep the fixed label.
+    private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
+        FacilityCatalog.IsCustom(code) && names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n)
+            ? n : FacilityName(code);
 }

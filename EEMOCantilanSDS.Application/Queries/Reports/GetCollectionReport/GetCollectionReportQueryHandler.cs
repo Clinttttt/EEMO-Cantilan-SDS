@@ -27,7 +27,8 @@ public class GetCollectionReportQueryHandler(
 ) : IRequestHandler<GetCollectionReportQuery, Result<CollectionReportDto>>
 {
     private static readonly FacilityCode[] StallFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+          FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     public async Task<Result<CollectionReportDto>> Handle(GetCollectionReportQuery request, CancellationToken ct)
     {
@@ -45,7 +46,8 @@ public class GetCollectionReportQueryHandler(
 
         // Only the facilities the current tenant operates are reported (no phantom zero facilities).
         // Cantilan has all eight, so its report is unchanged.
-        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+        var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
+        var tenantCodes = facilityNames.Keys.ToHashSet();
 
         var facilities = new List<CollectionFacilityDto>();
 
@@ -72,7 +74,7 @@ public class GetCollectionReportQueryHandler(
             }).ToList();
 
             facilities.Add(new CollectionFacilityDto(
-                code, FacilityName(code), Model(code), IsRental: true,
+                code, ReportName(code, facilityNames), Model(code), IsRental: true,
                 report.TotalRevenue, report.PendingPaymentAmount,
                 rentals, Array.Empty<CollectionTxnRowDto>()));
         }
@@ -130,6 +132,7 @@ public class GetCollectionReportQueryHandler(
         FacilityCode.SLH => "Per-head",
         FacilityCode.TRM => "Per-trip",
         FacilityCode.TPM => "Weekly market",
+        _ when FacilityCatalog.IsCustom(code) => "Monthly rental",
         _ => "—"
     };
 
@@ -145,4 +148,9 @@ public class GetCollectionReportQueryHandler(
         FacilityCode.TPM => "Tabo-an Public Market",
         _ => code.ToString()
     };
+
+    // Head-named custom facilities use their stored name; canonical facilities keep the fixed label.
+    private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
+        FacilityCatalog.IsCustom(code) && names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n)
+            ? n : FacilityName(code);
 }

@@ -16,6 +16,18 @@ namespace EEMOCantilanSDS.Domain.Constants
             FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM,
         };
 
+        /// <summary>Reserved slots for per-LGU custom (monthly-rental) facilities.</summary>
+        public static readonly IReadOnlyList<FacilityCode> CustomCodes = new[]
+        {
+            FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3,
+            FacilityCode.Custom4, FacilityCode.Custom5,
+        };
+
+        /// <summary>True for a reserved custom facility slot.</summary>
+        public static bool IsCustom(FacilityCode code) =>
+            code is FacilityCode.Custom1 or FacilityCode.Custom2 or FacilityCode.Custom3
+                 or FacilityCode.Custom4 or FacilityCode.Custom5;
+
         public static (string Name, string ShortName) Defaults(FacilityCode code) => code switch
         {
             FacilityCode.NPM => ("New Public Market", "NPM"),
@@ -26,7 +38,8 @@ namespace EEMOCantilanSDS.Domain.Constants
             FacilityCode.SLH => ("Slaughterhouse", "SLH"),
             FacilityCode.TRM => ("Transport Terminal", "TRM"),
             FacilityCode.TPM => ("Tabo-an Public Market", "TPM"),
-            _ => (code.ToString(), code.ToString()),
+            // Custom slots have no canonical name — the Head names them; this is only a placeholder.
+            _ => ("Custom Facility", "CUS"),
         };
     }
 }

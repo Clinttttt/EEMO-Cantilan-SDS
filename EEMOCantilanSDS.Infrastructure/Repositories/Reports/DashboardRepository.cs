@@ -52,7 +52,8 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .Select(a => new { a.VendorId, a.IsPaid, a.Fee })
             .ToListAsync(ct);
 
-        var stallCodes = new[] { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        var stallCodes = new[] { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+            FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
         var facilityCards = new List<DashboardFacilityDto>();
         var totalPending = 0m;

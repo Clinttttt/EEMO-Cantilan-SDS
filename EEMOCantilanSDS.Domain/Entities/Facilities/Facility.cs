@@ -58,6 +58,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             FacilityCode.SLH => BillingArchetype.PerHead,
             FacilityCode.TRM => BillingArchetype.PerTrip,
             FacilityCode.TPM => BillingArchetype.WeeklyMarket,
+            // Custom facilities are monthly-rental: they reuse the standard stall/contract/payment machinery.
+            FacilityCode.Custom1 or FacilityCode.Custom2 or FacilityCode.Custom3
+                or FacilityCode.Custom4 or FacilityCode.Custom5 => BillingArchetype.MonthlyRental,
             _ => BillingArchetype.Custom
         };
 

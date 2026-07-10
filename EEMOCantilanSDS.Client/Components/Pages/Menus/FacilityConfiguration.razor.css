@@ -390,6 +390,18 @@
     background: color-mix(in srgb, var(--gold) 8%, var(--bg-card));
 }
 
+/* The Head-named custom slot — gold dashed accent to read as "create your own". */
+.avail-tile-custom {
+    border-style: dashed;
+    border-color: var(--gold);
+    background: color-mix(in srgb, var(--gold) 6%, var(--bg-card));
+}
+.avail-tile-custom .avail-tile-badge {
+    background: var(--gold);
+    color: #fff;
+    font-size: 18px;
+}
+
 .avail-tile-active {
     border-style: solid;
     border-color: var(--navy);

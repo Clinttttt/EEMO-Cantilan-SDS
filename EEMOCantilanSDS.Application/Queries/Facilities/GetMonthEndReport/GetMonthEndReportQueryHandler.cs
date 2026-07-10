@@ -35,7 +35,8 @@ public class GetMonthEndReportQueryHandler(
 ) : IRequestHandler<GetMonthEndReportQuery, Result<MonthEndReportDto>>
 {
     private static readonly FacilityCode[] RentalFacilities =
-        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE };
+        { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE,
+          FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 };
 
     public async Task<Result<MonthEndReportDto>> Handle(GetMonthEndReportQuery request, CancellationToken ct)
     {
@@ -64,7 +65,8 @@ public class GetMonthEndReportQueryHandler(
 
         // Only the facilities the current tenant operates are reported (no phantom zero facilities).
         // Cantilan has all eight, so its report is unchanged.
-        var tenantCodes = (await facilityRepository.GetFacilityNamesAsync(ct)).Keys.ToHashSet();
+        var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
+        var tenantCodes = facilityNames.Keys.ToHashSet();
 
         // ── Rental facilities: per-payor compliance + summary from the canonical report aggregation ──
         foreach (var code in RentalFacilities.Where(tenantCodes.Contains))
@@ -94,7 +96,7 @@ public class GetMonthEndReportQueryHandler(
 
             facilities.Add(new MonthEndFacilityDto(
                 Code: code,
-                Name: FacilityName(code),
+                Name: ReportName(code, facilityNames),
                 IsRental: true,
                 Collected: report.TotalRevenue,
                 Outstanding: report.PendingPaymentAmount,
@@ -274,4 +276,10 @@ public class GetMonthEndReportQueryHandler(
         FacilityCode.TPM => "Tabo-an Public Market",
         _ => code.ToString()
     };
+
+    // Custom facilities are Head-named, so use the tenant's stored name; canonical facilities keep their
+    // fixed label (so Cantilan's report is byte-for-byte unchanged).
+    private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
+        FacilityCatalog.IsCustom(code) && names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n)
+            ? n : FacilityName(code);
 }

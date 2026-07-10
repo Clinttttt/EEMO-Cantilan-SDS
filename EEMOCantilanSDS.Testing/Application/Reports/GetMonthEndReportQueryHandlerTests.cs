@@ -57,7 +57,7 @@ public class GetMonthEndReportQueryHandlerTests
     {
         var m = new Mock<IFacilityRepository>();
         m.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
         return m.Object;
     }
 
@@ -125,7 +125,7 @@ public class GetMonthEndReportQueryHandlerTests
 
         var facilityRepo = new Mock<IFacilityRepository>();
         facilityRepo.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().ToDictionary(c => c, c => c.ToString()));
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
         return (new GetMonthEndReportQueryHandler(
             reportsRepo.Object,

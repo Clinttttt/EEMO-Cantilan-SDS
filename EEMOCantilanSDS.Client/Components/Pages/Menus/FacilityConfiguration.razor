@@ -200,11 +200,11 @@
                 <div class="avail-grid">
                     @foreach (var a in _model!.Available)
                     {
-                        <button type="button" class="avail-tile avail-tile-btn" @onclick="() => OpenAdd(a)" title="@("Add " + a.Name)">
-                            <div class="avail-tile-badge">@a.ShortName</div>
+                        <button type="button" class="avail-tile avail-tile-btn @(a.IsCustom ? "avail-tile-custom" : "")" @onclick="() => OpenAdd(a)" title="@("Add " + a.Name)">
+                            <div class="avail-tile-badge">@(a.IsCustom ? "＋" : a.ShortName)</div>
                             <div class="avail-tile-body">
                                 <div class="avail-tile-name">@a.Name</div>
-                                <div class="avail-tile-model">@a.BillingModel</div>
+                                <div class="avail-tile-model">@a.BillingModel@(a.IsCustom ? " · your own name" : "")</div>
                             </div>
                             <span class="avail-tile-add">+ Add</span>
                         </button>
@@ -523,8 +523,9 @@
     private void OpenAdd(AvailableFacilityDto a)
     {
         _addTarget = a;
-        _addName = a.Name;
-        _addShortName = a.ShortName;
+        // Custom facilities are Head-named — start blank so they enter their own name.
+        _addName = a.IsCustom ? string.Empty : a.Name;
+        _addShortName = a.IsCustom ? string.Empty : a.ShortName;
         _addDescription = string.Empty;
         _addError = null;
         _drawer = DrawerMode.Add;

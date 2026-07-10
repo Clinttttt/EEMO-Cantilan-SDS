@@ -22,12 +22,13 @@ public class GetFacilityConfigurationQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Value!.Configured.Count);
-        // 8 canonical types − 2 configured = 6 available, none overlapping the configured codes.
-        Assert.Equal(6, result.Value.Available.Count);
+        // 8 canonical types − 2 configured = 6 canonical available, plus one Head-named custom slot.
+        Assert.Equal(6, result.Value.Available.Count(a => !a.IsCustom));
+        Assert.Contains(result.Value.Available, a => a.IsCustom);
         Assert.DoesNotContain(result.Value.Available, a => a.Code is "NPM" or "TCC");
         Assert.Contains(result.Value.Available, a => a.Code == "SLH");
-        // Available carries a friendly name (never a bare code) and a billing model.
-        Assert.All(result.Value.Available, a =>
+        // Every canonical available carries a friendly name (never a bare code) and a billing model.
+        Assert.All(result.Value.Available.Where(a => !a.IsCustom), a =>
         {
             Assert.False(string.IsNullOrWhiteSpace(a.Name));
             Assert.False(string.IsNullOrWhiteSpace(a.BillingModel));
@@ -35,7 +36,7 @@ public class GetFacilityConfigurationQueryHandlerTests
     }
 
     [Fact]
-    public async Task AllConfigured_YieldsNoAvailable()
+    public async Task AllCanonicalConfigured_StillOffersACustomSlot()
     {
         var all = new[] { "NPM", "TCC", "NCC", "BBQ", "ICE", "SLH", "TRM", "TPM" }
             .Select(Configured).ToList();
@@ -46,6 +47,9 @@ public class GetFacilityConfigurationQueryHandlerTests
         var result = await handler.Handle(new GetFacilityConfigurationQuery(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value!.Available);
+        // No canonical types left, but a custom facility can still be added.
+        Assert.DoesNotContain(result.Value!.Available, a => !a.IsCustom);
+        Assert.Single(result.Value.Available);
+        Assert.True(result.Value.Available[0].IsCustom);
     }
 }

@@ -87,6 +87,36 @@ never rushed onto the live system.
 ### Phase D — Polish
 - Audit-log entries, validation, regression tests, Cantilan/Phase-0 golden verification.
 
+## Phase E — Custom facilities (IMPLEMENTED for monthly; per-day/week/ad-hoc deferred)
+
+Lets a Head add per-LGU **custom facilities** that reuse the standard machinery.
+
+**Implemented — custom MONTHLY-rental facilities (full tracking):**
+- Reserved `FacilityCode.Custom1..Custom5` (101–105) — additive; no DB migration (reuses the existing
+  `Facility`/`Stall`/`Contract`/`PaymentRecord` tables, all keyed by facility `Id`, not the code).
+- A custom facility is Head-named and defaults to `BillingArchetype.MonthlyRental`, so it behaves
+  exactly like TCC/NCC/BBQ/ICE: stalls, contracts, monthly payments, **delinquency/arrears**, dashboard,
+  and financial/collection/month-end reports — with full tracking, per the "same logic as monthly →
+  same delinquency" guidance.
+- Every facility classifier was audited and now treats custom codes as monthly-rental:
+  `FacilityState.RentalCodes`, `DashboardRepository.stallCodes`, `MonthlyRentalFacilities`,
+  `SetStallMonthlyException`, and the three report handlers' rental sets. Reports resolve the custom
+  facility's Head-chosen name (canonical names untouched).
+- **Cantilan is inert:** it has no custom facilities, so `tenantCodes` never contains a custom code and
+  every added classifier entry is a no-op. Phase-0 goldens stay byte-for-byte green (563/563).
+- Add UI: the portal "Available to add" offers one **Custom facility** slot (gold, Head-named); the
+  existing `AddFacilityCommand` creates it (custom code → MonthlyRental).
+
+**Deferred (deliberately, per "if it's the tricky part we don't do it"):**
+- **Per-day** and **per-week** custom facilities. Daily is NPM's `DailyCollection` engine (fish fee, day
+  proration, market closures) and weekly is TPM's `TpmAttendance`/market-day engine — both are
+  facility-specific with dedicated tables and `FacilityCode.NPM`/`TPM` branches. Generalising them for
+  custom facilities would risk the live NPM/TPM collection flows, so they are out of scope.
+- **No-schedule (ad-hoc)** custom facilities: would need a new generic logged-collection model (no
+  obligation engine). Not built.
+- **Mobile / bulk-import** for custom facilities: not wired yet (custom stalls are added individually in
+  the web portal). Additive follow-ups.
+
 ## Architecture notes
 
 Follows the existing Clean Architecture / CQRS conventions:
