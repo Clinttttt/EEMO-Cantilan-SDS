@@ -242,7 +242,11 @@ public partial class FacilityReportsRepository
                 s.Section.HasValue ? SectionLabel(s.Section) : s.AreaLocation?.ToString() ?? string.Empty,
                 s.Type.ToString(),
                 s.MonthlyRate,
-                s.DailyRate ?? (includeFish ? _npmDailyRate : 0m),
+                // NPM bills per day at the tenant's resolved rate, so report the RESOLVED rate (not the
+                // possibly-stale stored per-stall value) — this fixes legacy NPM stalls that stored the
+                // old ₱30 default. Non-NPM keeps its stored per-stall daily rate. Cantilan is unchanged
+                // (stored == resolved == ₱30).
+                includeFish ? _npmDailyRate : (s.DailyRate ?? 0m),
                 status,
                 amountPaid,
                 balance,
