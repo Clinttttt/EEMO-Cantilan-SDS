@@ -98,16 +98,30 @@
                         }
                     </div>
 
-                    <div class="pb-field">
-                        <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
-                        <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
-                               placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
-                        <div class="pb-hint">
-                            @(_scope == "all"
-                                ? "Applied to each settled month. Leave blank to encode receipts individually later."
-                                : "Optional — leave blank to encode the receipt later.")
+                    @if (IsNpm)
+                    {
+                        <div class="pb-daily-note">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                            <div>
+                                <strong>Daily receipts are encoded per day.</strong>
+                                Recording here marks each collectable day of the selected month@(_scope == "all" ? "s" : "") as paid.
+                                Enter each day's Official Receipt afterward using <em>Add OR</em> — a single OR cannot cover multiple days.
+                            </div>
                         </div>
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="pb-field">
+                            <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
+                            <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
+                                   placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
+                            <div class="pb-hint">
+                                @(_scope == "all"
+                                    ? "Applied to each settled month. Leave blank to encode receipts individually later."
+                                    : "Optional — leave blank to encode the receipt later.")
+                            </div>
+                        </div>
+                    }
 
                     @if (_error is not null)
                     {
@@ -153,6 +167,7 @@
     private Guid _loadedStall;
 
     private string DisplayOccupant => string.IsNullOrWhiteSpace(Occupant) ? "Unnamed occupant" : Occupant;
+    private bool IsNpm => Facility == FacilityCode.NPM;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -204,9 +219,10 @@
             return;
         }
 
-        // A single OR represents one receipt, so only stamp it when paying ONE month; a bulk "all"
-        // records the months paid and leaves the OR to be added per month later.
-        var singleOr = (_scope == "month" && !string.IsNullOrWhiteSpace(_or)) ? _or.Trim() : null;
+        // A single OR represents one monthly receipt, so only stamp it when paying ONE monthly-billed
+        // month. NPM is collected daily — its receipts are encoded per day via Add OR, never as one
+        // month-level OR (which could only ever land on a single day), so NPM always settles blank.
+        var singleOr = (!IsNpm && _scope == "month" && !string.IsNullOrWhiteSpace(_or)) ? _or.Trim() : null;
 
         foreach (var t in targets)
         {

@@ -83,6 +83,18 @@
 
 .pb-hint { margin-top: 6px; font-size: 12px; color: var(--text-subtle); }
 
+/* NPM per-day receipt note — daily OR is encoded via Add OR, not here. */
+.pb-daily-note {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 13px; margin-bottom: 4px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-left: 3px solid var(--gold); border-radius: 8px;
+    font-size: 12.5px; line-height: 1.5; color: var(--text-subtle);
+}
+.pb-daily-note svg { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 1px; color: var(--gold); }
+.pb-daily-note strong { display: block; color: var(--text); font-weight: 650; margin-bottom: 2px; }
+.pb-daily-note em { font-style: normal; font-weight: 650; color: var(--navy); }
+
 .pb-error {
     display: flex; align-items: center; gap: 8px;
     padding: 10px 12px; border-radius: 8px; margin-top: 4px;
