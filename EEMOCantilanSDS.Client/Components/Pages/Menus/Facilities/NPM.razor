@@ -259,6 +259,8 @@
                 FacilityOptions="NpmFacilityOptions"
                 FacilityLocked="true"
                 ExistingStallNos="NpmSectionStallNos"
+                NpmDailyRate="_npmDailyRate"
+                NpmFishRate="_npmFishRate"
                 OnSave="SubmitVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -343,6 +345,7 @@
         await FacilityCatalog.EnsureLoadedAsync();
         ResetState();
         InitializeToolbarActions();
+        await LoadNpmRatesAsync();
         var now = DateTime.Now;
         if (CachedNpmPage is { } state
             && state.Year == now.Year
@@ -822,6 +825,21 @@
     private AddVendorModal.VendorModalForm VendorForm = new();
     private List<AddVendorModal.VendorFacilityOption> NpmFacilityOptions => new() { new() { Code = "NPM", Name = "New Public Market" } };
 
+    // The tenant's resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan unchanged).
+    // Drives the Add Vendor modal's labels + daily-equivalent hint, and the stored DailyRate on create.
+    private decimal _npmDailyRate = 30m;
+    private decimal _npmFishRate = 1m;
+
+    private async Task LoadNpmRatesAsync()
+    {
+        var result = await StallsApi.GetNpmRatesAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _npmDailyRate = result.Value.DailyRate;
+            _npmFishRate = result.Value.FishRate;
+        }
+    }
+
     // Existing stall numbers within the currently-selected NPM section — feeds the modal's next-number
     // suggestion (per section, since NPM numbering/uniqueness is per section).
     private IReadOnlyCollection<string> NpmSectionStallNos =>
@@ -918,7 +936,7 @@
             null,
             VendorForm.AreaSqm,
             null,
-            30m,
+            _npmDailyRate,
             VendorForm.ActualOccupant.Trim(),
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,

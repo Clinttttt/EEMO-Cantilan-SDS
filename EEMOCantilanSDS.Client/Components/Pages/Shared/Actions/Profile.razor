@@ -199,6 +199,19 @@
                                 <span class="prof-field-val">@(string.IsNullOrEmpty(Stall.AreaNote) ? "—" : Stall.AreaNote)</span>
                             </div>
                             <div class="prof-field">
+                                <span class="prof-field-label">Rate</span>
+                                <span class="prof-field-val bold gold">
+                                    @if (IsNpm)
+                                    {
+                                        <text>₱@_npmDailyRate.ToString("0")/day</text>
+                                    }
+                                    else
+                                    {
+                                        <text>₱@Stall.MonthlyRate.ToString("N0")/month</text>
+                                    }
+                                </span>
+                            </div>
+                            <div class="prof-field">
                                 <span class="prof-field-label">Stall Status</span>
                                 <span class="prof-status-pill @(Stall.IsActive ? "pill-active" : "pill-inactive")">
                                     @(Stall.IsActive ? "Active" : "Closed")
@@ -265,8 +278,17 @@
                         </div>
                         <div class="prof-field-list">
                             <div class="prof-field">
-                                <span class="prof-field-label">Monthly Rental Rate</span>
-                                <span class="prof-field-val bold gold">₱@Stall.MonthlyRate.ToString("N0")/month</span>
+                                <span class="prof-field-label">@(IsNpm ? "Daily Rate" : "Monthly Rental Rate")</span>
+                                <span class="prof-field-val bold gold">
+                                    @if (IsNpm)
+                                    {
+                                        <text>₱@_npmDailyRate.ToString("0")/day</text>
+                                    }
+                                    else
+                                    {
+                                        <text>₱@Stall.MonthlyRate.ToString("N0")/month</text>
+                                    }
+                                </span>
                             </div>
                             @if (FacilityId.ToUpper() == "NPM")
                             {
@@ -688,6 +710,10 @@
 
     private bool IsNpm => FacilityId.ToUpper() == "NPM";
 
+    // The tenant's resolved NPM daily rate (₱30 ordinance fallback). NPM bills per day from this snapshot
+    // rate, so we show it (not the possibly-stale stored per-stall value) as the stall's rate.
+    private decimal _npmDailyRate = 30m;
+
     // GitHub-style daily heatmap (NPM only): last ~12 months of per-day collection status.
     private sealed record HeatCell(DateOnly Date, string Kind);
     private List<List<HeatCell>> _heatWeeks = new();   // each inner list = 7 cells (Sun→Sat)
@@ -791,6 +817,15 @@
         var facilityCode = Enum.TryParse<Domain.Enums.FacilityCode>(FacilityId, ignoreCase: true, out var _fc)
             ? _fc
             : Domain.Enums.FacilityCode.NPM;
+
+        // NPM bills per day from the tenant's resolved daily rate; fetch it so the profile shows the
+        // billed rate (₱30 ordinance fallback keeps Cantilan unchanged).
+        if (facilityCode == Domain.Enums.FacilityCode.NPM)
+        {
+            var ratesResult = await StallsApi.GetNpmRatesAsync();
+            if (ratesResult.IsSuccess && ratesResult.Value is not null)
+                _npmDailyRate = ratesResult.Value.DailyRate;
+        }
 
         // Load stalls from API
         var stallsResult = await StallsApi.GetStallsByFacilityPaginatedAsync(facilityCode, null, null, 100);

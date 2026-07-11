@@ -54,6 +54,9 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
     public async Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command) =>
         await PostAsync<CreateStallCommand, StallDto>("api/Stalls", command);
 
+    public async Task<Result<NpmRatesDto>> GetNpmRatesAsync() =>
+        await GetAsync<NpmRatesDto>("api/Stalls/npm-rates");
+
     public async Task<Result<BulkImportResultDto>> BulkImportStallholdersAsync(BulkImportStallholdersCommand command) =>
         await PostAsync<BulkImportStallholdersCommand, BulkImportResultDto>("api/Stalls/bulk-import", command);
 

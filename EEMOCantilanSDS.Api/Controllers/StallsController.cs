@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentHistory;
 using EEMOCantilanSDS.Application.Queries.Payments.GetStallCollectionHistory;
 using EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetClosedStallAccounts;
+using EEMOCantilanSDS.Application.Queries.Stalls.GetNpmRates;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 using EEMOCantilanSDS.Application.Requests.Stalls;
@@ -28,6 +29,14 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<StallDto>> CreateStall([FromBody] CreateStallCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>The caller LGU's currently-effective NPM daily + fish rates (for the Add Vendor UI).</summary>
+    [HttpGet("npm-rates")]
+    public async Task<ActionResult<NpmRatesDto>> GetNpmRates()
+    {
+        var result = await Sender.Send(new GetNpmRatesQuery());
         return HandleResponse(result);
     }
 

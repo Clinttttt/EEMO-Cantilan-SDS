@@ -248,6 +248,10 @@
                                 <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
                                        @bind="Form.MonthlyRate" @bind:event="oninput" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
+                                @if (Form.FacilityCode == "NPM")
+                                {
+                                    <div class="avm-hint-muted">Daily-equivalent ≈ ₱@NpmMonthlyEquivalent.ToString("N0")/mo (₱@NpmDailyRate.ToString("0")/day × @NpmDaysInMonth days). NPM bills per day — this is a reference only.</div>
+                                }
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
@@ -256,20 +260,20 @@
                     @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Vegetable")
                     {
                         <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱30/day (Vegetable vendors)</div>
+                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Vegetable vendors)</div>
                         </div>
                     }
                     @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Fish")
                     {
                         <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱30/day (Fish vendors)</div>
-                            <div><strong>Fish Fee:</strong> ₱1/kg (per kilo sold)</div>
+                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Fish vendors)</div>
+                            <div><strong>Fish Fee:</strong> ₱@NpmFishRate.ToString("0.##")/kg (per kilo sold)</div>
                         </div>
                     }
                     @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Meat")
                     {
                         <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱30/day (Meat vendors)</div>
+                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Meat vendors)</div>
                         </div>
                     }
                 </div>
@@ -333,7 +337,7 @@
                                     <div class="avm-rental-sub">
                                         @if (Form.FacilityCode == "NPM")
                                         {
-                                            <text>New Public Market · ₱30/day base</text>
+                                            <text>New Public Market · ₱@NpmDailyRate.ToString("0")/day base</text>
                                         }
                                         else
                                         {
@@ -426,7 +430,7 @@
                                         </div>
                                         <div class="avm-fish-text">
                                             <div class="avm-fish-title">Fish Fee</div>
-                                            <div class="avm-fish-sub">₱1.00 per kilo of fish sold — Fish Area only</div>
+                                            <div class="avm-fish-sub">₱@NpmFishRate.ToString("0.00") per kilo of fish sold — Fish Area only</div>
                                         </div>
                                         <span class="avm-fish-badge">✓ Always included</span>
                                     </div>
@@ -481,6 +485,25 @@
 
     /// Bound form data — mutated directly (class = reference type, no need for two-way EventCallback)
     [Parameter] public VendorModalForm Form { get; set; } = new();
+
+    /// The tenant's resolved NPM daily-stall rate (defaults to the ₱30 ordinance so Cantilan/unset is
+    /// unchanged). Drives the NPM daily-collection labels and the daily-equivalent monthly hint, so a
+    /// ₱40 LGU never shows ₱30. Display only — nothing here is stored.
+    [Parameter] public decimal NpmDailyRate { get; set; } = 30m;
+
+    /// The tenant's resolved NPM fish fee per kilo (defaults to the ₱1 ordinance). Display only.
+    [Parameter] public decimal NpmFishRate { get; set; } = 1m;
+
+    // Days in the contract's month (falls back to the current month). Used ONLY for the NPM
+    // daily-equivalent reference hint, mirroring how NPM is billed (daily × collectable days).
+    private int NpmDaysInMonth
+    {
+        get { var d = Form.ContractDate ?? DateTime.Today; return DateTime.DaysInMonth(d.Year, d.Month); }
+    }
+
+    // Reference figure shown beside the (manual) Monthly Rental field for NPM — the field itself is
+    // never auto-filled, so Cantilan admins keep entering their own value.
+    private decimal NpmMonthlyEquivalent => NpmDailyRate * NpmDaysInMonth;
 
     /// Validation error shown at the bottom of the form
     [Parameter] public string FormError { get; set; } = string.Empty;

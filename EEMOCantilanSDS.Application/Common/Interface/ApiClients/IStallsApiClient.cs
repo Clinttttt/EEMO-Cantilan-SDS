@@ -16,6 +16,7 @@ public interface IStallsApiClient
     Task<Result<StallHoldersListDto>> GetStallHoldersListAsync(FacilityCode facilityCode, MarketSection? section = null, string? searchTerm = null);
     Task<Result<CursorPagedResult<StallDto>>> GetStallsByFacilityPaginatedAsync(FacilityCode facilityCode, MarketSection? section = null, DateTime? cursor = null, int pageSize = 20);
     Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command);
+    Task<Result<NpmRatesDto>> GetNpmRatesAsync();
     Task<Result<BulkImportResultDto>> BulkImportStallholdersAsync(BulkImportStallholdersCommand command);
     Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command);
     Task<Result<bool>> ToggleStallStatusAsync(Guid stallId, bool close);
