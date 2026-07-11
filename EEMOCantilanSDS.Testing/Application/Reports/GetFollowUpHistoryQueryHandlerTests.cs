@@ -61,7 +61,7 @@ public class GetFollowUpHistoryQueryHandlerTests
         stalls.Setup(s => s.GetContractAttentionAsOfAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
-                new(FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2025, 11, 30), IsExpired: true),
+                new(FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
         var online = new Mock<IOnlinePaymentRepository>();

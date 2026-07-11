@@ -54,6 +54,14 @@ public static class FollowUpComposer
         var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         var items = new List<FollowUpItemDto>();
 
+        // Stalls whose contract has already lapsed are surfaced under "Contract expired" (section 5).
+        // Don't ALSO list them as "current-period unpaid" — that double-lists the same expired account
+        // (an expired stall belongs in the contract bucket, not the current-period bucket).
+        var expiredContractKeys = contracts
+            .Where(c => c.IsExpired)
+            .Select(c => Key(c.FacilityCode, c.StallNo))
+            .ToHashSet();
+
         // ── 1) Delinquency (rolling 12-mo, excludes current month): 3+ = delinquent, 1–2 = arrears ──
         var delinquentKeys = new HashSet<string>();
         foreach (var d in delinquency)
@@ -103,7 +111,9 @@ public static class FollowUpComposer
                 // Current-period unpaid / partial — skip stalls already surfaced under delinquency/arrears.
                 var isUnpaid = s.Status == "Unpaid";
                 var isPartial = s.Status == "Partial";
-                if ((isUnpaid || isPartial) && s.Balance > 0m && !delinquentKeys.Contains(Key(code, s.StallNo)))
+                if ((isUnpaid || isPartial) && s.Balance > 0m
+                    && !delinquentKeys.Contains(Key(code, s.StallNo))
+                    && !expiredContractKeys.Contains(Key(code, s.StallNo)))
                 {
                     items.Add(new FollowUpItemDto(
                         SecThisPeriod, "Normal",
@@ -221,7 +231,9 @@ public static class FollowUpComposer
                 "contract",
                 c.FacilityCode, Model(c.FacilityCode), Named(c.Occupant), $"Stall {c.StallNo}",
                 null, false,
-                c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
+                c.IsExpired
+                    ? $"{c.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
+                    : c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
                 c.IsExpired ? "Active occupant" : "Expiring soon",
                 "Review contract", ProfileLink(c.FacilityCode, c.StallNo)));
         }

@@ -67,6 +67,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 s.Code,
                 s.StallNo,
                 string.IsNullOrWhiteSpace(s.Contract.ActualOccupant) ? string.Empty : s.Contract.ActualOccupant,
+                s.Contract.EffectivityDate,
                 expiry,
                 expired));
         }

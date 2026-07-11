@@ -11,6 +11,7 @@ public record ContractAttentionDto(
     FacilityCode FacilityCode,
     string StallNo,
     string Occupant,
+    DateOnly EffectivityDate,
     DateOnly ExpiryDate,
     bool IsExpired
 );
