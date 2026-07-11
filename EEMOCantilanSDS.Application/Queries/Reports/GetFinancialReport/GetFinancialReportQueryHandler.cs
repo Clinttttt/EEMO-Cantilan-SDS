@@ -81,7 +81,7 @@ public class GetFinancialReportQueryHandler(
         // Resolve the municipality's NPM rates as of the report period (falls back to the ordinance
         // constants, so Cantilan figures are unchanged). Full-month reference = daily × 30.
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var asOf = new DateOnly(request.Year, request.Month ?? 12, 1);
+        var asOf = new DateOnly(request.Year, request.Month ?? 12, DateTime.DaysInMonth(request.Year, request.Month ?? 12));
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         var npmMonthly = npmDaily * 30m;

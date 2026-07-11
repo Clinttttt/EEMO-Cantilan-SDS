@@ -189,4 +189,32 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         Assert.Equal(0, summary.MonthsUnpaid);
         Assert.Equal(0m, summary.TotalCollected);
     }
+
+    [Fact]
+    public async Task Summary_Npm_RateChangedThisMonth_UsesCurrentRate_NotStartOfMonthRate()
+    {
+        // Regression: when a tenant changes its NPM daily rate mid-month (here ₱45 → ₱35 effective the 2nd),
+        // the whole month must bill at the CURRENT (₱35, month-end) rate — matching the displayed rate and
+        // the reports — not the ₱45 that was effective on the 1st. Distinctive rates (≠ the ₱30 ordinance
+        // fallback) prove the seeded rows are actually resolved. Cantilan is single-rate, so it is unaffected.
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Funny Valentine", "Funny Valentine", monthStart, 3, 900m); // full current month, unpaid
+
+        var rateOld = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 45m, new DateOnly(2020, 1, 1), Guid.Empty);
+        var rateNew = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, monthStart.AddDays(1), Guid.Empty);
+
+        context.AddRange(facility, stall, contract, rateOld, rateNew);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        Assert.Equal(daysInMonth * 35m, summary.TotalOutstanding);   // current ₱35 (month-end), not ₱45 (month-start)
+    }
 }

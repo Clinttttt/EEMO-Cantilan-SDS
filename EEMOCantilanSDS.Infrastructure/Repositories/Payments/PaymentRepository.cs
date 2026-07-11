@@ -289,7 +289,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
             var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
             var billableDays = Math.Max(0, collectableDays - absentDays);
-            var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthStart);
+            var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -430,7 +430,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
-                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthStart);
+                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd);
                 if (bill <= 0m)
                     continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);

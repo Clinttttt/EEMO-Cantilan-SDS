@@ -124,7 +124,11 @@ public class GetDailyCollectionMonthQueryHandler(
         // Resolve the municipality's NPM rates as of the report month (falls back to the ordinance
         // constants, so Cantilan totals are unchanged).
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var asOf = new DateOnly(request.Year, request.Month, 1);
+        // Resolve the NPM rate as of the END of the report month, so a mid-month rate change (e.g. ₱40→₱30
+        // effective the 10th) applies to the whole month consistently with the reports/profile balance —
+        // and matches how FacilityReportsRepository resolves it (period end). Single-rate tenants (Cantilan)
+        // are unaffected: any as-of date in range resolves the same amount.
+        var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         var totalDailyFee = daysCollected * npmDaily;
