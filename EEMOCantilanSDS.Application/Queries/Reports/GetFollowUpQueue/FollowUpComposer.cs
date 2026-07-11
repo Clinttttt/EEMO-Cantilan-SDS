@@ -49,7 +49,10 @@ public static class FollowUpComposer
         IReadOnlyList<TpmVendorAttendanceDto> attendance,
         IReadOnlyList<UnreceiptedPaymentDto> unreceipted,
         IReadOnlyList<ContractAttentionDto> contracts,
-        IReadOnlyList<UtilityBill> utilityBills)
+        IReadOnlyList<UtilityBill> utilityBills,
+        // Total outstanding balance per EXPIRED stall (Key(facility, stallNo) → amount), from the Closed
+        // Accounts register. Lets an expired row show its full balance and be payable. Null = none.
+        IReadOnlyDictionary<string, decimal>? expiredBalances = null)
     {
         var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         var items = new List<FollowUpItemDto>();
@@ -224,18 +227,25 @@ public static class FollowUpComposer
         // ── 5) Contract attention — expired / expiring-soon contracts with an active occupant ──
         foreach (var c in contracts)
         {
+            // Expired rows show their full outstanding balance (from the Closed Accounts register) and,
+            // for monthly facilities, become payable via the shared payment modal.
+            var contractBalance = c.IsExpired && expiredBalances is not null
+                && expiredBalances.TryGetValue(Key(c.FacilityCode, c.StallNo), out var bal) && bal > 0m
+                    ? bal
+                    : (decimal?)null;
             items.Add(new FollowUpItemDto(
                 c.IsExpired ? SecImmediate : SecThisPeriod,
                 c.IsExpired ? "High" : "Normal",
                 c.IsExpired ? "Contract expired" : "Contract expiring",
                 "contract",
                 c.FacilityCode, Model(c.FacilityCode), Named(c.Occupant), $"Stall {c.StallNo}",
-                null, false,
+                contractBalance, false,
                 c.IsExpired
                     ? $"{c.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
                     : c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
                 c.IsExpired ? "Active occupant" : "Expiring soon",
-                "Review contract", ProfileLink(c.FacilityCode, c.StallNo)));
+                "Review contract", ProfileLink(c.FacilityCode, c.StallNo),
+                StallId: c.StallId));
         }
 
         // Stable order: by section, then priority, then amount (largest first).

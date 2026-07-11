@@ -909,7 +909,7 @@
         item.StallId.HasValue
         && item.Facility != FacilityCode.NPM
         && item.Amount.GetValueOrDefault() > 0m
-        && item.ReasonKind is "delinquent" or "arrears";
+        && item.ReasonKind is "delinquent" or "arrears" or "contract";
 
     private async Task OpenMonthlyPayment(FollowUpItemDto item)
     {
@@ -947,6 +947,8 @@
                 return item.ReasonKind switch
                 {
                     "delinquent" or "arrears" => key < asOfKey,
+                    // Expired-contract accounts owe every month up to (and including) the as-of period.
+                    "contract" => key <= asOfKey,
                     _ => false
                 };
             })

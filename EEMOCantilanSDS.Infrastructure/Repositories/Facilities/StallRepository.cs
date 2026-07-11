@@ -44,6 +44,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .Where(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive))
             .Select(s => new
             {
+                s.Id,
                 s.StallNo,
                 Code = s.Facility!.Code,
                 Contract = s.Contracts
@@ -64,6 +65,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             if (!expired && !expiringSoon) continue;
 
             attention.Add(new ContractAttentionDto(
+                s.Id,
                 s.Code,
                 s.StallNo,
                 string.IsNullOrWhiteSpace(s.Contract.ActualOccupant) ? string.Empty : s.Contract.ActualOccupant,

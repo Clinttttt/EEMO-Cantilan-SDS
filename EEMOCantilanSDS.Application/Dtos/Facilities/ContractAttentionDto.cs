@@ -8,6 +8,7 @@ namespace EEMOCantilanSDS.Application.Dtos.Facilities;
 /// occupant on a lapsed contract); false = within the warning window.
 /// </summary>
 public record ContractAttentionDto(
+    Guid StallId,
     FacilityCode FacilityCode,
     string StallNo,
     string Occupant,

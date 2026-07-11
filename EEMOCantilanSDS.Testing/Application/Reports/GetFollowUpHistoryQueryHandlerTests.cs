@@ -61,7 +61,16 @@ public class GetFollowUpHistoryQueryHandlerTests
         stalls.Setup(s => s.GetContractAttentionAsOfAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
-                new(FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
+                new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
+            });
+
+        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
+                    Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
+                    new DateOnly(2025, 11, 30), 0m, 5_000m, null)
             });
 
         var online = new Mock<IOnlinePaymentRepository>();
@@ -135,6 +144,8 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.True(excused.Excused);
         var contract = Assert.Single(items, i => i.ReasonKind == "contract");
         Assert.Equal("/profile/ice/02", contract.Link);
+        // Expired row surfaces its full outstanding balance (from the Closed Accounts register).
+        Assert.Equal(5_000m, contract.Amount);
         var missingOr = Assert.Single(items, i => i.ReasonKind == "missingor");
         Assert.Equal("Encode OR", missingOr.Action);
         Assert.Equal(3_240m, missingOr.Amount);

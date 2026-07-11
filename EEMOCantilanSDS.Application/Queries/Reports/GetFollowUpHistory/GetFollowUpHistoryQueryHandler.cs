@@ -67,10 +67,19 @@ public class GetFollowUpHistoryQueryHandler(
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
         var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
+        // Full outstanding balance per expired/closed account (register total), so an expired follow-up
+        // row shows its whole balance and (for monthly facilities) becomes payable via the shared modal.
+        var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+        var expiredBalances = closedAccounts
+            .Where(a => a.Uncollected > 0m)
+            .GroupBy(a => $"{a.FacilityCode}|{a.StallNo}")
+            .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
+
         var dto = FollowUpComposer.Compose(
             year, month, asOf,
             delinquency, facilityReports, awaitingOr,
-            slaughter, trips, attendance, unreceipted, contracts, utilityBills);
+            slaughter, trips, attendance, unreceipted, contracts, utilityBills,
+            expiredBalances);
 
         return dto;
     }

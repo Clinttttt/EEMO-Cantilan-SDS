@@ -66,7 +66,7 @@ public class GetFollowUpQueueQueryHandlerTests
         stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
-                new(FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2023, 5, 30), new DateOnly(2026, 5, 30), IsExpired: true),
+                new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2023, 5, 30), new DateOnly(2026, 5, 30), IsExpired: true),
             });
 
         var online = new Mock<IOnlinePaymentRepository>();
