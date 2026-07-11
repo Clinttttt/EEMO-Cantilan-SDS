@@ -137,6 +137,30 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task AllTime_AggregatesEveryYear_AndReconciles()
+    {
+        var (handler, _) = Build();
+
+        // One yearly report vs the All-time view. The mocks return the same figures for every year
+        // (It.IsAny year), so All time must equal the single year × the number of aggregated years.
+        var single = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null), CancellationToken.None)).Value!;
+        var all = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null, AllTime: true), CancellationToken.None)).Value!;
+
+        Assert.Equal("All time", all.PeriodLabel);
+        Assert.Equal("All time", all.Frequency);
+
+        var yearsCount = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year - 2020 + 1;
+        Assert.Equal(single.Collected * yearsCount, all.Collected);
+        Assert.Equal(single.CurrentPeriodUnpaid * yearsCount, all.CurrentPeriodUnpaid);
+
+        // Merged facility rows still reconcile to the aggregated headline totals.
+        Assert.Equal(all.Collected, all.Facilities.Sum(f => f.Collected));
+        Assert.Equal(all.CurrentPeriodUnpaid, all.Facilities.Where(f => f.Unpaid.HasValue).Sum(f => f.Unpaid!.Value));
+    }
+
+    [Fact]
     public async Task SplitsDelinquentFromArrears_ByMissedMonths()
     {
         var (handler, _) = Build();

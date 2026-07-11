@@ -10,7 +10,8 @@ public interface IReportsApiClient
         ReportPeriod period,
         int year,
         int? month = null,
-        FacilityCode? facility = null);
+        FacilityCode? facility = null,
+        bool allTime = false);
 
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
 

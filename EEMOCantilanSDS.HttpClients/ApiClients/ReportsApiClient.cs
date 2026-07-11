@@ -11,7 +11,8 @@ public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsA
         ReportPeriod period,
         int year,
         int? month = null,
-        FacilityCode? facility = null)
+        FacilityCode? facility = null,
+        bool allTime = false)
     {
         var query = $"api/Reports/financial?period={period}&year={year}";
 
@@ -20,6 +21,9 @@ public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsA
 
         if (facility.HasValue)
             query += $"&facility={facility.Value}";
+
+        if (allTime)
+            query += "&allTime=true";
 
         return await GetAsync<FinancialReportDto>(query);
     }

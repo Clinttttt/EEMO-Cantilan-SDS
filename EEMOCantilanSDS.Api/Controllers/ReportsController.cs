@@ -22,9 +22,10 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
         [FromQuery] ReportPeriod period,
         [FromQuery] int year,
         [FromQuery] int? month = null,
-        [FromQuery] FacilityCode? facility = null)
+        [FromQuery] FacilityCode? facility = null,
+        [FromQuery] bool allTime = false)
     {
-        var result = await Sender.Send(new GetFinancialReportQuery(period, year, month, facility));
+        var result = await Sender.Send(new GetFinancialReportQuery(period, year, month, facility, allTime));
         return HandleResponse(result);
     }
 

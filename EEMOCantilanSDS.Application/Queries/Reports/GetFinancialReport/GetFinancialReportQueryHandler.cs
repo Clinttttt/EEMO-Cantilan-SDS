@@ -45,6 +45,19 @@ public class GetFinancialReportQueryHandler(
 
     public async Task<Result<FinancialReportDto>> Handle(GetFinancialReportQuery request, CancellationToken ct)
     {
+        // "All time" aggregates every year into one view. Cached under a distinct key (year = 0 sentinel),
+        // invalidated alongside the current period so new activity refreshes it.
+        if (request.AllTime)
+        {
+            var allTimeKey = EemoCacheKeys.FinancialReport(tenantContext.TenantCode, ReportPeriod.Yearly, 0, null, request.Facility);
+            var allTimeRegions = EemoCacheRegions.FinancialReportRegions(
+                tenantContext.TenantCode, ReportPeriod.Yearly, PhilippineTime.Today.Year, null, request.Facility);
+            var allTimeReport = await cache.GetOrCreateAsync(
+                allTimeKey, allTimeRegions, cacheOptions.FinancialReportTtl,
+                token => BuildAllTimeAsync(request, token), ct);
+            return Result<FinancialReportDto>.Success(allTimeReport);
+        }
+
         var normalizedRequest = NormalizeRequest(request);
         var key = EemoCacheKeys.FinancialReport(
             tenantContext.TenantCode,
@@ -290,6 +303,90 @@ public class GetFinancialReportQueryHandler(
             RecentRecords: recent);
 
         return dto;
+    }
+
+    // "All time": aggregate every year of data (system epoch → now) into one view. Reuses the proven
+    // per-year build and merges the results — no new aggregation math. Scalar KPIs sum across years, the
+    // trend shows one bar per active year, per-facility rows are summed, and delinquency uses the current
+    // rolling window (the latest year's). Cantilan/tests are unaffected (this path only runs when AllTime).
+    private async Task<FinancialReportDto> BuildAllTimeAsync(GetFinancialReportQuery request, CancellationToken ct)
+    {
+        const int epochYear = 2020;   // system data epoch — no transactions predate this
+        var currentYear = PhilippineTime.Today.Year;
+
+        var yearly = new List<(int Year, FinancialReportDto Dto)>();
+        for (var y = epochYear; y <= currentYear; y++)
+        {
+            var dto = await BuildFinancialReportAsync(
+                request with { AllTime = false, Period = ReportPeriod.Yearly, Year = y, Month = null }, ct);
+            yearly.Add((y, dto));
+        }
+
+        var collected = yearly.Sum(x => x.Dto.Collected);
+        var unpaid = yearly.Sum(x => x.Dto.CurrentPeriodUnpaid);
+        var billed = collected + unpaid;
+        var ratePct = billed > 0m ? (int)Math.Round(collected / billed * 100m) : 0;
+        var paidRecords = yearly.Sum(x => x.Dto.PaidRecords);
+        var expectedRecords = yearly.Sum(x => x.Dto.ExpectedRecords);
+
+        // One trend bar per year that had activity; the most recent year is the highlighted bar.
+        var activeYears = yearly.Where(x => x.Dto.Collected > 0m || x.Dto.CurrentPeriodUnpaid > 0m).ToList();
+        if (activeYears.Count == 0)
+            activeYears = yearly.Where(x => x.Year == currentYear).ToList();
+        var trend = activeYears
+            .Select(x => new ReportTrendPointDto(
+                x.Year.ToString(), x.Year, 0, x.Dto.Collected, x.Dto.CurrentPeriodUnpaid, x.Year == currentYear))
+            .ToList();
+
+        // Merge per-facility rows across years (sum money + records; recompute rate/status).
+        var facilities = yearly
+            .SelectMany(x => x.Dto.Facilities)
+            .GroupBy(f => f.Code)
+            .Select(g =>
+            {
+                var first = g.First();
+                var fCollected = g.Sum(f => f.Collected);
+                var fUnpaid = g.Sum(f => f.Unpaid ?? 0m);
+                var fBilled = fCollected + fUnpaid;
+                int? fRate = first.PaidOnService
+                    ? (g.Sum(f => f.PaidRecords) > 0 ? 100 : (int?)null)
+                    : (fBilled > 0m ? (int)Math.Round(fCollected / fBilled * 100m) : 0);
+                return new FinancialFacilityRowDto(
+                    Code: first.Code,
+                    Name: first.Name,
+                    Model: first.Model,
+                    PaidOnService: first.PaidOnService,
+                    Collected: fCollected,
+                    Unpaid: first.PaidOnService ? null : fUnpaid,
+                    PaidRecords: g.Sum(f => f.PaidRecords),
+                    RatePct: fRate,
+                    Status: first.PaidOnService ? "Paid on service" : StallStatus(fRate ?? 0),
+                    Detail: null);
+            })
+            .OrderBy(r => r.Code)
+            .ToList();
+
+        var latest = yearly.First(x => x.Year == currentYear).Dto;
+
+        return new FinancialReportDto(
+            PeriodLabel: "All time",
+            ScopeLabel: latest.ScopeLabel,
+            Frequency: "All time",
+            FacilityCount: latest.FacilityCount,
+            Collected: collected,
+            CurrentPeriodUnpaid: unpaid,
+            Billed: billed,
+            CollectionRatePct: ratePct,
+            PaidRecords: paidRecords,
+            ExpectedRecords: expectedRecords,
+            CollectedPreviousPeriod: null,
+            PreviousPeriodLabel: null,
+            Delinquent: latest.Delinquent,
+            Arrears: latest.Arrears,
+            Trend: trend,
+            YtdCollected: collected,
+            Facilities: facilities,
+            RecentRecords: latest.RecentRecords);
     }
 
     private static GetFinancialReportQuery NormalizeRequest(GetFinancialReportQuery request)

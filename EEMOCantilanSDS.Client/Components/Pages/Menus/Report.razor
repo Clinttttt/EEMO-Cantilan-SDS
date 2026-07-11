@@ -60,7 +60,7 @@
                 <FhSelect Caption="Year" Value="@SelectedYear" Options="@YearOptions" ValueChanged="OnYearChanged" />
             </div>
 
-            @if (ActiveTab == "Monthly")
+            @if (ActiveTab == "Monthly" && SelectedYear != "all")
             {
                 <div class="rfp-ctrl">
                     <FhSelect Caption="Month" Value="@SelectedMonth" Options="@MonthOptions" ValueChanged="OnMonthChanged" />
@@ -536,7 +536,9 @@
 
     // Option lists for the custom Year/Month dropdowns (value == label for both).
     private IReadOnlyList<(string Value, string Label)> YearOptions =>
-        Years.OrderByDescending(y => y).Select(y => (y.ToString(), y.ToString())).ToList();
+        Years.OrderByDescending(y => y).Select(y => (y.ToString(), y.ToString()))
+            .Append(("all", "All time"))
+            .ToList();
     private IReadOnlyList<(string Value, string Label)> MonthOptions =>
         Months.Select(m => (m, m)).ToList();
 
@@ -556,7 +558,7 @@
 
     // Authoritative scope labels (fall back to selection before/while loading).
     private string PeriodLabel => Model?.PeriodLabel
-        ?? (ActiveTab == "Monthly" ? $"{SelectedMonth} {SelectedYear}" : SelectedYear);
+        ?? (SelectedYear == "all" ? "All time" : ActiveTab == "Monthly" ? $"{SelectedMonth} {SelectedYear}" : SelectedYear);
     private string ScopeLabel => SelectedFacility != "All" && Enum.TryParse<FacilityCode>(SelectedFacility, out var _slc)
         ? FacilityCatalog.NameOf(_slc)
         : (Model?.ScopeLabel ?? (SelectedFacility == "All" ? "All facilities" : SelectedFacility));
@@ -595,16 +597,17 @@
         Loading = true;
         await PaintLoadingStateAsync();
 
-        var period = ActiveTab == "Annual" ? ReportPeriod.Yearly : ReportPeriod.Monthly;
-        var year = int.Parse(SelectedYear);
-        int? month = period == ReportPeriod.Monthly ? Months.IndexOf(SelectedMonth) + 1 : null;
+        var allTime = SelectedYear == "all";
+        var period = allTime || ActiveTab == "Annual" ? ReportPeriod.Yearly : ReportPeriod.Monthly;
+        var year = allTime ? PhilippineTime.Today.Year : int.Parse(SelectedYear);
+        int? month = (!allTime && period == ReportPeriod.Monthly) ? Months.IndexOf(SelectedMonth) + 1 : null;
         FacilityCode? facility = SelectedFacility == "All" ? null : Enum.Parse<FacilityCode>(SelectedFacility);
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         var loaded = false;
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = await ReportsApi.GetFinancialReportAsync(period, year, month, facility);
+            var result = await ReportsApi.GetFinancialReportAsync(period, year, month, facility, allTime);
             if (result.IsSuccess)
             {
                 Model = result.Value;
