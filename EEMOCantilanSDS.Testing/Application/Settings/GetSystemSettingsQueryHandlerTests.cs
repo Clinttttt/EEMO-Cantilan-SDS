@@ -20,7 +20,7 @@ public class GetSystemSettingsQueryHandlerTests
     private static readonly GetSystemSettingsQueryHandler Handler =
         new(new FakeMunicipalityRepository(Municipality.Create(
                 "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
-            new FakeFacilityRepository(Enum.GetValues<FacilityCode>()),
+            new FakeFacilityRepository(FacilityCatalog.AllCodes),
             CacheTestDoubles.Tenant,
             CacheTestDoubles.FeeRateResolver);
 
@@ -75,6 +75,26 @@ public class GetSystemSettingsQueryHandlerTests
 
         var trm = Assert.Single(dto.Facilities, f => f.Code == "TRM");
         Assert.Equal($"₱{FeeRates.TrmTripFee:0}/trip", trm.Rate);
+    }
+
+    [Fact]
+    public async Task Includes_head_added_custom_facilities_as_monthly_rental()
+    {
+        // A tenant with the 8 canonical facilities PLUS one Head-added custom facility (Custom1).
+        var handler = new GetSystemSettingsQueryHandler(
+            new FakeMunicipalityRepository(Municipality.Create(
+                "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true)),
+            new FakeFacilityRepository(FacilityCatalog.AllCodes.Append(FacilityCode.Custom1)),
+            CacheTestDoubles.Tenant,
+            CacheTestDoubles.FeeRateResolver);
+
+        var result = await handler.Handle(new GetSystemSettingsQuery("Development"), CancellationToken.None);
+        var dto = result.Value!;
+
+        Assert.Equal(9, dto.Facilities.Count);                                  // 8 canonical + 1 custom
+        var custom = Assert.Single(dto.Facilities, f => f.Code == "Custom1");    // code = enum name (client resolves the acronym)
+        Assert.Equal("Monthly rental", custom.Model);
+        Assert.Equal("Monthly", custom.Cadence);
     }
 
     [Theory]

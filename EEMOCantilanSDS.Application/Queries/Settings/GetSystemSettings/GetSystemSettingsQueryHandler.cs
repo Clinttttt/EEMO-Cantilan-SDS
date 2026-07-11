@@ -115,6 +115,24 @@ public class GetSystemSettingsQueryHandler(
                 $"₱{tpmVendor:0}/vendor", $"{marketDay}s")),
         };
 
-        return catalog.Where(x => names.ContainsKey(x.Code)).Select(x => x.Dto).ToList();
+        var rows = catalog.Where(x => names.ContainsKey(x.Code)).Select(x => x.Dto).ToList();
+
+        // Head-added custom facilities (Custom1..Custom5) are monthly-rental. List them data-driven from the
+        // tenant's own facilities, after the canonical ones, in slot order. Code = the enum name so the client
+        // resolves the tenant's acronym via ShortNameOf; Name is the tenant's own facility name. Cantilan has
+        // no custom facilities, so its list is byte-for-byte unchanged.
+        foreach (var custom in names
+            .Where(n => (int)n.Key >= (int)FacilityCode.Custom1)
+            .OrderBy(n => (int)n.Key))
+        {
+            rows.Add(new FacilityRuleDto(
+                custom.Key.ToString(),
+                string.IsNullOrWhiteSpace(custom.Value) ? custom.Key.ToString() : custom.Value,
+                "Monthly rental",
+                "Per stall contract",
+                "Monthly"));
+        }
+
+        return rows;
     }
 }

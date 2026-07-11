@@ -153,7 +153,7 @@
                         <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
                             <div class="facility-card-header">
                                 <div class="facility-card-icon">
-                                    @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? string.Empty))
+                                    @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? DefaultIcon))
                                 </div>
                                 <div class="facility-card-meta">
                                     <div class="facility-card-code">@fac.ShortName</div>
@@ -353,6 +353,7 @@
         FacilityCode.SLH => "Per-head",
         FacilityCode.TRM => "Per-trip",
         FacilityCode.TPM => "Weekly market",
+        _ when (int)c >= (int)FacilityCode.Custom1 => "Monthly rental",   // Head-added custom facilities are monthly-rental
         _ => ""
     };
 
@@ -382,6 +383,10 @@
     };
 
     // Presentation only: facility icon per code (data comes from the API).
+    // Head-added custom facilities have no fixed glyph — they fall back to this default building icon,
+    // matching the sidebar so the dashboard and nav stay visually consistent.
+    private const string DefaultIcon = """<svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>""";
+
     private static readonly Dictionary<FacilityCode, string> Icons = new()
     {
         [FacilityCode.NPM] = """<svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>""",
