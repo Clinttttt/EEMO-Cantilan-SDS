@@ -6,6 +6,10 @@ public record TpmOverviewDto
     public int FridaysThisMonth { get; init; }
     public int VendorEntriesThisMonth { get; init; }
     public int CollectionRate { get; init; }
+
+    // The LGU's configured weekly market weekday (Cantilan default = Friday). Lets the UI render the
+    // correct calendar/labels per tenant (e.g. Madrid = Saturday) instead of hardcoding Friday.
+    public DayOfWeek MarketDay { get; init; } = DayOfWeek.Friday;
 }
 
 public record TpmMarketDayDto

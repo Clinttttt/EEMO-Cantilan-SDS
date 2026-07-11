@@ -68,10 +68,10 @@
                 </div>
             </div>
 
-            <div class="tpm-cal-desc">Every Friday · ₱100 per vendor</div>
+            <div class="tpm-cal-desc">Every @MarketDay · ₱100 per vendor</div>
 
             <div class="tpm-friday-list">
-                @foreach (var friday in GetFridaysInMonth(CalendarMonth))
+                @foreach (var friday in MarketDaysInMonth(CalendarMonth, MarketDay))
                 {
                     var isFuture = friday > DateTime.Today;
                     var record = MarketDays.FirstOrDefault(m => m.MarketDate.ToDateTime(TimeOnly.MinValue).Date == friday.Date);
@@ -81,7 +81,7 @@
                          @onclick="async () => { if (!isFuture) await SelectFriday(friday); }">
                         <div class="tpm-friday-date-block">
                             <div class="tpm-friday-day">@friday.ToString("dd")</div>
-                            <div class="tpm-friday-label">Friday</div>
+                            <div class="tpm-friday-label">@friday.DayOfWeek</div>
                         </div>
                         <div class="tpm-friday-info">
                             <div class="tpm-friday-full">@friday.ToString("MMMM d, yyyy")</div>
@@ -446,7 +446,7 @@
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
         new() { Value = $"₱{Overview?.CollectedThisMonth ?? 0:N0}", Label = "Collected This Month" },
-        new() { Value = $"{Overview?.FridaysThisMonth ?? 0}", Label = "Fridays This Month" },
+        new() { Value = $"{Overview?.FridaysThisMonth ?? 0}", Label = $"{MarketDay}s This Month" },
         new() { Value = $"{Overview?.VendorEntriesThisMonth ?? 0}", Label = "Vendor Entries" }
     };
 
@@ -454,6 +454,10 @@
     private TpmOverviewDto? Overview;
     private List<TpmMarketDayDto> MarketDays = new();
     private List<TpmVendorAttendanceDto> Attendance = new();
+
+    // The LGU's configured weekly market weekday (from the overview DTO; Cantilan default = Friday).
+    // Drives the calendar + labels so a tenant like Madrid shows Saturdays instead of hardcoded Fridays.
+    private DayOfWeek MarketDay => Overview?.MarketDay ?? DayOfWeek.Friday;
 
     [PersistentState(AllowUpdates = true)]
     public TpmPageState? CachedTpmPage { get; set; }
@@ -759,12 +763,12 @@
     }
 
     // ── Helpers ───────────────────────────────────
-    private static List<DateTime> GetFridaysInMonth(DateTime month)
+    private static List<DateTime> MarketDaysInMonth(DateTime month, DayOfWeek marketDay)
     {
-        var fridays = new List<DateTime>();
+        var days = new List<DateTime>();
         var d = new DateTime(month.Year, month.Month, 1);
-        while (d.DayOfWeek != DayOfWeek.Friday) d = d.AddDays(1);
-        while (d.Month == month.Month) { fridays.Add(d); d = d.AddDays(7); }
-        return fridays;
+        while (d.DayOfWeek != marketDay) d = d.AddDays(1);
+        while (d.Month == month.Month) { days.Add(d); d = d.AddDays(7); }
+        return days;
     }
 }

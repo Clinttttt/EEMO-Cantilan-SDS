@@ -68,7 +68,8 @@ public class TpmRepository(AppDbContext context, ITpmMarketDayProvider marketDay
             CollectedThisMonth = attendances.Where(a => a.IsPaid).Sum(a => a.Fee),
             FridaysThisMonth = GetMarketDaysInMonth(year, month, marketDay).Count,
             VendorEntriesThisMonth = totalAttendances,
-            CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0
+            CollectionRate = totalAttendances > 0 ? (int)((double)paidCount / totalAttendances * 100) : 0,
+            MarketDay = marketDay
         };
     }
 
