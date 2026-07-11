@@ -1,20 +1,22 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth
 @inject IPaymentsApiClient PaymentsApi
+@inject IDailyCollectionApiClient DailyApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
-    PayBillModal — a shared "record payment" surface opened from a follow-up row (live queue or history).
-    It reuses the PROVEN collection components rather than any new payment logic:
-      • NPM (daily)      → DailyCollectionCalendar (tap a day to mark it collected; records daily fees).
-      • Monthly rental   → MonthlyPaymentCalendar (tap a month to mark Paid/Partial; records via RecordPayment).
-    Cross-facility, works for delinquent / arrears / current-period / expired-contract accounts alike.
+    PayBillModal — a formal, structured "record payment" form opened from a follow-up row.
+    No calendars: the office picks a SPECIFIC unpaid month or "All outstanding", enters the OR/receipt
+    number, and records it. NPM (daily) months are settled server-side as a whole month (SettleNpmMonth);
+    monthly facilities record a monthly payment (RecordPayment). Works across every facility.
 *@
 
 @if (Show)
 {
     <div class="eemo-modal-overlay" @onclick="HandleClose">
-        <div class="eemo-modal eemo-modal-lg paybill-modal" @onclick:stopPropagation="true">
+        <div class="eemo-modal eemo-modal-sm paybill-modal" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Record payment</div>
@@ -26,30 +28,83 @@
             </div>
 
             <div class="eemo-modal-body">
-                @if (Facility == FacilityCode.NPM)
+                @if (_loading)
                 {
-                    <div class="paybill-note">
-                        New Public Market is collected <strong>daily</strong>. Use the calendar below — tap a day to
-                        mark it collected. Navigate months to settle earlier periods.
-                    </div>
-                    <DailyCollectionCalendar StallId="StallId" />
+                    <div class="pb-loading">Loading outstanding balance…</div>
                 }
-                else if (_loading)
+                else if (_unpaid.Count == 0)
                 {
-                    <div class="paybill-loading">Loading open months…</div>
+                    <div class="pb-clear">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                        <span>No outstanding balance — this account is fully paid.</span>
+                    </div>
                 }
                 else
                 {
-                    <MonthlyPaymentCalendar StallId="StallId"
-                                            ContractDate="null"
-                                            MonthlyRate="_monthlyRate"
-                                            PaymentHistory="_history"
-                                            OnPaymentUpdated="OnUpdated" />
+                    <div class="pb-summary">
+                        <span class="pb-summary-key">Total outstanding</span>
+                        <span class="pb-summary-val">₱@_totalOutstanding.ToString("N2")</span>
+                        <span class="pb-summary-sub">across @_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")</span>
+                    </div>
+
+                    <div class="pb-field">
+                        <label class="pb-label">What to pay</label>
+                        <div class="pb-scope">
+                            <label class="pb-radio @(_scope == "month" ? "on" : "")">
+                                <input type="radio" name="pb-scope" checked="@(_scope == "month")" @onchange='() => _scope = "month"' />
+                                <span>A specific month</span>
+                            </label>
+                            <label class="pb-radio @(_scope == "all" ? "on" : "")">
+                                <input type="radio" name="pb-scope" checked="@(_scope == "all")" @onchange='() => _scope = "all"' />
+                                <span>All outstanding (@_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s") · ₱@_totalOutstanding.ToString("N0"))</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    @if (_scope == "month")
+                    {
+                        <div class="pb-field">
+                            <label class="pb-label" for="pb-month">Month</label>
+                            <select id="pb-month" class="pb-input" @bind="_selectedPeriod">
+                                @foreach (var r in _unpaid)
+                                {
+                                    <option value="@r.Period">@MonthLabel(r.Period) — ₱@r.BalanceDue.ToString("N2")</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="pb-field">
+                        <label class="pb-label" for="pb-or">
+                            OR / Receipt No. @(_scope == "all" ? "(applied per month — leave blank to add later)" : "(optional)")
+                        </label>
+                        <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off"
+                               placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
+                    </div>
+
+                    @if (_scope == "all")
+                    {
+                        <div class="pb-note">Marks every unpaid month above as fully paid.</div>
+                    }
+
+                    @if (_error is not null)
+                    {
+                        <div class="pb-error">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            @_error
+                        </div>
+                    }
                 }
             </div>
 
             <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="HandleClose">Close</button>
+                <button class="btn-ghost" @onclick="HandleClose" disabled="@_submitting">Cancel</button>
+                @if (!_loading && _unpaid.Count > 0)
+                {
+                    <button class="btn-primary" @onclick="Submit" disabled="@(_submitting || (_scope == "month" && string.IsNullOrEmpty(_selectedPeriod)))">
+                        @(_submitting ? "Recording…" : "Record payment")
+                    </button>
+                }
             </div>
         </div>
     </div>
@@ -65,50 +120,104 @@
     [Parameter] public EventCallback OnChanged { get; set; }
 
     private bool _loading;
-    private decimal _monthlyRate;
-    private List<PaymentHistoryDto> _history = new();
+    private bool _submitting;
+    private string? _error;
+    private string _scope = "month";
+    private string _selectedPeriod = string.Empty;
+    private string _or = string.Empty;
+    private decimal _totalOutstanding;
+    private List<PaymentHistoryDto> _unpaid = new();
     private Guid _loadedStall;
 
     private string DisplayOccupant => string.IsNullOrWhiteSpace(Occupant) ? "Unnamed occupant" : Occupant;
 
     protected override async Task OnParametersSetAsync()
     {
-        // Monthly facilities need their ledger to drive the month grid; load once per opened stall.
-        // (NPM's calendar self-loads by StallId, so nothing to fetch here.)
-        if (Show && Facility != FacilityCode.NPM && _loadedStall != StallId)
+        if (Show && _loadedStall != StallId)
         {
             _loadedStall = StallId;
-            await LoadHistory();
+            await LoadOutstanding();
         }
     }
 
-    private async Task LoadHistory()
+    private async Task LoadOutstanding()
     {
         _loading = true;
+        _error = null;
+        _scope = "month";
+        _or = string.Empty;
+
         var result = await PaymentsApi.GetPaymentHistoryAsync(StallId);
-        if (result.IsSuccess && result.Value is not null)
-        {
-            _history = result.Value.ToList();
-            // The full monthly rent = the largest billed month in the ledger (a partial month bills less).
-            _monthlyRate = _history.Count > 0 ? _history.Max(h => h.TotalBill) : 0m;
-        }
-        else
-        {
-            _history = new();
-            _monthlyRate = 0m;
-        }
+        _unpaid = (result.IsSuccess && result.Value is not null)
+            ? result.Value
+                .Where(h => !h.IsExcused && h.Status != PaymentStatus.Paid && h.BalanceDue > 0m && !string.IsNullOrWhiteSpace(h.Period))
+                .OrderBy(h => h.Period)
+                .ToList()
+            : new();
+        _totalOutstanding = _unpaid.Sum(h => h.BalanceDue);
+        _selectedPeriod = _unpaid.FirstOrDefault()?.Period ?? string.Empty;
         _loading = false;
     }
 
-    private async Task OnUpdated()
+    private async Task Submit()
     {
-        await LoadHistory();       // refresh the grid after a recorded payment
-        await OnChanged.InvokeAsync();
+        if (_submitting) return;
+        _submitting = true;
+        _error = null;
+
+        var targets = _scope == "all"
+            ? _unpaid.ToList()
+            : _unpaid.Where(h => h.Period == _selectedPeriod).ToList();
+
+        if (targets.Count == 0)
+        {
+            _error = "Select a month to pay.";
+            _submitting = false;
+            return;
+        }
+
+        // A single OR represents one receipt, so only stamp it when paying ONE month; a bulk "all"
+        // records the months paid and leaves the OR to be added per month later.
+        var singleOr = (_scope == "month" && !string.IsNullOrWhiteSpace(_or)) ? _or.Trim() : null;
+
+        foreach (var t in targets)
+        {
+            if (!TryParsePeriod(t.Period, out var year, out var month))
+                continue;
+
+            var res = Facility == FacilityCode.NPM
+                ? await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, year, month, singleOr))
+                : await PaymentsApi.RecordPaymentAsync(new RecordPaymentCommand(StallId, year, month, PaymentStatus.Paid, null, null, singleOr));
+
+            if (!res.IsSuccess)
+            {
+                _error = res.Error ?? "Could not record the payment. Please try again.";
+                _submitting = false;
+                return;
+            }
+        }
+
+        _submitting = false;
+        await LoadOutstanding();       // refresh remaining balance
+        await OnChanged.InvokeAsync(); // let the host reload its list
     }
 
     private async Task HandleClose()
     {
-        _loadedStall = Guid.Empty; // force a reload next time the modal opens
+        if (_submitting) return;
+        _loadedStall = Guid.Empty;     // reload next open
         await OnClose.InvokeAsync();
     }
+
+    private static bool TryParsePeriod(string period, out int year, out int month)
+    {
+        year = 0; month = 0;
+        var parts = period.Split('-');
+        return parts.Length == 2 && int.TryParse(parts[0], out year) && int.TryParse(parts[1], out month);
+    }
+
+    private static string MonthLabel(string period) =>
+        TryParsePeriod(period, out var y, out var m)
+            ? new DateTime(y, m, 1).ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : period;
 }

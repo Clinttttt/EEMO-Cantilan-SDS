@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
 using MediatR;
@@ -22,6 +23,15 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
     [HttpPost("or")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveDailyCollectionOrNumberCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    // Settle a whole NPM month at once (admin/head only) — records the month's collectable days as paid.
+    [HttpPost("settle-month")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> SettleNpmMonth([FromBody] SettleNpmMonthCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);
