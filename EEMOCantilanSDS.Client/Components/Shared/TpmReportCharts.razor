@@ -6,11 +6,11 @@
 
 <div class="tpmrc-row">
 
-    @* ── LEFT: Friday Attendance Trend ── *@
+    @* ── LEFT: Market-day Attendance Trend ── *@
     <div class="tpmrc-card">
         <div class="tpmrc-card-header">
             <div class="tpmrc-tag">TPM – ATTENDANCE</div>
-            <div class="tpmrc-card-title">Friday attendance trend</div>
+            <div class="tpmrc-card-title">Market day attendance trend</div>
         </div>
 
         @if (!PastDays.Any())
@@ -90,7 +90,7 @@
                             ? Math.Round((double)PastDays.Sum(d => d.VendorsPaid) / PastDays.Count, 1).ToString("F1")
                             : "—")
                     </span>
-                    <span class="tpmrc-foot-key">Avg / Friday</span>
+                    <span class="tpmrc-foot-key">Avg / market day</span>
                 </div>
             </div>
         }
@@ -100,7 +100,7 @@
     <div class="tpmrc-card">
         <div class="tpmrc-card-header">
             <div class="tpmrc-tag">TPM – MARKET DAYS</div>
-            <div class="tpmrc-card-title">Per-Friday breakdown</div>
+            <div class="tpmrc-card-title">Per-market-day breakdown</div>
         </div>
 
         @if (!PastDays.Any())

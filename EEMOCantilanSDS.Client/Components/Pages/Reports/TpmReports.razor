@@ -256,7 +256,7 @@ else
                 <div class="chart-header">
                     <div class="chart-header-left">
                         <h3 class="chart-title">Collection Trend</h3>
-                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => "Collected fees by Friday (market day)", _ => "Collected fees by month" })</p>
+                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => $"Collected fees by {_marketDay} (market day)", _ => "Collected fees by month" })</p>
                     </div>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
@@ -427,8 +427,13 @@ else
     // Trailing 6-month collected totals for the Monthly trend chart (oldest → newest).
     private List<(int Year, int Month, decimal Collected)> _trendMonthly = new();
 
-    // Full month's attendance kept for the Weekly trend's per-Friday (market-day) series.
+    // Full month's attendance kept for the Weekly trend's per-market-day series.
     private List<TpmVendorAttendanceDto> _weekTrendSource = new();
+
+    // The LGU's market weekday, derived from the recorded attendance dates (they always fall on the LGU's
+    // market day). Fallback = Friday (Cantilan). Keeps the Weekly trend + subtitle correct for tenants like
+    // Madrid (Saturday) without an extra API call.
+    private DayOfWeek _marketDay = DayOfWeek.Friday;
 
     [PersistentState(AllowUpdates = true)]
     public TpmReportsPageState? CachedReport { get; set; }
@@ -515,6 +520,13 @@ else
 
     void RecomputeDerived()
     {
+        // Derive the tenant market weekday from attendance dates before building the trend (they fall on
+        // the LGU's market day); fall back to Friday when there is no data yet.
+        var wd = _weekTrendSource.Concat(MonthAtt)
+            .Select(a => (DayOfWeek?)a.MarketDate.DayOfWeek)
+            .FirstOrDefault();
+        _marketDay = wd ?? DayOfWeek.Friday;
+
         _goodsBreakdown = BuildGoodsBreakdown();
         _goodsSegments = BuildGoodsSegments(_goodsBreakdown);
         _revenueTrend = BuildRevenueTrend();
@@ -541,14 +553,14 @@ else
             .ToList();
     }
 
-    // All Fridays (market days) of the given month, in date order.
-    static IEnumerable<DateOnly> FridaysOfMonth(int year, int month)
+    // All market days (the tenant's weekday) of the given month, in date order.
+    static IEnumerable<DateOnly> MarketDaysOfMonth(int year, int month, DayOfWeek marketDay)
     {
         var days = DateTime.DaysInMonth(year, month);
         for (var d = 1; d <= days; d++)
         {
             var date = new DateOnly(year, month, d);
-            if (date.DayOfWeek == DayOfWeek.Friday) yield return date;
+            if (date.DayOfWeek == marketDay) yield return date;
         }
     }
 
@@ -685,7 +697,7 @@ else
                 .Where(a => a.IsPaid)
                 .GroupBy(a => a.MarketDate)
                 .ToDictionary(g => g.Key, g => g.Sum(a => a.Fee));
-            pts = FridaysOfMonth(CurrentDate.Year, CurrentDate.Month)
+            pts = MarketDaysOfMonth(CurrentDate.Year, CurrentDate.Month, _marketDay)
                 .Select(d => (
                     Label: d.ToString("MMM d"),
                     Amount: feeByDate.TryGetValue(d, out var amt) ? amt : 0m,

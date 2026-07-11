@@ -297,12 +297,12 @@
                         // One table shape, context-labelled per facility:
                         //   SLH → Owner | Animal Types | Heads | Total
                         //   TRM → Driver | Route(s)     | Trips | Total
-                        //   TPM → Vendor | Goods        | Fridays | Total
+                        //   TPM → Vendor | Goods        | Market days | Total
                         var (payorCol, detailCol, qtyCol) = f.Code switch
                         {
                             FacilityCode.SLH => ("Owner", "Animal Types", "Heads"),
                             FacilityCode.TRM => ("Driver", "Route(s)", "Trips"),
-                            FacilityCode.TPM => ("Vendor", "Goods", "Fridays"),
+                            FacilityCode.TPM => ("Vendor", "Goods", "Market days"),
                             _ => ("Payor", "Detail", "Records")
                         };
                         <table class="me-table">

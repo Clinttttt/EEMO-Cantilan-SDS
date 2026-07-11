@@ -852,7 +852,7 @@
             MonthlyRate = 0,
             // Default the contract effectivity date to today (business day) — the admin can still change it.
             ContractDate = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue),
-            ContractYears = 0,
+            ContractYears = 1,
             AreaLocation = string.Empty,
             // NPM stalls carry Electricity + Water by default (they can be unchecked in the modal).
             FeeTypes = new() { "Electricity", "Water" }

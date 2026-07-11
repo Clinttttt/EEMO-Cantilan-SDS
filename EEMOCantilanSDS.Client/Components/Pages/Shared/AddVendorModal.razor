@@ -521,8 +521,8 @@
             }
 
             // Reflect a non-preset contract term (4, 6–10) as "Custom…" so the input shows and the value
-            // is preserved; the standard presets (0/1/2/3/5) use the dropdown directly.
-            _customYears = Form.ContractYears is not (0 or 1 or 2 or 3 or 5);
+            // is preserved; the standard presets (1/2/3/5) use the dropdown directly. Minimum term is 1 year.
+            _customYears = Form.ContractYears is not (1 or 2 or 3 or 5);
         }
         else if (!Show)
         {
@@ -635,7 +635,7 @@
     };
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
-        ("0", "No contract"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
+        ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
     };
 
     private async Task OnSectionSelected(string value)
@@ -649,8 +649,8 @@
         if (value == "custom")
         {
             _customYears = true;
-            // Seed a sensible in-range term if the current value is a standard preset, so the input isn't 0.
-            if (Form.ContractYears is 0 or 1 or 2 or 3 or 5) Form.ContractYears = 4;
+            // Seed a sensible in-range term if the current value is a standard preset or below the minimum.
+            if (Form.ContractYears is < 1 or 1 or 2 or 3 or 5) Form.ContractYears = 4;
         }
         else
         {
