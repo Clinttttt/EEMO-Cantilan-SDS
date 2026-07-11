@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.Transactions;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
@@ -21,6 +22,11 @@ public class GetFinancialReportQueryHandlerTests
     private static StallComplianceDto Payor(string stallNo, string occupant, decimal paid, decimal balance, int missedMonths) =>
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", 0m, 0m,
             balance > 0 ? "Partial" : "Paid", paid, balance, null, missedMonths, 0, null, 0, paid + balance);
+
+    private static ClosedStallAccountDto Closed(string stallNo, decimal uncollected) =>
+        new(Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.NPM, "New Public Market", stallNo,
+            "Former Occupant", "Former Occupant", new DateOnly(2023, 6, 7), 3, 900m, null,
+            new DateOnly(2026, 6, 7), 0m, uncollected, null);
 
     private static FacilityReportsDto Report(decimal collected, decimal outstanding, decimal rate, int paid, int partial, int unpaid, IReadOnlyList<StallComplianceDto> compliance, FeeTypeBreakdownDto? feeBreakdown = null) =>
         new(
@@ -100,6 +106,11 @@ public class GetFinancialReportQueryHandlerTests
         facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
+        // Two closed/expired NPM accounts, each with a ₱32,910 historical uncollected balance.
+        var stalls = new Mock<IStallRepository>();
+        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { Closed("91", 32_910m), Closed("92", 32_910m) });
+
         var handler = new GetFinancialReportQueryHandler(
             reports.Object,
             slaughter.Object,
@@ -107,6 +118,7 @@ public class GetFinancialReportQueryHandlerTests
             tpm.Object,
             feed.Object,
             facilities.Object,
+            stalls.Object,
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,
@@ -158,6 +170,23 @@ public class GetFinancialReportQueryHandlerTests
         // Merged facility rows still reconcile to the aggregated headline totals.
         Assert.Equal(all.Collected, all.Facilities.Sum(f => f.Collected));
         Assert.Equal(all.CurrentPeriodUnpaid, all.Facilities.Where(f => f.Unpaid.HasValue).Sum(f => f.Unpaid!.Value));
+    }
+
+    [Fact]
+    public async Task ClosedExpiredAccounts_WithBalance_AreSummarized_SeparateFromDelinquency()
+    {
+        var (handler, _) = Build();
+
+        var r = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        // The two closed/expired accounts (₱32,910 each) are summarized for visibility...
+        Assert.Equal(2, r.ClosedWithBalanceCount);
+        Assert.Equal(65_820m, r.ClosedWithBalanceOutstanding);
+
+        // ...but NOT folded into the record-based current delinquency/arrears lists.
+        Assert.DoesNotContain(r.Delinquent, d => d.StallNo is "91" or "92");
+        Assert.DoesNotContain(r.Arrears, d => d.StallNo is "91" or "92");
     }
 
     [Fact]

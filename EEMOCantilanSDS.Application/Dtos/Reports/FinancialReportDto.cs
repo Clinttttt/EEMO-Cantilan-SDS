@@ -42,7 +42,14 @@ public record FinancialReportDto(
     IReadOnlyList<FinancialFacilityRowDto> Facilities,
 
     // ── Traceability ──
-    IReadOnlyList<FinancialRecordDto> RecentRecords
+    IReadOnlyList<FinancialRecordDto> RecentRecords,
+
+    // ── Closed / expired accounts with an outstanding historical balance ──
+    // The Closed Accounts register total (facility-scoped, all-time). Kept SEPARATE from current
+    // delinquency by design: these are INACTIVE accounts (frozen or contract lapsed), not current
+    // delinquents. Surfaced here only for visibility/follow-up.
+    int ClosedWithBalanceCount = 0,
+    decimal ClosedWithBalanceOutstanding = 0m
 );
 
 /// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing.</summary>

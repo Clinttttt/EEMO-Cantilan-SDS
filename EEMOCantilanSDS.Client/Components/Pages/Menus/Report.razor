@@ -295,6 +295,19 @@
                     </div>
                 </div>
             </div>
+            @if (Model.ClosedWithBalanceCount > 0)
+            {
+                <a href="/reports/closed-accounts" class="rpt-closed-note">
+                    <div class="rpt-closed-note-info">
+                        <div class="rpt-closed-note-title">Closed / expired accounts with balance</div>
+                        <div class="rpt-closed-note-sub">Inactive accounts (frozen or contract lapsed) — historical arrears, shown separately from current delinquency</div>
+                    </div>
+                    <div class="rpt-closed-note-amount">
+                        <div class="rpt-closed-note-val">@Money(Model.ClosedWithBalanceOutstanding)</div>
+                        <div class="rpt-closed-note-count">@Model.ClosedWithBalanceCount account@(Model.ClosedWithBalanceCount == 1 ? "" : "s") · view →</div>
+                    </div>
+                </a>
+            }
         </div>
 
         <!-- REVENUE TREND -->

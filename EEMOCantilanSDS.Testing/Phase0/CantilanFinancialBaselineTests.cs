@@ -77,6 +77,7 @@ public class CantilanFinancialBaselineTests : RepositoryTestBase
             new TpmRepository(context, CacheTestDoubles.TpmMarketDay),
             new TransactionFeedRepository(context),
             new FacilityRepository(context),
+            new StallRepository(context),
             CacheTestDoubles.FeeRateResolver,
             CacheTestDoubles.PassthroughCache,
             CacheTestDoubles.Tenant,

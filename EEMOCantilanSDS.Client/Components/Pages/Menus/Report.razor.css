@@ -1613,3 +1613,52 @@
         height: 180px;
     }
 }
+
+/* ── Closed / expired accounts with balance — a distinct, non-delinquency follow-up note ── */
+.rpt-closed-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 4px 22px 18px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fafcfd;
+    text-decoration: none;
+    transition: background .12s, border-color .12s;
+}
+
+    .rpt-closed-note:hover {
+        background: #f4f8fb;
+        border-color: #c9d6e0;
+    }
+
+.rpt-closed-note-title {
+    font-weight: 600;
+    color: var(--text);
+    font-size: .92rem;
+}
+
+.rpt-closed-note-sub {
+    color: var(--text-subtle);
+    font-size: .78rem;
+    margin-top: 2px;
+}
+
+.rpt-closed-note-amount {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.rpt-closed-note-val {
+    font-weight: 700;
+    color: var(--red);
+    font-size: 1rem;
+}
+
+.rpt-closed-note-count {
+    color: var(--text-subtle);
+    font-size: .76rem;
+    margin-top: 2px;
+}

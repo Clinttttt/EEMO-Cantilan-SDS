@@ -26,6 +26,7 @@ public class GetFinancialReportQueryHandler(
     ITpmRepository tpmRepository,
     ITransactionFeedRepository transactionFeedRepository,
     IFacilityRepository facilityRepository,
+    IStallRepository stallRepository,
     IFeeRateResolver feeRateResolver,
     IEemoAppCache cache,
     ITenantContext tenantContext,
@@ -282,6 +283,14 @@ public class GetFinancialReportQueryHandler(
             ? StallFacilities.Concat(ServiceFacilities).Count(tenantCodes.Contains)
             : 1;
 
+        // Closed / expired accounts with an outstanding historical balance (Closed Accounts register).
+        // Facility-scoped to match the report; all-time (a closure/expiry balance is not period-bound).
+        // Surfaced for visibility only — kept OUT of the record-based delinquency lists by design.
+        var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+        var closedWithBalance = closedAccounts
+            .Where(a => a.Uncollected > 0m && (request.Facility is null || a.FacilityCode == request.Facility))
+            .ToList();
+
         var dto = new FinancialReportDto(
             PeriodLabel: PeriodLabel(request),
             ScopeLabel: request.Facility is null ? "All facilities" : FacilityName(request.Facility.Value),
@@ -300,7 +309,9 @@ public class GetFinancialReportQueryHandler(
             Trend: trend,
             YtdCollected: ytdCollected,
             Facilities: orderedRows,
-            RecentRecords: recent);
+            RecentRecords: recent,
+            ClosedWithBalanceCount: closedWithBalance.Count,
+            ClosedWithBalanceOutstanding: closedWithBalance.Sum(a => a.Uncollected));
 
         return dto;
     }
@@ -386,7 +397,9 @@ public class GetFinancialReportQueryHandler(
             Trend: trend,
             YtdCollected: collected,
             Facilities: facilities,
-            RecentRecords: latest.RecentRecords);
+            RecentRecords: latest.RecentRecords,
+            ClosedWithBalanceCount: latest.ClosedWithBalanceCount,
+            ClosedWithBalanceOutstanding: latest.ClosedWithBalanceOutstanding);
     }
 
     private static GetFinancialReportQuery NormalizeRequest(GetFinancialReportQuery request)
