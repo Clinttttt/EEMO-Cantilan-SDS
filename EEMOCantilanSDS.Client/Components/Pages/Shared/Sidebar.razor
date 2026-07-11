@@ -168,17 +168,19 @@
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
         _portalLabel = isHead ? "Head Portal" : "Admin Portal";
 
+        // Paint instantly from persisted state (avoids a prerender→interactive flash), but ALWAYS
+        // revalidate from the API afterwards. The server summaries cache is short-lived (60s TTL), so a
+        // re-fetch reflects the live database — this is what corrects a badge left stale by an out-of-band
+        // change the caches can't see (e.g. a database restore). A failed re-fetch keeps the painted value.
         if (FacilitySummaries is not null)
         {
             ApplyFacilitySummaries(FacilitySummaries);
         }
-        else
+
+        var result = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
+        if (result.IsSuccess && result.Value is not null)
         {
-            var result = await FacilitiesApi.GetFacilitySummariesAsync(_statePeriod.Year, _statePeriod.Month);
-            if (result.IsSuccess && result.Value is not null)
-            {
-                ApplyFacilitySummaries(result.Value.ToList());
-            }
+            ApplyFacilitySummaries(result.Value.ToList());
         }
 
         if (OnlinePaymentsAwaitingOr is not null)
