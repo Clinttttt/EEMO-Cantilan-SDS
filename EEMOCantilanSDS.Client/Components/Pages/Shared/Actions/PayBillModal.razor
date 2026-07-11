@@ -1,0 +1,114 @@
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@inject IPaymentsApiClient PaymentsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+@*
+    PayBillModal — a shared "record payment" surface opened from a follow-up row (live queue or history).
+    It reuses the PROVEN collection components rather than any new payment logic:
+      • NPM (daily)      → DailyCollectionCalendar (tap a day to mark it collected; records daily fees).
+      • Monthly rental   → MonthlyPaymentCalendar (tap a month to mark Paid/Partial; records via RecordPayment).
+    Cross-facility, works for delinquent / arrears / current-period / expired-contract accounts alike.
+*@
+
+@if (Show)
+{
+    <div class="eemo-modal-overlay" @onclick="HandleClose">
+        <div class="eemo-modal eemo-modal-lg paybill-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Record payment</div>
+                    <div class="eemo-modal-sub">@DisplayOccupant · Stall @StallNo · @FacilityCatalog.ShortNameOf(Facility)</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="HandleClose" aria-label="Close">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+
+            <div class="eemo-modal-body">
+                @if (Facility == FacilityCode.NPM)
+                {
+                    <div class="paybill-note">
+                        New Public Market is collected <strong>daily</strong>. Use the calendar below — tap a day to
+                        mark it collected. Navigate months to settle earlier periods.
+                    </div>
+                    <DailyCollectionCalendar StallId="StallId" />
+                }
+                else if (_loading)
+                {
+                    <div class="paybill-loading">Loading open months…</div>
+                }
+                else
+                {
+                    <MonthlyPaymentCalendar StallId="StallId"
+                                            ContractDate="null"
+                                            MonthlyRate="_monthlyRate"
+                                            PaymentHistory="_history"
+                                            OnPaymentUpdated="OnUpdated" />
+                }
+            </div>
+
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="HandleClose">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public FacilityCode Facility { get; set; }
+    [Parameter] public string StallNo { get; set; } = string.Empty;
+    [Parameter] public string Occupant { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool _loading;
+    private decimal _monthlyRate;
+    private List<PaymentHistoryDto> _history = new();
+    private Guid _loadedStall;
+
+    private string DisplayOccupant => string.IsNullOrWhiteSpace(Occupant) ? "Unnamed occupant" : Occupant;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Monthly facilities need their ledger to drive the month grid; load once per opened stall.
+        // (NPM's calendar self-loads by StallId, so nothing to fetch here.)
+        if (Show && Facility != FacilityCode.NPM && _loadedStall != StallId)
+        {
+            _loadedStall = StallId;
+            await LoadHistory();
+        }
+    }
+
+    private async Task LoadHistory()
+    {
+        _loading = true;
+        var result = await PaymentsApi.GetPaymentHistoryAsync(StallId);
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _history = result.Value.ToList();
+            // The full monthly rent = the largest billed month in the ledger (a partial month bills less).
+            _monthlyRate = _history.Count > 0 ? _history.Max(h => h.TotalBill) : 0m;
+        }
+        else
+        {
+            _history = new();
+            _monthlyRate = 0m;
+        }
+        _loading = false;
+    }
+
+    private async Task OnUpdated()
+    {
+        await LoadHistory();       // refresh the grid after a recorded payment
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task HandleClose()
+    {
+        _loadedStall = Guid.Empty; // force a reload next time the modal opens
+        await OnClose.InvokeAsync();
+    }
+}

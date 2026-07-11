@@ -114,7 +114,9 @@
                     </button>
                 }
             </div>
+        </div>
 
+        <div class="fh-toolrow">
             <!-- Period picker — professional custom dropdowns, in line with the reason chips (Excused) -->
             <div class="fh-period-select" role="group" aria-label="Choose the period">
 
@@ -181,9 +183,6 @@
                     }
                 </div>
             </div>
-        </div>
-
-        <div class="fh-toolrow">
             <div class="fh-search">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="e => _search = e.Value?.ToString() ?? string.Empty" aria-label="Search history" />
@@ -316,6 +315,10 @@
                                                             {
                                                                 <button type="button" class="fh-action fh-action-btn" @onclick="() => OpenAddOr(r)">@r.Action<span class="fh-action-arrow">→</span></button>
                                                             }
+                                                            else if (CanPay(r))
+                                                            {
+                                                                <button type="button" class="fh-action fh-action-btn" @onclick="() => OpenPayBill(r)">Record payment<span class="fh-action-arrow">→</span></button>
+                                                            }
                                                             else
                                                             {
                                                                 <a class="fh-action" href="@r.Link">@r.Action<span class="fh-action-arrow">→</span></a>
@@ -410,6 +413,14 @@
     </div>
 }
 
+<PayBillModal Show="@(_payItem is not null)"
+              StallId="@(_payItem?.StallId ?? Guid.Empty)"
+              Facility="@(_payItem?.Facility ?? FacilityCode.NPM)"
+              StallNo="@PayStallNo"
+              Occupant="@(_payItem?.Person ?? string.Empty)"
+              OnClose="ClosePayBill"
+              OnChanged="OnPaid" />
+
 @code {
     // ── Inline Add-OR (records missing a receipt number) ───────────────────────────
     // Works for every facility model. Reuses each facility's existing OR-save; for SLH one OR
@@ -436,6 +447,25 @@
     private string? _orError;
     private bool _orSavedAny;
     private List<OrRow> _orRows = new();
+
+    // ── Record payment (reuses the shared PayBillModal → existing collection calendars) ──
+    private FollowUpItemDto? _payItem;
+
+    // Any stall-scoped account behind on payments (or an expired contract with a balance) is payable
+    // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
+    private static bool CanPay(FollowUpItemDto r) =>
+        r.StallId.HasValue
+        && r.ReasonKind is "contract" or "current" or "delinquent" or "arrears";
+
+    private string PayStallNo => _payItem is null
+        ? string.Empty
+        : (_payItem.Identifier.StartsWith("Stall ", StringComparison.OrdinalIgnoreCase)
+            ? _payItem.Identifier["Stall ".Length..].Trim()
+            : _payItem.Identifier);
+
+    private void OpenPayBill(FollowUpItemDto item) => _payItem = item;
+    private void ClosePayBill() => _payItem = null;
+    private async Task OnPaid() => await Load();
 
     private static OrModel ModelFor(FacilityCode f) => f switch
     {
