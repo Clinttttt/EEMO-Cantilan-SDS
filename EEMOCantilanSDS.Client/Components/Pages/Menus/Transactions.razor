@@ -283,7 +283,7 @@
 
     private IReadOnlyList<FilterOption> Filters =>
         new List<FilterOption> { new(null, "All") }
-            .Concat(FacilityCatalog.All.Select(c => new FilterOption(c, FacilityCatalog.NameOf(c))))
+            .Concat(FacilityCatalog.All.Select(c => new FilterOption(c, FacilityCatalog.ShortNameOf(c))))
             .ToList();
 
     private string ActiveLabel => Filters.FirstOrDefault(f => f.Code == ActiveFilter)?.Label ?? "All";

@@ -184,8 +184,14 @@
                             }
                             else
                             {
-                                <FhSelect Block="true" Caption="" Value="@Form.ContractYears.ToString()"
+                                <FhSelect Block="true" Caption="" Value="@(_customYears ? "custom" : Form.ContractYears.ToString())"
                                           Options="ContractYearOptions" ValueChanged="OnContractYearsSelected" />
+                                @if (_customYears)
+                                {
+                                    <input class="avm-input" style="margin-top:8px;" type="number" min="1" max="10" step="1"
+                                           placeholder="Enter years (1–10)" @bind="Form.ContractYears" @bind:event="oninput" />
+                                    <span class="avm-hint-muted">Custom contract term — 1 to 10 years.</span>
+                                }
                             }
                         </div>
                     </div>
@@ -494,6 +500,10 @@
     // section) changes — but only while the admin hasn't typed their own number.
     private string _lastSuggested = string.Empty;
 
+    // True when the admin chose "Custom…" for the contract term (or opened an already-custom value),
+    // revealing a free numeric input (1–10, the range the backend accepts).
+    private bool _customYears;
+
     protected override void OnParametersSet()
     {
         if (Show && !IsEditing)
@@ -509,10 +519,15 @@
                     _lastSuggested = suggestion;
                 }
             }
+
+            // Reflect a non-preset contract term (4, 6–10) as "Custom…" so the input shows and the value
+            // is preserved; the standard presets (0/1/2/3/5) use the dropdown directly.
+            _customYears = Form.ContractYears is not (0 or 1 or 2 or 3 or 5);
         }
         else if (!Show)
         {
             _lastSuggested = string.Empty;
+            _customYears = false;
         }
     }
 
@@ -530,10 +545,12 @@
         string? sharedPrefix = null;
         var prefixConsistent = true;
         var width = 0;
+        var anyEntries = false;
 
         foreach (var raw in existing)
         {
             if (string.IsNullOrWhiteSpace(raw)) continue;
+            anyEntries = true;
             var m = System.Text.RegularExpressions.Regex.Match(raw.Trim(), @"^(.*?)(\d+)\s*$");
             if (!m.Success) continue;
 
@@ -546,7 +563,9 @@
             else if (!string.Equals(sharedPrefix, prefix, StringComparison.OrdinalIgnoreCase)) prefixConsistent = false;
         }
 
-        if (nums.Count == 0) return string.Empty;
+        // No numeric stalls to continue: for a brand-new facility/section (no stalls at all) suggest the
+        // first number "1"; for an all-non-numeric scheme (e.g. only "A","B") don't guess — the admin types it.
+        if (nums.Count == 0) return anyEntries ? string.Empty : "1";
 
         var next = (nums.Max() + 1).ToString().PadLeft(Math.Max(width, 1), '0');
         return prefixConsistent && !string.IsNullOrEmpty(sharedPrefix) ? $"{sharedPrefix}{next}" : next;
@@ -616,7 +635,7 @@
     };
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
-        ("0", "No contract"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"),
+        ("0", "No contract"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
     };
 
     private async Task OnSectionSelected(string value)
@@ -627,7 +646,17 @@
 
     private void OnContractYearsSelected(string value)
     {
-        Form.ContractYears = int.TryParse(value, out var years) ? years : 0;
+        if (value == "custom")
+        {
+            _customYears = true;
+            // Seed a sensible in-range term if the current value is a standard preset, so the input isn't 0.
+            if (Form.ContractYears is 0 or 1 or 2 or 3 or 5) Form.ContractYears = 4;
+        }
+        else
+        {
+            _customYears = false;
+            Form.ContractYears = int.TryParse(value, out var years) ? years : 0;
+        }
     }
 
     // Bulk import is offered (Add mode only) for the facilities that have an import page.
