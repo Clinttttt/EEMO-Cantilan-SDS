@@ -309,7 +309,8 @@
 
     // Carry prerender-resolved branding into the interactive pass so the panel doesn't flash Cantilan's
     // branding on another municipality's setup link (same technique as Login).
-    [PersistentState] public string? PBrandSeal { get; set; }
+    // Seal is NOT persisted (non-Cantilan seals are large base64 data URIs that can exceed the SignalR
+    // message size and drop the circuit). It's re-resolved by the branding fetch; only small fields persist.
     [PersistentState] public string? PBrandName { get; set; }
     [PersistentState] public string? PBrandAcronym { get; set; }
     [PersistentState] public string? PBrandOffice { get; set; }
@@ -321,7 +322,7 @@
         if (!string.IsNullOrEmpty(PBrandName))
         {
             _isDefaultBrand = PBrandIsDefault ?? true;
-            if (!string.IsNullOrWhiteSpace(PBrandSeal)) SealPath = PBrandSeal;
+            if (PBrandIsDefault == false) SealPath = NeutralSealPath;   // real seal comes from the fetch below
             MunicipalityName = PBrandName;
             if (PBrandAcronym is not null) OfficeAcronym = PBrandAcronym;
             if (PBrandOffice is not null) OfficeName = PBrandOffice;
@@ -371,7 +372,6 @@
 
     void PersistBrand()
     {
-        PBrandSeal = SealPath;
         PBrandName = MunicipalityName;
         PBrandAcronym = OfficeAcronym;
         PBrandOffice = OfficeName;
