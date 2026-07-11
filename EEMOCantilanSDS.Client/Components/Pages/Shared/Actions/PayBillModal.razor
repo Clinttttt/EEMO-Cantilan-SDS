@@ -16,7 +16,7 @@
 @if (Show)
 {
     <div class="eemo-modal-overlay" @onclick="HandleClose">
-        <div class="eemo-modal eemo-modal-sm paybill-modal" @onclick:stopPropagation="true">
+        <div class="eemo-modal paybill-modal" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Record payment</div>
@@ -51,66 +51,88 @@
                         </div>
                     </div>
 
-                    <div class="pb-field">
-                        <span class="pb-label">Payment scope</span>
-                        <div class="pb-seg" role="tablist">
-                            <button type="button" role="tab" aria-selected="@(_scope == "month")"
-                                    class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">
-                                Specific month
-                            </button>
-                            <button type="button" role="tab" aria-selected="@(_scope == "all")"
-                                    class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">
-                                All outstanding
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="pb-field">
-                        <div class="pb-months-head">
-                            <span>@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
-                            <span>Amount</span>
-                        </div>
-                        <div class="pb-months @(_scope == "all" ? "all" : "")" role="@(_scope == "all" ? "list" : "radiogroup")" aria-label="Unpaid months">
-                            @foreach (var r in _unpaid)
-                            {
-                                var included = _scope == "all" || _selectedPeriod == r.Period;
-                                <label class="pb-month-row @(included ? "on" : "")">
-                                    @if (_scope == "month")
-                                    {
-                                        <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
-                                               @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
-                                    }
-                                    else
-                                    {
-                                        <svg class="pb-month-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                    <span class="pb-month-name">@MonthLabel(r.Period)</span>
-                                    <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
-                                </label>
-                            }
-                        </div>
-                        @if (_scope == "all")
-                        {
-                            <div class="pb-months-foot">
-                                <span>Total</span>
-                                <span>₱@_totalOutstanding.ToString("N2")</span>
-                            </div>
-                        }
-                    </div>
-
                     @if (IsNpm)
                     {
+                        @* New Public Market is a daily facility: each day carries its own unique Official
+                           Receipt, so it is settled ONE MONTH AT A TIME (never in bulk, which would strand
+                           hundreds of days without a receipt). Receipts are then encoded per day via Add OR. *@
                         <div class="pb-daily-note">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
                             <div>
-                                <strong>Daily receipts are encoded per day.</strong>
-                                Recording here marks each collectable day of the selected month@(_scope == "all" ? "s" : "") as paid.
-                                Enter each day's Official Receipt afterward using <em>Add OR</em> — a single OR cannot cover multiple days.
+                                <strong>New Public Market is collected daily.</strong>
+                                Settle one month at a time. Each collectable day is recorded as paid, then its
+                                Official Receipt is encoded per day using <em>Add OR</em> — a single OR cannot
+                                cover multiple days.
+                            </div>
+                        </div>
+
+                        <div class="pb-field">
+                            <div class="pb-months-head">
+                                <span>Select a month to settle</span>
+                                <span>Amount</span>
+                            </div>
+                            <div class="pb-months" role="radiogroup" aria-label="Unpaid months">
+                                @foreach (var r in _unpaid)
+                                {
+                                    <label class="pb-month-row @(_selectedPeriod == r.Period ? "on" : "")">
+                                        <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
+                                               @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                        <span class="pb-month-name">@MonthLabel(r.Period)</span>
+                                        <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
+                                    </label>
+                                }
                             </div>
                         </div>
                     }
                     else
                     {
+                        <div class="pb-field">
+                            <span class="pb-label">Payment scope</span>
+                            <div class="pb-seg" role="tablist">
+                                <button type="button" role="tab" aria-selected="@(_scope == "month")"
+                                        class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">
+                                    Specific month
+                                </button>
+                                <button type="button" role="tab" aria-selected="@(_scope == "all")"
+                                        class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">
+                                    All outstanding
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pb-field">
+                            <div class="pb-months-head">
+                                <span>@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
+                                <span>Amount</span>
+                            </div>
+                            <div class="pb-months @(_scope == "all" ? "all" : "")" role="@(_scope == "all" ? "list" : "radiogroup")" aria-label="Unpaid months">
+                                @foreach (var r in _unpaid)
+                                {
+                                    var included = _scope == "all" || _selectedPeriod == r.Period;
+                                    <label class="pb-month-row @(included ? "on" : "")">
+                                        @if (_scope == "month")
+                                        {
+                                            <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
+                                                   @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                        }
+                                        else
+                                        {
+                                            <svg class="pb-month-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                        <span class="pb-month-name">@MonthLabel(r.Period)</span>
+                                        <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
+                                    </label>
+                                }
+                            </div>
+                            @if (_scope == "all")
+                            {
+                                <div class="pb-months-foot">
+                                    <span>Total</span>
+                                    <span>₱@_totalOutstanding.ToString("N2")</span>
+                                </div>
+                            }
+                        </div>
+
                         <div class="pb-field">
                             <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
                             <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
@@ -208,7 +230,10 @@
         _submitting = true;
         _error = null;
 
-        var targets = _scope == "all"
+        // NPM is settled one month at a time (daily facility — no bulk "all", which would strand many
+        // days without a unique OR). Monthly facilities may pay a single month or all outstanding.
+        var payAll = !IsNpm && _scope == "all";
+        var targets = payAll
             ? _unpaid.ToList()
             : _unpaid.Where(h => h.Period == _selectedPeriod).ToList();
 

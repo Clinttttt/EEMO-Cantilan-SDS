@@ -46,7 +46,7 @@
 .pb-months-foot span:last-child { color: var(--red); font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .pb-months {
-    max-height: 236px; overflow-y: auto;
+    max-height: 300px; overflow-y: auto;
     border: 1px solid var(--border); border-radius: 0 0 9px 9px; background: var(--bg-card);
 }
 .pb-months.all { border-radius: 0; }
