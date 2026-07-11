@@ -93,6 +93,14 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    // Unpaid months (with balance) across the whole contract — the Pay-bill form's source of truth.
+    [HttpGet("{stallId}/outstanding-months")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.Payments.PaymentHistoryDto>>> GetOutstandingMonths(Guid stallId)
+    {
+        var result = await Sender.Send(new Application.Queries.Payments.GetStallOutstanding.GetStallOutstandingQuery(stallId));
+        return HandleResponse(result);
+    }
+
     [HttpGet("{stallId}/ledger-summary")]
     public async Task<ActionResult<Application.Dtos.Payments.StallLedgerSummaryDto>> GetLedgerSummary(Guid stallId)
     {

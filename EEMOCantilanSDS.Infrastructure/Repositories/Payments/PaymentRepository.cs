@@ -466,6 +466,94 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         return new StallLedgerSummaryDto(monthsPaid, monthsUnpaid, totalCollected, totalOutstanding);
     }
 
+    public async Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, CancellationToken ct)
+    {
+        var stall = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .FirstOrDefaultAsync(s => s.Id == stallId, ct);
+        if (stall is null)
+            return Array.Empty<PaymentHistoryDto>();
+
+        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
+        if (contract is null)
+            return Array.Empty<PaymentHistoryDto>();
+
+        var today = PhilippineTime.Today;
+        var startMonth = new DateOnly(contract.EffectivityDate.Year, contract.EffectivityDate.Month, 1);
+        // Bill up to the earlier of today or the contract's expiry — never future days.
+        var lastRef = contract.ExpiryDate < today ? contract.ExpiryDate : today;
+        var endMonth = new DateOnly(lastRef.Year, lastRef.Month, 1);
+        if (endMonth < startMonth)
+            return Array.Empty<PaymentHistoryDto>();
+
+        var rangeStart = startMonth;
+        var rangeEnd = new DateOnly(endMonth.Year, endMonth.Month, DateTime.DaysInMonth(endMonth.Year, endMonth.Month));
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var result = new List<PaymentHistoryDto>();
+
+        if (stall.Facility?.Code == FacilityCode.NPM)
+        {
+            var dailies = await context.DailyCollections.AsNoTracking()
+                .Where(dc => dc.StallId == stallId && dc.IsPaid && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
+                .Select(dc => new { dc.CollectionDate, dc.DailyFee })
+                .ToListAsync(ct);
+            var excused = (await context.DailyCollections.AsNoTracking()
+                .Where(dc => dc.StallId == stallId && dc.IsAbsent && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
+                .Select(dc => dc.CollectionDate).ToListAsync(ct)).ToHashSet();
+            var closed = await context.NpmMarketClosures.AsNoTracking()
+                .Where(c => c.ClosureDate >= rangeStart && c.ClosureDate <= rangeEnd)
+                .Select(c => c.ClosureDate).ToListAsync(ct);
+            excused.UnionWith(closed);
+
+            for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))
+            {
+                var mEndFull = new DateOnly(m.Year, m.Month, DateTime.DaysInMonth(m.Year, m.Month));
+                var mEnd = mEndFull < today ? mEndFull : today;      // never count future days
+                var collectableDays = CountCollectableDays(stall, m, mEnd);
+                var excusedDays = excused.Count(d => d >= m && d <= mEnd);
+                var billableDays = Math.Max(0, collectableDays - excusedDays);
+                if (billableDays == 0) continue;
+                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull);
+                var paid = dailies.Where(d => d.CollectionDate >= m && d.CollectionDate <= mEndFull).Sum(d => d.DailyFee);
+                var balance = Math.Max(0m, bill - paid);
+                if (balance <= 0m) continue;
+                result.Add(new PaymentHistoryDto(
+                    $"{m.Year:0000}-{m.Month:00}",
+                    paid > 0m ? PaymentStatus.Partial : PaymentStatus.Unpaid,
+                    bill, paid, balance, null, null));
+            }
+        }
+        else
+        {
+            var payments = await context.PaymentRecords.AsNoTracking()
+                .Where(p => p.StallId == stallId)
+                .ToListAsync(ct);
+            var excusedMonths = (await context.StallMonthlyExceptions.AsNoTracking()
+                .Where(e => e.StallId == stallId)
+                .Select(e => new { e.BillingYear, e.BillingMonth }).ToListAsync(ct))
+                .Select(e => (e.BillingYear, e.BillingMonth)).ToHashSet();
+
+            for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))
+            {
+                if (excusedMonths.Contains((m.Year, m.Month))) continue;
+                var rec = payments.FirstOrDefault(p => p.BillingYear == m.Year && p.BillingMonth == m.Month);
+                if (rec is not null && rec.Status == PaymentStatus.Paid) continue;
+                var bill = rec?.TotalBill ?? stall.MonthlyRate;
+                var paid = rec is not null && rec.Status == PaymentStatus.Partial ? rec.PartialAmount : 0m;
+                var balance = Math.Max(0m, bill - paid);
+                if (balance <= 0m) continue;
+                result.Add(new PaymentHistoryDto(
+                    $"{m.Year:0000}-{m.Month:00}",
+                    paid > 0m ? PaymentStatus.Partial : PaymentStatus.Unpaid,
+                    bill, paid, balance, rec?.ORNumber, null));
+            }
+        }
+
+        return result;
+    }
+
     public async Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(
         Guid stallId, DateTime? cursor, int pageSize, CancellationToken ct)
     {

@@ -147,7 +147,7 @@
         _scope = "month";
         _or = string.Empty;
 
-        var result = await PaymentsApi.GetPaymentHistoryAsync(StallId);
+        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId);
         _unpaid = (result.IsSuccess && result.Value is not null)
             ? result.Value
                 .Where(h => !h.IsExcused && h.Status != PaymentStatus.Paid && h.BalanceDue > 0m && !string.IsNullOrWhiteSpace(h.Period))

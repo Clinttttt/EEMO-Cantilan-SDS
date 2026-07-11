@@ -24,6 +24,13 @@ public interface IPaymentRepository
     /// </summary>
     Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(Guid stallId, DateTime? cursor, int pageSize, CancellationToken ct);
     Task<StallLedgerSummaryDto> GetStallLedgerSummaryAsync(Guid stallId, CancellationToken ct);
+    /// <summary>
+    /// The stall's UNPAID months with an outstanding balance across the WHOLE contract period (not just
+    /// the rolling 12 months, and INCLUDING months with no collection at all) — the source for the
+    /// Pay-bill form. NPM synthesises each month's ₱/day obligation (billable days × rate − collected);
+    /// monthly facilities use the rent obligation less any partial. Only balance &gt; 0 months are returned.
+    /// </summary>
+    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, CancellationToken ct);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     Task AddAsync(PaymentRecord payment, CancellationToken ct);
     Task UpdateAsync(PaymentRecord payment, CancellationToken ct);
