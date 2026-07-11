@@ -610,6 +610,9 @@
    ══════════════════════════════════════════════════════════════ */
 .delinq-list {
     padding: 0;
+    /* Show ~10 rows (each ≈48px), then scroll — keeps a long follow-up list compact. */
+    max-height: 480px;
+    overflow-y: auto;
 }
 
 .delinq-item {

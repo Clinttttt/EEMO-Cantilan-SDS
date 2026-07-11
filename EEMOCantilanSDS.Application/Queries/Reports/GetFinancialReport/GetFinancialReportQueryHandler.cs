@@ -40,7 +40,7 @@ public class GetFinancialReportQueryHandler(
     private static readonly FacilityCode[] ServiceFacilities =
         { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
 
-    private const int AttentionLimit = 8;
+    private const int AttentionLimit = 50;
     private const int RecentLimit = 8;
 
     public async Task<Result<FinancialReportDto>> Handle(GetFinancialReportQuery request, CancellationToken ct)
@@ -239,7 +239,7 @@ public class GetFinancialReportQueryHandler(
         // Attention & follow-up: shared rolling-window delinquency (cumulative balance, excludes the
         // current month), classified by unpaid months — identical source to the dashboard.
         var anchorMonth = request.Month ?? PhilippineTime.Today.Month;
-        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, request.Year, anchorMonth, ct);
+        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, request.Year, anchorMonth, includeClosed: true, ct);
 
         var delinquent = delinquency
             .Where(d => d.MonthsUnpaid >= 3)

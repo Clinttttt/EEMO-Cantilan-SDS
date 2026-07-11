@@ -47,6 +47,19 @@ public interface IFacilityReportsRepository
     );
 
     /// <summary>
+    /// As above, but <paramref name="includeClosed"/>=true also surfaces CLOSED stalls that still carry
+    /// unpaid past-month records (used by the Financial Reports follow-up list). Default callers stay
+    /// active-only.
+    /// </summary>
+    Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility,
+        int year,
+        int month,
+        bool includeClosed,
+        CancellationToken ct
+    );
+
+    /// <summary>
     /// Per-stall recognized fish kilos for NPM in the given billing month — the volume behind the
     /// ₱1/kg fish fee. Mirrors the fee-type breakdown rule (a stall's whole-month paid monthly record
     /// FishKilos, otherwise its collectable paid daily-collection kilos). Key = StallId; stalls with

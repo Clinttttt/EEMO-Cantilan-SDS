@@ -64,7 +64,7 @@ public class GetFinancialReportQueryHandlerTests
 
         // Delinquency comes from the shared rolling-window method: one delinquent (3 mo) + one arrears (1 mo).
         reports.Setup(r => r.GetDelinquentStallsAsync(
-                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),

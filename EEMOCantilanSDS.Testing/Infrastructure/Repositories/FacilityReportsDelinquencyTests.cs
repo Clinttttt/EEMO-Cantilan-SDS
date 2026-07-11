@@ -47,4 +47,36 @@ public class FacilityReportsDelinquencyTests : RepositoryTestBase
         var ncc = await repo.GetDelinquentStallsAsync(FacilityCode.NCC, today.Year, today.Month, CancellationToken.None);
         Assert.Empty(ncc);
     }
+
+    [Fact]
+    public async Task GetDelinquentStalls_IncludesClosedStalls_OnlyWhenRequested()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var m1 = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var m2 = new DateOnly(today.Year, today.Month, 1).AddMonths(-2);
+
+        var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "202", 1000m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Closed Tenant", "Closed Tenant", new DateOnly(today.Year, 1, 1), 3, 1000m);
+        stall.Close(m1);   // stall frozen, but two past unpaid months remain owed
+        var past1 = PaymentRecord.Create(stall.Id, m1.Year, m1.Month, 1000m);
+        var past2 = PaymentRecord.Create(stall.Id, m2.Year, m2.Month, 1000m);
+
+        context.AddRange(tcc, stall, contract, past1, past2);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+
+        // Default (dashboard/follow-up): closed stalls are excluded — behaviour unchanged.
+        var activeOnly = await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, CancellationToken.None);
+        Assert.Empty(activeOnly);
+
+        // Financial Reports opt-in: the closed stall's outstanding debt is surfaced.
+        var withClosed = await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, includeClosed: true, CancellationToken.None);
+        var row = Assert.Single(withClosed);
+        Assert.Equal("202", row.StallNo);
+        Assert.Equal(2, row.MonthsUnpaid);
+        Assert.Equal(2_000m, row.OutstandingBalance);
+    }
 }

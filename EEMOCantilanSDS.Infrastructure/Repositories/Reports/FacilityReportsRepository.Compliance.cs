@@ -265,6 +265,15 @@ public partial class FacilityReportsRepository
     /// </summary>
     public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
         FacilityCode? facility, int year, int month, CancellationToken ct)
+        => await GetDelinquentStallsAsync(facility, year, month, includeClosed: false, ct);
+
+    /// <summary>
+    /// As above, but when <paramref name="includeClosed"/> is true, CLOSED stalls that still carry unpaid
+    /// past-month records are included (their debt does not vanish when the stall is frozen). Default false
+    /// keeps the dashboard/follow-up sources active-only and unchanged; only the Financial Reports opt in.
+    /// </summary>
+    public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility, int year, int month, bool includeClosed, CancellationToken ct)
     {
         var facilities = await _context.Facilities
             .AsNoTracking()
@@ -274,7 +283,7 @@ public partial class FacilityReportsRepository
 
         var stallQuery = _context.Stalls
             .AsNoTracking()
-            .Where(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
+            .Where(s => (includeClosed || s.Status == StallStatus.Active) && s.Contracts.Any(c => c.IsActive));
 
         if (facility.HasValue)
         {
