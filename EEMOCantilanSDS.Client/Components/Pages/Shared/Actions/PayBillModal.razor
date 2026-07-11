@@ -41,51 +41,73 @@
                 }
                 else
                 {
-                    <div class="pb-summary">
-                        <span class="pb-summary-key">Total outstanding</span>
-                        <span class="pb-summary-val">₱@_totalOutstanding.ToString("N2")</span>
-                        <span class="pb-summary-sub">across @_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")</span>
-                    </div>
-
-                    <div class="pb-field">
-                        <label class="pb-label">What to pay</label>
-                        <div class="pb-scope">
-                            <label class="pb-radio @(_scope == "month" ? "on" : "")">
-                                <input type="radio" name="pb-scope" checked="@(_scope == "month")" @onchange='() => _scope = "month"' />
-                                <span>A specific month</span>
-                            </label>
-                            <label class="pb-radio @(_scope == "all" ? "on" : "")">
-                                <input type="radio" name="pb-scope" checked="@(_scope == "all")" @onchange='() => _scope = "all"' />
-                                <span>All outstanding (@_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s") · ₱@_totalOutstanding.ToString("N0"))</span>
-                            </label>
+                    <div class="pb-statement">
+                        <div class="pb-statement-row">
+                            <span class="pb-statement-key">Total outstanding</span>
+                            <span class="pb-statement-val">₱@_totalOutstanding.ToString("N2")</span>
+                        </div>
+                        <div class="pb-statement-meta">
+                            @_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")@(string.IsNullOrEmpty(_rangeLabel) ? "" : $" · {_rangeLabel}")
                         </div>
                     </div>
 
-                    @if (_scope == "month")
-                    {
-                        <div class="pb-field">
-                            <label class="pb-label" for="pb-month">Month</label>
-                            <select id="pb-month" class="pb-input" @bind="_selectedPeriod">
-                                @foreach (var r in _unpaid)
-                                {
-                                    <option value="@r.Period">@MonthLabel(r.Period) — ₱@r.BalanceDue.ToString("N2")</option>
-                                }
-                            </select>
+                    <div class="pb-field">
+                        <span class="pb-label">Payment scope</span>
+                        <div class="pb-seg" role="tablist">
+                            <button type="button" role="tab" aria-selected="@(_scope == "month")"
+                                    class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">
+                                Specific month
+                            </button>
+                            <button type="button" role="tab" aria-selected="@(_scope == "all")"
+                                    class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">
+                                All outstanding
+                            </button>
                         </div>
-                    }
+                    </div>
 
                     <div class="pb-field">
-                        <label class="pb-label" for="pb-or">
-                            OR / Receipt No. @(_scope == "all" ? "(applied per month — leave blank to add later)" : "(optional)")
-                        </label>
-                        <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off"
+                        <div class="pb-months-head">
+                            <span>@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
+                            <span>Amount</span>
+                        </div>
+                        <div class="pb-months @(_scope == "all" ? "all" : "")" role="@(_scope == "all" ? "list" : "radiogroup")" aria-label="Unpaid months">
+                            @foreach (var r in _unpaid)
+                            {
+                                var included = _scope == "all" || _selectedPeriod == r.Period;
+                                <label class="pb-month-row @(included ? "on" : "")">
+                                    @if (_scope == "month")
+                                    {
+                                        <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
+                                               @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                    }
+                                    else
+                                    {
+                                        <svg class="pb-month-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                    }
+                                    <span class="pb-month-name">@MonthLabel(r.Period)</span>
+                                    <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
+                                </label>
+                            }
+                        </div>
+                        @if (_scope == "all")
+                        {
+                            <div class="pb-months-foot">
+                                <span>Total</span>
+                                <span>₱@_totalOutstanding.ToString("N2")</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="pb-field">
+                        <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
+                        <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
                                placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
+                        <div class="pb-hint">
+                            @(_scope == "all"
+                                ? "Applied to each settled month. Leave blank to encode receipts individually later."
+                                : "Optional — leave blank to encode the receipt later.")
+                        </div>
                     </div>
-
-                    @if (_scope == "all")
-                    {
-                        <div class="pb-note">Marks every unpaid month above as fully paid.</div>
-                    }
 
                     @if (_error is not null)
                     {
@@ -126,6 +148,7 @@
     private string _selectedPeriod = string.Empty;
     private string _or = string.Empty;
     private decimal _totalOutstanding;
+    private string _rangeLabel = string.Empty;
     private List<PaymentHistoryDto> _unpaid = new();
     private Guid _loadedStall;
 
@@ -156,6 +179,11 @@
             : new();
         _totalOutstanding = _unpaid.Sum(h => h.BalanceDue);
         _selectedPeriod = _unpaid.FirstOrDefault()?.Period ?? string.Empty;
+        _rangeLabel = _unpaid.Count == 0
+            ? string.Empty
+            : _unpaid.Count == 1
+                ? MonthLabelShort(_unpaid[0].Period)
+                : $"{MonthLabelShort(_unpaid[0].Period)} – {MonthLabelShort(_unpaid[^1].Period)}";
         _loading = false;
     }
 
@@ -219,5 +247,10 @@
     private static string MonthLabel(string period) =>
         TryParsePeriod(period, out var y, out var m)
             ? new DateTime(y, m, 1).ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : period;
+
+    private static string MonthLabelShort(string period) =>
+        TryParsePeriod(period, out var y, out var m)
+            ? new DateTime(y, m, 1).ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
             : period;
 }
