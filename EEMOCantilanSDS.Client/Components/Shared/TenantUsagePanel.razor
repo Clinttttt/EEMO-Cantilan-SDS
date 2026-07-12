@@ -107,6 +107,13 @@
                         safety net, and the whole restore runs in one transaction — if anything fails, nothing changes.
                     </div>
 
+                    <div class="tu-restore-getpoint">
+                        <span>Keep a <strong>restore point</strong> to roll back to later:</span>
+                        <button type="button" class="tu-restore-dl" @onclick="DownloadRestorePointAsync" disabled="@_downloadingPoint">
+                            @(_downloadingPoint ? "Preparing…" : "Download restore point")
+                        </button>
+                    </div>
+
                     <label class="tu-restore-field">
                         <span>Backup snapshot file (.json)</span>
                         <InputFile OnChange="OnFileSelected" accept=".json" />
@@ -161,7 +168,26 @@
     private string _password = string.Empty;
     private byte[]? _uploadBytes;
     private string? _uploadName;
+    private bool _downloadingPoint;
     private const long MaxUploadBytes = 40L * 1024 * 1024;   // generous ceiling for a per-LGU snapshot
+
+    private async Task DownloadRestorePointAsync()
+    {
+        if (_downloadingPoint) return;
+        _downloadingPoint = true;
+        _restoreError = null;
+        try
+        {
+            var r = await TenantUsageApi.DownloadRestoreSnapshotAsync();
+            if (r.IsSuccess && r.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes",
+                    r.Value.FileName, Convert.ToBase64String(r.Value.Content), r.Value.ContentType);
+            else
+                _restoreError = r.Error ?? "Couldn't prepare a restore point.";
+        }
+        catch { _restoreError = "Couldn't prepare a restore point."; }
+        finally { _downloadingPoint = false; }
+    }
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
