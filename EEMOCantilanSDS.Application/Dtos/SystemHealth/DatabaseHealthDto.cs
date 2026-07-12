@@ -19,4 +19,9 @@ public record DatabaseHealthDto(
     DateTime CollectedAt,
     // Transaction success rate: committed / (committed + rolled back). A healthy DB sits near 100%;
     // a dip signals frequent rollbacks/aborted work. Read from pg_stat_database (degrades to 0).
-    double CommitRatioPct = 0);
+    double CommitRatioPct = 0,
+    // Host compute metrics from Azure Monitor (PostgreSQL cannot report these). Null when unavailable
+    // (no permission / not configured / transient) → the UI shows "—". Storage is the provisioned size.
+    double? CpuPercent = null,
+    double? MemoryPercent = null,
+    long ProvisionedStorageBytes = 0);

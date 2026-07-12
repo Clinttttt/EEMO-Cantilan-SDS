@@ -13,7 +13,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 /// unavailable view degrades that single value to a safe default (0 / null) instead of breaking the
 /// whole snapshot. No writes are ever issued and no secrets are read or returned.
 /// </summary>
-public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRepository
+public class DatabaseHealthRepository(AppDbContext context, EEMOCantilanSDS.Application.Common.Interface.Services.IComputeMetricsProvider computeMetrics) : IDatabaseHealthRepository
 {
     public async Task<DatabaseHealthDto> GetHealthAsync(CancellationToken ct)
     {
@@ -82,6 +82,12 @@ public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRep
             }
         }
 
+        // Host compute metrics (CPU/memory/provisioned storage) from Azure Monitor — never breaks the
+        // snapshot: the provider itself degrades to nulls on any failure.
+        EEMOCantilanSDS.Application.Dtos.SystemHealth.ComputeMetrics compute;
+        try { compute = await computeMetrics.GetAsync(ct); }
+        catch { compute = new EEMOCantilanSDS.Application.Dtos.SystemHealth.ComputeMetrics(null, null, 0); }
+
         return new DatabaseHealthDto(
             DatabaseSizeBytes: sizeBytes,
             ActiveConnections: active,
@@ -94,7 +100,10 @@ public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRep
             LongestQuerySeconds: longestSeconds,
             UptimeSince: uptimeSince is { } u ? DateTime.SpecifyKind(u.ToUniversalTime(), DateTimeKind.Utc) : null,
             CollectedAt: DateTime.UtcNow,
-            CommitRatioPct: commitRatioPct);    }
+            CommitRatioPct: commitRatioPct,
+            CpuPercent: compute.CpuPercent,
+            MemoryPercent: compute.MemoryPercent,
+            ProvisionedStorageBytes: compute.ProvisionedStorageBytes);    }
 
     private static async Task<T> TryScalarAsync<T>(
         DbConnection connection, string sql, T fallback, Func<object, T> convert, CancellationToken ct)

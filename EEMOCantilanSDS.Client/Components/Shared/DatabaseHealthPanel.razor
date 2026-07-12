@@ -61,13 +61,31 @@
             </div>
 
             <div class="set-row">
-                <span class="set-key">Cache hit</span>
-                <span class="set-val"><span class="dh-metric @CacheClass()">@_model.CacheHitRatioPct.ToString("0.0")%</span></span>
+                <span class="set-key">CPU usage</span>
+                <span class="set-val">
+                    @if (_model.CpuPercent is { } cpu)
+                    {
+                        <span class="dh-metric @UsageClass(cpu)">@cpu.ToString("0.#")%</span>
+                    }
+                    else
+                    {
+                        <span class="dh-metric">—</span>
+                    }
+                </span>
             </div>
 
             <div class="set-row">
-                <span class="set-key">Commit ratio</span>
-                <span class="set-val"><span class="dh-metric @(_model.CommitRatioPct >= 99 ? "dh-ok" : "dh-warn")">@_model.CommitRatioPct.ToString("0.0")%</span></span>
+                <span class="set-key">Memory usage</span>
+                <span class="set-val">
+                    @if (_model.MemoryPercent is { } mem)
+                    {
+                        <span class="dh-metric @UsageClass(mem)">@mem.ToString("0.#")%</span>
+                    }
+                    else
+                    {
+                        <span class="dh-metric">—</span>
+                    }
+                </span>
             </div>
 
             <div class="set-row">
@@ -81,8 +99,8 @@
             </div>
 
             <div class="set-row">
-                <span class="set-key">Database size</span>
-                <span class="set-val mono">@FormatBytes(_model.DatabaseSizeBytes)</span>
+                <span class="set-key">Storage</span>
+                <span class="set-val mono">@FormatBytes(_model.DatabaseSizeBytes)@(_model.ProvisionedStorageBytes > 0 ? $" / {FormatBytes(_model.ProvisionedStorageBytes)}" : "")</span>
             </div>
 
             <div class="set-row">
@@ -171,8 +189,8 @@
         return "dh-bar-ok";
     }
 
-    private string CacheClass()
-        => _model is not null && _model.CacheHitRatioPct >= 90 ? "dh-ok" : "dh-warn";
+    private static string UsageClass(double pct)
+        => pct >= 90 ? "dh-err" : pct >= 75 ? "dh-warn" : "dh-ok";
 
     private static string CountClass(long value) => value > 0 ? "dh-err" : "dh-ok";
 

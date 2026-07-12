@@ -86,6 +86,8 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ISyncRepository, SyncRepository>();
             service.AddScoped<IAuditRepository, AuditRepository>();
             service.AddScoped<IDatabaseHealthRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.DatabaseHealthRepository>();
+            service.AddHttpClient<EEMOCantilanSDS.Application.Common.Interface.Services.IComputeMetricsProvider,
+                EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.AzureComputeMetricsProvider>();
             service.AddScoped<ITenantUsageRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantUsageRepository>();
             service.AddScoped<ITenantExportRepository, EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth.TenantExportRepository>();
 
