@@ -495,8 +495,23 @@
 
 /* Per-municipality restore form (own LGU) */
 .bk-mine-restore { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
-.bk-field { display: flex; flex-direction: column; gap: 6px; }
-.bk-file { font-size: 13px; color: var(--text); }
-.bk-file-name { font-size: 12px; color: var(--text-subtle); }
-.bk-mine-actions { display: flex; gap: 10px; align-items: center; }
-.bk-alert-ok { background: var(--green-bg); color: var(--green); border-radius: 8px; padding: 9px 12px; font-size: 13px; font-weight: 600; }
+.bk-mine-form { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.bk-field { display: flex; flex-direction: column; gap: 7px; }
+.bk-mine-actions { display: flex; gap: 10px; align-items: center; margin-top: 2px; }
+
+/* Professional file picker (hides the native input, keeps it accessible) */
+.bk-filepick {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px dashed color-mix(in srgb, var(--navy) 32%, var(--border));
+    border-radius: 10px; padding: 11px 14px; background: var(--bg); cursor: pointer;
+    transition: border-color .12s, background .12s;
+}
+.bk-filepick:hover { border-color: var(--navy); background: #f7fafc; }
+.bk-filepick input[type=file] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+.bk-filepick-ico { display: inline-flex; flex: 0 0 auto; color: var(--navy); }
+.bk-filepick-ico svg { width: 20px; height: 20px; }
+.bk-filepick-text { flex: 1 1 auto; font-size: 13px; color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-filepick.has-file .bk-filepick-text { color: var(--text); font-weight: 650; }
+.bk-filepick-btn { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--navy); border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; background: var(--bg-card); }
+.bk-filepick:hover .bk-filepick-btn { border-color: var(--navy); }
+

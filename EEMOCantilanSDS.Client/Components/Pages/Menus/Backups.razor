@@ -108,41 +108,44 @@
                     </div>
                 </div>
 
-                <div class="bk-field">
-                    <label class="bk-label">1 · Restore point file (.json)</label>
-                    <InputFile class="bk-file" OnChange="OnMineFileSelected" accept=".json" />
-                    @if (_mineUploadName is not null)
+                <div class="bk-mine-form">
+                    <div class="bk-field">
+                        <label class="bk-label">Step 1 · Restore-point file</label>
+                        <label class="bk-filepick @(_mineUploadName is not null ? "has-file" : "")">
+                            <InputFile OnChange="OnMineFileSelected" accept=".json" />
+                            <span class="bk-filepick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg></span>
+                            <span class="bk-filepick-text">@(_mineUploadName ?? "Choose a restore-point (.json) file…")</span>
+                            <span class="bk-filepick-btn">Browse</span>
+                        </label>
+                    </div>
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-mine-phrase">Step 2 · Type <code>RESTORE</code> to confirm</label>
+                        <input id="bk-mine-phrase" class="bk-input" type="text" autocomplete="off" placeholder="RESTORE" @bind="_minePhrase" @bind:event="oninput" disabled="@_mineRestoring" />
+                    </div>
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-mine-pass">Step 3 · Confirm your admin password</label>
+                        <input id="bk-mine-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_minePassword" @bind:event="oninput" disabled="@_mineRestoring" />
+                    </div>
+
+                    @if (_mineError is not null)
                     {
-                        <div class="bk-file-name">Selected: <strong>@_mineUploadName</strong></div>
+                        <div class="bk-alert bk-alert-err" role="alert">@_mineError</div>
                     }
-                </div>
-                <div class="bk-field">
-                    <label class="bk-label" for="bk-mine-phrase">2 · Type <code>RESTORE</code> to confirm</label>
-                    <input id="bk-mine-phrase" class="bk-input" type="text" autocomplete="off" placeholder="RESTORE" @bind="_minePhrase" @bind:event="oninput" disabled="@_mineRestoring" />
-                </div>
-                <div class="bk-field">
-                    <label class="bk-label" for="bk-mine-pass">3 · Confirm your admin password</label>
-                    <input id="bk-mine-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_minePassword" @bind:event="oninput" disabled="@_mineRestoring" />
-                </div>
 
-                @if (_mineError is not null)
-                {
-                    <div class="bk-alert bk-alert-err" role="alert">@_mineError</div>
-                }
-
-                <div class="bk-mine-actions">
-                    <button class="bk-btn bk-btn-ghost" type="button" @onclick="() => _showMineRestore = false" disabled="@_mineRestoring">Cancel</button>
-                    <button class="bk-btn bk-btn-danger" type="button" @onclick="RestoreMineAsync" disabled="@(!CanRestoreMine)">
-                        @if (_mineRestoring)
-                        {
-                            <span class="bk-spin" aria-hidden="true"></span>
-                            <span>Restoring…</span>
-                        }
-                        else
-                        {
-                            <span>Restore my municipality</span>
-                        }
-                    </button>
+                    <div class="bk-mine-actions">
+                        <button class="bk-btn bk-btn-ghost" type="button" @onclick="() => _showMineRestore = false" disabled="@_mineRestoring">Cancel</button>
+                        <button class="bk-btn bk-btn-danger" type="button" @onclick="RestoreMineAsync" disabled="@(!CanRestoreMine)">
+                            @if (_mineRestoring)
+                            {
+                                <span class="bk-spin" aria-hidden="true"></span>
+                                <span>Restoring…</span>
+                            }
+                            else
+                            {
+                                <span>Restore my municipality</span>
+                            }
+                        </button>
+                    </div>
                 </div>
             </div>
         }
