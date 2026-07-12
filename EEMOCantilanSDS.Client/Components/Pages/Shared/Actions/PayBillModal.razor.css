@@ -92,6 +92,9 @@
 .pb-table .amt { font-variant-numeric: tabular-nums; }
 .pb-table .due { color: var(--red); font-weight: 700; }
 .pb-table .pb-muted { color: var(--text-muted); font-weight: 500; }
+.pb-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+.pb-badge.unpaid { background: var(--red-bg); color: var(--red); }
+.pb-badge.partial { background: #fbf1dd; color: #97701e; }
 .pb-table input[type=radio], .pb-table input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--navy); }
 .pb-table .pb-tick { width: 16px; height: 16px; color: var(--green); }
 .pb-table .pb-chevron { width: 15px; height: 15px; color: var(--text-muted); }
@@ -111,7 +114,15 @@
 
 .pb-foot-hint { margin-right: auto; font-size: 11.5px; color: var(--text-subtle); max-width: 52%; }
 
+.pb-orhint { margin-top: 12px; font-size: 12px; color: var(--text-subtle); }
+
+/* Footer transaction summary — what THIS record action will settle. */
+.pb-txnbar { margin-right: auto; display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+.pb-txn-cap { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--text-subtle); }
+.pb-txn-amt { font-size: 17px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; }
+.pb-txn-sub { font-size: 11.5px; color: var(--text-subtle); }
+
 @media (max-width: 620px) {
     .pb-control-or { flex: 1 1 100%; }
-    .pb-foot-hint { display: none; }
+    .pb-txn-sub { display: none; }
 }

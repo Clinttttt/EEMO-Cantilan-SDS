@@ -49,7 +49,7 @@
                         <div class="pb-statement">
                             <div>
                                 <div class="pb-statement-key">Total outstanding</div>
-                                <div class="pb-statement-meta">@_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")@(string.IsNullOrEmpty(_rangeLabel) ? "" : $" · {_rangeLabel}")</div>
+                                <div class="pb-statement-meta">@_unpaid.Count billing month@(_unpaid.Count == 1 ? "" : "s") with a balance@(string.IsNullOrEmpty(_rangeLabel) ? "" : $" · {_rangeLabel}")</div>
                             </div>
                             <div class="pb-statement-val">₱@_totalOutstanding.ToString("N2")</div>
                         </div>
@@ -76,6 +76,7 @@
                                        placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
                             </div>
                         </div>
+                        <div class="pb-orhint">@OrHint()</div>
 
                         <div class="pb-caption-row">
                             <span class="pb-caption">@CaptionText()</span>
@@ -133,7 +134,15 @@
                             var allMode = !IsNpm && _scope == "all";
                             <table class="pb-table">
                                 <thead>
-                                    <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
+                                    <tr>
+                                        <th class="c"></th>
+                                        <th class="c">#</th>
+                                        <th>Billing period</th>
+                                        <th class="c">Status</th>
+                                        <th class="r">Assessed</th>
+                                        <th class="r">Previously paid</th>
+                                        <th class="r">Outstanding</th>
+                                    </tr>
                                 </thead>
                                 <tbody>
                                     @{ var mn = 0; }
@@ -158,12 +167,20 @@
                                             </td>
                                             <td class="c pb-muted">@mn</td>
                                             <td>@MonthLabel(r.Period)</td>
+                                            <td class="c"><span class="pb-badge @(r.AmountPaid > 0m ? "partial" : "unpaid")">@(r.AmountPaid > 0m ? "Partial" : "Unpaid")</span></td>
+                                            <td class="r amt">₱@r.TotalBill.ToString("N2")</td>
+                                            <td class="r amt pb-muted">₱@r.AmountPaid.ToString("N2")</td>
                                             <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
                                         </tr>
                                     }
                                 </tbody>
                                 <tfoot>
-                                    <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
+                                    <tr>
+                                        <td colspan="4">Total · @_unpaid.Count billing month@(_unpaid.Count == 1 ? "" : "s")</td>
+                                        <td class="r">₱@_unpaid.Sum(x => x.TotalBill).ToString("N2")</td>
+                                        <td class="r">₱@_unpaid.Sum(x => x.AmountPaid).ToString("N2")</td>
+                                        <td class="r">₱@_totalOutstanding.ToString("N2")</td>
+                                    </tr>
                                 </tfoot>
                             </table>
                         }
@@ -180,17 +197,19 @@
             </div>
 
             <div class="eemo-modal-footer">
-                <div class="pb-foot-hint">
-                    @if (!_loading && _unpaid.Count > 0)
-                    {
-                        <text>One receipt covers the whole transaction. Leave OR blank to encode it later via Add OR.</text>
-                    }
-                </div>
+                @if (!_loading && _unpaid.Count > 0)
+                {
+                    <div class="pb-txnbar">
+                        <span class="pb-txn-cap">This transaction</span>
+                        <span class="pb-txn-amt">₱@AmountToRecord.ToString("N2")</span>
+                        <span class="pb-txn-sub">@CoverageText() · remaining ₱@RemainingAfter.ToString("N2")</span>
+                    </div>
+                }
                 <button class="btn-ghost" @onclick="HandleClose" disabled="@_submitting">Cancel</button>
                 @if (!_loading && _unpaid.Count > 0)
                 {
                     <button class="btn-primary" @onclick="Submit" disabled="@(!CanSubmit())">
-                        @(_submitting ? "Recording…" : "Record payment")
+                        @(_submitting ? "Recording…" : (AmountToRecord > 0m ? $"Record ₱{AmountToRecord.ToString("N2")}" : "Record payment"))
                     </button>
                 }
             </div>
@@ -234,8 +253,38 @@
             return _dayStep ? $"Step 2 · Choose day(s) — {MonthLabel(_selectedPeriod)}" : "Step 1 · Choose the month";
         if (!IsNpm && _scope == "all")
             return "Months to be settled";
-        return "Select a month to settle";
+        return "Select the billing period to record";
     }
+
+    // What THIS transaction will record (vs the whole account balance shown at the top).
+    private decimal AmountToRecord
+    {
+        get
+        {
+            if (IsNpm && _npmMode == "days")
+                return _days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee);
+            if (!IsNpm && _scope == "all")
+                return _totalOutstanding;
+            return _unpaid.FirstOrDefault(x => x.Period == _selectedPeriod)?.BalanceDue ?? 0m;
+        }
+    }
+    private decimal RemainingAfter => System.Math.Max(0m, _totalOutstanding - AmountToRecord);
+
+    private string CoverageText() => (IsNpm, _npmMode == "days", _scope == "all") switch
+    {
+        (true, true, _) => $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}",
+        (true, false, _) => "whole billing month",
+        (false, _, true) => "each month · OR encoded per month",
+        _ => "selected billing period"
+    };
+
+    private string OrHint() => (IsNpm, _npmMode == "days", _scope == "all") switch
+    {
+        (true, true, _) => "One OR will cover the selected collection days in a single transaction.",
+        (true, false, _) => "One OR may cover all settleable days in the selected month.",
+        (false, _, true) => "OR numbers must be encoded per month — a single OR is not applied across all months.",
+        _ => "The OR will be assigned to the selected billing period."
+    };
 
     private bool CanSubmit()
     {
