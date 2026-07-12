@@ -153,7 +153,15 @@
     text-align: right;
 }
 
-.tu-rows { margin-top: 0.35rem; }
+.tu-rows {
+    margin-top: 0.35rem;
+    max-height: 276px;      /* ~6 rows, then scroll — keeps the card a professional height */
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.tu-rows::-webkit-scrollbar { width: 8px; }
+.tu-rows::-webkit-scrollbar-thumb { background: #cdd8e2; border-radius: 6px; border: 2px solid var(--bg-card); }
+.tu-rows::-webkit-scrollbar-track { background: transparent; }
 
 .tu-note {
     margin-top: 0.85rem;

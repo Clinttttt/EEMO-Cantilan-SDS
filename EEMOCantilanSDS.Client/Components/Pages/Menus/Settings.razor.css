@@ -143,6 +143,7 @@
 .set-key { color: var(--text-muted); flex-shrink: 0; }
 .set-val { color: var(--text); font-weight: 600; text-align: right; display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; }
 .set-val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.set-val.set-val-wrap { flex-wrap: wrap; white-space: normal; text-align: right; }
 
 /* Status pills */
 .set-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: .02em; }

@@ -208,12 +208,16 @@
                     </div>
                     <div class="set-rows">
                         <div class="set-row"><span class="set-key">Configured</span><span class="set-val">@(_model?.Facilities.Count ?? 0) facilities</span></div>
+                        <div class="set-row"><span class="set-key">Billing models</span><span class="set-val">@(_model?.Facilities.Select(f => f.Model).Distinct().Count() ?? 0) distinct</span></div>
+                        <div class="set-row"><span class="set-key">Facilities</span><span class="set-val set-val-wrap">@FacilityCodes()</span></div>
+                        <div class="set-row"><span class="set-key">Rate authority</span><span class="set-val">Municipal revenue ordinance</span></div>
                         <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your municipality only</span></div>
                         <div class="set-row"><span class="set-key">Managed by</span><span class="set-val">The @Branding.OfficeAcronym Head</span></div>
                     </div>
                     <div class="set-links">
                         <a class="set-link" href="/settings/facilities">Manage facilities<span class="set-link-arrow">→</span></a>
                     </div>
+                    <div class="set-note">Rates are versioned by effectivity date, so a mid-term change never alters past billing.</div>
                 </section>
             }
             <!-- ── Storage usage (this municipality only) — every Head ── -->
@@ -354,6 +358,14 @@
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
     private SystemSettingsDto? _model;
+
+    // Compact list of the tenant's facility acronyms for the Facility Configuration card.
+    private string FacilityCodes() =>
+        _model is null
+            ? ""
+            : string.Join(" · ", _model.Facilities.Select(f =>
+                System.Enum.TryParse<FacilityCode>(f.Code, out var c) ? FacilityCatalog.ShortNameOf(c) : f.Code));
+
     private string? _error;
     private bool _confirmLogout;
     private bool _loggingOut;

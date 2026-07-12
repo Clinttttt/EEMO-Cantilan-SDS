@@ -80,13 +80,18 @@
 
                         <div class="pb-caption-row">
                             <span class="pb-caption">@CaptionText()</span>
-                            @if (IsNpm && _npmMode == "days" && _dayStep && !_daysLoading && _days.Count > 0)
-                            {
-                                <span class="pb-caption-actions">
+                            <div class="pb-caption-right">
+                                @if (IsNpm && _npmMode == "days" && _dayStep && !_daysLoading && _days.Count > 0)
+                                {
                                     <button type="button" class="pb-linkbtn" @onclick="ChangeMonth" disabled="@_submitting">← Change month</button>
                                     <button type="button" class="pb-linkbtn" @onclick="ToggleSelectAllDays" disabled="@_submitting">@(_daySelected.Count == _days.Count ? "Clear all" : "Select all")</button>
-                                </span>
-                            }
+                                }
+                                <div class="pb-search">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                                    <input type="search" placeholder="@SearchPlaceholder()" value="@_search"
+                                           @oninput="e => _search = e.Value?.ToString() ?? string.Empty" aria-label="Search" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -110,7 +115,7 @@
                                     </thead>
                                     <tbody>
                                         @{ var dn = 0; }
-                                        @foreach (var d in _days)
+                                        @foreach (var d in DayRows())
                                         {
                                             dn++;
                                             var sel = _daySelected.Contains(d.Date);
@@ -146,7 +151,7 @@
                                 </thead>
                                 <tbody>
                                     @{ var mn = 0; }
-                                    @foreach (var r in _unpaid)
+                                    @foreach (var r in MonthRows())
                                     {
                                         mn++;
                                         var included = allMode || _selectedPeriod == r.Period;
@@ -234,6 +239,7 @@
     private bool _dayStep;                      // NPM days: false = choosing month, true = choosing days
     private string _selectedPeriod = string.Empty;
     private string _or = string.Empty;
+    private string _search = string.Empty;
     private decimal _totalOutstanding;
     private string _rangeLabel = string.Empty;
     private List<PaymentHistoryDto> _unpaid = new();
@@ -286,6 +292,26 @@
         _ => "The OR will be assigned to the selected billing period."
     };
 
+    // Search filters the visible rows only; the footer subtotal stays the full account total.
+    private IEnumerable<PaymentHistoryDto> MonthRows()
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return _unpaid;
+        var s = _search.Trim();
+        return _unpaid.Where(r =>
+            MonthLabel(r.Period).Contains(s, StringComparison.OrdinalIgnoreCase) ||
+            r.Period.Contains(s, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IEnumerable<SettleableNpmDayDto> DayRows()
+    {
+        if (string.IsNullOrWhiteSpace(_search)) return _days;
+        var s = _search.Trim();
+        return _days.Where(d =>
+            d.Date.ToString("dddd MMMM d yyyy", System.Globalization.CultureInfo.InvariantCulture).Contains(s, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string SearchPlaceholder() => (IsNpm && _npmMode == "days" && _dayStep) ? "Find a day…" : "Find a period…";
+
     private bool CanSubmit()
     {
         if (_submitting) return false;
@@ -311,6 +337,7 @@
         _npmMode = "month";
         _dayStep = false;
         _or = string.Empty;
+        _search = string.Empty;
         _days = new();
         _daySelected = new();
 
@@ -335,6 +362,7 @@
     {
         _npmMode = mode;
         _dayStep = false;         // always start day-mode at the month step
+        _search = string.Empty;
         _error = null;
     }
 
@@ -344,6 +372,7 @@
         _selectedPeriod = period;
         if (IsNpm && _npmMode == "days")
         {
+            _search = string.Empty;
             await LoadDaysForSelectedMonth();
             _dayStep = true;
         }
@@ -352,6 +381,7 @@
     private void ChangeMonth()
     {
         _dayStep = false;
+        _search = string.Empty;
         _daySelected = new();
     }
 
