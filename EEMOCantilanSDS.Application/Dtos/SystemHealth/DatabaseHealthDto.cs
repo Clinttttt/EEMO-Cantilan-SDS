@@ -16,4 +16,7 @@ public record DatabaseHealthDto(
     double CacheHitRatioPct,
     double? LongestQuerySeconds,
     DateTime? UptimeSince,
-    DateTime CollectedAt);
+    DateTime CollectedAt,
+    // Transaction success rate: committed / (committed + rolled back). A healthy DB sits near 100%;
+    // a dip signals frequent rollbacks/aborted work. Read from pg_stat_database (degrades to 0).
+    double CommitRatioPct = 0);

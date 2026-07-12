@@ -28,6 +28,7 @@ public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRep
         double cacheHitPct = 0;
         double? longestSeconds = null;
         DateTime? uptimeSince = null;
+        double commitRatioPct = 0;
 
         try
         {
@@ -55,6 +56,10 @@ public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRep
 
             cacheHitPct = await TryScalarAsync(connection,
                 "SELECT COALESCE(sum(blks_hit)::float/NULLIF(sum(blks_hit)+sum(blks_read),0),0)*100 FROM pg_stat_database WHERE datname=current_database();",
+                0d, Convert.ToDouble, ct);
+
+            commitRatioPct = await TryScalarAsync(connection,
+                "SELECT COALESCE(sum(xact_commit)::float/NULLIF(sum(xact_commit)+sum(xact_rollback),0),0)*100 FROM pg_stat_database WHERE datname=current_database();",
                 0d, Convert.ToDouble, ct);
 
             var longest = await TryScalarAsync(connection,
@@ -88,8 +93,8 @@ public class DatabaseHealthRepository(AppDbContext context) : IDatabaseHealthRep
             CacheHitRatioPct: cacheHitPct,
             LongestQuerySeconds: longestSeconds,
             UptimeSince: uptimeSince is { } u ? DateTime.SpecifyKind(u.ToUniversalTime(), DateTimeKind.Utc) : null,
-            CollectedAt: DateTime.UtcNow);
-    }
+            CollectedAt: DateTime.UtcNow,
+            CommitRatioPct: commitRatioPct);    }
 
     private static async Task<T> TryScalarAsync<T>(
         DbConnection connection, string sql, T fallback, Func<object, T> convert, CancellationToken ct)

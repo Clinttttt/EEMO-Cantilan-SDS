@@ -56,8 +56,18 @@
             </div>
 
             <div class="set-row">
+                <span class="set-key">Available connections</span>
+                <span class="set-val">@(Math.Max(0, _model.MaxConnections - _model.TotalConnections).ToString("N0")) free</span>
+            </div>
+
+            <div class="set-row">
                 <span class="set-key">Cache hit</span>
                 <span class="set-val"><span class="dh-metric @CacheClass()">@_model.CacheHitRatioPct.ToString("0.0")%</span></span>
+            </div>
+
+            <div class="set-row">
+                <span class="set-key">Commit ratio</span>
+                <span class="set-val"><span class="dh-metric @(_model.CommitRatioPct >= 99 ? "dh-ok" : "dh-warn")">@_model.CommitRatioPct.ToString("0.0")%</span></span>
             </div>
 
             <div class="set-row">
