@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrForDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
@@ -45,6 +46,25 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
     public async Task<ActionResult<bool>> SettleNpmMonth([FromBody] SettleNpmMonthCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    // Settle specific NPM days at once (admin/head only), optionally stamping one OR across them.
+    [HttpPost("settle-days")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> SettleNpmDays([FromBody] SettleNpmDaysCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    // The still-settleable (unpaid, collectable) days of an NPM stall for a month — the day picker source.
+    [HttpGet("stall/{stallId}/settleable-days")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.DailyCollections.SettleableNpmDayDto>>> GetSettleableDays(
+        Guid stallId, [FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new Application.Queries.DailyCollections.GetSettleableNpmDays.GetSettleableNpmDaysQuery(stallId, year, month));
         return HandleResponse(result);
     }
 

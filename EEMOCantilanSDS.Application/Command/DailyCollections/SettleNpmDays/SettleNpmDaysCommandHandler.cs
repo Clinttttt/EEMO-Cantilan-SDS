@@ -8,9 +8,9 @@ using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
-namespace EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
+namespace EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 
-public class SettleNpmMonthCommandHandler(
+public class SettleNpmDaysCommandHandler(
     IDailyCollectionRepository dailyCollectionRepository,
     IPaymentRepository paymentRepository,
     IStallRepository stallRepository,
@@ -20,9 +20,9 @@ public class SettleNpmMonthCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
-    ITenantContext tenantContext) : IRequestHandler<SettleNpmMonthCommand, Result<bool>>
+    ITenantContext tenantContext) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
 {
-    public async Task<Result<bool>> Handle(SettleNpmMonthCommand request, CancellationToken ct)
+    public async Task<Result<bool>> Handle(SettleNpmDaysCommand request, CancellationToken ct)
     {
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null)
@@ -30,7 +30,7 @@ public class SettleNpmMonthCommandHandler(
 
         // Daily settlement is NPM-only; every other facility is monthly and uses RecordPayment.
         if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by month here.", 400);
+            return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by day here.", 400);
 
         // Collectors may only act on an assigned facility (same rule as recording a single daily collection).
         var isCollectorRequest = currentUser.Role == "Collector";
@@ -43,27 +43,33 @@ public class SettleNpmMonthCommandHandler(
                 return Result<bool>.Forbidden();
         }
 
+        var dates = request.Dates.Distinct().OrderBy(d => d).ToList();
+        if (dates.Count == 0)
+            return Result<bool>.Failure("Select at least one day.", 400);
+
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
         var orNumber = request.ORNumber?.Trim();
-
-        var monthStart = new DateOnly(request.Year, request.Month, 1);
-        var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         var today = PhilippineTime.Today;
         var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
-
-        var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct))
-            .ToDictionary(dc => dc.CollectionDate);
-        var closedDates = (await marketClosureRepository.GetByMonthAsync(request.Year, request.Month, ct))
-            .Select(c => c.ClosureDate)
-            .ToHashSet();
-
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
-        var settled = new List<DailyCollection>();
-        for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
+        // Load existing collections + facility closures for every month the selected dates span.
+        var months = dates.Select(d => (d.Year, d.Month)).Distinct().ToList();
+        var existing = new Dictionary<DateOnly, DailyCollection>();
+        var closedDates = new HashSet<DateOnly>();
+        foreach (var (year, month) in months)
         {
-            if (day > today) break;                                     // never settle future days
+            foreach (var dc in await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, year, month, ct))
+                existing[dc.CollectionDate] = dc;
+            foreach (var c in await marketClosureRepository.GetByMonthAsync(year, month, ct))
+                closedDates.Add(c.ClosureDate);
+        }
+
+        var settled = new List<DailyCollection>();
+        foreach (var day in dates)
+        {
+            if (day > today) continue;                                  // never settle future days
             if (contract is null || !(contract.EffectivityDate <= day && day <= contract.ExpiryDate))
                 continue;                                               // not under an effective contract
             if (closedDates.Contains(day))
@@ -87,10 +93,12 @@ public class SettleNpmMonthCommandHandler(
             settled.Add(dc);
         }
 
-        // Stamp the receipt (OR) on EVERY settled day — one physical receipt covers the whole month
-        // (allowed for a single stall since the daily-collection OR check is stall-aware, mirroring the
-        // slaughterhouse's one-receipt-per-visit rule).
-        if (settled.Count > 0 && !string.IsNullOrWhiteSpace(orNumber))
+        if (settled.Count == 0)
+            return Result<bool>.Failure("None of the selected days could be settled (already paid, closed, or outside the contract).", 400);
+
+        // One physical receipt (OR) covers all the selected days — stall-aware uniqueness (same rule as
+        // the slaughterhouse's one-receipt-per-visit), so the same OR may repeat across this stall's days.
+        if (!string.IsNullOrWhiteSpace(orNumber))
         {
             if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, request.StallId, ct))
                 return Result<bool>.Failure("OR number already exists.", 409);
@@ -98,12 +106,9 @@ public class SettleNpmMonthCommandHandler(
                 dc.SetOrNumber(orNumber, recordedBy);
         }
 
-        if (settled.Count > 0)
-        {
-            await unitOfWork.SaveChangesAsync(ct);
-            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
-                tenantContext.TenantCode, FacilityCode.NPM, request.Year, request.Month, ct);
-        }
+        await unitOfWork.SaveChangesAsync(ct);
+        foreach (var (year, month) in months)
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(tenantContext.TenantCode, FacilityCode.NPM, year, month, ct);
 
         return Result<bool>.Success(true);
     }

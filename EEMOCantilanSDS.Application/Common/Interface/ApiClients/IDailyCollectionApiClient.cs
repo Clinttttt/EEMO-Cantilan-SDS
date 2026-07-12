@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrForDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Domain.Common;
@@ -14,4 +15,6 @@ public interface IDailyCollectionApiClient
     Task<Result<bool>> SaveOrNumberAsync(SaveDailyCollectionOrNumberCommand command);
     Task<Result<bool>> SaveOrForDaysAsync(SaveDailyCollectionOrForDaysCommand command);
     Task<Result<bool>> SettleNpmMonthAsync(SettleNpmMonthCommand command);
+    Task<Result<bool>> SettleNpmDaysAsync(SettleNpmDaysCommand command);
+    Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month);
 }

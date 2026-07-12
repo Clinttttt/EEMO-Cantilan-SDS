@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrForDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
@@ -24,4 +25,10 @@ public class DailyCollectionApiClient(HttpClient http) : HandleResponse(http), I
 
     public async Task<Result<bool>> SettleNpmMonthAsync(SettleNpmMonthCommand command) =>
         await PostAsync<SettleNpmMonthCommand, bool>("api/DailyCollections/settle-month", command);
+
+    public async Task<Result<bool>> SettleNpmDaysAsync(SettleNpmDaysCommand command) =>
+        await PostAsync<SettleNpmDaysCommand, bool>("api/DailyCollections/settle-days", command);
+
+    public async Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month) =>
+        await GetAsync<IReadOnlyList<SettleableNpmDayDto>>($"api/DailyCollections/stall/{stallId}/settleable-days?year={year}&month={month}");
 }

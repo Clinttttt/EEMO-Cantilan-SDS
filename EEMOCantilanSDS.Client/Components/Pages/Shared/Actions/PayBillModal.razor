@@ -1,16 +1,19 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays
 @inject IPaymentsApiClient PaymentsApi
 @inject IDailyCollectionApiClient DailyApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
     PayBillModal — a formal, structured "record payment" form opened from a follow-up row.
-    No calendars: the office picks a SPECIFIC unpaid month or "All outstanding", enters the OR/receipt
-    number, and records it. NPM (daily) months are settled server-side as a whole month (SettleNpmMonth);
-    monthly facilities record a monthly payment (RecordPayment). Works across every facility.
+    NPM (daily): the office chooses "Whole month" (settle every collectable day of a month) or
+    "Specific days" (pick the exact days), enters ONE Official Receipt that covers the transaction,
+    and records it (SettleNpmMonth / SettleNpmDays — one OR spans the settled days, stall-scoped).
+    Monthly facilities: pick a specific month or "All outstanding" and enter the month's OR (RecordPayment).
 *@
 
 @if (Show)
@@ -53,22 +56,23 @@
 
                     @if (IsNpm)
                     {
-                        @* New Public Market is a daily facility: each day carries its own unique Official
-                           Receipt, so it is settled ONE MONTH AT A TIME (never in bulk, which would strand
-                           hundreds of days without a receipt). Receipts are then encoded per day via Add OR. *@
-                        <div class="pb-daily-note">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
-                            <div>
-                                <strong>@FacilityCatalog.NameOf(Facility) is collected daily.</strong>
-                                Settle one month at a time. Each collectable day is recorded as paid, then its
-                                Official Receipt is encoded per day using <em>Add OR</em> — a single OR cannot
-                                cover multiple days.
+                        <div class="pb-field">
+                            <span class="pb-label">How to settle</span>
+                            <div class="pb-seg" role="tablist">
+                                <button type="button" role="tab" aria-selected="@(_npmMode == "month")"
+                                        class="pb-seg-btn @(_npmMode == "month" ? "on" : "")" @onclick='() => SetNpmMode("month")' disabled="@_submitting">
+                                    Whole month
+                                </button>
+                                <button type="button" role="tab" aria-selected="@(_npmMode == "days")"
+                                        class="pb-seg-btn @(_npmMode == "days" ? "on" : "")" @onclick='() => SetNpmMode("days")' disabled="@_submitting">
+                                    Specific days
+                                </button>
                             </div>
                         </div>
 
                         <div class="pb-field">
                             <div class="pb-months-head">
-                                <span>Select a month to settle</span>
+                                <span>@(_npmMode == "days" ? "Step 1 · Choose the month" : "Select a month to settle")</span>
                                 <span>Amount</span>
                             </div>
                             <div class="pb-months" role="radiogroup" aria-label="Unpaid months">
@@ -76,11 +80,62 @@
                                 {
                                     <label class="pb-month-row @(_selectedPeriod == r.Period ? "on" : "")">
                                         <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
-                                               @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                               @onchange="@(() => OnMonthPicked(r.Period))" disabled="@_submitting" />
                                         <span class="pb-month-name">@MonthLabel(r.Period)</span>
                                         <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
                                     </label>
                                 }
+                            </div>
+                        </div>
+
+                        @if (_npmMode == "days")
+                        {
+                            <div class="pb-field">
+                                <div class="pb-months-head">
+                                    <span>Step 2 · Choose day(s) — @MonthLabel(_selectedPeriod)</span>
+                                    @if (!_daysLoading && _days.Count > 0)
+                                    {
+                                        <button type="button" class="pb-selectall" @onclick="ToggleSelectAllDays" disabled="@_submitting">
+                                            @(_daySelected.Count == _days.Count ? "Clear all" : "Select all")
+                                        </button>
+                                    }
+                                </div>
+                                @if (_daysLoading)
+                                {
+                                    <div class="pb-loading">Loading days…</div>
+                                }
+                                else if (_days.Count == 0)
+                                {
+                                    <div class="pb-clear"><span>No settleable days remain in this month.</span></div>
+                                }
+                                else
+                                {
+                                    <div class="pb-days" role="group" aria-label="Days">
+                                        @foreach (var d in _days)
+                                        {
+                                            <label class="pb-day-row @(_daySelected.Contains(d.Date) ? "on" : "")">
+                                                <input type="checkbox" class="pb-day-pick" checked="@_daySelected.Contains(d.Date)"
+                                                       @onchange="e => ToggleDay(d.Date, (bool)(e.Value ?? false))" disabled="@_submitting" />
+                                                <span class="pb-day-date">@d.Date.ToString("ddd · MMM d, yyyy")</span>
+                                                <span class="pb-day-fee">₱@d.Fee.ToString("N2")</span>
+                                            </label>
+                                        }
+                                    </div>
+                                    <div class="pb-months-foot">
+                                        <span>@_daySelected.Count day@(_daySelected.Count == 1 ? "" : "s") selected</span>
+                                        <span>₱@_days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee).ToString("N2")</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <div class="pb-field">
+                            <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
+                            <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
+                                   placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
+                            <div class="pb-hint">
+                                One receipt covers @(_npmMode == "days" ? "all the selected days" : "the whole month") in a single transaction.
+                                Leave blank to encode it later via <em>Add OR</em>.
                             </div>
                         </div>
                     }
@@ -159,7 +214,7 @@
                 <button class="btn-ghost" @onclick="HandleClose" disabled="@_submitting">Cancel</button>
                 @if (!_loading && _unpaid.Count > 0)
                 {
-                    <button class="btn-primary" @onclick="Submit" disabled="@(_submitting || (_scope == "month" && string.IsNullOrEmpty(_selectedPeriod)))">
+                    <button class="btn-primary" @onclick="Submit" disabled="@(!CanSubmit())">
                         @(_submitting ? "Recording…" : "Record payment")
                     </button>
                 }
@@ -180,16 +235,30 @@
     private bool _loading;
     private bool _submitting;
     private string? _error;
-    private string _scope = "month";
+    private string _scope = "month";          // monthly facilities: month | all
+    private string _npmMode = "month";         // NPM: month | days
     private string _selectedPeriod = string.Empty;
     private string _or = string.Empty;
     private decimal _totalOutstanding;
     private string _rangeLabel = string.Empty;
     private List<PaymentHistoryDto> _unpaid = new();
+
+    private List<SettleableNpmDayDto> _days = new();
+    private HashSet<DateOnly> _daySelected = new();
+    private bool _daysLoading;
+
     private Guid _loadedStall;
 
     private string DisplayOccupant => string.IsNullOrWhiteSpace(Occupant) ? "Unnamed occupant" : Occupant;
     private bool IsNpm => Facility == FacilityCode.NPM;
+
+    private bool CanSubmit()
+    {
+        if (_submitting) return false;
+        if (IsNpm)
+            return _npmMode == "days" ? _daySelected.Count > 0 : !string.IsNullOrEmpty(_selectedPeriod);
+        return _scope == "all" || !string.IsNullOrEmpty(_selectedPeriod);
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -205,7 +274,10 @@
         _loading = true;
         _error = null;
         _scope = "month";
+        _npmMode = "month";
         _or = string.Empty;
+        _days = new();
+        _daySelected = new();
 
         var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId);
         _unpaid = (result.IsSuccess && result.Value is not null)
@@ -224,50 +296,95 @@
         _loading = false;
     }
 
+    private async Task SetNpmMode(string mode)
+    {
+        _npmMode = mode;
+        _error = null;
+        if (mode == "days")
+            await LoadDaysForSelectedMonth();
+    }
+
+    private async Task OnMonthPicked(string period)
+    {
+        _selectedPeriod = period;
+        if (IsNpm && _npmMode == "days")
+            await LoadDaysForSelectedMonth();
+    }
+
+    private async Task LoadDaysForSelectedMonth()
+    {
+        _days = new();
+        _daySelected = new();
+        if (!TryParsePeriod(_selectedPeriod, out var year, out var month))
+            return;
+        _daysLoading = true;
+        var res = await DailyApi.GetSettleableNpmDaysAsync(StallId, year, month);
+        _days = (res.IsSuccess && res.Value is not null) ? res.Value.ToList() : new();
+        _daysLoading = false;
+    }
+
+    private void ToggleDay(DateOnly date, bool on)
+    {
+        if (on) _daySelected.Add(date);
+        else _daySelected.Remove(date);
+    }
+
+    private void ToggleSelectAllDays()
+    {
+        if (_daySelected.Count == _days.Count)
+            _daySelected = new();
+        else
+            _daySelected = _days.Select(d => d.Date).ToHashSet();
+    }
+
     private async Task Submit()
     {
-        if (_submitting) return;
+        if (!CanSubmit()) return;
         _submitting = true;
         _error = null;
 
-        // NPM is settled one month at a time (daily facility — no bulk "all", which would strand many
-        // days without a unique OR). Monthly facilities may pay a single month or all outstanding.
-        var payAll = !IsNpm && _scope == "all";
-        var targets = payAll
-            ? _unpaid.ToList()
-            : _unpaid.Where(h => h.Period == _selectedPeriod).ToList();
+        var or = string.IsNullOrWhiteSpace(_or) ? null : _or.Trim();
 
-        if (targets.Count == 0)
+        if (IsNpm)
         {
-            _error = "Select a month to pay.";
-            _submitting = false;
-            return;
-        }
-
-        // A single OR represents one monthly receipt, so only stamp it when paying ONE monthly-billed
-        // month. NPM is collected daily — its receipts are encoded per day via Add OR, never as one
-        // month-level OR (which could only ever land on a single day), so NPM always settles blank.
-        var singleOr = (!IsNpm && _scope == "month" && !string.IsNullOrWhiteSpace(_or)) ? _or.Trim() : null;
-
-        foreach (var t in targets)
-        {
-            if (!TryParsePeriod(t.Period, out var year, out var month))
-                continue;
-
-            var res = Facility == FacilityCode.NPM
-                ? await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, year, month, singleOr))
-                : await PaymentsApi.RecordPaymentAsync(new RecordPaymentCommand(StallId, year, month, PaymentStatus.Paid, null, null, singleOr));
-
-            if (!res.IsSuccess)
+            if (_npmMode == "days")
             {
-                _error = res.Error ?? "Could not record the payment. Please try again.";
-                _submitting = false;
-                return;
+                var dates = _days.Where(x => _daySelected.Contains(x.Date)).Select(x => x.Date).ToList();
+                var r = await DailyApi.SettleNpmDaysAsync(new SettleNpmDaysCommand(StallId, dates, or));
+                if (!r.IsSuccess) { _error = r.Error ?? "Could not record the payment. Please try again."; _submitting = false; return; }
+            }
+            else
+            {
+                if (!TryParsePeriod(_selectedPeriod, out var year, out var month))
+                { _error = "Select a month to settle."; _submitting = false; return; }
+                var r = await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, year, month, or));
+                if (!r.IsSuccess) { _error = r.Error ?? "Could not record the payment. Please try again."; _submitting = false; return; }
+            }
+        }
+        else
+        {
+            var targets = _scope == "all"
+                ? _unpaid.ToList()
+                : _unpaid.Where(h => h.Period == _selectedPeriod).ToList();
+            if (targets.Count == 0)
+            { _error = "Select a month to pay."; _submitting = false; return; }
+
+            // A single OR is one monthly receipt, so only stamp it when paying ONE month; a bulk "all"
+            // records the months paid and leaves each month's OR to be encoded later.
+            var singleOr = (_scope == "month") ? or : null;
+
+            foreach (var t in targets)
+            {
+                if (!TryParsePeriod(t.Period, out var year, out var month))
+                    continue;
+                var r = await PaymentsApi.RecordPaymentAsync(
+                    new RecordPaymentCommand(StallId, year, month, PaymentStatus.Paid, null, null, singleOr));
+                if (!r.IsSuccess) { _error = r.Error ?? "Could not record the payment. Please try again."; _submitting = false; return; }
             }
         }
 
         _submitting = false;
-        await LoadOutstanding();       // refresh remaining balance
+        await LoadOutstanding();       // refresh remaining balance (resets to a clean state)
         await OnChanged.InvokeAsync(); // let the host reload its list
     }
 

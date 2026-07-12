@@ -1,4 +1,4 @@
-using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
@@ -10,11 +10,10 @@ using Moq;
 namespace EEMOCantilanSDS.Testing;
 
 /// <summary>
-/// SettleNpmMonth records a whole NPM month as collected in one action (the formal Pay-bill form),
-/// so the office never clicks day-by-day. It must mark every collectable, non-future, not-yet-paid day
-/// paid, stamp the receipt (OR) on every settled day (one receipt covers the month), and refuse non-NPM stalls.
+/// SettleNpmDays records specific NPM days of one stall as paid in one transaction and stamps ONE
+/// Official Receipt across every settled day (a single physical receipt covering the selected days).
 /// </summary>
-public class SettleNpmMonthCommandHandlerTests
+public class SettleNpmDaysCommandHandlerTests
 {
     private static Stall NpmStallWithContract(DateOnly effectivity, int years)
     {
@@ -26,12 +25,12 @@ public class SettleNpmMonthCommandHandlerTests
     }
 
     [Fact]
-    public async Task Settle_MarksEveryCollectableDayOfPastMonthPaid_AndStampsOrOnEveryDay()
+    public async Task Settle_MarksSelectedDaysPaid_AndStampsOneOrOnAll()
     {
         var today = PhilippineTime.Today;
-        var target = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);   // a fully-past month
-        var daysInMonth = DateTime.DaysInMonth(target.Year, target.Month);
-        var stall = NpmStallWithContract(target.AddMonths(-3), 3);             // contract spans the month
+        var d1 = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);   // a fully-past month, day 1
+        var d2 = d1.AddDays(1);
+        var stall = NpmStallWithContract(d1.AddMonths(-3), 3);
 
         var dailyRepo = new Mock<IDailyCollectionRepository>();
         var paymentRepo = new Mock<IPaymentRepository>();
@@ -47,25 +46,24 @@ public class SettleNpmMonthCommandHandlerTests
         closureRepo.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<NpmMarketClosure>());
         paymentRepo.Setup(r => r.IsDailyCollectionOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        currentUser.SetupGet(c => c.Username).Returns("admin");                // Role null → not a collector
-        uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        currentUser.SetupGet(c => c.Username).Returns("admin");
 
         var captured = new List<DailyCollection>();
         dailyRepo.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
             .Callback<DailyCollection, CancellationToken>((dc, _) => captured.Add(dc))
             .Returns(Task.CompletedTask);
 
-        var handler = new SettleNpmMonthCommandHandler(
+        var handler = new SettleNpmDaysCommandHandler(
             dailyRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object,
             closureRepo.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
         var result = await handler.Handle(
-            new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-777"), CancellationToken.None);
+            new SettleNpmDaysCommand(stall.Id, new[] { d1, d2 }, "OR-DAYS"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(daysInMonth, captured.Count);                 // every collectable day recorded
+        Assert.Equal(2, captured.Count);
         Assert.All(captured, dc => Assert.True(dc.IsPaid));
-        Assert.All(captured, dc => Assert.Equal("OR-777", dc.ORNumber));   // one receipt covers every day
+        Assert.All(captured, dc => Assert.Equal("OR-DAYS", dc.ORNumber));   // one receipt covers both days
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -81,12 +79,14 @@ public class SettleNpmMonthCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.Username).Returns("admin");
 
-        var handler = new SettleNpmMonthCommandHandler(
+        var handler = new SettleNpmDaysCommandHandler(
             new Mock<IDailyCollectionRepository>().Object, new Mock<IPaymentRepository>().Object, stallRepo.Object,
             new Mock<ICollectorRepository>().Object, currentUser.Object, new Mock<INpmMarketClosureRepository>().Object,
             new Mock<IUnitOfWork>().Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
-        var result = await handler.Handle(new SettleNpmMonthCommand(stall.Id, 2026, 6, null), CancellationToken.None);
+        var result = await handler.Handle(
+            new SettleNpmDaysCommand(stall.Id, new[] { new DateOnly(2026, 6, 1) }, null), CancellationToken.None);
+
         Assert.Equal(400, result.StatusCode);
     }
 }
