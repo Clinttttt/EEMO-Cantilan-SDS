@@ -21,13 +21,17 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories
         /// <paramref name="excludeUtilityBillId"/> lets a utility bill re-mark its own OR.
         /// <paramref name="allowSlaughterReceipt"/> permits the same OR to recur within one slaughterhouse
         /// receipt (same owner + same transaction date, one receipt covering multiple heads).
+        /// <paramref name="allowDailyStall"/> permits the same OR to recur across multiple daily collections
+        /// of the SAME NPM stall (one receipt covering several days); it is still rejected when the OR
+        /// already belongs to a DIFFERENT stall.
         /// </summary>
         public static async Task<bool> IsAvailableAsync(
             AppDbContext context,
             string orNumber,
             CancellationToken ct,
             Guid? excludeUtilityBillId = null,
-            (string OwnerName, DateOnly Date)? allowSlaughterReceipt = null)
+            (string OwnerName, DateOnly Date)? allowSlaughterReceipt = null,
+            Guid? allowDailyStall = null)
         {
             var or = (orNumber ?? string.Empty).Trim();
             if (or.Length == 0) return true;
@@ -36,8 +40,20 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories
 
             if (await context.PaymentRecords.IgnoreQueryFilters()
                     .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or, ct)) return false;
-            if (await context.DailyCollections.IgnoreQueryFilters()
-                    .AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == or, ct)) return false;
+
+            // NPM daily: one OR may cover multiple days of the SAME stall (one receipt, several days);
+            // reject only when the OR already belongs to a DIFFERENT stall's daily collection.
+            if (allowDailyStall is { } dailyStallId)
+            {
+                if (await context.DailyCollections.IgnoreQueryFilters()
+                        .AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == or && d.StallId != dailyStallId, ct)) return false;
+            }
+            else
+            {
+                if (await context.DailyCollections.IgnoreQueryFilters()
+                        .AnyAsync(d => (mid == Guid.Empty || d.MunicipalityId == mid) && d.ORNumber == or, ct)) return false;
+            }
+
             if (await context.TpmAttendances.IgnoreQueryFilters()
                     .AnyAsync(a => (mid == Guid.Empty || a.MunicipalityId == mid) && a.ORNumber == or, ct)) return false;
             if (await context.TrmTrips.IgnoreQueryFilters()

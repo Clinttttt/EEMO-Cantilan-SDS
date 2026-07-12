@@ -135,4 +135,30 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         Assert.False(await slh.IsORNumberAvailableForReceiptAsync("OR-UTIL", "Owner", new DateOnly(2026, 7, 1), CancellationToken.None));
         Assert.True(await slh.IsORNumberUniqueAsync("OR-FRESH", CancellationToken.None));
     }
+
+    // Option B: one OR (receipt) may cover several days of the SAME NPM stall, but is still rejected
+    // for a different stall — and the global check keeps reporting it as taken (for monthly/other paths).
+    [Fact]
+    public async Task DailyCollectionOr_AllowsSameStallReuse_RejectsOtherStall()
+    {
+        await using var ctx = NewContext();
+        var stallA = Guid.NewGuid();
+        var stallB = Guid.NewGuid();
+
+        var dc = EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection.Create(stallA, new DateOnly(2026, 1, 5));
+        dc.MarkPaid("OR-DAY1", collectorId: null);
+        ctx.Add(dc);
+        await ctx.SaveChangesAsync();
+
+        var repo = new PaymentRepository(ctx);
+
+        // Same stall may reuse the OR (one physical receipt covering several days).
+        Assert.True(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-DAY1", stallA, CancellationToken.None));
+        // A different stall may NOT reuse it.
+        Assert.False(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-DAY1", stallB, CancellationToken.None));
+        // The stall-agnostic check still reports it taken (monthly/other modules must not reuse it).
+        Assert.False(await repo.IsORNumberUniqueAsync("OR-DAY1", CancellationToken.None));
+        // A fresh OR is available for any stall.
+        Assert.True(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-FRESH", stallB, CancellationToken.None));
+    }
 }

@@ -48,10 +48,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.HasIndex(x => new { x.StallId, x.CollectionDate }).IsUnique();
 
-            // Same-table backstop for OR uniqueness (concurrency safety net).
-            // Global cross-table uniqueness is enforced in the application layer.
+            // OR uniqueness is enforced in the application layer (OrNumberRegistry), which — like the
+            // slaughterhouse — allows one receipt (OR) to cover multiple daily collections of the SAME
+            // stall while rejecting reuse across different stalls/modules. A plain unique index cannot
+            // express "same OR ⇒ same stall", so this is a NON-unique lookup index only.
             builder.HasIndex(x => new { x.MunicipalityId, x.ORNumber })
-                .IsUnique()
                 .HasFilter("\"ORNumber\" IS NOT NULL AND \"ORNumber\" <> ''");
 
             // Offline-sync idempotency: a client operation id maps to at most one record (DB backstop

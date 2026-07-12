@@ -32,6 +32,12 @@ public interface IPaymentRepository
     /// </summary>
     Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, CancellationToken ct);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
+    /// <summary>
+    /// OR availability for an NPM daily-collection receipt: available when unused anywhere in the LGU OR
+    /// only already used by daily collections of <paramref name="stallId"/> itself (one receipt covering
+    /// several days of the same stall). Rejected when the OR belongs to a different stall or any other module.
+    /// </summary>
+    Task<bool> IsDailyCollectionOrAvailableForStallAsync(string orNumber, Guid stallId, CancellationToken ct);
     Task AddAsync(PaymentRecord payment, CancellationToken ct);
     Task UpdateAsync(PaymentRecord payment, CancellationToken ct);
 }

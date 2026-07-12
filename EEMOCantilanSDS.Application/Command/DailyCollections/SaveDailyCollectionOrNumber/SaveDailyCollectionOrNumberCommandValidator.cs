@@ -14,9 +14,11 @@ public class SaveDailyCollectionOrNumberCommandValidator : AbstractValidator<Sav
             .Must(or => !string.IsNullOrWhiteSpace(or)).WithMessage("OR number is required.")
             .MaximumLength(50)
             // Check the TRIMMED value — the handler stores it trimmed, so uniqueness must match that
-            // (otherwise a padded duplicate like " 123 " could slip past). Globally unique across every
-            // facility's records (checked incl. soft-deleted).
-            .MustAsync(async (orNumber, ct) => await paymentRepository.IsORNumberUniqueAsync((orNumber ?? string.Empty).Trim(), ct))
+            // (otherwise a padded duplicate like " 123 " could slip past). One OR may cover several days
+            // of the SAME stall (one receipt), so this is stall-aware: rejected only when the OR already
+            // belongs to a different stall or another module.
+            .MustAsync(async (cmd, orNumber, ct) =>
+                await paymentRepository.IsDailyCollectionOrAvailableForStallAsync((orNumber ?? string.Empty).Trim(), cmd.StallId, ct))
             .WithMessage("OR Number already exists");
     }
 }

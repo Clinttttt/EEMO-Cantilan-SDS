@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrForDays
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.SaveSlaughterOrNumber
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
@@ -365,45 +366,106 @@
                 }
                 else
                 {
-                    <div class="fq-or-note">Enter the official receipt (OR) number for each record still missing one. Each OR must be unique. For the slaughterhouse, one OR covers a whole visit (all animals on that date).</div>
+                    var npmDaily = _orModel == OrModel.NpmDaily;
+                    var unsaved = _orRows.Count(r => !r.Saved);
+                    <div class="fq-or-note">
+                        Enter the official receipt (OR) number for each record still missing one. Each OR must be unique.
+                        @if (npmDaily)
+                        {
+                            <text> A single OR may cover several days of the same payor — one physical receipt, one OR.</text>
+                        }
+                        else
+                        {
+                            <text> For the slaughterhouse, one OR covers a whole visit (all animals on that date).</text>
+                        }
+                    </div>
+
+                    @if (npmDaily && unsaved > 1)
+                    {
+                        <div class="fq-or-modes" role="tablist">
+                            <button type="button" class="fq-or-mode @(!_orMulti ? "on" : "")" @onclick="() => SetOrMulti(false)" disabled="@_orMultiSaving">One OR per day</button>
+                            <button type="button" class="fq-or-mode @(_orMulti ? "on" : "")" @onclick="() => SetOrMulti(true)" disabled="@_orMultiSaving">One OR · multiple days</button>
+                        </div>
+                    }
+
                     <div class="fq-or-list">
                         @foreach (var r in _orRows)
                         {
-                            <div class="fq-or-row @(r.Saved ? "fq-or-rowdone" : "")">
-                                <div class="fq-or-day">
-                                    <div class="fq-or-date">@r.Label</div>
-                                    <div class="fq-or-amt">₱@r.Amount.ToString("N0")</div>
-                                </div>
-                                @if (r.Saved)
-                                {
-                                    <div class="fq-or-done"><span class="fq-or-check">✓</span> OR @r.Input</div>
-                                }
-                                else if (r.Confirming)
-                                {
-                                    <div class="fq-or-confirm">
-                                        <span class="fq-or-confirm-q">Save OR <strong>@r.Input.Trim()</strong>?</span>
-                                        <button type="button" class="fq-or-confirm-yes" @onclick="() => SaveOrDay(r)" disabled="@r.Saving">
-                                            @(r.Saving ? "Saving…" : "Confirm")
-                                        </button>
-                                        <button type="button" class="fq-or-confirm-no" @onclick="() => CancelConfirm(r)" disabled="@r.Saving">Cancel</button>
+                            @if (_orMulti && npmDaily && !r.Saved)
+                            {
+                                <label class="fq-or-row fq-or-rowpick">
+                                    <input type="checkbox" class="fq-or-pick" checked="@r.Selected"
+                                           @onchange="e => r.Selected = (bool)(e.Value ?? false)" disabled="@_orMultiSaving" />
+                                    <div class="fq-or-day">
+                                        <div class="fq-or-date">@r.Label</div>
+                                        <div class="fq-or-amt">₱@r.Amount.ToString("N0")</div>
                                     </div>
-                                }
-                                else
-                                {
-                                    <input class="fq-or-input" placeholder="OR number" maxlength="50" @bind="r.Input" @bind:event="oninput" disabled="@r.Saving" />
-                                    <button type="button" class="fq-or-save"
-                                            @onclick="() => BeginSave(r)"
-                                            disabled="@(r.Saving || string.IsNullOrWhiteSpace(r.Input))">
-                                        Save
-                                    </button>
-                                }
-                                @if (r.Error is not null)
-                                {
-                                    <div class="fq-or-rowerr">@r.Error</div>
-                                }
-                            </div>
+                                </label>
+                            }
+                            else
+                            {
+                                <div class="fq-or-row @(r.Saved ? "fq-or-rowdone" : "")">
+                                    <div class="fq-or-day">
+                                        <div class="fq-or-date">@r.Label</div>
+                                        <div class="fq-or-amt">₱@r.Amount.ToString("N0")</div>
+                                    </div>
+                                    @if (r.Saved)
+                                    {
+                                        <div class="fq-or-done"><span class="fq-or-check">✓</span> OR @r.Input</div>
+                                    }
+                                    else if (r.Confirming)
+                                    {
+                                        <div class="fq-or-confirm">
+                                            <span class="fq-or-confirm-q">Save OR <strong>@r.Input.Trim()</strong>?</span>
+                                            <button type="button" class="fq-or-confirm-yes" @onclick="() => SaveOrDay(r)" disabled="@r.Saving">
+                                                @(r.Saving ? "Saving…" : "Confirm")
+                                            </button>
+                                            <button type="button" class="fq-or-confirm-no" @onclick="() => CancelConfirm(r)" disabled="@r.Saving">Cancel</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <input class="fq-or-input" placeholder="OR number" maxlength="50" @bind="r.Input" @bind:event="oninput" disabled="@r.Saving" />
+                                        <button type="button" class="fq-or-save"
+                                                @onclick="() => BeginSave(r)"
+                                                disabled="@(r.Saving || string.IsNullOrWhiteSpace(r.Input))">
+                                            Save
+                                        </button>
+                                    }
+                                    @if (r.Error is not null)
+                                    {
+                                        <div class="fq-or-rowerr">@r.Error</div>
+                                    }
+                                </div>
+                            }
                         }
                     </div>
+
+                    @if (_orMulti && npmDaily)
+                    {
+                        var picked = _orRows.Count(r => !r.Saved && r.Selected);
+                        <div class="fq-or-multibar">
+                            <div class="fq-or-multiinfo">
+                                <span class="fq-or-multicount">@picked day@(picked == 1 ? "" : "s") selected</span>
+                                @if (picked > 0)
+                                {
+                                    <span class="fq-or-multitotal">₱@_orRows.Where(r => !r.Saved && r.Selected).Sum(r => r.Amount).ToString("N0")</span>
+                                }
+                            </div>
+                            <div class="fq-or-multirow">
+                                <input class="fq-or-input" placeholder="OR number" maxlength="50" @bind="_orMultiOr" @bind:event="oninput" disabled="@_orMultiSaving" />
+                                <button type="button" class="fq-or-save"
+                                        @onclick="ApplyOrToSelected"
+                                        disabled="@(_orMultiSaving || string.IsNullOrWhiteSpace(_orMultiOr) || picked == 0)">
+                                    @(_orMultiSaving ? "Saving…" : "Apply OR")
+                                </button>
+                            </div>
+                            @if (_orMultiError is not null)
+                            {
+                                <div class="fq-or-rowerr">@_orMultiError</div>
+                            }
+                        </div>
+                    }
                 }
             </div>
             <div class="fq-modal-foot">
@@ -436,6 +498,7 @@
         public bool Saving { get; set; }
         public bool Saved { get; set; }
         public bool Confirming { get; set; }
+        public bool Selected { get; set; }
         public string? Error { get; set; }
         public DateOnly Date { get; init; }   // NPM day / SLH visit date
         public Guid RecordId { get; init; }    // monthly PaymentId / TRM TripId / TPM AttendanceId
@@ -447,6 +510,55 @@
     private string? _orError;
     private bool _orSavedAny;
     private List<OrRow> _orRows = new();
+
+    // NPM "one OR for several days" mode: pick multiple unsaved days, enter one OR, apply in one call.
+    private bool _orMulti;
+    private string _orMultiOr = string.Empty;
+    private bool _orMultiSaving;
+    private string? _orMultiError;
+
+    private void SetOrMulti(bool on)
+    {
+        _orMulti = on;
+        _orMultiError = null;
+        if (!on)
+            foreach (var r in _orRows) r.Selected = false;
+    }
+
+    private async Task ApplyOrToSelected()
+    {
+        if (_orMultiSaving) return;
+        _orMultiError = null;
+
+        var or = (_orMultiOr ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(or)) { _orMultiError = "Enter an OR number."; return; }
+        if (_orItem?.StallId is not { } sid) { _orMultiError = "Missing stall reference."; return; }
+
+        var dates = _orRows.Where(r => !r.Saved && r.Selected).Select(r => r.Date).ToList();
+        if (dates.Count == 0) { _orMultiError = "Select at least one day."; return; }
+
+        _orMultiSaving = true;
+        var result = await DailyApi.SaveOrForDaysAsync(new SaveDailyCollectionOrForDaysCommand(sid, dates, or));
+        _orMultiSaving = false;
+
+        if (result.IsSuccess)
+        {
+            foreach (var r in _orRows.Where(r => !r.Saved && r.Selected).ToList())
+            {
+                r.Input = or;
+                r.Saved = true;
+                r.Selected = false;
+            }
+            _orSavedAny = true;
+            _orMultiOr = string.Empty;
+            // Drop back to per-day mode once nothing (or one day) is left to receipt.
+            if (_orRows.Count(r => !r.Saved) <= 1) _orMulti = false;
+        }
+        else
+        {
+            _orMultiError = result.Error ?? "Couldn't apply the OR number to the selected days.";
+        }
+    }
 
     // ── Record payment (reuses the shared PayBillModal → existing collection calendars) ──
     private FollowUpItemDto? _payItem;
@@ -486,6 +598,9 @@
         _orRows = new();
         _orError = null;
         _orSavedAny = false;
+        _orMulti = false;
+        _orMultiOr = string.Empty;
+        _orMultiError = null;
         _orLoading = true;
         // Period comes from the loaded snapshot's "as of" period, not today.
         int y = _data?.AsOf.Year ?? _now.Year, m = _data?.AsOf.Month ?? _now.Month;

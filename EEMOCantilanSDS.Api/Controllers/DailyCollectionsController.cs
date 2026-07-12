@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
+using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrForDays;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber;
 using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
@@ -23,6 +24,16 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
     [HttpPost("or")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveDailyCollectionOrNumberCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    // Apply one OR (receipt) to several PAID days of the same stall in one go (admin/head only) —
+    // for when a single physical receipt covers multiple days of the same payor.
+    [HttpPost("or-days")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> SaveOrForDays([FromBody] SaveDailyCollectionOrForDaysCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);
