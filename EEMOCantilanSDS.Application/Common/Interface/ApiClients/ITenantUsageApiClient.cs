@@ -15,4 +15,10 @@ public interface ITenantUsageApiClient
 
     /// <summary>Downloads the caller's own municipality data export (JSON file bytes).</summary>
     Task<Result<BackupArtifact>> ExportAsync();
+
+    /// <summary>Downloads the caller's own restore-ready snapshot (the file the scoped restore accepts).</summary>
+    Task<Result<BackupArtifact>> DownloadRestoreSnapshotAsync();
+
+    /// <summary>Restores the caller's own municipality from an uploaded snapshot (guarded server-side).</summary>
+    Task<Result<TenantRestoreResult>> RestoreAsync(EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest request);
 }

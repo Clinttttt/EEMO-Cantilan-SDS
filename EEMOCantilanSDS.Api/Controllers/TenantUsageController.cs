@@ -41,4 +41,39 @@ public class TenantUsageController(ISender sender) : ApiBaseController(sender)
         var status = result.StatusCode is 200 or 0 or null ? 500 : result.StatusCode.Value;
         return StatusCode(status, new { IsSuccess = false, Error = result.Error });
     }
+
+    /// <summary>
+    /// Downloads a round-trippable snapshot of the caller's OWN municipality — the ONLY file the scoped
+    /// restore accepts. Scoped server-side to the caller's tenant.
+    /// </summary>
+    [HttpGet("restore-snapshot")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<IActionResult> RestoreSnapshotAsync()
+    {
+        var result = await Sender.Send(new EEMOCantilanSDS.Application.Queries.Backup.GetTenantRestoreSnapshot.GetTenantRestoreSnapshotQuery());
+        if (result.IsSuccess && result.Value is not null)
+            return File(result.Value.Content, result.Value.ContentType, result.Value.FileName);
+
+        var status = result.StatusCode is 200 or 0 or null ? 500 : result.StatusCode.Value;
+        return StatusCode(status, new { IsSuccess = false, Error = result.Error });
+    }
+
+    /// <summary>
+    /// Restores the caller's OWN municipality from an uploaded snapshot. Confirmation phrase + password are
+    /// re-verified server-side; the restore is a single scoped transaction (any failure = zero changes) and
+    /// rejects a snapshot belonging to a different municipality.
+    /// </summary>
+    [HttpPost("restore")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.TenantRestoreResult>> RestoreAsync(
+        [FromBody] Application.Requests.Backup.TenantRestoreRequest request)
+    {
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(request.SnapshotBase64 ?? string.Empty); }
+        catch { return BadRequest(new { IsSuccess = false, Error = "The backup file could not be read." }); }
+
+        var result = await Sender.Send(new Application.Command.Backup.RestoreTenantData.RestoreTenantDataCommand(
+            bytes, request.ConfirmationPhrase, request.Password));
+        return HandleResponse(result);
+    }
 }

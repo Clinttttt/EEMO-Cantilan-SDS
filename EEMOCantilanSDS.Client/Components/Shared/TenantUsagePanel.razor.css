@@ -193,3 +193,38 @@
     0% { background-position: 100% 50%; }
     100% { background-position: 0 50%; }
 }
+
+
+/* Restore this municipality (scoped, guarded) */
+.tu-restore { margin-top: 0.9rem; border-top: 1px solid var(--border); padding-top: 0.85rem; }
+.tu-restore-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: none; background: transparent; cursor: pointer; padding: 0;
+    font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--navy);
+}
+.tu-restore-toggle svg { width: 15px; height: 15px; }
+.tu-restore-toggle:hover { text-decoration: underline; }
+
+.tu-restore-body {
+    margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+    border-radius: 10px; padding: 0.9rem; background: var(--red-bg);
+}
+.tu-restore-warn { font-size: 0.78rem; line-height: 1.5; color: var(--red); }
+.tu-restore-field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.76rem; color: var(--text-subtle); }
+.tu-restore-field span strong { color: var(--text); }
+.tu-restore-field input {
+    height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-card); font: inherit; font-size: 0.85rem; color: var(--text);
+}
+.tu-restore-field input:focus { outline: none; border-color: var(--gold); }
+.tu-restore-file { font-size: 0.76rem; color: var(--text-subtle); }
+.tu-restore-err { font-size: 0.78rem; color: var(--red); font-weight: 600; }
+.tu-restore-ok { font-size: 0.78rem; color: var(--green); font-weight: 700; }
+.tu-restore-go {
+    align-self: flex-start; margin-top: 0.15rem;
+    border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer;
+    background: var(--red); color: #fff; font: inherit; font-size: 0.82rem; font-weight: 700;
+}
+.tu-restore-go:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 88%, black); }
+.tu-restore-go:disabled { opacity: .5; cursor: default; }

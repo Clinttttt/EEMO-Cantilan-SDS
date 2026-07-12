@@ -31,4 +31,21 @@ public class TenantUsageApiClient(HttpClient http) : HandleResponse(http), ITena
 
         return Result<BackupArtifact>.Success(new BackupArtifact(fileName, bytes, contentType));
     }
+
+    public async Task<Result<BackupArtifact>> DownloadRestoreSnapshotAsync()
+    {
+        var resp = await _http.GetAsync("api/tenant-usage/restore-snapshot");
+        if (!resp.IsSuccessStatusCode)
+            return Result<BackupArtifact>.Failure("The restore snapshot is currently unavailable.", (int)resp.StatusCode);
+
+        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        var cd = resp.Content.Headers.ContentDisposition;
+        var fileName = cd?.FileNameStar ?? cd?.FileName?.Trim('"') ?? "stalltrack-restore.json";
+        var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/json";
+
+        return Result<BackupArtifact>.Success(new BackupArtifact(fileName, bytes, contentType));
+    }
+
+    public async Task<Result<TenantRestoreResult>> RestoreAsync(EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest request) =>
+        await PostAsync<EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest, TenantRestoreResult>("api/tenant-usage/restore", request);
 }
