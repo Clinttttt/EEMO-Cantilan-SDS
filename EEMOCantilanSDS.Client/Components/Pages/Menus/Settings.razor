@@ -225,12 +225,14 @@
             {
                 <TenantUsagePanel />
             }
- <!-- ── Database health (live PostgreSQL metrics) — platform operator (default LGU) only ── -->
-            @if (_isPlatformOperator)
+ <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
+            @if (_isHead)
             {
                 <DatabaseHealthPanel />
-
-                <!-- ── Backups & Restore — platform-wide (spans every LGU); operator only ── -->
+            }
+            <!-- ── Backups & Restore — platform-wide (spans every LGU); operator only ── -->
+            @if (_isPlatformOperator)
+            {
                 <section class="set-card">
                     <div class="set-card-head">
                         <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>

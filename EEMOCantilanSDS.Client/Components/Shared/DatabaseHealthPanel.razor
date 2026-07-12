@@ -26,7 +26,7 @@
     @if (_model is null && _error is null)
     {
         <div class="set-rows">
-            @for (var i = 0; i < 6; i++)
+            @for (var i = 0; i < 9; i++)
             {
                 <div class="set-row"><span class="sk dh-sk-key"></span><span class="sk dh-sk-val"></span></div>
             }
@@ -100,7 +100,7 @@
 
             <div class="set-row">
                 <span class="set-key">Storage</span>
-                <span class="set-val mono">@FormatBytes(_model.DatabaseSizeBytes)@(_model.ProvisionedStorageBytes > 0 ? $" / {FormatBytes(_model.ProvisionedStorageBytes)}" : "")</span>
+                <span class="set-val mono">@FormatBytes(_model.TenantSizeBytes)@(_model.ProvisionedStorageBytes > 0 ? $" / {FormatBytes(_model.ProvisionedStorageBytes)}" : "")</span>
             </div>
 
             <div class="set-row">

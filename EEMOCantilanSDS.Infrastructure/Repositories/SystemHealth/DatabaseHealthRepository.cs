@@ -13,8 +13,16 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 /// unavailable view degrades that single value to a safe default (0 / null) instead of breaking the
 /// whole snapshot. No writes are ever issued and no secrets are read or returned.
 /// </summary>
-public class DatabaseHealthRepository(AppDbContext context, EEMOCantilanSDS.Application.Common.Interface.Services.IComputeMetricsProvider computeMetrics) : IDatabaseHealthRepository
+public class DatabaseHealthRepository(
+    AppDbContext context,
+    EEMOCantilanSDS.Application.Common.Interface.Services.IComputeMetricsProvider computeMetrics,
+    EEMOCantilanSDS.Application.Common.Interface.Persistence.ITenantUsageRepository tenantUsage) : IDatabaseHealthRepository
 {
+    // The per-municipality footprint is a multi-table estimate; cache it briefly so the 5s panel poll
+    // never re-runs the heavy scan more than once a minute (keyed by tenant, so each LGU is independent).
+    private static readonly object TenantSizeGate = new();
+    private static readonly Dictionary<Guid, (long Bytes, DateTime At)> TenantSizeCache = new();
+    private static readonly TimeSpan TenantSizeCacheFor = TimeSpan.FromSeconds(60);
     public async Task<DatabaseHealthDto> GetHealthAsync(CancellationToken ct)
     {
         var connection = context.Database.GetDbConnection();
@@ -88,6 +96,26 @@ public class DatabaseHealthRepository(AppDbContext context, EEMOCantilanSDS.Appl
         try { compute = await computeMetrics.GetAsync(ct); }
         catch { compute = new EEMOCantilanSDS.Application.Dtos.SystemHealth.ComputeMetrics(null, null, 0); }
 
+        // This LGU's own data footprint (scoped to the caller's tenant), cached ~60s. Degrades to 0.
+        long tenantBytes = 0;
+        try
+        {
+            var mid = context.CurrentMunicipalityId;
+            bool cached;
+            lock (TenantSizeGate)
+            {
+                cached = TenantSizeCache.TryGetValue(mid, out var entry) && DateTime.UtcNow - entry.At < TenantSizeCacheFor;
+                if (cached) tenantBytes = entry.Bytes;
+            }
+            if (!cached)
+            {
+                var usage = await tenantUsage.GetUsageAsync(ct);
+                tenantBytes = usage.EstimatedSizeBytes;
+                lock (TenantSizeGate) { TenantSizeCache[mid] = (tenantBytes, DateTime.UtcNow); }
+            }
+        }
+        catch { /* degrade to 0 */ }
+
         return new DatabaseHealthDto(
             DatabaseSizeBytes: sizeBytes,
             ActiveConnections: active,
@@ -103,7 +131,8 @@ public class DatabaseHealthRepository(AppDbContext context, EEMOCantilanSDS.Appl
             CommitRatioPct: commitRatioPct,
             CpuPercent: compute.CpuPercent,
             MemoryPercent: compute.MemoryPercent,
-            ProvisionedStorageBytes: compute.ProvisionedStorageBytes);    }
+            ProvisionedStorageBytes: compute.ProvisionedStorageBytes,
+            TenantSizeBytes: tenantBytes);    }
 
     private static async Task<T> TryScalarAsync<T>(
         DbConnection connection, string sql, T fallback, Func<object, T> convert, CancellationToken ct)

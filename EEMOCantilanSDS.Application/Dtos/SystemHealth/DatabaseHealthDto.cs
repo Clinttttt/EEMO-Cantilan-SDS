@@ -24,4 +24,7 @@ public record DatabaseHealthDto(
     // (no permission / not configured / transient) → the UI shows "—". Storage is the provisioned size.
     double? CpuPercent = null,
     double? MemoryPercent = null,
-    long ProvisionedStorageBytes = 0);
+    long ProvisionedStorageBytes = 0,
+    // The CALLER'S municipality data footprint (scoped, from the tenant-usage estimate) — shown as
+    // "used / provisioned" so each LGU sees its own storage, never the whole shared database.
+    long TenantSizeBytes = 0);
