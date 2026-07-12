@@ -14,16 +14,17 @@
     "Specific days" (pick the exact days), enters ONE Official Receipt that covers the transaction,
     and records it (SettleNpmMonth / SettleNpmDays — one OR spans the settled days, stall-scoped).
     Monthly facilities: pick a specific month or "All outstanding" and enter the month's OR (RecordPayment).
+    Selections are shown as comprehensive government-style tables (thead columns + subtotal footer).
 *@
 
 @if (Show)
 {
     <div class="eemo-modal-overlay" @onclick="HandleClose">
-        <div class="eemo-modal paybill-modal" @onclick:stopPropagation="true">
+        <div class="eemo-modal eemo-modal-wide paybill-modal" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Record payment</div>
-                    <div class="eemo-modal-sub">@DisplayOccupant · Stall @StallNo · @FacilityCatalog.ShortNameOf(Facility)</div>
+                    <div class="eemo-modal-sub">@DisplayOccupant · Stall @StallNo · @FacilityCatalog.NameOf(Facility)</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="HandleClose" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -71,28 +72,39 @@
                         </div>
 
                         <div class="pb-field">
-                            <div class="pb-months-head">
-                                <span>@(_npmMode == "days" ? "Step 1 · Choose the month" : "Select a month to settle")</span>
-                                <span>Amount</span>
-                            </div>
-                            <div class="pb-months" role="radiogroup" aria-label="Unpaid months">
-                                @foreach (var r in _unpaid)
-                                {
-                                    <label class="pb-month-row @(_selectedPeriod == r.Period ? "on" : "")">
-                                        <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
-                                               @onchange="@(() => OnMonthPicked(r.Period))" disabled="@_submitting" />
-                                        <span class="pb-month-name">@MonthLabel(r.Period)</span>
-                                        <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
-                                    </label>
-                                }
+                            <span class="pb-caption">@(_npmMode == "days" ? "Step 1 · Choose the month" : "Select a month to settle")</span>
+                            <div class="pb-tablewrap">
+                                <div class="pb-tablescroll">
+                                    <table class="pb-table">
+                                        <thead>
+                                            <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @{ var mn = 0; }
+                                            @foreach (var r in _unpaid)
+                                            {
+                                                mn++;
+                                                <tr class="@(_selectedPeriod == r.Period ? "on" : "")" @onclick="@(() => OnMonthPicked(r.Period))">
+                                                    <td class="c"><input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)" @onchange="@(() => OnMonthPicked(r.Period))" disabled="@_submitting" /></td>
+                                                    <td class="c pb-muted">@mn</td>
+                                                    <td>@MonthLabel(r.Period)</td>
+                                                    <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                        <tfoot>
+                                            <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
                         @if (_npmMode == "days")
                         {
                             <div class="pb-field">
-                                <div class="pb-months-head">
-                                    <span>Step 2 · Choose day(s) — @MonthLabel(_selectedPeriod)</span>
+                                <div class="pb-caption-row">
+                                    <span class="pb-caption">Step 2 · Choose day(s) — @MonthLabel(_selectedPeriod)</span>
                                     @if (!_daysLoading && _days.Count > 0)
                                     {
                                         <button type="button" class="pb-selectall" @onclick="ToggleSelectAllDays" disabled="@_submitting">
@@ -110,20 +122,31 @@
                                 }
                                 else
                                 {
-                                    <div class="pb-days" role="group" aria-label="Days">
-                                        @foreach (var d in _days)
-                                        {
-                                            <label class="pb-day-row @(_daySelected.Contains(d.Date) ? "on" : "")">
-                                                <input type="checkbox" class="pb-day-pick" checked="@_daySelected.Contains(d.Date)"
-                                                       @onchange="e => ToggleDay(d.Date, (bool)(e.Value ?? false))" disabled="@_submitting" />
-                                                <span class="pb-day-date">@d.Date.ToString("ddd · MMM d, yyyy")</span>
-                                                <span class="pb-day-fee">₱@d.Fee.ToString("N2")</span>
-                                            </label>
-                                        }
-                                    </div>
-                                    <div class="pb-months-foot">
-                                        <span>@_daySelected.Count day@(_daySelected.Count == 1 ? "" : "s") selected</span>
-                                        <span>₱@_days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee).ToString("N2")</span>
+                                    <div class="pb-tablewrap">
+                                        <div class="pb-tablescroll">
+                                            <table class="pb-table">
+                                                <thead>
+                                                    <tr><th class="c"></th><th class="c">#</th><th>Collection day</th><th class="r">Daily fee</th></tr>
+                                                </thead>
+                                                <tbody>
+                                                    @{ var dn = 0; }
+                                                    @foreach (var d in _days)
+                                                    {
+                                                        dn++;
+                                                        var sel = _daySelected.Contains(d.Date);
+                                                        <tr class="@(sel ? "on" : "")" @onclick="@(() => ToggleDay(d.Date, !sel))">
+                                                            <td class="c"><input type="checkbox" checked="@sel" @onchange="e => ToggleDay(d.Date, (bool)(e.Value ?? false))" disabled="@_submitting" /></td>
+                                                            <td class="c pb-muted">@dn</td>
+                                                            <td>@d.Date.ToString("ddd · MMM d, yyyy")</td>
+                                                            <td class="r amt">₱@d.Fee.ToString("N2")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                                <tfoot>
+                                                    <tr><td colspan="3">@_daySelected.Count of @_days.Count day@(_days.Count == 1 ? "" : "s") selected</td><td class="r">₱@_days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee).ToString("N2")</td></tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
                                     </div>
                                 }
                             </div>
@@ -156,36 +179,42 @@
                         </div>
 
                         <div class="pb-field">
-                            <div class="pb-months-head">
-                                <span>@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
-                                <span>Amount</span>
-                            </div>
-                            <div class="pb-months @(_scope == "all" ? "all" : "")" role="@(_scope == "all" ? "list" : "radiogroup")" aria-label="Unpaid months">
-                                @foreach (var r in _unpaid)
-                                {
-                                    var included = _scope == "all" || _selectedPeriod == r.Period;
-                                    <label class="pb-month-row @(included ? "on" : "")">
-                                        @if (_scope == "month")
-                                        {
-                                            <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)"
-                                                   @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
-                                        }
-                                        else
-                                        {
-                                            <svg class="pb-month-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                        <span class="pb-month-name">@MonthLabel(r.Period)</span>
-                                        <span class="pb-month-amt">₱@r.BalanceDue.ToString("N2")</span>
-                                    </label>
-                                }
-                            </div>
-                            @if (_scope == "all")
-                            {
-                                <div class="pb-months-foot">
-                                    <span>Total</span>
-                                    <span>₱@_totalOutstanding.ToString("N2")</span>
+                            <span class="pb-caption">@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
+                            <div class="pb-tablewrap">
+                                <div class="pb-tablescroll">
+                                    <table class="pb-table">
+                                        <thead>
+                                            <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @{ var pn = 0; }
+                                            @foreach (var r in _unpaid)
+                                            {
+                                                pn++;
+                                                var included = _scope == "all" || _selectedPeriod == r.Period;
+                                                <tr class="@(included ? "on" : "")" @onclick="@(() => { if (_scope == "month") _selectedPeriod = r.Period; })">
+                                                    <td class="c">
+                                                        @if (_scope == "month")
+                                                        {
+                                                            <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)" @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <svg class="pb-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                        }
+                                                    </td>
+                                                    <td class="c pb-muted">@pn</td>
+                                                    <td>@MonthLabel(r.Period)</td>
+                                                    <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                        <tfoot>
+                                            <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
-                            }
+                            </div>
                         </div>
 
                         <div class="pb-field">

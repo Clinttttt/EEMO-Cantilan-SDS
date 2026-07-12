@@ -1,8 +1,8 @@
-/* PayBillModal — formal, government-restrained payment form. */
+/* PayBillModal — formal, government-restrained payment form (comprehensive tables). */
 
 .pb-loading, .pb-clear {
     display: flex; align-items: center; gap: 10px;
-    padding: 18px 4px; color: var(--text-subtle); font-size: 13.5px;
+    padding: 16px 4px; color: var(--text-subtle); font-size: 13.5px;
 }
 .pb-clear svg { width: 20px; height: 20px; color: var(--green); flex: 0 0 auto; }
 
@@ -19,8 +19,11 @@
 
 .pb-field { margin-bottom: 16px; }
 .pb-label { display: block; font-size: 12.5px; font-weight: 650; color: var(--text); margin-bottom: 7px; }
+.pb-caption { display: block; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-subtle); margin-bottom: 7px; }
+.pb-caption-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.pb-caption-row .pb-caption { margin-bottom: 0; }
 
-/* Segmented scope control. */
+/* Segmented scope / mode control. */
 .pb-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
 .pb-seg-btn {
     padding: 10px 12px; border: none; background: var(--bg-card); cursor: pointer;
@@ -32,46 +35,45 @@
 .pb-seg-btn.on { background: var(--navy); color: #fff; }
 .pb-seg-btn:disabled { cursor: default; opacity: .6; }
 
-/* Ledger-style month list. */
-.pb-months-head, .pb-months-foot {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 13px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
-    text-transform: uppercase; color: var(--text-subtle);
+.pb-selectall {
+    border: none; background: transparent; cursor: pointer; padding: 0;
+    font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--navy);
 }
-.pb-months-head { border: 1px solid var(--border); border-bottom: none; border-radius: 9px 9px 0 0; background: var(--bg); }
-.pb-months-foot {
-    border: 1px solid var(--border); border-top: none; border-radius: 0 0 9px 9px; background: var(--bg);
-    color: var(--text); font-size: 12.5px;
+.pb-selectall:hover:not(:disabled) { text-decoration: underline; }
+.pb-selectall:disabled { opacity: .5; cursor: default; }
+
+/* Comprehensive register-style table. */
+.pb-tablewrap { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.pb-tablescroll { max-height: 300px; overflow-y: auto; }
+.pb-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.pb-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--bg); color: var(--text-subtle);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    text-align: left; padding: 9px 13px; border-bottom: 1px solid var(--border);
 }
-.pb-months-foot span:last-child { color: var(--red); font-weight: 800; font-variant-numeric: tabular-nums; }
-
-.pb-months {
-    max-height: 300px; overflow-y: auto;
-    border: 1px solid var(--border); border-radius: 0 0 9px 9px; background: var(--bg-card);
+.pb-table th.c, .pb-table td.c { text-align: center; width: 1%; white-space: nowrap; }
+.pb-table th.r, .pb-table td.r { text-align: right; white-space: nowrap; }
+.pb-table tbody td { padding: 9px 13px; border-bottom: 1px solid var(--border); color: var(--text); }
+.pb-table tbody tr:last-child td { border-bottom: none; }
+.pb-table tbody tr { cursor: pointer; transition: background .1s; }
+.pb-table tbody tr:hover { background: #f7fafc; }
+.pb-table tbody tr.on { background: #f4f8fb; }
+.pb-table tbody tr.on td { font-weight: 650; }
+.pb-table .amt { font-variant-numeric: tabular-nums; }
+.pb-table .due { color: var(--red); font-weight: 700; }
+.pb-table .pb-muted { color: var(--text-muted); font-weight: 500; }
+.pb-table input[type=radio], .pb-table input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--navy); }
+.pb-table .pb-tick { width: 16px; height: 16px; color: var(--green); }
+.pb-table tfoot td {
+    padding: 9px 13px; background: var(--bg); border-top: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; color: var(--text);
 }
-.pb-months.all { border-radius: 0; }
+.pb-table tfoot td.r { color: var(--navy); font-variant-numeric: tabular-nums; }
 
-.pb-month-row {
-    display: flex; align-items: center; gap: 11px;
-    padding: 10px 13px; border-bottom: 1px solid var(--border);
-    cursor: pointer; font-size: 13.5px; color: var(--text);
-    transition: background .1s;
-}
-.pb-month-row:last-child { border-bottom: none; }
-.pb-month-row:hover { background: #f7fafc; }
-.pb-months.all .pb-month-row { cursor: default; }
-.pb-month-row input { accent-color: var(--navy); width: 16px; height: 16px; flex: 0 0 auto; }
-.pb-month-row.on { background: #f4f8fb; }
-.pb-month-row.on .pb-month-name { font-weight: 650; }
-
-.pb-month-tick { width: 16px; height: 16px; flex: 0 0 auto; color: var(--green); }
-.pb-month-name { flex: 1 1 auto; }
-.pb-month-amt { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
-
-/* Scrollbar — quiet, government-plain. */
-.pb-months::-webkit-scrollbar { width: 10px; }
-.pb-months::-webkit-scrollbar-thumb { background: #cdd8e2; border-radius: 6px; border: 3px solid var(--bg-card); }
-.pb-months::-webkit-scrollbar-track { background: transparent; }
+.pb-tablescroll::-webkit-scrollbar { width: 10px; }
+.pb-tablescroll::-webkit-scrollbar-thumb { background: #cdd8e2; border-radius: 6px; border: 3px solid var(--bg-card); }
+.pb-tablescroll::-webkit-scrollbar-track { background: transparent; }
 
 .pb-input {
     width: 100%; height: 42px; padding: 0 13px;
@@ -83,47 +85,6 @@
 
 .pb-hint { margin-top: 6px; font-size: 12px; color: var(--text-subtle); }
 .pb-hint em { font-style: normal; font-weight: 650; color: var(--navy); }
-
-/* Specific-days picker */
-.pb-selectall {
-    border: none; background: transparent; cursor: pointer;
-    font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .3px;
-    text-transform: uppercase; color: var(--navy); padding: 0;
-}
-.pb-selectall:hover:not(:disabled) { text-decoration: underline; }
-.pb-selectall:disabled { opacity: .5; cursor: default; }
-
-.pb-days {
-    max-height: 260px; overflow-y: auto;
-    border: 1px solid var(--border); border-radius: 0 0 9px 9px; background: var(--bg-card);
-}
-.pb-day-row {
-    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px;
-    padding: 9px 13px; border-bottom: 1px solid var(--border);
-    cursor: pointer; font-size: 13.5px; color: var(--text); transition: background .1s;
-}
-.pb-day-row:last-child { border-bottom: none; }
-.pb-day-row:hover { background: #f7fafc; }
-.pb-day-row.on { background: #f4f8fb; }
-.pb-day-row.on .pb-day-date { font-weight: 650; }
-.pb-day-pick { width: 16px; height: 16px; accent-color: var(--navy); flex: 0 0 auto; }
-.pb-day-date { text-align: left; }
-.pb-day-fee { font-variant-numeric: tabular-nums; font-weight: 600; }
-.pb-days::-webkit-scrollbar { width: 10px; }
-.pb-days::-webkit-scrollbar-thumb { background: #cdd8e2; border-radius: 6px; border: 3px solid var(--bg-card); }
-.pb-days::-webkit-scrollbar-track { background: transparent; }
-
-/* NPM per-day receipt note — daily OR is encoded via Add OR, not here. */
-.pb-daily-note {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 12px 13px; margin-bottom: 20px;
-    background: var(--bg); border: 1px solid var(--border);
-    border-left: 3px solid var(--gold); border-radius: 8px;
-    font-size: 12.5px; line-height: 1.5; color: var(--text-subtle);
-}
-.pb-daily-note svg { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 1px; color: var(--gold); }
-.pb-daily-note strong { display: block; color: var(--text); font-weight: 650; margin-bottom: 2px; }
-.pb-daily-note em { font-style: normal; font-weight: 650; color: var(--navy); }
 
 .pb-error {
     display: flex; align-items: center; gap: 8px;
