@@ -1,14 +1,10 @@
 @using EEMOCantilanSDS.Application.Dtos.SystemHealth
-@using EEMOCantilanSDS.Application.Dtos.Backup
-@using EEMOCantilanSDS.Application.Requests.Backup
-@using Microsoft.AspNetCore.Components.Forms
 @inject ITenantUsageApiClient TenantUsageApi
-@inject IJSRuntime JS
 @*
     Per-tenant storage panel — shown to every municipality's Head on the Settings page. It reports ONLY
     the caller's own municipality footprint (record counts + estimated data size), scoped server-side to
-    the caller's tenant. It never shows the whole shared database (that stays on the platform-operator's
-    Database-health panel). Read-only aggregates.
+    the caller's tenant. It never shows the whole shared database. Backup/restore live on the dedicated
+    Backups page (/settings/backups) so this card stays a clean, read-only footprint.
 *@
 
 <section class="set-card tu-card">
@@ -20,24 +16,7 @@
             <div class="set-card-title">Storage usage</div>
             <div class="set-card-sub">@Branding.OfficeAcronym data footprint · your municipality only</div>
         </div>
-        <button class="tu-export-btn" @onclick="ExportAsync" disabled="@(_exporting || _model is null)"
-                title="Download a JSON backup of your municipality's data">
-            @if (_exporting)
-            {
-                <span class="tu-export-spin"></span><span>Preparing…</span>
-            }
-            else
-            {
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                <span>Back up my data</span>
-            }
-        </button>
     </div>
-
-    @if (_exportError is not null)
-    {
-        <div class="tu-export-err">@_exportError</div>
-    }
 
     @if (_model is null && _error is null)
     {
@@ -91,64 +70,8 @@
         <div class="tu-note">Estimated from stored row data for your municipality. Excludes index and
             long-value storage, so actual disk use is a little higher.</div>
 
-        <!-- Restore this municipality (scoped, guarded, atomic) -->
-        <div class="tu-restore">
-            <button type="button" class="tu-restore-toggle" @onclick="() => _showRestore = !_showRestore">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
-                Restore this municipality from a backup…
-            </button>
-
-            @if (_showRestore)
-            {
-                <div class="tu-restore-body">
-                    <div class="tu-restore-warn">
-                        This replaces <strong>your municipality's</strong> current records with the uploaded snapshot.
-                        Other municipalities are never affected. A copy of your current data is downloaded first as a
-                        safety net, and the whole restore runs in one transaction — if anything fails, nothing changes.
-                    </div>
-
-                    <div class="tu-restore-getpoint">
-                        <span>Keep a <strong>restore point</strong> to roll back to later:</span>
-                        <button type="button" class="tu-restore-dl" @onclick="DownloadRestorePointAsync" disabled="@_downloadingPoint">
-                            @(_downloadingPoint ? "Preparing…" : "Download restore point")
-                        </button>
-                    </div>
-
-                    <label class="tu-restore-field">
-                        <span>Backup snapshot file (.json)</span>
-                        <InputFile OnChange="OnFileSelected" accept=".json" />
-                    </label>
-                    @if (_uploadName is not null)
-                    {
-                        <div class="tu-restore-file">Selected: <strong>@_uploadName</strong></div>
-                    }
-
-                    <label class="tu-restore-field">
-                        <span>Type <strong>RESTORE</strong> to confirm</span>
-                        <input type="text" @bind="_confirmPhrase" @bind:event="oninput" autocomplete="off" placeholder="RESTORE" disabled="@_restoring" />
-                    </label>
-
-                    <label class="tu-restore-field">
-                        <span>Your password</span>
-                        <input type="password" @bind="_password" @bind:event="oninput" autocomplete="off" placeholder="Password" disabled="@_restoring" />
-                    </label>
-
-                    @if (_restoreError is not null)
-                    {
-                        <div class="tu-restore-err">@_restoreError</div>
-                    }
-                    @if (_restoreOk is not null)
-                    {
-                        <div class="tu-restore-ok">@_restoreOk</div>
-                    }
-
-                    <button type="button" class="tu-restore-go"
-                            @onclick="RestoreNowAsync"
-                            disabled="@(_restoring || _uploadBytes is null || _confirmPhrase.Trim() != "RESTORE" || string.IsNullOrWhiteSpace(_password))">
-                        @(_restoring ? "Restoring…" : "Restore my municipality")
-                    </button>
-                </div>
-            }
+        <div class="set-links">
+            <a class="set-link" href="/settings/backups">Back up or restore this municipality<span class="set-link-arrow">→</span></a>
         </div>
     }
 </section>
@@ -156,138 +79,8 @@
 @code {
     private TenantUsageDto? _model;
     private string? _error;
-    private bool _exporting;
-    private string? _exportError;
-
-    // Restore (scoped to this municipality) state.
-    private bool _showRestore;
-    private bool _restoring;
-    private string? _restoreError;
-    private string? _restoreOk;
-    private string _confirmPhrase = string.Empty;
-    private string _password = string.Empty;
-    private byte[]? _uploadBytes;
-    private string? _uploadName;
-    private bool _downloadingPoint;
-    private const long MaxUploadBytes = 40L * 1024 * 1024;   // generous ceiling for a per-LGU snapshot
-
-    private async Task DownloadRestorePointAsync()
-    {
-        if (_downloadingPoint) return;
-        _downloadingPoint = true;
-        _restoreError = null;
-        try
-        {
-            var r = await TenantUsageApi.DownloadRestoreSnapshotAsync();
-            if (r.IsSuccess && r.Value is not null)
-                await JS.InvokeVoidAsync("downloadFileFromBytes",
-                    r.Value.FileName, Convert.ToBase64String(r.Value.Content), r.Value.ContentType);
-            else
-                _restoreError = r.Error ?? "Couldn't prepare a restore point.";
-        }
-        catch { _restoreError = "Couldn't prepare a restore point."; }
-        finally { _downloadingPoint = false; }
-    }
-
-    private async Task OnFileSelected(InputFileChangeEventArgs e)
-    {
-        _restoreError = null;
-        _restoreOk = null;
-        _uploadBytes = null;
-        _uploadName = null;
-
-        var file = e.File;
-        if (file is null) return;
-        if (file.Size > MaxUploadBytes) { _restoreError = "That file is too large to be a valid snapshot."; return; }
-
-        try
-        {
-            using var ms = new MemoryStream();
-            await file.OpenReadStream(MaxUploadBytes).CopyToAsync(ms);
-            _uploadBytes = ms.ToArray();
-            _uploadName = file.Name;
-        }
-        catch
-        {
-            _restoreError = "Couldn't read the selected file.";
-        }
-    }
-
-    private async Task RestoreNowAsync()
-    {
-        if (_restoring) return;
-        _restoreError = null;
-        _restoreOk = null;
-
-        if (_uploadBytes is null) { _restoreError = "Choose a restore snapshot file first."; return; }
-        if (_confirmPhrase.Trim() != "RESTORE") { _restoreError = "Type RESTORE to confirm."; return; }
-        if (string.IsNullOrWhiteSpace(_password)) { _restoreError = "Enter your password."; return; }
-
-        _restoring = true;
-        try
-        {
-            // Safety net: always download the CURRENT state before overwriting it, so the Head keeps a
-            // rollback file even if this restore is applied by mistake.
-            var safety = await TenantUsageApi.DownloadRestoreSnapshotAsync();
-            if (safety.IsSuccess && safety.Value is not null)
-                await JS.InvokeVoidAsync("downloadFileFromBytes",
-                    "before-restore-" + safety.Value.FileName,
-                    Convert.ToBase64String(safety.Value.Content),
-                    safety.Value.ContentType);
-
-            var req = new TenantRestoreRequest(Convert.ToBase64String(_uploadBytes), _confirmPhrase.Trim(), _password);
-            var res = await TenantUsageApi.RestoreAsync(req);
-            if (res.IsSuccess && res.Value is not null)
-            {
-                _restoreOk = $"Restored {res.Value.RowsRestored:N0} record(s) across {res.Value.TablesRestored} table(s).";
-                _confirmPhrase = string.Empty;
-                _password = string.Empty;
-                _uploadBytes = null;
-                _uploadName = null;
-                await LoadAsync();   // refresh the footprint
-            }
-            else
-            {
-                _restoreError = res.Error ?? "The restore could not be completed.";
-            }
-        }
-        finally
-        {
-            _restoring = false;
-        }
-    }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
-
-    private async Task ExportAsync()
-    {
-        if (_exporting) return;
-        _exporting = true;
-        _exportError = null;
-        try
-        {
-            var result = await TenantUsageApi.ExportAsync();
-            if (result.IsSuccess && result.Value is not null)
-            {
-                var base64 = Convert.ToBase64String(result.Value.Content);
-                await JS.InvokeVoidAsync("downloadFileFromBytes", result.Value.FileName, base64, result.Value.ContentType);
-            }
-            else
-            {
-                _exportError = string.IsNullOrWhiteSpace(result.Error)
-                    ? "Couldn't prepare your data export. Please try again."
-                    : result.Error;
-            }
-        }
-        catch
-        {
-            _exportError = "Couldn't prepare your data export. Please try again.";
-        }
-        finally
-        {
-            _exporting = false;
-        }
-    }
 
     private async Task LoadAsync()
     {

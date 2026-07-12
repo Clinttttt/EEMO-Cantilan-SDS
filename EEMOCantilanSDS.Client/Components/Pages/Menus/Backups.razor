@@ -1,10 +1,13 @@
 @page "/settings/backups"
 @using Microsoft.AspNetCore.Authorization
 @using EEMOCantilanSDS.Application.Dtos.Backup
+@using EEMOCantilanSDS.Application.Requests.Backup
 @using EEMOCantilanSDS.Domain.Common
+@using Microsoft.AspNetCore.Components.Forms
 @attribute [Authorize(Roles = "SuperAdmin")]
 @rendermode InteractiveServer
 @inject IBackupApiClient BackupApi
+@inject ITenantUsageApiClient TenantUsageApi
 @inject IJSRuntime JS
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
@@ -43,6 +46,110 @@
 </header>
 
 <div class="content-area">
+
+    <!-- ══ Your municipality (every Head) ══ -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Your municipality</div>
+                <div class="set-card-sub">Back up and restore @Branding.Municipality's own data — scoped to your LGU only</div>
+            </div>
+        </div>
+        <div class="bk-info-grid">
+            <div class="bk-info">
+                <div class="bk-info-key">Data archive</div>
+                <div class="bk-info-val">A readable JSON copy of your records, for keeping or audit.</div>
+            </div>
+            <div class="bk-info">
+                <div class="bk-info-key">Restore point</div>
+                <div class="bk-info-val">A snapshot you can restore from later — the file the restore below accepts.</div>
+            </div>
+            <div class="bk-info">
+                <div class="bk-info-key">Scope</div>
+                <div class="bk-info-val">Everything here affects <strong>only your municipality</strong> — never another LGU.</div>
+            </div>
+        </div>
+        <div class="bk-actions">
+            <button class="bk-btn bk-btn-ghost" @onclick="ExportMineAsync" disabled="@_meBusy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                <span>Back up my data (archive)</span>
+            </button>
+            <button class="bk-btn bk-btn-primary" @onclick="DownloadRestorePointAsync" disabled="@_meBusy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                <span>Download restore point</span>
+            </button>
+        </div>
+    </section>
+
+    <!-- ══ Restore your municipality (upload a restore point) ══ -->
+    <section class="bk-danger">
+        <div class="bk-danger-head">
+            <div class="bk-danger-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
+            <div class="bk-danger-titles">
+                <div class="bk-danger-title">Restore your municipality</div>
+                <div class="bk-danger-sub">Replaces your LGU's records from a restore point — other municipalities are never affected</div>
+            </div>
+            @if (!_showMineRestore)
+            {
+                <button class="bk-btn bk-btn-ghost" type="button" @onclick="() => _showMineRestore = true">Start restore…</button>
+            }
+        </div>
+
+        @if (_showMineRestore)
+        {
+            <div class="bk-mine-restore">
+                <div class="bk-warn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                    <div class="bk-warn-text">
+                        This replaces <strong>@Branding.Municipality's</strong> current records with the uploaded restore point.
+                        A copy of your current data is downloaded first as a safety net, and the whole restore runs in one
+                        transaction — if anything fails, nothing changes.
+                    </div>
+                </div>
+
+                <div class="bk-field">
+                    <label class="bk-label">1 · Restore point file (.json)</label>
+                    <InputFile class="bk-file" OnChange="OnMineFileSelected" accept=".json" />
+                    @if (_mineUploadName is not null)
+                    {
+                        <div class="bk-file-name">Selected: <strong>@_mineUploadName</strong></div>
+                    }
+                </div>
+                <div class="bk-field">
+                    <label class="bk-label" for="bk-mine-phrase">2 · Type <code>RESTORE</code> to confirm</label>
+                    <input id="bk-mine-phrase" class="bk-input" type="text" autocomplete="off" placeholder="RESTORE" @bind="_minePhrase" @bind:event="oninput" disabled="@_mineRestoring" />
+                </div>
+                <div class="bk-field">
+                    <label class="bk-label" for="bk-mine-pass">3 · Confirm your admin password</label>
+                    <input id="bk-mine-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_minePassword" @bind:event="oninput" disabled="@_mineRestoring" />
+                </div>
+
+                @if (_mineError is not null)
+                {
+                    <div class="bk-alert bk-alert-err" role="alert">@_mineError</div>
+                }
+
+                <div class="bk-mine-actions">
+                    <button class="bk-btn bk-btn-ghost" type="button" @onclick="() => _showMineRestore = false" disabled="@_mineRestoring">Cancel</button>
+                    <button class="bk-btn bk-btn-danger" type="button" @onclick="RestoreMineAsync" disabled="@(!CanRestoreMine)">
+                        @if (_mineRestoring)
+                        {
+                            <span class="bk-spin" aria-hidden="true"></span>
+                            <span>Restoring…</span>
+                        }
+                        else
+                        {
+                            <span>Restore my municipality</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        }
+    </section>
+
+    @if (_isOperator)
+    {
 
     <!-- ── How backups work ── -->
     <section class="set-card">
@@ -262,6 +369,7 @@
             </button>
         </div>
     </section>
+    }
 
     <!-- ── Restore confirmation (hard-confirm danger modal) ── -->
     @if (_showRestoreConfirm)
@@ -477,6 +585,104 @@
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
 
+    private bool _isOperator;
+
+    // ── Per-municipality (own LGU) backup & restore ──
+    private bool _meBusy;                       // export / download-restore-point in flight
+    private bool _showMineRestore;
+    private bool _mineRestoring;
+    private string? _mineError;
+    private string _minePhrase = string.Empty;
+    private string _minePassword = string.Empty;
+    private byte[]? _mineUpload;
+    private string? _mineUploadName;
+    private const long MineMaxUpload = 40L * 1024 * 1024;
+
+    private bool CanRestoreMine => !_mineRestoring && _mineUpload is not null
+        && string.Equals(_minePhrase.Trim(), "RESTORE", StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(_minePassword);
+
+    private async Task ExportMineAsync()
+    {
+        if (_meBusy) return;
+        _meBusy = true;
+        try
+        {
+            var r = await TenantUsageApi.ExportAsync();
+            if (r.IsSuccess && r.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", r.Value.FileName, Convert.ToBase64String(r.Value.Content), r.Value.ContentType);
+            else
+                await ShowToastAsync(false, r.Error ?? "Couldn't prepare your data archive.");
+        }
+        finally { _meBusy = false; }
+    }
+
+    private async Task DownloadRestorePointAsync()
+    {
+        if (_meBusy) return;
+        _meBusy = true;
+        try
+        {
+            var r = await TenantUsageApi.DownloadRestoreSnapshotAsync();
+            if (r.IsSuccess && r.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", r.Value.FileName, Convert.ToBase64String(r.Value.Content), r.Value.ContentType);
+            else
+                await ShowToastAsync(false, r.Error ?? "Couldn't prepare a restore point.");
+        }
+        finally { _meBusy = false; }
+    }
+
+    private async Task OnMineFileSelected(InputFileChangeEventArgs e)
+    {
+        _mineError = null;
+        _mineUpload = null;
+        _mineUploadName = null;
+        var file = e.File;
+        if (file is null) return;
+        if (file.Size > MineMaxUpload) { _mineError = "That file is too large to be a valid restore point."; return; }
+        try
+        {
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(MineMaxUpload).CopyToAsync(ms);
+            _mineUpload = ms.ToArray();
+            _mineUploadName = file.Name;
+        }
+        catch { _mineError = "Couldn't read the selected file."; }
+    }
+
+    private async Task RestoreMineAsync()
+    {
+        if (!CanRestoreMine) return;
+        _mineRestoring = true;
+        _mineError = null;
+        try
+        {
+            // Safety net: always download the CURRENT state before overwriting it.
+            var safety = await TenantUsageApi.DownloadRestoreSnapshotAsync();
+            if (safety.IsSuccess && safety.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes",
+                    "before-restore-" + safety.Value.FileName,
+                    Convert.ToBase64String(safety.Value.Content), safety.Value.ContentType);
+
+            var req = new TenantRestoreRequest(Convert.ToBase64String(_mineUpload!), _minePhrase.Trim(), _minePassword);
+            var res = await TenantUsageApi.RestoreAsync(req);
+            if (res.IsSuccess && res.Value is not null)
+            {
+                _minePhrase = string.Empty;
+                _minePassword = string.Empty;
+                _mineUpload = null;
+                _mineUploadName = null;
+                _showMineRestore = false;
+                await ShowToastAsync(true, $"Restored {res.Value.RowsRestored:N0} record(s) across {res.Value.TablesRestored} table(s).");
+            }
+            else
+            {
+                _mineError = res.Error ?? "The restore could not be completed.";
+            }
+        }
+        finally { _mineRestoring = false; }
+    }
+
     private IReadOnlyList<BackupRunDto>? _runs;
     private bool _loadingRuns = true;
     private string? _runsError;
@@ -513,22 +719,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Whole-database backups are platform-operator (Cantilan Head) only, matching the API policy. A
-        // per-LGU Head or a Cantilan Admin who reaches this URL directly is bounced to the dashboard
-        // instead of seeing 403 "couldn't load" cards. (The Settings link is also hidden for them.)
         var state = await AuthState.GetAuthenticationStateAsync();
         var isSuperAdmin = state.User.IsInRole("SuperAdmin")
             || state.User.Claims.Any(c => string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
-        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
-        if (!(isSuperAdmin && string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase)))
+        if (!isSuperAdmin)   // Heads only (the [Authorize] also enforces this)
         {
             Nav.NavigateTo("/menu", replace: true);
             return;
         }
 
-        await LoadRunsAsync();
-        await LoadRestoreRunsAsync();
+        // Every LGU Head uses the per-municipality section below. Whole-database backup/restore stays
+        // platform-operator (Cantilan Head) only — those API calls are PlatformOperator-gated, so only load
+        // them for the operator (a per-LGU Head would just get 403s).
+        var municipality = state.User.Claims.FirstOrDefault(c => c.Type == "municipality")?.Value;
+        _isOperator = string.Equals(municipality, "cantilan-sds", StringComparison.OrdinalIgnoreCase);
+
+        if (_isOperator)
+        {
+            await LoadRunsAsync();
+            await LoadRestoreRunsAsync();
+        }
     }
 
     private async Task LoadRunsAsync(bool silent = false)
