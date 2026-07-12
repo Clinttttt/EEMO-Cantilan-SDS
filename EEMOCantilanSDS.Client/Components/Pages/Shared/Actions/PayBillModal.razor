@@ -9,18 +9,17 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
-    PayBillModal — a formal, structured "record payment" form opened from a follow-up row.
-    NPM (daily): the office chooses "Whole month" (settle every collectable day of a month) or
-    "Specific days" (pick the exact days), enters ONE Official Receipt that covers the transaction,
-    and records it (SettleNpmMonth / SettleNpmDays — one OR spans the settled days, stall-scoped).
-    Monthly facilities: pick a specific month or "All outstanding" and enter the month's OR (RecordPayment).
-    Selections are shown as comprehensive government-style tables (thead columns + subtotal footer).
+    PayBillModal — full-width, formal "record payment" form opened from a follow-up row.
+    Fixed detail sections (account summary, how-to-settle, OR number) sit above ONE clean scrolling
+    table so there is never more than one scrollbar. NPM (daily): "Whole month" settles every collectable
+    day of a month; "Specific days" is a two-step flow (choose the month, then tick the day(s)) — one OR
+    covers the whole transaction. Monthly facilities pick a specific month or all outstanding.
 *@
 
 @if (Show)
 {
-    <div class="eemo-modal-overlay" @onclick="HandleClose">
-        <div class="eemo-modal eemo-modal-wide paybill-modal" @onclick:stopPropagation="true">
+    <div class="pb-modal" @onclick="HandleClose">
+        <div class="pb-shell" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Record payment</div>
@@ -31,7 +30,7 @@
                 </button>
             </div>
 
-            <div class="eemo-modal-body">
+            <div class="pb-body">
                 @if (_loading)
                 {
                     <div class="pb-loading">Loading outstanding balance…</div>
@@ -45,189 +44,130 @@
                 }
                 else
                 {
-                    <div class="pb-statement">
-                        <div class="pb-statement-row">
-                            <span class="pb-statement-key">Total outstanding</span>
-                            <span class="pb-statement-val">₱@_totalOutstanding.ToString("N2")</span>
+                    <!-- Fixed detail band -->
+                    <div class="pb-detail">
+                        <div class="pb-statement">
+                            <div>
+                                <div class="pb-statement-key">Total outstanding</div>
+                                <div class="pb-statement-meta">@_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")@(string.IsNullOrEmpty(_rangeLabel) ? "" : $" · {_rangeLabel}")</div>
+                            </div>
+                            <div class="pb-statement-val">₱@_totalOutstanding.ToString("N2")</div>
                         </div>
-                        <div class="pb-statement-meta">
-                            @_unpaid.Count unpaid month@(_unpaid.Count == 1 ? "" : "s")@(string.IsNullOrEmpty(_rangeLabel) ? "" : $" · {_rangeLabel}")
+
+                        <div class="pb-controls">
+                            <div class="pb-control">
+                                <span class="pb-label">@(IsNpm ? "How to settle" : "Payment scope")</span>
+                                <div class="pb-seg" role="tablist">
+                                    @if (IsNpm)
+                                    {
+                                        <button type="button" class="pb-seg-btn @(_npmMode == "month" ? "on" : "")" @onclick='() => SetNpmMode("month")' disabled="@_submitting">Whole month</button>
+                                        <button type="button" class="pb-seg-btn @(_npmMode == "days" ? "on" : "")" @onclick='() => SetNpmMode("days")' disabled="@_submitting">Specific days</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">Specific month</button>
+                                        <button type="button" class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">All outstanding</button>
+                                    }
+                                </div>
+                            </div>
+                            <div class="pb-control pb-control-or">
+                                <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
+                                <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
+                                       placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
+                            </div>
+                        </div>
+
+                        <div class="pb-caption-row">
+                            <span class="pb-caption">@CaptionText()</span>
+                            @if (IsNpm && _npmMode == "days" && _dayStep && !_daysLoading && _days.Count > 0)
+                            {
+                                <span class="pb-caption-actions">
+                                    <button type="button" class="pb-linkbtn" @onclick="ChangeMonth" disabled="@_submitting">← Change month</button>
+                                    <button type="button" class="pb-linkbtn" @onclick="ToggleSelectAllDays" disabled="@_submitting">@(_daySelected.Count == _days.Count ? "Clear all" : "Select all")</button>
+                                </span>
+                            }
                         </div>
                     </div>
 
-                    @if (IsNpm)
-                    {
-                        <div class="pb-field">
-                            <span class="pb-label">How to settle</span>
-                            <div class="pb-seg" role="tablist">
-                                <button type="button" role="tab" aria-selected="@(_npmMode == "month")"
-                                        class="pb-seg-btn @(_npmMode == "month" ? "on" : "")" @onclick='() => SetNpmMode("month")' disabled="@_submitting">
-                                    Whole month
-                                </button>
-                                <button type="button" role="tab" aria-selected="@(_npmMode == "days")"
-                                        class="pb-seg-btn @(_npmMode == "days" ? "on" : "")" @onclick='() => SetNpmMode("days")' disabled="@_submitting">
-                                    Specific days
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="pb-field">
-                            <span class="pb-caption">@(_npmMode == "days" ? "Step 1 · Choose the month" : "Select a month to settle")</span>
-                            <div class="pb-tablewrap">
-                                <div class="pb-tablescroll">
-                                    <table class="pb-table">
-                                        <thead>
-                                            <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
-                                        </thead>
-                                        <tbody>
-                                            @{ var mn = 0; }
-                                            @foreach (var r in _unpaid)
-                                            {
-                                                mn++;
-                                                <tr class="@(_selectedPeriod == r.Period ? "on" : "")" @onclick="@(() => OnMonthPicked(r.Period))">
-                                                    <td class="c"><input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)" @onchange="@(() => OnMonthPicked(r.Period))" disabled="@_submitting" /></td>
-                                                    <td class="c pb-muted">@mn</td>
-                                                    <td>@MonthLabel(r.Period)</td>
-                                                    <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                        <tfoot>
-                                            <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        @if (_npmMode == "days")
+                    <!-- ONE scrolling table -->
+                    <div class="pb-scroll">
+                        @if (IsNpm && _npmMode == "days" && _dayStep)
                         {
-                            <div class="pb-field">
-                                <div class="pb-caption-row">
-                                    <span class="pb-caption">Step 2 · Choose day(s) — @MonthLabel(_selectedPeriod)</span>
-                                    @if (!_daysLoading && _days.Count > 0)
-                                    {
-                                        <button type="button" class="pb-selectall" @onclick="ToggleSelectAllDays" disabled="@_submitting">
-                                            @(_daySelected.Count == _days.Count ? "Clear all" : "Select all")
-                                        </button>
-                                    }
-                                </div>
-                                @if (_daysLoading)
-                                {
-                                    <div class="pb-loading">Loading days…</div>
-                                }
-                                else if (_days.Count == 0)
-                                {
-                                    <div class="pb-clear"><span>No settleable days remain in this month.</span></div>
-                                }
-                                else
-                                {
-                                    <div class="pb-tablewrap">
-                                        <div class="pb-tablescroll">
-                                            <table class="pb-table">
-                                                <thead>
-                                                    <tr><th class="c"></th><th class="c">#</th><th>Collection day</th><th class="r">Daily fee</th></tr>
-                                                </thead>
-                                                <tbody>
-                                                    @{ var dn = 0; }
-                                                    @foreach (var d in _days)
-                                                    {
-                                                        dn++;
-                                                        var sel = _daySelected.Contains(d.Date);
-                                                        <tr class="@(sel ? "on" : "")" @onclick="@(() => ToggleDay(d.Date, !sel))">
-                                                            <td class="c"><input type="checkbox" checked="@sel" @onchange="e => ToggleDay(d.Date, (bool)(e.Value ?? false))" disabled="@_submitting" /></td>
-                                                            <td class="c pb-muted">@dn</td>
-                                                            <td>@d.Date.ToString("ddd · MMM d, yyyy")</td>
-                                                            <td class="r amt">₱@d.Fee.ToString("N2")</td>
-                                                        </tr>
-                                                    }
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr><td colspan="3">@_daySelected.Count of @_days.Count day@(_days.Count == 1 ? "" : "s") selected</td><td class="r">₱@_days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee).ToString("N2")</td></tr>
-                                                </tfoot>
-                                            </table>
-                                        </div>
-                                    </div>
-                                }
-                            </div>
+                            @if (_daysLoading)
+                            {
+                                <div class="pb-loading">Loading days…</div>
+                            }
+                            else if (_days.Count == 0)
+                            {
+                                <div class="pb-clear"><span>No settleable days remain in this month.</span></div>
+                            }
+                            else
+                            {
+                                <table class="pb-table">
+                                    <thead>
+                                        <tr><th class="c"></th><th class="c">#</th><th>Collection day</th><th class="r">Daily fee</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @{ var dn = 0; }
+                                        @foreach (var d in _days)
+                                        {
+                                            dn++;
+                                            var sel = _daySelected.Contains(d.Date);
+                                            <tr class="@(sel ? "on" : "")" @onclick="@(() => ToggleDay(d.Date, !sel))">
+                                                <td class="c"><input type="checkbox" checked="@sel" @onchange="e => ToggleDay(d.Date, (bool)(e.Value ?? false))" disabled="@_submitting" /></td>
+                                                <td class="c pb-muted">@dn</td>
+                                                <td>@d.Date.ToString("dddd · MMMM d, yyyy")</td>
+                                                <td class="r amt">₱@d.Fee.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                    <tfoot>
+                                        <tr><td colspan="3">@_daySelected.Count of @_days.Count day@(_days.Count == 1 ? "" : "s") selected</td><td class="r">₱@_days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee).ToString("N2")</td></tr>
+                                    </tfoot>
+                                </table>
+                            }
                         }
-
-                        <div class="pb-field">
-                            <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
-                            <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
-                                   placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
-                            <div class="pb-hint">
-                                One receipt covers @(_npmMode == "days" ? "all the selected days" : "the whole month") in a single transaction.
-                                Leave blank to encode it later via <em>Add OR</em>.
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="pb-field">
-                            <span class="pb-label">Payment scope</span>
-                            <div class="pb-seg" role="tablist">
-                                <button type="button" role="tab" aria-selected="@(_scope == "month")"
-                                        class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">
-                                    Specific month
-                                </button>
-                                <button type="button" role="tab" aria-selected="@(_scope == "all")"
-                                        class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">
-                                    All outstanding
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="pb-field">
-                            <span class="pb-caption">@(_scope == "all" ? "Months to be settled" : "Select a month")</span>
-                            <div class="pb-tablewrap">
-                                <div class="pb-tablescroll">
-                                    <table class="pb-table">
-                                        <thead>
-                                            <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
-                                        </thead>
-                                        <tbody>
-                                            @{ var pn = 0; }
-                                            @foreach (var r in _unpaid)
-                                            {
-                                                pn++;
-                                                var included = _scope == "all" || _selectedPeriod == r.Period;
-                                                <tr class="@(included ? "on" : "")" @onclick="@(() => { if (_scope == "month") _selectedPeriod = r.Period; })">
-                                                    <td class="c">
-                                                        @if (_scope == "month")
-                                                        {
-                                                            <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)" @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
-                                                        }
-                                                        else
-                                                        {
-                                                            <svg class="pb-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                                                        }
-                                                    </td>
-                                                    <td class="c pb-muted">@pn</td>
-                                                    <td>@MonthLabel(r.Period)</td>
-                                                    <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                        <tfoot>
-                                            <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pb-field">
-                            <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
-                            <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
-                                   placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
-                            <div class="pb-hint">
-                                @(_scope == "all"
-                                    ? "Applied to each settled month. Leave blank to encode receipts individually later."
-                                    : "Optional — leave blank to encode the receipt later.")
-                            </div>
-                        </div>
-                    }
+                        else
+                        {
+                            var pickMonthForDays = IsNpm && _npmMode == "days";   // step 1: drill into a month
+                            var allMode = !IsNpm && _scope == "all";
+                            <table class="pb-table">
+                                <thead>
+                                    <tr><th class="c"></th><th class="c">#</th><th>Billing month</th><th class="r">Outstanding</th></tr>
+                                </thead>
+                                <tbody>
+                                    @{ var mn = 0; }
+                                    @foreach (var r in _unpaid)
+                                    {
+                                        mn++;
+                                        var included = allMode || _selectedPeriod == r.Period;
+                                        <tr class="@((included && !pickMonthForDays) ? "on" : "")" @onclick="@(() => MonthRowClicked(r.Period))">
+                                            <td class="c">
+                                                @if (pickMonthForDays)
+                                                {
+                                                    <svg class="pb-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                                                }
+                                                else if (allMode)
+                                                {
+                                                    <svg class="pb-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                }
+                                                else
+                                                {
+                                                    <input type="radio" name="pb-month" checked="@(_selectedPeriod == r.Period)" @onchange="@(() => _selectedPeriod = r.Period)" disabled="@_submitting" />
+                                                }
+                                            </td>
+                                            <td class="c pb-muted">@mn</td>
+                                            <td>@MonthLabel(r.Period)</td>
+                                            <td class="r amt due">₱@r.BalanceDue.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr><td colspan="3">Total outstanding · @_unpaid.Count month@(_unpaid.Count == 1 ? "" : "s")</td><td class="r">₱@_totalOutstanding.ToString("N2")</td></tr>
+                                </tfoot>
+                            </table>
+                        }
+                    </div>
 
                     @if (_error is not null)
                     {
@@ -240,6 +180,12 @@
             </div>
 
             <div class="eemo-modal-footer">
+                <div class="pb-foot-hint">
+                    @if (!_loading && _unpaid.Count > 0)
+                    {
+                        <text>One receipt covers the whole transaction. Leave OR blank to encode it later via Add OR.</text>
+                    }
+                </div>
                 <button class="btn-ghost" @onclick="HandleClose" disabled="@_submitting">Cancel</button>
                 @if (!_loading && _unpaid.Count > 0)
                 {
@@ -266,6 +212,7 @@
     private string? _error;
     private string _scope = "month";          // monthly facilities: month | all
     private string _npmMode = "month";         // NPM: month | days
+    private bool _dayStep;                      // NPM days: false = choosing month, true = choosing days
     private string _selectedPeriod = string.Empty;
     private string _or = string.Empty;
     private decimal _totalOutstanding;
@@ -281,11 +228,20 @@
     private string DisplayOccupant => string.IsNullOrWhiteSpace(Occupant) ? "Unnamed occupant" : Occupant;
     private bool IsNpm => Facility == FacilityCode.NPM;
 
+    private string CaptionText()
+    {
+        if (IsNpm && _npmMode == "days")
+            return _dayStep ? $"Step 2 · Choose day(s) — {MonthLabel(_selectedPeriod)}" : "Step 1 · Choose the month";
+        if (!IsNpm && _scope == "all")
+            return "Months to be settled";
+        return "Select a month to settle";
+    }
+
     private bool CanSubmit()
     {
         if (_submitting) return false;
         if (IsNpm)
-            return _npmMode == "days" ? _daySelected.Count > 0 : !string.IsNullOrEmpty(_selectedPeriod);
+            return _npmMode == "days" ? (_dayStep && _daySelected.Count > 0) : !string.IsNullOrEmpty(_selectedPeriod);
         return _scope == "all" || !string.IsNullOrEmpty(_selectedPeriod);
     }
 
@@ -304,6 +260,7 @@
         _error = null;
         _scope = "month";
         _npmMode = "month";
+        _dayStep = false;
         _or = string.Empty;
         _days = new();
         _daySelected = new();
@@ -325,19 +282,28 @@
         _loading = false;
     }
 
-    private async Task SetNpmMode(string mode)
+    private void SetNpmMode(string mode)
     {
         _npmMode = mode;
+        _dayStep = false;         // always start day-mode at the month step
         _error = null;
-        if (mode == "days")
-            await LoadDaysForSelectedMonth();
     }
 
-    private async Task OnMonthPicked(string period)
+    // Clicking a month row: monthly/NPM-whole-month just selects it; NPM-days drills into that month's days.
+    private async Task MonthRowClicked(string period)
     {
         _selectedPeriod = period;
         if (IsNpm && _npmMode == "days")
+        {
             await LoadDaysForSelectedMonth();
+            _dayStep = true;
+        }
+    }
+
+    private void ChangeMonth()
+    {
+        _dayStep = false;
+        _daySelected = new();
     }
 
     private async Task LoadDaysForSelectedMonth()
