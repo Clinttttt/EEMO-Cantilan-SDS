@@ -115,9 +115,7 @@
                 @foreach (var rec in group.Value)
                 {
                     <div class="record-card @CardClass(rec)" @onclick="() => OpenDetail(rec)">
-                        <div class="record-icon @IconClass(rec)">
-                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                        </div>
+                        <div class="record-icon">@Initials(rec.PayorName)</div>
                         <div class="record-info">
                             <div class="record-name">@rec.PayorName</div>
                             <div class="record-meta">
@@ -605,4 +603,14 @@
         MarketSection.MeatSection => "Meat",
         _ => s.ToString()
     };
+
+    // Initials for the record avatar (1–2 letters from the payor's name).
+    static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "•";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0].Substring(0, 1).ToUpperInvariant();
+        return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
+    }
 }
