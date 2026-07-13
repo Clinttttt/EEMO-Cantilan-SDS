@@ -763,6 +763,15 @@
         FacilityTabs = AllFacilityTabs
             .Where(t => FacilityCatalog.Rental.Any(c => c.ToString() == t.Code))
             .ToList();
+        // Data-driven labels: use the tenant's OWN facility name/acronym (FacilityState falls back to the
+        // canonical Cantilan values), so a renamed facility (e.g. "Public Market") shows here instead of the
+        // hardcoded catalog name. Icons stay from the catalog.
+        foreach (var t in FacilityTabs)
+            if (Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(t.Code, out var fc))
+            {
+                t.Name = FacilityCatalog.NameOf(fc);
+                t.ShortName = FacilityCatalog.ShortNameOf(fc);
+            }
         if (FacilityTabs.All(t => t.Code != ActiveFacility))
             ActiveFacility = FacilityTabs.FirstOrDefault()?.Code ?? ActiveFacility;
 
