@@ -127,13 +127,14 @@
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 16px;
     margin-top: 4px;
-    align-items: start; /* cards size to their own content — no tall empty boxes next to rate-heavy ones */
+    align-items: stretch; /* every card in a row shares the tallest card's height for a consistent grid */
 }
 
 .fac-card {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    height: 100%; /* fill the stretched grid cell so sibling cards match in size */
     padding: 16px;
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -525,8 +526,9 @@
     color: inherit;
 }
 .fac-card-cta {
-    margin-top: 2px;
+    margin-top: auto;
     align-self: flex-start;
+    padding-top: 4px;
     font-size: 12px;
     font-weight: 700;
     color: var(--navy);
