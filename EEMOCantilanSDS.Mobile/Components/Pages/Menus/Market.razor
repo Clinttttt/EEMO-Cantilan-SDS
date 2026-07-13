@@ -107,34 +107,32 @@
                     @foreach (var stall in sectionGroup)
                     {
                         <button class="tx-card" type="button" @onclick="() => OpenStall(stall)">
-                            <div class="tx-left-bar @GetBarClass(stall)"></div>
                             <div class="tx-body">
-                                <div class="tx-row-main">
-                                    <div class="tx-col-info">
-                                        <span class="tx-owner">@stall.PayorName</span>
-                                        <span class="tx-sub">
-                                            <span class="tx-tag">No. @stall.StallNo</span>
-                                            @if (!string.IsNullOrWhiteSpace(stall.ORNumberToday))
-                                            {
-                                                <span class="tx-or">OR @stall.ORNumberToday</span>
-                                            }
-                                            else if (!string.IsNullOrWhiteSpace(stall.ContractName) && stall.ContractName != stall.PayorName)
-                                            {
-                                                <span class="tx-or">@stall.ContractName</span>
-                                            }
-                                        </span>
-                                    </div>
-                                    <div class="tx-col-right">
-                                        @if (IsQueuedOffline(stall))
+                                <div class="tx-avatar">@Initials(stall.PayorName)</div>
+                                <div class="tx-col-info">
+                                    <span class="tx-owner">@stall.PayorName</span>
+                                    <span class="tx-sub">
+                                        <span class="tx-tag">No. @stall.StallNo</span>
+                                        @if (!string.IsNullOrWhiteSpace(stall.ORNumberToday))
                                         {
-                                            <span class="tx-badge queued">Queued · Offline</span>
+                                            <span class="tx-or">OR @stall.ORNumberToday</span>
                                         }
-                                        else
+                                        else if (!string.IsNullOrWhiteSpace(stall.ContractName) && stall.ContractName != stall.PayorName)
                                         {
-                                            <span class="tx-badge @GetBadgeClass(stall)">@GetStatusLabel(stall)</span>
+                                            <span class="tx-or">@stall.ContractName</span>
                                         }
-                                        <span class="tx-amount">@FormatCurrency(stall.DailyRate)</span>
-                                    </div>
+                                    </span>
+                                </div>
+                                <div class="tx-col-right">
+                                    @if (IsQueuedOffline(stall))
+                                    {
+                                        <span class="tx-badge queued"><span class="tx-dot"></span>Queued</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tx-badge @GetBadgeClass(stall)"><span class="tx-dot"></span>@GetStatusLabel(stall)</span>
+                                    }
+                                    <span class="tx-amount">@FormatCurrency(stall.DailyRate)</span>
                                 </div>
                             </div>
                         </button>
@@ -847,4 +845,14 @@
         stall.IsAbsentToday ? "Absent" :
         stall.IsMarkedToday ? "Not collected" :
         "Pending";
+
+    // Initials for the card avatar (1–2 letters from the payor's name).
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "•";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0].Substring(0, 1).ToUpperInvariant();
+        return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
+    }
 }
