@@ -198,19 +198,22 @@ public partial class FacilityReportsRepository
             ));
         }
 
-        // Stalls with no area tier assigned still bill rent and sit in the facility totals. Surface them
-        // as their own "No Location" card so the area breakdown reconciles with the headline totals
-        // instead of silently dropping their revenue (which made Corner+Extension look short of total).
+        // NCC stalls with no standard tier (AreaLocation == null) still bill rent and belong in the totals.
+        // Municipalities that use their OWN area names keep them in AreaNote — surface each distinct custom
+        // name as its own card; stalls with no name at all fall into a single "No Location" card. Cantilan's
+        // stalls carry the enum tier, so its report is unchanged.
         var unassigned = await _context.Stalls
             .AsNoTracking()
             .Where(s => s.FacilityId == facilityId && s.AreaLocation == null)
             .Include(s => s.Contracts.Where(c => c.IsActive))
             .ToListAsync(ct);
 
-        if (unassigned.Count > 0)
+        // Local card builder — identical revenue/expected/counts logic as the tiers above.
+        async Task AddCardAsync(string label, List<Domain.Entities.Facilities.Stall> groupStalls)
         {
-            var stallIds = unassigned.Select(s => s.Id).ToList();
+            if (groupStalls.Count == 0) return;
 
+            var stallIds = groupStalls.Select(s => s.Id).ToList();
             var allPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
                 .Where(pr => stallIds.Contains(pr.StallId))
@@ -220,23 +223,27 @@ public partial class FacilityReportsRepository
                 .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
                 .Sum(pr => RecognizedRevenue(pr, includeFish: false));
 
-            var occupiedStalls = unassigned.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
+            var occupiedStalls = groupStalls.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
             var expectedRevenue = occupiedStalls.Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
             var percentage = expectedRevenue > 0 ? Math.Min(100m, (actualRevenue / expectedRevenue) * 100m) : 0m;
-            var activeStalls = unassigned.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
-            var closedStalls = unassigned.Count(s => s.Status == StallStatus.Closed);
-            var noContractStalls = unassigned.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
+            var activeStalls = groupStalls.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive));
+            var closedStalls = groupStalls.Count(s => s.Status == StallStatus.Closed);
+            var noContractStalls = groupStalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
 
             breakdown.Add(new SectionBreakdownDto(
-                "No Location",
-                actualRevenue,
-                percentage,
-                unassigned.Count,
-                activeStalls,
-                closedStalls,
-                noContractStalls
-            ));
+                label, actualRevenue, percentage, groupStalls.Count, activeStalls, closedStalls, noContractStalls));
         }
+
+        // Distinct custom area names first (alphabetical, stable), then the catch-all "No Location".
+        foreach (var group in unassigned
+            .Where(s => !string.IsNullOrWhiteSpace(s.AreaNote))
+            .GroupBy(s => s.AreaNote!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            await AddCardAsync(group.Key, group.ToList());
+        }
+
+        await AddCardAsync("No Location", unassigned.Where(s => string.IsNullOrWhiteSpace(s.AreaNote)).ToList());
 
         return breakdown;
     }

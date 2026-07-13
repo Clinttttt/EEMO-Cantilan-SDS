@@ -92,6 +92,30 @@ public class FacilityReportsNccSectionBreakdownTests : RepositoryTestBase
         Assert.Equal(report.TotalRevenue, report.SectionBreakdown.Sum(s => s.Revenue));
     }
 
+    // A municipality that uses its own area names (kept in AreaNote, no standard enum tier) must get a
+    // card per custom name — not be lumped into "No Location".
+    [Fact]
+    public async Task NccSectionBreakdown_CustomAreaName_GetsItsOwnCard()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NCC, "New Commercial Center", "NCC");
+        var zoneA = Stall.Create(facility.Id, "5", 1500m, ApplicableFees.BaseRental, areaNote: "Zone A");
+        var contract = Contract.Create(zoneA.Id, "Zone A Payor", "Zone A Payor", new DateOnly(2026, 1, 1), 3, 1500m);
+        var pay = PaymentRecord.Create(zoneA.Id, 2026, 1, 1500m); pay.UpdateStatus(PaymentStatus.Paid);
+
+        context.AddRange(facility, zoneA, contract, pay);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NCC, ReportPeriod.Monthly, 2026, 1, null, CancellationToken.None);
+
+        var card = report.SectionBreakdown.Single(s => s.SectionName == "Zone A");
+        Assert.Equal(1500m, card.Revenue);
+        Assert.Equal(1, card.TotalStalls);
+        Assert.DoesNotContain(report.SectionBreakdown, s => s.SectionName == "No Location");
+    }
+
     // Regression (#7): stall numbers must sort naturally ("2" before "10"), not lexicographically.
     [Fact]
     public async Task StallCompliance_OrdersStallNumbersNaturally()
