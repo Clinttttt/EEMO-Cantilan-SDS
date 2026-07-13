@@ -107,8 +107,8 @@
                     @foreach (var stall in sectionGroup)
                     {
                         <button class="tx-card" type="button" @onclick="() => OpenStall(stall)">
+                            <div class="tx-left-bar @GetBarClass(stall)"></div>
                             <div class="tx-body">
-                                <div class="tx-avatar">@Initials(stall.PayorName)</div>
                                 <div class="tx-col-info">
                                     <span class="tx-owner">@stall.PayorName</span>
                                     <span class="tx-sub">
@@ -845,14 +845,4 @@
         stall.IsAbsentToday ? "Absent" :
         stall.IsMarkedToday ? "Not collected" :
         "Pending";
-
-    // Initials for the card avatar (1–2 letters from the payor's name).
-    private static string Initials(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "•";
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-            return parts[0].Substring(0, 1).ToUpperInvariant();
-        return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
-    }
 }

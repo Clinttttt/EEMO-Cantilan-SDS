@@ -110,7 +110,7 @@
                 @foreach (var stall in FilteredStalls)
                 {
                     <button class="tx-card" type="button" @onclick="() => OnCardTap(stall)">
-                        <div class="tx-avatar">@Initials(stall.PayorName)</div>
+                        <div class="tx-left-bar @MonthBarClass(stall)"></div>
                         <div class="tx-body">
                             <div class="tx-top">
                                 <span class="tx-owner">@stall.PayorName</span>
@@ -1111,13 +1111,9 @@
         stall.Status == PaymentStatus.Partial ? "badge-partial" :
         "badge-unpaid";
 
-    // Initials for the card avatar (1–2 letters from the payor's name).
-    private static string Initials(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return "•";
-        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-            return parts[0].Substring(0, 1).ToUpperInvariant();
-        return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
-    }
+    // Status-coloured left accent for the card (paid = green, partial = gold, else neutral).
+    private static string MonthBarClass(MobileMonthlyStallCollectionDto stall) =>
+        stall.Status == PaymentStatus.Paid ? "bar-paid" :
+        stall.Status == PaymentStatus.Partial ? "bar-partial" :
+        string.Empty;
 }
