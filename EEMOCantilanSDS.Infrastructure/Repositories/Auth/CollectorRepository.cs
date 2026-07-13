@@ -1223,7 +1223,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
             transactions,
             collector.FacilityAssignments.Count,
             collector.LastActiveAt,
-            recentTransactions);
+            recentTransactions,
+            collector.Username ?? string.Empty);
     }
 
     public async Task AddAsync(CollectorUser collector, CancellationToken cancellationToken = default)

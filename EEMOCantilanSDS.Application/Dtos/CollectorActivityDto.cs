@@ -13,7 +13,8 @@ public record CollectorActivityDto(
     int Transactions,
     int FacilitiesCount,
     DateTime? LastActiveAt,
-    List<RecentTransactionDto> RecentTransactions);
+    List<RecentTransactionDto> RecentTransactions,
+    string Username = "");
 
 public record RecentTransactionDto(
     string ORNumber,

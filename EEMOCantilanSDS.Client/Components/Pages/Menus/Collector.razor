@@ -320,9 +320,9 @@
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Username <span class="req">*</span></label>
+                        <label class="form-label">Username <span class="req">@(IsEditing ? "" : "*")</span></label>
                         <input class="form-input" type="text" placeholder="Login username"
-                               @bind="Form.Username" @bind:event="oninput" />
+                               @bind="Form.Username" @bind:event="oninput" readonly="@IsEditing" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">
@@ -606,6 +606,7 @@
         if (details.IsSuccess && details.Value is not null)
         {
             Form.ContactNumber = details.Value.ContactNumber ?? string.Empty;
+            Form.Username = details.Value.Username ?? string.Empty;
             StateHasChanged();
         }
     }
