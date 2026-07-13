@@ -18,15 +18,26 @@ public class GetCollectorMobileMenuQueryHandlerTests
     }
 
     [Fact]
-    public async Task CollectorWithAssignments_ReturnsAllFacilities_AssignedFlaggedAndOnlyNpmAvailable()
+    public async Task ReturnsOnlyTheMunicipalitysFacilities_WithRealNames_AssignmentAndAvailabilityFlagged()
     {
         var collector = NewCollector();
         var repo = new Mock<ICollectorRepository>();
         var facilityRepo = new Mock<IFacilityRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         repo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
+
+        // The municipality's ACTUAL facilities (tenant-scoped) — includes a custom facility with a real
+        // name and intentionally omits the other Custom slots and facilities the LGU doesn't operate.
+        var names = new Dictionary<FacilityCode, string>
+        {
+            [FacilityCode.NPM] = "Public Market",
+            [FacilityCode.TCC] = "Tampak Commercial Center",
+            [FacilityCode.NCC] = "New Commercial Center",
+            [FacilityCode.SLH] = "Slaughterhouse",
+            [FacilityCode.Custom1] = "Fishery Economics",
+        };
         facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>());
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)names);
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, currentUser.Object);
 
@@ -35,16 +46,22 @@ public class GetCollectorMobileMenuQueryHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal("Juan Collector", result.Value!.CollectorName);
 
-        // Every facility is returned so the menu can show locked (unassigned) ones.
-        var allCodes = Enum.GetValues<FacilityCode>();
-        Assert.Equal(allCodes.Length, result.Value.Facilities.Count);
+        // Only the municipality's own facilities are returned — no full-enum noise (Custom2–5, unconfigured).
+        Assert.Equal(names.Count, result.Value.Facilities.Count);
+        Assert.DoesNotContain(result.Value.Facilities, f => f.Code == FacilityCode.Custom2);
+        Assert.DoesNotContain(result.Value.Facilities, f => f.Code == FacilityCode.TPM);
+
+        // A custom facility shows its REAL name, never "Custom1".
+        var custom = result.Value.Facilities.Single(f => f.Code == FacilityCode.Custom1);
+        Assert.Equal("Fishery Economics", custom.Name);
 
         // Assignment drives the lock: NPM + TCC assigned, the rest locked.
         Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.NPM).IsAssigned);
         Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.TCC).IsAssigned);
         Assert.False(result.Value.Facilities.Single(f => f.Code == FacilityCode.SLH).IsAssigned);
+        Assert.False(custom.IsAssigned);
 
-        // Availability additionally requires a built mobile screen — NPM + the monthly-rental group.
+        // Availability additionally requires a built mobile screen — assigned NPM + TCC are available.
         Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.NPM).IsAvailable);
         Assert.True(result.Value.Facilities.Single(f => f.Code == FacilityCode.TCC).IsAvailable);
         Assert.False(result.Value.Facilities.Single(f => f.Code == FacilityCode.SLH).IsAvailable);

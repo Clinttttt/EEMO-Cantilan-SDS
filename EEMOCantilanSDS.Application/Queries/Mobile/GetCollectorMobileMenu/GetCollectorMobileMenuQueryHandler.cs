@@ -27,20 +27,21 @@ public class GetCollectorMobileMenuQueryHandler(
             .ToHashSet();
 
         // Facility display names come from the seeded Facility records (single source of truth),
-        // falling back to the code if a facility row is missing.
+        // scoped by the global query filter to the collector's OWN municipality.
         var names = await facilityRepository.GetFacilityNamesAsync(cancellationToken);
 
-        // Show every facility so the collector sees what they can and cannot access.
-        // IsAssigned drives the lock; IsAvailable additionally requires a built mobile
-        // collection screen (flip a code on here as each facility's page ships).
-        var facilities = Enum.GetValues<FacilityCode>()
-            .OrderBy(code => code)
-            .Select(code => new MobileFacilityMenuItemDto(
-                code,
-                names.TryGetValue(code, out var name) ? name : code.ToString(),
-                GetFacilityDescription(code),
-                assigned.Contains(code),
-                assigned.Contains(code) && ImplementedMobileFacilities.Contains(code)))
+        // Only the facilities THIS municipality actually operates — never the full FacilityCode enum.
+        // This drops unconfigured slots (e.g. Custom1–5) and other LGUs' facilities, and always uses the
+        // tenant's own facility name (so a custom facility shows its real name, not "Custom1").
+        // IsAssigned drives the lock; IsAvailable additionally requires a built mobile collection screen.
+        var facilities = names
+            .OrderBy(kv => kv.Key)
+            .Select(kv => new MobileFacilityMenuItemDto(
+                kv.Key,
+                kv.Value,
+                GetFacilityDescription(kv.Key),
+                assigned.Contains(kv.Key),
+                assigned.Contains(kv.Key) && ImplementedMobileFacilities.Contains(kv.Key)))
             .ToList();
 
         return Result<MobileMenuDto>.Success(new MobileMenuDto(
