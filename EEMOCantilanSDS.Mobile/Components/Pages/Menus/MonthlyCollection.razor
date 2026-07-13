@@ -172,25 +172,18 @@
                                     }
                                 </div>
 
-                                <div class="tx-actions">
-                                    <span class="tx-key @(Sync.IsOnline ? "" : "tx-key-locked")" role="button" tabindex="0"
-                                          title="@(Sync.IsOnline ? "Payor activation code" : "Available online only")"
-                                          @onclick="() => OpenActivation(stall)" @onclick:stopPropagation="true">
-                                        <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
-                                    </span>
-                                    <span class="tx-action @(IsCollectAction(stall) ? "tx-action-collect" : "tx-action-view")" role="button" tabindex="0"
-                                          @onclick="() => OnCardTap(stall)" @onclick:stopPropagation="true">
-                                        @if (IsCollectAction(stall))
-                                        {
-                                            <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4z" /></svg>
-                                        }
-                                        else
-                                        {
-                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                        }
-                                        <span>@ActionLabel(stall)</span>
-                                    </span>
-                                </div>
+                                <span class="tx-action @(IsCollectAction(stall) ? "tx-action-collect" : "tx-action-view")" role="button" tabindex="0"
+                                      @onclick="() => OnCardTap(stall)" @onclick:stopPropagation="true">
+                                    @if (IsCollectAction(stall))
+                                    {
+                                        <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4z" /></svg>
+                                    }
+                                    else
+                                    {
+                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                    }
+                                    <span>@ActionLabel(stall)</span>
+                                </span>
                             </div>
                         </div>
                     </button>
@@ -292,6 +285,14 @@
                 <div class="form-error">@SheetError</div>
             }
 
+            @if (Sync.IsOnline)
+            {
+                <button class="sheet-activation-link" type="button" @onclick="OpenActivationFromSheet">
+                    <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
+                    Issue payor activation code
+                </button>
+            }
+
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
@@ -350,6 +351,13 @@
             {
                 <button class="btn-receipt-collect" type="button" @onclick="OpenCollectBalance">
                     Collect Balance · @FormatCurrency(SelectedStall.Balance)
+                </button>
+            }
+            @if (Sync.IsOnline)
+            {
+                <button class="sheet-activation-link" type="button" @onclick="OpenActivationFromSheet">
+                    <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
+                    Issue payor activation code
                 </button>
             }
             <div class="receipt-close-row">
@@ -640,6 +648,15 @@
         ActivationResult = null;
         CopyLabel = "Copy";
         ShowActivation = true;
+    }
+
+    // Activation lives in the stall's detail sheets now (not on the card): close the open sheet, then open it.
+    private void OpenActivationFromSheet()
+    {
+        var stall = SelectedStall;
+        ShowSheet = false;
+        ShowReceipt = false;
+        if (stall is not null) OpenActivation(stall);
     }
 
     private void CloseActivation()

@@ -240,14 +240,14 @@
 .tx-statuschips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 
 .tx-badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    font-size: 9.5px; font-weight: 800; letter-spacing: .3px;
-    text-transform: uppercase; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0;
+    padding: 4px 11px 4px 9px; border-radius: 999px; white-space: nowrap;
 }
 
 .tx-badge svg {
-    width: 11px; height: 11px; fill: none; stroke: currentColor;
-    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+    width: 13px; height: 13px; fill: none; stroke: currentColor;
+    stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
 }
 
 .tx-badge.badge-paid { color: var(--paid-green); background: var(--paid-green-bg); }
@@ -256,9 +256,9 @@
 .tx-badge.badge-queued { color: var(--gold-light); background: var(--navy-primary); }
 
 .tx-pending {
-    font-size: 9.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
+    font-size: 11.5px; font-weight: 700;
     color: #8a6d1b; background: rgba(200, 168, 75, 0.16);
-    padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+    padding: 4px 11px; border-radius: 999px; white-space: nowrap;
 }
 
 /* Action buttons (View Receipt / Collect) */
@@ -489,27 +489,57 @@
 .tx-online {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    font-size: 9.5px;
-    font-weight: 800;
-    letter-spacing: .3px;
-    text-transform: uppercase;
-    color: #2d7a5f;
-    background: rgba(45, 122, 95, 0.12);
-    border: 1px solid rgba(45, 122, 95, 0.28);
+    gap: 5px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-subtle);
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 3px 8px;
+    padding: 4px 11px 4px 9px;
     white-space: nowrap;
 }
 
 .tx-online svg {
-    width: 11px;
-    height: 11px;
+    width: 13px;
+    height: 13px;
     fill: none;
-    stroke: #2d7a5f;
+    stroke: var(--text-subtle);
     stroke-width: 2.2;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+/* Activation-code access inside the detail/record sheet */
+.sheet-activation-link {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    margin-bottom: 10px;
+    border: 1px solid rgba(200, 168, 75, 0.4);
+    border-radius: 12px;
+    background: rgba(200, 168, 75, 0.10);
+    color: #8a6d1b;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.sheet-activation-link svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: #b8912f;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sheet-activation-link:active {
+    background: rgba(200, 168, 75, 0.2);
 }
 
 .tx-right-top {
