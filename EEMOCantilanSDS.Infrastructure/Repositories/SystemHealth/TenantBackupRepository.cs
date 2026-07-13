@@ -74,6 +74,36 @@ public class TenantBackupRepository(
         catch { return null; }
     }
 
+    public async Task<TenantBackupContentsDto?> GetContentsAsync(Guid id, CancellationToken ct)
+    {
+        var backup = await context.TenantBackups.AsNoTracking().FirstOrDefaultAsync(b => b.Id == id, ct);
+        if (backup is null) return null;
+
+        TenantRestoreSnapshot? snapshot;
+        try { snapshot = JsonSerializer.Deserialize<TenantRestoreSnapshot>(backup.SnapshotJson); }
+        catch { snapshot = null; }
+
+        var tables = new List<TenantBackupTableDto>();
+        if (snapshot is not null)
+        {
+            foreach (var kv in snapshot.Tables)
+            {
+                var count = CountArray(kv.Value);
+                tables.Add(new TenantBackupTableDto(kv.Key, TenantBackupTableNames.Display(kv.Key), count));
+            }
+        }
+
+        // Most meaningful first (rows desc), then alphabetical by friendly label.
+        tables = tables
+            .OrderByDescending(t => t.RowCount)
+            .ThenBy(t => t.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new TenantBackupContentsDto(
+            backup.Id, backup.CreatedAtUtc, backup.CreatedBy, backup.RowCount, backup.TableCount,
+            backup.SizeBytes, backup.Note, tables);
+    }
+
     public async Task<IReadOnlyList<TenantRestoreEventDto>> ListRestoreEventsAsync(int take, CancellationToken ct)
     {
         return await context.AuditLogs
@@ -107,19 +137,22 @@ public class TenantBackupRepository(
         var tables = 0;
         foreach (var kv in snapshot.Tables)
         {
-            if (string.IsNullOrWhiteSpace(kv.Value)) continue;
-            try
-            {
-                using var doc = JsonDocument.Parse(kv.Value);
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                    var len = doc.RootElement.GetArrayLength();
-                    rows += len;
-                    if (len > 0) tables++;
-                }
-            }
-            catch { /* ignore a malformed table blob in the count */ }
+            var len = CountArray(kv.Value);
+            rows += len;
+            if (len > 0) tables++;
         }
         return (rows, tables);
+    }
+
+    // The element count of a JSON-array-text blob (0 for empty/malformed).
+    private static int CountArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Array ? doc.RootElement.GetArrayLength() : 0;
+        }
+        catch { return 0; }
     }
 }

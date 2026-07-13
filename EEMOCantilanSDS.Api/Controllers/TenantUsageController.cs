@@ -111,6 +111,15 @@ public class TenantUsageController(ISender sender) : ApiBaseController(sender)
         return StatusCode(status, new { IsSuccess = false, Error = result.Error });
     }
 
+    /// <summary>The contents manifest (per-table record counts) of one of the caller's OWN stored backups.</summary>
+    [HttpGet("backups/{id:guid}/contents")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.TenantBackupContentsDto>> BackupContentsAsync(Guid id)
+    {
+        var result = await Sender.Send(new Application.Queries.Backup.GetTenantBackupContents.GetTenantBackupContentsQuery(id));
+        return HandleResponse(result);
+    }
+
     /// <summary>
     /// Restore the caller's OWN municipality from a STORED backup. Confirmation phrase + password are
     /// re-verified server-side; the restore is a single scoped transaction (any failure = zero changes).

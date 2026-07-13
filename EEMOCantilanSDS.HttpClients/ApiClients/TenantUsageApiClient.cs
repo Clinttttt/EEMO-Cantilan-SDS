@@ -71,6 +71,9 @@ public class TenantUsageApiClient(HttpClient http) : HandleResponse(http), ITena
         return Result<BackupArtifact>.Success(new BackupArtifact(fileName, bytes, contentType));
     }
 
+    public async Task<Result<TenantBackupContentsDto>> GetBackupContentsAsync(Guid id) =>
+        await GetAsync<TenantBackupContentsDto>($"api/tenant-usage/backups/{id}/contents");
+
     public async Task<Result<TenantRestoreResult>> RestoreFromBackupAsync(Guid id, string confirmationPhrase, string password) =>
         await PostAsync<EEMOCantilanSDS.Application.Requests.Backup.BackupRestoreRequest, TenantRestoreResult>(
             $"api/tenant-usage/backups/{id}/restore",

@@ -22,6 +22,9 @@ public interface ITenantBackupRepository
     /// <summary>The deserialized snapshot for one stored backup (scoped to the caller), for restore.</summary>
     Task<TenantRestoreSnapshot?> GetSnapshotAsync(Guid id, CancellationToken ct);
 
+    /// <summary>The inspectable contents (per-table record counts) of one stored backup, scoped to the caller.</summary>
+    Task<TenantBackupContentsDto?> GetContentsAsync(Guid id, CancellationToken ct);
+
     /// <summary>Recent restore events for the caller's municipality, newest first (from the audit log).</summary>
     Task<IReadOnlyList<TenantRestoreEventDto>> ListRestoreEventsAsync(int take, CancellationToken ct);
 }

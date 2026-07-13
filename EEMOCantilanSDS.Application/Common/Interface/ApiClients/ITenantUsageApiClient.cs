@@ -33,6 +33,9 @@ public interface ITenantUsageApiClient
     /// <summary>Downloads one of the caller's own stored backups as its restore-ready file.</summary>
     Task<Result<BackupArtifact>> DownloadBackupAsync(Guid id);
 
+    /// <summary>The contents manifest (per-table record counts) of one of the caller's own stored backups.</summary>
+    Task<Result<TenantBackupContentsDto>> GetBackupContentsAsync(Guid id);
+
     /// <summary>Restores the caller's own municipality from a stored backup (guarded server-side).</summary>
     Task<Result<TenantRestoreResult>> RestoreFromBackupAsync(Guid id, string confirmationPhrase, string password);
 

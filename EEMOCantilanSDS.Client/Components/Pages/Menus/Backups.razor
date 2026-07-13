@@ -211,9 +211,21 @@
                             <td>@b.CreatedBy</td>
                             <td>@b.RowCount.ToString("N0") record@(b.RowCount == 1 ? "" : "s") · @b.TableCount table@(b.TableCount == 1 ? "" : "s")</td>
                             <td class="set-td-r">@FormatSize(b.SizeBytes)</td>
-                            <td class="set-td-r bk-row-actions">
-                                <button class="set-link" @onclick="() => DownloadBackupAsync(b.Id)" disabled="@_meBusy">Download</button>
-                                <button class="set-link bk-restore-link" @onclick="() => OpenBackupRestore(b)">Restore…</button>
+                            <td class="set-td-r">
+                                <div class="bk-actions-row">
+                                    <button class="bk-action" @onclick="() => OpenBackupContents(b)" title="View what this backup contains">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                                        <span>View</span>
+                                    </button>
+                                    <button class="bk-action" @onclick="() => DownloadBackupAsync(b.Id)" disabled="@_meBusy" title="Download the backup file">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                                        <span>Download</span>
+                                    </button>
+                                    <button class="bk-action bk-action-danger" @onclick="() => OpenBackupRestore(b)" title="Restore your municipality from this backup">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg>
+                                        <span>Restore</span>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -489,6 +501,64 @@
             </button>
         </div>
     </section>
+    }
+
+    <!-- ── Backup contents (manifest) ── -->
+    @if (_contentsFor is not null)
+    {
+        <div class="bk-modal-overlay" @onclick="CloseBackupContents">
+            <div class="bk-modal bk-modal-wide" role="dialog" aria-modal="true" aria-label="Backup contents" @onclick:stopPropagation="true">
+                <div class="bk-modal-head">
+                    <div class="bk-modal-titles">
+                        <div class="bk-modal-title">Backup contents</div>
+                        <div class="bk-modal-sub">
+                            @PhilippineTime.ToPhilippineTime(_contentsFor.CreatedAtUtc).ToString("MMM d, yyyy · h:mm tt") · by @_contentsFor.CreatedBy
+                        </div>
+                    </div>
+                    <button class="bk-modal-close" @onclick="CloseBackupContents" aria-label="Close">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="bk-modal-body">
+                    <div class="bk-contents-summary">
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.RowCount.ToString("N0")</span><span class="bk-contents-lbl">Records</span></div>
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.TableCount</span><span class="bk-contents-lbl">Tables with data</span></div>
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@FormatSize(_contentsFor.SizeBytes)</span><span class="bk-contents-lbl">File size</span></div>
+                    </div>
+
+                    @if (_contentsLoading)
+                    {
+                        <div class="hist-loading"><span class="set-spinner"></span></div>
+                    }
+                    else if (_contentsError is not null)
+                    {
+                        <div class="bk-alert bk-alert-err" role="alert">@_contentsError</div>
+                    }
+                    else if (_contents is not null)
+                    {
+                        <div class="bk-contents-note">Every table saved in this backup and how many records it holds. A restore replaces your municipality's data with exactly these records.</div>
+                        <table class="set-table bk-table bk-contents-table">
+                            <thead>
+                                <tr><th>Table</th><th class="set-th-r">Records</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in _contents.Tables)
+                                {
+                                    <tr class="@(t.RowCount == 0 ? "bk-contents-empty" : "")">
+                                        <td>@t.DisplayName</td>
+                                        <td class="set-td-r">@t.RowCount.ToString("N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+                <div class="bk-modal-foot">
+                    <button class="bk-btn bk-btn-ghost" @onclick="() => DownloadBackupAsync(_contentsFor.Id)" disabled="@_meBusy">Download file</button>
+                    <button class="bk-btn bk-btn-primary bk-modal-closebtn" @onclick="CloseBackupContents">Close</button>
+                </div>
+            </div>
+        </div>
     }
 
     <!-- ── Restore-from-stored-backup confirmation ── -->
@@ -787,6 +857,12 @@
     private bool _backupRestoring;
     private string? _backupRestoreError;
 
+    // Backup contents (manifest) modal
+    private TenantBackupInfo? _contentsFor;      // the backup being inspected (drives the modal)
+    private TenantBackupContentsDto? _contents;
+    private bool _contentsLoading;
+    private string? _contentsError;
+
     private bool CanRestoreBackup => !_backupRestoring && _restoreBackup is not null
         && string.Equals(_backupPhrase.Trim(), "RESTORE", StringComparison.Ordinal)
         && !string.IsNullOrWhiteSpace(_backupPassword);
@@ -1002,6 +1078,31 @@
                 await ShowToastAsync(false, r.Error ?? "That backup could not be downloaded.");
         }
         finally { _meBusy = false; }
+    }
+
+    private async Task OpenBackupContents(TenantBackupInfo backup)
+    {
+        _contentsFor = backup;
+        _contents = null;
+        _contentsError = null;
+        _contentsLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await TenantUsageApi.GetBackupContentsAsync(backup.Id);
+        if (result.IsSuccess && result.Value is not null)
+            _contents = result.Value;
+        else
+            _contentsError = string.IsNullOrWhiteSpace(result.Error) ? "The backup contents could not be loaded." : result.Error;
+
+        _contentsLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseBackupContents()
+    {
+        _contentsFor = null;
+        _contents = null;
+        _contentsError = null;
     }
 
     private void OpenBackupRestore(TenantBackupInfo backup)

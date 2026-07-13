@@ -109,6 +109,34 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         }
 
         [Fact]
+        public async Task GetContents_ReturnsPerTableCounts_FriendlyNames_MostFirst()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            var snap = new TenantRestoreSnapshot("restore-v1", "cantilan-sds", Guid.Empty, DateTime.UtcNow,
+                new Dictionary<string, string>
+                {
+                    ["Stalls"] = "[{\"i\":0},{\"i\":1},{\"i\":2}]",       // 3
+                    ["PaymentRecords"] = "[{\"i\":0},{\"i\":1}]",         // 2
+                    ["UtilityBills"] = "[]",                             // 0
+                });
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(snap), User());
+            var info = await repo.CreateAsync(note: null, CancellationToken.None);
+
+            var contents = await repo.GetContentsAsync(info.Id, CancellationToken.None);
+
+            Assert.NotNull(contents);
+            Assert.Equal(3, contents!.Tables.Count);
+            // Ordered by record count desc → Stalls (3) first, then Payment records (2), then Utility bills (0).
+            Assert.Equal("Stalls", contents.Tables[0].DisplayName);
+            Assert.Equal(3, contents.Tables[0].RowCount);
+            Assert.Equal("Payment records", contents.Tables[1].DisplayName);
+            Assert.Equal(2, contents.Tables[1].RowCount);
+            Assert.Equal("Utility bills", contents.Tables[2].DisplayName);
+            Assert.Equal(0, contents.Tables[2].RowCount);
+        }
+
+        [Fact]
         public async Task List_IsScopedToTheCallersMunicipality()
         {
             var options = Options();
