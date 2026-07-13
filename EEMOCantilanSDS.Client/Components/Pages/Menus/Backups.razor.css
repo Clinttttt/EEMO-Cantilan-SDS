@@ -515,3 +515,19 @@
 .bk-filepick-btn { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--navy); border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; background: var(--bg-card); }
 .bk-filepick:hover .bk-filepick-btn { border-color: var(--navy); }
 
+
+/* Recent-backups row actions (Download / Restore) */
+.bk-row-actions {
+    display: inline-flex;
+    gap: 14px;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.bk-restore-link {
+    color: var(--red);
+}
+
+.bk-restore-link:hover {
+    color: #6f2b2b;
+}

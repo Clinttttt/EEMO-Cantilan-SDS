@@ -21,4 +21,21 @@ public interface ITenantUsageApiClient
 
     /// <summary>Restores the caller's own municipality from an uploaded snapshot (guarded server-side).</summary>
     Task<Result<TenantRestoreResult>> RestoreAsync(EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest request);
+
+    // ── Stored backup history (per-municipality) ──
+
+    /// <summary>Create + store a new backup of the caller's own municipality.</summary>
+    Task<Result<TenantBackupInfo>> CreateBackupAsync(string? note = null);
+
+    /// <summary>The caller's own stored backups (metadata only), newest first.</summary>
+    Task<Result<IReadOnlyList<TenantBackupInfo>>> ListBackupsAsync();
+
+    /// <summary>Downloads one of the caller's own stored backups as its restore-ready file.</summary>
+    Task<Result<BackupArtifact>> DownloadBackupAsync(Guid id);
+
+    /// <summary>Restores the caller's own municipality from a stored backup (guarded server-side).</summary>
+    Task<Result<TenantRestoreResult>> RestoreFromBackupAsync(Guid id, string confirmationPhrase, string password);
+
+    /// <summary>Recent restore events for the caller's own municipality.</summary>
+    Task<Result<IReadOnlyList<TenantRestoreEventDto>>> GetRestoreHistoryAsync();
 }

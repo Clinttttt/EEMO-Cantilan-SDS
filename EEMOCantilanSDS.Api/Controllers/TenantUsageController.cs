@@ -76,4 +76,61 @@ public class TenantUsageController(ISender sender) : ApiBaseController(sender)
             bytes, request.ConfirmationPhrase, request.Password));
         return HandleResponse(result);
     }
+
+    // ── Stored backup history (per-municipality; the scoped equivalent of the whole-DB console) ──
+
+    /// <summary>Create + store a new backup of the caller's OWN municipality (retention keeps the last N).</summary>
+    [HttpPost("backups")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.TenantBackupInfo>> CreateBackupAsync(
+        [FromBody] Application.Command.Backup.CreateTenantBackup.CreateTenantBackupCommand? command)
+    {
+        var result = await Sender.Send(command ?? new Application.Command.Backup.CreateTenantBackup.CreateTenantBackupCommand());
+        return HandleResponse(result);
+    }
+
+    /// <summary>The caller's OWN stored backups (metadata only), newest first.</summary>
+    [HttpGet("backups")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.TenantBackupInfo>>> ListBackupsAsync()
+    {
+        var result = await Sender.Send(new Application.Queries.Backup.GetTenantBackups.GetTenantBackupsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>Download one of the caller's OWN stored backups as its restore-ready JSON file.</summary>
+    [HttpGet("backups/{id:guid}/file")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<IActionResult> DownloadBackupAsync(Guid id)
+    {
+        var result = await Sender.Send(new Application.Queries.Backup.GetTenantBackupFile.GetTenantBackupFileQuery(id));
+        if (result.IsSuccess && result.Value is not null)
+            return File(result.Value.Content, result.Value.ContentType, result.Value.FileName);
+
+        var status = result.StatusCode is 200 or 0 or null ? 404 : result.StatusCode.Value;
+        return StatusCode(status, new { IsSuccess = false, Error = result.Error });
+    }
+
+    /// <summary>
+    /// Restore the caller's OWN municipality from a STORED backup. Confirmation phrase + password are
+    /// re-verified server-side; the restore is a single scoped transaction (any failure = zero changes).
+    /// </summary>
+    [HttpPost("backups/{id:guid}/restore")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.TenantRestoreResult>> RestoreFromBackupAsync(
+        Guid id, [FromBody] Application.Requests.Backup.BackupRestoreRequest request)
+    {
+        var result = await Sender.Send(new Application.Command.Backup.RestoreTenantFromBackup.RestoreTenantFromBackupCommand(
+            id, request.ConfirmationPhrase, request.Password));
+        return HandleResponse(result);
+    }
+
+    /// <summary>Recent restore events for the caller's OWN municipality (from the audit log).</summary>
+    [HttpGet("restore-history")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<IReadOnlyList<Application.Dtos.Backup.TenantRestoreEventDto>>> RestoreHistoryAsync()
+    {
+        var result = await Sender.Send(new Application.Queries.Backup.GetTenantRestoreHistory.GetTenantRestoreHistoryQuery());
+        return HandleResponse(result);
+    }
 }

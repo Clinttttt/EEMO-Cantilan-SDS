@@ -48,4 +48,34 @@ public class TenantUsageApiClient(HttpClient http) : HandleResponse(http), ITena
 
     public async Task<Result<TenantRestoreResult>> RestoreAsync(EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest request) =>
         await PostAsync<EEMOCantilanSDS.Application.Requests.Backup.TenantRestoreRequest, TenantRestoreResult>("api/tenant-usage/restore", request);
+
+    public async Task<Result<TenantBackupInfo>> CreateBackupAsync(string? note = null) =>
+        await PostAsync<EEMOCantilanSDS.Application.Command.Backup.CreateTenantBackup.CreateTenantBackupCommand, TenantBackupInfo>(
+            "api/tenant-usage/backups",
+            new EEMOCantilanSDS.Application.Command.Backup.CreateTenantBackup.CreateTenantBackupCommand(note));
+
+    public async Task<Result<IReadOnlyList<TenantBackupInfo>>> ListBackupsAsync() =>
+        await GetAsync<IReadOnlyList<TenantBackupInfo>>("api/tenant-usage/backups");
+
+    public async Task<Result<BackupArtifact>> DownloadBackupAsync(Guid id)
+    {
+        var resp = await _http.GetAsync($"api/tenant-usage/backups/{id}/file");
+        if (!resp.IsSuccessStatusCode)
+            return Result<BackupArtifact>.Failure("That backup could not be downloaded.", (int)resp.StatusCode);
+
+        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        var cd = resp.Content.Headers.ContentDisposition;
+        var fileName = cd?.FileNameStar ?? cd?.FileName?.Trim('"') ?? "stalltrack-backup.json";
+        var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/json";
+
+        return Result<BackupArtifact>.Success(new BackupArtifact(fileName, bytes, contentType));
+    }
+
+    public async Task<Result<TenantRestoreResult>> RestoreFromBackupAsync(Guid id, string confirmationPhrase, string password) =>
+        await PostAsync<EEMOCantilanSDS.Application.Requests.Backup.BackupRestoreRequest, TenantRestoreResult>(
+            $"api/tenant-usage/backups/{id}/restore",
+            new EEMOCantilanSDS.Application.Requests.Backup.BackupRestoreRequest(confirmationPhrase, password));
+
+    public async Task<Result<IReadOnlyList<TenantRestoreEventDto>>> GetRestoreHistoryAsync() =>
+        await GetAsync<IReadOnlyList<TenantRestoreEventDto>>("api/tenant-usage/restore-history");
 }

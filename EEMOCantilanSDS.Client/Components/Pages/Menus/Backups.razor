@@ -151,6 +151,123 @@
         }
     </section>
 
+    <!-- ══ Recent backups (stored history — every Head, scoped to their own LGU) ══ -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Recent backups</div>
+                <div class="set-card-sub">Saved backups of @Branding.Municipality's data — download or restore any of them. The most recent 15 are kept.</div>
+            </div>
+            <button class="bk-btn bk-btn-primary" @onclick="CreateBackupAsync" disabled="@_creatingBackup">
+                @if (_creatingBackup)
+                {
+                    <span class="bk-spin" aria-hidden="true"></span>
+                    <span>Creating…</span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    <span>Create backup now</span>
+                }
+            </button>
+        </div>
+
+        @if (_loadingBackups)
+        {
+            <div class="bk-rows">
+                @for (var i = 0; i < 3; i++)
+                {
+                    <div class="bk-run bk-run-sk"><div class="sk bk-sk-pill"></div><div class="sk bk-sk-line"></div><div class="sk bk-sk-short"></div></div>
+                }
+            </div>
+        }
+        else if (_backupsError is not null)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">Couldn't load backups</div>
+                <div class="bk-empty-text">@_backupsError</div>
+                <button class="set-retry" @onclick="LoadBackupsAsync">Try again</button>
+            </div>
+        }
+        else if (_backups is null || _backups.Count == 0)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">No backups yet</div>
+                <div class="bk-empty-text">Click <strong>Create backup now</strong> to save your first restore point here.</div>
+            </div>
+        }
+        else
+        {
+            <table class="set-table bk-table">
+                <thead>
+                    <tr><th>When (PH time)</th><th>By</th><th>Contents</th><th class="set-th-r">Size</th><th class="set-th-r">Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in _backups)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(b.CreatedAtUtc).ToString("MMM d, yyyy · h:mm tt")</td>
+                            <td>@b.CreatedBy</td>
+                            <td>@b.RowCount.ToString("N0") record@(b.RowCount == 1 ? "" : "s") · @b.TableCount table@(b.TableCount == 1 ? "" : "s")</td>
+                            <td class="set-td-r">@FormatSize(b.SizeBytes)</td>
+                            <td class="set-td-r bk-row-actions">
+                                <button class="set-link" @onclick="() => DownloadBackupAsync(b.Id)" disabled="@_meBusy">Download</button>
+                                <button class="set-link bk-restore-link" @onclick="() => OpenBackupRestore(b)">Restore…</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <!-- ══ Recent restores (this LGU's restore history) ══ -->
+    <section class="set-card">
+        <div class="set-card-head">
+            <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
+            <div class="set-card-titles">
+                <div class="set-card-title">Recent restores</div>
+                <div class="set-card-sub">When @Branding.Municipality's data was restored, and by whom</div>
+            </div>
+        </div>
+
+        @if (_loadingRestoreHistory)
+        {
+            <div class="bk-rows">
+                @for (var i = 0; i < 2; i++)
+                {
+                    <div class="bk-run bk-run-sk"><div class="sk bk-sk-pill"></div><div class="sk bk-sk-line"></div><div class="sk bk-sk-short"></div></div>
+                }
+            </div>
+        }
+        else if (_restoreHistory is null || _restoreHistory.Count == 0)
+        {
+            <div class="bk-empty">
+                <div class="bk-empty-title">No restores yet</div>
+                <div class="bk-empty-text">When you restore from a backup, it will be listed here.</div>
+            </div>
+        }
+        else
+        {
+            <table class="set-table bk-table">
+                <thead>
+                    <tr><th>When (PH time)</th><th>By</th><th>Details</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in _restoreHistory)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(e.WhenUtc).ToString("MMM d, yyyy · h:mm tt")</td>
+                            <td>@e.By</td>
+                            <td>@e.Summary</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
     @if (_isOperator)
     {
 
@@ -372,6 +489,60 @@
             </button>
         </div>
     </section>
+    }
+
+    <!-- ── Restore-from-stored-backup confirmation ── -->
+    @if (_restoreBackup is not null)
+    {
+        <div class="bk-modal-overlay" @onclick="CloseBackupRestore">
+            <div class="bk-modal bk-modal-danger" role="dialog" aria-modal="true" aria-label="Confirm restore from backup" @onclick:stopPropagation="true">
+                <div class="bk-modal-head">
+                    <div class="bk-modal-titles">
+                        <div class="bk-modal-title">Restore from this backup</div>
+                        <div class="bk-modal-sub">@PhilippineTime.ToPhilippineTime(_restoreBackup.CreatedAtUtc).ToString("MMM d, yyyy · h:mm tt") · @_restoreBackup.RowCount.ToString("N0") record(s)</div>
+                    </div>
+                    <button class="bk-modal-close" @onclick="CloseBackupRestore" aria-label="Close" disabled="@_backupRestoring">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="bk-modal-body">
+                    <div class="bk-warn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                        <div class="bk-warn-text">
+                            This replaces <strong>@Branding.Municipality's</strong> current records with this backup. A copy of your
+                            current data is downloaded first as a safety net, and the whole restore runs in one transaction —
+                            if anything fails, nothing changes. Other municipalities are never affected.
+                        </div>
+                    </div>
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-br-phrase">Type <code>RESTORE</code> to confirm</label>
+                        <input id="bk-br-phrase" class="bk-input" type="text" autocomplete="off" placeholder="RESTORE" @bind="_backupPhrase" @bind:event="oninput" disabled="@_backupRestoring" />
+                    </div>
+                    <div class="bk-field">
+                        <label class="bk-label" for="bk-br-pass">Confirm your admin password</label>
+                        <input id="bk-br-pass" class="bk-input" type="password" autocomplete="off" placeholder="Password" @bind="_backupPassword" @bind:event="oninput" disabled="@_backupRestoring" />
+                    </div>
+                    @if (_backupRestoreError is not null)
+                    {
+                        <div class="bk-alert bk-alert-err" role="alert">@_backupRestoreError</div>
+                    }
+                </div>
+                <div class="bk-modal-foot">
+                    <button class="bk-btn bk-btn-ghost bk-modal-closebtn" @onclick="CloseBackupRestore" disabled="@_backupRestoring">Cancel</button>
+                    <button class="bk-btn bk-btn-danger" @onclick="RestoreFromBackupAsync" disabled="@(!CanRestoreBackup)">
+                        @if (_backupRestoring)
+                        {
+                            <span class="bk-spin" aria-hidden="true"></span>
+                            <span>Restoring…</span>
+                        }
+                        else
+                        {
+                            <span>Restore this backup</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
     }
 
     <!-- ── Restore confirmation (hard-confirm danger modal) ── -->
@@ -601,6 +772,25 @@
     private string? _mineUploadName;
     private const long MineMaxUpload = 40L * 1024 * 1024;
 
+    // ── Stored backup history (per-LGU, every Head) ──
+    private IReadOnlyList<TenantBackupInfo>? _backups;
+    private bool _loadingBackups = true;
+    private string? _backupsError;
+    private bool _creatingBackup;
+
+    private IReadOnlyList<TenantRestoreEventDto>? _restoreHistory;
+    private bool _loadingRestoreHistory = true;
+
+    private TenantBackupInfo? _restoreBackup;   // the backup chosen for restore (drives the confirm modal)
+    private string _backupPhrase = string.Empty;
+    private string _backupPassword = string.Empty;
+    private bool _backupRestoring;
+    private string? _backupRestoreError;
+
+    private bool CanRestoreBackup => !_backupRestoring && _restoreBackup is not null
+        && string.Equals(_backupPhrase.Trim(), "RESTORE", StringComparison.Ordinal)
+        && !string.IsNullOrWhiteSpace(_backupPassword);
+
     private bool CanRestoreMine => !_mineRestoring && _mineUpload is not null
         && string.Equals(_minePhrase.Trim(), "RESTORE", StringComparison.Ordinal)
         && !string.IsNullOrWhiteSpace(_minePassword);
@@ -743,6 +933,131 @@
             await LoadRunsAsync();
             await LoadRestoreRunsAsync();
         }
+
+        // Every Head gets their own scoped stored-backup history + restore log.
+        await LoadBackupsAsync();
+        await LoadRestoreHistoryAsync();
+    }
+
+    private async Task LoadBackupsAsync()
+    {
+        _loadingBackups = true;
+        _backupsError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await TenantUsageApi.ListBackupsAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _backups = result.Value;
+        else
+            _backupsError = string.IsNullOrWhiteSpace(result.Error) ? "Your backups could not be retrieved." : result.Error;
+
+        _loadingBackups = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadRestoreHistoryAsync()
+    {
+        _loadingRestoreHistory = true;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await TenantUsageApi.GetRestoreHistoryAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _restoreHistory = result.Value;
+
+        _loadingRestoreHistory = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateBackupAsync()
+    {
+        if (_creatingBackup) return;
+        _creatingBackup = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var result = await TenantUsageApi.CreateBackupAsync();
+            if (result.IsSuccess && result.Value is not null)
+            {
+                await ShowToastAsync(true, $"Backup created — {result.Value.RowCount:N0} record(s) saved.");
+                await LoadBackupsAsync();
+            }
+            else
+            {
+                await ShowToastAsync(false, result.Error ?? "The backup could not be created.");
+            }
+        }
+        finally { _creatingBackup = false; }
+    }
+
+    private async Task DownloadBackupAsync(Guid id)
+    {
+        if (_meBusy) return;
+        _meBusy = true;
+        try
+        {
+            var r = await TenantUsageApi.DownloadBackupAsync(id);
+            if (r.IsSuccess && r.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", r.Value.FileName, Convert.ToBase64String(r.Value.Content), r.Value.ContentType);
+            else
+                await ShowToastAsync(false, r.Error ?? "That backup could not be downloaded.");
+        }
+        finally { _meBusy = false; }
+    }
+
+    private void OpenBackupRestore(TenantBackupInfo backup)
+    {
+        _restoreBackup = backup;
+        _backupPhrase = string.Empty;
+        _backupPassword = string.Empty;
+        _backupRestoreError = null;
+    }
+
+    private void CloseBackupRestore()
+    {
+        if (_backupRestoring) return;
+        _restoreBackup = null;
+        _backupRestoreError = null;
+        _backupPassword = string.Empty;
+    }
+
+    private async Task RestoreFromBackupAsync()
+    {
+        if (!CanRestoreBackup || _restoreBackup is null) return;
+        _backupRestoring = true;
+        _backupRestoreError = null;
+        try
+        {
+            // Safety net: download the CURRENT state before overwriting it.
+            var safety = await TenantUsageApi.DownloadRestoreSnapshotAsync();
+            if (safety.IsSuccess && safety.Value is not null)
+                await JS.InvokeVoidAsync("downloadFileFromBytes",
+                    "before-restore-" + safety.Value.FileName,
+                    Convert.ToBase64String(safety.Value.Content), safety.Value.ContentType);
+
+            var res = await TenantUsageApi.RestoreFromBackupAsync(_restoreBackup.Id, _backupPhrase.Trim(), _backupPassword);
+            if (res.IsSuccess && res.Value is not null)
+            {
+                _restoreBackup = null;
+                _backupPhrase = string.Empty;
+                _backupPassword = string.Empty;
+                await ShowToastAsync(true, $"Restored {res.Value.RowsRestored:N0} record(s) across {res.Value.TablesRestored} table(s).");
+                await LoadRestoreHistoryAsync();
+            }
+            else
+            {
+                _backupRestoreError = res.Error ?? "The restore could not be completed.";
+            }
+        }
+        finally { _backupRestoring = false; }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        double kb = bytes / 1024d;
+        if (kb < 1024) return $"{kb:0.#} KB";
+        double mb = kb / 1024d;
+        return $"{mb:0.#} MB";
     }
 
     private async Task LoadRunsAsync(bool silent = false)
