@@ -286,12 +286,15 @@
                         {
                             <div class="avm-group">
                                 <label class="avm-label">Area Location</label>
-                                <select class="avm-input @(GetFieldError("AreaLocation") != string.Empty ? "form-input-error" : "")"
-                                        @bind="Form.AreaLocation">
-                                    <option value="">-- No specific location --</option>
-                                    <option value="Extension">Extension</option>
-                                    <option value="Corner">Corner</option>
-                                </select>
+                                <input class="avm-input @(GetFieldError("AreaLocation") != string.Empty ? "form-input-error" : "")"
+                                       type="text" list="avm-ncc-areas" maxlength="60" autocomplete="off"
+                                       placeholder="e.g. Extension, Corner, or your area name"
+                                       @bind="Form.AreaLocation" @bind:event="oninput" />
+                                <datalist id="avm-ncc-areas">
+                                    <option value="Extension" />
+                                    <option value="Corner" />
+                                    <option value="Standard" />
+                                </datalist>
                                 @if (GetFieldError("AreaLocation") != string.Empty)
                                 {
                                     <span class="form-error">@GetFieldError("AreaLocation")</span>

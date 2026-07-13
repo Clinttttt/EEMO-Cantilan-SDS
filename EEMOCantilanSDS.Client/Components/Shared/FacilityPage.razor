@@ -500,11 +500,17 @@
             fees |= ApplicableFees.Water;
 
         NccAreaLocation? nccAreaLocation = null;
+        string? nccAreaNote = null;
         if (FacilityCodeEnum == FacilityCode.NCC && !string.IsNullOrWhiteSpace(VendorForm.AreaLocation))
         {
-            nccAreaLocation = VendorForm.AreaLocation.Trim().Equals("Extension", StringComparison.OrdinalIgnoreCase)
-                ? NccAreaLocation.Extension
-                : NccAreaLocation.Corner;
+            var raw = VendorForm.AreaLocation.Trim();
+            nccAreaNote = raw;   // preserve the exact label so custom municipality area names are kept + shown
+            // Map the standard labels to the enum (keeps Cantilan's NCC section reports intact); any other
+            // custom name stays as free text (no fixed bucket) — the label still displays via AreaNote.
+            nccAreaLocation = raw.Equals("Extension", StringComparison.OrdinalIgnoreCase) ? NccAreaLocation.Extension
+                : raw.Equals("Corner", StringComparison.OrdinalIgnoreCase) ? NccAreaLocation.Corner
+                : raw.Equals("Standard", StringComparison.OrdinalIgnoreCase) ? NccAreaLocation.Standard
+                : (NccAreaLocation?)null;
         }
 
         var command = new Application.Command.Stalls.CreateStall.CreateStallCommand(
@@ -515,7 +521,7 @@
             null,
             nccAreaLocation,
             VendorForm.AreaSqm > 0 ? VendorForm.AreaSqm : null,
-            null,
+            nccAreaNote,
             null,
             VendorForm.ActualOccupant.Trim(),
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
