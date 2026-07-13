@@ -200,12 +200,12 @@
     align-items: stretch;
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 8px;
+    border-radius: 14px;
+    margin-bottom: 10px;
     overflow: hidden;
     text-align: left;
     cursor: pointer;
-    box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
+    box-shadow: 0 8px 20px rgba(13, 33, 55, 0.05);
 }
 
 .tx-card:active {
@@ -247,8 +247,8 @@
 }
 
 .tx-owner {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--navy-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -263,24 +263,16 @@
 }
 
 .tx-tag {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-subtle);
-    background: #f3f6f9;
-    border: 1px solid #e8eef3;
-    border-radius: 6px;
-    padding: 2px 7px;
     flex-shrink: 0;
 }
 
 .tx-or {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-subtle);
-    background: #f3f6f9;
-    border: 1px solid #e8eef3;
-    border-radius: 6px;
-    padding: 2px 7px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -295,12 +287,13 @@
 }
 
 .tx-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-    text-transform: uppercase;
-    padding: 2px 7px;
-    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
     white-space: nowrap;
 }
 

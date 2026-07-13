@@ -187,12 +187,13 @@
     display: flex;
     align-items: stretch;
     background: #fff;
-    border-radius: 8px;
+    border-radius: 14px;
     border: 1px solid var(--border);
-    margin-bottom: 6px;
+    margin-bottom: 10px;
     text-align: left;
     overflow: hidden;
     cursor: pointer;
+    box-shadow: 0 8px 20px rgba(13, 33, 55, 0.05);
 }
 
 .tx-card:active { background: var(--bg-page); }
@@ -206,23 +207,21 @@
 .tx-col-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
 .tx-owner {
-    font-size: 13px; font-weight: 500; color: var(--navy-primary);
+    font-size: 14px; font-weight: 600; color: var(--navy-primary);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .tx-sub { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
 
 .tx-tag {
-    font-size: 9px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
-    padding: 1px 6px; border-radius: 4px;
-    background: rgba(13,33,55,.07); color: var(--navy-primary); flex-shrink: 0;
+    font-size: 11px; font-weight: 600; color: var(--text-subtle); flex-shrink: 0;
 }
 
-.tx-or { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-or { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .tx-col-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
 
-.tx-amount { font-size: 13px; font-weight: 700; color: var(--navy-primary); }
+.tx-amount { font-size: 14px; font-weight: 700; color: var(--navy-primary); }
 
 
 .stall-status-pill {
@@ -485,11 +484,12 @@
 
 /* ── Queued · Offline transaction card ──────────────────────── */
 .tx-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    padding: 2px 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
     border-radius: 999px;
     flex-shrink: 0;
 }
