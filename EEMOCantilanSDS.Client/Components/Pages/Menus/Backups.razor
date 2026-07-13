@@ -275,7 +275,13 @@
                             <td>
                                 @if (e.RowsRestored > 0)
                                 {
-                                    <text>@e.RowsRestored.ToString("N0") record@(e.RowsRestored == 1 ? "" : "s") · @e.TablesRestored table@(e.TablesRestored == 1 ? "" : "s")</text>
+                                    <div class="bk-restore-cell">
+                                        <span class="bk-restore-main">@e.RowsRestored.ToString("N0") record@(e.RowsRestored == 1 ? "" : "s") · @e.TablesRestored table@(e.TablesRestored == 1 ? "" : "s")</span>
+                                        @if (e.SnapshotUtc is not null)
+                                        {
+                                            <span class="bk-restore-sub">from a backup dated @PhilippineTime.ToPhilippineTime(e.SnapshotUtc.Value).ToString("MMM d, yyyy · h:mm tt")</span>
+                                        }
+                                    </div>
                                 }
                                 else
                                 {

@@ -194,6 +194,27 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         }
 
         [Fact]
+        public async Task ListRestoreEvents_ParsesCountsFromNote_WhenNoStructuredBreakdown()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            // An older restore: only the human summary note, no NewValues.
+            ctx.AuditLogs.Add(AuditLog.Create(
+                actorId: "u", actorName: "head", actorRole: "SuperAdmin",
+                action: "TenantRestore", entityType: "Municipality",
+                notes: "Restored 223 row(s) across 7 table(s) from a snapshot taken 2026-07-12 18:54:08Z."));
+            ctx.SaveChanges();
+
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot()), User());
+            var events = await repo.ListRestoreEventsAsync(20, CancellationToken.None);
+
+            Assert.Single(events);
+            Assert.Equal(223, events[0].RowsRestored);
+            Assert.Equal(7, events[0].TablesRestored);
+            Assert.NotNull(events[0].SnapshotUtc);
+        }
+
+        [Fact]
         public async Task List_IsScopedToTheCallersMunicipality()
         {
             var options = Options();

@@ -116,37 +116,68 @@ public class TenantBackupRepository(
 
         return rows.Select(a =>
         {
-            var (rowCount, tableCount, snapUtc, tables) = ParseRestoreDetail(a.NewValues);
+            var (rowCount, tableCount, snapUtc, tables) = ParseRestoreDetail(a.NewValues, a.Notes);
             return new TenantRestoreEventDto(a.LoggedAt, a.ActorName, a.Notes ?? string.Empty,
                 rowCount, tableCount, snapUtc, tables);
         }).ToList();
     }
 
-    // Parse the structured restore breakdown stored in the audit NewValues (older events have none).
-    private static (int Rows, int Tables, DateTime? SnapshotUtc, IReadOnlyList<TenantBackupTableDto> PerTable) ParseRestoreDetail(string? newValues)
+    // Parse the structured restore breakdown stored in the audit NewValues; older events have no NewValues,
+    // so fall back to parsing the human summary note so they still display cleanly ("N records · M tables").
+    private static (int Rows, int Tables, DateTime? SnapshotUtc, IReadOnlyList<TenantBackupTableDto> PerTable) ParseRestoreDetail(string? newValues, string? notes)
     {
-        if (string.IsNullOrWhiteSpace(newValues)) return (0, 0, null, Array.Empty<TenantBackupTableDto>());
-        try
+        if (!string.IsNullOrWhiteSpace(newValues))
         {
-            using var doc = JsonDocument.Parse(newValues);
-            var root = doc.RootElement;
-            var rows = root.TryGetProperty("rows", out var r) && r.TryGetInt32(out var rv) ? rv : 0;
-            var tables = root.TryGetProperty("tables", out var t) && t.TryGetInt32(out var tv) ? tv : 0;
-            DateTime? snap = root.TryGetProperty("snapshotUtc", out var s) && s.TryGetDateTime(out var sv) ? sv : null;
-
-            var list = new List<TenantBackupTableDto>();
-            if (root.TryGetProperty("perTable", out var pt) && pt.ValueKind == JsonValueKind.Object)
+            try
             {
-                foreach (var prop in pt.EnumerateObject())
+                using var doc = JsonDocument.Parse(newValues);
+                var root = doc.RootElement;
+                var rows = root.TryGetProperty("rows", out var r) && r.TryGetInt32(out var rv) ? rv : 0;
+                var tables = root.TryGetProperty("tables", out var t) && t.TryGetInt32(out var tv) ? tv : 0;
+                DateTime? snap = root.TryGetProperty("snapshotUtc", out var s) && s.TryGetDateTime(out var sv) ? sv : null;
+
+                var list = new List<TenantBackupTableDto>();
+                if (root.TryGetProperty("perTable", out var pt) && pt.ValueKind == JsonValueKind.Object)
                 {
-                    var count = prop.Value.TryGetInt32(out var c) ? c : 0;
-                    list.Add(new TenantBackupTableDto(prop.Name, TenantBackupTableNames.Display(prop.Name), count));
+                    foreach (var prop in pt.EnumerateObject())
+                    {
+                        var count = prop.Value.TryGetInt32(out var c) ? c : 0;
+                        list.Add(new TenantBackupTableDto(prop.Name, TenantBackupTableNames.Display(prop.Name), count));
+                    }
                 }
+                list = list.OrderByDescending(x => x.RowCount).ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+                return (rows, tables, snap, list);
             }
-            list = list.OrderByDescending(x => x.RowCount).ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
-            return (rows, tables, snap, list);
+            catch { /* fall through to the note-text fallback */ }
         }
-        catch { return (0, 0, null, Array.Empty<TenantBackupTableDto>()); }
+
+        return ParseFromNotes(notes);
+    }
+
+    // Fallback for pre-breakdown restores: pull the counts + snapshot time out of the summary note
+    // ("Restored 223 row(s) across 7 table(s) from a snapshot taken 2026-07-12 18:54:08Z.").
+    private static (int Rows, int Tables, DateTime? SnapshotUtc, IReadOnlyList<TenantBackupTableDto> PerTable) ParseFromNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes)) return (0, 0, null, Array.Empty<TenantBackupTableDto>());
+
+        var rows = 0;
+        var tables = 0;
+        DateTime? snap = null;
+
+        var mRows = System.Text.RegularExpressions.Regex.Match(notes, @"([\d,]+)\s+row");
+        if (mRows.Success) int.TryParse(mRows.Groups[1].Value.Replace(",", ""), out rows);
+
+        var mTables = System.Text.RegularExpressions.Regex.Match(notes, @"([\d,]+)\s+table");
+        if (mTables.Success) int.TryParse(mTables.Groups[1].Value.Replace(",", ""), out tables);
+
+        var mSnap = System.Text.RegularExpressions.Regex.Match(notes, @"snapshot taken (.+?)\.?\s*$");
+        if (mSnap.Success && DateTime.TryParse(mSnap.Groups[1].Value.Trim(),
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal,
+                out var dt))
+            snap = dt;
+
+        return (rows, tables, snap, Array.Empty<TenantBackupTableDto>());
     }
 
     // Keep only the most recent RetentionCount backups for the caller's municipality (query-filter scoped).
