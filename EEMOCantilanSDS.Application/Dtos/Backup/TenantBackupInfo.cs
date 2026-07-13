@@ -14,4 +14,8 @@ public sealed record TenantBackupInfo(
 public sealed record TenantRestoreEventDto(
     DateTime WhenUtc,
     string By,
-    string Summary);
+    string Summary,
+    int RowsRestored = 0,
+    int TablesRestored = 0,
+    DateTime? SnapshotUtc = null,
+    IReadOnlyList<TenantBackupTableDto>? Tables = null);

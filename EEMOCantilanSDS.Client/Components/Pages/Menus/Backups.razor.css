@@ -615,3 +615,89 @@
 .bk-contents-table tbody tr.bk-contents-empty td {
     color: var(--text-muted);
 }
+
+/* Restore-history compact text */
+.bk-muted {
+    color: var(--text-muted);
+    font-size: 12.5px;
+}
+
+/* Clickable manifest rows → drill into a table's records */
+.bk-rowlink {
+    cursor: pointer;
+    transition: background .12s ease;
+}
+
+.bk-rowlink:hover {
+    background: var(--bg-icon);
+}
+
+.bk-view-rows {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--gold);
+    white-space: nowrap;
+}
+
+/* Back link inside the drill-in view */
+.bk-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px 5px 6px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--navy);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.bk-back:hover {
+    background: var(--bg-icon);
+    border-color: var(--gold-light);
+}
+
+.bk-back svg {
+    width: 15px;
+    height: 15px;
+}
+
+.bk-rows-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 8px;
+}
+
+/* Horizontally + vertically scrollable record grid */
+.bk-grid-scroll {
+    max-height: 46vh;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.bk-grid {
+    margin: 0;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.bk-grid thead th {
+    position: sticky;
+    top: 0;
+    background: var(--bg-icon);
+    z-index: 1;
+    font-size: 11px;
+    letter-spacing: .02em;
+}
+
+.bk-grid td {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

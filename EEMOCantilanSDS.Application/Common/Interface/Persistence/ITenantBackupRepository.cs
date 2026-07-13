@@ -25,6 +25,9 @@ public interface ITenantBackupRepository
     /// <summary>The inspectable contents (per-table record counts) of one stored backup, scoped to the caller.</summary>
     Task<TenantBackupContentsDto?> GetContentsAsync(Guid id, CancellationToken ct);
 
+    /// <summary>The actual records of one table inside a stored backup (columns + string values), capped at <paramref name="max"/>.</summary>
+    Task<TenantBackupTableRowsDto?> GetTableRowsAsync(Guid id, string table, int max, CancellationToken ct);
+
     /// <summary>Recent restore events for the caller's municipality, newest first (from the audit log).</summary>
     Task<IReadOnlyList<TenantRestoreEventDto>> ListRestoreEventsAsync(int take, CancellationToken ct);
 }

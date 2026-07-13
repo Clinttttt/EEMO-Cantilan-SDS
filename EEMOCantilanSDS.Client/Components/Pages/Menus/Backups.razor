@@ -264,7 +264,7 @@
         {
             <table class="set-table bk-table">
                 <thead>
-                    <tr><th>When (PH time)</th><th>By</th><th>Details</th></tr>
+                    <tr><th>When (PH time)</th><th>By</th><th>Restored</th><th class="set-th-r">Actions</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var e in _restoreHistory)
@@ -272,7 +272,24 @@
                         <tr>
                             <td>@PhilippineTime.ToPhilippineTime(e.WhenUtc).ToString("MMM d, yyyy · h:mm tt")</td>
                             <td>@e.By</td>
-                            <td>@e.Summary</td>
+                            <td>
+                                @if (e.RowsRestored > 0)
+                                {
+                                    <text>@e.RowsRestored.ToString("N0") record@(e.RowsRestored == 1 ? "" : "s") · @e.TablesRestored table@(e.TablesRestored == 1 ? "" : "s")</text>
+                                }
+                                else
+                                {
+                                    <span class="bk-muted">@e.Summary</span>
+                                }
+                            </td>
+                            <td class="set-td-r">
+                                <div class="bk-actions-row">
+                                    <button class="bk-action" @onclick="() => OpenRestoreDetail(e)" title="View what this restore replaced">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></svg>
+                                        <span>View</span>
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -520,42 +537,148 @@
                     </button>
                 </div>
                 <div class="bk-modal-body">
-                    <div class="bk-contents-summary">
-                        <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.RowCount.ToString("N0")</span><span class="bk-contents-lbl">Records</span></div>
-                        <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.TableCount</span><span class="bk-contents-lbl">Tables with data</span></div>
-                        <div class="bk-contents-stat"><span class="bk-contents-num">@FormatSize(_contentsFor.SizeBytes)</span><span class="bk-contents-lbl">File size</span></div>
-                    </div>
+                    @if (_rowsTable is not null)
+                    {
+                        <!-- Drilled-in: the actual records of one table -->
+                        <button class="bk-back" type="button" @onclick="BackToContents">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                            Back to contents
+                        </button>
+                        <div class="bk-rows-title">@_rowsDisplayName</div>
 
-                    @if (_contentsLoading)
-                    {
-                        <div class="hist-loading"><span class="set-spinner"></span></div>
-                    }
-                    else if (_contentsError is not null)
-                    {
-                        <div class="bk-alert bk-alert-err" role="alert">@_contentsError</div>
-                    }
-                    else if (_contents is not null)
-                    {
-                        <div class="bk-contents-note">Every table saved in this backup and how many records it holds. A restore replaces your municipality's data with exactly these records.</div>
-                        <table class="set-table bk-table bk-contents-table">
-                            <thead>
-                                <tr><th>Table</th><th class="set-th-r">Records</th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var t in _contents.Tables)
+                        @if (_rowsLoading)
+                        {
+                            <div class="hist-loading"><span class="set-spinner"></span></div>
+                        }
+                        else if (_rowsError is not null)
+                        {
+                            <div class="bk-alert bk-alert-err" role="alert">@_rowsError</div>
+                        }
+                        else if (_rows is not null)
+                        {
+                            <div class="bk-contents-note">
+                                @if (_rows.Truncated)
                                 {
-                                    <tr class="@(t.RowCount == 0 ? "bk-contents-empty" : "")">
-                                        <td>@t.DisplayName</td>
-                                        <td class="set-td-r">@t.RowCount.ToString("N0")</td>
-                                    </tr>
+                                    <text>Showing the first @_rows.Rows.Count.ToString("N0") of @_rows.TotalRows.ToString("N0") records.</text>
                                 }
-                            </tbody>
-                        </table>
+                                else
+                                {
+                                    <text>@_rows.TotalRows.ToString("N0") record@(_rows.TotalRows == 1 ? "" : "s").</text>
+                                }
+                            </div>
+                            @if (_rows.Columns.Count == 0)
+                            {
+                                <div class="bk-empty"><div class="bk-empty-text">This table has no records in the backup.</div></div>
+                            }
+                            else
+                            {
+                                <div class="bk-grid-scroll">
+                                    <table class="set-table bk-table bk-grid">
+                                        <thead>
+                                            <tr>@foreach (var c in _rows.Columns) { <th>@c</th> }</tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var row in _rows.Rows)
+                                            {
+                                                <tr>
+                                                    @foreach (var val in row)
+                                                    {
+                                                        <td title="@val">@(string.IsNullOrEmpty(val) ? "—" : val)</td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <div class="bk-contents-summary">
+                            <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.RowCount.ToString("N0")</span><span class="bk-contents-lbl">Records</span></div>
+                            <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.TableCount</span><span class="bk-contents-lbl">Tables with data</span></div>
+                            <div class="bk-contents-stat"><span class="bk-contents-num">@FormatSize(_contentsFor.SizeBytes)</span><span class="bk-contents-lbl">File size</span></div>
+                        </div>
+
+                        @if (_contentsLoading)
+                        {
+                            <div class="hist-loading"><span class="set-spinner"></span></div>
+                        }
+                        else if (_contentsError is not null)
+                        {
+                            <div class="bk-alert bk-alert-err" role="alert">@_contentsError</div>
+                        }
+                        else if (_contents is not null)
+                        {
+                            <div class="bk-contents-note">Every table saved in this backup and how many records it holds. Click a table with records to view its exact data. A restore replaces your municipality's data with these records.</div>
+                            <table class="set-table bk-table bk-contents-table">
+                                <thead>
+                                    <tr><th>Table</th><th class="set-th-r">Records</th><th class="set-th-r"></th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var t in _contents.Tables)
+                                    {
+                                        <tr class="@(t.RowCount == 0 ? "bk-contents-empty" : "bk-rowlink")" @onclick="() => ViewTableRows(t)">
+                                            <td>@t.DisplayName</td>
+                                            <td class="set-td-r">@t.RowCount.ToString("N0")</td>
+                                            <td class="set-td-r">@if (t.RowCount > 0) { <span class="bk-view-rows">View&nbsp;→</span> }</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
                     }
                 </div>
                 <div class="bk-modal-foot">
                     <button class="bk-btn bk-btn-ghost" @onclick="() => DownloadBackupAsync(_contentsFor.Id)" disabled="@_meBusy">Download file</button>
                     <button class="bk-btn bk-btn-primary bk-modal-closebtn" @onclick="CloseBackupContents">Close</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ── Restore details (per-table breakdown of a past restore) ── -->
+    @if (_restoreDetail is not null)
+    {
+        <div class="bk-modal-overlay" @onclick="CloseRestoreDetail">
+            <div class="bk-modal bk-modal-wide" role="dialog" aria-modal="true" aria-label="Restore details" @onclick:stopPropagation="true">
+                <div class="bk-modal-head">
+                    <div class="bk-modal-titles">
+                        <div class="bk-modal-title">Restore details</div>
+                        <div class="bk-modal-sub">@PhilippineTime.ToPhilippineTime(_restoreDetail.WhenUtc).ToString("MMM d, yyyy · h:mm tt") · by @_restoreDetail.By</div>
+                    </div>
+                    <button class="bk-modal-close" @onclick="CloseRestoreDetail" aria-label="Close">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="bk-modal-body">
+                    <div class="bk-contents-summary">
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@_restoreDetail.RowsRestored.ToString("N0")</span><span class="bk-contents-lbl">Records restored</span></div>
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@_restoreDetail.TablesRestored</span><span class="bk-contents-lbl">Tables</span></div>
+                        <div class="bk-contents-stat"><span class="bk-contents-num">@(_restoreDetail.SnapshotUtc is null ? "—" : PhilippineTime.ToPhilippineTime(_restoreDetail.SnapshotUtc.Value).ToString("MMM d · h:mm tt"))</span><span class="bk-contents-lbl">From backup dated</span></div>
+                    </div>
+                    @if (_restoreDetail.Tables is { Count: > 0 })
+                    {
+                        <div class="bk-contents-note">Records restored into each table.</div>
+                        <table class="set-table bk-table bk-contents-table">
+                            <thead><tr><th>Table</th><th class="set-th-r">Records restored</th></tr></thead>
+                            <tbody>
+                                @foreach (var t in _restoreDetail.Tables)
+                                {
+                                    <tr><td>@t.DisplayName</td><td class="set-td-r">@t.RowCount.ToString("N0")</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="bk-contents-note">@_restoreDetail.Summary</div>
+                        <div class="bk-empty"><div class="bk-empty-text">A detailed table breakdown wasn't recorded for this restore.</div></div>
+                    }
+                </div>
+                <div class="bk-modal-foot">
+                    <button class="bk-btn bk-btn-primary bk-modal-closebtn" @onclick="CloseRestoreDetail">Close</button>
                 </div>
             </div>
         </div>
@@ -863,6 +986,16 @@
     private bool _contentsLoading;
     private string? _contentsError;
 
+    // Drill-in: the actual records of one table inside the backup being inspected
+    private string? _rowsTable;
+    private string _rowsDisplayName = string.Empty;
+    private TenantBackupTableRowsDto? _rows;
+    private bool _rowsLoading;
+    private string? _rowsError;
+
+    // Restore details modal (per-table breakdown of a past restore)
+    private TenantRestoreEventDto? _restoreDetail;
+
     private bool CanRestoreBackup => !_backupRestoring && _restoreBackup is not null
         && string.Equals(_backupPhrase.Trim(), "RESTORE", StringComparison.Ordinal)
         && !string.IsNullOrWhiteSpace(_backupPassword);
@@ -1085,6 +1218,9 @@
         _contentsFor = backup;
         _contents = null;
         _contentsError = null;
+        _rowsTable = null;
+        _rows = null;
+        _rowsError = null;
         _contentsLoading = true;
         await InvokeAsync(StateHasChanged);
 
@@ -1103,7 +1239,40 @@
         _contentsFor = null;
         _contents = null;
         _contentsError = null;
+        _rowsTable = null;
+        _rows = null;
+        _rowsError = null;
     }
+
+    private async Task ViewTableRows(TenantBackupTableDto t)
+    {
+        if (_contentsFor is null || t.RowCount == 0) return;   // empty tables aren't drillable
+        _rowsTable = t.Table;
+        _rowsDisplayName = t.DisplayName;
+        _rows = null;
+        _rowsError = null;
+        _rowsLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        var result = await TenantUsageApi.GetBackupTableRowsAsync(_contentsFor.Id, t.Table);
+        if (result.IsSuccess && result.Value is not null)
+            _rows = result.Value;
+        else
+            _rowsError = string.IsNullOrWhiteSpace(result.Error) ? "The records could not be loaded." : result.Error;
+
+        _rowsLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void BackToContents()
+    {
+        _rowsTable = null;
+        _rows = null;
+        _rowsError = null;
+    }
+
+    private void OpenRestoreDetail(TenantRestoreEventDto e) => _restoreDetail = e;
+    private void CloseRestoreDetail() => _restoreDetail = null;
 
     private void OpenBackupRestore(TenantBackupInfo backup)
     {

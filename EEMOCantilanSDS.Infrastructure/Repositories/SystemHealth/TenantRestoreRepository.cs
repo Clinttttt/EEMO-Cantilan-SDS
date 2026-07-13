@@ -126,9 +126,17 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
             perTable[table] = await ins.ExecuteNonQueryAsync(ct);
         }
 
-        // 3) Append (never overwrite) an audit event for the restore itself.
+        // 3) Append (never overwrite) an audit event for the restore itself, with a structured per-table
+        // breakdown in NewValues so the restore history can show exactly what was restored.
         var rows = perTable.Values.Sum();
         var tablesTouched = perTable.Count(kv => kv.Value > 0);
+        var newValues = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            rows,
+            tables = tablesTouched,
+            snapshotUtc = snapshot.GeneratedAtUtc,
+            perTable = perTable.Where(kv => kv.Value > 0).ToDictionary(kv => kv.Key, kv => kv.Value),
+        });
         context.AuditLogs.Add(AuditLog.Create(
             actorId: currentUser.UserId?.ToString() ?? currentUser.Username ?? "system",
             actorName: currentUser.Username ?? "system",
@@ -136,6 +144,7 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
             action: "TenantRestore",
             entityType: "Municipality",
             entityId: mid,
+            newValues: newValues,
             notes: $"Restored {rows} row(s) across {tablesTouched} table(s) from a snapshot taken {snapshot.GeneratedAtUtc:u}."));
         await context.SaveChangesAsync(ct);
 

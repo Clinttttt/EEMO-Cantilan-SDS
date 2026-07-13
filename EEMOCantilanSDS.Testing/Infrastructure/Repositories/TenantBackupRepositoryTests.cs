@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Backup;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
@@ -134,6 +135,62 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
             Assert.Equal(2, contents.Tables[1].RowCount);
             Assert.Equal("Utility bills", contents.Tables[2].DisplayName);
             Assert.Equal(0, contents.Tables[2].RowCount);
+        }
+
+        [Fact]
+        public async Task GetTableRows_ReturnsColumnsAndValues_WithTruncationFlag()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            var snap = new TenantRestoreSnapshot("restore-v1", "cantilan-sds", Guid.Empty, DateTime.UtcNow,
+                new Dictionary<string, string>
+                {
+                    ["Stalls"] = "[{\"Id\":\"a\",\"StallNo\":\"A1\",\"MonthlyRate\":1200},{\"Id\":\"b\",\"StallNo\":\"A2\",\"MonthlyRate\":0},{\"Id\":\"c\",\"StallNo\":\"A3\",\"MonthlyRate\":500}]",
+                });
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(snap), User());
+            var info = await repo.CreateAsync(note: null, CancellationToken.None);
+
+            var all = await repo.GetTableRowsAsync(info.Id, "Stalls", 500, CancellationToken.None);
+            Assert.NotNull(all);
+            Assert.Equal(3, all!.TotalRows);
+            Assert.Equal(3, all.Rows.Count);
+            Assert.False(all.Truncated);
+            Assert.Contains("StallNo", all.Columns);
+            Assert.Contains("MonthlyRate", all.Columns);
+            var stallCol = all.Columns.ToList().IndexOf("StallNo");
+            Assert.Equal("A1", all.Rows[0][stallCol]);
+
+            var capped = await repo.GetTableRowsAsync(info.Id, "Stalls", 2, CancellationToken.None);
+            Assert.NotNull(capped);
+            Assert.Equal(3, capped!.TotalRows);
+            Assert.Equal(2, capped.Rows.Count);
+            Assert.True(capped.Truncated);
+        }
+
+        [Fact]
+        public async Task ListRestoreEvents_ParsesStructuredBreakdownFromAudit()
+        {
+            var options = Options();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(Guid.Empty));
+            var newValues = "{\"rows\":15,\"tables\":2,\"snapshotUtc\":\"2026-07-13T09:26:39Z\",\"perTable\":{\"Stalls\":10,\"Contracts\":5}}";
+            ctx.AuditLogs.Add(AuditLog.Create(
+                actorId: "u", actorName: "carrascal.head", actorRole: "SuperAdmin",
+                action: "TenantRestore", entityType: "Municipality",
+                newValues: newValues, notes: "Restored 15 row(s) across 2 table(s)."));
+            ctx.SaveChanges();
+
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(SampleSnapshot()), User());
+            var events = await repo.ListRestoreEventsAsync(20, CancellationToken.None);
+
+            Assert.Single(events);
+            var e = events[0];
+            Assert.Equal(15, e.RowsRestored);
+            Assert.Equal(2, e.TablesRestored);
+            Assert.NotNull(e.SnapshotUtc);
+            Assert.NotNull(e.Tables);
+            Assert.Equal(2, e.Tables!.Count);
+            Assert.Equal("Stalls", e.Tables[0].DisplayName);   // ordered by count desc (10 first)
+            Assert.Equal(10, e.Tables[0].RowCount);
         }
 
         [Fact]

@@ -120,6 +120,15 @@ public class TenantUsageController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    /// <summary>The actual records of one table inside one of the caller's OWN stored backups (columns + values).</summary>
+    [HttpGet("backups/{id:guid}/tables/{table}/rows")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<Application.Dtos.Backup.TenantBackupTableRowsDto>> BackupTableRowsAsync(Guid id, string table)
+    {
+        var result = await Sender.Send(new Application.Queries.Backup.GetTenantBackupTableRows.GetTenantBackupTableRowsQuery(id, table));
+        return HandleResponse(result);
+    }
+
     /// <summary>
     /// Restore the caller's OWN municipality from a STORED backup. Confirmation phrase + password are
     /// re-verified server-side; the restore is a single scoped transaction (any failure = zero changes).

@@ -74,6 +74,9 @@ public class TenantUsageApiClient(HttpClient http) : HandleResponse(http), ITena
     public async Task<Result<TenantBackupContentsDto>> GetBackupContentsAsync(Guid id) =>
         await GetAsync<TenantBackupContentsDto>($"api/tenant-usage/backups/{id}/contents");
 
+    public async Task<Result<TenantBackupTableRowsDto>> GetBackupTableRowsAsync(Guid id, string table) =>
+        await GetAsync<TenantBackupTableRowsDto>($"api/tenant-usage/backups/{id}/tables/{Uri.EscapeDataString(table)}/rows");
+
     public async Task<Result<TenantRestoreResult>> RestoreFromBackupAsync(Guid id, string confirmationPhrase, string password) =>
         await PostAsync<EEMOCantilanSDS.Application.Requests.Backup.BackupRestoreRequest, TenantRestoreResult>(
             $"api/tenant-usage/backups/{id}/restore",
