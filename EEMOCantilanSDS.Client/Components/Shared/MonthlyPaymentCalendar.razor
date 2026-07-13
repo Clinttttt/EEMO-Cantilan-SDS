@@ -31,8 +31,8 @@
             var isPartial = paymentRec != null && paymentRec.Status == PaymentStatus.Partial;
             var cellCls = beforeContract ? "mo-cell-before-contract" : isFuture ? "mo-cell-future" : (isPaid ? "mo-cell-paid" : isPartial ? "mo-cell-partial" : "mo-cell-miss");
 
-            <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "") @(!isFuture && !beforeContract ? "mo-cell-clickable" : "")"
-                 @onclick="() => OpenPaymentModal(mo, paymentRec)">
+            <div class="mo-cal-cell @cellCls @(isThisMo ? "mo-cell-today" : "") @(!ReadOnly && !isFuture && !beforeContract ? "mo-cell-clickable" : "")"
+                 @onclick="() => { if (!ReadOnly) OpenPaymentModal(mo, paymentRec); }">
                 @if (isFuture)
                 {
                     <div class="mo-overlay-label">Soon</div>
@@ -200,6 +200,13 @@
     [Parameter] public List<PaymentHistoryDto> PaymentHistory { get; set; } = new();
     [Parameter] public EventCallback OnPaymentUpdated { get; set; }
 
+    /// <summary>
+    /// View-only mode (mirrors the daily calendar): month cells are not clickable and the record-payment
+    /// modal never opens — status is shown by the cell icons only. Payments are recorded via the Pay-bill
+    /// flow, not from this profile calendar.
+    /// </summary>
+    [Parameter] public bool ReadOnly { get; set; } = false;
+
     private int CurrentYear = DateTime.Now.Year;
     private List<DateTime> Months => Enumerable.Range(1, 12).Select(m => new DateTime(CurrentYear, m, 1)).ToList();
     private DateTime? ContractStartMonth => ContractDate.HasValue 
@@ -245,6 +252,7 @@
 
     private void OpenPaymentModal(DateTime month, PaymentHistoryDto? payment)
     {
+        if (ReadOnly) return;
         if (month > new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1)) return;
         if (ContractStartMonth.HasValue && month < ContractStartMonth.Value) return;
 

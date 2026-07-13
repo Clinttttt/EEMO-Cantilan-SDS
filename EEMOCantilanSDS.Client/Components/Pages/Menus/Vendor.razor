@@ -669,6 +669,7 @@
                         ContractDate="@DetailVendor.ContractDate"
                         MonthlyRate="@DetailVendor.MonthlyRate"
                         PaymentHistory="@DetailVendor.PaymentHistory"
+                        ReadOnly="true"
                         OnPaymentUpdated="@(async () => await LoadDetailData(DetailVendor))" />
                 }
                 @* end non-NPM monthly calendar *@
