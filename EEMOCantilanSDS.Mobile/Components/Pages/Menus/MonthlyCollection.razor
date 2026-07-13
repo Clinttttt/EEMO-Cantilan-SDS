@@ -110,6 +110,7 @@
                 @foreach (var stall in FilteredStalls)
                 {
                     <button class="tx-card" type="button" @onclick="() => OnCardTap(stall)">
+                        <div class="tx-avatar">@Initials(stall.PayorName)</div>
                         <div class="tx-body">
                             <div class="tx-top">
                                 <span class="tx-owner">@stall.PayorName</span>
@@ -1109,4 +1110,14 @@
         stall.Status == PaymentStatus.Paid ? "badge-paid" :
         stall.Status == PaymentStatus.Partial ? "badge-partial" :
         "badge-unpaid";
+
+    // Initials for the card avatar (1–2 letters from the payor's name).
+    private static string Initials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "•";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0].Substring(0, 1).ToUpperInvariant();
+        return (parts[0].Substring(0, 1) + parts[^1].Substring(0, 1)).ToUpperInvariant();
+    }
 }
