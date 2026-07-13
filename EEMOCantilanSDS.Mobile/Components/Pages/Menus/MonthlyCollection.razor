@@ -110,26 +110,25 @@
                 @foreach (var stall in FilteredStalls)
                 {
                     <button class="tx-card" type="button" @onclick="() => OnCardTap(stall)">
-                        <div class="tx-left-bar @GetBarClass(stall)"></div>
                         <div class="tx-body">
                             <div class="tx-top">
                                 <span class="tx-owner">@stall.PayorName</span>
                                 <span class="tx-amount">@FormatCurrency(stall.MonthlyRate)</span>
                             </div>
 
-                            <div class="tx-tags">
-                                <span class="tx-tag">No. @stall.StallNo</span>
+                            <div class="tx-meta">
+                                <span>Stall No. @stall.StallNo</span>
                                 @if (!string.IsNullOrWhiteSpace(stall.AreaLabel))
                                 {
-                                    <span class="tx-tag">@stall.AreaLabel</span>
+                                    <span class="tx-meta-sep">·</span><span>@stall.AreaLabel</span>
                                 }
                                 @if (stall.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(stall.ORNumber))
                                 {
-                                    <span class="tx-tag tx-tag-or">OR @stall.ORNumber</span>
+                                    <span class="tx-meta-sep">·</span><span>OR @stall.ORNumber</span>
                                 }
                                 @if (stall.Status == PaymentStatus.Partial)
                                 {
-                                    <span class="tx-tag">Bal @FormatCurrency(stall.Balance)</span>
+                                    <span class="tx-meta-sep">·</span><span>Balance @FormatCurrency(stall.Balance)</span>
                                 }
                             </div>
 
@@ -137,11 +136,28 @@
                                 <div class="tx-statuschips">
                                     @if (IsQueuedOffline(stall))
                                     {
-                                        <span class="tx-badge badge-queued">Queued · Offline</span>
+                                        <span class="tx-badge badge-queued">
+                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                            Queued
+                                        </span>
                                     }
                                     else
                                     {
-                                        <span class="tx-badge @GetBadgeClass(stall)">@stall.Status</span>
+                                        <span class="tx-badge @GetBadgeClass(stall)">
+                                            @if (stall.Status == PaymentStatus.Paid)
+                                            {
+                                                <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                                            }
+                                            else if (stall.Status == PaymentStatus.Partial)
+                                            {
+                                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                            }
+                                            else
+                                            {
+                                                <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                                            }
+                                            @stall.Status
+                                        </span>
                                     }
                                     @if (stall.PaidOnline)
                                     {
@@ -155,11 +171,26 @@
                                         <span class="tx-pending">OR pending</span>
                                     }
                                 </div>
-                                <span class="tx-key @(Sync.IsOnline ? "" : "tx-key-locked")" role="button" tabindex="0"
-                                      title="@(Sync.IsOnline ? "Payor activation code" : "Available online only")"
-                                      @onclick="() => OpenActivation(stall)" @onclick:stopPropagation="true">
-                                    <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
-                                </span>
+
+                                <div class="tx-actions">
+                                    <span class="tx-key @(Sync.IsOnline ? "" : "tx-key-locked")" role="button" tabindex="0"
+                                          title="@(Sync.IsOnline ? "Payor activation code" : "Available online only")"
+                                          @onclick="() => OpenActivation(stall)" @onclick:stopPropagation="true">
+                                        <svg viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></svg>
+                                    </span>
+                                    <span class="tx-action @(IsCollectAction(stall) ? "tx-action-collect" : "tx-action-view")" role="button" tabindex="0"
+                                          @onclick="() => OnCardTap(stall)" @onclick:stopPropagation="true">
+                                        @if (IsCollectAction(stall))
+                                        {
+                                            <svg viewBox="0 0 24 24"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4z" /></svg>
+                                        }
+                                        else
+                                        {
+                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                        }
+                                        <span>@ActionLabel(stall)</span>
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </button>
@@ -1045,10 +1076,17 @@
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
 
-    private static string GetBarClass(MobileMonthlyStallCollectionDto stall) =>
-        stall.Status == PaymentStatus.Paid ? "bar-paid" :
-        stall.Status == PaymentStatus.Partial ? "bar-partial" :
-        string.Empty;
+    // The unpaid (not-yet-collected) state gets the prominent "Collect" action; everything else is view-only.
+    private bool IsCollectAction(MobileMonthlyStallCollectionDto stall) =>
+        !IsQueuedOffline(stall) && stall.Status == PaymentStatus.Unpaid;
+
+    private string ActionLabel(MobileMonthlyStallCollectionDto stall)
+    {
+        if (IsQueuedOffline(stall)) return "View";
+        if (stall.Status == PaymentStatus.Unpaid) return "Collect";
+        if (stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue) return "Encode OR";
+        return "View Receipt";
+    }
 
     private static string GetBadgeClass(MobileMonthlyStallCollectionDto stall) =>
         stall.Status == PaymentStatus.Paid ? "badge-paid" :

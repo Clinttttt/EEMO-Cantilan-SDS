@@ -200,56 +200,54 @@
     align-items: stretch;
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    margin-bottom: 8px;
+    border-radius: 14px;
+    margin-bottom: 10px;
     overflow: hidden;
     text-align: left;
     cursor: pointer;
-    box-shadow: 0 7px 18px rgba(13, 33, 55, 0.045);
+    box-shadow: 0 8px 20px rgba(13, 33, 55, 0.05);
 }
 
 .tx-card:active { background: var(--bg-page); }
 
-.tx-left-bar { width: 3px; flex-shrink: 0; background: var(--border); }
-.tx-left-bar.bar-paid { background: var(--paid-green); }
-.tx-left-bar.bar-partial { background: #c8a84b; }
-
-.tx-body { flex: 1; padding: 12px 14px; min-width: 0; }
+.tx-body { flex: 1; padding: 14px 16px; min-width: 0; }
 
 /* Row 1: occupant name + monthly amount */
 .tx-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 
 .tx-owner {
-    font-size: 14px; font-weight: 600; color: var(--navy-primary);
+    font-size: 15px; font-weight: 700; color: var(--navy-primary);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 .tx-amount {
     color: var(--navy-primary);
     font-family: "EB Garamond", serif;
-    font-size: 16px; font-weight: 700; line-height: 1; flex-shrink: 0;
+    font-size: 17px; font-weight: 700; line-height: 1; flex-shrink: 0;
 }
 
-/* Row 2: detail chips */
-.tx-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
-
-.tx-tag {
-    font-size: 10px; font-weight: 600; color: var(--text-subtle);
-    background: #f3f6f9; border: 1px solid #e8eef3; border-radius: 6px;
-    padding: 2px 7px;
+/* Row 2: single muted detail line (Stall No. · Area · OR ####) */
+.tx-meta {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+    margin-top: 5px; font-size: 11.5px; color: var(--text-subtle);
 }
 
-.tx-tag-or { color: var(--navy-primary); }
+.tx-meta-sep { color: var(--border); font-weight: 700; }
 
-/* Row 3: status chips + activation-code key */
-.tx-statusrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; }
+/* Row 3: status chips + action button */
+.tx-statusrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; }
 
 .tx-statuschips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 
 .tx-badge {
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 9.5px; font-weight: 800; letter-spacing: .3px;
-    text-transform: uppercase; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    text-transform: uppercase; padding: 4px 9px; border-radius: 999px; white-space: nowrap;
+}
+
+.tx-badge svg {
+    width: 11px; height: 11px; fill: none; stroke: currentColor;
+    stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
 }
 
 .tx-badge.badge-paid { color: var(--paid-green); background: var(--paid-green-bg); }
@@ -260,8 +258,34 @@
 .tx-pending {
     font-size: 9.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase;
     color: #8a6d1b; background: rgba(200, 168, 75, 0.16);
-    padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+    padding: 4px 9px; border-radius: 999px; white-space: nowrap;
 }
+
+/* Action buttons (View Receipt / Collect) */
+.tx-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.tx-action {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 13px; border-radius: 10px;
+    font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer;
+}
+
+.tx-action svg {
+    width: 14px; height: 14px; fill: none; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+}
+
+.tx-action-view {
+    color: var(--navy-primary); background: #fff; border: 1px solid var(--border);
+}
+.tx-action-view svg { stroke: var(--navy-primary); }
+.tx-action-view:active { background: var(--bg-page); }
+
+.tx-action-collect {
+    color: #fff; background: var(--navy-primary); border: 1px solid var(--navy-primary);
+}
+.tx-action-collect svg { stroke: #fff; }
+.tx-action-collect:active { opacity: .9; }
 
 .status-option {
     width: 100%;
