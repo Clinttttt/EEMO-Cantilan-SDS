@@ -323,20 +323,11 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .ThenBy(s => s.StallNo)
             .ToListAsync(ct);
 
-        // Current holders only: also drop EXPIRED accounts — an (active) stall whose latest contract
-        // term already ended before today (its coverage is entirely in the past). A future-dated contract
-        // or a mid-renewal stall (any active contract still covering today or later) is kept. Closed
-        // (frozen) stalls were already excluded at the query level. Expired/closed rows still appear in
-        // the transaction/collection history for transparency — just not on this current-holder roster.
-        var today = PhilippineTime.Today;
-        bool IsExpired(Stall s)
-        {
-            var active = s.Contracts.Where(c => c.IsActive).ToList();
-            if (active.Count == 0) return false;   // no contract → vacant, not "expired"
-            var latestEnd = active.Max(c => c.EffectivityDate.AddYears(c.DurationYears));
-            return latestEnd < today;
-        }
-        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !IsExpired(s)).ToList();
+        // Current holders only: also drop EXPIRED accounts — an (active) stall whose contract term has
+        // already lapsed — as well as Closed (frozen) ones. Uses the same central rule (Stall.IsContractExpired)
+        // as the closed-accounts register and the remove-inactive guard, so they can never diverge.
+        // Expired/closed rows still appear in the transaction/collection history — just not on this roster.
+        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired()).ToList();
 
         // Group stalls by section (NPM has sections, others don't)
         var sectionsWithSection = stalls
@@ -598,8 +589,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .ToListAsync(ct);
 
         var candidates = occupied
-            .Where(s => s.Status == StallStatus.Closed
-                || s.Contracts.Any(c => c.IsActive && c.EffectivityDate.AddYears(c.DurationYears) < today))
+            .Where(s => s.Status == StallStatus.Closed || s.IsContractExpired())
             .ToList();
 
         if (candidates.Count == 0)

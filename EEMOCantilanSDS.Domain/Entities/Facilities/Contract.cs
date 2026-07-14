@@ -24,7 +24,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public Stall? Stall { get; private set; }
         private Contract() { }
 
-        public DateOnly ExpiryDate => EffectivityDate.AddYears(DurationYears);
+        public DateOnly ExpiryDate => ComputeExpiry(EffectivityDate, DurationYears);
+
+        /// <summary>
+        /// The single source of the contract-expiry formula: a term runs <paramref name="durationYears"/>
+        /// years from <paramref name="effectivityDate"/>. Shared by the entity (<see cref="ExpiryDate"/>)
+        /// and the DTO-based facility view so the "expired" rule can never drift between them.
+        /// </summary>
+        public static DateOnly ComputeExpiry(DateOnly effectivityDate, int durationYears) =>
+            effectivityDate.AddYears(durationYears);
+
         public decimal WholeYearRental => MonthlyRentalRate * 12;
         public bool IsExpired => PhilippineTime.Today > ExpiryDate;
         public bool IsExpiringSoon => !IsExpired &&

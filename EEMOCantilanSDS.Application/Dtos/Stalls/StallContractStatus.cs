@@ -1,5 +1,6 @@
 using System;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Stalls;
@@ -19,7 +20,9 @@ public static class StallContractStatus
         if (dto.Status != StallStatus.Active) return true;       // closed/other → leave as-is
         if (!dto.ContractDate.HasValue) return true;             // no dated contract → can't be "expired"
 
-        var expiry = DateOnly.FromDateTime(dto.ContractDate.Value.AddYears(dto.ContractYears));
+        // Same expiry formula as the domain entity (Contract.ComputeExpiry / Contract.ExpiryDate), so the
+        // facility page's "current vendor" rule can never drift from the closed-accounts / roster rule.
+        var expiry = Contract.ComputeExpiry(DateOnly.FromDateTime(dto.ContractDate.Value), dto.ContractYears);
         return expiry >= today;
     }
 }

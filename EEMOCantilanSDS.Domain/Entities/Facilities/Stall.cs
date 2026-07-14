@@ -128,6 +128,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
         public bool IsActive() => Status == StallStatus.Active;
 
+        /// <summary>
+        /// True when this is an EXPIRED account: it has an active contract, but the term of every active
+        /// contract has already lapsed (none still covers today), so it is no longer a current holder.
+        /// A vacant stall (no active contract) or one still within term returns false. This is the single
+        /// source of the stall-level "expired" rule — used by the closed-accounts register, the
+        /// stall-holder roster, and the remove-inactive-stall guard so they can never diverge.
+        /// </summary>
+        public bool IsContractExpired()
+        {
+            var active = Contracts.Where(c => c.IsActive).ToList();
+            return active.Count > 0 && active.All(c => c.IsExpired);
+        }
+
         public void SetType(StallType type, string updatedBy = "System")
         {
             Type = type;

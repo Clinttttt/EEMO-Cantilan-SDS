@@ -22,14 +22,11 @@ public class SoftDeleteStallCommandHandler(
             return Result<bool>.NotFound();
 
         // SAFETY GUARD: only an INACTIVE account may be removed — either CLOSED (frozen), or an active
-        // stall whose LATEST contract term has already lapsed (expired). A current stall with a contract
-        // still covering today (or a future-dated one) is never removable here. This keeps a live vendor
-        // from ever being deleted from the roster.
-        var today = PhilippineTime.Today;
+        // stall whose contract term has already lapsed (expired). A current stall still covered by its
+        // contract is never removable here. Uses the central Stall.IsContractExpired rule (same as the
+        // closed-accounts register + roster), so what's shown as removable is exactly what's removable.
         var isClosed = stall.Status == StallStatus.Closed;
-        var activeContracts = stall.Contracts.Where(c => c.IsActive).ToList();
-        var isExpired = activeContracts.Count > 0
-            && activeContracts.Max(c => c.EffectivityDate.AddYears(c.DurationYears)) < today;
+        var isExpired = stall.IsContractExpired();
 
         if (!isClosed && !isExpired)
             return Result<bool>.Failure(
