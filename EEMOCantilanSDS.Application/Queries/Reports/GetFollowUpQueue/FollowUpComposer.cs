@@ -203,13 +203,19 @@ public static class FollowUpComposer
         // payments are excluded by the repository (they have their own awaiting-OR queue above).
         foreach (var u in unreceipted)
         {
+            // Whole-year aggregation returns one row per (stall, month); label each with its own month.
+            // Single-month callers leave Year/Month unset (0) → falls back to the view's period label.
+            var uPeriod = u.Month is >= 1 and <= 12
+                ? new DateTime(u.Year, u.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture)
+                : periodLabel;
+
             if (u.IsDaily)
             {
                 items.Add(new FollowUpItemDto(
                     SecOperational, "Normal", "Daily receipt · OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant),
                     $"Stall {u.StallNo} · {u.Count} day{(u.Count == 1 ? "" : "s")}",
-                    u.Amount, false, periodLabel,
+                    u.Amount, false, uPeriod,
                     "Paid daily · OR blank", "Add OR", "/npm",
                     StallId: u.StallId));
             }
@@ -218,7 +224,7 @@ public static class FollowUpComposer
                 items.Add(new FollowUpItemDto(
                     SecImmediate, "High", "Missing OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant), $"Stall {u.StallNo}",
-                    u.Amount, false, periodLabel,
+                    u.Amount, false, uPeriod,
                     "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallNo),
                     StallId: u.StallId));
             }

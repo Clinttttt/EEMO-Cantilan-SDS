@@ -33,7 +33,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
-    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online) Build()
+    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IPaymentRepository> Payments) Build()
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -83,6 +83,8 @@ public class GetFollowUpHistoryQueryHandlerTests
         var payments = new Mock<IPaymentRepository>();
         payments.Setup(p => p.GetUnreceiptedCashPaymentsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
+        payments.Setup(p => p.GetUnreceiptedCashPaymentsForYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<UnreceiptedPaymentDto>());
 
         var slaughter = new Mock<ISlaughterRepository>();
         slaughter.Setup(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -113,13 +115,13 @@ public class GetFollowUpHistoryQueryHandlerTests
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());
 
-        return (handler, stalls, online);
+        return (handler, stalls, online, payments);
     }
 
     [Fact]
     public async Task Composes_PastPeriodSnapshot_UsingPeriodScopedSources()
     {
-        var (handler, stalls, online) = Build();
+        var (handler, stalls, online, _) = Build();
 
         var result = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None);
 
@@ -155,5 +157,36 @@ public class GetFollowUpHistoryQueryHandlerTests
         stalls.Verify(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         online.Verify(o => o.GetAwaitingOrByPeriodAsync(2025, 12, It.IsAny<CancellationToken>()), Times.Once);
         online.Verify(o => o.GetAwaitingOrAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WholeYear_AggregatesMissingOr_AcrossMonths_UsingYearWideSource()
+    {
+        var (handler, _, _, payments) = Build();
+
+        // Two blank-OR NPM whole-month settlements in DIFFERENT months (Mar + May) — the case the
+        // single-month "as of June" view could never show.
+        payments.Setup(p => p.GetUnreceiptedCashPaymentsForYearAsync(2026, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new UnreceiptedPaymentDto(FacilityCode.NPM, "3", "Ramil C. Orjeles", 930m, 31, IsDaily: true, StallId: Guid.NewGuid(), Year: 2026, Month: 3),
+                new UnreceiptedPaymentDto(FacilityCode.NPM, "30", "Joel I. Maligsa", 900m, 30, IsDaily: true, StallId: Guid.NewGuid(), Year: 2026, Month: 5),
+            });
+
+        var result = await handler.Handle(new GetFollowUpHistoryQuery(2026, 6, WholeYear: true), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var daily = result.Value!.Items
+            .Where(i => i.ReasonKind == "missingor" && i.Reason == "Daily receipt · OR")
+            .ToList();
+
+        Assert.Equal(2, daily.Count);
+        // Each row is labelled with its OWN month (not the snapshot's June), so the Add-OR modal opens right.
+        Assert.Contains(daily, i => i.Person == "Ramil C. Orjeles" && i.Period == "March 2026" && i.Amount == 930m);
+        Assert.Contains(daily, i => i.Person == "Joel I. Maligsa" && i.Period == "May 2026" && i.Amount == 900m);
+
+        // The year-wide source was used — the single-month one must NOT be called for a whole-year request.
+        payments.Verify(p => p.GetUnreceiptedCashPaymentsForYearAsync(2026, It.IsAny<CancellationToken>()), Times.Once);
+        payments.Verify(p => p.GetUnreceiptedCashPaymentsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

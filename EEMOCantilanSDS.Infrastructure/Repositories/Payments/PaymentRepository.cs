@@ -101,7 +101,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 + (p.FishKilos.HasValue ? p.FishKilos.Value * npmFish : 0m),
             1,
             IsDaily: false,
-            StallId: p.StallId));
+            StallId: p.StallId,
+            Year: year,
+            Month: month));
 
         // ── NPM daily: paid daily collections with a blank OR, grouped per stall for the period ──
         var dailyRaw = await context.DailyCollections
@@ -131,7 +133,92 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 g.Sum(x => x.DailyFee),
                 g.Count(),
                 IsDaily: true,
-                StallId: g.First().StallId));
+                StallId: g.First().StallId,
+                Year: year,
+                Month: month));
+
+        return monthly.Concat(daily).ToList();
+    }
+
+    /// <summary>
+    /// Whole-year variant of <see cref="GetUnreceiptedCashPaymentsAsync"/>: every fully-paid cash/field
+    /// record for the year that still lacks an OR, one row per (stall, billing month). Used by the
+    /// Follow-up History "Whole year" view so a blank-OR settlement in ANY month surfaces under Missing OR
+    /// (the single-month path is unchanged). Online payments are excluded (they have their own queue).
+    /// </summary>
+    public async Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsForYearAsync(int year, CancellationToken ct)
+    {
+        var yearStart = new DateOnly(year, 1, 1);
+        var yearEnd = new DateOnly(year, 12, 31);
+
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var npmFish = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, yearStart);
+
+        var onlineRecordIds = context.OnlinePaymentTransactions.Select(t => t.PaymentRecordId);
+
+        // ── Monthly: fully-Paid records with a blank OR, any billing month of the year ──
+        var monthlyRaw = await context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.BillingYear == year
+                && p.Status == PaymentStatus.Paid
+                && (p.ORNumber == null || p.ORNumber == "")
+                && !onlineRecordIds.Contains(p.Id))
+            .Select(p => new
+            {
+                Code = p.Stall!.Facility!.Code,
+                p.Stall.StallNo,
+                p.StallId,
+                Occupant = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                p.BillingMonth,
+                p.BaseRentalAmount,
+                p.ElecAmount,
+                p.WaterAmount,
+                p.FishKilos
+            })
+            .ToListAsync(ct);
+
+        var monthly = monthlyRaw.Select(p => new UnreceiptedPaymentDto(
+            p.Code,
+            p.StallNo,
+            string.IsNullOrWhiteSpace(p.Occupant) ? string.Empty : p.Occupant!,
+            p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0)
+                + (p.FishKilos.HasValue ? p.FishKilos.Value * npmFish : 0m),
+            1,
+            IsDaily: false,
+            StallId: p.StallId,
+            Year: year,
+            Month: p.BillingMonth));
+
+        // ── NPM daily: paid blank-OR days, grouped per (stall, calendar month) of the year ──
+        var dailyRaw = await context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => dc.IsPaid
+                && (dc.ORNumber == null || dc.ORNumber == "")
+                && dc.CollectionDate >= yearStart && dc.CollectionDate <= yearEnd)
+            .Select(dc => new
+            {
+                Code = dc.Stall!.Facility!.Code,
+                dc.Stall.StallNo,
+                dc.StallId,
+                Occupant = dc.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Month = dc.CollectionDate.Month,
+                dc.DailyFee,
+                dc.FishKilos
+            })
+            .ToListAsync(ct);
+
+        var daily = dailyRaw
+            .GroupBy(d => new { d.Code, d.StallNo, d.Occupant, d.Month })
+            .Select(g => new UnreceiptedPaymentDto(
+                g.Key.Code,
+                g.Key.StallNo,
+                string.IsNullOrWhiteSpace(g.Key.Occupant) ? string.Empty : g.Key.Occupant!,
+                g.Sum(x => x.DailyFee),
+                g.Count(),
+                IsDaily: true,
+                StallId: g.First().StallId,
+                Year: year,
+                Month: g.Key.Month));
 
         return monthly.Concat(daily).ToList();
     }

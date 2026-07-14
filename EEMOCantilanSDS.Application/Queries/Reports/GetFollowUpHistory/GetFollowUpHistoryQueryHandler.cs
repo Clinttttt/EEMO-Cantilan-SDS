@@ -36,8 +36,8 @@ public class GetFollowUpHistoryQueryHandler(
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpHistoryQuery request, CancellationToken ct)
     {
-        var key = EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month);
-        var regions = EemoCacheRegions.FollowUpHistoryRegions(tenantContext.TenantCode, request.Year, request.Month);
+        var key = EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
+        var regions = EemoCacheRegions.FollowUpHistoryRegions(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
         var history = await cache.GetOrCreateAsync(
             key,
             regions,
@@ -63,7 +63,11 @@ public class GetFollowUpHistoryQueryHandler(
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
         var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);
         var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
-        var unreceipted = await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
+        // Missing-OR (cash/field) source: whole-year aggregates every month so a blank-OR settlement in
+        // ANY month surfaces; a specific month keeps the exact single-month behaviour (unchanged).
+        var unreceipted = request.WholeYear
+            ? await paymentRepository.GetUnreceiptedCashPaymentsForYearAsync(year, ct)
+            : await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
         var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 

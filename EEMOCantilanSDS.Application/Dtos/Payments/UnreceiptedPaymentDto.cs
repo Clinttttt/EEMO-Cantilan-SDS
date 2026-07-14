@@ -15,5 +15,9 @@ public record UnreceiptedPaymentDto(
     decimal Amount,
     int Count,
     bool IsDaily,
-    Guid StallId = default
+    Guid StallId = default,
+    // Billing period this unreceipted amount belongs to. Lets the whole-year history list one row per
+    // (stall, month) and lets the Add-OR modal open the correct month. 0 = "use the view's period".
+    int Year = 0,
+    int Month = 0
 );

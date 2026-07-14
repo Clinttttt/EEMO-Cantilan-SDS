@@ -142,4 +142,56 @@ public class PaymentRepositoryNpmDailyStatusTests : RepositoryTestBase
         Assert.False(row.PaidToday);
         Assert.Equal(0, row.DaysPaidThisMonth);
     }
+
+    [Fact]
+    public async Task UnreceiptedForYear_GroupsBlankOrDailyPerStallPerMonth_ExcludesReceiptedAndOtherYears()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var contract = Contract.Create(stall.Id, "Ramil C. Orjeles", "Ramil C. Orjeles", new DateOnly(2023, 6, 7), 5, 900m);
+        context.AddRange(facility, stall, contract);
+
+        // March 2026: 3 paid days, blank OR (₱30 × 3 = ₱90).
+        foreach (var d in new[] { new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 2), new DateOnly(2026, 3, 3) })
+        {
+            var dc = DailyCollection.Create(stall.Id, d);
+            dc.MarkPaid("", null);   // paid, no receipt number
+            context.Add(dc);
+        }
+        // May 2026: 2 paid days, blank OR (₱30 × 2 = ₱60).
+        foreach (var d in new[] { new DateOnly(2026, 5, 10), new DateOnly(2026, 5, 11) })
+        {
+            var dc = DailyCollection.Create(stall.Id, d);
+            dc.MarkPaid("", null);
+            context.Add(dc);
+        }
+        // A RECEIPTED April day (has OR) — excluded.
+        var receipted = DailyCollection.Create(stall.Id, new DateOnly(2026, 4, 1));
+        receipted.MarkPaid("OR-APR-1", null);
+        context.Add(receipted);
+        // A blank-OR day in ANOTHER year — excluded.
+        var otherYear = DailyCollection.Create(stall.Id, new DateOnly(2025, 3, 1));
+        otherYear.MarkPaid("", null);
+        context.Add(otherYear);
+
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+        var rows = await repo.GetUnreceiptedCashPaymentsForYearAsync(2026, CancellationToken.None);
+
+        // One row per (stall, month) — March and May only.
+        Assert.Equal(2, rows.Count);
+
+        var mar = Assert.Single(rows, r => r.Month == 3);
+        Assert.True(mar.IsDaily);
+        Assert.Equal(2026, mar.Year);
+        Assert.Equal(3, mar.Count);
+        Assert.Equal(90m, mar.Amount);
+        Assert.Equal("Ramil C. Orjeles", mar.Occupant);
+
+        var may = Assert.Single(rows, r => r.Month == 5);
+        Assert.Equal(2, may.Count);
+        Assert.Equal(60m, may.Amount);
+    }
 }

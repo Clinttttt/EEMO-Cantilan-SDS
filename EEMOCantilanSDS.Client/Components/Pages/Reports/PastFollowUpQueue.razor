@@ -1,5 +1,6 @@
 @page "/reports/follow-up/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using System.Globalization
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Constants
@@ -591,6 +592,16 @@
     // Mirrors the server's display normalisation so name-keyed rows (SLH/TRM/TPM) match.
     private static string Named(string? v) => string.IsNullOrWhiteSpace(v) ? "Unnamed occupant" : v!;
 
+    // Parses a "MMMM yyyy" period label to (year, month) so a whole-year row opens its OWN month in the
+    // Add-OR modal; falls back to the snapshot date for non-month labels (e.g. contract date ranges).
+    private static (int Year, int Month) ParsePeriodMonth(string? period, DateOnly fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(period)
+            && DateTime.TryParseExact(period.Trim(), "MMMM yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            return (dt.Year, dt.Month);
+        return (fallback.Year, fallback.Month);
+    }
+
     private async Task OpenAddOr(FollowUpItemDto item)
     {
         _orItem = item;
@@ -602,8 +613,9 @@
         _orMultiOr = string.Empty;
         _orMultiError = null;
         _orLoading = true;
-        // Period comes from the loaded snapshot's "as of" period, not today.
-        int y = _data?.AsOf.Year ?? _now.Year, m = _data?.AsOf.Month ?? _now.Month;
+        // The record's own billing period (from its row) — so a whole-year row opens the RIGHT month,
+        // not the snapshot's "as of" month. Falls back to the snapshot period when the label isn't a month.
+        var (y, m) = ParsePeriodMonth(item.Period, _data?.AsOf ?? DateOnly.FromDateTime(_now));
 
         switch (_orModel)
         {
@@ -898,12 +910,13 @@
         _loading = true;
         var year = _selYear;
         var month = EffectiveMonth();
+        var wholeYear = _selMonth == 0;
         await PaintLoadingStateAsync();
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = await ReportsApi.GetFollowUpHistoryAsync(year, month);
+            var result = await ReportsApi.GetFollowUpHistoryAsync(year, month, wholeYear);
             if (result.IsSuccess)
             {
                 _data = result.Value;

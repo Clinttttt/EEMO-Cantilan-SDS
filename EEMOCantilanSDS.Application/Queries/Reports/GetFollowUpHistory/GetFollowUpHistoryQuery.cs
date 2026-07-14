@@ -10,4 +10,4 @@ namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistory;
 /// and online-awaiting-OR sources are period-scoped so a past month reflects the state that would have
 /// shown then, rather than today's.
 /// </summary>
-public record GetFollowUpHistoryQuery(int Year, int Month) : IRequest<Result<FollowUpQueueDto>>;
+public record GetFollowUpHistoryQuery(int Year, int Month, bool WholeYear = false) : IRequest<Result<FollowUpQueueDto>>;

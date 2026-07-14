@@ -39,7 +39,12 @@ public static class EemoCacheKeys
     }
 
     public static string FollowUpHistory(string tenantCode, int year, int month)
-        => $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:{month:00}";
+        => FollowUpHistory(tenantCode, year, month, false);
+
+    public static string FollowUpHistory(string tenantCode, int year, int month, bool wholeYear)
+        => wholeYear
+            ? $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:whole-year"
+            : $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:{month:00}";
 
     public static string StallHolderList(
         string tenantCode,

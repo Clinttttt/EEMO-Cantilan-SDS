@@ -17,6 +17,12 @@ public interface IPaymentRepository
     /// Online payments are excluded; they surface via the online awaiting-OR queue.
     /// </summary>
     Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct);
+    /// <summary>
+    /// Whole-year variant of <see cref="GetUnreceiptedCashPaymentsAsync"/>: one row per (stall, billing
+    /// month) for every blank-OR paid cash/field record in the year. Powers the Follow-up History
+    /// "Whole year" Missing-OR aggregation.
+    /// </summary>
+    Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsForYearAsync(int year, CancellationToken ct);
     Task<IReadOnlyList<PaymentHistoryDto>> GetPaymentHistoryAsync(Guid stallId, CancellationToken ct);
     /// <summary>
     /// Cursor-paginated transparency log of a stall's collections, newest first. NPM → recorded daily

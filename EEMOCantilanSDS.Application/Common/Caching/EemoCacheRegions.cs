@@ -97,12 +97,27 @@ public static class EemoCacheRegions
     }
 
     public static IReadOnlyCollection<string> FollowUpHistoryRegions(string tenantCode, int year, int month)
-        => new[]
+        => FollowUpHistoryRegions(tenantCode, year, month, false);
+
+    public static IReadOnlyCollection<string> FollowUpHistoryRegions(string tenantCode, int year, int month, bool wholeYear)
+    {
+        if (!wholeYear)
+            return new[]
+            {
+                Period(tenantCode, year, month),
+                Reports(tenantCode, year, month),
+                ReferenceData(tenantCode)
+            };
+
+        // Whole-year missing-OR aggregates every month → invalidate the snapshot when ANY month changes.
+        var regions = new List<string> { ReferenceData(tenantCode) };
+        for (var m = 1; m <= 12; m++)
         {
-            Period(tenantCode, year, month),
-            Reports(tenantCode, year, month),
-            ReferenceData(tenantCode)
-        };
+            regions.Add(Period(tenantCode, year, m));
+            regions.Add(Reports(tenantCode, year, m));
+        }
+        return regions.Distinct(StringComparer.Ordinal).ToArray();
+    }
 
     public static IReadOnlyCollection<string> StallHolderListRegions(string tenantCode)
         => new[] { ReferenceData(tenantCode) };
