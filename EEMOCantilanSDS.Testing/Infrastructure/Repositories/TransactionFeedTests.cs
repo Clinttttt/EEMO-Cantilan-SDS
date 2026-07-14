@@ -203,4 +203,40 @@ public class TransactionFeedTests : RepositoryTestBase
 
         Assert.Equal(2, feed.Count);
     }
+
+    [Fact]
+    public async Task GetRecent_Daily_OnDate_UsesRecordDate_AndGroupsWholeMonthSettlement()
+    {
+        var context = NewContext();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "A-1", 900m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Ramil C. Orjeles", null, new DateOnly(2023, 6, 7), 5, 900m);
+        context.Facilities.Add(npm);
+        context.Stalls.Add(stall);
+        context.Contracts.Add(contract);
+
+        // A closed-out balance for a PAST month, all settled TODAY under one OR (₱30 × 5 days = ₱150).
+        var pastMonth = new DateOnly(2026, 3, 1);
+        for (var i = 0; i < 5; i++)
+        {
+            var dc = DailyCollection.Create(stall.Id, pastMonth.AddDays(i));
+            dc.MarkPaid("OR-BAL-1", null);   // recorded now → UpdatedAt = today
+            context.DailyCollections.Add(dc);
+        }
+        await context.SaveChangesAsync();
+
+        var repo = new TransactionFeedRepository(context);
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+
+        // Filtering by TODAY (the record day) surfaces the settlement even though every fee day is in March.
+        var feed = await repo.GetRecentTransactionsAsync(FacilityCode.NPM, today, 200, CancellationToken.None);
+        var row = Assert.Single(feed);
+        Assert.Equal("Ramil C. Orjeles", row.Party);
+        Assert.Equal(150m, row.Amount);          // 5 days collapsed + summed into one row
+        Assert.Equal("OR-BAL-1", row.ORNumber);
+
+        // Filtering by the fee day (March 1) must NOT surface it — it was recorded today, not in March.
+        var march = await repo.GetRecentTransactionsAsync(FacilityCode.NPM, pastMonth, 200, CancellationToken.None);
+        Assert.Empty(march);
+    }
 }

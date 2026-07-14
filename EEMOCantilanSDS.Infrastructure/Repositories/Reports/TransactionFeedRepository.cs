@@ -139,14 +139,22 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
     {
         var q = context.DailyCollections.AsNoTracking().Where(d => d.IsPaid);
         if (onDate is { } d)
-            q = q.Where(x => x.CollectionDate == d);
+        {
+            // "Recorded collections" for a date = collections RECORDED (paid) that day, regardless of which
+            // day the fee is for. This surfaces a balance / whole-month settlement recorded today under today
+            // (e.g. a closed account paying off old dues), matching the page's "Today's recorded collections".
+            var (startUtc, endUtc) = PhilippineTime.DayUtcRange(d);
+            q = q.Where(x => (x.UpdatedAt ?? x.CreatedAt) >= startUtc
+                          && (x.UpdatedAt ?? x.CreatedAt) < endUtc);
+        }
 
         var rows = await q
-            .OrderByDescending(d => d.CollectionDate)
+            .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
             .Take(limit)
             .Select(d => new
             {
                 d.Id,
+                d.StallId,
                 Code = d.Stall!.Facility!.Code,
                 FacilityName = d.Stall.Facility.Name,
                 d.Stall.StallNo,
@@ -158,20 +166,30 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 d.ORNumber,
                 d.CollectorId,
                 d.CreatedBy,
-                d.CollectionDate
+                When = d.UpdatedAt ?? d.CreatedAt
             })
             .ToListAsync(ct);
 
-        return rows.Select(r =>
-        {
-            var amount = r.DailyFee + (r.FishKilos.HasValue ? r.FishKilos.Value * _npmFishRate : 0);
-            return new TransactionFeedDto(
-                r.Id, r.Code, r.FacilityName, r.CollectionDate.ToDateTime(TimeOnly.MinValue), false,
-                string.IsNullOrWhiteSpace(r.Occupant) ? "Stall " + r.StallNo : r.Occupant!,
-                $"Stall {r.StallNo}",
-                "Daily Fee", amount, r.ORNumber, "Paid",
-                Recorder(r.CollectorId, r.CreatedBy, collectors));
-        }).ToList();
+        // A single settlement (one OR, or one stall's same-minute whole-month) collapses into ONE feed row,
+        // summing its days — mirroring the dashboard's recent-transactions grouping.
+        return rows
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.ORNumber)
+                ? $"S:{r.StallId}:{r.When:yyyyMMddHHmm}"
+                : $"OR:{r.ORNumber}")
+            .Select(g =>
+            {
+                var first = g.First();
+                var amount = g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * _npmFishRate : 0));
+                var days = g.Count();
+                var party = string.IsNullOrWhiteSpace(first.Occupant) ? "Stall " + first.StallNo : first.Occupant!;
+                var reference = days > 1 ? $"Stall {first.StallNo} · {days} days" : $"Stall {first.StallNo}";
+                return new TransactionFeedDto(
+                    first.Id, first.Code, first.FacilityName, PhilippineTime.ToPhilippineTime(g.Max(x => x.When)), true,
+                    party, reference, "Daily Fee", amount, first.ORNumber, "Paid",
+                    Recorder(first.CollectorId, first.CreatedBy, collectors));
+            })
+            .OrderByDescending(t => t.OccurredAt)
+            .ToList();
     }
 
     private async Task<List<TransactionFeedDto>> SlaughterRowsAsync(DateOnly? onDate, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
