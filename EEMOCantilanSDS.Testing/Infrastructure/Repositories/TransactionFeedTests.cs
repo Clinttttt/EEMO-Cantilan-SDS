@@ -234,9 +234,44 @@ public class TransactionFeedTests : RepositoryTestBase
         Assert.Equal("Ramil C. Orjeles", row.Party);
         Assert.Equal(150m, row.Amount);          // 5 days collapsed + summed into one row
         Assert.Equal("OR-BAL-1", row.ORNumber);
+        Assert.Contains("5 days", row.Reference);
+        Assert.Contains("Mar 2026", row.Reference);   // fee period shown, not just "today"
 
         // Filtering by the fee day (March 1) must NOT surface it — it was recorded today, not in March.
         var march = await repo.GetRecentTransactionsAsync(FacilityCode.NPM, pastMonth, 200, CancellationToken.None);
         Assert.Empty(march);
+    }
+
+    [Fact]
+    public async Task GetRecent_Daily_BlankOrWholeMonth_GroupsByFeeMonth_WithPeriodInDetails()
+    {
+        var context = NewContext();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Ramil C. Orjeles", null, new DateOnly(2023, 6, 7), 5, 900m);
+        context.Facilities.Add(npm);
+        context.Stalls.Add(stall);
+        context.Contracts.Add(contract);
+
+        // Whole month settled TODAY with a BLANK OR (SettleNpmMonth stamps no per-day OR), fee-dated Jul 2023.
+        var month = new DateOnly(2023, 7, 1);
+        for (var i = 0; i < 31; i++)
+        {
+            var dc = DailyCollection.Create(stall.Id, month.AddDays(i));
+            dc.MarkPaid(string.Empty, null);   // paid, blank OR
+            context.DailyCollections.Add(dc);
+        }
+        await context.SaveChangesAsync();
+
+        var repo = new TransactionFeedRepository(context);
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var feed = await repo.GetRecentTransactionsAsync(FacilityCode.NPM, today, 200, CancellationToken.None);
+
+        // All 31 blank-OR days group into ONE row by fee month (no clock-minute split), with the period shown.
+        var row = Assert.Single(feed);
+        Assert.Equal("Ramil C. Orjeles", row.Party);
+        Assert.Equal(930m, row.Amount);          // 31 × ₱30
+        Assert.Contains("31 days", row.Reference);
+        Assert.Contains("Jul 2023", row.Reference);
     }
 }

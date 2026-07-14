@@ -166,15 +166,18 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 d.ORNumber,
                 d.CollectorId,
                 d.CreatedBy,
+                d.CollectionDate,
                 When = d.UpdatedAt ?? d.CreatedAt
             })
             .ToListAsync(ct);
 
-        // A single settlement (one OR, or one stall's same-minute whole-month) collapses into ONE feed row,
-        // summing its days — mirroring the dashboard's recent-transactions grouping.
+        // A single settlement collapses into ONE feed row, summing its days. When an OR is present we key
+        // by it; a blank-OR settlement (a whole-month NPM settle stamps no per-day OR) keys by stall + the
+        // FEE month — so all its days group into one row regardless of the exact insert second (avoids a
+        // clock-minute split), and separate fee months for the same stall stay as distinct rows.
         return rows
             .GroupBy(r => string.IsNullOrWhiteSpace(r.ORNumber)
-                ? $"S:{r.StallId}:{r.When:yyyyMMddHHmm}"
+                ? $"S:{r.StallId}:{r.CollectionDate:yyyyMM}"
                 : $"OR:{r.ORNumber}")
             .Select(g =>
             {
@@ -182,7 +185,18 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 var amount = g.Sum(x => x.DailyFee + (x.FishKilos.HasValue ? x.FishKilos.Value * _npmFishRate : 0));
                 var days = g.Count();
                 var party = string.IsNullOrWhiteSpace(first.Occupant) ? "Stall " + first.StallNo : first.Occupant!;
-                var reference = days > 1 ? $"Stall {first.StallNo} · {days} days" : $"Stall {first.StallNo}";
+
+                // Multi-day rows (settlements) show the fee period so a back-dated settle recorded today
+                // still reads for the month it is FOR (e.g. "31 days · Jul 2023"), not just "today".
+                var minC = g.Min(x => x.CollectionDate);
+                var maxC = g.Max(x => x.CollectionDate);
+                var feePeriod = minC.Year == maxC.Year && minC.Month == maxC.Month
+                    ? minC.ToString("MMM yyyy")
+                    : $"{minC.ToString("MMM yyyy")} – {maxC.ToString("MMM yyyy")}";
+                var reference = days > 1
+                    ? $"Stall {first.StallNo} · {days} days · {feePeriod}"
+                    : $"Stall {first.StallNo}";
+
                 return new TransactionFeedDto(
                     first.Id, first.Code, first.FacilityName, PhilippineTime.ToPhilippineTime(g.Max(x => x.When)), true,
                     party, reference, "Daily Fee", amount, first.ORNumber, "Paid",
