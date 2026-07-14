@@ -163,11 +163,15 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             p.CreatedBy,
             p.PaidAt!.Value)).ToList();
 
-        recentRows.AddRange((await context.DailyCollections
+        // NPM daily: one receipt (OR) may settle many days of a stall in a single transaction (a
+        // whole-month settlement) — collapse same-OR rows into ONE feed entry showing the receipt total,
+        // exactly like slaughter receipts below. Fetch enough recent rows to fully capture a month per
+        // transaction; blank-OR (OR-pending) rows stay individual so nothing unrelated is merged.
+        var dailyRaw = await context.DailyCollections
             .AsNoTracking()
             .Where(d => d.IsPaid)
             .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
-            .Take(recentTake)
+            .Take(recentTake * 32)
             .Select(d => new
             {
                 d.ORNumber,
@@ -179,9 +183,22 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                 d.CreatedBy,
                 At = d.UpdatedAt ?? d.CreatedAt
             })
-            .ToListAsync(ct))
-            .Select(d => new RecentRow(d.ORNumber ?? "", d.Occupant ?? "", d.Code,
-                d.DailyFee + (d.FishKilos ?? 0) * npmFish, d.CollectorId, d.CreatedBy, At: d.At)));
+            .ToListAsync(ct);
+
+        recentRows.AddRange(dailyRaw
+            .GroupBy(d => string.IsNullOrWhiteSpace(d.ORNumber) ? "\0blank\0" + Guid.NewGuid() : d.ORNumber!)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new RecentRow(
+                    first.ORNumber ?? "",
+                    first.Occupant ?? "",
+                    first.Code,
+                    g.Sum(x => x.DailyFee + (x.FishKilos ?? 0) * npmFish),
+                    first.CollectorId,
+                    first.CreatedBy,
+                    g.Max(x => x.At));
+            }));
 
         // One slaughter receipt (OR) can cover several animal-type line-items, each stored as its
         // own row. Collapse them into a single feed entry showing the receipt's total amount.
