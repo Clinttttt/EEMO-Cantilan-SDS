@@ -471,3 +471,8 @@
 .tx-left-bar-queued {
     background: #c8a84b;
 }
+
+/* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
+.header-row {
+    padding-right: 56px;
+}

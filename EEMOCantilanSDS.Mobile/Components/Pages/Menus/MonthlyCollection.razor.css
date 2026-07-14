@@ -653,3 +653,8 @@
 .activation-meta-row strong {
     color: #0d2137;
 }
+
+/* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
+.header-row {
+    padding-right: 56px;
+}

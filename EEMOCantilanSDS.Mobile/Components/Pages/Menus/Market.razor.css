@@ -668,3 +668,8 @@
 .misc-or-input {
     margin-top: 8px;
 }
+
+/* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
+.header-row {
+    padding-right: 56px;
+}

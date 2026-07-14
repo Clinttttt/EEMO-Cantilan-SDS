@@ -1784,11 +1784,15 @@ html, body, #app {
     margin-top: 2px;
 }
 
-/* Municipality seal, right of the page header title */
+/* Municipality seal — anchored top-right of the page header (letterhead style),
+   vertically centred against the eyebrow + title so spacing stays balanced. */
 .header-logo {
-    width: 46px;
-    height: 46px;
-    flex-shrink: 0;
+    position: absolute;
+    top: 50%;
+    right: 24px;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: #fff;
     object-fit: contain;
