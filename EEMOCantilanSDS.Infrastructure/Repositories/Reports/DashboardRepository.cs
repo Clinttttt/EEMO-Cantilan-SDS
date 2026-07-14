@@ -163,10 +163,11 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             p.CreatedBy,
             p.PaidAt!.Value)).ToList();
 
-        // NPM daily: one receipt (OR) may settle many days of a stall in a single transaction (a
-        // whole-month settlement) — collapse same-OR rows into ONE feed entry showing the receipt total,
-        // exactly like slaughter receipts below. Fetch enough recent rows to fully capture a month per
-        // transaction; blank-OR (OR-pending) rows stay individual so nothing unrelated is merged.
+        // NPM daily: one settlement (whole month) records many days of a stall at once — collapse them
+        // into ONE feed entry with the receipt total, like slaughter receipts. They share the same OR when
+        // one was entered; when the OR is left blank, they still share the same stall + recording minute,
+        // so group on that. Occupant resolves from the active contract, falling back to the latest one so
+        // a CLOSED payor still shows their name. Fetch enough rows to cover a full month per transaction.
         var dailyRaw = await context.DailyCollections
             .AsNoTracking()
             .Where(d => d.IsPaid)
@@ -174,8 +175,11 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .Take(recentTake * 32)
             .Select(d => new
             {
+                d.StallId,
                 d.ORNumber,
-                Occupant = d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Occupant = d.Stall!.Contracts
+                    .OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
+                    .Select(c => c.ActualOccupant).FirstOrDefault(),
                 Code = d.Stall.Facility!.Code,
                 d.DailyFee,
                 d.FishKilos,
@@ -186,7 +190,9 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
             .ToListAsync(ct);
 
         recentRows.AddRange(dailyRaw
-            .GroupBy(d => string.IsNullOrWhiteSpace(d.ORNumber) ? "\0blank\0" + Guid.NewGuid() : d.ORNumber!)
+            .GroupBy(d => string.IsNullOrWhiteSpace(d.ORNumber)
+                ? $"S:{d.StallId}:{d.At:yyyyMMddHHmm}"     // blank OR → group a stall's same-minute settlement
+                : $"OR:{d.ORNumber}")                       // one receipt → one transaction
             .Select(g =>
             {
                 var first = g.First();

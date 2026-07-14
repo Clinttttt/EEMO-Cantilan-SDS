@@ -99,7 +99,9 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 Code = p.Stall!.Facility!.Code,
                 FacilityName = p.Stall.Facility.Name,
                 p.Stall.StallNo,
-                Occupant = p.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Occupant = p.Stall.Contracts
+                    .OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
+                    .Select(c => c.ActualOccupant).FirstOrDefault(),
                 p.Status,
                 p.BaseRentalAmount,
                 p.PartialAmount,
@@ -148,7 +150,9 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 Code = d.Stall!.Facility!.Code,
                 FacilityName = d.Stall.Facility.Name,
                 d.Stall.StallNo,
-                Occupant = d.Stall.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Occupant = d.Stall.Contracts
+                    .OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
+                    .Select(c => c.ActualOccupant).FirstOrDefault(),
                 d.DailyFee,
                 d.FishKilos,
                 d.ORNumber,

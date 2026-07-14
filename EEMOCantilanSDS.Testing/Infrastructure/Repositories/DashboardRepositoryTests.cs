@@ -186,6 +186,34 @@ public class DashboardRepositoryTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task GetOverview_CollapsesWholeMonthNpmDailyCollections_EvenWithNoOrNumber()
+    {
+        var context = NewContext();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental);
+        var contract = Contract.Create(stall.Id, "Joel Maligsa", null, new DateOnly(2025, 1, 1), 3, 900m);
+        context.AddRange(npm, stall, contract);
+
+        // Whole-month settlement recorded WITHOUT an OR (blank): same stall, same recording moment →
+        // still collapses into one transaction row (grouped on stall + recording minute).
+        for (var day = 1; day <= 4; day++)
+        {
+            var dc = DailyCollection.Create(stall.Id, new DateOnly(2026, 5, day));
+            dc.MarkPaid("", null);
+            context.Add(dc);
+        }
+        await context.SaveChangesAsync();
+
+        var overview = await new DashboardRepository(context, new FacilityReportsRepository(context))
+            .GetOverviewAsync(2026, 5, CancellationToken.None);
+
+        var npmRows = overview.RecentTransactions.Where(t => t.FacilityCode == FacilityCode.NPM).ToList();
+        var grouped = Assert.Single(npmRows);      // 4 blank-OR days → ONE row
+        Assert.Equal(120m, grouped.Amount);         // 4 × ₱30
+        Assert.Equal("Joel Maligsa", grouped.PayorName);
+    }
+
+    [Fact]
     public async Task GetOverview_CollectionRate_IsAmountBased_NotCountOfFullyPaidStalls()
     {
         // TCC, current month: one stall fully paid (₱1,000), one partial (₱300 of ₱1,000).

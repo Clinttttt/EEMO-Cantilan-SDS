@@ -301,7 +301,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         var query = context.Stalls
             .AsNoTracking()
             .Include(s => s.Contracts)
-            .Where(s => s.Facility!.Code == facilityCode);
+            // The stallholder roster lists CURRENT holders only — closed accounts are excluded entirely
+            // (they still appear in the transaction/collection history for transparency, just not here).
+            .Where(s => s.Facility!.Code == facilityCode && s.Status != StallStatus.Closed);
 
         if (section.HasValue)
             query = query.Where(s => s.Section == section.Value);
