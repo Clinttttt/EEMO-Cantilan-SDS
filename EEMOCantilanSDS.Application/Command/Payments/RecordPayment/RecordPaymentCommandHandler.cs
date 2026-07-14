@@ -75,7 +75,7 @@ public class RecordPaymentCommandHandler(
             newPayment.UpdateStatus(request.Status, request.PartialAmount ?? 0m, request.Remarks, recordedBy, collectorId);
             if (newPayment.Status != PaymentStatus.Unpaid && !string.IsNullOrWhiteSpace(orNumber))
             {
-                if (!await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                if (!await paymentRepository.IsMonthlyOrAvailableForStallAsync(orNumber, request.StallId, ct))
                     return Result<bool>.Failure("OR number already exists.", 409);
                 newPayment.SetOrNumber(orNumber, recordedBy);
             }
@@ -108,7 +108,7 @@ public class RecordPaymentCommandHandler(
                 // Allow re-saving the same OR already on THIS record (e.g. partial -> full re-record);
                 // only reject when the OR is being introduced and already exists elsewhere.
                 var alreadyOnThisRecord = string.Equals(existingPayment.ORNumber?.Trim(), orNumber, StringComparison.Ordinal);
-                if (!alreadyOnThisRecord && !await paymentRepository.IsORNumberUniqueAsync(orNumber, ct))
+                if (!alreadyOnThisRecord && !await paymentRepository.IsMonthlyOrAvailableForStallAsync(orNumber, request.StallId, ct))
                     return Result<bool>.Failure("OR number already exists.", 409);
                 existingPayment.SetOrNumber(orNumber, recordedBy);
             }

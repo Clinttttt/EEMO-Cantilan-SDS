@@ -280,7 +280,7 @@
     {
         (true, true, _) => $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}",
         (true, false, _) => "whole billing month",
-        (false, _, true) => "each month · OR encoded per month",
+        (false, _, true) => "all outstanding months · one OR",
         _ => "selected billing period"
     };
 
@@ -288,7 +288,7 @@
     {
         (true, true, _) => "One OR will cover the selected collection days in a single transaction.",
         (true, false, _) => "One OR may cover all settleable days in the selected month.",
-        (false, _, true) => "OR numbers must be encoded per month — a single OR is not applied across all months.",
+        (false, _, true) => "One OR covers all settled months of this stall in a single receipt.",
         _ => "The OR will be assigned to the selected billing period."
     };
 
@@ -443,16 +443,15 @@
             if (targets.Count == 0)
             { _error = "Select a month to pay."; _submitting = false; return; }
 
-            // A single OR is one monthly receipt, so only stamp it when paying ONE month; a bulk "all"
-            // records the months paid and leaves each month's OR to be encoded later.
-            var singleOr = (_scope == "month") ? or : null;
-
+            // One OR (one receipt) covers the whole transaction — a single month OR all outstanding months
+            // of THIS stall. The OR is stamped on every month settled; stall-aware uniqueness permits the
+            // same OR across this stall's months, while a different stall/module still rejects it.
             foreach (var t in targets)
             {
                 if (!TryParsePeriod(t.Period, out var year, out var month))
                     continue;
                 var r = await PaymentsApi.RecordPaymentAsync(
-                    new RecordPaymentCommand(StallId, year, month, PaymentStatus.Paid, null, null, singleOr));
+                    new RecordPaymentCommand(StallId, year, month, PaymentStatus.Paid, null, null, or));
                 if (!r.IsSuccess) { _error = r.Error ?? "Could not record the payment. Please try again."; _submitting = false; return; }
             }
         }

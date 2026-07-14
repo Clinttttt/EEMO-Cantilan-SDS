@@ -161,4 +161,31 @@ public class PaymentRepositoryOrUniquenessTests : RepositoryTestBase
         // A fresh OR is available for any stall.
         Assert.True(await repo.IsDailyCollectionOrAvailableForStallAsync("OR-FRESH", stallB, CancellationToken.None));
     }
+
+    // Monthly "all outstanding": one OR (receipt) may settle several months of the SAME stall, but is
+    // still rejected for a different stall, and the global check keeps reporting it as taken.
+    [Fact]
+    public async Task MonthlyOr_AllowsSameStallReuse_RejectsOtherStall()
+    {
+        await using var ctx = NewContext();
+        var stallA = Guid.NewGuid();
+        var stallB = Guid.NewGuid();
+
+        var pr = EEMOCantilanSDS.Domain.Entities.Payments.PaymentRecord.Create(stallA, 2026, 1, 2400m, "admin");
+        pr.UpdateStatus(EEMOCantilanSDS.Domain.Enums.PaymentStatus.Paid, 0m, null, "admin", null);
+        pr.SetOrNumber("OR-MONTH", "admin");
+        ctx.Add(pr);
+        await ctx.SaveChangesAsync();
+
+        var repo = new PaymentRepository(ctx);
+
+        // Same stall may reuse the OR (one receipt settling several months).
+        Assert.True(await repo.IsMonthlyOrAvailableForStallAsync("OR-MONTH", stallA, CancellationToken.None));
+        // A different stall may NOT reuse it.
+        Assert.False(await repo.IsMonthlyOrAvailableForStallAsync("OR-MONTH", stallB, CancellationToken.None));
+        // The stall-agnostic check still reports it taken.
+        Assert.False(await repo.IsORNumberUniqueAsync("OR-MONTH", CancellationToken.None));
+        // A fresh OR is available for any stall.
+        Assert.True(await repo.IsMonthlyOrAvailableForStallAsync("OR-FRESH", stallB, CancellationToken.None));
+    }
 }

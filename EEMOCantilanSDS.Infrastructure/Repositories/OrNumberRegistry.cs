@@ -21,25 +21,39 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories
         /// <paramref name="excludeUtilityBillId"/> lets a utility bill re-mark its own OR.
         /// <paramref name="allowSlaughterReceipt"/> permits the same OR to recur within one slaughterhouse
         /// receipt (same owner + same transaction date, one receipt covering multiple heads).
-        /// <paramref name="allowDailyStall"/> permits the same OR to recur across multiple daily collections
-        /// of the SAME NPM stall (one receipt covering several days); it is still rejected when the OR
-        /// already belongs to a DIFFERENT stall.
         /// </summary>
+        /// <param name="allowDailyStall">permits the same OR to recur across multiple daily collections
+        /// of the SAME NPM stall (one receipt covering several days); it is still rejected when the OR
+        /// already belongs to a DIFFERENT stall.</param>
+        /// <param name="allowMonthlyStall">permits the same OR to recur across multiple monthly payment
+        /// records of the SAME stall (one receipt settling several months, e.g. "all outstanding"); it is
+        /// still rejected when the OR already belongs to a DIFFERENT stall's payment record.</param>
         public static async Task<bool> IsAvailableAsync(
             AppDbContext context,
             string orNumber,
             CancellationToken ct,
             Guid? excludeUtilityBillId = null,
             (string OwnerName, DateOnly Date)? allowSlaughterReceipt = null,
-            Guid? allowDailyStall = null)
+            Guid? allowDailyStall = null,
+            Guid? allowMonthlyStall = null)
         {
             var or = (orNumber ?? string.Empty).Trim();
             if (or.Length == 0) return true;
 
             var mid = context.CurrentMunicipalityId;
 
-            if (await context.PaymentRecords.IgnoreQueryFilters()
-                    .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or, ct)) return false;
+            // Monthly rentals: one OR may settle multiple months of the SAME stall (one receipt); reject
+            // only when the OR already belongs to a DIFFERENT stall's payment record.
+            if (allowMonthlyStall is { } monthlyStallId)
+            {
+                if (await context.PaymentRecords.IgnoreQueryFilters()
+                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or && p.StallId != monthlyStallId, ct)) return false;
+            }
+            else
+            {
+                if (await context.PaymentRecords.IgnoreQueryFilters()
+                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or, ct)) return false;
+            }
 
             // NPM daily: one OR may cover multiple days of the SAME stall (one receipt, several days);
             // reject only when the OR already belongs to a DIFFERENT stall's daily collection.

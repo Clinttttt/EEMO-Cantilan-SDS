@@ -37,7 +37,7 @@ public class RecordPaymentCommandHandlerTests
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         paymentRepo.Setup(r => r.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((PaymentRecordDto?)null);
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        paymentRepo.Setup(r => r.IsMonthlyOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         if (collector is not null)
             collectorRepo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
         currentUser.SetupGet(c => c.Role).Returns(role);
@@ -96,7 +96,7 @@ public class RecordPaymentCommandHandlerTests
     {
         var stall = StallInFacility(FacilityCode.TCC);
         var (handler, paymentRepo) = Build(stall, null, "Admin", null);
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        paymentRepo.Setup(r => r.IsMonthlyOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var result = await handler.Handle(
             new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "DUP-1"),
@@ -123,7 +123,7 @@ public class RecordPaymentCommandHandlerTests
             .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Partial, "00123", 2400m, null, null, null, 1000m, 1400m));
         paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
         // OR "exists" globally precisely because it is on this same record.
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        paymentRepo.Setup(r => r.IsMonthlyOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var result = await handler.Handle(
             new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "00123"),
@@ -176,7 +176,7 @@ public class RecordPaymentCommandHandlerTests
         paymentRepo.Setup(r => r.GetPaymentRecordAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Partial, "OR-A", 2400m, null, null, null, 1000m, 1400m));
         paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
-        paymentRepo.Setup(r => r.IsORNumberUniqueAsync("OR-A", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        paymentRepo.Setup(r => r.IsMonthlyOrAvailableForStallAsync("OR-A", It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var result = await handler.Handle(
             new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Paid, null, null, ORNumber: "OR-A"),

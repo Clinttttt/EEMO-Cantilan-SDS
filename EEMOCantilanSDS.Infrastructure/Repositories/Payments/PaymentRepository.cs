@@ -713,6 +713,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct, allowDailyStall: stallId);
     }
 
+    public async Task<bool> IsMonthlyOrAvailableForStallAsync(string orNumber, Guid stallId, CancellationToken ct)
+    {
+        // Same rules as IsORNumberUniqueAsync, but one OR may settle multiple months of THIS stall
+        // (one receipt for "all outstanding"). Still rejected if the OR is on a different stall/module.
+        return await OrNumberRegistry.IsAvailableAsync(context, orNumber, ct, allowMonthlyStall: stallId);
+    }
+
     public async Task AddAsync(PaymentRecord payment, CancellationToken ct)
     {
         await context.PaymentRecords.AddAsync(payment, ct);

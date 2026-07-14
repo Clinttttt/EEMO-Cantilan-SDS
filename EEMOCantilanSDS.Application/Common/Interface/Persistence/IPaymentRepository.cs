@@ -38,6 +38,13 @@ public interface IPaymentRepository
     /// several days of the same stall). Rejected when the OR belongs to a different stall or any other module.
     /// </summary>
     Task<bool> IsDailyCollectionOrAvailableForStallAsync(string orNumber, Guid stallId, CancellationToken ct);
+
+    /// <summary>
+    /// True when the OR is free to stamp on THIS stall's monthly payment records — one OR may settle
+    /// multiple months of the same stall (one "all outstanding" receipt); rejected across a different
+    /// stall or another module.
+    /// </summary>
+    Task<bool> IsMonthlyOrAvailableForStallAsync(string orNumber, Guid stallId, CancellationToken ct);
     Task AddAsync(PaymentRecord payment, CancellationToken ct);
     Task UpdateAsync(PaymentRecord payment, CancellationToken ct);
 }
