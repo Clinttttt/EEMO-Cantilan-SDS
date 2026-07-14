@@ -568,15 +568,21 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var row in _history)
+                                        @foreach (var g in GroupedHistory)
                                         {
                                             <tr>
-                                                <td class="prof-ch-date">@row.Date.ToString(IsNpm ? "MMM d, yyyy" : "MMM yyyy")</td>
-                                                <td>@row.PayorName</td>
-                                                <td><span class="prof-ch-pill prof-ch-@row.Status.ToLowerInvariant()">@row.Status</span></td>
-                                                <td class="prof-ch-r mono">@(row.Amount > 0 ? $"₱{row.Amount:N0}" : "—")</td>
-                                                <td class="mono">@(string.IsNullOrWhiteSpace(row.ORNumber) ? "—" : row.ORNumber)</td>
-                                                <td>@(row.CollectorName ?? row.RecordedByName ?? "—")</td>
+                                                <td class="prof-ch-date">
+                                                    @HistoryDateLabel(g)
+                                                    @if (g.Count > 1)
+                                                    {
+                                                        <span class="prof-ch-multi">@g.Count @(IsNpm ? "days" : "months")</span>
+                                                    }
+                                                </td>
+                                                <td>@g.Newest.PayorName</td>
+                                                <td><span class="prof-ch-pill prof-ch-@g.Status.ToLowerInvariant()">@g.Status</span></td>
+                                                <td class="prof-ch-r mono">@(g.Total > 0 ? $"₱{g.Total:N0}" : "—")</td>
+                                                <td class="mono">@(string.IsNullOrWhiteSpace(g.ORNumber) ? "—" : g.ORNumber)</td>
+                                                <td>@(g.Newest.CollectorName ?? g.Newest.RecordedByName ?? "—")</td>
                                             </tr>
                                         }
                                     </tbody>
@@ -761,6 +767,57 @@
     }
 
     private Task LoadMoreHistory() => LoadHistory(reset: false);
+
+    // ── Transaction grouping (display only) ──────────────────────────────────────────────────────
+    // One physical receipt (OR) can settle several months/days of THIS stall in a single transaction —
+    // they all carry the SAME OR. Collapse consecutive rows that share a non-empty OR into one line so
+    // the log reads as "one payment · Jun–Jul · ₱1,800" instead of a row per month. This is purely a
+    // presentation transform over the paginated rows; the underlying per-month/day records are untouched
+    // (reports, delinquency and per-period status still see each record). Blank/unique ORs stay separate.
+    private sealed class HistoryGroup
+    {
+        public string? ORNumber;
+        public List<StallCollectionHistoryRowDto> Rows { get; } = new();
+        public int Count => Rows.Count;
+        public StallCollectionHistoryRowDto Newest => Rows[0];   // list is newest-first
+        public StallCollectionHistoryRowDto Oldest => Rows[^1];
+        public decimal Total => Rows.Sum(r => r.Amount);
+        public string Status => Rows.All(r => r.Status == Rows[0].Status) ? Rows[0].Status : "Paid";
+    }
+
+    private List<HistoryGroup> GroupedHistory
+    {
+        get
+        {
+            var groups = new List<HistoryGroup>();
+            foreach (var row in _history)
+            {
+                var or = row.ORNumber?.Trim();
+                var last = groups.Count > 0 ? groups[^1] : null;
+                if (last is not null && !string.IsNullOrEmpty(or) && string.Equals(last.ORNumber, or, StringComparison.Ordinal))
+                    last.Rows.Add(row);
+                else
+                    groups.Add(new HistoryGroup { ORNumber = string.IsNullOrEmpty(or) ? null : or, Rows = { row } });
+            }
+            return groups;
+        }
+    }
+
+    private string HistoryDateLabel(HistoryGroup g)
+    {
+        if (g.Count == 1)
+            return g.Newest.Date.ToString(IsNpm ? "MMM d, yyyy" : "MMM yyyy");
+
+        var newest = g.Newest.Date;
+        var oldest = g.Oldest.Date;
+        if (IsNpm)
+            return oldest.Year == newest.Year
+                ? $"{oldest:MMM d} – {newest:MMM d, yyyy}"
+                : $"{oldest:MMM d, yyyy} – {newest:MMM d, yyyy}";
+        return oldest.Year == newest.Year
+            ? $"{oldest:MMM} – {newest:MMM yyyy}"
+            : $"{oldest:MMM yyyy} – {newest:MMM yyyy}";
+    }
 
     class StallProfile
     {
