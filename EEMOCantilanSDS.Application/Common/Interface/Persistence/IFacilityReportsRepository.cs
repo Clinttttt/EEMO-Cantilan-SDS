@@ -70,4 +70,12 @@ public interface IFacilityReportsRepository
         int month,
         CancellationToken ct
     );
+
+    /// <summary>
+    /// Earliest calendar year that has any collection / billing / contract activity for this tenant —
+    /// the floor for the Follow-up History year picker, so a back-dated (prior-year) settlement is
+    /// reachable and not stranded outside the last-12-months window. Returns the current year when there
+    /// is no data yet.
+    /// </summary>
+    Task<int> GetEarliestActivityYearAsync(CancellationToken ct);
 }

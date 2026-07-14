@@ -52,4 +52,35 @@ public class StallHoldersListTests : RepositoryTestBase
         Assert.Equal(33_120m, row1.WholeYearRental);
         Assert.Null(row1.FishFeeTotal);                         // no additional fees folded in
     }
+
+    [Fact]
+    public async Task HoldersList_ExcludesExpiredContractStalls_KeepsCoveredAndFutureDated()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        var covered = Stall.Create(facility.Id, "1", 2_400m, ApplicableFees.BaseRental);
+        var expired = Stall.Create(facility.Id, "2", 2_400m, ApplicableFees.BaseRental);
+        var future = Stall.Create(facility.Id, "3", 2_400m, ApplicableFees.BaseRental);
+
+        // Covered: 2-yr-ago start with a 5-yr term → still effective today → kept.
+        var cCovered = Contract.Create(covered.Id, "Active Lessee", "Active Lessee", new DateOnly(2024, 1, 1), 5, 2_400m);
+        // Expired: 2022 start, 3-yr term → ended 2025-01-01 (before today) → excluded.
+        var cExpired = Contract.Create(expired.Id, "Expired Lessee", "Expired Lessee", new DateOnly(2022, 1, 1), 3, 2_400m);
+        // Future-dated: starts far in the future → NOT expired (term hasn't ended) → kept.
+        var cFuture = Contract.Create(future.Id, "Future Lessee", "Future Lessee", new DateOnly(2099, 1, 1), 3, 2_400m);
+
+        context.AddRange(facility, covered, expired, future, cCovered, cExpired, cFuture);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+        var dto = await repo.GetStallHoldersListAsync(FacilityCode.TCC, null, null, CancellationToken.None);
+
+        var section = Assert.Single(dto.Sections);
+        Assert.DoesNotContain(section.Rows, r => r.StallNo == "2");   // expired contract → excluded
+        Assert.Contains(section.Rows, r => r.StallNo == "1");         // covered → kept
+        Assert.Contains(section.Rows, r => r.StallNo == "3");         // future-dated → kept (not expired)
+        Assert.Equal(2, dto.TotalStalls);
+        Assert.Equal(4_800m, dto.GrandTotalMonthlyRate);              // covered + future only
+    }
 }

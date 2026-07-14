@@ -323,6 +323,21 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .ThenBy(s => s.StallNo)
             .ToListAsync(ct);
 
+        // Current holders only: also drop EXPIRED accounts — an (active) stall whose latest contract
+        // term already ended before today (its coverage is entirely in the past). A future-dated contract
+        // or a mid-renewal stall (any active contract still covering today or later) is kept. Closed
+        // (frozen) stalls were already excluded at the query level. Expired/closed rows still appear in
+        // the transaction/collection history for transparency — just not on this current-holder roster.
+        var today = PhilippineTime.Today;
+        bool IsExpired(Stall s)
+        {
+            var active = s.Contracts.Where(c => c.IsActive).ToList();
+            if (active.Count == 0) return false;   // no contract → vacant, not "expired"
+            var latestEnd = active.Max(c => c.EffectivityDate.AddYears(c.DurationYears));
+            return latestEnd < today;
+        }
+        stalls = stalls.Where(s => s.Status != StallStatus.Closed && !IsExpired(s)).ToList();
+
         // Group stalls by section (NPM has sections, others don't)
         var sectionsWithSection = stalls
             .Where(s => s.Section.HasValue)

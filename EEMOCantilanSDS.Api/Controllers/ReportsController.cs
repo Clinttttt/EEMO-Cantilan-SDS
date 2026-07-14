@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Queries.Reports.GetCollectionReport;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFinancialReport;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistory;
+using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpHistoryYears;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -54,6 +55,14 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
         [FromQuery] bool wholeYear = false)
     {
         var result = await Sender.Send(new GetFollowUpHistoryQuery(year, month, wholeYear));
+        return HandleResponse(result);
+    }
+
+    /// <summary>Years selectable on the Follow-up History page (every year with data, newest first).</summary>
+    [HttpGet("follow-up/history/years")]
+    public async Task<ActionResult<IReadOnlyList<int>>> GetFollowUpHistoryYears()
+    {
+        var result = await Sender.Send(new GetFollowUpHistoryYearsQuery());
         return HandleResponse(result);
     }
 

@@ -776,7 +776,6 @@
     }
 
     private readonly DateTime _now = PhilippineTime.Now;
-    private List<(int Year, int Month)> Periods = new();
     private List<int> Years = new();
     private int _selYear;
     private int _selMonth;
@@ -848,15 +847,16 @@
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
-        for (var i = 1; i <= 12; i++)
-        {
-            var d = _now.AddMonths(-i);
-            Periods.Add((d.Year, d.Month));
-        }
-        Years = Periods.Select(p => p.Year).Distinct().OrderByDescending(y => y).ToList();
+
+        // Year dropdown spans every year that has data (newest first), so a back-dated prior-year
+        // settlement is reachable — not just the last 12 months. Falls back to the current year.
+        var yearsResult = await ReportsApi.GetFollowUpHistoryYearsAsync();
+        Years = yearsResult.IsSuccess && yearsResult.Value is { Count: > 0 } ys
+            ? ys.OrderByDescending(y => y).ToList()
+            : new List<int> { _now.Year };
 
         // Default view: the most recent year, whole-year (year-end snapshot) selected.
-        _selYear = Years.Count > 0 ? Years[0] : _now.Year;
+        _selYear = Years[0];
         _selMonth = 0;
 
         if (TryApplyCachedFollowUpHistory())
@@ -867,8 +867,19 @@
 
     private IReadOnlyList<FollowUpItemDto> AllItems => _data?.Items ?? Array.Empty<FollowUpItemDto>();
 
-    private List<int> MonthsFor(int year) =>
-        Periods.Where(p => p.Year == year).Select(p => p.Month).OrderByDescending(m => m).ToList();
+    // Selectable collection months for a year: past years show all 12; the current year shows only its
+    // COMPLETED months (the in-progress current month is covered by the live queue, not history).
+    private List<int> MonthsFor(int year)
+    {
+        if (year == _now.Year)
+        {
+            var lastCompleted = _now.Month - 1;
+            return lastCompleted >= 1
+                ? Enumerable.Range(1, lastCompleted).Reverse().ToList()
+                : new List<int>();
+        }
+        return Enumerable.Range(1, 12).Reverse().ToList();
+    }
 
     // The effective month to load: a chosen month, or (whole-year) the latest available month of the year.
     private int EffectiveMonth()

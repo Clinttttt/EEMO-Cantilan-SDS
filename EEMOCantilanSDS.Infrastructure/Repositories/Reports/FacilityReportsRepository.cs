@@ -36,6 +36,27 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
     }
 
+    public async Task<int> GetEarliestActivityYearAsync(CancellationToken ct)
+    {
+        // Cheap MIN probes across the tenant-scoped sources that carry a period; the year picker just
+        // needs the floor. No data yet → falls back to the current year (list becomes a single year).
+        var years = new List<int> { PhilippineTime.Today.Year };
+
+        var billing = await _context.PaymentRecords.AsNoTracking()
+            .OrderBy(p => p.BillingYear).Select(p => (int?)p.BillingYear).FirstOrDefaultAsync(ct);
+        if (billing is int by) years.Add(by);
+
+        var daily = await _context.DailyCollections.AsNoTracking()
+            .OrderBy(d => d.CollectionDate).Select(d => (DateOnly?)d.CollectionDate).FirstOrDefaultAsync(ct);
+        if (daily is DateOnly dd) years.Add(dd.Year);
+
+        var contract = await _context.Contracts.AsNoTracking()
+            .OrderBy(c => c.EffectivityDate).Select(c => (DateOnly?)c.EffectivityDate).FirstOrDefaultAsync(ct);
+        if (contract is DateOnly cd) years.Add(cd.Year);
+
+        return years.Min();
+    }
+
     public async Task<FacilityReportsDto> GetFacilityReportsAsync(
         FacilityCode facilityCode,
         ReportPeriod period,

@@ -16,6 +16,8 @@ public interface IReportsApiClient
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
 
     Task<Result<FollowUpQueueDto>> GetFollowUpHistoryAsync(int year, int month, bool wholeYear = false);
+    /// <summary>Years that have data, newest first — populates the Follow-up History year dropdown.</summary>
+    Task<Result<IReadOnlyList<int>>> GetFollowUpHistoryYearsAsync();
 
     Task<Result<CollectionReportDto>> GetCollectionReportAsync(int year, int month);
 }
