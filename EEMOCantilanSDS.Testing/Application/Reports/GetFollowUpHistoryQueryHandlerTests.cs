@@ -33,7 +33,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             DailyCollectionStreak: null, FeeTypeBreakdown: null,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(), StallCompliance: compliance);
 
-    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IPaymentRepository> Payments) Build()
+    private static (GetFollowUpHistoryQueryHandler Handler, Mock<IStallRepository> Stalls, Mock<IOnlinePaymentRepository> Online, Mock<IPaymentRepository> Payments, Mock<ISlaughterRepository> Slaughter) Build()
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -89,13 +89,19 @@ public class GetFollowUpHistoryQueryHandlerTests
         var slaughter = new Mock<ISlaughterRepository>();
         slaughter.Setup(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
+        slaughter.Setup(s => s.GetTransactionsByYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
 
         var trm = new Mock<ITrmRepository>();
         trm.Setup(t => t.GetTripsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TrmTripDto>());
+        trm.Setup(t => t.GetTripsByYearAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrmTripDto>());
 
         var tpm = new Mock<ITpmRepository>();
         tpm.Setup(t => t.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
+        tpm.Setup(t => t.GetYearAttendanceAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
 
         var utilities = new Mock<IUtilityBillRepository>();
@@ -115,13 +121,13 @@ public class GetFollowUpHistoryQueryHandlerTests
             CacheTestDoubles.Tenant,
             new EemoCacheOptions());
 
-        return (handler, stalls, online, payments);
+        return (handler, stalls, online, payments, slaughter);
     }
 
     [Fact]
     public async Task Composes_PastPeriodSnapshot_UsingPeriodScopedSources()
     {
-        var (handler, stalls, online, _) = Build();
+        var (handler, stalls, online, _, _) = Build();
 
         var result = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None);
 
@@ -162,7 +168,7 @@ public class GetFollowUpHistoryQueryHandlerTests
     [Fact]
     public async Task WholeYear_AggregatesMissingOr_AcrossMonths_UsingYearWideSource()
     {
-        var (handler, _, _, payments) = Build();
+        var (handler, _, _, payments, _) = Build();
 
         // Two blank-OR NPM whole-month settlements in DIFFERENT months (Mar + May) — the case the
         // single-month "as of June" view could never show.
@@ -188,5 +194,34 @@ public class GetFollowUpHistoryQueryHandlerTests
         // The year-wide source was used — the single-month one must NOT be called for a whole-year request.
         payments.Verify(p => p.GetUnreceiptedCashPaymentsForYearAsync(2026, It.IsAny<CancellationToken>()), Times.Once);
         payments.Verify(p => p.GetUnreceiptedCashPaymentsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task WholeYear_AggregatesServiceFacilityMissingOr_PerRecordMonth()
+    {
+        var (handler, _, _, _, slaughter) = Build();
+
+        // Blank-OR slaughter receipts for the SAME owner in TWO different months (Feb + Aug).
+        slaughter.Setup(s => s.GetTransactionsByYearAsync(2026, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new SlaughterTransactionDto(Guid.NewGuid(), "Ana Reyes", AnimalType.Hog, null, 1, 250m, 250m, null, new DateOnly(2026, 2, 3)),
+                new SlaughterTransactionDto(Guid.NewGuid(), "Ana Reyes", AnimalType.Cow, null, 1, 365m, 365m, null, new DateOnly(2026, 8, 9)),
+            });
+
+        var result = await handler.Handle(new GetFollowUpHistoryQuery(2026, 6, WholeYear: true), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+
+        var slh = result.Value!.Items
+            .Where(i => i.ReasonKind == "missingor" && i.Facility == FacilityCode.SLH)
+            .ToList();
+
+        // One row PER record month (each opens its own month in Add-OR), not one merged row.
+        Assert.Equal(2, slh.Count);
+        Assert.Contains(slh, i => i.Period == "February 2026" && i.Amount == 250m);
+        Assert.Contains(slh, i => i.Period == "August 2026" && i.Amount == 365m);
+
+        slaughter.Verify(s => s.GetTransactionsByYearAsync(2026, It.IsAny<CancellationToken>()), Times.Once);
+        slaughter.Verify(s => s.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

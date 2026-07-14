@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -162,39 +163,45 @@ public static class FollowUpComposer
                 "Paid · awaiting OR", "Encode OR", "/online-payments"));
         }
 
-        // ── 4) Missing OR — service facilities (paid/recorded this period with a blank receipt) ──
+        // ── 4) Missing OR — service facilities (paid/recorded with a blank receipt), per record month ──
+        // Grouped by (payor, year, month) so a whole-year view lists one row per month (each opens the
+        // right month in Add-OR); a single-month view collapses to one group with the same label as before.
         foreach (var g in slaughter.Where(t => string.IsNullOrWhiteSpace(t.ORNumber))
-                     .GroupBy(t => Named(t.OwnerName)))
+                     .GroupBy(t => new { Owner = Named(t.OwnerName), t.TransactionDate.Year, t.TransactionDate.Month }))
         {
             // A receipt = one visit (owner + date); a visit may span several animal-type rows.
             var receipts = g.Select(t => t.TransactionDate).Distinct().Count();
             items.Add(new FollowUpItemDto(
                 SecOperational, "Normal", "Missing OR", "missingor",
-                FacilityCode.SLH, Model(FacilityCode.SLH), g.Key,
+                FacilityCode.SLH, Model(FacilityCode.SLH), g.Key.Owner,
                 $"{receipts} receipt{(receipts == 1 ? "" : "s")}",
-                g.Sum(t => t.TotalAmount), false, periodLabel,
+                g.Sum(t => t.TotalAmount), false, MonthLabel(g.Key.Year, g.Key.Month),
                 "Recorded · OR blank", "Add OR", "/slh"));
         }
 
         foreach (var g in trips.Where(t => string.IsNullOrWhiteSpace(t.ORNumber))
-                     .GroupBy(t => Named(t.DriverName)))
+                     .GroupBy(t =>
+                     {
+                         var ph = PhilippineTime.ToPhilippineTime(t.RecordedAt);   // trip's business (PH) month
+                         return new { Driver = Named(t.DriverName), ph.Year, ph.Month };
+                     }))
         {
             items.Add(new FollowUpItemDto(
                 SecOperational, "Normal", "Trip awaiting OR", "missingor",
-                FacilityCode.TRM, Model(FacilityCode.TRM), g.Key,
+                FacilityCode.TRM, Model(FacilityCode.TRM), g.Key.Driver,
                 $"{g.Count()} trip{(g.Count() == 1 ? "" : "s")}",
-                g.Sum(t => t.Fee), false, periodLabel,
+                g.Sum(t => t.Fee), false, MonthLabel(g.Key.Year, g.Key.Month),
                 "Paid · OR blank", "Add OR", "/trm"));
         }
 
         foreach (var g in attendance.Where(a => a.IsPaid && string.IsNullOrWhiteSpace(a.ORNumber))
-                     .GroupBy(a => Named(a.VendorName)))
+                     .GroupBy(a => new { Vendor = Named(a.VendorName), a.MarketDate.Year, a.MarketDate.Month }))
         {
             items.Add(new FollowUpItemDto(
                 SecOperational, "Normal", "Market-day · OR", "missingor",
-                FacilityCode.TPM, Model(FacilityCode.TPM), g.Key,
+                FacilityCode.TPM, Model(FacilityCode.TPM), g.Key.Vendor,
                 $"{g.Count()} market day{(g.Count() == 1 ? "" : "s")}",
-                g.Sum(a => a.Fee), false, periodLabel,
+                g.Sum(a => a.Fee), false, MonthLabel(g.Key.Year, g.Key.Month),
                 "Paid · OR blank", "Add OR", "/tpm"));
         }
 
@@ -267,6 +274,9 @@ public static class FollowUpComposer
     private static string Key(FacilityCode code, string stallNo) => $"{code}|{stallNo}";
 
     private static string Named(string? value) => string.IsNullOrWhiteSpace(value) ? "Unnamed occupant" : value;
+
+    private static string MonthLabel(int year, int month) =>
+        new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
     private static string ProfileLink(FacilityCode code, string stallNo) =>
         $"/profile/{code.ToString().ToLowerInvariant()}/{stallNo}";

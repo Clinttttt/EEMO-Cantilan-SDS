@@ -60,9 +60,15 @@ public class GetFollowUpHistoryQueryHandler(
 
         var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, ct);
         var awaitingOr = await onlinePaymentRepository.GetAwaitingOrByPeriodAsync(year, month, ct);
-        var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
-        var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);
-        var attendance = await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
+        var slaughter = request.WholeYear
+            ? await slaughterRepository.GetTransactionsByYearAsync(year, ct)
+            : await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
+        var trips = request.WholeYear
+            ? await trmRepository.GetTripsByYearAsync(year, ct)
+            : await trmRepository.GetTripsByMonthAsync(year, month, ct);
+        var attendance = request.WholeYear
+            ? await tpmRepository.GetYearAttendanceAsync(year, ct)
+            : await tpmRepository.GetMonthAttendanceAsync(year, month, ct);
         // Missing-OR (cash/field) source: whole-year aggregates every month so a blank-OR settlement in
         // ANY month surfaces; a specific month keeps the exact single-month behaviour (unchanged).
         var unreceipted = request.WholeYear

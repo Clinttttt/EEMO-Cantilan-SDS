@@ -22,6 +22,8 @@ public interface ITpmRepository
     Task<IReadOnlyList<TpmMarketDayDto>> GetMarketDaysAsync(int year, int month, CancellationToken ct = default);
     Task<IReadOnlyList<TpmVendorAttendanceDto>> GetVendorAttendanceAsync(DateOnly marketDate, CancellationToken ct = default);
     Task<IReadOnlyList<TpmVendorAttendanceDto>> GetMonthAttendanceAsync(int year, int month, CancellationToken ct = default);
+    /// <summary>Whole-year variant of <see cref="GetMonthAttendanceAsync"/> (Follow-up History year view).</summary>
+    Task<IReadOnlyList<TpmVendorAttendanceDto>> GetYearAttendanceAsync(int year, CancellationToken ct = default);
     Task<TpmHistoryDto> GetHistoryAsync(int year, CancellationToken ct = default);
     
     // Validation

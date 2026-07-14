@@ -8,6 +8,8 @@ public interface ISlaughterRepository
 {
     Task<SlaughterTransaction?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
+    /// <summary>Whole-year variant of <see cref="GetTransactionsByMonthAsync"/> (Follow-up History year view).</summary>
+    Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default);
     Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default);
     Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     Task<OwnerTransactionHistoryDto> GetOwnerTransactionHistoryAsync(string ownerName, int year, int month, CancellationToken ct = default);

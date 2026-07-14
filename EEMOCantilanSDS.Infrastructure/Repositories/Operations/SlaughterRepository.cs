@@ -35,6 +35,26 @@ public class SlaughterRepository(AppDbContext context) : ISlaughterRepository
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default)
+    {
+        return await context.SlaughterTransactions
+            .AsNoTracking()
+            .Where(x => x.TransactionDate.Year == year)
+            .OrderByDescending(x => x.TransactionDate)
+            .Select(x => new SlaughterTransactionDto(
+                x.Id,
+                x.OwnerName,
+                x.AnimalType,
+                x.CustomAnimalType,
+                x.NumberOfHeads,
+                x.RatePerHead,
+                x.RatePerHead * x.NumberOfHeads,
+                x.ORNumber,
+                x.TransactionDate
+            ))
+            .ToListAsync(ct);
+    }
+
     public async Task<MobileSlaughterCollectionDto> GetMobileSlaughterCollectionAsync(DateOnly date, CancellationToken ct = default)
     {
         var transactions = await context.SlaughterTransactions
