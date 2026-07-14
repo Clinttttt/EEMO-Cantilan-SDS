@@ -20,6 +20,8 @@ public interface IStallsApiClient
     Task<Result<BulkImportResultDto>> BulkImportStallholdersAsync(BulkImportStallholdersCommand command);
     Task<Result<StallDto>> UpdateStallAsync(Guid stallId, UpdateStallCommand command);
     Task<Result<bool>> ToggleStallStatusAsync(Guid stallId, bool close);
+    /// <summary>Removes an inactive (closed/expired) stall account — soft-delete, frees the number, keeps history. SuperAdmin-only.</summary>
+    Task<Result<bool>> SoftDeleteStallAsync(Guid stallId);
     Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command);
     Task<Result<IReadOnlyList<ClosedStallAccountDto>>> GetClosedStallAccountsAsync();
     Task<Result<bool>> RenewStallContractAsync(Guid stallId, RenewStallContractRequest request);

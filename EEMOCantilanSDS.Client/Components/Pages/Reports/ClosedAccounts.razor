@@ -250,6 +250,9 @@
                                                 {
                                                     <button class="ca-row-btn ca-row-renew" type="button" @onclick="() => OpenRenew(r)">Renew</button>
                                                 }
+                                                <AuthorizeView Roles="SuperAdmin" Context="authCtx">
+                                                    <button class="ca-row-btn ca-row-remove" type="button" @onclick="() => OpenRemove(r)" title="Remove this inactive account (frees the stall number)">Remove</button>
+                                                </AuthorizeView>
                                             </td>
                                         </tr>
                                         n++;
@@ -358,6 +361,32 @@
     </div>
 }
 
+@* ── Remove confirm modal (SuperAdmin) ── *@
+@if (_removeTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Remove Account?</div></div>
+            <div class="eemo-modal-body">
+                <p class="confirm-text">
+                    Remove @(_removeTarget.State == InactiveAccountState.Closed ? "closed" : "expired") stall
+                    <strong>@_removeTarget.StallNo</strong> (@_removeTarget.Occupant) from the roster?
+                    Its collection history is kept for audit, but the stall <strong>number @_removeTarget.StallNo is freed</strong>
+                    for reuse. Only closed/expired accounts can be removed — a currently active stall never can.
+                </p>
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmRemove" disabled="@_busy">@(_busy ? "Working…" : "Yes, Remove")</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     // ── Data ──
     private List<ClosedStallAccountDto> _accounts = new();
@@ -385,6 +414,7 @@
     // ── Action state ──
     private ClosedStallAccountDto? _reopenTarget;
     private ClosedStallAccountDto? _renewTarget;
+    private ClosedStallAccountDto? _removeTarget;
     private bool _renewEditing;
     private DateOnly _renewEffectivity;
     private int _renewDuration;
@@ -502,8 +532,22 @@
     {
         _reopenTarget = null;
         _renewTarget = null;
+        _removeTarget = null;
         _renewEditing = false;
         _actionError = null;
+    }
+
+    // ── Remove (soft-delete an inactive account; frees the stall number) ──
+    private void OpenRemove(ClosedStallAccountDto r) { _removeTarget = r; _actionError = null; }
+
+    private async Task ConfirmRemove()
+    {
+        if (_removeTarget is null) return;
+        _busy = true; _actionError = null;
+        var result = await StallsApi.SoftDeleteStallAsync(_removeTarget.StallId);
+        _busy = false;
+        if (result.IsSuccess) { CloseModals(); await Load(); }
+        else _actionError = result.Error ?? "Failed to remove the account.";
     }
 
     private static string Money(decimal v) => "₱" + v.ToString("N0");

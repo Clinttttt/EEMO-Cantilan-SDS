@@ -168,6 +168,8 @@
 .ca-row-reopen:hover { background: var(--navy); color: #fff; }
 .ca-row-renew { border-color: color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); }
 .ca-row-renew:hover { background: var(--green); color: #fff; }
+.ca-row-remove { border-color: color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
+.ca-row-remove:hover { background: var(--red); color: #fff; }
 
 /* ── Renew form (inside the shared eemo-modal) ── */
 .ca-form { display: flex; flex-direction: column; gap: 12px; }

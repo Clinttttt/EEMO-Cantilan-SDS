@@ -66,6 +66,9 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
     public async Task<Result<bool>> ToggleStallStatusAsync(Guid stallId, bool close) =>
         await UpdateAsync<ToggleStallStatusRequest, bool>($"api/Stalls/{stallId}/status", new ToggleStallStatusRequest(close));
 
+    public async Task<Result<bool>> SoftDeleteStallAsync(Guid stallId) =>
+        await DeleteAsync<bool>($"api/Stalls/{stallId}");
+
     public async Task<Result<bool>> UpdateStallDetailsAsync(Guid stallId, UpdateStallDetailsCommand command) =>
         await UpdateAsync<UpdateStallDetailsCommand, bool>($"api/Stalls/{stallId}/details", command);
 

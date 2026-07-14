@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
+using EEMOCantilanSDS.Application.Command.Stalls.SoftDeleteStall;
 using EEMOCantilanSDS.Application.Command.Stalls.ToggleStallStatus;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
@@ -82,6 +83,18 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     {
         var command = new ToggleStallStatusCommand(stallId, request.Close);
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Removes an INACTIVE (closed/expired) stall account — soft-delete: keeps history, frees the stall
+    /// number for reuse. SuperAdmin-only; the handler rejects any stall that is still active (409).
+    /// </summary>
+    [HttpDelete("{stallId}")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SoftDeleteStall(Guid stallId)
+    {
+        var result = await Sender.Send(new SoftDeleteStallCommand(stallId));
         return HandleResponse(result);
     }
 
