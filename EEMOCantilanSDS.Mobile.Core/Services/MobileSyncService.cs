@@ -32,6 +32,7 @@ public sealed class MobileSyncService
     private readonly SemaphoreSlim _syncGate = new(1, 1);
 
     private static readonly TimeSpan ConnectivityDebounce = TimeSpan.FromSeconds(3);
+    private readonly object _debounceLock = new();
     private DateTime _lastConnectivityTriggerUtc = DateTime.MinValue;
 
     public MobileSyncService(
@@ -264,10 +265,13 @@ public sealed class MobileSyncService
         // Android raises ConnectivityChanged in a burst when Wi-Fi reconnects (and again per transport
         // when both Wi-Fi and cellular are present). Debounce so one reconnect = one sync attempt, and
         // run it OFF the connectivity/UI thread so the event handler returns immediately.
-        var now = DateTime.UtcNow;
-        if (now - _lastConnectivityTriggerUtc < ConnectivityDebounce)
-            return;
-        _lastConnectivityTriggerUtc = now;
+        lock (_debounceLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastConnectivityTriggerUtc < ConnectivityDebounce)
+                return;
+            _lastConnectivityTriggerUtc = now;
+        }
 
         _ = Task.Run(TrySyncInBackgroundAsync);
     }

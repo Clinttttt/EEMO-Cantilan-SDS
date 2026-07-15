@@ -47,8 +47,12 @@ public sealed class MemoryEemoAppCache(
         }
         finally
         {
+            // Keep the per-key semaphore in the map. Removing it here would let another thread that is
+            // already blocked on this same instance proceed while a THIRD thread creates a fresh semaphore
+            // for the same key — two factories then run concurrently, defeating the single-flight (anti-
+            // stampede) guarantee. The retained semaphores are tiny and bounded by the set of distinct
+            // cache keys (period/facility/tenant shaped), so retention is cheap.
             keyLock.Release();
-            keyLocks.TryRemove(key, out _);
         }
     }
 }
