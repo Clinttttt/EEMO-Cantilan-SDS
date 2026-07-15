@@ -14,4 +14,5 @@ public sealed record PayorPayableItemDto(
     int Year,
     int Month,
     string Period,
-    decimal BalanceDue);
+    decimal BalanceDue,
+    PayorPayableKind Kind = PayorPayableKind.Monthly);

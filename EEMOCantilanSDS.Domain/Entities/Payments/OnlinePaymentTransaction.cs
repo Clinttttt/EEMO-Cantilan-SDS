@@ -100,6 +100,38 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             };
         }
 
+        /// <summary>
+        /// Creates a transaction that settles an NPM stall's electricity + water bill for a month. Carries
+        /// the stall + billing month (like the daily-month target); settlement marks the bill's unpaid
+        /// utilities Paid (blank OR) and staff encode one OR covering both afterward.
+        /// </summary>
+        public static OnlinePaymentTransaction CreateForNpmUtility(
+            string reference,
+            Guid payorUserId,
+            Guid stallId,
+            int year,
+            int month,
+            decimal amount,
+            string provider,
+            string createdBy = "Online")
+        {
+            return new OnlinePaymentTransaction
+            {
+                Id = Guid.NewGuid(),
+                Reference = reference,
+                PayorUserId = payorUserId,
+                TargetKind = OnlinePaymentTargetKind.NpmUtilityBill,
+                TargetStallId = stallId,
+                TargetYear = year,
+                TargetMonth = month,
+                Amount = amount,
+                Provider = provider,
+                Status = OnlinePaymentStatus.Initiated,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
+
         /// <summary>True for end states that must not be mutated further by webhooks.</summary>
         public bool IsTerminal => Status is OnlinePaymentStatus.Completed
             or OnlinePaymentStatus.Failed

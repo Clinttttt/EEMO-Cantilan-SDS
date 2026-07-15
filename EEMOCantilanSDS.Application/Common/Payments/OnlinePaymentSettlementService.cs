@@ -13,6 +13,7 @@ public sealed class OnlinePaymentSettlementService(
     IPaymentRepository paymentRepository,
     IStallRepository stallRepository,
     INpmMonthSettlementService npmMonthSettlementService,
+    IUtilityBillRepository utilityBillRepository,
     IOnlinePaymentNotifier notifier,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
@@ -36,6 +37,10 @@ public sealed class OnlinePaymentSettlementService(
         // NPM daily-month: settle the month's still-unpaid days instead of a monthly record.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
             return await SettleNpmAsync(transaction, cancellationToken);
+
+        // NPM utility bill: settle the month's electricity + water instead of a monthly record.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill)
+            return await SettleNpmUtilityAsync(transaction, cancellationToken);
 
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
@@ -107,6 +112,54 @@ public sealed class OnlinePaymentSettlementService(
 
         await npmMonthSettlementService.SettleUnpaidDaysAsync(
             stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+
+        try
+        {
+            await notifier.NotifyPaymentReceivedAsync(
+                new OnlinePaymentNotification(
+                    transaction.Reference,
+                    transaction.Amount,
+                    $"{year:0000}-{month:00}",
+                    transaction.Method,
+                    transaction.PaidAt ?? DateTime.UtcNow,
+                    stallId,
+                    year,
+                    month),
+                cancellationToken);
+        }
+        catch { /* notification is non-critical; the payment is already recorded */ }
+
+        return Result<bool>.Success(true);
+    }
+
+    // NPM utility settlement: mark the month's electricity + water Paid (blank OR; staff encode one OR
+    // covering both later). Cross-channel safe — if the whole bill was already settled in person, leave it
+    // untouched (money still recorded on the transaction for audit/refund); a still-unpaid side keeps its
+    // blank OR, and any already-paid side keeps its OR (RecordPayment preserves it when no OR is passed).
+    private async Task<Result<bool>> SettleNpmUtilityAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction.TargetStallId is not { } stallId
+            || transaction.TargetYear is not { } year
+            || transaction.TargetMonth is not { } month)
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+
+        var bill = await utilityBillRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken);
+        if (bill is null)
+            return Result<bool>.Failure("Linked utility bill not found.", 500);
+
+        if (bill.Status != PaymentStatus.Paid)
+        {
+            var note = $"Paid online via {transaction.Method ?? transaction.Provider} · ref {transaction.Reference}";
+            bill.RecordPayment(
+                elecOrNumber: null, waterOrNumber: null, collectorId: null,
+                elecStatus: PaymentStatus.Paid, elecPartialAmount: null,
+                waterStatus: PaymentStatus.Paid, waterPartialAmount: null,
+                remarks: note, updatedBy: "Online");
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(

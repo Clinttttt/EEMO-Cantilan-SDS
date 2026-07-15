@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -32,7 +33,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Mock<IOnlinePaymentRepository>? onlineRepoOut = null,
         Mock<IPaymentRepository>? paymentRepoOut = null,
         Result<CheckoutSessionResult>? gatewayResult = null,
-        Mock<INpmMonthSettlementService>? npmServiceOut = null)
+        Mock<INpmMonthSettlementService>? npmServiceOut = null,
+        Mock<IUtilityBillRepository>? utilOut = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -74,7 +76,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
-            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, uow.Object);
+            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, (utilOut ?? new Mock<IUtilityBillRepository>()).Object, uow.Object);
     }
 
     [Fact]
@@ -96,7 +98,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
         OnlinePaymentTransaction? captured = null;
         var onlineRepo = new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
-        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OnlinePaymentTargetKind>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((OnlinePaymentTransaction?)null);
         onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
             .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
@@ -134,6 +136,36 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task NpmUtility_WithBalance_CreatesUtilityTransaction()
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 5m, 20m);   // elec 120 + water 100 = 220 due
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<OnlinePaymentTargetKind>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OnlinePaymentTransaction?)null);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var util = new Mock<IUtilityBillRepository>();
+        util.Setup(u => u.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>())).ReturnsAsync(bill);
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, utilOut: util);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmUtility), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(captured);
+        Assert.Equal(OnlinePaymentTargetKind.NpmUtilityBill, captured!.TargetKind);
+        Assert.Equal(stall.Id, captured.TargetStallId);
+        Assert.Equal(220m, captured.Amount);          // full utility balance
+        Assert.Null(captured.PaymentRecordId);
     }
 
     [Fact]
@@ -275,7 +307,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var uow = new Mock<IUnitOfWork>();
         return (new IssueOnlinePaymentOrNumberCommandHandler(
-            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, new Mock<IDailyCollectionRepository>().Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
+            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, new Mock<IDailyCollectionRepository>().Object, new Mock<IUtilityBillRepository>().Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
     }
 
     [Fact]

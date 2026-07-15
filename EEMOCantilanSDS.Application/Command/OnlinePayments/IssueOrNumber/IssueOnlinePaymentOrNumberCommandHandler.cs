@@ -15,6 +15,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
     IStallRepository stallRepository,
     ICollectorRepository collectorRepository,
     IDailyCollectionRepository dailyCollectionRepository,
+    IUtilityBillRepository utilityBillRepository,
     ICurrentUserService currentUser,
     IPayorRealtimeNotifier payorNotifier,
     IUnitOfWork unitOfWork,
@@ -33,6 +34,10 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         // NPM daily-month: the OR is stamped across the month's settled days, not a monthly record.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
             return await IssueNpmOrAsync(transaction, request, cancellationToken);
+
+        // NPM utility bill: one OR covers the month's electricity + water.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill)
+            return await IssueNpmUtilityOrAsync(transaction, request, cancellationToken);
 
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
@@ -129,6 +134,74 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
             .ToList();
         foreach (var dc in days)
             dc.SetOrNumber(orNumber, actor);
+
+        transaction.CompleteWithOr(orNumber, actor);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+
+        try
+        {
+            await payorNotifier.NotifyOrIssuedAsync(
+                transaction.PayorUserId,
+                new PayorOrIssuedNotification(
+                    transaction.Reference,
+                    orNumber,
+                    transaction.Amount,
+                    $"{year:0000}-{month:00}",
+                    stallId),
+                cancellationToken);
+        }
+        catch { /* notification is non-critical; the OR is already recorded */ }
+
+        return Result<bool>.Success(true);
+    }
+
+    // NPM utility bill: one staff OR covers the month's electricity + water (both were marked Paid at
+    // settlement). Only stamps the OR on a side that doesn't already have one, so a utility that was
+    // receipted in person keeps its own OR. Stall-aware/utility uniqueness is enforced.
+    private async Task<Result<bool>> IssueNpmUtilityOrAsync(
+        Domain.Entities.Payments.OnlinePaymentTransaction transaction,
+        IssueOnlinePaymentOrNumberCommand request,
+        CancellationToken cancellationToken)
+    {
+        if (transaction.TargetStallId is not { } stallId
+            || transaction.TargetYear is not { } year
+            || transaction.TargetMonth is not { } month)
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+
+        if (string.Equals(currentUser.Role, "Collector", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId)
+                return Result<bool>.Forbidden();
+
+            var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
+            var facilityCode = stall?.Facility?.Code;
+            var collector = facilityCode is null ? null : await collectorRepository.GetByIdAsync(actingCollectorId, cancellationToken);
+            if (collector is null || facilityCode is null
+                || !collector.FacilityAssignments.Any(a => a.FacilityCode == facilityCode.Value))
+                return Result<bool>.Forbidden();
+        }
+
+        var actor = currentUser.Username ?? "Admin";
+        var orNumber = request.ORNumber.Trim();
+
+        var bill = await utilityBillRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken);
+        if (bill is null)
+            return Result<bool>.Failure("Linked utility bill not found.", 500);
+
+        if (!await utilityBillRepository.IsORNumberUniqueAsync(orNumber, bill.Id, cancellationToken))
+            return Result<bool>.Failure("OR number already exists.", 409);
+
+        // Preserve an already-receipted side's OR (paid in person); stamp the new OR only on blank sides.
+        var elecOr = string.IsNullOrWhiteSpace(bill.ElecORNumber) ? orNumber : null;
+        var waterOr = string.IsNullOrWhiteSpace(bill.WaterORNumber) ? orNumber : null;
+        bill.RecordPayment(
+            elecOrNumber: elecOr, waterOrNumber: waterOr, collectorId: currentUser.CollectorId,
+            elecStatus: PaymentStatus.Paid, elecPartialAmount: null,
+            waterStatus: PaymentStatus.Paid, waterPartialAmount: null,
+            updatedBy: actor);
 
         transaction.CompleteWithOr(orNumber, actor);
 

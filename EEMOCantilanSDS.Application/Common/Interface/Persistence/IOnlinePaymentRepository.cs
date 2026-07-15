@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 
@@ -25,10 +26,10 @@ public interface IOnlinePaymentRepository
 
     /// <summary>
     /// NPM daily-month variant of the resumable lookup (there is no PaymentRecord): an unfinished
-    /// checkout (Initiated/Pending) for the same stall + billing month, so a payor who abandoned a
-    /// checkout is sent back to the same session instead of opening a duplicate.
+    /// checkout (Initiated/Pending) for the same stall + billing month AND target kind (daily fees vs
+    /// the utility bill), so a payor who abandoned a checkout is sent back to the same session.
     /// </summary>
-    Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, CancellationToken ct = default);
+    Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, OnlinePaymentTargetKind kind, CancellationToken ct = default);
 
     Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default);
 

@@ -52,10 +52,10 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, CancellationToken ct = default)
+    public async Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, OnlinePaymentTargetKind kind, CancellationToken ct = default)
     {
         return await context.OnlinePaymentTransactions
-            .Where(t => t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+            .Where(t => t.TargetKind == kind
                 && t.TargetStallId == stallId && t.TargetYear == year && t.TargetMonth == month
                 && (t.Status == OnlinePaymentStatus.Initiated || t.Status == OnlinePaymentStatus.Pending))
             .OrderByDescending(t => t.CreatedAt)
@@ -126,7 +126,35 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
                 t.PaidAt
             }).ToListAsync(ct);
 
-        return monthlyRows.Concat(npmRows)
+        // ── NPM utility-bill targets: derive stall/period from the target, awaiting while the bill still
+        //    has a utility without an OR (elec or water not yet receipted). ──
+        var npmUtilRows = await (
+            from t in context.OnlinePaymentTransactions
+            where t.Status == OnlinePaymentStatus.Paid && t.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill
+            where year == null || (t.TargetYear == year && t.TargetMonth == month)
+            join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id
+            join f in context.Facilities on s.FacilityId equals f.Id
+            join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
+            from u in payor.DefaultIfEmpty()
+            where context.UtilityBills.Any(b => b.StallId == t.TargetStallId
+                && b.BillingYear == t.TargetYear
+                && b.BillingMonth == t.TargetMonth
+                && (b.ElecORNumber == null || b.WaterORNumber == null))
+            select new
+            {
+                t.Id,
+                t.Reference,
+                Facility = f.Code,
+                s.StallNo,
+                PayorName = u != null ? u.FullName : null,
+                BillingYear = t.TargetYear!.Value,
+                BillingMonth = t.TargetMonth!.Value,
+                t.Amount,
+                t.Method,
+                t.PaidAt
+            }).ToListAsync(ct);
+
+        return monthlyRows.Concat(npmRows).Concat(npmUtilRows)
             .OrderBy(x => x.PaidAt)
             .Select(x => new OnlinePaymentAwaitingOrDto(
                 x.Id,

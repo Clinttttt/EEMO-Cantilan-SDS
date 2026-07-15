@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -18,6 +19,7 @@ public class InitiateOnlinePaymentCommandHandler(
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
     INpmMonthSettlementService npmMonthSettlementService,
+    IUtilityBillRepository utilityBillRepository,
     IUnitOfWork unitOfWork) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
@@ -47,7 +49,9 @@ public class InitiateOnlinePaymentCommandHandler(
         // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
         // is weighed at the stall and utilities are billed separately, so both are excluded here).
         if (stall.Facility?.Code == FacilityCode.NPM)
-            return await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken);
+            return request.Kind == PayorPayableKind.NpmUtility
+                ? await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken)
+                : await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken);
 
         // Find-or-create the monthly record (a current-month obligation may not have a row yet).
         var isNewRecord = false;
@@ -126,7 +130,7 @@ public class InitiateOnlinePaymentCommandHandler(
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", 409);
 
         // Resume an unfinished checkout for the same stall+month rather than opening a duplicate.
-        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, cancellationToken);
+        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmDailyMonth, cancellationToken);
         if (resumable is { IsResumable: true })
             return Result<InitiateOnlinePaymentResultDto>.Success(
                 new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
@@ -147,6 +151,53 @@ public class InitiateOnlinePaymentCommandHandler(
                 payable.Amount,
                 reference,
                 $"EEMO online payment · NPM daily · {periodKey}",
+                urlBuilder.BuildSuccessUrl(reference),
+                urlBuilder.BuildCancelUrl(reference)),
+            cancellationToken);
+
+        if (!checkout.IsSuccess || checkout.Value is null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                checkout.Error ?? "Unable to start the online payment.", 502);
+
+        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
+        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<InitiateOnlinePaymentResultDto>.Success(
+            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
+    }
+
+    // NPM electricity + water: charge the current outstanding balance of the month's UtilityBill (elec +
+    // water together, full balance). No PaymentRecord; settlement marks the bill's unpaid utilities Paid.
+    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmUtilityAsync(
+        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
+    {
+        var bill = await utilityBillRepository.GetByStallAndMonthAsync(stall.Id, request.Year, request.Month, cancellationToken);
+        if (bill is null || bill.BalanceDue <= 0m)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding utility balance.", 409);
+
+        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmUtilityBill, cancellationToken);
+        if (resumable is { IsResumable: true })
+            return Result<InitiateOnlinePaymentResultDto>.Success(
+                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+        string reference;
+        do
+        {
+            reference = GenerateReference();
+        }
+        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
+
+        var amount = bill.BalanceDue;
+        var transaction = OnlinePaymentTransaction.CreateForNpmUtility(
+            reference, payorId, stall.Id, request.Year, request.Month, amount, paymentGateway.Provider);
+
+        var periodKey = $"{request.Year:0000}-{request.Month:00}";
+        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
+            new CreateCheckoutSessionRequest(
+                amount,
+                reference,
+                $"EEMO online payment · NPM utilities · {periodKey}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

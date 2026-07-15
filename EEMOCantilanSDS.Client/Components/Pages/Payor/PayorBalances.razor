@@ -39,7 +39,7 @@ else
                         <span class="pp-bal-period">@item.Period</span>
                         <span class="pp-badge badge-unpaid">Unpaid</span>
                     </div>
-                    <div class="pp-bal-sub">@PayorFormat.FacilityName(item.Facility) · Stall @item.StallNo</div>
+                    <div class="pp-bal-sub">@PayorFormat.FacilityName(item.Facility) · Stall @item.StallNo@(KindLabel(item.Kind))</div>
                 </div>
                 <div class="pp-bal-right">
                     <span class="pp-bal-amount">@PayorFormat.Currency(item.BalanceDue)</span>
@@ -72,7 +72,15 @@ else
 
     private decimal TotalDue => Items.Sum(i => i.BalanceDue);
 
-    private static string ItemKey(PayorPayableItemDto i) => $"{i.StallId}:{i.Year}:{i.Month}";
+    private static string ItemKey(PayorPayableItemDto i) => $"{i.StallId}:{i.Year}:{i.Month}:{i.Kind}";
+
+    // NPM has two payable items per month (daily fees vs utilities) — label them so the payor can tell them apart.
+    private static string KindLabel(PayorPayableKind kind) => kind switch
+    {
+        PayorPayableKind.NpmDaily => " · Daily fees",
+        PayorPayableKind.NpmUtility => " · Electricity & Water",
+        _ => ""
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -100,7 +108,7 @@ else
         Busy = true;
         PayingId = ItemKey(item);
 
-        var result = await PayorApi.InitiatePaymentAsync(new InitiateOnlinePaymentCommand(item.StallId, item.Year, item.Month));
+        var result = await PayorApi.InitiatePaymentAsync(new InitiateOnlinePaymentCommand(item.StallId, item.Year, item.Month, item.Kind));
 
         if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.CheckoutUrl))
         {

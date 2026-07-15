@@ -26,7 +26,7 @@ public class OnlinePaymentSettlementServiceTests
         payRepo.Setup(r => r.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
         var notifier = new Mock<IOnlinePaymentNotifier>();
         var uow = new Mock<IUnitOfWork>();
-        return (new OnlinePaymentSettlementService(payRepo.Object, new Mock<IStallRepository>().Object, new Mock<INpmMonthSettlementService>().Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), payRepo, uow);
+        return (new OnlinePaymentSettlementService(payRepo.Object, new Mock<IStallRepository>().Object, new Mock<INpmMonthSettlementService>().Object, new Mock<IUtilityBillRepository>().Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), payRepo, uow);
     }
 
     private static OnlinePaymentTransaction PendingTxn(Guid recordId)
@@ -173,7 +173,7 @@ public class OnlinePaymentSettlementServiceTests
         var uow = new Mock<IUnitOfWork>();
 
         var svc = new OnlinePaymentSettlementService(
-            payRepo.Object, stallRepo.Object, npm.Object, notifier.Object, uow.Object,
+            payRepo.Object, stallRepo.Object, npm.Object, new Mock<IUtilityBillRepository>().Object, notifier.Object, uow.Object,
             CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_npm", 150m, "pay_npm", "qrph", DateTime.UtcNow, "{}");
@@ -186,5 +186,36 @@ public class OnlinePaymentSettlementServiceTests
         // The monthly-record path is never used for an NPM transaction.
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmUtilityTransaction_MarksBillPaid_WithBlankOr()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 5m, 20m);   // elec 120 + water 100 = 220 due
+        var txn = OnlinePaymentTransaction.CreateForNpmUtility("EEMO-OP-UTIL", Guid.NewGuid(), stall.Id, 2026, 6, 220m, "PayMongo");
+        txn.SetPending("cs_util", "https://checkout");
+
+        var payRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var npm = new Mock<INpmMonthSettlementService>();
+        var util = new Mock<IUtilityBillRepository>();
+        util.Setup(u => u.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>())).ReturnsAsync(bill);
+        var notifier = new Mock<IOnlinePaymentNotifier>();
+        var uow = new Mock<IUnitOfWork>();
+
+        var svc = new OnlinePaymentSettlementService(
+            payRepo.Object, stallRepo.Object, npm.Object, util.Object, notifier.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_util", 220m, "pay_util", "qrph", DateTime.UtcNow, "{}");
+        var result = await svc.SettleAsync(txn, evt);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, bill.Status);   // both electricity + water marked Paid
+        Assert.Null(bill.ElecORNumber);                  // OR stays blank until staff encode
+        Assert.Null(bill.WaterORNumber);
+        payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

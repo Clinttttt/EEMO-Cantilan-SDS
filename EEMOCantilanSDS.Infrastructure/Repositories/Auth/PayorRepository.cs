@@ -183,6 +183,12 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
         var monthStart = new DateOnly(curYear, curMonth, 1);
         var monthEnd = new DateOnly(curYear, curMonth, DateTime.DaysInMonth(curYear, curMonth));
 
+        // Current-month utility bills for the linked stalls (for the online NPM utility payable item).
+        var utilBills = (await context.UtilityBills
+                .Where(b => stallIds.Contains(b.StallId) && b.BillingYear == curYear && b.BillingMonth == curMonth)
+                .ToListAsync(ct))
+            .ToDictionary(b => b.StallId);
+
         var items = new List<PayorPayableItemDto>();
         foreach (var stall in stalls)
         {
@@ -223,7 +229,15 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
                 {
                     items.Add(new PayorPayableItemDto(
                         stall.Id, stall.StallNo, facility, curYear, curMonth,
-                        $"{curYear:0000}-{curMonth:00}", payable.Amount));
+                        $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
+                }
+
+                // NPM electricity + water — the month's metered bill balance (its own payable item + OR).
+                if (utilBills.TryGetValue(stall.Id, out var bill) && bill.BalanceDue > 0m)
+                {
+                    items.Add(new PayorPayableItemDto(
+                        stall.Id, stall.StallNo, facility, curYear, curMonth,
+                        $"{curYear:0000}-{curMonth:00}", bill.BalanceDue, PayorPayableKind.NpmUtility));
                 }
             }
         }
