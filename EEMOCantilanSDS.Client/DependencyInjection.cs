@@ -14,7 +14,17 @@ namespace EEMOCantilanSDS.Client
         public static IServiceCollection AddClient(this IServiceCollection service, IConfiguration configuration)
         {
             service.AddRazorComponents()
-                .AddInteractiveServerComponents();
+                .AddInteractiveServerComponents()
+                // The Blazor Server circuit's SignalR inbound cap defaults to 32 KB. A larger client→server
+                // message (a big form/grid interaction, a JS-interop return, or a bulk/CSV import) exceeds
+                // it and the hub aborts the circuit with the generic "Connection closed with an error"
+                // (seen client-side as "Server returned an error on close"). Raise the cap so those
+                // operations don't tear down the connection. This only WIDENS the inbound limit — nothing
+                // that worked before changes; it's a per-message transient buffer, not always-on memory.
+                .AddHubOptions(options =>
+                {
+                    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB (was 32 KB default)
+                });
 
             AddPersistence(service, configuration);
 
