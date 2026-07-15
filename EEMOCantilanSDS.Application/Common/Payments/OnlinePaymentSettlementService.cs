@@ -111,7 +111,7 @@ public sealed class OnlinePaymentSettlementService(
             return Result<bool>.Failure("Linked stall not found.", 500);
 
         await npmMonthSettlementService.SettleUnpaidDaysAsync(
-            stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken);
+            stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken, maxAmount: transaction.Amount);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
@@ -154,11 +154,35 @@ public sealed class OnlinePaymentSettlementService(
         if (bill.Status != PaymentStatus.Paid)
         {
             var note = $"Paid online via {transaction.Method ?? transaction.Provider} · ref {transaction.Reference}";
-            bill.RecordPayment(
-                elecOrNumber: null, waterOrNumber: null, collectorId: null,
-                elecStatus: PaymentStatus.Paid, elecPartialAmount: null,
-                waterStatus: PaymentStatus.Paid, waterPartialAmount: null,
-                remarks: note, updatedBy: "Online");
+            var captured = transaction.Amount;
+
+            if (bill.BalanceDue <= captured)
+            {
+                // Captured amount covers the balance → mark both utilities Paid (normal case).
+                bill.RecordPayment(
+                    elecOrNumber: null, waterOrNumber: null, collectorId: null,
+                    elecStatus: PaymentStatus.Paid, elecPartialAmount: null,
+                    waterStatus: PaymentStatus.Paid, waterPartialAmount: null,
+                    remarks: note, updatedBy: "Online");
+            }
+            else
+            {
+                // Balance grew beyond the captured amount (readings edited up while the checkout was open):
+                // credit exactly what was received across electricity then water, leaving the grown remainder
+                // as balance — never mark more paid than was captured (mirrors the monthly partial guard).
+                var toElec = Math.Min(captured, bill.ElecBalanceDue);
+                var toWater = Math.Min(captured - toElec, bill.WaterBalanceDue);
+                var newElecPaid = bill.ElecAmountPaid + toElec;
+                var newWaterPaid = bill.WaterAmountPaid + toWater;
+                // RecordPayment.Normalize upgrades a Partial whose amount ≥ the charge to Paid.
+                var elecStatus = newElecPaid <= 0m ? PaymentStatus.Unpaid : PaymentStatus.Partial;
+                var waterStatus = newWaterPaid <= 0m ? PaymentStatus.Unpaid : PaymentStatus.Partial;
+                bill.RecordPayment(
+                    elecOrNumber: null, waterOrNumber: null, collectorId: null,
+                    elecStatus: elecStatus, elecPartialAmount: newElecPaid,
+                    waterStatus: waterStatus, waterPartialAmount: newWaterPaid,
+                    remarks: note + " · partial (bill increased after checkout)", updatedBy: "Online");
+            }
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -27,7 +27,7 @@ public sealed class NpmMonthSettlementService(
     }
 
     public async Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
-        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct)
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null)
     {
         var payable = await ResolvePayableDaysAsync(stall, year, month, ct);
         if (payable.Count == 0)
@@ -37,8 +37,15 @@ public sealed class NpmMonthSettlementService(
             .ToDictionary(dc => dc.CollectionDate);
 
         var settled = new List<DailyCollection>(payable.Count);
+        var accumulated = 0m;
         foreach (var (day, fee) in payable)
         {
+            // Never settle more than the captured amount: stop once the next day's fee would exceed it.
+            // (No cap for the staff path, which passes maxAmount = null.)
+            if (maxAmount is { } cap && accumulated + fee > cap)
+                break;
+            accumulated += fee;
+
             existing.TryGetValue(day, out var dc);
             if (dc is null)
             {

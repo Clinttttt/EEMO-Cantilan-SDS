@@ -15,7 +15,10 @@ public interface INpmMonthSettlementService
     /// <summary>
     /// Marks the stall's settleable days for the month Paid with a blank OR (staff encode the OR later),
     /// creating day rows as needed. Does not save — the caller's unit of work commits. Returns the days settled.
+    /// When <paramref name="maxAmount"/> is given, settles days oldest-first only while their cumulative fee
+    /// stays within that captured amount — so an online payment can never settle more than it paid for
+    /// (e.g. a checkout that crossed midnight and exposed an extra unpaid day).
     /// </summary>
     Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
-        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct);
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null);
 }

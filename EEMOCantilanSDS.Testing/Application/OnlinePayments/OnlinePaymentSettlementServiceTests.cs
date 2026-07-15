@@ -167,7 +167,7 @@ public class OnlinePaymentSettlementServiceTests
         var stallRepo = new Mock<IStallRepository>();
         stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
         var npm = new Mock<INpmMonthSettlementService>();
-        npm.Setup(s => s.SettleUnpaidDaysAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>()))
+        npm.Setup(s => s.SettleUnpaidDaysAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>(), It.IsAny<decimal?>()))
             .ReturnsAsync(Array.Empty<DailyCollection>());
         var notifier = new Mock<IOnlinePaymentNotifier>();
         var uow = new Mock<IUnitOfWork>();
@@ -181,7 +181,7 @@ public class OnlinePaymentSettlementServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
-        npm.Verify(s => s.SettleUnpaidDaysAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>()), Times.Once);
+        npm.Verify(s => s.SettleUnpaidDaysAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Once);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         // The monthly-record path is never used for an NPM transaction.
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -217,5 +217,39 @@ public class OnlinePaymentSettlementServiceTests
         Assert.Null(bill.ElecORNumber);                  // OR stays blank until staff encode
         Assert.Null(bill.WaterORNumber);
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmUtilityTransaction_BalanceGrewAfterCheckout_RecordsPartial_NotFullPaid()
+    {
+        // Bill is 220 (elec 120 + water 100) but the captured amount was only 100 (readings edited up while
+        // the checkout was open). Settlement must credit exactly ₱100 (elec first) as PARTIAL — never mark
+        // the full 220 Paid.
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 5m, 20m);   // elec 120 + water 100 = 220
+        var txn = OnlinePaymentTransaction.CreateForNpmUtility("EEMO-OP-UTIL2", Guid.NewGuid(), stall.Id, 2026, 6, 100m, "PayMongo");
+        txn.SetPending("cs_util2", "https://checkout");
+
+        var payRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var npm = new Mock<INpmMonthSettlementService>();
+        var util = new Mock<IUtilityBillRepository>();
+        util.Setup(u => u.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>())).ReturnsAsync(bill);
+        var notifier = new Mock<IOnlinePaymentNotifier>();
+        var uow = new Mock<IUnitOfWork>();
+
+        var svc = new OnlinePaymentSettlementService(
+            payRepo.Object, stallRepo.Object, npm.Object, util.Object, notifier.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_util2", 100m, "pay_util2", "qrph", DateTime.UtcNow, "{}");
+        var result = await svc.SettleAsync(txn, evt);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Partial, bill.Status);    // NOT fully Paid — bill grew beyond the captured amount
+        Assert.Equal(100m, bill.AmountPaid);                 // exactly what was captured (elec first)
+        Assert.Equal(PaymentStatus.Partial, bill.ElecStatus);
+        Assert.Equal(PaymentStatus.Unpaid, bill.WaterStatus);
     }
 }
