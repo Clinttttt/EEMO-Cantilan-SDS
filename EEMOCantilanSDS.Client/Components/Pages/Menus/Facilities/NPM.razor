@@ -125,11 +125,11 @@
                 </div>
                 <div class="npm-section-mini-stats">
                     <div class="npm-mini-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.PaidToday)</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsActive && s.PaidToday)</div>
                         <div class="npm-mini-key">Paid Today</div>
                     </div>
                     <div class="npm-mini-stat unpaid-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => !s.PaidToday && !s.AbsentToday)</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsActive && !s.PaidToday && !s.AbsentToday)</div>
                         <div class="npm-mini-key">Pending Today</div>
                     </div>
                     <div class="npm-mini-stat">
