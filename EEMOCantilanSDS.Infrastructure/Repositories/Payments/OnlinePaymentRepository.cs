@@ -52,6 +52,16 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, CancellationToken ct = default)
+    {
+        return await context.OnlinePaymentTransactions
+            .Where(t => t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+                && t.TargetStallId == stallId && t.TargetYear == year && t.TargetMonth == month
+                && (t.Status == OnlinePaymentStatus.Initiated || t.Status == OnlinePaymentStatus.Pending))
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrAsync(CancellationToken ct = default)
         => await GetAwaitingOrCoreAsync(null, null, ct);
 
@@ -60,13 +70,11 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
 
     private async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrCoreAsync(int? year, int? month, CancellationToken ct)
     {
-        // Project the joined fields, then format the period in memory (string interpolation with
-        // padding does not translate to SQL). When year/month are supplied, scope to that billing period
-        // (used by the Follow-up History past-period snapshot); otherwise return the whole backlog.
-        var rows = await (
+        // ── Monthly-rental targets: joined to their PaymentRecord (unchanged behaviour). ──
+        var monthlyRows = await (
             from t in context.OnlinePaymentTransactions
-            where t.Status == OnlinePaymentStatus.Paid
-            join r in context.PaymentRecords on t.PaymentRecordId equals r.Id
+            where t.Status == OnlinePaymentStatus.Paid && t.TargetKind == OnlinePaymentTargetKind.MonthlyRecord
+            join r in context.PaymentRecords on t.PaymentRecordId equals (Guid?)r.Id
             // Skip any whose OR is already on the ledger record (e.g. encoded from the mobile side) so the
             // same payment can't show up here as still needing an OR.
             where r.ORNumber == null
@@ -75,7 +83,6 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             join f in context.Facilities on s.FacilityId equals f.Id
             join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
             from u in payor.DefaultIfEmpty()
-            orderby t.PaidAt
             select new
             {
                 t.Id,
@@ -83,22 +90,54 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
                 Facility = f.Code,
                 s.StallNo,
                 PayorName = u != null ? u.FullName : null,
-                r.BillingYear,
-                r.BillingMonth,
+                BillingYear = r.BillingYear,
+                BillingMonth = r.BillingMonth,
                 t.Amount,
                 t.Method,
                 t.PaidAt
             }).ToListAsync(ct);
 
-        return rows.Select(x => new OnlinePaymentAwaitingOrDto(
-            x.Id,
-            x.Reference,
-            x.Facility,
-            x.StallNo,
-            x.PayorName ?? "—",
-            $"{x.BillingYear:0000}-{x.BillingMonth:00}",
-            x.Amount,
-            x.Method,
-            x.PaidAt)).ToList();
+        // ── NPM daily-month targets: no PaymentRecord — derive stall/period from the target, and treat as
+        //    still-awaiting only while the settled month has at least one paid day without an OR yet. ──
+        var npmRows = await (
+            from t in context.OnlinePaymentTransactions
+            where t.Status == OnlinePaymentStatus.Paid && t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+            where year == null || (t.TargetYear == year && t.TargetMonth == month)
+            join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id
+            join f in context.Facilities on s.FacilityId equals f.Id
+            join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
+            from u in payor.DefaultIfEmpty()
+            where context.DailyCollections.Any(d => d.StallId == t.TargetStallId
+                && d.CollectionDate.Year == t.TargetYear
+                && d.CollectionDate.Month == t.TargetMonth
+                && d.IsPaid
+                && (d.ORNumber == null || d.ORNumber == ""))
+            select new
+            {
+                t.Id,
+                t.Reference,
+                Facility = f.Code,
+                s.StallNo,
+                PayorName = u != null ? u.FullName : null,
+                BillingYear = t.TargetYear!.Value,
+                BillingMonth = t.TargetMonth!.Value,
+                t.Amount,
+                t.Method,
+                t.PaidAt
+            }).ToListAsync(ct);
+
+        return monthlyRows.Concat(npmRows)
+            .OrderBy(x => x.PaidAt)
+            .Select(x => new OnlinePaymentAwaitingOrDto(
+                x.Id,
+                x.Reference,
+                x.Facility,
+                x.StallNo,
+                x.PayorName ?? "—",
+                $"{x.BillingYear:0000}-{x.BillingMonth:00}",
+                x.Amount,
+                x.Method,
+                x.PaidAt))
+            .ToList();
     }
 }

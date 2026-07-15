@@ -17,7 +17,17 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.HasIndex(x => x.Reference).IsUnique();
 
             builder.Property(x => x.PayorUserId).IsRequired();
-            builder.Property(x => x.PaymentRecordId).IsRequired();
+
+            // Monthly-rental targets link a PaymentRecord; NPM daily-month targets leave it null and carry
+            // the stall + billing month instead. TargetKind defaults to MonthlyRecord for existing rows.
+            builder.Property(x => x.TargetKind)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.OnlinePaymentTargetKind.MonthlyRecord);
+            builder.Property(x => x.PaymentRecordId);   // nullable
+            builder.Property(x => x.TargetStallId);
+            builder.Property(x => x.TargetYear);
+            builder.Property(x => x.TargetMonth);
 
             builder.Property(x => x.Amount)
                 .IsRequired()
@@ -54,6 +64,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.HasOne(x => x.PaymentRecord)
                 .WithMany()
                 .HasForeignKey(x => x.PaymentRecordId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

@@ -31,7 +31,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Stall stall, PaymentRecord? existingRecord, Guid? payorId, bool linked,
         Mock<IOnlinePaymentRepository>? onlineRepoOut = null,
         Mock<IPaymentRepository>? paymentRepoOut = null,
-        Result<CheckoutSessionResult>? gatewayResult = null)
+        Result<CheckoutSessionResult>? gatewayResult = null,
+        Mock<INpmMonthSettlementService>? npmServiceOut = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -73,7 +74,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
-            gateway.Object, urlBuilder.Object, currentUser.Object, uow.Object);
+            gateway.Object, urlBuilder.Object, currentUser.Object, (npmServiceOut ?? new Mock<INpmMonthSettlementService>()).Object, uow.Object);
     }
 
     [Fact]
@@ -88,13 +89,50 @@ public class InitiateOnlinePaymentCommandHandlerTests
     }
 
     [Fact]
-    public async Task NpmFacility_IsBlocked()
+    public async Task NpmFacility_WithUnpaidDays_CreatesDailyMonthTransaction()
     {
         var stall = StallInFacility(FacilityCode.NPM);
-        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true);
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OnlinePaymentTransaction?)null);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.ComputePayableAsync(stall, 2026, 6, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NpmMonthPayable(5, 150m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
 
         var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
 
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(captured);
+        Assert.Equal(OnlinePaymentTargetKind.NpmDailyMonth, captured!.TargetKind);
+        Assert.Equal(stall.Id, captured.TargetStallId);
+        Assert.Equal(2026, captured.TargetYear);
+        Assert.Equal(6, captured.TargetMonth);
+        Assert.Equal(150m, captured.Amount);          // ₱30 × 5 unpaid days (from the shared service)
+        Assert.Null(captured.PaymentRecordId);          // NPM has no monthly record
+    }
+
+    [Fact]
+    public async Task NpmFacility_NoUnpaidDays_ReturnsConflict()
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.ComputePayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new NpmMonthPayable(0, 0m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, npmServiceOut: npm);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
         Assert.Equal(409, result.StatusCode);
     }
 
@@ -237,7 +275,7 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
 
         var uow = new Mock<IUnitOfWork>();
         return (new IssueOnlinePaymentOrNumberCommandHandler(
-            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
+            onlineRepo.Object, paymentRepo.Object, stallRepo.Object, collectorRepo.Object, new Mock<IDailyCollectionRepository>().Object, currentUser.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), uow, notifier);
     }
 
     [Fact]

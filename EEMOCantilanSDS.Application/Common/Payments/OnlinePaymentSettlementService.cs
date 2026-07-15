@@ -11,6 +11,8 @@ namespace EEMOCantilanSDS.Application.Common.Payments;
 /// <inheritdoc cref="IOnlinePaymentSettlementService"/>
 public sealed class OnlinePaymentSettlementService(
     IPaymentRepository paymentRepository,
+    IStallRepository stallRepository,
+    INpmMonthSettlementService npmMonthSettlementService,
     IOnlinePaymentNotifier notifier,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
@@ -31,7 +33,11 @@ public sealed class OnlinePaymentSettlementService(
 
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
 
-        var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId, cancellationToken);
+        // NPM daily-month: settle the month's still-unpaid days instead of a monthly record.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
+            return await SettleNpmAsync(transaction, cancellationToken);
+
+        var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", 500);
 
@@ -76,6 +82,48 @@ public sealed class OnlinePaymentSettlementService(
                     record.StallId,
                     record.BillingYear,
                     record.BillingMonth),
+                cancellationToken);
+        }
+        catch { /* notification is non-critical; the payment is already recorded */ }
+
+        return Result<bool>.Success(true);
+    }
+
+    // NPM daily-month settlement: mark the month's still-unpaid, in-term, non-closed days Paid (blank OR;
+    // staff encode the OR later). Cross-channel safe — any day already collected in person is skipped by
+    // the shared service, so this never double-collects. If fewer days remain than were charged (some were
+    // paid in person after checkout), the money is still recorded (transaction MarkPaid above) for audit /
+    // refund, exactly as the monthly path records an already-settled period without overwriting it.
+    private async Task<Result<bool>> SettleNpmAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction.TargetStallId is not { } stallId
+            || transaction.TargetYear is not { } year
+            || transaction.TargetMonth is not { } month)
+            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", 500);
+
+        var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
+        if (stall is null)
+            return Result<bool>.Failure("Linked stall not found.", 500);
+
+        await npmMonthSettlementService.SettleUnpaidDaysAsync(
+            stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+
+        try
+        {
+            await notifier.NotifyPaymentReceivedAsync(
+                new OnlinePaymentNotification(
+                    transaction.Reference,
+                    transaction.Amount,
+                    $"{year:0000}-{month:00}",
+                    transaction.Method,
+                    transaction.PaidAt ?? DateTime.UtcNow,
+                    stallId,
+                    year,
+                    month),
                 cancellationToken);
         }
         catch { /* notification is non-critical; the payment is already recorded */ }

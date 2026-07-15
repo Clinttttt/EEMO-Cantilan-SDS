@@ -17,6 +17,7 @@ public class InitiateOnlinePaymentCommandHandler(
     IPaymentGateway paymentGateway,
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
+    INpmMonthSettlementService npmMonthSettlementService,
     IUnitOfWork unitOfWork) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
@@ -33,10 +34,6 @@ public class InitiateOnlinePaymentCommandHandler(
         if (stall is null)
             return Result<InitiateOnlinePaymentResultDto>.NotFound();
 
-        // v1 online payment is for monthly-rental facilities; NPM is daily-billed (out of scope here).
-        if (stall.Facility?.Code == FacilityCode.NPM)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Online payment is not available for this facility yet.", 409);
-
         // The requested period must fall within one of the stall's contract terms. Without this a payor
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
         // expiry, or arbitrary future months), creating obligation rows for uncovered periods.
@@ -45,6 +42,12 @@ public class InitiateOnlinePaymentCommandHandler(
         if (!stall.Contracts.Any(c => c.OverlapsPeriod(periodStart, periodEnd)))
             return Result<InitiateOnlinePaymentResultDto>.Failure(
                 "This billing period isn't covered by an active contract for this stall.", 409);
+
+        // NPM is daily-billed (no monthly record). Online pays a whole month of the base ₱30 daily fee —
+        // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
+        // is weighed at the stall and utilities are billed separately, so both are excluded here).
+        if (stall.Facility?.Code == FacilityCode.NPM)
+            return await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken);
 
         // Find-or-create the monthly record (a current-month obligation may not have a row yet).
         var isNewRecord = false;
@@ -104,6 +107,53 @@ public class InitiateOnlinePaymentCommandHandler(
         // Persist only after the gateway accepted the session.
         if (isNewRecord)
             await paymentRepository.AddAsync(record, cancellationToken);
+
+        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
+        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<InitiateOnlinePaymentResultDto>.Success(
+            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
+    }
+
+    // NPM daily-month checkout: amount = base ₱30 × the month's unpaid, elapsed, in-term, non-closed days
+    // (from the shared settlement service, so the charge equals what settlement will mark). No PaymentRecord.
+    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmAsync(
+        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
+    {
+        var payable = await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);
+        if (payable.Days <= 0 || payable.Amount <= 0m)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", 409);
+
+        // Resume an unfinished checkout for the same stall+month rather than opening a duplicate.
+        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, cancellationToken);
+        if (resumable is { IsResumable: true })
+            return Result<InitiateOnlinePaymentResultDto>.Success(
+                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+        string reference;
+        do
+        {
+            reference = GenerateReference();
+        }
+        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
+
+        var transaction = OnlinePaymentTransaction.CreateForNpmMonth(
+            reference, payorId, stall.Id, request.Year, request.Month, payable.Amount, paymentGateway.Provider);
+
+        var periodKey = $"{request.Year:0000}-{request.Month:00}";
+        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
+            new CreateCheckoutSessionRequest(
+                payable.Amount,
+                reference,
+                $"EEMO online payment · NPM daily · {periodKey}",
+                urlBuilder.BuildSuccessUrl(reference),
+                urlBuilder.BuildCancelUrl(reference)),
+            cancellationToken);
+
+        if (!checkout.IsSuccess || checkout.Value is null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                checkout.Error ?? "Unable to start the online payment.", 502);
 
         transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
         await onlinePaymentRepository.AddAsync(transaction, cancellationToken);

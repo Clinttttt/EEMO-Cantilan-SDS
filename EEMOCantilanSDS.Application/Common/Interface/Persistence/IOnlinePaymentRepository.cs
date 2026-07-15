@@ -23,6 +23,13 @@ public interface IOnlinePaymentRepository
     /// </summary>
     Task<OnlinePaymentTransaction?> GetResumableTransactionForRecordAsync(Guid paymentRecordId, CancellationToken ct = default);
 
+    /// <summary>
+    /// NPM daily-month variant of the resumable lookup (there is no PaymentRecord): an unfinished
+    /// checkout (Initiated/Pending) for the same stall + billing month, so a payor who abandoned a
+    /// checkout is sent back to the same session instead of opening a duplicate.
+    /// </summary>
+    Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, CancellationToken ct = default);
+
     Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default);
 
     /// <summary>Online payments that are Paid (money received) but still awaiting staff OR encoding.</summary>

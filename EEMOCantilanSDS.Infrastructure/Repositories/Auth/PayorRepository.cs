@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -9,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-public class PayorRepository(AppDbContext context) : IPayorRepository
+public class PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService) : IPayorRepository
 {
     public async Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default)
     {
@@ -207,6 +208,23 @@ public class PayorRepository(AppDbContext context) : IPayorRepository
                 items.Add(new PayorPayableItemDto(
                     stall.Id, stall.StallNo, facility, curYear, curMonth,
                     $"{curYear:0000}-{curMonth:00}", stall.MonthlyRate));
+            }
+
+            // 3) NPM (daily-billed): synthesize the current-month base-fee balance — ₱30 × the month's
+            // unpaid, elapsed, in-term, non-closed days — from the shared settlement service, so the amount
+            // shown equals what initiate charges and settlement marks. Fish ₱/kg and utilities are excluded
+            // (weighed/metered at the stall). Only shown when there is an outstanding daily balance.
+            if (facility == FacilityCode.NPM
+                && stall.Status == StallStatus.Active
+                && stall.Contracts.Any(c => c.IsActive && c.EffectivityDate <= monthEnd && monthStart <= c.ExpiryDate))
+            {
+                var payable = await npmMonthSettlementService.ComputePayableAsync(stall, curYear, curMonth, ct);
+                if (payable.Days > 0 && payable.Amount > 0m)
+                {
+                    items.Add(new PayorPayableItemDto(
+                        stall.Id, stall.StallNo, facility, curYear, curMonth,
+                        $"{curYear:0000}-{curMonth:00}", payable.Amount));
+                }
             }
         }
 

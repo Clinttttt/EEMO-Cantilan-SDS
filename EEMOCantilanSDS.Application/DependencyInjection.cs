@@ -30,6 +30,10 @@ namespace EEMOCantilanSDS.Application
                 Common.Interface.Services.IOnlinePaymentSettlementService,
                 Common.Payments.OnlinePaymentSettlementService>();
 
+            services.AddScoped<
+                Common.Payments.INpmMonthSettlementService,
+                Common.Payments.NpmMonthSettlementService>();
+
             return services;
         }
     }

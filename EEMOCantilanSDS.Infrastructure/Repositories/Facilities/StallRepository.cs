@@ -212,9 +212,10 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             ? new List<(Guid PaymentRecordId, Guid Id, OnlinePaymentStatus Status)>()
             : (await context.OnlinePaymentTransactions
                 .AsNoTracking()
-                .Where(t => monthRecordIds.Contains(t.PaymentRecordId)
+                .Where(t => t.PaymentRecordId != null
+                    && monthRecordIds.Contains(t.PaymentRecordId.Value)
                     && (t.Status == OnlinePaymentStatus.Paid || t.Status == OnlinePaymentStatus.Completed))
-                .Select(t => new { t.PaymentRecordId, t.Id, t.Status })
+                .Select(t => new { PaymentRecordId = t.PaymentRecordId!.Value, t.Id, t.Status })
                 .ToListAsync(ct))
                 .Select(t => (t.PaymentRecordId, t.Id, t.Status))
                 .ToList();

@@ -15,7 +15,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public Guid MunicipalityId { get; private set; }
         public string Reference { get; private set; } = string.Empty;     // internal, e.g. EEMO-OP-20260613-AB12CD34
         public Guid PayorUserId { get; private set; }
-        public Guid PaymentRecordId { get; private set; }
+
+        // What this payment settles. Monthly-rental facilities link a single PaymentRecord; NPM (daily)
+        // has no monthly record, so it targets a whole month of that stall's daily ₱30 fees instead.
+        public OnlinePaymentTargetKind TargetKind { get; private set; } = OnlinePaymentTargetKind.MonthlyRecord;
+
+        // Set for MonthlyRecord targets (null for NPM daily-month).
+        public Guid? PaymentRecordId { get; private set; }
+
+        // Set for NpmDailyMonth targets (null for monthly): the NPM stall + billing month whose unpaid
+        // daily fees this payment settles.
+        public Guid? TargetStallId { get; private set; }
+        public int? TargetYear { get; private set; }
+        public int? TargetMonth { get; private set; }
+
         public decimal Amount { get; private set; }
         public OnlinePaymentStatus Status { get; private set; } = OnlinePaymentStatus.Initiated;
         public string Provider { get; private set; } = string.Empty;      // "PayMongo"
@@ -44,7 +57,41 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 Id = Guid.NewGuid(),
                 Reference = reference,
                 PayorUserId = payorUserId,
+                TargetKind = OnlinePaymentTargetKind.MonthlyRecord,
                 PaymentRecordId = paymentRecordId,
+                Amount = amount,
+                Provider = provider,
+                Status = OnlinePaymentStatus.Initiated,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
+
+        /// <summary>
+        /// Creates a transaction that settles a whole month of an NPM stall's daily ₱30 fees (base fee
+        /// only — fish ₱/kg is weighed at the stall and utilities are billed separately). It carries the
+        /// stall + billing month instead of a monthly PaymentRecord; settlement marks that month's unpaid
+        /// contract-covered days paid (blank OR) and staff encode the OR afterward.
+        /// </summary>
+        public static OnlinePaymentTransaction CreateForNpmMonth(
+            string reference,
+            Guid payorUserId,
+            Guid stallId,
+            int year,
+            int month,
+            decimal amount,
+            string provider,
+            string createdBy = "Online")
+        {
+            return new OnlinePaymentTransaction
+            {
+                Id = Guid.NewGuid(),
+                Reference = reference,
+                PayorUserId = payorUserId,
+                TargetKind = OnlinePaymentTargetKind.NpmDailyMonth,
+                TargetStallId = stallId,
+                TargetYear = year,
+                TargetMonth = month,
                 Amount = amount,
                 Provider = provider,
                 Status = OnlinePaymentStatus.Initiated,

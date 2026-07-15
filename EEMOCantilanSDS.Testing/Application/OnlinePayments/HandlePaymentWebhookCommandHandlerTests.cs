@@ -48,7 +48,7 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var notifier = new Mock<IOnlinePaymentNotifier>();
 
-        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, new Mock<IStallRepository>().Object, new Mock<INpmMonthSettlementService>().Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var municipalityRepo = new Mock<IMunicipalityRepository>();
         var tenantScope = new EEMOCantilanSDS.Infrastructure.Tenancy.RequestTenantScope();

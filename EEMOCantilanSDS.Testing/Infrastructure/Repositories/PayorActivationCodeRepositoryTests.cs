@@ -23,7 +23,7 @@ public class PayorActivationCodeRepositoryTests : RepositoryTestBase
             PayorActivationCode.Create("EEEE-FFFF", "09173333333", otherStallId, DateTime.UtcNow.AddDays(30)));
         await context.SaveChangesAsync();
 
-        var repo = new PayorRepository(context);
+        var repo = new PayorRepository(context, new Moq.Mock<EEMOCantilanSDS.Application.Common.Payments.INpmMonthSettlementService>().Object);
 
         // Re-issue: remove prior code(s) for the stall, then add the new one.
         await repo.RemoveCodesForStallAsync(stallId);
