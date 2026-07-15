@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -29,6 +30,35 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
 
             if (user is null || !user.IsActivationTokenValid(hash))
                 return Result<bool>.Failure(GenericError);
+
+            // Optional: the activating user may choose their own sign-in username. Normalize to trimmed
+            // lower-case (matches the existing convention + the case-sensitive login lookup), validate the
+            // format, and enforce uniqueness within their own municipality. Only applied when it actually
+            // changes, so re-activation with the pre-set username is a no-op.
+            if (!string.IsNullOrWhiteSpace(request.NewUsername))
+            {
+                var desired = request.NewUsername.Trim().ToLowerInvariant();
+
+                if (desired.Length < 3 || desired.Length > 30
+                    || !desired.All(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-'))
+                    return Result<bool>.Failure(
+                        "Username must be 3–30 characters using only letters, numbers, dot, underscore, or hyphen.");
+
+                if (!string.Equals(desired, user.Username, StringComparison.OrdinalIgnoreCase))
+                {
+                    var taken = await context.Users
+                        .IgnoreQueryFilters()
+                        .AnyAsync(u => u.MunicipalityId == user.MunicipalityId
+                            && u.Id != user.Id
+                            && !u.IsDeleted
+                            && u.Username != null
+                            && u.Username.ToLower() == desired, ct);
+                    if (taken)
+                        return Result<bool>.Failure("That username is already taken. Please choose another.");
+
+                    user.SetUsername(desired);
+                }
+            }
 
             // Domain hashes the password and clears the one-time token (single use).
             user.CompleteActivation(request.NewPassword);

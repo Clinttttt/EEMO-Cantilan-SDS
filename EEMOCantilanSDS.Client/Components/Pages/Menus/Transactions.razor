@@ -165,7 +165,7 @@
                                     <div class="txn-time">@t.OccurredAt.ToString("h:mm tt")</div>
                                 }
                             </td>
-                            <td><span class="txn-fac-badge fac-@t.FacilityCode.ToString().ToLower()">@t.FacilityCode</span></td>
+                            <td><span class="txn-fac-badge fac-@t.FacilityCode.ToString().ToLower()">@FacilityCatalog.ShortNameOf(t.FacilityCode)</span></td>
                             <td class="txn-party">@t.Party</td>
                             <td>
                                 <div class="txn-kind">

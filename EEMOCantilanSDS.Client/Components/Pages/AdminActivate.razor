@@ -45,25 +45,41 @@
     </div>
 
     <!-- Right Panel — Form -->
-    <div class="setup-right">
+    <div class="setup-right @(Done ? "setup-right-activated" : "")">
         <div class="setup-form-wrap">
             <section class="login-card">
 
                 @if (Done)
                 {
                     <div class="setup-form-header">
-                        <div class="login-header-icon" aria-hidden="true">
+                        <div class="login-header-icon activated-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
                                 <path d="m9 12 2 2 4-4" />
                             </svg>
                         </div>
                         <div class="setup-form-title">Account activated</div>
-                        <div class="setup-form-desc">Your password has been set. You can now sign in to your portal with your username and new password.</div>
+                        <div class="setup-form-desc">
+                            @if (Context is not null && !string.IsNullOrWhiteSpace(Context.Municipality))
+                            {
+                                <span class="activated-welcome">Welcome, Municipality of @Context.Municipality.</span>
+                            }
+                            Your password has been set@(!string.IsNullOrWhiteSpace(Username) ? $". Sign in with the username \u201c{Username}\u201d and your new password." : ". You can now sign in with your username and new password.")
+                        </div>
                     </div>
                     <button class="setup-submit" @onclick="GoToLogin">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+                        </svg>
                         <span>Continue to sign in</span>
                     </button>
+                    <div class="setup-secure-note">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                            <path d="m9 12 2 2 4-4" />
+                        </svg>
+                        <span>Keep your credentials secure and do not share them with anyone.</span>
+                    </div>
                 }
                 else if (string.IsNullOrWhiteSpace(Token))
                 {
@@ -106,14 +122,25 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Username</label>
-                                <div class="form-input-wrap form-input-readonly">
+                                <div class="form-input-wrap @(GetFieldError("Username") != string.Empty ? "form-input-error" : "")">
                                     <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
                                         <circle cx="12" cy="7" r="4" />
                                     </svg>
-                                    <input class="form-input" value="@Context.Username" readonly disabled />
+                                    <input class="form-input"
+                                           value="@Username"
+                                           @oninput="@((e) => Username = e.Value?.ToString() ?? string.Empty)"
+                                           placeholder="Choose your sign-in username"
+                                           autocomplete="username" />
                                 </div>
-                                <span class="form-hint">You'll sign in with this username. Contact your platform coordinator if it needs to change.</span>
+                                @if (GetFieldError("Username") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("Username")</span>
+                                }
+                                else
+                                {
+                                    <span class="form-hint">This is what you'll type to sign in. Keep the suggested one or set your own.</span>
+                                }
                             </div>
                         }
 
@@ -246,6 +273,7 @@
 
     ActivationContextDto? Context;
 
+    string Username = string.Empty;
     string Password = string.Empty;
     string ConfirmPassword = string.Empty;
     bool ShowPassword;
@@ -266,7 +294,10 @@
         {
             var result = await ActivationApi.GetActivationContextAsync(Token!);
             if (result.IsSuccess)
+            {
                 Context = result.Value;
+                Username = Context?.Username ?? string.Empty;
+            }
         }
         catch
         {
@@ -292,6 +323,12 @@
             ErrorMessage = "This activation link is invalid.";
             return;
         }
+        // A Head activation (Context present) lets the user choose their sign-in username.
+        if (Context is not null && string.IsNullOrWhiteSpace(Username))
+        {
+            FieldErrors["Username"] = "Please enter a username.";
+            return;
+        }
         if (string.IsNullOrWhiteSpace(Password) || Password.Length < 8)
         {
             FieldErrors["Password"] = "Password must be at least 8 characters.";
@@ -313,7 +350,7 @@
         try
         {
             var result = await ActivationApi.SetPasswordByTokenAsync(
-                new SetAdminPasswordByTokenCommand(Token!, Password));
+                new SetAdminPasswordByTokenCommand(Token!, Password, Context is not null ? Username : null));
 
             if (result.IsSuccess)
             {
@@ -323,6 +360,11 @@
             {
                 var first = result.ValidationErrors.First();
                 FieldErrors["Password"] = first.Value.FirstOrDefault() ?? "Please choose a stronger password.";
+            }
+            else if (!string.IsNullOrEmpty(result.Error) && result.Error.Contains("username", StringComparison.OrdinalIgnoreCase))
+            {
+                // Surface username format/uniqueness errors on the field rather than the generic banner.
+                FieldErrors["Username"] = result.Error;
             }
             else
             {

@@ -62,6 +62,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                && ActivationTokenExpiry.HasValue
                && ActivationTokenExpiry.Value > DateTime.UtcNow;
 
+        /// <summary>Sets the account's sign-in username (chosen by the user at activation). Caller
+        /// guarantees it is normalized (trimmed/lower-cased) and unique within the municipality.</summary>
+        public void SetUsername(string username)
+        {
+            Username = username;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         /// <summary>
         /// Completes activation: sets the user's chosen password, activates the account, and clears the
         /// one-time token and the must-change flag (they just chose their own password). Also clears any

@@ -8,5 +8,5 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SetAdminPasswordByToken
     /// one-time token, and sets their own password. On success the account is activated. Anonymous flow — the
     /// token is the only credential — so failures return a generic message (no account enumeration).
     /// </summary>
-    public record SetAdminPasswordByTokenCommand(string Token, string NewPassword) : IRequest<Result<bool>>;
+    public record SetAdminPasswordByTokenCommand(string Token, string NewPassword, string? NewUsername = null) : IRequest<Result<bool>>;
 }
