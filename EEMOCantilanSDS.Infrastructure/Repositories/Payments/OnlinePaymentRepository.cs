@@ -62,6 +62,16 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             .FirstOrDefaultAsync(ct);
     }
 
+    public async Task<OnlinePaymentTransaction?> GetResumableNpmFishDayTransactionAsync(Guid stallId, int year, int month, int day, CancellationToken ct = default)
+    {
+        return await context.OnlinePaymentTransactions
+            .Where(t => t.TargetKind == OnlinePaymentTargetKind.NpmFishDay
+                && t.TargetStallId == stallId && t.TargetYear == year && t.TargetMonth == month && t.TargetDay == day
+                && (t.Status == OnlinePaymentStatus.Initiated || t.Status == OnlinePaymentStatus.Pending))
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+    }
+
     public async Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrAsync(CancellationToken ct = default)
         => await GetAwaitingOrCoreAsync(null, null, ct);
 
@@ -154,7 +164,37 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
                 t.PaidAt
             }).ToListAsync(ct);
 
-        return monthlyRows.Concat(npmRows).Concat(npmUtilRows)
+        // ── NPM fish-DAY targets: derive stall/period from the target, awaiting while THAT specific day's
+        //    collection is paid but still without an OR. ──
+        var npmFishDayRows = await (
+            from t in context.OnlinePaymentTransactions
+            where t.Status == OnlinePaymentStatus.Paid && t.TargetKind == OnlinePaymentTargetKind.NpmFishDay
+            where year == null || (t.TargetYear == year && t.TargetMonth == month)
+            join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id
+            join f in context.Facilities on s.FacilityId equals f.Id
+            join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
+            from u in payor.DefaultIfEmpty()
+            where context.DailyCollections.Any(d => d.StallId == t.TargetStallId
+                && d.CollectionDate.Year == t.TargetYear
+                && d.CollectionDate.Month == t.TargetMonth
+                && d.CollectionDate.Day == t.TargetDay
+                && d.IsPaid
+                && (d.ORNumber == null || d.ORNumber == ""))
+            select new
+            {
+                t.Id,
+                t.Reference,
+                Facility = f.Code,
+                s.StallNo,
+                PayorName = u != null ? u.FullName : null,
+                BillingYear = t.TargetYear!.Value,
+                BillingMonth = t.TargetMonth!.Value,
+                t.Amount,
+                t.Method,
+                t.PaidAt
+            }).ToListAsync(ct);
+
+        return monthlyRows.Concat(npmRows).Concat(npmUtilRows).Concat(npmFishDayRows)
             .OrderBy(x => x.PaidAt)
             .Select(x => new OnlinePaymentAwaitingOrDto(
                 x.Id,

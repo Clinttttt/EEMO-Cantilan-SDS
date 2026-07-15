@@ -29,6 +29,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public int? TargetYear { get; private set; }
         public int? TargetMonth { get; private set; }
 
+        // Set for NpmFishDay targets only: the specific day-of-month being settled and the kilos the
+        // payor self-declared for that day (priced server-side as base + kilos × fish rate).
+        public int? TargetDay { get; private set; }
+        public decimal? DeclaredFishKilos { get; private set; }
+
         public decimal Amount { get; private set; }
         public OnlinePaymentStatus Status { get; private set; } = OnlinePaymentStatus.Initiated;
         public string Provider { get; private set; } = string.Empty;      // "PayMongo"
@@ -124,6 +129,44 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 TargetStallId = stallId,
                 TargetYear = year,
                 TargetMonth = month,
+                Amount = amount,
+                Provider = provider,
+                Status = OnlinePaymentStatus.Initiated,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = createdBy
+            };
+        }
+
+        /// <summary>
+        /// Creates a transaction that settles ONE NPM fish-section day. Carries the stall + the exact day
+        /// (year/month/day) plus the kilos the payor self-declared for that day. Base ₱30 + kilos × fish
+        /// rate is priced by the caller (server-side, as-of rates); settlement marks just that day Paid
+        /// with the declared kilos (blank OR, no collector — an online, payor-declared collection) and
+        /// staff encode the OR afterward.
+        /// </summary>
+        public static OnlinePaymentTransaction CreateForNpmFishDay(
+            string reference,
+            Guid payorUserId,
+            Guid stallId,
+            int year,
+            int month,
+            int day,
+            decimal declaredFishKilos,
+            decimal amount,
+            string provider,
+            string createdBy = "Online")
+        {
+            return new OnlinePaymentTransaction
+            {
+                Id = Guid.NewGuid(),
+                Reference = reference,
+                PayorUserId = payorUserId,
+                TargetKind = OnlinePaymentTargetKind.NpmFishDay,
+                TargetStallId = stallId,
+                TargetYear = year,
+                TargetMonth = month,
+                TargetDay = day,
+                DeclaredFishKilos = declaredFishKilos,
                 Amount = amount,
                 Provider = provider,
                 Status = OnlinePaymentStatus.Initiated,

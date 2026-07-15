@@ -49,9 +49,12 @@ public class InitiateOnlinePaymentCommandHandler(
         // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
         // is weighed at the stall and utilities are billed separately, so both are excluded here).
         if (stall.Facility?.Code == FacilityCode.NPM)
-            return request.Kind == PayorPayableKind.NpmUtility
-                ? await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken)
-                : await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken);
+            return request.Kind switch
+            {
+                PayorPayableKind.NpmUtility => await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken),
+                PayorPayableKind.NpmFish => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
+                _ => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken)
+            };
 
         // Find-or-create the monthly record (a current-month obligation may not have a row yet).
         var isNewRecord = false;
@@ -198,6 +201,62 @@ public class InitiateOnlinePaymentCommandHandler(
                 amount,
                 reference,
                 $"EEMO online payment · NPM utilities · {periodKey}",
+                urlBuilder.BuildSuccessUrl(reference),
+                urlBuilder.BuildCancelUrl(reference)),
+            cancellationToken);
+
+        if (!checkout.IsSuccess || checkout.Value is null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                checkout.Error ?? "Unable to start the online payment.", 502);
+
+        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
+        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Result<InitiateOnlinePaymentResultDto>.Success(
+            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
+    }
+
+    // NPM fish DAY: the payor self-declares kilos for ONE uncollected day; amount = base ₱30 + kilos ×
+    // fish ₱/kg, both resolved as-of the day from the current municipality's snapshot (tenant-aware, so
+    // custom LGUs use their own rates). Settlement marks just that day paid with the declared kilos.
+    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmFishDayAsync(
+        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
+    {
+        if (request.Day is not { } dayOfMonth
+            || dayOfMonth < 1 || dayOfMonth > DateTime.DaysInMonth(request.Year, request.Month))
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick a valid day to pay for.", 400);
+        if (request.FishKilos is not { } kilos || kilos < 0m)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Enter the kilos for that day.", 400);
+
+        var day = new DateOnly(request.Year, request.Month, dayOfMonth);
+        var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, day, kilos, cancellationToken);
+        if (!quote.IsPayable)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(quote.Error ?? "That day can't be paid online.", 409);
+        if (quote.Amount <= 0m)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This day has no outstanding balance.", 409);
+
+        // Resume an unfinished checkout for the SAME stall + exact day rather than opening a duplicate.
+        var resumable = await onlinePaymentRepository.GetResumableNpmFishDayTransactionAsync(stall.Id, request.Year, request.Month, dayOfMonth, cancellationToken);
+        if (resumable is { IsResumable: true })
+            return Result<InitiateOnlinePaymentResultDto>.Success(
+                new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
+
+        string reference;
+        do
+        {
+            reference = GenerateReference();
+        }
+        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
+
+        var transaction = OnlinePaymentTransaction.CreateForNpmFishDay(
+            reference, payorId, stall.Id, request.Year, request.Month, dayOfMonth, kilos, quote.Amount, paymentGateway.Provider);
+
+        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
+            new CreateCheckoutSessionRequest(
+                quote.Amount,
+                reference,
+                $"EEMO online payment · NPM fish · {day:yyyy-MM-dd}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

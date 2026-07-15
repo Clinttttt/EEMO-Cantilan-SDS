@@ -9,6 +9,7 @@ namespace EEMOCantilanSDS.Domain.Enums
     {
         MonthlyRecord = 1,   // links a PaymentRecordId (TCC/NCC/BBQ/ICE)
         NpmDailyMonth = 2,   // settles NPM daily fees for TargetStallId + TargetYear/TargetMonth
-        NpmUtilityBill = 3   // settles the NPM electricity + water bill for TargetStallId + TargetYear/TargetMonth
+        NpmUtilityBill = 3,  // settles the NPM electricity + water bill for TargetStallId + TargetYear/TargetMonth
+        NpmFishDay = 4       // settles ONE NPM fish-section day (TargetStallId + TargetYear/TargetMonth/TargetDay) at ₱30 base + payor-declared kilos × ₱/kg
     }
 }

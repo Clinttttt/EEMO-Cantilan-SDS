@@ -31,6 +31,13 @@ public interface IOnlinePaymentRepository
     /// </summary>
     Task<OnlinePaymentTransaction?> GetResumableNpmTransactionAsync(Guid stallId, int year, int month, OnlinePaymentTargetKind kind, CancellationToken ct = default);
 
+    /// <summary>
+    /// NPM fish-DAY variant of the resumable lookup: an unfinished checkout (Initiated/Pending) for the
+    /// same stall + exact day, so a payor who abandoned a fish-day checkout is sent back to that session
+    /// rather than opening a duplicate for the same day.
+    /// </summary>
+    Task<OnlinePaymentTransaction?> GetResumableNpmFishDayTransactionAsync(Guid stallId, int year, int month, int day, CancellationToken ct = default);
+
     Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default);
 
     /// <summary>Online payments that are Paid (money received) but still awaiting staff OR encoding.</summary>

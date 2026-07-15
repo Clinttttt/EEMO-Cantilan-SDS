@@ -169,6 +169,55 @@ public class InitiateOnlinePaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task NpmFish_WithDeclaredKilos_CreatesFishDayTransaction()
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+
+        OnlinePaymentTransaction? captured = null;
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        onlineRepo.Setup(r => r.GetResumableNpmFishDayTransactionAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((OnlinePaymentTransaction?)null);
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()))
+            .Callback<OnlinePaymentTransaction, CancellationToken>((t, _) => captured = t).Returns(Task.CompletedTask);
+
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.Payable(84m, 30m, 1m));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, 15, 54m), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(captured);
+        Assert.Equal(OnlinePaymentTargetKind.NpmFishDay, captured!.TargetKind);   // one-day fish target
+        Assert.Equal(stall.Id, captured.TargetStallId);
+        Assert.Equal(15, captured.TargetDay);
+        Assert.Equal(54m, captured.DeclaredFishKilos);
+        Assert.Equal(84m, captured.Amount);          // ₱30 base + 54 kg × ₱1 (from the quote)
+        Assert.Null(captured.PaymentRecordId);        // NPM has no monthly record
+    }
+
+    [Fact]
+    public async Task NpmFish_NotPayableDay_ReturnsConflict()
+    {
+        var stall = StallInFacility(FacilityCode.NPM);
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.QuoteFishDayAsync(It.IsAny<Stall>(), It.IsAny<DateOnly>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(NpmFishDayQuote.NotPayable("That day is already collected or excused."));
+
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, npmServiceOut: npm);
+
+        var result = await handler.Handle(
+            new InitiateOnlinePaymentCommand(stall.Id, 2026, 6, PayorPayableKind.NpmFish, 15, 54m), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
     public async Task PeriodOutsideContractTerm_IsRejected()
     {
         // #2 regression — the stall's contract covers only 2019; a 2026 period is outside its term, so a
@@ -364,5 +413,48 @@ public class IssueOnlinePaymentOrNumberCommandHandlerTests
         Assert.Equal(403, result.StatusCode);
         Assert.NotEqual(OnlinePaymentStatus.Completed, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmFishDay_StaffEncodesOr_StampsThatDay_AndCompletes()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.NPM, "NPM", "NPM"));
+        var txn = OnlinePaymentTransaction.CreateForNpmFishDay("EEMO-OP-FISH", Guid.NewGuid(), stall.Id, 2026, 6, 15, 54m, 84m, "PayMongo");
+        txn.SetPending("cs_fish", "https://checkout");
+        txn.MarkPaid("pay_f", "qrph", DateTime.UtcNow, "{}");
+
+        // That day was settled online: paid, blank OR.
+        var dc = DailyCollection.Create(stall.Id, new DateOnly(2026, 6, 15));
+        dc.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: 54m);
+
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.GetByIdAsync(txn.Id, It.IsAny<CancellationToken>())).ReturnsAsync(txn);
+        var paymentRepo = new Mock<IPaymentRepository>();
+        paymentRepo.Setup(r => r.IsDailyCollectionOrAvailableForStallAsync("OR-FISH-1", stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        dailyRepo.Setup(r => r.GetByStallAndDateAsync(stall.Id, new DateOnly(2026, 6, 15), It.IsAny<CancellationToken>())).ReturnsAsync(dc);
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.Username).Returns("admin");
+        currentUser.SetupGet(c => c.Role).Returns((string?)null);
+        var notifier = new Mock<IPayorRealtimeNotifier>();
+        var uow = new Mock<IUnitOfWork>();
+
+        var handler = new IssueOnlinePaymentOrNumberCommandHandler(
+            onlineRepo.Object, paymentRepo.Object, new Mock<IStallRepository>().Object, new Mock<ICollectorRepository>().Object,
+            dailyRepo.Object, new Mock<IUtilityBillRepository>().Object, currentUser.Object, notifier.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(new IssueOnlinePaymentOrNumberCommand(txn.Id, "OR-FISH-1"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Completed, txn.Status);
+        Assert.Equal("OR-FISH-1", dc.ORNumber);          // stamped on that one settled day
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        notifier.Verify(n => n.NotifyOrIssuedAsync(
+            txn.PayorUserId,
+            It.Is<PayorOrIssuedNotification>(p => p.OrNumber == "OR-FISH-1" && p.StallId == stall.Id),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }

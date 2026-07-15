@@ -42,6 +42,10 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill)
             return await SettleNpmUtilityAsync(transaction, cancellationToken);
 
+        // NPM fish day: mark that ONE day paid with the payor-declared kilos.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmFishDay)
+            return await SettleNpmFishDayAsync(transaction, cancellationToken);
+
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", 500);
@@ -184,6 +188,49 @@ public sealed class OnlinePaymentSettlementService(
                     remarks: note + " · partial (bill increased after checkout)", updatedBy: "Online");
             }
         }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+
+        try
+        {
+            await notifier.NotifyPaymentReceivedAsync(
+                new OnlinePaymentNotification(
+                    transaction.Reference,
+                    transaction.Amount,
+                    $"{year:0000}-{month:00}",
+                    transaction.Method,
+                    transaction.PaidAt ?? DateTime.UtcNow,
+                    stallId,
+                    year,
+                    month),
+                cancellationToken);
+        }
+        catch { /* notification is non-critical; the payment is already recorded */ }
+
+        return Result<bool>.Success(true);
+    }
+
+    // NPM fish-day settlement: mark THAT ONE day Paid with the payor-declared kilos (blank OR, no collector
+    // — an online, payor-declared collection). Cross-channel safe — a day already collected in person
+    // between checkout and settlement is left untouched by the shared service (money still recorded on the
+    // transaction for audit/refund). Staff encode the OR for that day afterward.
+    private async Task<Result<bool>> SettleNpmFishDayAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken)
+    {
+        if (transaction.TargetStallId is not { } stallId
+            || transaction.TargetYear is not { } year
+            || transaction.TargetMonth is not { } month
+            || transaction.TargetDay is not { } day)
+            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", 500);
+
+        var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
+        if (stall is null)
+            return Result<bool>.Failure("Linked stall not found.", 500);
+
+        var date = new DateOnly(year, month, day);
+        await npmMonthSettlementService.SettleFishDayAsync(
+            stall, date, transaction.DeclaredFishKilos ?? 0m, recordedBy: "Online", cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(

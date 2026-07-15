@@ -252,4 +252,37 @@ public class OnlinePaymentSettlementServiceTests
         Assert.Equal(PaymentStatus.Partial, bill.ElecStatus);
         Assert.Equal(PaymentStatus.Unpaid, bill.WaterStatus);
     }
+
+    [Fact]
+    public async Task NpmFishDayTransaction_SettlesThatOneDay_WithDeclaredKilos_WithoutTouchingMonthlyRecord()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        // Pay ONE day (2026-06-15), declaring 54 kg → ₱30 + 54 = ₱84.
+        var txn = OnlinePaymentTransaction.CreateForNpmFishDay("EEMO-OP-FISH", Guid.NewGuid(), stall.Id, 2026, 6, 15, 54m, 84m, "PayMongo");
+        txn.SetPending("cs_fish", "https://checkout");
+
+        var payRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, "Online", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyCollection?)null);
+        var notifier = new Mock<IOnlinePaymentNotifier>();
+        var uow = new Mock<IUnitOfWork>();
+
+        var svc = new OnlinePaymentSettlementService(
+            payRepo.Object, stallRepo.Object, npm.Object, new Mock<IUtilityBillRepository>().Object, notifier.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_fish", 84m, "pay_fish", "qrph", DateTime.UtcNow, "{}");
+        var result = await svc.SettleAsync(txn, evt);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        npm.Verify(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, "Online", It.IsAny<CancellationToken>()), Times.Once);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        // The monthly-record path is never used for an NPM fish-day transaction.
+        payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

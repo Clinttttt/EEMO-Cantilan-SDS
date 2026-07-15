@@ -42,10 +42,18 @@ else
                     <div class="pp-bal-sub">@PayorFormat.FacilityName(item.Facility) · Stall @item.StallNo@(KindLabel(item.Kind))</div>
                 </div>
                 <div class="pp-bal-right">
-                    <span class="pp-bal-amount">@PayorFormat.Currency(item.BalanceDue)</span>
-                    <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => Pay(item)">
-                        @(PayingId == ItemKey(item) ? "…" : "Pay")
-                    </button>
+                    @if (item.Kind == PayorPayableKind.NpmFish)
+                    {
+                        <span class="pp-bal-amount">@PayorFormat.Currency(item.BaseFee ?? 0m)<small> + @PayorFormat.Currency(item.FishRatePerKilo ?? 0m)/kg</small></span>
+                        <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => OpenFish(item)">Declare</button>
+                    }
+                    else
+                    {
+                        <span class="pp-bal-amount">@PayorFormat.Currency(item.BalanceDue)</span>
+                        <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => Pay(item)">
+                            @(PayingId == ItemKey(item) ? "…" : "Pay")
+                        </button>
+                    }
                 </div>
             </div>
         }
@@ -54,6 +62,60 @@ else
     @if (!string.IsNullOrEmpty(Error))
     {
         <div class="pp-demo-note">@Error</div>
+    }
+
+    @if (FishItem is not null)
+    {
+        <div class="pp-overlay" @onclick="CloseFish">
+            <div class="pp-sheet" @onclick:stopPropagation="true">
+                <div class="pp-sheet-handle"></div>
+                <div class="pp-sheet-title">Fish daily fee</div>
+                <div class="pp-sheet-sub">
+                    Stall @FishItem.StallNo · declare the kilos you sold on an uncollected day and pay it online
+                    (for when the collector wasn't around). The collector still weighs it in person when present.
+                </div>
+
+                <label class="pp-field">
+                    <span class="pp-field-label">Day</span>
+                    <select class="pp-input" @bind="FishDay">
+                        <option value="">Select a day…</option>
+                        @foreach (var d in FishItem.UncollectedDays ?? Array.Empty<DateOnly>())
+                        {
+                            <option value="@d.Day">@d.ToString("MMM d (ddd)")</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="pp-field">
+                    <span class="pp-field-label">Kilos sold that day</span>
+                    <input class="pp-input" type="number" min="0" step="0.01" placeholder="e.g. 54"
+                           @bind="FishKilos" @bind:event="oninput" />
+                </label>
+
+                <div class="pp-sheet-summary">
+                    <div class="pp-sum-row"><span>Base daily fee</span><strong>@PayorFormat.Currency(FishItem.BaseFee ?? 0m)</strong></div>
+                    <div class="pp-sum-row"><span>@((FishKilos ?? 0m).ToString("0.##")) kg × @PayorFormat.Currency(FishItem.FishRatePerKilo ?? 0m)</span><strong>@PayorFormat.Currency((FishKilos ?? 0m) * (FishItem.FishRatePerKilo ?? 0m))</strong></div>
+                    <div class="pp-sum-divider"></div>
+                    <div class="pp-sum-row pp-sum-total"><span>Total due</span><strong>@PayorFormat.Currency(FishAmount)</strong></div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(FishError))
+                {
+                    <div class="pp-demo-note">@FishError</div>
+                }
+
+                <div class="pp-sheet-btns">
+                    <button class="pp-btn-ghost" type="button" @onclick="CloseFish" disabled="@Busy">Cancel</button>
+                    <button class="pp-btn-pay" type="button" disabled="@(Busy || FishDay is null || FishKilos is null)" @onclick="PayFish">
+                        @(Busy ? "…" : "Pay")
+                    </button>
+                </div>
+                <div class="pp-sheet-note">
+                    You'll be sent to PayMongo Checkout (QR Ph). Your Official Receipt is issued by EEMO after the
+                    payment is confirmed. Declared kilos are recorded for that day pending EEMO's receipt.
+                </div>
+            </div>
+        </div>
     }
 
     <div class="pp-foot">
@@ -74,13 +136,56 @@ else
 
     private static string ItemKey(PayorPayableItemDto i) => $"{i.StallId}:{i.Year}:{i.Month}:{i.Kind}";
 
-    // NPM has two payable items per month (daily fees vs utilities) — label them so the payor can tell them apart.
+    // NPM has multiple payable items per month (daily fees / utilities / fish) — label them so the payor can tell them apart.
     private static string KindLabel(PayorPayableKind kind) => kind switch
     {
         PayorPayableKind.NpmDaily => " · Daily fees",
         PayorPayableKind.NpmUtility => " · Electricity & Water",
+        PayorPayableKind.NpmFish => " · Fish daily fee",
         _ => ""
     };
+
+    // ── Fish-day self-declare (NPM fish section): pick an uncollected day + declare kilos → base + kg × rate ──
+    private PayorPayableItemDto? FishItem;
+    private int? FishDay;
+    private decimal? FishKilos;
+    private string? FishError;
+
+    private decimal FishAmount => (FishItem?.BaseFee ?? 0m) + (FishKilos ?? 0m) * (FishItem?.FishRatePerKilo ?? 0m);
+
+    private void OpenFish(PayorPayableItemDto item)
+    {
+        FishItem = item;
+        FishDay = null;
+        FishKilos = null;
+        FishError = null;
+    }
+
+    private void CloseFish()
+    {
+        FishItem = null;
+        FishError = null;
+    }
+
+    private async Task PayFish()
+    {
+        if (FishItem is null || FishDay is null || FishKilos is null) return;
+        FishError = null;
+        Busy = true;
+
+        var result = await PayorApi.InitiatePaymentAsync(new InitiateOnlinePaymentCommand(
+            FishItem.StallId, FishItem.Year, FishItem.Month, PayorPayableKind.NpmFish, FishDay, FishKilos));
+
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.CheckoutUrl))
+        {
+            // Hand off to the hosted PayMongo (QR Ph) checkout.
+            Nav.NavigateTo(result.Value.CheckoutUrl, forceLoad: true);
+            return;
+        }
+
+        Busy = false;
+        FishError = result.Error ?? "Unable to start the payment. Please try again.";
+    }
 
     protected override async Task OnInitializedAsync()
     {

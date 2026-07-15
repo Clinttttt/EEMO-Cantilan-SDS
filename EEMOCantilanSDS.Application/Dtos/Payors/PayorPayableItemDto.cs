@@ -15,4 +15,10 @@ public sealed record PayorPayableItemDto(
     int Month,
     string Period,
     decimal BalanceDue,
-    PayorPayableKind Kind = PayorPayableKind.Monthly);
+    PayorPayableKind Kind = PayorPayableKind.Monthly,
+    // NpmFish only: the still-uncollected, in-contract, elapsed days of the month the payor may declare
+    // for, plus the resolved base fee and fish ₱/kg so the UI can preview the amount (server re-prices
+    // authoritatively at initiation). Null/empty for every other kind.
+    IReadOnlyList<DateOnly>? UncollectedDays = null,
+    decimal? BaseFee = null,
+    decimal? FishRatePerKilo = null);

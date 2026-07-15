@@ -9,5 +9,6 @@ public enum PayorPayableKind
 {
     Monthly = 0,      // monthly-rental PaymentRecord (TCC/NCC/BBQ/ICE)
     NpmDaily = 1,     // NPM daily base fees for the month
-    NpmUtility = 2    // NPM electricity + water bill for the month
+    NpmUtility = 2,   // NPM electricity + water bill for the month
+    NpmFish = 3       // NPM fish-section: self-declare kilos + pay ONE uncollected day (base + kg × fish rate)
 }

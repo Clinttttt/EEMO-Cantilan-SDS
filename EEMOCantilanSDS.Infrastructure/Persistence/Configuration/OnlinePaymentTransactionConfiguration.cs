@@ -28,6 +28,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.TargetStallId);
             builder.Property(x => x.TargetYear);
             builder.Property(x => x.TargetMonth);
+            builder.Property(x => x.TargetDay);                       // NpmFishDay only (nullable)
+            builder.Property(x => x.DeclaredFishKilos)
+                .HasColumnType("numeric(18,2)");                     // NpmFishDay only (nullable)
 
             builder.Property(x => x.Amount)
                 .IsRequired()

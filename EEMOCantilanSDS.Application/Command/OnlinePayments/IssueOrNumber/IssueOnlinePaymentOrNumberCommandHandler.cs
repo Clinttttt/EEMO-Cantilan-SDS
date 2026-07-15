@@ -39,6 +39,10 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill)
             return await IssueNpmUtilityOrAsync(transaction, request, cancellationToken);
 
+        // NPM fish day: the OR is stamped on that ONE settled day.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmFishDay)
+            return await IssueNpmFishDayOrAsync(transaction, request, cancellationToken);
+
         var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", 500);
@@ -203,6 +207,68 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
             waterStatus: PaymentStatus.Paid, waterPartialAmount: null,
             updatedBy: actor);
 
+        transaction.CompleteWithOr(orNumber, actor);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+            tenantContext.TenantCode, FacilityCode.NPM, year, month, cancellationToken);
+
+        try
+        {
+            await payorNotifier.NotifyOrIssuedAsync(
+                transaction.PayorUserId,
+                new PayorOrIssuedNotification(
+                    transaction.Reference,
+                    orNumber,
+                    transaction.Amount,
+                    $"{year:0000}-{month:00}",
+                    stallId),
+                cancellationToken);
+        }
+        catch { /* notification is non-critical; the OR is already recorded */ }
+
+        return Result<bool>.Success(true);
+    }
+
+    // NPM fish day: stamp the staff OR on THAT one settled day. The OR is manual staff input, never
+    // auto-generated, and checked stall-aware for uniqueness (a receipt may also cover other days of the
+    // same stall). Collector facility guard mirrors the other NPM paths.
+    private async Task<Result<bool>> IssueNpmFishDayOrAsync(
+        Domain.Entities.Payments.OnlinePaymentTransaction transaction,
+        IssueOnlinePaymentOrNumberCommand request,
+        CancellationToken cancellationToken)
+    {
+        if (transaction.TargetStallId is not { } stallId
+            || transaction.TargetYear is not { } year
+            || transaction.TargetMonth is not { } month
+            || transaction.TargetDay is not { } day)
+            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", 500);
+
+        if (string.Equals(currentUser.Role, "Collector", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentUser.CollectorId is not { } actingCollectorId)
+                return Result<bool>.Forbidden();
+
+            var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
+            var facilityCode = stall?.Facility?.Code;
+            var collector = facilityCode is null ? null : await collectorRepository.GetByIdAsync(actingCollectorId, cancellationToken);
+            if (collector is null || facilityCode is null
+                || !collector.FacilityAssignments.Any(a => a.FacilityCode == facilityCode.Value))
+                return Result<bool>.Forbidden();
+        }
+
+        var actor = currentUser.Username ?? "Admin";
+        var orNumber = request.ORNumber.Trim();
+
+        if (!await paymentRepository.IsDailyCollectionOrAvailableForStallAsync(orNumber, stallId, cancellationToken))
+            return Result<bool>.Failure("OR number already exists.", 409);
+
+        var date = new DateOnly(year, month, day);
+        var dc = await dailyCollectionRepository.GetByStallAndDateAsync(stallId, date, cancellationToken);
+        if (dc is null || !dc.IsPaid)
+            return Result<bool>.Failure("The fish day to receipt is not settled.", 409);
+
+        dc.SetOrNumber(orNumber, actor);
         transaction.CompleteWithOr(orNumber, actor);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

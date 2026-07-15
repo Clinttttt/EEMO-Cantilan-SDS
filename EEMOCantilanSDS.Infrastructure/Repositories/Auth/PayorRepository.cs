@@ -224,12 +224,34 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
                 && stall.Status == StallStatus.Active
                 && stall.Contracts.Any(c => c.IsActive && c.EffectivityDate <= monthEnd && monthStart <= c.ExpiryDate))
             {
-                var payable = await npmMonthSettlementService.ComputePayableAsync(stall, curYear, curMonth, ct);
-                if (payable.Days > 0 && payable.Amount > 0m)
+                if (stall.Section == MarketSection.FishSection)
                 {
-                    items.Add(new PayorPayableItemDto(
-                        stall.Id, stall.StallNo, facility, curYear, curMonth,
-                        $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
+                    // Fish section: per-DAY self-declare (base + kilos × fish rate). The base can't be
+                    // pre-bulked because each day's total depends on that day's kilos — so instead of the
+                    // base-only month item, offer the uncollected days for the payor to declare + pay one.
+                    var days = await npmMonthSettlementService.GetPayableDaysAsync(stall, curYear, curMonth, ct);
+                    if (days is { Count: > 0 })
+                    {
+                        // Resolve base + fish ₱/kg (tenant-aware, as-of the latest payable day) for the UI preview.
+                        var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, days[^1], 0m, ct);
+                        items.Add(new PayorPayableItemDto(
+                            stall.Id, stall.StallNo, facility, curYear, curMonth,
+                            $"{curYear:0000}-{curMonth:00}", 0m, PayorPayableKind.NpmFish,
+                            UncollectedDays: days, BaseFee: quote.BaseFee, FishRatePerKilo: quote.FishRatePerKilo));
+                    }
+                }
+                else
+                {
+                    // Non-fish sections: the current-month base-fee balance — ₱30 × the month's unpaid,
+                    // elapsed, in-term, non-closed days — from the shared settlement service, so the amount
+                    // shown equals what initiate charges and settlement marks.
+                    var payable = await npmMonthSettlementService.ComputePayableAsync(stall, curYear, curMonth, ct);
+                    if (payable.Days > 0 && payable.Amount > 0m)
+                    {
+                        items.Add(new PayorPayableItemDto(
+                            stall.Id, stall.StallNo, facility, curYear, curMonth,
+                            $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
+                    }
                 }
 
                 // NPM electricity + water — the month's metered bill balance (its own payable item + OR).
