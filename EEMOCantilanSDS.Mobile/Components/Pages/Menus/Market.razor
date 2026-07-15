@@ -1,7 +1,9 @@
 ﻿@page "/market"
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Payors
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
@@ -313,6 +315,11 @@
                 <div class="form-error">@SheetError</div>
             }
 
+            <button class="sheet-activation-link" type="button" @onclick="OpenActivationFromSheet">
+                <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+                Issue payor activation code
+            </button>
+
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseCollectionSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmCollectionAsync" disabled="@IsSaving">
@@ -371,6 +378,71 @@
     </div>
 }
 
+@if (ShowActivation && ActivationStall is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseActivation">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Payor Activation Code</div>
+            <div class="sheet-sub">Issue a one-time code so this daily-stall payor can activate their online account.</div>
+
+            <div class="sheet-preview">
+                <div class="preview-num">@ActivationStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@ActivationStall.PayorName</div>
+                    <div class="preview-detail">Daily stall - @FormatCurrency(ActivationStall.DailyRate)/day</div>
+                </div>
+            </div>
+
+            @if (ActivationResult is null)
+            {
+                <div class="or-number-wrap">
+                    <div class="form-label">Payor's mobile number</div>
+                    <input class="form-input mono-input"
+                           type="tel"
+                           inputmode="numeric"
+                           maxlength="20"
+                           placeholder="09xx xxx xxxx"
+                           @bind="ActivationContact"
+                           @bind:event="oninput" />
+                    <div class="form-hint">The payor must enter this exact number when activating.</div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(ActivationError))
+                {
+                    <div class="form-error">@ActivationError</div>
+                }
+
+                <div class="sheet-btn-row">
+                    <button class="btn-cancel" type="button" @onclick="CloseActivation" disabled="@IsGenerating">Cancel</button>
+                    <button class="btn-confirm" type="button" @onclick="GenerateActivationAsync" disabled="@IsGenerating">
+                        @(IsGenerating ? "Generating..." : "Generate Code")
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="activation-code-box">
+                    <div class="activation-code-label">Activation code</div>
+                    <div class="activation-code-value">@ActivationResult.Code</div>
+                    <button class="btn-copy" type="button" @onclick="CopyCodeAsync">@CopyLabel</button>
+                </div>
+                <div class="activation-meta">
+                    <div class="activation-meta-row"><span>For mobile</span><strong>@ActivationResult.ContactNumber</strong></div>
+                    <div class="activation-meta-row"><span>Expires</span><strong>@ActivationResult.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")</strong></div>
+                </div>
+                <div class="form-hint">
+                    Give this code to the payor. They activate at the Payor Portal using this code and the mobile
+                    number above. Generating a new code voids this one.
+                </div>
+                <div class="sheet-btn-row">
+                    <button class="btn-confirm" type="button" @onclick="CloseActivation">Done</button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 @code {
     private MobileNpmCollectionDto? Collection;
     // Stall ids with a locally-queued (not-yet-synced) offline collection for the shown day.
@@ -386,6 +458,15 @@
     private bool ShowCollectionSheet;
     private bool ShowReceipt;
     private MobileNpmStallCollectionDto? SelectedStall;
+
+    // Payor activation-code issuance (daily-stall NPM payor)
+    private bool ShowActivation;
+    private bool IsGenerating;
+    private MobileNpmStallCollectionDto? ActivationStall;
+    private string ActivationContact = string.Empty;
+    private string? ActivationError;
+    private StallActivationCodeDto? ActivationResult;
+    private string CopyLabel = "Copy";
     private bool SelectedIsPaid;
     private bool SelectedIsAbsent;
     private decimal? FishKilos;
@@ -798,6 +879,80 @@
     }
 
     private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+
+    // ── Payor activation-code issuance (opens from the daily collection sheet) ──
+    private void OpenActivationFromSheet()
+    {
+        if (SelectedStall is null) return;
+        ActivationStall = SelectedStall;
+        ActivationContact = string.Empty;
+        ActivationError = null;
+        ActivationResult = null;
+        CopyLabel = "Copy";
+        ShowCollectionSheet = false;   // replace the record sheet with the activation sheet
+        ShowActivation = true;
+    }
+
+    private void CloseActivation()
+    {
+        ShowActivation = false;
+        ActivationStall = null;
+        ActivationContact = string.Empty;
+        ActivationError = null;
+        ActivationResult = null;
+        CopyLabel = "Copy";
+    }
+
+    private async Task GenerateActivationAsync()
+    {
+        if (ActivationStall is null) return;
+        ActivationError = null;
+
+        if (!Sync.IsOnline)
+        {
+            ActivationError = "You're offline. Activation codes can only be generated online.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ActivationContact))
+        {
+            ActivationError = "Enter the payor's mobile number.";
+            return;
+        }
+
+        IsGenerating = true;
+        try
+        {
+            var result = await MobileApi.GenerateActivationCodeAsync(
+                new GenerateStallActivationCodeCommand(ActivationStall.StallId, ActivationContact.Trim(), null));
+
+            if (result.IsSuccess && result.Value is not null)
+                ActivationResult = result.Value;
+            else
+                ActivationError = result.Error ?? "Could not generate the code. Please try again.";
+        }
+        catch
+        {
+            ActivationError = "Couldn't reach the server. Please check your connection and try again.";
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    private async Task CopyCodeAsync()
+    {
+        if (ActivationResult is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", ActivationResult.Code);
+            CopyLabel = "Copied!";
+        }
+        catch
+        {
+            CopyLabel = "Copy failed";
+        }
+    }
 
     // Formal 2-decimal peso for official bill amounts (electricity/water/collecting).
     private static string FormatPeso(decimal value) => $"₱{value:N2}";
