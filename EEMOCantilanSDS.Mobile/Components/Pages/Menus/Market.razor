@@ -105,7 +105,7 @@
             {
                 @foreach (var sectionGroup in FilteredStalls.GroupBy(s => s.Section))
                 {
-                    <div class="section-label">@GetSectionHeading(sectionGroup.Key)</div>
+                    <div class="section-label">@sectionGroup.First().SectionName</div>
 
                     @foreach (var stall in sectionGroup)
                     {
@@ -160,7 +160,7 @@
                 <div class="preview-num">@SelectedStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@SelectedStall.PayorName</div>
-                    <div class="preview-detail">@GetSectionShortName(SelectedStall.Section) - @FormatCurrency(SelectedStall.DailyRate)</div>
+                    <div class="preview-detail">@SelectedStall.SectionName - @FormatCurrency(SelectedStall.DailyRate)</div>
                 </div>
             </div>
 
@@ -348,7 +348,7 @@
                     <div class="receipt-meta-row"><span>Date</span><strong>@Collection.CollectionDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture)</strong></div>
                     <div class="receipt-meta-row"><span>Stall No.</span><strong>@SelectedStall.StallNo</strong></div>
                     <div class="receipt-meta-row"><span>Payor</span><strong>@SelectedStall.PayorName</strong></div>
-                    <div class="receipt-meta-row"><span>Section</span><strong>@GetSectionShortName(SelectedStall.Section)</strong></div>
+                    <div class="receipt-meta-row"><span>Section</span><strong>@SelectedStall.SectionName</strong></div>
                     @if (SelectedStall.Section == MarketSection.FishSection && SelectedStall.FishKilosToday is { } kg)
                     {
                         <div class="receipt-meta-row"><span>Fish kilos</span><strong>@kg.ToString("0.##") kg</strong></div>

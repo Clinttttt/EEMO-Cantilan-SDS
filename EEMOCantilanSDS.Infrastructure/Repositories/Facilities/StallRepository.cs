@@ -111,6 +111,14 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // not enough, since it is a manual flag that does not reflect whether the term has lapsed.
         stalls = stalls.Where(s => s.Contracts.Any(c => c.OverlapsPeriod(monthStart, effectiveEnd))).ToList();
 
+        // The tenant's own market-section display labels (e.g. "Gulayan"), resolved once for the mobile
+        // DTO's SectionName. The MarketSection enum stays the logical key; only this mobile display string
+        // becomes tenant-aware. Falls back to the canonical section name when no custom label is set.
+        var npmFacility = await context.Facilities.AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Code == FacilityCode.NPM, ct);
+        string SectionDisplay(MarketSection? section)
+            => (section is { } s ? npmFacility?.SectionLabel(s) : null) ?? GetSectionName(section);
+
         var rows = stalls.Select(s =>
         {
             // Prefer the contract that actually covers this collection month — not merely the latest
@@ -143,7 +151,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
                 contract?.NameOnContract ?? contract?.ActualOccupant ?? string.Empty,
                 s.Section,
-                GetSectionName(s.Section),
+                SectionDisplay(s.Section),
                 s.Status,
                 dailyRate,
                 todayCollection is not null,
