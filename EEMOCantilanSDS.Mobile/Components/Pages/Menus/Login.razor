@@ -30,37 +30,45 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: calc(env(safe-area-inset-top, 20px) + 40px) 32px 28px;
+        padding: calc(env(safe-area-inset-top, 20px) + 38px) 32px 34px;
         position: relative;
+        background-color: #0b1b30;
+        background-image:
+            linear-gradient(180deg, rgba(11,27,48,0.30) 0%, rgba(11,27,48,0.55) 70%, rgba(11,27,48,0.78) 100%),
+            url('images/stalltrack-raw-background.webp');
+        background-size: cover;
+        background-position: center top;
     }
 
-        /* decorative gold ring behind logo */
-        .login-top::before {
+        /* concentric gold rings behind the seal */
+        .login-top::before,
+        .login-top::after {
             content: '';
             position: absolute;
-            top: calc(env(safe-area-inset-top, 20px) + 20px);
-            width: 260px;
-            height: 260px;
+            top: calc(env(safe-area-inset-top, 20px) + 10px);
+            left: 50%;
+            transform: translateX(-50%);
             border-radius: 50%;
-            border: 1px solid rgba(200,168,75,0.08);
+            border: 1px solid rgba(200,168,75,0.10);
             pointer-events: none;
         }
+        .login-top::before { width: 250px; height: 250px; }
+        .login-top::after  { width: 320px; height: 320px; border-color: rgba(200,168,75,0.05); }
 
     .login-seal {
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        overflow: hidden;
-        border: 2px solid var(--gold-primary, #c8a84b);
-        filter: drop-shadow(0 0 22px rgba(200,168,75,0.28)) drop-shadow(0 6px 20px rgba(0,0,0,0.4));
-        margin-bottom: 20px;
+        width: 128px;
+        height: 128px;
+        margin-bottom: 16px;
         flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+        filter: drop-shadow(0 0 24px rgba(200,168,75,0.28)) drop-shadow(0 6px 20px rgba(0,0,0,0.45));
     }
 
         .login-seal img {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
 
     .login-gov {
@@ -70,37 +78,55 @@
         letter-spacing: 3px;
         color: #c8a84b;
         text-transform: uppercase;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         text-align: center;
+        position: relative;
+        z-index: 1;
     }
 
     .login-org {
         font-family: 'EB Garamond', serif;
-        font-size: 20px;
+        font-size: 30px;
         font-weight: 600;
         color: #ffffff;
         text-align: center;
-        line-height: 1.25;
-        letter-spacing: 0.2px;
-        margin-bottom: 4px;
+        line-height: 1.1;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+        position: relative;
+        z-index: 1;
     }
 
-    .login-sub {
+    .login-tagline {
         font-family: 'DM Sans', sans-serif;
-        font-size: 10.5px;
-        color: rgba(255,255,255,0.35);
+        font-size: 12.5px;
+        font-weight: 600;
+        color: #e8cc76;
         text-align: center;
-        letter-spacing: 0.3px;
-        margin-bottom: 0;
+        letter-spacing: 0.2px;
+        position: relative;
+        z-index: 1;
     }
 
-    /* gold line divider */
-    .login-divider {
-        width: 44px;
-        height: 1.5px;
-        background: linear-gradient(90deg, transparent, #c8a84b, transparent);
-        border-radius: 1px;
-        margin: 14px auto 0;
+    .login-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #c8a84b;
+        margin: 12px auto 10px;
+        box-shadow: 0 0 6px rgba(232,204,118,0.6);
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-access {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 11px;
+        color: rgba(255,255,255,0.55);
+        text-align: center;
+        letter-spacing: 0.4px;
+        position: relative;
+        z-index: 1;
     }
 
     /* ── Bottom Card — Login Form ── */
@@ -363,15 +389,16 @@
 
 <div class="login-shell">
 
-    <!-- Top: Logo + Org Name -->
+    <!-- Top: STALLTRACK platform brand -->
     <div class="login-top">
         <div class="login-seal">
-            <img src="images/LGU_CANTILAN_LOGO.jpg" alt="EEMO Seal" />
+            <img src="images/stalltrack-seal.png" alt="StallTrack Seal" />
         </div>
         <div class="login-gov">Republic of the Philippines</div>
-        <div class="login-org">Economic Enterprise &amp;<br />Management Office</div>
-        <div class="login-sub">Municipality of Cantilan, Surigao del Sur</div>
-        <div class="login-divider"></div>
+        <div class="login-org">StallTrack</div>
+        <div class="login-tagline">Unified LGU Market Management Platform</div>
+        <div class="login-dot"></div>
+        <div class="login-access">Collector Mobile Access</div>
     </div>
 
     <!-- Bottom: Login Form Card -->
@@ -460,8 +487,7 @@
 
         <!-- Footer -->
         <div class="login-footer">
-            EEMO Collectors v1.0 · For authorized personnel only<br />
-            Municipality of Cantilan, Surigao del Sur
+            StallTrack · For authorized personnel only
         </div>
 
     </div>
@@ -506,6 +532,14 @@
             {
                 _municipalities = muni.Value.Where(m => m.IsActive).OrderBy(m => m.Name).ToList();
                 _showMunicipalityPicker = _municipalities.Count > 1;
+
+                // Even when there is only one active LGU, send its code so collector lookup is tenant-
+                // scoped. A null code triggers the legacy global lookup and becomes ambiguous as soon as
+                // two municipalities contain the same username or employee ID.
+                if (_municipalities.Count == 1)
+                {
+                    SelectedMunicipalityCode = _municipalities[0].Code;
+                }
             }
         }
         catch
