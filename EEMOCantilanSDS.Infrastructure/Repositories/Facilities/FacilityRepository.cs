@@ -46,6 +46,9 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
                 f.Description,
                 f.Archetype,
                 f.IsActive,
+                f.VegetableSectionLabel,
+                f.FishSectionLabel,
+                f.MeatSectionLabel,
                 StallCount = f.Stalls.Count()
             })
             .ToListAsync(ct);
@@ -83,7 +86,10 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
                 FacilityDisplay.BillingModel(f.Archetype),
                 f.IsActive,
                 f.StallCount,
-                lines);
+                lines,
+                f.VegetableSectionLabel,
+                f.FishSectionLabel,
+                f.MeatSectionLabel);
         }).ToList();
     }
 
@@ -133,6 +139,9 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
                 f.Code,
                 f.Name,
                 f.ShortName,
+                f.VegetableSectionLabel,
+                f.FishSectionLabel,
+                f.MeatSectionLabel,
                 Stalls = f.Stalls
                     .Where(s => s.Status == StallStatus.Active)
                     .Select(s => new
@@ -152,6 +161,9 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
             f.Stalls.Count(s => !s.HasPaid
                 && s.Contracts.Any(c => c.IsActive
                     && c.EffectivityDate <= monthEnd
-                    && monthStart <= c.EffectivityDate.AddYears(c.DurationYears))))).ToList();
+                    && monthStart <= c.EffectivityDate.AddYears(c.DurationYears))),
+            f.VegetableSectionLabel,
+            f.FishSectionLabel,
+            f.MeatSectionLabel)).ToList();
     }
 }

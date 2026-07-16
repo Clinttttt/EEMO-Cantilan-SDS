@@ -36,6 +36,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.Description)
                 .HasMaxLength(500);
 
+            builder.Property(s => s.VegetableSectionLabel).HasMaxLength(60);
+            builder.Property(s => s.FishSectionLabel).HasMaxLength(60);
+            builder.Property(s => s.MeatSectionLabel).HasMaxLength(60);
+
             builder.Property(s => s.IsActive)
                 .IsRequired()
                 .HasDefaultValue(true);

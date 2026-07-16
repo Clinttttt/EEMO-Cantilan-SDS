@@ -25,6 +25,7 @@ public class UpdateFacilityCommandHandler(
             return Result<bool>.NotFound();
 
         facility.UpdateProfile(request.Name, request.ShortName, request.Description, "FacilityEdit");
+        facility.SetSectionLabels(request.VegetableSectionLabel, request.FishSectionLabel, request.MeatSectionLabel, "FacilityEdit");
 
         await unitOfWork.SaveChangesAsync(ct);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);

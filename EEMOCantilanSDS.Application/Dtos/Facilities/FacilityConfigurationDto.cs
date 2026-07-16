@@ -18,7 +18,10 @@ public record ConfiguredFacilityDto(
     string BillingModel,
     bool IsActive,
     int StallCount,
-    IReadOnlyList<ConfiguredRateDto> Rates);
+    IReadOnlyList<ConfiguredRateDto> Rates,
+    string? VegetableSectionLabel = null,
+    string? FishSectionLabel = null,
+    string? MeatSectionLabel = null);
 
 /// <summary>
 /// A configurable fixed rate for a facility: the current effective amount (a customised row, else the

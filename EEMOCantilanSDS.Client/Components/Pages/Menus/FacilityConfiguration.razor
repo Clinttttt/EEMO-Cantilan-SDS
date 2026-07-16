@@ -127,7 +127,6 @@
                                 <div class="fac-badge">@f.ShortName</div>
                                 <div class="fac-titles">
                                     <div class="fac-name">@f.Name</div>
-                                    @if (!IsCustom(f.Code)) { <div class="fac-code">@f.Code</div> }
                                 </div>
                                 <span class="fac-pill @(f.IsActive ? "fac-pill-on" : "fac-pill-off")">@(f.IsActive ? "Active" : "Inactive")</span>
                             </div>
@@ -305,6 +304,27 @@
                     <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
                     <input class="fac-input" @bind="_cfgDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
                 </label>
+
+                @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "NPM", StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="cfg-section-label">Market section names</div>
+                    <div class="cfg-hint">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
+                        Rename how your market sections appear across the dashboard and reports (e.g. &ldquo;Gulayan&rdquo; for the vegetable area). Leave blank to use the default label.
+                    </div>
+                    <label class="fac-field">
+                        <span class="fac-field-label">Vegetable area</span>
+                        <input class="fac-input" @bind="_cfgVeg" @bind:event="oninput" maxlength="60" placeholder="Vegetable Area" />
+                    </label>
+                    <label class="fac-field">
+                        <span class="fac-field-label">Fish area</span>
+                        <input class="fac-input" @bind="_cfgFish" @bind:event="oninput" maxlength="60" placeholder="Fish Area" />
+                    </label>
+                    <label class="fac-field">
+                        <span class="fac-field-label">Meat area</span>
+                        <input class="fac-input" @bind="_cfgMeat" @bind:event="oninput" maxlength="60" placeholder="Meat Area" />
+                    </label>
+                }
 
                 <div class="cfg-section-label">Fixed ordinance rates</div>
 
@@ -485,6 +505,9 @@
     private string _cfgName = string.Empty;
     private string _cfgShortName = string.Empty;
     private string _cfgDescription = string.Empty;
+    private string _cfgVeg = string.Empty;
+    private string _cfgFish = string.Empty;
+    private string _cfgMeat = string.Empty;
     private readonly Dictionary<string, decimal> _rateEdits = new();
     private string? _cfgError;
     private string? _cfgSuccess;
@@ -544,6 +567,9 @@
         _cfgName = f.Name;
         _cfgShortName = f.ShortName;
         _cfgDescription = f.Description ?? string.Empty;
+        _cfgVeg = f.VegetableSectionLabel ?? string.Empty;
+        _cfgFish = f.FishSectionLabel ?? string.Empty;
+        _cfgMeat = f.MeatSectionLabel ?? string.Empty;
         _rateEdits.Clear();
         foreach (var r in f.Rates) _rateEdits[r.Key] = r.Amount;
         _cfgError = null;
@@ -595,7 +621,10 @@
         => _cfgFacility is not null &&
            (!string.Equals(_cfgName.Trim(), _cfgFacility.Name, StringComparison.Ordinal)
             || !string.Equals(_cfgShortName.Trim(), _cfgFacility.ShortName, StringComparison.Ordinal)
-            || !string.Equals(_cfgDescription.Trim(), _cfgFacility.Description ?? string.Empty, StringComparison.Ordinal));
+            || !string.Equals(_cfgDescription.Trim(), _cfgFacility.Description ?? string.Empty, StringComparison.Ordinal)
+            || !string.Equals(_cfgVeg.Trim(), _cfgFacility.VegetableSectionLabel ?? string.Empty, StringComparison.Ordinal)
+            || !string.Equals(_cfgFish.Trim(), _cfgFacility.FishSectionLabel ?? string.Empty, StringComparison.Ordinal)
+            || !string.Equals(_cfgMeat.Trim(), _cfgFacility.MeatSectionLabel ?? string.Empty, StringComparison.Ordinal));
 
     private bool HasRateChanges()
         => _cfgFacility is not null && _cfgFacility.Rates.Any(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount);
@@ -619,7 +648,10 @@
         {
             var res = await FacilitiesApi.UpdateFacilityAsync(new UpdateFacilityCommand(
                 _cfgFacility.Code, _cfgName.Trim(), _cfgShortName.Trim(),
-                string.IsNullOrWhiteSpace(_cfgDescription) ? null : _cfgDescription.Trim()));
+                string.IsNullOrWhiteSpace(_cfgDescription) ? null : _cfgDescription.Trim(),
+                string.IsNullOrWhiteSpace(_cfgVeg) ? null : _cfgVeg.Trim(),
+                string.IsNullOrWhiteSpace(_cfgFish) ? null : _cfgFish.Trim(),
+                string.IsNullOrWhiteSpace(_cfgMeat) ? null : _cfgMeat.Trim()));
             if (!res.IsSuccess)
             {
                 _cfgError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't save the facility details." : res.Error;
@@ -654,6 +686,9 @@
             _cfgName = _cfgFacility.Name;
             _cfgShortName = _cfgFacility.ShortName;
             _cfgDescription = _cfgFacility.Description ?? string.Empty;
+            _cfgVeg = _cfgFacility.VegetableSectionLabel ?? string.Empty;
+            _cfgFish = _cfgFacility.FishSectionLabel ?? string.Empty;
+            _cfgMeat = _cfgFacility.MeatSectionLabel ?? string.Empty;
             _rateEdits.Clear();
             foreach (var r in _cfgFacility.Rates) _rateEdits[r.Key] = r.Amount;
             _cfgSuccess = changes.Count > 0 ? $"Saved: {string.Join(" · ", changes)}." : null;

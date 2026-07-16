@@ -79,7 +79,7 @@
                          @onclick="() => SetSection(secs.Key)">
                         <div class="npm-sec-icon">@((MarkupString)secs.Value.Icon)</div>
                         <div class="npm-sec-info">
-                            <div class="npm-sec-name">@secs.Key</div>
+                            <div class="npm-sec-name">@FacilityCatalog.SectionLabelOf(FacilityCode.NPM, secs.Key)</div>
                             <div class="npm-sec-sub">@count stalls @(unpaid > 0 ? $"· {unpaid} unpaid" : "")</div>
                         </div>
                         @if (unpaid > 0)
@@ -105,7 +105,7 @@
                 var isAllSection = ActiveSection == "All";
                 var isFishSection = ActiveSection == "Fish Area";
                 var fishKgCollected = FishKgCollected;
-                var sectionLabel = isAllSection ? "All Sections" : ActiveSection;
+                var sectionLabel = isAllSection ? "All Sections" : FacilityCatalog.SectionLabelOf(FacilityCode.NPM, ActiveSection);
                 var sectionDesc = isAllSection
                     ? "All NPM stalls — Vegetable · Fish · Meat"
                     : Sections[ActiveSection].Description;

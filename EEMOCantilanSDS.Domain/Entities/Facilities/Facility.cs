@@ -19,6 +19,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public string? Description { get; private set; }
         public bool IsActive { get; private set; } = true;
 
+        // Per-market-section display labels (NPM/market facilities only). Null = use the canonical label
+        // ("Vegetable Area" / "Fish Area" / "Meat Area"). The MarketSection enum stays the logical key
+        // everywhere; these only change what is SHOWN, so an LGU can call its vegetable area "Gulayan".
+        public string? VegetableSectionLabel { get; private set; }
+        public string? FishSectionLabel { get; private set; }
+        public string? MeatSectionLabel { get; private set; }
+
         /// <summary>How this facility bills, independent of its <see cref="Code"/> (Phase 4). Stored as data
         /// so another LGU can map its facilities to any billing behaviour.</summary>
         public BillingArchetype Archetype { get; private set; } = BillingArchetype.Custom;
@@ -66,6 +73,32 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
         public void Deactivate() => IsActive = false;
         public void Activate() => IsActive = true;
+
+        /// <summary>
+        /// Sets the display labels for this facility's market sections (e.g. "Gulayan" for the vegetable
+        /// area). A blank/whitespace value clears back to the canonical label. The <see cref="MarketSection"/>
+        /// enum remains the logical key — only presentation changes.
+        /// </summary>
+        public void SetSectionLabels(string? vegetable, string? fish, string? meat, string updatedBy = "System")
+        {
+            VegetableSectionLabel = Normalize(vegetable);
+            FishSectionLabel = Normalize(fish);
+            MeatSectionLabel = Normalize(meat);
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+
+            static string? Normalize(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        }
+
+        /// <summary>The custom display label for a market section, or null when none is set (caller falls
+        /// back to the canonical label). Keeps the enum as the key while allowing a tenant-specific name.</summary>
+        public string? SectionLabel(MarketSection section) => section switch
+        {
+            MarketSection.VegetableArea => VegetableSectionLabel,
+            MarketSection.FishSection => FishSectionLabel,
+            MarketSection.MeatSection => MeatSectionLabel,
+            _ => null
+        };
 
         /// <summary>
         /// Updates the facility's presentation (name, short name, description). The <see cref="Code"/> and

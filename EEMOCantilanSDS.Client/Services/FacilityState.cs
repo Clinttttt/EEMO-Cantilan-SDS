@@ -89,6 +89,49 @@ public class FacilityState(IFacilitiesApiClient api)
         _facilities?.FirstOrDefault(f => f.Code == code)?.ShortName
         ?? (Canonical.TryGetValue(code, out var c) ? c.ShortName : code.ToString());
 
+    // Canonical market-section labels — the logical key used across the app. Custom tenant labels only
+    // change what is DISPLAYED (via SectionLabelOf); the enum + these canonical strings remain the key.
+    private static readonly Dictionary<MarketSection, string> CanonicalSection = new()
+    {
+        [MarketSection.VegetableArea] = "Vegetable Area",
+        [MarketSection.FishSection] = "Fish Area",
+        [MarketSection.MeatSection] = "Meat Area",
+    };
+
+    /// <summary>Canonical (enum-keyed) section label — always the same string used for grouping/filtering.</summary>
+    public static string CanonicalSectionLabel(MarketSection section) =>
+        CanonicalSection.TryGetValue(section, out var c) ? c : section.ToString();
+
+    /// <summary>
+    /// The tenant's DISPLAY label for a market section (e.g. "Gulayan"), or the canonical label when none
+    /// is configured. Purely presentational — never use this as a key for grouping/filtering/fish-fee logic.
+    /// </summary>
+    public string SectionLabelOf(FacilityCode code, MarketSection section)
+    {
+        var f = _facilities?.FirstOrDefault(x => x.Code == code);
+        var custom = section switch
+        {
+            MarketSection.VegetableArea => f?.VegetableSectionLabel,
+            MarketSection.FishSection => f?.FishSectionLabel,
+            MarketSection.MeatSection => f?.MeatSectionLabel,
+            _ => null
+        };
+        return !string.IsNullOrWhiteSpace(custom) ? custom! : CanonicalSectionLabel(section);
+    }
+
+    /// <summary>Maps a canonical section label back to its enum (for resolving a display label from a key string).</summary>
+    public static MarketSection? SectionFromCanonical(string? canonical) => canonical switch
+    {
+        "Vegetable Area" => MarketSection.VegetableArea,
+        "Fish Area" => MarketSection.FishSection,
+        "Meat Area" => MarketSection.MeatSection,
+        _ => null
+    };
+
+    /// <summary>Display label for a facility+canonical-section-key string (keeps the key, shows the tenant name).</summary>
+    public string SectionLabelOf(FacilityCode code, string canonicalKey)
+        => SectionFromCanonical(canonicalKey) is { } s ? SectionLabelOf(code, s) : canonicalKey;
+
     // ── URL slugs ────────────────────────────────────────────────────────────────────────────────────
     // Custom facilities expose a friendly acronym slug (/facility/fe) instead of the internal slot code
     // (/facility/custom1). Canonical facilities keep their fixed code as the slug, so Cantilan's URLs are

@@ -6,5 +6,8 @@ public record FacilitySidebarSummaryDto(
     FacilityCode Code,
     string Name,
     string ShortName,
-    int UnpaidCount
+    int UnpaidCount,
+    string? VegetableSectionLabel = null,
+    string? FishSectionLabel = null,
+    string? MeatSectionLabel = null
 );
