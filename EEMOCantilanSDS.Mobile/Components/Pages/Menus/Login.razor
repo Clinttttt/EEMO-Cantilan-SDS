@@ -333,8 +333,11 @@
             transform: scale(0.985);
         }
 
-        /* loading state — dim + block clicks (spinner shown inline) */
-        .login-btn.loading {
+        /* loading state — dim + block clicks (spinner shown inline).
+           NOTE: the class is `is-loading`, NOT `loading` — a bare `loading` collides with the global
+           DaisyUI/Tailwind `.loading` utility in site.min.css, whose mask-image spinner scales to 100%
+           of the full-width button and renders a giant navy arc. Keep this name distinct. */
+        .login-btn.is-loading {
             opacity: 0.85;
             pointer-events: none;
             letter-spacing: 1.5px;
@@ -484,7 +487,7 @@
         </div>
 
         <!-- Login Button -->
-        <button type="button" class="login-btn @(IsLoading ? "loading" : "")" disabled="@IsLoading" @onclick="HandleLogin">
+        <button type="button" class="login-btn @(IsLoading ? "is-loading" : "")" disabled="@IsLoading" @onclick="HandleLogin">
             @if (IsLoading)
             {
                 <span class="btn-spinner"></span>

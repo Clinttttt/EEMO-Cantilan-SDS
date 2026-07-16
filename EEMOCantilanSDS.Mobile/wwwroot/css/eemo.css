@@ -1791,8 +1791,8 @@ html, body, #app {
     top: 50%;
     right: 24px;
     transform: translateY(-50%);
-    width: 44px;
-    height: 44px;
+    width: 54px;
+    height: 54px;
     border-radius: 50%;
     background: #fff;
     object-fit: contain;
