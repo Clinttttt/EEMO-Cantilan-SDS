@@ -295,9 +295,13 @@
     string  TotalCollected => $"₱{TotalCollectedAmount:N0}";
     int     TotalDays;
 
-    // ── Settings ──
+    // ── Settings (persisted locally per collector, offline-safe) ──
     bool NotificationsEnabled = true;
-    void ToggleNotifications() => NotificationsEnabled = !NotificationsEnabled;
+    async Task ToggleNotifications()
+    {
+        NotificationsEnabled = !NotificationsEnabled;
+        await Session.SetNotificationsEnabledAsync(NotificationsEnabled);
+    }
 
     // Gate the page on the initial profile load so it shows a spinner instead of half-empty fields.
     bool IsLoading = true;
@@ -317,6 +321,11 @@
             CollectorName = Session.Menu.CollectorName;
             EmployeeId    = Session.Menu.EmployeeId;
             BuildFacilityList();
+
+            // Device-local + offline-safe: restore the saved photo and notifications preference before the
+            // (network) profile load, so they show instantly and survive re-render / navigation / offline.
+            NotificationsEnabled = Session.GetNotificationsEnabled();
+            AvatarSrc            = await Session.GetProfilePhotoAsync() ?? string.Empty;
 
             await LoadProfileAsync();
         }
@@ -460,6 +469,19 @@
         IsSavingEdit = true;
         EditError = string.Empty;
 
+        // Persist the photo locally FIRST. It's a device-only feature (no backend), so it must be saved
+        // even when the profile API is unreachable, and must survive re-render, navigation and offline use.
+        try
+        {
+            if (string.IsNullOrEmpty(EditAvatarSrc))
+                await Session.RemoveProfilePhotoAsync();
+            else
+                await Session.SaveProfilePhotoAsync(EditAvatarSrc);
+
+            AvatarSrc = EditAvatarSrc;   // reflect on the page immediately
+        }
+        catch { /* non-critical: the preview below still applies */ }
+
         try
         {
             var result = await Api.UpdateProfileAsync(new UpdateMobileProfileRequest(
@@ -467,6 +489,7 @@
 
             if (!result.IsSuccess)
             {
+                // The photo is already saved locally above; only name/contact/email failed to sync.
                 EditError = result.Error ?? "Unable to save changes. Please try again.";
                 return;
             }
@@ -475,7 +498,6 @@
             CollectorName = EditName.Trim();
             ContactNumber = EditContact.Trim();
             Email         = EditEmail.Trim();
-            AvatarSrc     = EditAvatarSrc;   // photo kept locally for now (persistence is a later feature)
             CloseEdit();
 
             // Best-effort: refresh the session menu so the name updates across the app.

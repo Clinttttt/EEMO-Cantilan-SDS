@@ -179,4 +179,87 @@ public sealed class MobileSessionService(
         Menu = null;
         await paymentHub.StopAsync();
     }
+
+    // ── Device-local collector preferences ─────────────────────────────────────────────────────────────
+    // These are DEVICE-LOCAL and per-collector: keyed by the collector's immutable CollectorId so two
+    // collectors sharing a device never see each other's photo/prefs. They deliberately DO NOT live in the
+    // offline read cache (which is wiped on every login/logout) — they must survive sessions and work fully
+    // offline. Nothing here touches the API, tokens, or the payment path, so the Cantilan golden tenant is
+    // unaffected.
+
+    private string CollectorPrefKey =>
+        Menu?.CollectorId is { } id && id != Guid.Empty ? id.ToString("N") : "anon";
+
+    private string ProfilePhotoPath =>
+        System.IO.Path.Combine(FileSystem.AppDataDirectory, $"avatar_{CollectorPrefKey}.txt");
+
+    /// <summary>Returns the locally-stored profile photo (a <c>data:</c> URL) for the current collector, or null.</summary>
+    public async Task<string?> GetProfilePhotoAsync()
+    {
+        try
+        {
+            var path = ProfilePhotoPath;
+            if (System.IO.File.Exists(path))
+            {
+                var data = await System.IO.File.ReadAllTextAsync(path);
+                return string.IsNullOrWhiteSpace(data) ? null : data;
+            }
+        }
+        catch
+        {
+            // Best-effort: a read failure just means "no saved photo".
+        }
+
+        return null;
+    }
+
+    /// <summary>Persists the profile photo (a <c>data:</c> URL) locally so it survives re-render, navigation and offline use.</summary>
+    public async Task SaveProfilePhotoAsync(string dataUrl)
+    {
+        if (string.IsNullOrWhiteSpace(dataUrl))
+        {
+            await RemoveProfilePhotoAsync();
+            return;
+        }
+
+        try
+        {
+            await System.IO.File.WriteAllTextAsync(ProfilePhotoPath, dataUrl);
+        }
+        catch
+        {
+            // Persistence is best-effort; the in-memory preview still shows this run.
+        }
+    }
+
+    /// <summary>Removes the locally-stored profile photo for the current collector.</summary>
+    public Task RemoveProfilePhotoAsync()
+    {
+        try
+        {
+            var path = ProfilePhotoPath;
+            if (System.IO.File.Exists(path))
+            {
+                System.IO.File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Best-effort.
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private string NotificationsPrefKey => $"notifications_enabled_{CollectorPrefKey}";
+
+    /// <summary>Whether the collector has notifications enabled (defaults to true). Persisted locally.</summary>
+    public bool GetNotificationsEnabled() => Preferences.Default.Get(NotificationsPrefKey, true);
+
+    /// <summary>Persists the collector's notifications preference locally.</summary>
+    public Task SetNotificationsEnabledAsync(bool enabled)
+    {
+        Preferences.Default.Set(NotificationsPrefKey, enabled);
+        return Task.CompletedTask;
+    }
 }

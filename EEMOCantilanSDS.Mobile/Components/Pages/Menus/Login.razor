@@ -56,8 +56,8 @@
         .login-top::after  { width: 320px; height: 320px; border-color: rgba(200,168,75,0.05); }
 
     .login-seal {
-        width: 128px;
-        height: 128px;
+        width: 150px;
+        height: 150px;
         margin-bottom: 16px;
         flex-shrink: 0;
         position: relative;
@@ -333,12 +333,23 @@
             transform: scale(0.985);
         }
 
-        /* loading state — just dim + block clicks */
+        /* loading state — dim + block clicks (spinner shown inline) */
         .login-btn.loading {
-            opacity: 0.65;
+            opacity: 0.85;
             pointer-events: none;
             letter-spacing: 1.5px;
         }
+
+    /* inline spinner shown while signing in — reuses the global eemo-spin keyframe (css/eemo.css) */
+    .login-btn .btn-spinner {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 2px solid rgba(232,204,118,0.35);
+        border-top-color: #e8cc76;
+        animation: eemo-spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
 
     /* ── Notice Banner ── */
     .login-notice {
@@ -474,7 +485,15 @@
 
         <!-- Login Button -->
         <button type="button" class="login-btn @(IsLoading ? "loading" : "")" disabled="@IsLoading" @onclick="HandleLogin">
-            @(IsLoading ? "Signing in…" : "Sign In")
+            @if (IsLoading)
+            {
+                <span class="btn-spinner"></span>
+                <span>Signing in…</span>
+            }
+            else
+            {
+                <span>Sign In</span>
+            }
         </button>
 
         <!-- Notice -->
