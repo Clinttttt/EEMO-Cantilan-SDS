@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using System.Linq;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 
@@ -25,6 +26,15 @@ public class CollectorLoginCommandHandler(
             var municipality = await municipalityRepository.GetByIdentifierAsync(request.MunicipalityCode, cancellationToken);
             if (municipality is null) return Result<TokenResponseDto>.Forbidden();
             scopeMunicipalityId = municipality.Id;
+        }
+        else
+        {
+            // Fail-closed for multi-LGU: a code-less GLOBAL lookup is ambiguous once 2+ municipalities are
+            // active (a username / employee id can exist in several LGUs), so require the municipality.
+            // A single active LGU (Cantilan today) keeps the global lookup — the golden tenant is unchanged.
+            var activeCount = (await municipalityRepository.GetAllAsync(cancellationToken)).Count(m => m.IsActive);
+            if (activeCount > 1)
+                return Result<TokenResponseDto>.Failure("Please select your municipality to sign in.", 400);
         }
 
         var collector = scopeMunicipalityId is { } mid

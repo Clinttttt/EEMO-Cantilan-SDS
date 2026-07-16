@@ -32,6 +32,13 @@ public class CollectorLoginCommandHandlerTests
         token.Setup(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()))
             .ReturnsAsync(new TokenResponseDto { AccessToken = "collector-at", RefreshToken = "collector-rt" });
 
+        // Default: a single active LGU (Cantilan) — so a code-less login keeps the global lookup unchanged.
+        muni.Setup(m => m.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Municipality>)new List<Municipality>
+            {
+                Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, isDefault: true)
+            });
+
         return (new CollectorLoginCommandHandler(repo.Object, muni.Object, token.Object, uow.Object), token, uow, muni);
     }
 
@@ -71,6 +78,25 @@ public class CollectorLoginCommandHandlerTests
         var result = await handler.Handle(new CollectorLoginCommand("juan", Password), CancellationToken.None);
 
         Assert.Equal(403, result.StatusCode);
+        token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NoCode_WithMultipleActiveMunicipalities_FailsClosed()
+    {
+        // Audit #5 — once 2+ LGUs are live, a code-less (global) login is ambiguous, so it must fail closed
+        // and require the municipality rather than resolve to an arbitrary tenant's account.
+        var (handler, token, _, muni) = Build(NewCollector());
+        muni.Setup(m => m.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Municipality>)new List<Municipality>
+            {
+                Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, isDefault: true),
+                Municipality.Create("CARMEN", "Carmen", "Surigao del Sur", MunicipalityStatus.Active),
+            });
+
+        var result = await handler.Handle(new CollectorLoginCommand("juan", Password), CancellationToken.None);
+
+        Assert.Equal(400, result.StatusCode);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<CollectorUser>()), Times.Never);
     }
 
