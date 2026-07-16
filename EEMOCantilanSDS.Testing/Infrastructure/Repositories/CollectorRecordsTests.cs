@@ -184,6 +184,47 @@ public class CollectorRecordsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task CollectorReport_SplitsOfficeRecordedFromOwnCollections()
+    {
+        // Audit #7 — the report separates the collector's OWN collections from office/admin-recorded ones
+        // (CollectorId == null), so their headline performance isn't inflated by office entries.
+        await using var ctx = NewContext();
+        var collectorId = Guid.NewGuid();
+        var reportDay = new DateOnly(Today.Year, Today.Month, 1);
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var ownStall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var officeStall = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(ownStall, facility);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(officeStall, facility);
+        var ownContract = Contract.Create(ownStall.Id, "Own Payor", "Own Payor", reportDay.AddMonths(-1), 3, 900m);
+        var officeContract = Contract.Create(officeStall.Id, "Office Payor", "Office Payor", reportDay.AddMonths(-1), 3, 900m);
+        ownStall.Contracts.Add(ownContract);
+        officeStall.Contracts.Add(officeContract);
+
+        var ownDaily = DailyCollection.Create(ownStall.Id, reportDay);
+        ownDaily.MarkPaid("OR-OWN", collectorId);      // collected by this collector
+        ownStall.DailyCollections.Add(ownDaily);
+
+        var officeDaily = DailyCollection.Create(officeStall.Id, reportDay);
+        officeDaily.MarkPaid("OR-OFFICE", null);       // recorded at the office (CollectorId null)
+        officeStall.DailyCollections.Add(officeDaily);
+
+        ctx.AddRange(facility, ownStall, officeStall, ownContract, officeContract, ownDaily, officeDaily);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var report = await repo.GetCollectorReportAsync(
+            collectorId, [FacilityCode.NPM], reportDay, reportDay.AddDays(2), CancellationToken.None);
+
+        Assert.Equal(60m, report.Totals.CollectedAmount);        // ₱30 own + ₱30 office = full grand total
+        Assert.Equal(30m, report.Totals.OfficeCollectedAmount);  // the office-recorded portion
+        Assert.Equal(1, report.Totals.OfficeTransactionCount);
+        Assert.Contains(report.Transactions, t => t.PayorName == "Office Payor" && t.IsAdminRecorded);
+        Assert.Contains(report.Transactions, t => t.PayorName == "Own Payor" && !t.IsAdminRecorded);
+    }
+
+    [Fact]
     public async Task IncludesAdminRecordedAtAssignedFacility_AndFlagsThem()
     {
         // The Records feed shows the collector's own collections PLUS admin/office-recorded entries

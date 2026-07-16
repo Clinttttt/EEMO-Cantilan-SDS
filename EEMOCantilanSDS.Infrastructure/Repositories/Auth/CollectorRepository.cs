@@ -408,6 +408,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     d.CollectionDate,
                     d.DailyFee,
                     d.FishKilos,
+                    IsAdmin = d.CollectorId == null,
                     When = d.UpdatedAt ?? d.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
@@ -421,7 +422,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 d.DailyFee + d.FishKilos.GetValueOrDefault() * npmFish,
                 false,
                 d.When,
-                d.ORNumber)));
+                d.ORNumber,
+                d.IsAdmin)));
 
             transactions.AddRange(periodNpmPaymentRecords.Select(p =>
             {
@@ -442,7 +444,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     RecognizedNpmPaymentRevenue(p, fromDate, toDate, stall),
                     p.Status == PaymentStatus.Partial,
                     collectedAt,
-                    p.ORNumber);
+                    p.ORNumber,
+                    p.CollectorId == null);
             }).Where(t => t.Amount > 0m));
 
             payees.AddRange(npmStalls
@@ -530,6 +533,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     p.WaterAmount,
                     p.FishKilos,
                     p.PartialAmount,
+                    IsAdmin = p.CollectorId == null,
                     When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
                 })
                 .ToListAsync(cancellationToken);
@@ -551,7 +555,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     paidAmount,
                     p.Status == PaymentStatus.Partial,
                     p.When,
-                    p.ORNumber);
+                    p.ORNumber,
+                    p.IsAdmin);
             }));
 
             var monthlyStalls = await context.Stalls
@@ -635,7 +640,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 .AsNoTracking()
                 .Where(s => (s.CollectorId == collectorId || s.CollectorId == null)
                     && s.TransactionDate >= fromDate && s.TransactionDate <= toDate)
-                .Select(s => new { s.OwnerName, s.RatePerHead, s.NumberOfHeads, s.TransactionDate, When = s.UpdatedAt ?? s.CreatedAt, s.ORNumber })
+                .Select(s => new { s.OwnerName, s.RatePerHead, s.NumberOfHeads, s.TransactionDate, When = s.UpdatedAt ?? s.CreatedAt, s.ORNumber, IsAdmin = s.CollectorId == null })
                 .ToListAsync(cancellationToken);
 
             transactions.AddRange(slaughterRows.Select(s => new CollectorReportTransaction(
@@ -647,7 +652,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 s.RatePerHead * s.NumberOfHeads,
                 false,
                 s.When,
-                s.ORNumber)));
+                s.ORNumber,
+                s.IsAdmin)));
         }
 
         if (selectedSet.Contains(FacilityCode.TRM))
@@ -656,7 +662,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 .AsNoTracking()
                 .Where(t => (t.CollectorId == collectorId || t.CollectorId == null)
                     && t.RecordedAt >= startUtc && t.RecordedAt < endUtc)
-                .Select(t => new { t.DriverName, t.Fee, t.RecordedAt, t.ORNumber })
+                .Select(t => new { t.DriverName, t.Fee, t.RecordedAt, t.ORNumber, IsAdmin = t.CollectorId == null })
                 .ToListAsync(cancellationToken);
 
             transactions.AddRange(tripRows.Select(t => new CollectorReportTransaction(
@@ -668,7 +674,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 t.Fee,
                 false,
                 t.RecordedAt,
-                t.ORNumber)));
+                t.ORNumber,
+                t.IsAdmin)));
         }
 
         if (selectedSet.Contains(FacilityCode.TPM))
@@ -679,7 +686,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     && (a.CollectorId == collectorId || a.CollectorId == null)
                     && a.MarketDate >= fromDate
                     && a.MarketDate <= toDate)
-                .Select(a => new { Payor = a.Vendor!.VendorName, a.Fee, a.MarketDate, When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt, a.ORNumber })
+                .Select(a => new { Payor = a.Vendor!.VendorName, a.Fee, a.MarketDate, When = a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt, a.ORNumber, IsAdmin = a.CollectorId == null })
                 .ToListAsync(cancellationToken);
 
             transactions.AddRange(tpmRows.Select(a => new CollectorReportTransaction(
@@ -691,7 +698,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 a.Fee,
                 false,
                 a.When,
-                a.ORNumber)));
+                a.ORNumber,
+                a.IsAdmin)));
         }
 
         var transactionStats = transactions
@@ -805,7 +813,9 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
             payees.Count(p => p.Status == PaymentStatus.Partial),
             payees.Count(p => p.Status == PaymentStatus.Unpaid),
             absentExcusedTotal,
-            selectedFacilities.Count);
+            selectedFacilities.Count,
+            transactions.Where(t => t.IsAdminRecorded).Sum(t => t.Amount),
+            transactions.Count(t => t.IsAdminRecorded));
 
         // ── Miscellaneous (electricity & water) summary for the reporting month — computed SEPARATELY
         //    from the collection totals above so the existing "Total Collected"/counts never change. ──
@@ -877,7 +887,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 .ThenBy(t => t.FacilityCode)
                 .ThenBy(t => t.StallNo)
                 .Select(t => new MobileReportTransactionDto(
-                    t.FacilityCode, t.FacilityName, t.StallNo, t.PayorName, t.PeriodDate, t.Amount, t.IsPartial, t.ORNumber))
+                    t.FacilityCode, t.FacilityName, t.StallNo, t.PayorName, t.PeriodDate, t.Amount, t.IsPartial, t.ORNumber, t.IsAdminRecorded))
                 .ToList(),
             absentExcusedRows
                 .OrderByDescending(a => a.Date)
@@ -1475,5 +1485,6 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         decimal Amount,
         bool IsPartial,
         DateTime CollectedAt,
-        string? ORNumber);
+        string? ORNumber,
+        bool IsAdminRecorded);
 }

@@ -55,7 +55,8 @@ public sealed record MobileReportTransactionDto(
     DateOnly CollectionDate,
     decimal Amount,
     bool IsPartial,
-    string? ORNumber);
+    string? ORNumber,
+    bool IsAdminRecorded = false);
 
 /// <summary>
 /// One excused record — backs the "Absent / Excused" detail view. It is NPM per-day absence or a
@@ -79,7 +80,12 @@ public sealed record MobileReportTotalsDto(
     int PartialCount,
     int UnpaidCount,
     int AbsentExcusedCount,
-    int AssignedFacilityCount);
+    int AssignedFacilityCount,
+    // Of the CollectedAmount/TransactionCount above, the portion recorded at the office/by an admin
+    // (CollectorId == null) rather than by this collector — so the mobile can show "collected by you"
+    // (CollectedAmount − OfficeCollectedAmount) with "recorded at office" as a separate line.
+    decimal OfficeCollectedAmount = 0m,
+    int OfficeTransactionCount = 0);
 
 public sealed record MobileReportFacilitySummaryDto(
     FacilityCode FacilityCode,

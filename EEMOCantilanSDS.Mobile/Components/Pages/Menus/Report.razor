@@ -200,13 +200,29 @@
                         <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                     </div>
                     <div class="facility-info">
-                        <div class="facility-name">Total Collected</div>
+                        <div class="facility-name">@(HasOffice ? "Collected by You" : "Total Collected")</div>
                         <div class="facility-meta"><span class="facility-count">@ScopeLabel · @PeriodTitle</span></div>
                     </div>
                     <div class="facility-amount-col">
-                        <div class="facility-amount">&#8369;@GrandTotal.ToString("N0")</div>
+                        <div class="facility-amount">&#8369;@(HasOffice ? OwnTotal.ToString("N0") : GrandTotal.ToString("N0"))</div>
                     </div>
                 </div>
+
+                @if (HasOffice)
+                {
+                    <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("collected"))" @onkeydown="@(e => OnCardKey(e, "collected"))">
+                        <div class="facility-icon">
+                            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                        </div>
+                        <div class="facility-info">
+                            <div class="facility-name">Recorded at Office</div>
+                            <div class="facility-meta"><span class="facility-count">Encoded by an admin, not collected by you</span></div>
+                        </div>
+                        <div class="facility-amount-col">
+                            <div class="facility-amount">&#8369;@OfficeTotal.ToString("N0")</div>
+                        </div>
+                    </div>
+                }
 
                 <div class="facility-row report-card-tap" role="button" tabindex="0" @onclick="@(() => OpenDetail("outstanding"))" @onkeydown="@(e => OnCardKey(e, "outstanding"))">
                     <div class="facility-icon">
@@ -387,7 +403,7 @@
                             {
                                 <div class="detail-row">
                                     <div class="detail-row-main">
-                                        <div class="detail-row-name">@t.PayorName</div>
+                                        <div class="detail-row-name">@t.PayorName @(t.IsAdminRecorded ? "· Office" : "")</div>
                                         <div class="detail-row-sub">@FacilityStall(t.FacilityCode, t.StallNo) · @t.CollectionDate.ToString("MMM d")@(string.IsNullOrWhiteSpace(t.ORNumber) ? "" : " · OR " + t.ORNumber)</div>
                                     </div>
                                     <div class="detail-row-amt">
@@ -739,6 +755,10 @@
     RenderFragment DetailEmpty(string message) =>@<div class="detail-empty">@message</div>;
 
     decimal GrandTotal => ReportData?.Totals.CollectedAmount ?? 0m;
+    // Split of the grand total: what this collector personally collected vs what the office/admin recorded.
+    decimal OfficeTotal => ReportData?.Totals.OfficeCollectedAmount ?? 0m;
+    decimal OwnTotal => GrandTotal - OfficeTotal;
+    bool HasOffice => (ReportData?.Totals.OfficeTransactionCount ?? 0) > 0;
     int TotalTransactions => ReportData?.Totals.TransactionCount ?? 0;
     int PayeeCount => ReportData?.Totals.PayeeCount ?? 0;
     int PartialCount => ReportData?.Totals.PartialCount ?? 0;
