@@ -39,7 +39,9 @@ public class GetCollectorMobileMenuQueryHandlerTests
         facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)names);
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
-        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, currentUser.Object);
+        var muniRepo = new Mock<IMunicipalityRepository>();
+        var tenant = new Mock<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>();
+        var handler = new GetCollectorMobileMenuQueryHandler(repo.Object, facilityRepo.Object, muniRepo.Object, tenant.Object, currentUser.Object);
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
 
@@ -73,6 +75,8 @@ public class GetCollectorMobileMenuQueryHandlerTests
         var handler = new GetCollectorMobileMenuQueryHandler(
             Mock.Of<ICollectorRepository>(),
             Mock.Of<IFacilityRepository>(),
+            Mock.Of<IMunicipalityRepository>(),
+            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(),
             Mock.Of<ICurrentUserService>());
 
         var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);

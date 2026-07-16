@@ -11,6 +11,8 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
 public class GetCollectorMobileMenuQueryHandler(
     ICollectorRepository collectorRepository,
     IFacilityRepository facilityRepository,
+    IMunicipalityRepository municipalityRepository,
+    EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext tenantContext,
     ICurrentUserService currentUser) : IRequestHandler<GetCollectorMobileMenuQuery, Result<MobileMenuDto>>
 {
     public async Task<Result<MobileMenuDto>> Handle(GetCollectorMobileMenuQuery request, CancellationToken cancellationToken)
@@ -49,7 +51,19 @@ public class GetCollectorMobileMenuQueryHandler(
             collector.FullName ?? "Collector",
             collector.EmployeeId ?? string.Empty,
             PhilippineTime.Today,
-            facilities));
+            facilities,
+            await BuildBrandingAsync(cancellationToken)));
+    }
+
+    // The collector's LGU branding (seal/office/name) so the mobile header + receipts identify the correct
+    // municipality. Best-effort: a missing record leaves branding null and the mobile keeps the Cantilan
+    // defaults, so nothing breaks.
+    private async Task<MobileBrandingDto?> BuildBrandingAsync(CancellationToken ct)
+    {
+        var m = await municipalityRepository.GetByIdentifierAsync(tenantContext.TenantCode, ct);
+        return m is null
+            ? null
+            : new MobileBrandingDto(m.Name, m.Province, m.OfficeName, m.OfficeAcronym, m.SealPath);
     }
 
     /// <summary>

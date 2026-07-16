@@ -16,6 +16,36 @@ public sealed class MobileSessionService(
     public bool IsAuthenticated => tokenStore.HasAccessToken && Menu is not null;
     public string CollectorName => Menu?.CollectorName ?? "Collector";
 
+    // ── Tenant branding (from the menu) with Cantilan-preserving fallbacks ──────────────────────────────
+    // When branding is absent/empty (offline pre-load, or a menu cached before branding existed), these
+    // return the original Cantilan values so the golden tenant renders byte-for-byte as before.
+    public MobileBrandingDto? Branding => Menu?.Branding;
+
+    /// <summary>Seal image source — the tenant's SealPath (data URI/URL) or the local Cantilan seal.</summary>
+    public string BrandingSeal =>
+        !string.IsNullOrWhiteSpace(Branding?.SealPath) ? Branding!.SealPath! : "images/LGU_CANTILAN_LOGO.jpg";
+
+    /// <summary>Revenue office label for headers/receipts.</summary>
+    public string BrandingOffice =>
+        !string.IsNullOrWhiteSpace(Branding?.OfficeName) ? Branding!.OfficeName! : "Economic Enterprise & Management Office";
+
+    /// <summary>Short office acronym (compact labels).</summary>
+    public string BrandingOfficeAcronym =>
+        !string.IsNullOrWhiteSpace(Branding?.OfficeAcronym) ? Branding!.OfficeAcronym! : "EEMO";
+
+    /// <summary>"Municipality of {Name}, {Province}" line for headers/receipts.</summary>
+    public string BrandingMunicipalityLine
+    {
+        get
+        {
+            var name = Branding?.MunicipalityName;
+            if (string.IsNullOrWhiteSpace(name))
+                return "Municipality of Cantilan, Surigao del Sur";
+            var prov = Branding?.Province;
+            return string.IsNullOrWhiteSpace(prov) ? $"Municipality of {name}" : $"Municipality of {name}, {prov}";
+        }
+    }
+
     public async Task InitializeAsync()
     {
         await tokenStore.InitializeAsync();

@@ -20,6 +20,7 @@
                 OnBack="GoBack"
                 CollectorName="M. Reyes" />
 ═══════════════════════════════════════════════════════════ *@
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 
 @* ── Parameters ── *@
 @* Sub-page mode *@
@@ -56,16 +57,11 @@ else
         <div class="header-gov-label">Republic of the Philippines</div>
         <div class="header-logo-row">
             <div class="header-seal">
-               
-                    <img src="images/LGU_CANTILAN_LOGO.jpg" alt="EEMO Seal" />
-                
-                @* else: empty — add image later *@
+                <img src="@Session.BrandingSeal" alt="Municipal Seal" />
             </div>
             <div class="header-text">
-                <div class="header-org-name">
-                    Economic Enterprise &amp;<br />Management Office
-                </div>
-                <div class="header-org-sub">Municipality of Cantilan, Surigao del Sur</div>
+                <div class="header-org-name">@Session.BrandingOffice</div>
+                <div class="header-org-sub">@Session.BrandingMunicipalityLine</div>
             </div>
         </div>
     </div>
