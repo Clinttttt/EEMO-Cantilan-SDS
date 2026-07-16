@@ -8,224 +8,230 @@
         height: 100%;
         width: 100%;
         overflow: hidden;
-        background-color: #0d2137;
+        background-color: #0b1b30;
     }
 
-    /* ── Splash Shell ── */
+    /* ── Splash shell: STALLTRACK platform backdrop ── */
     .splash {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         height: 100dvh;
         width: 100%;
-        background: radial-gradient(ellipse at 50% 40%, #1e3a5f 0%, #0d2137 65%);
         position: relative;
         overflow: hidden;
+        background-color: #0b1b30;
+        background-image:
+            linear-gradient(180deg, rgba(11,27,48,0.55) 0%, rgba(11,27,48,0.35) 45%, rgba(9,22,40,0.85) 100%),
+            url('images/stalltrack-raw-background.webp');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
     }
 
-    /* ── Subtle background ring decoration ── */
-    .splash::before {
-        content: '';
-        position: absolute;
-        width: 420px;
-        height: 420px;
-        border-radius: 50%;
-        border: 1px solid rgba(200,168,75,0.08);
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-    }
-
-    .splash::after {
-        content: '';
-        position: absolute;
-        width: 560px;
-        height: 560px;
-        border-radius: 50%;
-        border: 1px solid rgba(200,168,75,0.05);
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-    }
-
-    /* ── Gold line top ── */
-    .splash-top-line {
-        position: absolute;
-        top: 0; left: 0; right: 0;
-        height: 3px;
+    /* Thin gold accent lines top + bottom */
+    .splash-top-line, .splash-bottom-line {
+        position: absolute; left: 0; right: 0; height: 2px; z-index: 3;
         background: linear-gradient(90deg, transparent, #c8a84b, #e8cc76, #c8a84b, transparent);
     }
+    .splash-top-line { top: 0; }
+    .splash-bottom-line { bottom: 0; }
 
-    /* ── Gold line bottom ── */
-    .splash-bottom-line {
-        position: absolute;
-        bottom: 0; left: 0; right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, transparent, #c8a84b, #e8cc76, #c8a84b, transparent);
-    }
-
-    /* ── Logo ── */
-    .splash-logo-wrap {
+    /* ── Main branded column ── */
+    .splash-main {
         position: relative;
-        z-index: 1;
+        z-index: 2;
         display: flex;
         flex-direction: column;
         align-items: center;
+        text-align: center;
+        margin-top: 15dvh;
+        padding: 0 30px;
         animation: splashFadeIn 0.9s ease forwards;
         opacity: 0;
     }
 
     @@keyframes splashFadeIn {
-        0%   { opacity: 0; transform: translateY(18px) scale(0.95); }
+        0%   { opacity: 0; transform: translateY(16px) scale(0.97); }
         100% { opacity: 1; transform: translateY(0)    scale(1);    }
     }
 
-    .splash-logo {
-        width: 200px;
-        height: 200px;
-        border-radius: 50%;
-        object-fit: cover;
-        /* Soft gold glow */
-        filter: drop-shadow(0 0 28px rgba(200,168,75,0.35))
-                drop-shadow(0 8px 24px rgba(0,0,0,0.45));
+    /* Concentric rings behind the seal */
+    .splash-seal-wrap {
+        position: relative;
+        display: grid;
+        place-items: center;
+        margin-bottom: 26px;
     }
-
-    /* ── Text under logo ── */
-    .splash-org {
-        margin-top: 24px;
-        text-align: center;
-    }
-
-    .splash-gov {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 9px;
-        font-weight: 500;
-        letter-spacing: 3.5px;
-        color: #c8a84b;
-        text-transform: uppercase;
-        margin-bottom: 6px;
-    }
-
-    .splash-title {
-        font-family: 'EB Garamond', serif;
-        font-size: 20px;
-        font-weight: 600;
-        color: #ffffff;
-        line-height: 1.25;
-        letter-spacing: 0.3px;
-    }
-
-    .splash-sub {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 10.5px;
-        color: rgba(255,255,255,0.4);
-        margin-top: 5px;
-        letter-spacing: 0.3px;
-    }
-
-    /* ── Gold divider ── */
-    .splash-divider {
-        width: 40px;
-        height: 1.5px;
-        background: linear-gradient(90deg, transparent, #c8a84b, transparent);
-        margin: 16px auto 0;
-        border-radius: 1px;
-    }
-
-    /* ── Loading dots ── */
-    .splash-loader {
+    .splash-seal-wrap::before,
+    .splash-seal-wrap::after {
+        content: '';
         position: absolute;
-        bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        border-radius: 50%;
+        border: 1px solid rgba(200,168,75,0.10);
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+    }
+    .splash-seal-wrap::before { width: 260px; height: 260px; }
+    .splash-seal-wrap::after  { width: 330px; height: 330px; border-color: rgba(200,168,75,0.06); }
+
+    .splash-seal {
+        width: 172px;
+        height: 172px;
+        object-fit: contain;
+        filter: drop-shadow(0 0 30px rgba(200,168,75,0.30))
+                drop-shadow(0 10px 26px rgba(0,0,0,0.5));
+    }
+
+    /* Wordmark — metallic silver */
+    .splash-brand {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        font-size: 44px;
+        font-weight: 800;
+        letter-spacing: 4px;
+        line-height: 1;
+        background: linear-gradient(180deg, #ffffff 0%, #dbe4ef 48%, #aebccd 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: #e8eef6;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    }
+
+    /* Gold dot separator */
+    .splash-dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #e8cc76;
+        margin: 14px auto 12px;
+        box-shadow: 0 0 8px rgba(232,204,118,0.6);
+    }
+
+    .splash-tagline {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        color: #e8cc76;
+        letter-spacing: 0.4px;
+    }
+
+    .splash-desc {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        font-size: 12px;
+        font-weight: 400;
+        color: rgba(226,234,244,0.62);
+        line-height: 1.55;
+        margin-top: 12px;
+        max-width: 300px;
+    }
+
+    /* Bagong Pilipinas endorsement */
+    .splash-bp {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 10px;
+        margin-top: 30px;
+    }
+    .splash-bp-logo {
+        width: 84px;
+        height: auto;
+        filter: drop-shadow(0 4px 14px rgba(0,0,0,0.4));
+    }
+    .splash-bp-label {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 2.5px;
+        color: #ffffff;
+        text-transform: uppercase;
+        margin-top: 8px;
+    }
+
+    /* ── Loader (bottom) ── */
+    .splash-loader {
+        position: absolute;
+        bottom: calc(46px + env(safe-area-inset-bottom, 0px));
+        left: 0; right: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        z-index: 2;
         animation: splashFadeIn 1.1s ease 0.3s forwards;
         opacity: 0;
-        z-index: 1;
     }
 
-    .loader-label {
-        font-family: 'DM Sans', sans-serif;
-        font-size: 9px;
-        letter-spacing: 2.5px;
-        color: rgba(255,255,255,0.25);
-        text-transform: uppercase;
-    }
-
-    .loader-dots {
+    .loader-track {
         display: flex;
-        gap: 6px;
         align-items: center;
+        gap: 9px;
     }
-
-    .dot {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
+    .loader-track .line {
+        width: 34px; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(200,168,75,0.5));
+    }
+    .loader-track .line.right {
+        background: linear-gradient(90deg, rgba(200,168,75,0.5), transparent);
+    }
+    .loader-track .dot {
+        width: 5px; height: 5px; border-radius: 50%;
         background: #c8a84b;
         animation: dotPulse 1.3s ease-in-out infinite;
     }
-
-        .dot:nth-child(1) { animation-delay: 0s;    }
-        .dot:nth-child(2) { animation-delay: 0.2s;  }
-        .dot:nth-child(3) { animation-delay: 0.4s;  }
+    .loader-track .dot:nth-child(2) { animation-delay: 0s;   }
+    .loader-track .dot:nth-child(3) { animation-delay: 0.2s; }
+    .loader-track .dot:nth-child(4) { animation-delay: 0.4s; }
 
     @@keyframes dotPulse {
-        0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
-        40%            { opacity: 1;   transform: scale(1.15); }
+        0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+        40%           { opacity: 1;    transform: scale(1.2);  }
     }
 
-    /* ── Version tag ── */
-    .splash-version {
-        position: absolute;
-        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-        font-family: 'DM Sans', sans-serif;
-        font-size: 8.5px;
-        color: rgba(255,255,255,0.15);
+    .loader-label {
+        font-family: 'DM Sans', 'Segoe UI', sans-serif;
+        font-size: 11px;
         letter-spacing: 1px;
-        z-index: 1;
+        color: rgba(226,234,244,0.5);
     }
 </style>
 
 
 <div class="splash">
 
-    <!-- Top + bottom gold accent lines -->
     <div class="splash-top-line"></div>
     <div class="splash-bottom-line"></div>
 
-    <!-- Logo + Text -->
-    <div class="splash-logo-wrap">
+    <div class="splash-main">
 
-        <img class="splash-logo"
-             src="images/LGU_CANTILAN_LOGO.jpg"
-             alt="EEMO Collectors Seal" />
+        <div class="splash-seal-wrap">
+            <img class="splash-seal" src="images/stalltrack-seal.png" alt="StallTrack Seal" />
+        </div>
 
-        <div class="splash-org">
-            <div class="splash-gov">Republic of the Philippines</div>
-            <div class="splash-title">
-                Economic Enterprise &amp;<br />Management Office
-            </div>
-            <div class="splash-sub">Municipality of Cantilan, Surigao del Sur</div>
-            <div class="splash-divider"></div>
+        <div class="splash-brand">STALLTRACK</div>
+        <div class="splash-dot"></div>
+        <div class="splash-tagline">Unified LGU Market Management Platform</div>
+        <div class="splash-desc">
+            For Local Government Economic Enterprise<br />and Market Management Offices
+        </div>
+
+        <div class="splash-bp">
+            <img class="splash-bp-logo" src="images/Bagong_Pilipinas_logo.png" alt="Bagong Pilipinas" />
+            <div class="splash-bp-label">Bagong Pilipinas</div>
         </div>
 
     </div>
 
     <!-- Loading indicator -->
     <div class="splash-loader">
-        <div class="loader-dots">
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
+        <div class="loader-track">
+            <span class="line"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="line right"></span>
         </div>
         <div class="loader-label">@LoadingText</div>
     </div>
-
-    <!-- Version -->
-    <div class="splash-version">EEMO Collectors v1.0</div>
 
 </div>
 
@@ -233,7 +239,7 @@
 @code {
 
     // Loading label — cycles while the real session restore runs (no fixed wait).
-    string LoadingText = "Initializing";
+    string LoadingText = "Initializing platform…";
 
     private System.Threading.CancellationTokenSource _cts = new();
 
@@ -248,7 +254,7 @@
             var restoreTask = Session.RestoreSessionAsync();
             var minimumSplash = Task.Delay(600, _cts.Token);
 
-            var labels = new[] { "Initializing", "Restoring session", "Almost ready" };
+            var labels = new[] { "Initializing platform…", "Restoring session…", "Almost ready…" };
             var i = 0;
             while (!restoreTask.IsCompleted && !_cts.IsCancellationRequested)
             {
