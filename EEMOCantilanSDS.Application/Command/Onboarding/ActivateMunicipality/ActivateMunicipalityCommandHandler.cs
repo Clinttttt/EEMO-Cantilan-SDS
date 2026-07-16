@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
@@ -79,12 +80,20 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             //    occupants/payors) are NEVER provisioned at onboarding/activation — they are created in the
             //    live portal — so any StallGroups on the command are intentionally ignored.
             var stallsCreated = 0;
+            Facility? npmFacility = null;
             foreach (var f in request.Facilities)
             {
                 var facility = Facility.Create(
                     f.Code, f.Name.Trim(), f.ShortName.Trim(), archetype: f.Archetype, municipalityId: municipality.Id);
                 context.Facilities.Add(facility);
+                if (f.Code == FacilityCode.NPM) npmFacility = facility;
             }
+
+            // Seed the NPM market-section display labels from the LGU's onboarding config (e.g. "Gulayan"
+            // for the vegetable area) so the tenant name shows without re-entry. Best-effort: a missing or
+            // oddly-shaped config never blocks activation — the Head can still set the labels in the portal.
+            if (npmFacility is not null)
+                await TrySeedNpmSectionLabelsAsync(npmFacility, municipality.Name, ct);
 
             // 3) Fixed ordinance rates for the LGU.
             foreach (var r in request.Rates)
@@ -158,6 +167,68 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 stallsCreated,
                 customAnimalsCreated,
                 orSeriesConfigured));
+        }
+
+        // Seeds the NPM market-section display labels from the LGU's onboarding config (the daily-stall
+        // facility's freeform section names). Classification mirrors the onboarding workspace's own rule:
+        // a section named for fish (or carrying the per-kilo fee) → FishSection; "meat" → MeatSection; the
+        // first remaining section → VegetableArea. The MarketSection enum stays the key — this only labels.
+        private async Task TrySeedNpmSectionLabelsAsync(Facility npm, string municipalityName, CancellationToken ct)
+        {
+            try
+            {
+                var configJson = await context.OnboardingDrafts
+                    .IgnoreQueryFilters()
+                    .Where(d => d.Municipality == municipalityName)
+                    .OrderByDescending(d => d.CreatedAt)
+                    .Select(d => d.ConfigJson)
+                    .FirstOrDefaultAsync(ct);
+                if (string.IsNullOrWhiteSpace(configJson))
+                    return;
+
+                using var doc = JsonDocument.Parse(configJson);
+                if (!doc.RootElement.TryGetProperty("facilities", out var facs) || facs.ValueKind != JsonValueKind.Array)
+                    return;
+
+                foreach (var fac in facs.EnumerateArray())
+                {
+                    var catalogKey = fac.TryGetProperty("catalogKey", out var ck) ? ck.GetString() : null;
+                    var archetype = fac.TryGetProperty("archetype", out var at) ? at.GetString() : null;
+                    var isDailyStall = string.Equals(catalogKey, "public_market", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(archetype, "DailyStall", StringComparison.OrdinalIgnoreCase);
+                    if (!isDailyStall)
+                        continue;
+                    if (!fac.TryGetProperty("sections", out var secs) || secs.ValueKind != JsonValueKind.Array)
+                        return;
+
+                    string? veg = null, fish = null, meat = null;
+                    foreach (var sec in secs.EnumerateArray())
+                    {
+                        var name = (sec.TryGetProperty("name", out var n) ? n.GetString() : null)?.Trim();
+                        if (string.IsNullOrWhiteSpace(name))
+                            continue;
+
+                        var hasFees = sec.TryGetProperty("fees", out var fees)
+                            && fees.ValueKind == JsonValueKind.Array && fees.GetArrayLength() > 0;
+
+                        if (name.Contains("fish", StringComparison.OrdinalIgnoreCase) || hasFees)
+                            fish ??= name;                       // fish carries the per-kilo fee
+                        else if (name.Contains("meat", StringComparison.OrdinalIgnoreCase))
+                            meat ??= name;
+                        else
+                            veg ??= name;                        // first remaining section = vegetable area
+                    }
+
+                    if (veg is not null || fish is not null || meat is not null)
+                        npm.SetSectionLabels(veg, fish, meat, "Activation");
+                    return;                                      // only the first daily-stall facility carries sections
+                }
+            }
+            catch
+            {
+                // Best-effort only: never block activation on config parsing — labels default to canonical
+                // and the Head can set them in the facility Configuration drawer.
+            }
         }
 
         // A url-safe, cryptographically-random one-time activation token; only its SHA-256 hash is stored.

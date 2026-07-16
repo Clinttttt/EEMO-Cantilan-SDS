@@ -667,7 +667,7 @@ else
                                     }
                                 </div>
                             </div>
-                            <span class="audit-payor-label">@GetShort(NormalizeSectionName(b.Section))</span>
+                            <span class="audit-payor-label">@GetShort(FacilityCatalog.SectionLabelOf(FacilityCode.NPM, NormalizeSectionName(b.Section)))</span>
                             <small class="audit-payor-meta">@b.SharePct% rent collected vs assessed</small>
                         </div>
                     }
@@ -1640,7 +1640,9 @@ else
         .Select(s =>
         {
             var name = NormalizeSectionName(s.SectionName);
-            return new SectionRow(name, GetShort(name), s.Revenue, ClampPct(s.Percentage), SectionColor(name));
+            // Name + Color stay canonical (keys); only the visible ShortName uses the tenant label.
+            var display = FacilityCatalog.SectionLabelOf(FacilityCode.NPM, name);
+            return new SectionRow(name, GetShort(display), s.Revenue, ClampPct(s.Percentage), SectionColor(name));
         });
     decimal SectionRevenueTotal => SectionData.Sum(s => s.Revenue);
 

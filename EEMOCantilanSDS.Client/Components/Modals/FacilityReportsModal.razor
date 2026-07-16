@@ -492,6 +492,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Domain.Enums
 @inject IFacilitiesApiClient FacilitiesApiClient
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @code {
     [Parameter]
@@ -805,7 +806,12 @@
 
     private string GetShortSectionName(string sectionName)
     {
-        return sectionName
+        // Resolve the tenant's section label (e.g. "Gulayan") first, then trim the generic suffix for the
+        // compact chip. sectionName is the canonical key from the server; SectionLabelOf falls back to it.
+        var resolved = Enum.TryParse<FacilityCode>(FacilityCode, ignoreCase: true, out var fc)
+            ? FacilityCatalog.SectionLabelOf(fc, sectionName)
+            : sectionName;
+        return resolved
             .Replace(" Section", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace(" Area", string.Empty, StringComparison.OrdinalIgnoreCase);
     }

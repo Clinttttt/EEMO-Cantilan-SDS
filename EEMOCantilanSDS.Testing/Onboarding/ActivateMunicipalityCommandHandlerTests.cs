@@ -84,6 +84,39 @@ namespace EEMOCantilanSDS.Testing.Onboarding
             });
 
         [Fact]
+        public async Task Activate_SeedsNpmSectionLabels_FromOnboardingConfig()
+        {
+            var options = Options();
+            var (cantilanId, carmenId) = await SeedRegistryAsync(options);
+
+            // Stage Carmen's onboarding config with tenant section names (freeform daily-stall sections).
+            using (var seed = new AppDbContext(options))
+            {
+                var draft = EEMOCantilanSDS.Domain.Entities.Onboarding.OnboardingDraft.Create(
+                    System.Guid.NewGuid(), "Carmen", "Surigao del Sur", "tok-carmen", System.DateTime.UtcNow.AddDays(7));
+                draft.UpdateConfig(
+                    "{\"facilities\":[{\"catalogKey\":\"public_market\",\"archetype\":\"DailyStall\",\"sections\":[{\"name\":\"Gulayan\"},{\"name\":\"Fish Vendors\"},{\"name\":\"Meat Section\"}]}]}",
+                    "LGU");
+                seed.OnboardingDrafts.Add(draft);
+                await seed.SaveChangesAsync();
+            }
+
+            using (var ctx = new AppDbContext(options, new FixedMunicipality(cantilanId)))
+            {
+                var result = await new ActivateMunicipalityCommandHandler(ctx, Operator(cantilanId), Email).Handle(CarmenConfig(), default);
+                Assert.True(result.IsSuccess);
+            }
+
+            using (var carmenCtx = new AppDbContext(options, new FixedMunicipality(carmenId)))
+            {
+                var npm = await carmenCtx.Facilities.FirstAsync(f => f.Code == FacilityCode.NPM);
+                Assert.Equal("Gulayan", npm.VegetableSectionLabel);        // first non-fish/non-meat = vegetable
+                Assert.Equal("Fish Vendors", npm.FishSectionLabel);
+                Assert.Equal("Meat Section", npm.MeatSectionLabel);
+            }
+        }
+
+        [Fact]
         public async Task Activate_GoesLive_And_CreatesScopedData()
         {
             var options = Options();

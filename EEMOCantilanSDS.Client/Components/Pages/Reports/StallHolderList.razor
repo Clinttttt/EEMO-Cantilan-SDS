@@ -309,13 +309,21 @@
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
 
-    private static string SectionDisplay(string name) => name switch
+    // Market-section headers show the tenant's label (e.g. "Gulayan") — the enum-name string stays the
+    // key from the server; only the DISPLAY is resolved. Sections exist only for NPM.
+    private string SectionDisplay(string name)
     {
-        "VegetableArea" => "Vegetable Area",
-        "FishSection" => "Fish Area",
-        "MeatSection" => "Meat Area",
-        _ => string.IsNullOrWhiteSpace(name) ? "All Stalls" : name
-    };
+        var section = name switch
+        {
+            "VegetableArea" => (MarketSection?)MarketSection.VegetableArea,
+            "FishSection" => MarketSection.FishSection,
+            "MeatSection" => MarketSection.MeatSection,
+            _ => null
+        };
+        return section is { } s
+            ? FacilityCatalog.SectionLabelOf(FacilityCode.NPM, s)
+            : (string.IsNullOrWhiteSpace(name) ? "All Stalls" : name);
+    }
 
     private static string FacilityName(FacilityCode code) => code switch
     {
