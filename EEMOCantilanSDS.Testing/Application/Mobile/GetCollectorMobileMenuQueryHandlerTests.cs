@@ -70,6 +70,31 @@ public class GetCollectorMobileMenuQueryHandlerTests
     }
 
     [Fact]
+    public async Task CustomFacility_WhenAssigned_IsAvailable_WithMonthlyRentalArchetype()
+    {
+        // Audit #1 — a tenant's custom facility (bills as MonthlyRental) must be openable on mobile, not locked.
+        var collector = CollectorUser.Create("Custom Col", "EEMO-9", "cc", "cc@x.gov", "09170000000", "Secret123!");
+        collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, Guid.NewGuid(), FacilityCode.Custom1));
+        var repo = new Mock<ICollectorRepository>();
+        repo.Setup(r => r.GetByIdAsync(collector.Id, It.IsAny<CancellationToken>())).ReturnsAsync(collector);
+        var facilityRepo = new Mock<IFacilityRepository>();
+        facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string> { [FacilityCode.Custom1] = "Fishery Economics" });
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
+        var handler = new GetCollectorMobileMenuQueryHandler(
+            repo.Object, facilityRepo.Object, Mock.Of<IMunicipalityRepository>(),
+            Mock.Of<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>(), currentUser.Object);
+
+        var result = await handler.Handle(new GetCollectorMobileMenuQuery(), CancellationToken.None);
+
+        var custom = result.Value!.Facilities.Single(f => f.Code == FacilityCode.Custom1);
+        Assert.True(custom.IsAssigned);
+        Assert.True(custom.IsAvailable);                                   // was locked before the fix
+        Assert.Equal(BillingArchetype.MonthlyRental, custom.Archetype);    // routes to the monthly screen
+    }
+
+    [Fact]
     public async Task NonCollectorUser_ReturnsForbidden()
     {
         var handler = new GetCollectorMobileMenuQueryHandler(

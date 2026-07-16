@@ -27,4 +27,5 @@ public sealed record MobileFacilityMenuItemDto(
     string Name,
     string Description,
     bool IsAssigned,
-    bool IsAvailable);
+    bool IsAvailable,
+    BillingArchetype Archetype = BillingArchetype.Custom);

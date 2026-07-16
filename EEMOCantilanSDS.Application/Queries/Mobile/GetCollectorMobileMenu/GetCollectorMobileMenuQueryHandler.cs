@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -38,12 +39,21 @@ public class GetCollectorMobileMenuQueryHandler(
         // IsAssigned drives the lock; IsAvailable additionally requires a built mobile collection screen.
         var facilities = names
             .OrderBy(kv => kv.Key)
-            .Select(kv => new MobileFacilityMenuItemDto(
-                kv.Key,
-                kv.Value,
-                GetFacilityDescription(kv.Key),
-                assigned.Contains(kv.Key),
-                assigned.Contains(kv.Key) && ImplementedMobileFacilities.Contains(kv.Key)))
+            .Select(kv =>
+            {
+                var archetype = Facility.DefaultArchetypeFor(kv.Key);
+                var isAssigned = assigned.Contains(kv.Key);
+                return new MobileFacilityMenuItemDto(
+                    kv.Key,
+                    kv.Value,
+                    GetFacilityDescription(kv.Key),
+                    isAssigned,
+                    // Available when assigned AND the billing archetype maps to a built mobile screen. Every
+                    // archetype except the unmapped "Custom" has one (custom FACILITIES bill as MonthlyRental
+                    // → the monthly screen), so a custom facility works end-to-end instead of being locked.
+                    isAssigned && archetype != BillingArchetype.Custom,
+                    archetype);
+            })
             .ToList();
 
         return Result<MobileMenuDto>.Success(new MobileMenuDto(
@@ -65,22 +75,6 @@ public class GetCollectorMobileMenuQueryHandler(
             ? null
             : new MobileBrandingDto(m.Name, m.Province, m.OfficeName, m.OfficeAcronym, m.SealPath);
     }
-
-    /// <summary>
-    /// Facilities whose mobile collection screen is implemented and ready to open.
-    /// Add a code here when its page + endpoints ship; the menu opens it automatically.
-    /// </summary>
-    private static readonly HashSet<FacilityCode> ImplementedMobileFacilities = new()
-    {
-        FacilityCode.NPM,
-        FacilityCode.TCC,
-        FacilityCode.NCC,
-        FacilityCode.BBQ,
-        FacilityCode.ICE,
-        FacilityCode.SLH,
-        FacilityCode.TRM,
-        FacilityCode.TPM
-    };
 
     private static string GetFacilityDescription(FacilityCode code) => code switch
     {

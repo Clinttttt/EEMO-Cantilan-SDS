@@ -74,7 +74,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         var results = new List<MobileCollectorRecordDto>();
 
         // ── Monthly stall rentals (TCC/NCC/BBQ/ICE) — collection event = PaidAt ──
-        if (all || facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE or FacilityCode.NPM)
+        if (all || facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE or FacilityCode.NPM
+                or FacilityCode.Custom1 or FacilityCode.Custom2 or FacilityCode.Custom3 or FacilityCode.Custom4 or FacilityCode.Custom5)
         {
             var q = context.PaymentRecords.AsNoTracking()
                 .Where(p => p.Status != PaymentStatus.Unpaid
@@ -1312,7 +1313,8 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         facility is FacilityCode.NPM or FacilityCode.SLH or FacilityCode.TRM or FacilityCode.TPM;
 
     private static bool IsMonthlyRentalFacility(FacilityCode facility) =>
-        facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE;
+        facility is FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE
+            or FacilityCode.Custom1 or FacilityCode.Custom2 or FacilityCode.Custom3 or FacilityCode.Custom4 or FacilityCode.Custom5;
 
     private static bool IsPaymentInDateRange(int billingYear, int billingMonth, DateOnly startDate, DateOnly endDate)
     {

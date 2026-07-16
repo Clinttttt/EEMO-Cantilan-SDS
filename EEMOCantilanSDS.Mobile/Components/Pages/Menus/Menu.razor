@@ -148,24 +148,23 @@
             return;
         }
 
-        switch (facility.Code)
+        // Route by billing ARCHETYPE, not a fixed code list, so a tenant's custom facility (which bills as
+        // MonthlyRental) opens the monthly collection screen instead of being unreachable.
+        switch (facility.Archetype)
         {
-            case FacilityCode.NPM:
+            case BillingArchetype.DailyStall:
                 Navigation.NavigateTo("/market", forceLoad: false);
                 break;
-            case FacilityCode.TCC:
-            case FacilityCode.NCC:
-            case FacilityCode.BBQ:
-            case FacilityCode.ICE:
+            case BillingArchetype.MonthlyRental:
                 Navigation.NavigateTo($"/collect/{facility.Code}", forceLoad: false);
                 break;
-            case FacilityCode.SLH:
+            case BillingArchetype.PerHead:
                 Navigation.NavigateTo("/slaughter", forceLoad: false);
                 break;
-            case FacilityCode.TRM:
+            case BillingArchetype.PerTrip:
                 Navigation.NavigateTo("/terminal", forceLoad: false);
                 break;
-            case FacilityCode.TPM:
+            case BillingArchetype.WeeklyMarket:
                 Navigation.NavigateTo("/taboan", forceLoad: false);
                 break;
         }
