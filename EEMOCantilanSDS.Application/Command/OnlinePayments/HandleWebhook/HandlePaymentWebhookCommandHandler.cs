@@ -13,12 +13,32 @@ public class HandlePaymentWebhookCommandHandler(
     IOnlinePaymentSettlementService settlementService,
     IUnitOfWork unitOfWork,
     IMunicipalityRepository municipalityRepository,
+    IPayMongoCredentialResolver credentialResolver,
     IRequestTenantScope tenantScope) : IRequestHandler<HandlePaymentWebhookCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(HandlePaymentWebhookCommand request, CancellationToken cancellationToken)
     {
-        // 1) Authenticity — fail closed. No signature (or no configured secret) => reject.
-        if (!paymentGateway.VerifyWebhookSignature(request.Payload, request.SignatureHeader ?? string.Empty))
+        // 1) Authenticity — fail closed. For a per-LGU webhook URL, pin that LGU FIRST and verify against
+        // ITS webhook secret; the default webhook (no tenant code) verifies against the global secret so
+        // Cantilan's path is byte-for-byte unchanged.
+        bool verified;
+        if (!string.IsNullOrWhiteSpace(request.TenantCode))
+        {
+            var lgu = await municipalityRepository.GetByIdentifierAsync(request.TenantCode!, cancellationToken);
+            if (lgu is null)
+                return Result<bool>.Unauthorized();
+
+            tenantScope.Use(lgu.Id, lgu.TenantCode);
+            var credentials = await credentialResolver.ResolveAsync(cancellationToken);
+            verified = paymentGateway.VerifyWebhookSignature(
+                request.Payload, request.SignatureHeader ?? string.Empty, credentials.WebhookSecret ?? string.Empty);
+        }
+        else
+        {
+            verified = paymentGateway.VerifyWebhookSignature(request.Payload, request.SignatureHeader ?? string.Empty);
+        }
+
+        if (!verified)
             return Result<bool>.Unauthorized();
 
         // 2) Parse into a normalized event.

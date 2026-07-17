@@ -27,6 +27,10 @@ public interface IPaymentGateway
     /// </summary>
     bool VerifyWebhookSignature(string payload, string signatureHeader);
 
+    /// <summary>Verifies the webhook signature against an EXPLICIT secret (per-LGU webhook). The two-arg
+    /// overload uses the global configured secret (the default LGU, Cantilan).</summary>
+    bool VerifyWebhookSignature(string payload, string signatureHeader, string webhookSecret);
+
     /// <summary>Parses a raw webhook payload into a normalized <see cref="PaymentGatewayEvent"/>.</summary>
     Result<PaymentGatewayEvent> ParseEvent(string payload);
 

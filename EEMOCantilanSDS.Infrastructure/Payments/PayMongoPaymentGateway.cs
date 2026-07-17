@@ -111,9 +111,12 @@ public sealed class PayMongoPaymentGateway(
         }
     }
 
-    public bool VerifyWebhookSignature(string payload, string signatureHeader)
+    public bool VerifyWebhookSignature(string payload, string signatureHeader) =>
+        VerifyWebhookSignature(payload, signatureHeader, configuration["PayMongo:WebhookSecret"] ?? string.Empty);
+
+    public bool VerifyWebhookSignature(string payload, string signatureHeader, string webhookSecret)
     {
-        var secret = configuration["PayMongo:WebhookSecret"];
+        var secret = webhookSecret;
         if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(signatureHeader) || string.IsNullOrEmpty(payload))
             return false;
 

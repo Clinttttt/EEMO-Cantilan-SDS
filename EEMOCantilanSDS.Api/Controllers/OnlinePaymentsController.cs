@@ -42,6 +42,23 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
     }
 
     /// <summary>
+    /// Per-LGU PayMongo webhook. An LGU that runs its own PayMongo account points its webhook here (with
+    /// its tenant code); authenticity is verified against THAT LGU's webhook secret. The default LGU
+    /// (Cantilan) keeps using the tenant-less <c>/webhook</c> endpoint + the global secret, unchanged.
+    /// </summary>
+    [HttpPost("webhook/{tenantCode}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<bool>> WebhookForTenantAsync(string tenantCode)
+    {
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+        var payload = await reader.ReadToEndAsync();
+        var signature = Request.Headers["Paymongo-Signature"].FirstOrDefault();
+
+        var result = await Sender.Send(new HandlePaymentWebhookCommand(payload, signature, tenantCode));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
     /// Reconciliation fallback (payor return). After GCash redirects the payor back, the success page
     /// calls this to verify the payment directly with PayMongo and settle it idempotently when paid —
     /// the safety net for when a webhook never arrives. The payor may only confirm their own payment.
