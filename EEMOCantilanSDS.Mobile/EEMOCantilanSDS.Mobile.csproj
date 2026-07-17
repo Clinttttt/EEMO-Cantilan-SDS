@@ -57,8 +57,8 @@
         <!-- App Icon — StallTrack seal on navy (was the default .NET bot) -->
         <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\stalltrackfg.png" Color="#0d2137" />
 
-        <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
+        <!-- Splash Screen — StallTrack seal on navy (was the default .NET bot on purple) -->
+        <MauiSplashScreen Include="Resources\Splash\stalltrack_splash.svg" Color="#0d2137" BaseSize="160,160" />
 
         <!-- Images -->
         <MauiImage Include="Resources\Images\*" />

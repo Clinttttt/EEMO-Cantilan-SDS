@@ -61,11 +61,16 @@ public sealed class StallTrackFirebaseMessagingService : FirebaseMessagingServic
                 PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
         }
 
+        // Resolve the branded monochrome notification icon by name (safe fallback if not found).
+#pragma warning disable CS0618 // GetIdentifier is the reliable cross-version lookup here.
+        var smallIcon = context.Resources?.GetIdentifier("ic_stat_stalltrack", "drawable", context.PackageName) ?? 0;
+#pragma warning restore CS0618
+
         var builder = new NotificationCompat.Builder(context, ChannelId)
             .SetContentTitle(title)
             .SetContentText(body)
-            // TODO: replace with a dedicated monochrome notification icon; the system icon guarantees a valid drawable for now.
-            .SetSmallIcon(Android.Resource.Drawable.SymDefAppIcon)
+            .SetSmallIcon(smallIcon != 0 ? smallIcon : Android.Resource.Drawable.SymDefAppIcon)
+            .SetColor(unchecked((int)0xFFC8A84B)) // gold tint, consistent with the app brand
             .SetAutoCancel(true)
             .SetPriority((int)NotificationPriority.High);
 
