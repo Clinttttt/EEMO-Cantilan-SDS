@@ -552,19 +552,34 @@
     // Sync events fire off the UI thread — marshal before touching component state.
     private bool _disposed;
 
+    // Tracks the queue size across Changed events so we can tell when an item actually left the queue
+    // (synced/removed) and therefore the server record list needs re-fetching.
+    private int _lastPendingCount = -1;
+
     private async void OnSyncChanged()
     {
         if (_disposed)
             return;
         try
         {
+            var previous = _lastPendingCount;
+            var current = Sync.PendingCount;
+            _lastPendingCount = current;
+            // Something left the queue (an offline capture just synced) → the server now has it recorded,
+            // so re-fetch the list so the paid row renders without a manual refresh.
+            var queueDrained = previous >= 0 && current < previous;
+
             await InvokeAsync(async () =>
             {
                 if (_disposed)
                     return;
                 if (ShowPendingSheet)
                     PendingOps = await Sync.GetAllAsync();
-                StateHasChanged();
+
+                if (queueDrained)
+                    await LoadRecordsAsync();
+                else
+                    StateHasChanged();
             });
         }
         catch
