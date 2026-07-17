@@ -27,7 +27,9 @@ namespace EEMOCantilanSDS.Api
                     && ctx.User.FindFirst(AppClaimTypes.Municipality)?.Value == TenantConstants.DefaultTenantCode));
             });
             service.AddSignalR();
-            service.AddScoped<IOnlinePaymentNotifier,SignalROnlinePaymentNotifier>();
+            service.AddScoped<SignalROnlinePaymentNotifier>();
+            service.AddScoped<CollectorPushOnlinePaymentNotifier>();
+            service.AddScoped<IOnlinePaymentNotifier, CompositeOnlinePaymentNotifier>();
             service.AddScoped<IPayorRealtimeNotifier,SignalRPayorRealtimeNotifier>();
             service.AddControllers()
                    .AddJsonOptions(o =>

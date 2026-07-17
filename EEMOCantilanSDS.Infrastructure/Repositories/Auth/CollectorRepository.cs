@@ -38,6 +38,17 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetActiveCollectorIdsByFacilityAsync(FacilityCode facilityCode, CancellationToken cancellationToken = default)
+    {
+        // Join assignments to ACTIVE collectors; the tenant query filter on both keeps this LGU-scoped.
+        return await context.CollectorFacilityAssignments
+            .Where(a => a.FacilityCode == facilityCode)
+            .Join(context.CollectorUsers.Where(c => c.IsActive),
+                  a => a.CollectorId, c => c.Id, (a, c) => c.Id)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+    }
+
     // The occupant whose contract term COVERED the record's period — active-agnostic, since the lessee at
     // that time may since have been replaced (a historical record must show who paid then, not today's
     // occupant). Falls back to the most recent contract, then "—".

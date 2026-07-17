@@ -33,4 +33,9 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
 
     public async Task<Result<string>> GetNextEmployeeIdAsync() =>
         await _http.GetPlainStringAsync("api/Collectors/next-employee-id");
+
+    public async Task<Result<int>> SendNotificationAsync(Guid collectorId, string title, string body) =>
+        await PostAsync<EEMOCantilanSDS.Application.Requests.Notifications.SendCollectorNotificationRequest, int>(
+            $"api/Notifications/collectors/{collectorId}/send",
+            new EEMOCantilanSDS.Application.Requests.Notifications.SendCollectorNotificationRequest(title, body));
 }

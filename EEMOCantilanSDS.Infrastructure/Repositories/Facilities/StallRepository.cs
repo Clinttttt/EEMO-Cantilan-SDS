@@ -568,6 +568,14 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
+    public async Task<FacilityCode?> GetFacilityCodeByStallIdAsync(Guid stallId, CancellationToken ct)
+    {
+        return await context.Stalls
+            .Where(s => s.Id == stallId)
+            .Select(s => (FacilityCode?)s.Facility!.Code)
+            .FirstOrDefaultAsync(ct);
+    }
+
     /// <summary>
     /// Inactive accounts register. CLOSED = Status==Closed (frozen by an admin). EXPIRED = active stall
     /// whose contract term has lapsed (ExpiryDate &lt; today). Lifetime collected counts ALL money ever

@@ -229,6 +229,9 @@
                                                 <button class="action-btn" title="View Activity" @onclick="() => OpenActivity(c)">
                                                     <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                                                 </button>
+                                                <button class="action-btn" title="Send message" @onclick="() => OpenMessage(c)">
+                                                    <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                                                </button>
                                                 <button class="action-btn @(c.IsActive ? "action-danger" : "action-success")"
                                                         title="@(c.IsActive ? "Deactivate" : "Activate")"
                                                         @onclick="() => ToggleStatus(c)">
@@ -485,6 +488,56 @@
 }
 
 
+<!-- ══════════════════════════════════════════════
+     SEND MESSAGE (PUSH NOTIFICATION)
+══════════════════════════════════════════════ -->
+@if (ShowMessage && MessageTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseMessage">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Send Message</div>
+                    <div class="eemo-modal-sub">Push a notification to @MessageTarget.FullName's device.</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="CloseMessage">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                <div class="form-group">
+                    <label class="form-label">Title <span class="req">*</span></label>
+                    <input class="form-input" type="text" placeholder="e.g. Reminder"
+                           @bind="MessageTitle" @bind:event="oninput" maxlength="80" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Message <span class="req">*</span></label>
+                    <textarea class="form-input" rows="3" placeholder="Type your message…"
+                              @bind="MessageBody" @bind:event="oninput" maxlength="300"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(MessageError))
+                {
+                    <div class="form-error">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        @MessageError
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(MessageInfo))
+                {
+                    <p class="confirm-text">@MessageInfo</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseMessage">Close</button>
+                <button class="btn-primary" disabled="@IsSending" @onclick="SendMessage">
+                    @(IsSending ? "Sending…" : "Send")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     private bool _loading = true;
@@ -709,5 +762,65 @@
         var result = await CollectorsApi.GetCollectorByIdAsync(c.Id);
         if (result.IsSuccess)
             ActivityDetails = result.Value;
+    }
+
+    // ── Send message (push notification) ────────────────────────────────────────
+    bool ShowMessage = false;
+    bool IsSending = false;
+    CollectorListDto? MessageTarget = null;
+    string MessageTitle = string.Empty;
+    string MessageBody = string.Empty;
+    string MessageError = string.Empty;
+    string MessageInfo = string.Empty;
+
+    void OpenMessage(CollectorListDto c)
+    {
+        MessageTarget = c;
+        MessageTitle = string.Empty;
+        MessageBody = string.Empty;
+        MessageError = string.Empty;
+        MessageInfo = string.Empty;
+        ShowMessage = true;
+    }
+
+    void CloseMessage()
+    {
+        ShowMessage = false;
+        MessageTarget = null;
+    }
+
+    async Task SendMessage()
+    {
+        if (MessageTarget is null) return;
+        if (string.IsNullOrWhiteSpace(MessageTitle)) { MessageError = "Title is required."; return; }
+        if (string.IsNullOrWhiteSpace(MessageBody)) { MessageError = "Message is required."; return; }
+
+        IsSending = true;
+        MessageError = string.Empty;
+        MessageInfo = string.Empty;
+        try
+        {
+            var result = await CollectorsApi.SendNotificationAsync(MessageTarget.Id, MessageTitle.Trim(), MessageBody.Trim());
+            if (result.IsSuccess)
+            {
+                MessageInfo = result.Value > 0
+                    ? $"Sent to {result.Value} device(s)."
+                    : "This collector has no registered device yet (they haven't signed in to the app).";
+                MessageTitle = string.Empty;
+                MessageBody = string.Empty;
+            }
+            else
+            {
+                MessageError = result.Error ?? "Failed to send the message.";
+            }
+        }
+        catch
+        {
+            MessageError = "Failed to send the message. Please try again.";
+        }
+        finally
+        {
+            IsSending = false;
+        }
     }
 }

@@ -14,4 +14,7 @@ public interface ICollectorsApiClient
     Task<Result<bool>> ToggleCollectorStatusAsync(Guid id, bool isActive);
     Task<Result<bool>> ResetCollectorPasswordAsync(Guid id, string newPassword, string confirmPassword);
     Task<Result<string>> GetNextEmployeeIdAsync();
+
+    /// <summary>Sends a push notification to a collector's devices. Returns the number of devices reached.</summary>
+    Task<Result<int>> SendNotificationAsync(Guid collectorId, string title, string body);
 }

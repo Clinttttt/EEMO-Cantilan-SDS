@@ -80,7 +80,8 @@ public class CollectorCommandHandlerTests
             user.Object,
             uow.Object,
             CacheTestDoubles.Invalidator,
-            CacheTestDoubles.Tenant);
+            CacheTestDoubles.Tenant,
+            new Mock<EEMOCantilanSDS.Application.Common.Interface.Services.IPushSender>().Object);
 
         var result = await handler.Handle(
             new UpdateCollectorCommand(collector.Id, "New Name", "0999", "new@eemo.gov", new() { FacilityCode.NPM, FacilityCode.TCC }),
@@ -91,5 +92,27 @@ public class CollectorCommandHandlerTests
         Assert.Equal("new@eemo.gov", collector.Email);
         Assert.Equal(new[] { FacilityCode.NPM, FacilityCode.TCC }, replacedWith);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_NewlyAssignedFacility_PushesToCollector()
+    {
+        var collector = NewCollector(); // no existing assignments
+        var (repo, user, uow) = Mocks(collector);
+        repo.Setup(r => r.ReplaceFacilityAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<List<FacilityCode>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var push = new Mock<IPushSender>();
+        var handler = new UpdateCollectorCommandHandler(
+            repo.Object, user.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, push.Object);
+
+        var result = await handler.Handle(
+            new UpdateCollectorCommand(collector.Id, "N", "0999", "n@eemo.gov", new() { FacilityCode.NPM }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        push.Verify(p => p.SendToCollectorAsync(
+            collector.Id, It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<IReadOnlyDictionary<string, string>?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

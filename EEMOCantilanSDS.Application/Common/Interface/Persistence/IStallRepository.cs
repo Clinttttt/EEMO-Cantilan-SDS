@@ -35,6 +35,9 @@ public interface IStallRepository
     /// </summary>
     Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
+    /// <summary>The facility code that a stall belongs to, or null if the stall is not found. Used to route
+    /// online-payment notifications to that facility's assigned collectors.</summary>
+    Task<FacilityCode?> GetFacilityCodeByStallIdAsync(Guid stallId, CancellationToken ct);
     Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct);
     /// <summary>
     /// All stalls in a facility (section-scoped for NPM) with their contracts, TRACKED — used by bulk

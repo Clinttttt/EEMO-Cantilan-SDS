@@ -43,4 +43,7 @@ public interface ICollectorRepository
     Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default);
     Task AddFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
     Task ReplaceFacilityAssignmentsAsync(Guid collectorId, List<FacilityCode> facilityCodes, CancellationToken cancellationToken = default);
+
+    /// <summary>Ids of ACTIVE collectors assigned to a facility (for routing notifications to them).</summary>
+    Task<IReadOnlyList<Guid>> GetActiveCollectorIdsByFacilityAsync(FacilityCode facilityCode, CancellationToken cancellationToken = default);
 }
