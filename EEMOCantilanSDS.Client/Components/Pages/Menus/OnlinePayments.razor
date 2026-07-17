@@ -43,23 +43,10 @@
                         <div class="op-setup-title">Set up your online payment account</div>
                         <div class="op-setup-sub">Connect your municipality's PayMongo account so collections settle to you.</div>
                     </div>
-                    <button type="button" class="op-help-btn @(_showHelp ? "active" : "")" title="How to set this up" @onclick="() => _showHelp = !_showHelp">
+                    <button type="button" class="op-help-btn" title="How to set this up" @onclick="() => _showHelp = true">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
                     </button>
                 </div>
-
-                @if (_showHelp)
-                {
-                    <div class="op-help">
-                        <div class="op-help-title">How to configure</div>
-                        <ol class="op-help-steps">
-                            <li>Sign in to your PayMongo dashboard.</li>
-                            <li>Copy your <b>Secret key</b> (and Public key) into the fields below.</li>
-                            <li>In PayMongo → Developers → Webhooks, add a webhook to <span class="op-mono">…/onlinepayments/webhook/@Branding.TenantCode</span> and paste its <b>signing secret</b> into Webhook Secret.</li>
-                            <li>Save — your online collections then settle to your own account.</li>
-                        </ol>
-                    </div>
-                }
 
                 <div class="form-group">
                     <label class="form-label">Secret Key</label>
@@ -92,6 +79,55 @@
                 </div>
             </div>
         </div>
+
+        @if (_showHelp)
+        {
+            <div class="eemo-modal-overlay" @onclick="() => _showHelp = false">
+                <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+                    <div class="eemo-modal-header">
+                        <div class="eemo-modal-title">Set up online payments</div>
+                        <button class="eemo-modal-close" @onclick="() => _showHelp = false">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        </button>
+                    </div>
+                    <div class="eemo-modal-body">
+                        <ol class="op-steps">
+                            <li class="op-step">
+                                <span class="op-step-no">1</span>
+                                <div class="op-step-main">
+                                    <div class="op-step-title">Sign in to PayMongo</div>
+                                    <div class="op-step-text">Log in to your PayMongo dashboard, or create your municipality's account.</div>
+                                </div>
+                            </li>
+                            <li class="op-step">
+                                <span class="op-step-no">2</span>
+                                <div class="op-step-main">
+                                    <div class="op-step-title">Copy your API keys</div>
+                                    <div class="op-step-text">In <b>Developers → API Keys</b>, copy your Secret key (and, optionally, your Public key) into the fields on this page.</div>
+                                </div>
+                            </li>
+                            <li class="op-step">
+                                <span class="op-step-no">3</span>
+                                <div class="op-step-main">
+                                    <div class="op-step-title">Add a webhook</div>
+                                    <div class="op-step-text">In <b>Developers → Webhooks</b>, add a webhook to <span class="op-mono">…/onlinepayments/webhook/@Branding.TenantCode</span>, then paste its signing secret into Webhook Secret.</div>
+                                </div>
+                            </li>
+                            <li class="op-step">
+                                <span class="op-step-no">4</span>
+                                <div class="op-step-main">
+                                    <div class="op-step-title">Save</div>
+                                    <div class="op-step-text">Your online collections then settle straight to your own account.</div>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                    <div class="eemo-modal-footer">
+                        <button class="btn-primary" @onclick="() => _showHelp = false">Got it</button>
+                    </div>
+                </div>
+            </div>
+        }
     }
     else
     {
