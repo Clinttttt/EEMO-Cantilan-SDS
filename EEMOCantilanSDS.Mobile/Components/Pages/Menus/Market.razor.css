@@ -669,10 +669,8 @@
     margin-top: 8px;
 }
 
-/* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
-.header-row {
-    padding-right: 66px;
-}
+/* The municipality seal is now an in-flow flex child of .header-row (see eemo.css .header-logo),
+   so no right-reserve is needed. */
 
 
 /* ── Payor activation-code action inside the daily collection sheet ── */

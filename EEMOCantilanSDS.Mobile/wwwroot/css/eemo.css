@@ -1784,13 +1784,13 @@ html, body, #app {
     margin-top: 2px;
 }
 
-/* Municipality seal — anchored top-right of the page header (letterhead style),
-   vertically centred against the eyebrow + title so spacing stays balanced. */
+/* Municipality seal — right-aligned in the header row (letterhead style). It is an IN-FLOW flex child of
+   .header-row, so the row's `align-items:center` vertically centres it against the back button + title.
+   (Absolute `top:50%` positioning centred it over the tall safe-area top padding, pushing it up onto the
+   eyebrow — this is the professional fix.) */
 .header-logo {
-    position: absolute;
-    top: 50%;
-    right: 24px;
-    transform: translateY(-50%);
+    margin-left: auto;
+    flex-shrink: 0;
     width: 54px;
     height: 54px;
     border-radius: 50%;

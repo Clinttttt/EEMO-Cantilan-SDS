@@ -516,6 +516,4 @@
 }
 
 /* Reserve room at the right of the header for the municipality seal (absolute-positioned). */
-.header-row {
-    padding-right: 66px;
-}
+/* Seal is an in-flow flex child of .header-row (eemo.css .header-logo); no right-reserve needed. */
