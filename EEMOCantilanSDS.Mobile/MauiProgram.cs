@@ -42,7 +42,9 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddHttpClient<ICollectorAuthApiClient, CollectorAuthApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
-                client.Timeout = TimeSpan.FromSeconds(10);
+                // Login may need to wake the production database and run password verification.
+                // Keep the timeout bounded, but do not fail a valid sign-in during a brief Azure delay.
+                client.Timeout = TimeSpan.FromSeconds(30);
                 // ngrok free tier shows an HTML interstitial to browser-like requests; this header skips it
                 // so JSON responses come through clean. Harmless on localhost (unknown header is ignored).
                 client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
@@ -62,6 +64,7 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddHttpClient<MobileApiClient>(client =>
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
+                // Keep reads short so transient failures fall back to the offline cache promptly.
                 client.Timeout = TimeSpan.FromSeconds(10);
                 client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             })
@@ -86,10 +89,9 @@ namespace EEMOCantilanSDS.Mobile
         internal static string GetApiBaseUrl()
         {
 #if DEBUG
-            // ── Development only ──────────────────────────────────────────────────────────────────────
-            // Optional tunnel override so a physical device can reach the dev machine's API (ngrok is HTTPS).
-            // Set to empty to fall back to the emulator/localhost hosts below.
-            const string ApiBaseUrlOverride = "https://unwound-urban-senate.ngrok-free.dev/";
+            // ── Production Now!! ──────────────────────────────────────────────────────────────────────
+            
+            const string ApiBaseUrlOverride = "https://api.stalltrack.site/";
             if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
                 return ApiBaseUrlOverride;
 

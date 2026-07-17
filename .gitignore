@@ -373,3 +373,7 @@ FodyWeavers.xsd
 !EEMOCantilanSDS.Application/Queries/Backup/
 !EEMOCantilanSDS.Application/Requests/Backup/
 !EEMOCantilanSDS.Application/**/Backup/**
+
+# Database backup dumps — never commit (contain tenant financial/PII data)
+*.dump
+_stalltrack_backup_*.dump
