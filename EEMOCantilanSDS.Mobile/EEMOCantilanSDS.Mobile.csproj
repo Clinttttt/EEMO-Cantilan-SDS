@@ -29,7 +29,7 @@
         <MauiXamlInflator>SourceGen</MauiXamlInflator>
 
         <!-- Display name -->
-        <ApplicationTitle>EEMOCantilanSDS.Mobile</ApplicationTitle>
+        <ApplicationTitle>StallTrack</ApplicationTitle>
 
         <!-- App Identifier -->
         <ApplicationId>site.stalltrack.collector</ApplicationId>
@@ -54,8 +54,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+        <!-- App Icon — StallTrack seal on navy (was the default .NET bot) -->
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\stalltrackfg.png" Color="#0d2137" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
