@@ -219,6 +219,69 @@
                     <div class="set-note">Rates are versioned by effectivity date, so a mid-term change never alters past billing.</div>
                 </section>
             }
+            <!-- ── Online Payment Account (per-LGU PayMongo) — the LGU Head configures their own account ── -->
+            @if (_isHead)
+            {
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Online Payment Account</div>
+                            <div class="set-card-sub">Your own PayMongo account for online collections</div>
+                        </div>
+                    </div>
+                    <div class="set-rows">
+                        <div class="set-row">
+                            <span class="set-key">Status</span>
+                            <span class="set-val">
+                                @if (_payment?.HasOwnAccount == true)
+                                {
+                                    <span class="set-pill pill-ok">Using your own PayMongo account</span>
+                                }
+                                else
+                                {
+                                    <span>Using the platform default account</span>
+                                }
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_payment?.PublicKey))
+                        {
+                            <div class="set-row"><span class="set-key">Public key</span><span class="set-val mono">@_payment!.PublicKey</span></div>
+                        }
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Secret Key</label>
+                        <input class="form-input" type="password" autocomplete="off" placeholder="sk_live_…" @bind="_paySecret" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Public Key <span style="opacity:.6">(optional)</span></label>
+                        <input class="form-input" type="text" autocomplete="off" placeholder="pk_live_…" @bind="_payPublic" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Webhook Secret <span style="opacity:.6">(optional)</span></label>
+                        <input class="form-input" type="password" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_payError))
+                    {
+                        <div class="form-error">@_payError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_payMsg))
+                    {
+                        <div class="set-note" style="color:var(--green);">@_payMsg</div>
+                    }
+
+                    <div class="set-links" style="gap:10px;">
+                        <button class="btn-primary" disabled="@_paySaving" @onclick="SavePaymentAsync">@(_paySaving ? "Saving…" : "Save payment account")</button>
+                        @if (_payment?.HasOwnAccount == true)
+                        {
+                            <button class="btn-ghost" disabled="@_paySaving" @onclick="RevertPaymentAsync">Revert to platform default</button>
+                        }
+                    </div>
+                    <div class="set-note">Enter the keys from your own PayMongo dashboard — your online collections then settle to your account. Secrets are encrypted at rest and never shown back; to change one, re-enter it.</div>
+                </section>
+            }
             <!-- ── Storage usage (this municipality only) — every Head ── -->
             @if (_isHead)
             {
@@ -377,6 +440,15 @@
     private bool _isPlatformOperator;
     private bool _isHead;
 
+    // ── Online Payment Account (per-LGU PayMongo) ───────────────────────────────
+    private PaymentSettingsDto? _payment;
+    private string _paySecret = string.Empty;
+    private string _payPublic = string.Empty;
+    private string _payWebhook = string.Empty;
+    private bool _paySaving;
+    private string? _payMsg;
+    private string? _payError;
+
     private async Task SignOutAsync()
     {
         _loggingOut = true;
@@ -404,6 +476,11 @@
         // The LGU Head (SuperAdmin of ANY tenant) manages their own facilities — unlike the platform-only
         // database/backup tools, this is available to every LGU's Head.
         _isHead = isSuperAdmin;
+
+        if (_isHead)
+        {
+            await LoadPaymentAsync();
+        }
 
         if (CachedSettings is not null)
         {
@@ -437,5 +514,88 @@
     {
         await InvokeAsync(StateHasChanged);
         await Task.Yield();
+    }
+
+    // ── Payment account (per-LGU PayMongo) ──────────────────────────────────────
+    private async Task LoadPaymentAsync()
+    {
+        var result = await SettingsApi.GetPaymentSettingsAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _payment = result.Value;
+            _payPublic = _payment.PublicKey ?? string.Empty;
+        }
+    }
+
+    private async Task SavePaymentAsync()
+    {
+        _payError = null;
+        _payMsg = null;
+
+        if (string.IsNullOrWhiteSpace(_paySecret))
+        {
+            _payError = "Enter your PayMongo secret key — or use ‘Revert to platform default’ to clear it.";
+            return;
+        }
+
+        _paySaving = true;
+        try
+        {
+            var result = await SettingsApi.SavePaymentCredentialsAsync(
+                _paySecret.Trim(),
+                string.IsNullOrWhiteSpace(_payPublic) ? null : _payPublic.Trim(),
+                string.IsNullOrWhiteSpace(_payWebhook) ? null : _payWebhook.Trim());
+
+            if (result.IsSuccess)
+            {
+                _paySecret = string.Empty;
+                _payWebhook = string.Empty;
+                _payMsg = "Saved. Your online collections now settle to your own PayMongo account.";
+                await LoadPaymentAsync();
+            }
+            else
+            {
+                _payError = result.Error ?? "Couldn't save the payment account.";
+            }
+        }
+        catch
+        {
+            _payError = "Couldn't save the payment account. Please try again.";
+        }
+        finally
+        {
+            _paySaving = false;
+        }
+    }
+
+    private async Task RevertPaymentAsync()
+    {
+        _payError = null;
+        _payMsg = null;
+        _paySaving = true;
+        try
+        {
+            var result = await SettingsApi.SavePaymentCredentialsAsync(null, null, null);
+            if (result.IsSuccess)
+            {
+                _paySecret = string.Empty;
+                _payPublic = string.Empty;
+                _payWebhook = string.Empty;
+                _payMsg = "Reverted to the platform default account.";
+                await LoadPaymentAsync();
+            }
+            else
+            {
+                _payError = result.Error ?? "Couldn't revert to the default account.";
+            }
+        }
+        catch
+        {
+            _payError = "Couldn't revert. Please try again.";
+        }
+        finally
+        {
+            _paySaving = false;
+        }
     }
 }
