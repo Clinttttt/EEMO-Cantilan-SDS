@@ -32,7 +32,7 @@
         <ApplicationTitle>EEMOCantilanSDS.Mobile</ApplicationTitle>
 
         <!-- App Identifier -->
-        <ApplicationId>com.companyname.eemocantilansds.mobile</ApplicationId>
+        <ApplicationId>site.stalltrack.collector</ApplicationId>
 
         <!-- Versions -->
         <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
@@ -77,6 +77,14 @@
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.4" />
         <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+    </ItemGroup>
+
+    <!-- Android-only: Firebase Cloud Messaging (push notifications). The google-services.json is
+         registered so the .NET Android build generates the Firebase resource values, and the app
+         auto-initializes via Firebase's init provider. FCM is free (Spark plan). -->
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+        <GoogleServicesJson Include="Platforms\Android\google-services.json" />
+        <PackageReference Include="Xamarin.Firebase.Messaging" Version="125.1.1" />
     </ItemGroup>
 
     <ItemGroup>
