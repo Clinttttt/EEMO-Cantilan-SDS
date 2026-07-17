@@ -215,15 +215,67 @@
 
 
 
-/* ── Online payment account: centered first-time setup + compact status ── */
+/* ── Online payment account: centered first-time setup card + compact status ── */
 .op-setup {
     display: flex;
     justify-content: center;
-    padding: 8px 0 4px;
+    padding: 24px 0 8px;
 }
 
 .op-setup-card {
     width: min(560px, 100%);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px 28px 24px;
+    box-shadow: 0 14px 36px rgba(13, 33, 55, 0.09);
+    position: relative;
+    overflow: hidden;
+}
+
+    /* subtle gold/navy letterhead accent */
+    .op-setup-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--navy), var(--gold), var(--navy));
+    }
+
+.op-setup-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.op-setup-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    background: var(--navy);
+    color: var(--gold-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .op-setup-badge svg {
+        width: 22px;
+        height: 22px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.op-setup-head-text {
+    flex: 1;
+    min-width: 0;
 }
 
 .op-setup-title {
@@ -233,11 +285,65 @@
 }
 
 .op-setup-sub {
-    margin-top: 4px;
-    margin-bottom: 20px;
+    margin-top: 3px;
     font-size: 0.85rem;
     color: var(--text-subtle);
 }
+
+.op-help-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+    .op-help-btn:hover { color: var(--navy); border-color: var(--gold); }
+    .op-help-btn.active { background: var(--navy); color: var(--gold-light); border-color: var(--navy); }
+
+    .op-help-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.op-help {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+
+.op-help-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.op-help-steps {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.84rem;
+    color: var(--text-subtle);
+    line-height: 1.7;
+}
+
+    .op-help-steps li { margin-bottom: 3px; }
 
 .op-opt {
     color: var(--text-subtle);
@@ -247,14 +353,8 @@
 .op-setup-actions {
     display: flex;
     gap: 10px;
-    margin-top: 6px;
+    margin-top: 8px;
     flex-wrap: wrap;
-}
-
-.op-setup-hint {
-    margin-top: 16px;
-    font-size: 0.8rem;
-    color: var(--text-subtle);
 }
 
 .op-account {
@@ -267,7 +367,7 @@
     padding: 0.7rem 1rem;
     border-radius: 10px;
     font-size: 0.88rem;
-    background: var(--bg-card, #fff);
+    background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text);
 }

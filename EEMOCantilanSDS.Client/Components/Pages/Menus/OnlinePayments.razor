@@ -34,9 +34,32 @@
     @if (_isHead && _paymentLoaded && _showSetup)
     {
         <div class="op-setup">
-            <div class="section-card op-setup-card">
-                <div class="op-setup-title">Set up your online payment account</div>
-                <div class="op-setup-sub">Connect your municipality's PayMongo account so collections settle to you.</div>
+            <div class="op-setup-card">
+                <div class="op-setup-head">
+                    <div class="op-setup-badge">
+                        <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
+                    </div>
+                    <div class="op-setup-head-text">
+                        <div class="op-setup-title">Set up your online payment account</div>
+                        <div class="op-setup-sub">Connect your municipality's PayMongo account so collections settle to you.</div>
+                    </div>
+                    <button type="button" class="op-help-btn @(_showHelp ? "active" : "")" title="How to set this up" @onclick="() => _showHelp = !_showHelp">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                    </button>
+                </div>
+
+                @if (_showHelp)
+                {
+                    <div class="op-help">
+                        <div class="op-help-title">How to configure</div>
+                        <ol class="op-help-steps">
+                            <li>Sign in to your PayMongo dashboard.</li>
+                            <li>Copy your <b>Secret key</b> (and Public key) into the fields below.</li>
+                            <li>In PayMongo → Developers → Webhooks, add a webhook to <span class="op-mono">…/onlinepayments/webhook/@Branding.TenantCode</span> and paste its <b>signing secret</b> into Webhook Secret.</li>
+                            <li>Save — your online collections then settle to your own account.</li>
+                        </ol>
+                    </div>
+                }
 
                 <div class="form-group">
                     <label class="form-label">Secret Key</label>
@@ -67,8 +90,6 @@
                         <button class="btn-ghost" disabled="@_paySaving" @onclick="RevertPaymentAsync">Revert to default</button>
                     }
                 </div>
-
-                <div class="op-setup-hint">Webhook URL <span class="op-mono">…/onlinepayments/webhook/@Branding.TenantCode</span></div>
             </div>
         </div>
     }
@@ -189,6 +210,7 @@
     private bool _isHead;
     private bool _isDefaultTenant;
     private bool _showSetup;
+    private bool _showHelp;
     private string _paySecret = string.Empty;
     private string _payPublic = string.Empty;
     private string _payWebhook = string.Empty;
