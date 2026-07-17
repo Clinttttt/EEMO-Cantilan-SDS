@@ -13,6 +13,7 @@ public interface IMobileApiClient
     Task<Result<MobileMenuDto>> GetMenuAsync();
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
+    Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);

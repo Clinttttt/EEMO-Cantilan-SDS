@@ -118,6 +118,7 @@ public sealed class MobileSessionService(
         // Fire-and-forget + best-effort: the hub is a non-critical enhancement, so a slow/unreachable
         // tunnel must never block (or hang) session/menu loading. It self-heals via its own retry.
         _ = paymentHub.StartAsync();
+        EnsureFcmRegistration();
         return null;
     }
 
@@ -178,6 +179,45 @@ public sealed class MobileSessionService(
         tokenStore.Clear();
         Menu = null;
         await paymentHub.StopAsync();
+    }
+
+    // ── Push notifications: register this device's FCM token with the API ───────────────────────────────
+    // The token is captured by the platform (Android) into FcmTokenBridge. Once authenticated we register
+    // it under the signed-in collector; a rotation (TokenRefreshed) re-registers. All best-effort: push
+    // registration must never block or break login/menu. Non-Android platforms have no token → no-op.
+    private bool _fcmHooked;
+
+    private void EnsureFcmRegistration()
+    {
+        if (!_fcmHooked)
+        {
+            _fcmHooked = true;
+            FcmTokenBridge.TokenRefreshed += token => _ = TryRegisterFcmTokenAsync(token);
+        }
+
+        var current = FcmTokenBridge.CurrentToken;
+        if (!string.IsNullOrWhiteSpace(current))
+        {
+            _ = TryRegisterFcmTokenAsync(current);
+        }
+    }
+
+    private async Task TryRegisterFcmTokenAsync(string token)
+    {
+        try
+        {
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(token))
+            {
+                return;
+            }
+
+            await mobileApiClient.RegisterDeviceTokenAsync(
+                new EEMOCantilanSDS.Application.Requests.Mobile.RegisterDeviceTokenRequest(token, "android"));
+        }
+        catch
+        {
+            // Best-effort only — a failed push registration must never surface to the collector.
+        }
     }
 
     // ── Device-local collector preferences ─────────────────────────────────────────────────────────────

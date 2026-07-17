@@ -20,6 +20,9 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request) =>
         await PutAsync<UpdateMobileProfileRequest, bool>("api/Mobile/profile", request);
 
+    public async Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request) =>
+        await PostAsync<RegisterDeviceTokenRequest, bool>("api/Mobile/device-token", request);
+
     public async Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to)
     {
         var facilityParam = facility.HasValue ? $"facility={facility}&" : string.Empty;
