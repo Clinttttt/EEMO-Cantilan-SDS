@@ -212,3 +212,68 @@
         animation: none;
     }
 }
+
+
+
+/* ── Online payment account: centered first-time setup + compact status ── */
+.op-setup {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 4px;
+}
+
+.op-setup-card {
+    width: min(560px, 100%);
+}
+
+.op-setup-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.op-setup-sub {
+    margin-top: 4px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+}
+
+.op-opt {
+    color: var(--text-subtle);
+    font-weight: 400;
+}
+
+.op-setup-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.op-setup-hint {
+    margin-top: 16px;
+    font-size: 0.8rem;
+    color: var(--text-subtle);
+}
+
+.op-account {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding: 0.7rem 1rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.op-account.is-own {
+    background: var(--green-bg);
+    color: var(--green);
+    border-color: color-mix(in srgb, var(--green) 30%, transparent);
+}
