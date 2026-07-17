@@ -66,6 +66,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IAdminRepository, AdminRepository>();
             service.AddScoped<ICollectorRepository, CollectorRepository>();
             service.AddScoped<ICollectorDeviceTokenRepository, CollectorDeviceTokenRepository>();
+            service.AddScoped<IPushSender, EEMOCantilanSDS.Infrastructure.Services.FcmPushSender>();
             service.AddScoped<IStallRepository, StallRepository>();
             service.AddScoped<IFacilityRepository, FacilityRepository>();
             service.AddScoped<IMunicipalityRepository, MunicipalityRepository>();
