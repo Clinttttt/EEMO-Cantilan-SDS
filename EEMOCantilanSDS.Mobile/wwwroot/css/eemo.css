@@ -1744,7 +1744,6 @@ html, body, #app {
     display: flex;
     align-items: center;
     gap: 12px;
-    position: relative;
     padding-right: 66px; /* reserve room for the absolutely-positioned .header-logo seal */
 }
 
@@ -1787,13 +1786,16 @@ html, body, #app {
 }
 
 /* Municipality seal — right-aligned in the header (letterhead style). Absolutely positioned so it NEVER
-   affects the header height/spacing, and anchored to .header-row (not .header) so `top:50%` centres it on
-   the title row rather than over the tall safe-area top padding (which pushed it up onto the eyebrow). */
+   affects header height/spacing. It is centred within the CONTENT box (eyebrow + title row) by pinning to
+   the header's exact padding edges and letting auto margins centre a fixed-height box — this excludes the
+   safe-area top padding from the centring, so it sits neither high (on the eyebrow) nor low (on the title).
+   Anchored to .header (which is position:relative); .header-row must NOT be positioned. */
 .header-logo {
     position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
+    top: calc(env(safe-area-inset-top, 20px) + 16px); /* = .header padding-top */
+    bottom: 16px;                                      /* = .header padding-bottom */
+    right: 24px;                                       /* = .header padding-right */
+    margin: auto 0;
     width: 54px;
     height: 54px;
     border-radius: 50%;
