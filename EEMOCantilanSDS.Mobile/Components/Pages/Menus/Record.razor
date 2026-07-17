@@ -350,12 +350,14 @@
                     var label = i == 0 ? "Today" : i == 1 ? "Yesterday" : d.ToString("M/d");
                     return new Chip(i.ToString(), label);
                 }).ToList()
-            : new List<Chip>
+            : Enumerable.Range(0, 12).Select(i =>
                 {
-                    new("0", $"This Month ({DateTime.Now:MMM})"),
-                    new("1", $"Last Month ({DateTime.Now.AddMonths(-1):MMM})"),
-                    new("2", $"{DateTime.Now.AddMonths(-2):MMM}")
-                };
+                    var d = DateTime.Now.AddMonths(-i);
+                    var label = i == 0
+                        ? $"This Month ({d:MMM})"
+                        : d.Year == DateTime.Now.Year ? d.ToString("MMM") : d.ToString("MMM yyyy");
+                    return new Chip(i.ToString(), label);
+                }).ToList();
 
     string ActivePeriodLabel => PeriodChips.FirstOrDefault(c => c.Key == ActivePeriodKey)?.Label ?? "this period";
 
