@@ -1,9 +1,12 @@
 @page "/online-payments"
 @using Microsoft.AspNetCore.Authorization
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Dtos.Settings
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
+@inject ISettingsApiClient SettingsApi
+@inject AuthenticationStateProvider AuthState
 
 <PageTitle>@Branding.OfficeAcronym Admin — Online Payments</PageTitle>
 
@@ -26,6 +29,66 @@
 </header>
 
 <div class="content-area">
+
+    @* Per-LGU online-payment account (Head only): first-time setup, or a compact status once configured. *@
+    @if (_isHead && _paymentLoaded)
+    {
+        @if (_showSetup)
+        {
+            <div class="section-card">
+                <div class="op-intro" style="margin-bottom:14px;">
+                    <div class="op-intro-title">Set up your online payment account</div>
+                    <div class="op-intro-sub">Connect your municipality's own PayMongo account so online collections settle to your account — not the platform's.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Secret Key</label>
+                    <input class="form-input" type="password" autocomplete="off" placeholder="sk_live_…" @bind="_paySecret" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Public Key <span style="opacity:.6">(optional)</span></label>
+                    <input class="form-input" type="text" autocomplete="off" placeholder="pk_live_…" @bind="_payPublic" @bind:event="oninput" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Webhook Secret <span style="opacity:.6">(optional)</span></label>
+                    <input class="form-input" type="password" autocomplete="off" placeholder="whsk_…" @bind="_payWebhook" @bind:event="oninput" />
+                </div>
+                @if (!string.IsNullOrEmpty(_payError))
+                {
+                    <div class="op-banner op-banner-error">@_payError</div>
+                }
+                @if (!string.IsNullOrEmpty(_payMsg))
+                {
+                    <div class="op-banner op-banner-ok">@_payMsg</div>
+                }
+                <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                    <button class="btn-primary" disabled="@_paySaving" @onclick="SavePaymentAsync">@(_paySaving ? "Saving…" : "Save payment account")</button>
+                    @if (_payment?.HasOwnAccount == true || _isDefaultTenant)
+                    {
+                        <button class="btn-ghost" disabled="@_paySaving" @onclick="() => _showSetup = false">Cancel</button>
+                    }
+                    @if (_payment?.HasOwnAccount == true)
+                    {
+                        <button class="btn-ghost" disabled="@_paySaving" @onclick="RevertPaymentAsync">Revert to platform default</button>
+                    }
+                </div>
+                <div class="op-intro-sub" style="margin-top:14px;">
+                    Get these from your PayMongo dashboard. Then set your PayMongo <b>webhook URL</b> to
+                    <span class="op-mono">https://api.stalltrack.site/api/onlinepayments/webhook/@Branding.TenantCode</span>.
+                    Secrets are encrypted at rest and never shown back — to change one, re-enter it.
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="op-banner @(_payment?.HasOwnAccount == true ? "op-banner-ok" : "")" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                <span>@(_payment?.HasOwnAccount == true
+                    ? "Online payments settle to your own PayMongo account."
+                    : "Online payments use the platform's default account.")</span>
+                <button class="btn-ghost" @onclick="OpenSetup">@(_payment?.HasOwnAccount == true ? "Update account" : "Configure account")</button>
+            </div>
+        }
+    }
+
     <div class="op-intro">
         <div class="op-intro-title">Online payments received — awaiting Official Receipt</div>
         <div class="op-intro-sub">
@@ -126,6 +189,19 @@
     private List<OnlinePaymentAwaitingOrDto> Items = new();
     private readonly Dictionary<Guid, string> _orInputs = new();
 
+    // ── Per-LGU online-payment account (Head only) ──────────────────────────────
+    private PaymentSettingsDto? _payment;
+    private bool _paymentLoaded;
+    private bool _isHead;
+    private bool _isDefaultTenant;
+    private bool _showSetup;
+    private string _paySecret = string.Empty;
+    private string _payPublic = string.Empty;
+    private string _payWebhook = string.Empty;
+    private bool _paySaving;
+    private string? _payMsg;
+    private string? _payError;
+
     [PersistentState(AllowUpdates = true)]
     public List<OnlinePaymentAwaitingOrDto>? CachedItems { get; set; }
 
@@ -134,6 +210,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Payment-account section (Head only) — load before the cached-items early return so it always shows.
+        await Branding.EnsureLoadedAsync();
+        _isDefaultTenant = Branding.IsDefaultTenant;
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        _isHead = authState.User.IsInRole("SuperAdmin")
+            || authState.User.Claims.Any(c =>
+                string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+        if (_isHead)
+            await LoadPaymentAsync();
+
         if (CachedItems is not null)
         {
             Items = CachedItems;
@@ -142,6 +229,99 @@
         }
 
         await LoadAsync(paintLoading: true);
+    }
+
+    private async Task LoadPaymentAsync()
+    {
+        var result = await SettingsApi.GetPaymentSettingsAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _payment = result.Value;
+            _payPublic = _payment.PublicKey ?? string.Empty;
+            // First-time: a non-default LGU that hasn't connected its own account yet.
+            _showSetup = !_payment.HasOwnAccount && !_isDefaultTenant;
+        }
+        _paymentLoaded = true;
+    }
+
+    private void OpenSetup()
+    {
+        _payError = null;
+        _payMsg = null;
+        _showSetup = true;
+    }
+
+    private async Task SavePaymentAsync()
+    {
+        _payError = null;
+        _payMsg = null;
+        if (string.IsNullOrWhiteSpace(_paySecret))
+        {
+            _payError = "Enter your PayMongo secret key — or use ‘Revert to platform default’.";
+            return;
+        }
+
+        _paySaving = true;
+        try
+        {
+            var result = await SettingsApi.SavePaymentCredentialsAsync(
+                _paySecret.Trim(),
+                string.IsNullOrWhiteSpace(_payPublic) ? null : _payPublic.Trim(),
+                string.IsNullOrWhiteSpace(_payWebhook) ? null : _payWebhook.Trim());
+
+            if (result.IsSuccess)
+            {
+                _paySecret = string.Empty;
+                _payWebhook = string.Empty;
+                await LoadPaymentAsync();
+                _showSetup = false;
+                _payMsg = "Saved. Online payments now settle to your own PayMongo account.";
+            }
+            else
+            {
+                _payError = result.Error ?? "Couldn't save the payment account.";
+            }
+        }
+        catch
+        {
+            _payError = "Couldn't save the payment account. Please try again.";
+        }
+        finally
+        {
+            _paySaving = false;
+        }
+    }
+
+    private async Task RevertPaymentAsync()
+    {
+        _payError = null;
+        _payMsg = null;
+        _paySaving = true;
+        try
+        {
+            var result = await SettingsApi.SavePaymentCredentialsAsync(null, null, null);
+            if (result.IsSuccess)
+            {
+                _paySecret = string.Empty;
+                _payPublic = string.Empty;
+                _payWebhook = string.Empty;
+                await LoadPaymentAsync();
+                _showSetup = false;
+                _payMsg = "Reverted to the platform default account.";
+            }
+            else
+            {
+                _payError = result.Error ?? "Couldn't revert to the default account.";
+            }
+        }
+        catch
+        {
+            _payError = "Couldn't revert. Please try again.";
+        }
+        finally
+        {
+            _paySaving = false;
+        }
     }
 
     private async Task LoadAsync(bool paintLoading = false)

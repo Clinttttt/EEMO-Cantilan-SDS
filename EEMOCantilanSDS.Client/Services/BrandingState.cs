@@ -28,8 +28,11 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public bool IsDefaultTenant =>
         _branding is null || string.Equals(_branding.Code, "CANTILAN", System.StringComparison.OrdinalIgnoreCase);
 
-    public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);
-    // A set acronym wins; Cantilan falls back to EEMO; any other LGU without an acronym falls back to its
+    /// <summary>The signed-in LGU's tenant code (empty until branding loads / for the default). Used to
+    /// build this LGU's per-account webhook URL.</summary>
+    public string TenantCode => _branding?.TenantCode ?? string.Empty;
+
+    public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);    // A set acronym wins; Cantilan falls back to EEMO; any other LGU without an acronym falls back to its
     // own municipality name (never "EEMO").
     public string OfficeAcronym =>
         !string.IsNullOrWhiteSpace(_branding?.OfficeAcronym) ? _branding!.OfficeAcronym!
