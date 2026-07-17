@@ -1744,6 +1744,8 @@ html, body, #app {
     display: flex;
     align-items: center;
     gap: 12px;
+    position: relative;
+    padding-right: 66px; /* reserve room for the absolutely-positioned .header-logo seal */
 }
 
 /* back chevron button */
@@ -1784,13 +1786,14 @@ html, body, #app {
     margin-top: 2px;
 }
 
-/* Municipality seal — right-aligned in the header row (letterhead style). It is an IN-FLOW flex child of
-   .header-row, so the row's `align-items:center` vertically centres it against the back button + title.
-   (Absolute `top:50%` positioning centred it over the tall safe-area top padding, pushing it up onto the
-   eyebrow — this is the professional fix.) */
+/* Municipality seal — right-aligned in the header (letterhead style). Absolutely positioned so it NEVER
+   affects the header height/spacing, and anchored to .header-row (not .header) so `top:50%` centres it on
+   the title row rather than over the tall safe-area top padding (which pushed it up onto the eyebrow). */
 .header-logo {
-    margin-left: auto;
-    flex-shrink: 0;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
     width: 54px;
     height: 54px;
     border-radius: 50%;
