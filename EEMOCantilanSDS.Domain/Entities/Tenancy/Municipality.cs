@@ -42,6 +42,18 @@ public class Municipality : AuditableEntity
     /// so existing behaviour and Phase-0 goldens are unchanged; other LGUs set their own day at activation.</summary>
     public DayOfWeek? TpmMarketDay { get; private set; }
 
+    // ── Per-LGU PayMongo credentials (Option A: each LGU settles to its own account) ────────────────────
+    // The secret + webhook secret are stored ENCRYPTED at rest (the application layer protects/unprotects);
+    // the public key is not secret, so it is stored plain. When these are absent, the online-payment gateway
+    // falls back to the GLOBAL PayMongo config — which is exactly how the default LGU (Cantilan, the primary
+    // client) keeps running byte-for-byte on the primary account.
+    public string? PayMongoSecretKeyEnc { get; private set; }
+    public string? PayMongoPublicKey { get; private set; }
+    public string? PayMongoWebhookSecretEnc { get; private set; }
+
+    /// <summary>True when this LGU has its own PayMongo secret configured (so it settles to its own account).</summary>
+    public bool HasOwnPayMongoAccount => !string.IsNullOrWhiteSpace(PayMongoSecretKeyEnc);
+
     private Municipality() { }
 
     public static Municipality Create(
@@ -104,5 +116,25 @@ public class Municipality : AuditableEntity
     {
         Status = MunicipalityStatus.Upcoming;
         IsActive = false;
+    }
+
+    /// <summary>Stores this LGU's own PayMongo credentials (secret + webhook already encrypted; public key plain).</summary>
+    public void SetPayMongoCredentials(string secretKeyEnc, string? publicKey, string? webhookSecretEnc, string updatedBy)
+    {
+        PayMongoSecretKeyEnc = secretKeyEnc;
+        PayMongoPublicKey = publicKey;
+        PayMongoWebhookSecretEnc = webhookSecretEnc;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    /// <summary>Removes this LGU's own PayMongo credentials, reverting it to the global fallback account.</summary>
+    public void ClearPayMongoCredentials(string updatedBy)
+    {
+        PayMongoSecretKeyEnc = null;
+        PayMongoPublicKey = null;
+        PayMongoWebhookSecretEnc = null;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
     }
 }

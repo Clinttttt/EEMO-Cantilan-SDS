@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using EEMOCantilanSDS.Infrastructure.Payments;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -24,7 +25,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Payments
             var config = new Mock<IConfiguration>();
             config.Setup(c => c["PayMongo:WebhookSecret"]).Returns(Secret);
             config.Setup(c => c["PayMongo:WebhookToleranceMinutes"]).Returns((string?)null); // default (12h)
-            return new PayMongoPaymentGateway(new HttpClient(), config.Object, NullLogger<PayMongoPaymentGateway>.Instance);
+            return new PayMongoPaymentGateway(new HttpClient(), config.Object, new Mock<IPayMongoCredentialResolver>().Object, NullLogger<PayMongoPaymentGateway>.Instance);
         }
 
         private static string Header(long epochSeconds)

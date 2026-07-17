@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,14 +13,15 @@ namespace EEMOCantilanSDS.Infrastructure.Payments;
 
 /// <summary>
 /// PayMongo implementation of <see cref="IPaymentGateway"/> using hosted Checkout Sessions with
-/// QR Ph as the current enabled live payment channel. The secret-key Basic-auth header is applied once
-/// at HttpClient registration time (see <c>AddInfrastructureService</c>); this class reads the webhook
-/// signing secret on demand, mirroring how <c>TokenService</c> reads JWT config directly from
-/// <see cref="IConfiguration"/>.
+/// QR Ph as the current enabled live payment channel. The secret-key Basic-auth header is applied
+/// PER-REQUEST from the tenant's resolved credentials (<see cref="IPayMongoCredentialResolver"/>), so each
+/// LGU's payment hits its own PayMongo account; the default LGU (Cantilan) resolves to the global config,
+/// keeping it byte-for-byte on the primary account. The webhook signing secret is read on demand.
 /// </summary>
 public sealed class PayMongoPaymentGateway(
     HttpClient httpClient,
     IConfiguration configuration,
+    IPayMongoCredentialResolver credentialResolver,
     ILogger<PayMongoPaymentGateway> logger) : IPaymentGateway
 {
     public const string ProviderName = "PayMongo";
@@ -71,7 +73,14 @@ public sealed class PayMongoPaymentGateway(
             using var content = new StringContent(
                 JsonSerializer.Serialize(body, JsonOptions), Encoding.UTF8, "application/json");
 
-            using var response = await httpClient.PostAsync("checkout_sessions", content, cancellationToken);
+            var credentials = await credentialResolver.ResolveAsync(cancellationToken);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "checkout_sessions")
+            {
+                Content = content,
+                Headers = { Authorization = BasicAuth(credentials.SecretKey) }
+            };
+
+            using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -233,7 +242,12 @@ public sealed class PayMongoPaymentGateway(
 
         try
         {
-            using var response = await httpClient.GetAsync($"checkout_sessions/{gatewayReference}", cancellationToken);
+            var credentials = await credentialResolver.ResolveAsync(cancellationToken);
+            using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"checkout_sessions/{gatewayReference}")
+            {
+                Headers = { Authorization = BasicAuth(credentials.SecretKey) }
+            };
+            using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
             var payload = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -295,6 +309,9 @@ public sealed class PayMongoPaymentGateway(
             return Result<PaymentGatewayEvent>.Failure("Unable to reach the payment provider.", 502);
         }
     }
+
+    private static AuthenticationHeaderValue BasicAuth(string secretKey) =>
+        new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{secretKey}:")));
 
     private static bool SignatureMatches(string computedHex, string? providedHex)
     {

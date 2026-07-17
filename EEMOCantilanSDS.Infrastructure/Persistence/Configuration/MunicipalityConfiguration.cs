@@ -42,6 +42,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.OfficeAcronym)
                 .HasMaxLength(30);
 
+            // Per-LGU PayMongo credentials. Secret + webhook are stored encrypted (unbounded text); the
+            // public key is not secret. All nullable — absence means "use the global PayMongo config".
+            builder.Property(x => x.PayMongoSecretKeyEnc).HasColumnType("text");
+            builder.Property(x => x.PayMongoPublicKey).HasColumnType("text");
+            builder.Property(x => x.PayMongoWebhookSecretEnc).HasColumnType("text");
+
             builder.Property(x => x.Status)
                 .IsRequired()
                 .HasConversion<int>();

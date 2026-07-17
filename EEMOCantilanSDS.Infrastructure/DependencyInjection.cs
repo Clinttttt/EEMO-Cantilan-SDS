@@ -107,8 +107,16 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddSingleton(emailOptions);
             service.AddScoped<IEmailSender, EEMOCantilanSDS.Infrastructure.Services.SmtpEmailSender>();
 
-            // Online payment gateway (PayMongo hosted checkout, GCash). Secret-key Basic auth is
-            // applied once here; the key is the username with an empty password, base64-encoded.
+            // Per-LGU payment credentials (Option A): AES-GCM protector for secrets at rest + a resolver that
+            // returns the current tenant's PayMongo account, falling back to the global config (Cantilan default).
+            service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.ICredentialProtector,
+                EEMOCantilanSDS.Infrastructure.Security.AesCredentialProtector>();
+            service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IPayMongoCredentialResolver,
+                EEMOCantilanSDS.Infrastructure.Payments.PayMongoCredentialResolver>();
+
+            // Online payment gateway (PayMongo hosted checkout). Auth is applied PER-REQUEST by the gateway
+            // from the tenant's resolved credentials (IPayMongoCredentialResolver), so each LGU hits its own
+            // account and the default LGU (Cantilan) uses the global config — no default Authorization here.
             var payMongo = configuration.GetSection("PayMongo");
             service.AddHttpClient<IPaymentGateway, PayMongoPaymentGateway>(client =>
             {
@@ -116,10 +124,6 @@ namespace EEMOCantilanSDS.Infrastructure
 
                 // Ensure relative request paths (e.g. "checkout_sessions") resolve under the version segment.
                 client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
-
-                var secretKey = payMongo["SecretKey"] ?? string.Empty;
-                var basic = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{secretKey}:"));
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", basic);
                 client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             });
 
