@@ -156,7 +156,7 @@
                 </div>
                 <div class="profile-row-info">
                     <div class="profile-row-label">App Version</div>
-                    <div class="profile-row-val">EEMO Collectors v1.0</div>
+                    <div class="profile-row-val">StallTrack Collector @AppVersion</div>
                 </div>
             </div>
         </div>
@@ -293,6 +293,25 @@
 
     // ── Navigation ────────────────────────────────────────────────────────────
     void GoTo(string path) => Navigation.NavigateTo(path, forceLoad: false);
+
+    // App version, read from the build (ApplicationDisplayVersion + ApplicationVersion) — never hardcoded,
+    // so it stays correct after every published update.
+    string AppVersion
+    {
+        get
+        {
+            try
+            {
+                var name = Microsoft.Maui.ApplicationModel.AppInfo.Current.VersionString;   // e.g. "1.0"
+                var build = Microsoft.Maui.ApplicationModel.AppInfo.Current.BuildString;      // versionCode, e.g. "1"
+                return string.IsNullOrWhiteSpace(build) ? $"v{name}" : $"v{name} ({build})";
+            }
+            catch
+            {
+                return "v1.0";
+            }
+        }
+    }
 
     // ── Collector Info (loaded from session menu + profile API) ──
     string CollectorName  = "Collector";

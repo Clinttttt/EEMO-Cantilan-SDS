@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection;
 using EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 using EEMOCantilanSDS.Application.Command.Notifications.RegisterDeviceToken;
+using EEMOCantilanSDS.Application.Command.Notifications.RemoveDeviceToken;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
@@ -63,6 +64,13 @@ public class MobileController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<bool>> RegisterDeviceTokenAsync([FromBody] RegisterDeviceTokenRequest request)
     {
         var result = await Sender.Send(new RegisterDeviceTokenCommand(request.Token, request.Platform));
+        return HandleResponse(result);
+    }
+
+    [HttpPost("device-token/remove")]
+    public async Task<ActionResult<bool>> RemoveDeviceTokenAsync([FromBody] RegisterDeviceTokenRequest request)
+    {
+        var result = await Sender.Send(new RemoveDeviceTokenCommand(request.Token));
         return HandleResponse(result);
     }
 

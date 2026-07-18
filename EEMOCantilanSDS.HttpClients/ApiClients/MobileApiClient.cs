@@ -23,6 +23,10 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public async Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request) =>
         await PostAsync<RegisterDeviceTokenRequest, bool>("api/Mobile/device-token", request);
 
+    public async Task<Result<bool>> RemoveDeviceTokenAsync(string token) =>
+        await PostAsync<RegisterDeviceTokenRequest, bool>("api/Mobile/device-token/remove",
+            new RegisterDeviceTokenRequest(token, "android"));
+
     public async Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to)
     {
         var facilityParam = facility.HasValue ? $"facility={facility}&" : string.Empty;

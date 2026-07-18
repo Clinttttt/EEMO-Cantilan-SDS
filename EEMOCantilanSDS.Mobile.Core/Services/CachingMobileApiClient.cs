@@ -116,6 +116,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request) =>
         inner.RegisterDeviceTokenAsync(request);
 
+    public Task<Result<bool>> RemoveDeviceTokenAsync(string token) =>
+        inner.RemoveDeviceTokenAsync(token);
+
     public Task<Result<StallActivationCodeDto>> GenerateActivationCodeAsync(GenerateStallActivationCodeCommand command) =>
         inner.GenerateActivationCodeAsync(command);
 

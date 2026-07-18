@@ -206,7 +206,9 @@ public sealed class MobileSessionService(
     {
         try
         {
-            if (!IsAuthenticated || string.IsNullOrWhiteSpace(token))
+            // Skip when the collector has notifications OFF — the token stays unregistered so the server
+            // has nothing to push to. Toggling it back on (SetNotificationsEnabledAsync) re-registers.
+            if (!IsAuthenticated || string.IsNullOrWhiteSpace(token) || !GetNotificationsEnabled())
             {
                 return;
             }
@@ -296,11 +298,34 @@ public sealed class MobileSessionService(
     /// <summary>Whether the collector has notifications enabled (defaults to true). Persisted locally.</summary>
     public bool GetNotificationsEnabled() => Preferences.Default.Get(NotificationsPrefKey, true);
 
-    /// <summary>Persists the collector's notifications preference locally.</summary>
-    public Task SetNotificationsEnabledAsync(bool enabled)
+    /// <summary>Persists the collector's notifications preference and enforces it server-side: turning it OFF
+    /// unregisters this device's push token (so nothing is sent to it); turning it ON re-registers.</summary>
+    public async Task SetNotificationsEnabledAsync(bool enabled)
     {
         Preferences.Default.Set(NotificationsPrefKey, enabled);
-        return Task.CompletedTask;
+
+        var token = FcmTokenBridge.CurrentToken;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return; // No device token yet (e.g. permission not granted) — nothing to register/remove.
+        }
+
+        try
+        {
+            if (enabled)
+            {
+                await mobileApiClient.RegisterDeviceTokenAsync(
+                    new EEMOCantilanSDS.Application.Requests.Mobile.RegisterDeviceTokenRequest(token, "android"));
+            }
+            else
+            {
+                await mobileApiClient.RemoveDeviceTokenAsync(token);
+            }
+        }
+        catch
+        {
+            // Best-effort — the local preference is saved regardless; registration re-syncs on next login.
+        }
     }
 
     // ── Collector-app binding (which LGU this installed app belongs to) ──────────────────────────────────

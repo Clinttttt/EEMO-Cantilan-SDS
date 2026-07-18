@@ -14,6 +14,9 @@ public interface IMobileApiClient
     Task<Result<MobileCollectorProfileDto>> GetProfileAsync();
     Task<Result<bool>> UpdateProfileAsync(UpdateMobileProfileRequest request);
     Task<Result<bool>> RegisterDeviceTokenAsync(RegisterDeviceTokenRequest request);
+
+    /// <summary>Unregisters this device's push token (collector turned notifications off).</summary>
+    Task<Result<bool>> RemoveDeviceTokenAsync(string token);
     Task<Result<IReadOnlyList<MobileCollectorRecordDto>>> GetRecordsAsync(FacilityCode? facility, DateOnly from, DateOnly to);
     Task<Result<MobileCollectorReportDto>> GetReportAsync(FacilityCode? facility, int year, int month);
     Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month);
