@@ -119,6 +119,10 @@ public sealed class CachingMobileApiClient(
     public Task<Result<StallActivationCodeDto>> GenerateActivationCodeAsync(GenerateStallActivationCodeCommand command) =>
         inner.GenerateActivationCodeAsync(command);
 
+    // Bind-token resolution is a one-shot, anonymous, pre-login call — pass straight through (no caching).
+    public Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token) =>
+        inner.GetBindInfoAsync(token);
+
     // ── Read-through core ───────────────────────────────────────────────────
     private async Task<Result<T>> ReadThroughAsync<T>(string key, Func<Task<Result<T>>> fetch)
     {

@@ -42,4 +42,7 @@ public interface IMobileApiClient
 
     /// <summary>Encodes the manual OR for an online payment awaiting OR (preserves online attribution; completes the transaction).</summary>
     Task<Result<bool>> IssueOnlinePaymentOrNumberAsync(Guid transactionId, string orNumber);
+
+    /// <summary>Resolves a collector-app bind token to its LGU + branding (anonymous, pre-login).</summary>
+    Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token);
 }

@@ -1,4 +1,5 @@
 ﻿using Android.App;
+using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using AndroidX.Core.App;
@@ -8,7 +9,17 @@ using Firebase.Messaging;
 
 namespace EEMOCantilanSDS.Mobile
 {
-    [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+    [Activity(Theme = "@style/Maui.SplashTheme", MainLauncher = true, LaunchMode = LaunchMode.SingleTop, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+    // Collector-app bind link (Android App Link). Opens the app on https://app.stalltrack.site/a/{token};
+    // AutoVerify requires /.well-known/assetlinks.json on that host (Unit 3) to open without a chooser.
+    [IntentFilter(new[] { Intent.ActionView },
+        Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+        DataScheme = "https", DataHost = "app.stalltrack.site", DataPathPrefix = "/a/",
+        AutoVerify = true)]
+    // Custom-scheme fallback: stalltrack://a/{token} (no domain verification needed).
+    [IntentFilter(new[] { Intent.ActionView },
+        Categories = new[] { Intent.CategoryDefault, Intent.CategoryBrowsable },
+        DataScheme = "stalltrack", DataHost = "a")]
     public class MainActivity : MauiAppCompatActivity
     {
         private const int PostNotificationsRequestCode = 9001;
@@ -20,6 +31,26 @@ namespace EEMOCantilanSDS.Mobile
             CreateNotificationChannel();
             RequestPostNotificationsIfNeeded();
             FetchFcmToken();
+
+            // Cold start via a bind link — capture the token before the Blazor login page initializes.
+            HandleBindIntent(Intent);
+        }
+
+        // App already running (SingleTop) — a tapped bind link arrives here instead of a fresh OnCreate.
+        protected override void OnNewIntent(Intent? intent)
+        {
+            base.OnNewIntent(intent);
+            Intent = intent;
+            HandleBindIntent(intent);
+        }
+
+        // Hands a bind deep-link URI to the managed bridge; the login flow resolves it against the API.
+        private static void HandleBindIntent(Intent? intent)
+        {
+            if (intent?.Action == Intent.ActionView && !string.IsNullOrWhiteSpace(intent.DataString))
+            {
+                MobileBindBridge.ReceiveDeepLink(intent.DataString);
+            }
         }
 
         // Android 8+ (API 26): notifications must belong to a channel. Safe to call repeatedly.

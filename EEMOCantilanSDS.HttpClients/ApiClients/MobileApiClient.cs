@@ -98,4 +98,7 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> IssueOnlinePaymentOrNumberAsync(Guid transactionId, string orNumber) =>
         await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/or-number", new { ORNumber = orNumber });
+
+    public async Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token) =>
+        await GetAsync<MobileBindInfoDto>($"api/mobile/bind/{Uri.EscapeDataString(token)}");
 }

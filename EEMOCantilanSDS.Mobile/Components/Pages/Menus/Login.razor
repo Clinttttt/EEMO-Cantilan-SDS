@@ -1,5 +1,7 @@
 ﻿@page "/login"
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
+@using EEMOCantilanSDS.Mobile.Services
+@implements IDisposable
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMunicipalitiesApiClient MunicipalitiesApi
@@ -533,6 +535,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        MobileBindBridge.PendingTokenChanged += OnBindTokenChanged;
+
+        // Resolve any freshly-opened bind link BEFORE anything else, so login scoping reflects the bound
+        // LGU. Best-effort + fail-open (offline / unknown token → the app simply stays unbound).
+        await Session.TryConsumePendingBindAsync();
+
         try
         {
             if (await Session.RestoreSessionAsync())
@@ -546,7 +554,37 @@
             // Stay on the login page when the server is unreachable.
         }
 
-        // Load the live municipalities (best-effort). Only show the picker when 2+ are active.
+        ApplyBinding();
+
+        // Bound app → no picker; the bound code is sent silently on login. Unbound → existing behaviour
+        // (picker only when 2+ LGUs are live; single-tenant Cantilan stays clean and global).
+        if (!Session.IsBound)
+        {
+            await LoadMunicipalitiesAsync();
+        }
+    }
+
+    // A bind link opened while this page is already foregrounded (Android OnNewIntent) arrives here.
+    private void OnBindTokenChanged() => _ = InvokeAsync(async () =>
+    {
+        await Session.TryConsumePendingBindAsync();
+        ApplyBinding();
+        StateHasChanged();
+    });
+
+    // Reflect the current LGU binding into the login form: pin the code and hide the picker.
+    private void ApplyBinding()
+    {
+        var bound = Session.BoundMunicipalityCode;
+        if (!string.IsNullOrWhiteSpace(bound))
+        {
+            SelectedMunicipalityCode = bound;
+            _showMunicipalityPicker = false;
+        }
+    }
+
+    private async Task LoadMunicipalitiesAsync()
+    {
         try
         {
             var muni = await MunicipalitiesApi.GetMunicipalitiesAsync();
@@ -569,6 +607,8 @@
             // Offline / unreachable — no picker; login stays global (works for the single-tenant case).
         }
     }
+
+    public void Dispose() => MobileBindBridge.PendingTokenChanged -= OnBindTokenChanged;
 
     async Task HandleKeyDown(KeyboardEventArgs e)
     {

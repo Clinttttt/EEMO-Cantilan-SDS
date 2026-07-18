@@ -302,4 +302,69 @@ public sealed class MobileSessionService(
         Preferences.Default.Set(NotificationsPrefKey, enabled);
         return Task.CompletedTask;
     }
+
+    // ── Collector-app binding (which LGU this installed app belongs to) ──────────────────────────────────
+    // Set when a bind link is opened (MobileBindBridge → API resolve). DEVICE-WIDE (not per-collector): it
+    // scopes login + branding for whoever uses this app. Presentation + login-scoping only — NOT a security
+    // boundary (login + LGU-scoped accounts remain the gate). Unbound (Cantilan / single-tenant) → the app
+    // behaves exactly as before: existing picker / global login.
+    private const string BoundCodeKey = "stalltrack_bound_municipality_code";
+    private const string BoundNameKey = "stalltrack_bound_municipality_name";
+
+    /// <summary>The LGU code this app is bound to, or null when unbound.</summary>
+    public string? BoundMunicipalityCode
+    {
+        get
+        {
+            var code = Preferences.Default.Get(BoundCodeKey, string.Empty);
+            return string.IsNullOrWhiteSpace(code) ? null : code;
+        }
+    }
+
+    /// <summary>The bound LGU's display name (best-effort; may be empty), or null when unbound.</summary>
+    public string? BoundMunicipalityName
+    {
+        get
+        {
+            var name = Preferences.Default.Get(BoundNameKey, string.Empty);
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+    }
+
+    /// <summary>Whether this app has been bound to a specific LGU.</summary>
+    public bool IsBound => BoundMunicipalityCode is not null;
+
+    /// <summary>
+    /// If a bind link was opened, resolve its token against the API and persist the bound LGU (code + name).
+    /// Best-effort + fail-open: on any failure (unknown/rotated token, offline) the app keeps its current
+    /// binding — or stays unbound — so the existing picker / global login still works. Cantilan unaffected.
+    /// </summary>
+    public async Task TryConsumePendingBindAsync()
+    {
+        var token = MobileBindBridge.TakePendingToken();
+        if (string.IsNullOrWhiteSpace(token))
+            return;
+
+        try
+        {
+            var result = await mobileApiClient.GetBindInfoAsync(token);
+            if (result.IsSuccess && result.Value is { } info && !string.IsNullOrWhiteSpace(info.MunicipalityCode))
+            {
+                Preferences.Default.Set(BoundCodeKey, info.MunicipalityCode);
+                Preferences.Default.Set(BoundNameKey, info.Name ?? string.Empty);
+            }
+            // On a real rejection (404/rotated) or offline: keep any existing binding; never clear here.
+        }
+        catch
+        {
+            // Offline / unreachable — leave the binding untouched.
+        }
+    }
+
+    /// <summary>Clears the LGU binding (explicit "switch LGU"). Login then falls back to the picker.</summary>
+    public void ClearBinding()
+    {
+        Preferences.Default.Remove(BoundCodeKey);
+        Preferences.Default.Remove(BoundNameKey);
+    }
 }
