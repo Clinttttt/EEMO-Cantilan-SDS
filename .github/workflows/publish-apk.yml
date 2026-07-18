@@ -9,6 +9,10 @@ name: Publish Collector APK
 #   ANDROID_KEY_ALIAS            key alias
 #   ANDROID_KEY_PASSWORD         key password
 #   GOOGLE_SERVICES_JSON_BASE64  base64 of Platforms/Android/google-services.json (untracked; needed to build)
+#
+# Optional (enables AUTO-PUBLISH to app.stalltrack.site so the download link updates itself):
+#   AZURE_SWA_DEPLOY_TOKEN       Static Web App deployment token
+#     az staticwebapp secrets list -n stalltrack-app-site -g stalltrack-prod-rg --query "properties.apiKey" -o tsv
 
 on:
   workflow_dispatch:
@@ -29,6 +33,8 @@ jobs:
   build-apk:
     name: Build & sign Android APK
     runs-on: ubuntu-latest
+    env:
+      SWA_TOKEN: ${{ secrets.AZURE_SWA_DEPLOY_TOKEN }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -86,23 +92,29 @@ jobs:
           if [ -n "$VCODE" ]; then ARGS="$ARGS -p:ApplicationVersion=$VCODE"; fi
           dotnet publish EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj $ARGS
 
-      - name: Collect signed APK
+      - name: Stage APK (and seal) into the site folder
         run: |
           set -e
-          mkdir -p artifact
-          find EEMOCantilanSDS.Mobile/bin/Release/net10.0-android -name "*-Signed.apk" -print -exec cp {} artifact/stalltrack-collector-latest.apk \;
-          ls -la artifact
+          mkdir -p mobile-app-site/download mobile-app-site/assets
+          find EEMOCantilanSDS.Mobile/bin/Release/net10.0-android -name "*-Signed.apk" -print -exec cp {} mobile-app-site/download/stalltrack-collector-latest.apk \;
+          cp EEMOCantilanSDS.Mobile/wwwroot/images/stalltrack-seal.png mobile-app-site/assets/seal.png || true
+          ls -la mobile-app-site/download
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: stalltrack-collector-apk
-          path: artifact/*.apk
+          path: mobile-app-site/download/stalltrack-collector-latest.apk
           if-no-files-found: error
           retention-days: 90
 
-      # ── Next step (once app.stalltrack.site hosting exists) ──────────────────────────────────────────
-      # Publish artifact/stalltrack-collector-latest.apk to the static site's /download/ (e.g. via
-      #   az storage blob upload ...   or   swa deploy ...
-      # ) and bump the API app setting Mobile:LatestVersionCode (>= the just-built versionCode) so the
-      # in-app "update available" prompt fires. Add those steps here with the appropriate cloud secrets.
+      # Auto-publish the site (with the fresh APK) straight to app.stalltrack.site/download/ so the download
+      # link updates itself — no manual copy/deploy. Skipped when AZURE_SWA_DEPLOY_TOKEN isn't set (then just
+      # grab the artifact above).
+      - name: Publish to app.stalltrack.site
+        if: ${{ env.SWA_TOKEN != '' }}
+        run: |
+          set -e
+          npm install -g @azure/static-web-apps-cli
+          swa deploy ./mobile-app-site --deployment-token "$SWA_TOKEN" --env production
+          echo "Published: https://app.stalltrack.site/download/stalltrack-collector-latest.apk"
