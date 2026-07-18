@@ -28,6 +28,25 @@
     .update-modal-sub { font-size: 13px; color: #6a8aa0; line-height: 1.5; margin-bottom: 16px; }
     .update-modal-notes { font-size: 12px; color: #8faabf; background: #f0f4f8; border-radius: 10px; padding: 10px 12px; margin-bottom: 16px; text-align: left; line-height: 1.5; }
     .update-modal-btn { width: 100%; background: #0d2137; color: #e8cc76; border: none; border-radius: 12px; padding: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+
+    /* ── Menu loading skeleton ── */
+    .menu-skeleton { display: flex; flex-direction: column; gap: 12px; }
+    .menu-skeleton .sk-strip { display: flex; gap: 10px; }
+    .menu-skeleton .sk-stat { flex: 1; height: 66px; border-radius: 14px; }
+    .menu-skeleton .sk-label { width: 42%; height: 12px; border-radius: 6px; margin: 8px 0 2px; }
+    .menu-skeleton .sk-card { height: 76px; border-radius: 16px; }
+    .menu-skeleton .sk-stat,
+    .menu-skeleton .sk-label,
+    .menu-skeleton .sk-card {
+        background: linear-gradient(100deg, #e9eef4 28%, #f6f9fc 48%, #e9eef4 68%);
+        background-size: 220% 100%;
+        animation: sk-shimmer 1.35s ease-in-out infinite;
+        border: 1px solid var(--border);
+    }
+    @@keyframes sk-shimmer {
+        0% { background-position: 220% 0; }
+        100% { background-position: -220% 0; }
+    }
 </style>
 
 <div class="page-shell">
@@ -45,7 +64,17 @@
         }
         @if (IsLoading)
         {
-            <div class="menu-state-card">Loading assigned collection areas...</div>
+            <div class="menu-skeleton" aria-busy="true" aria-label="Loading collection areas">
+                <div class="sk-strip">
+                    <div class="sk-stat"></div>
+                    <div class="sk-stat"></div>
+                    <div class="sk-stat"></div>
+                </div>
+                <div class="sk-label"></div>
+                <div class="sk-card"></div>
+                <div class="sk-card"></div>
+                <div class="sk-card"></div>
+            </div>
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))
         {

@@ -432,23 +432,7 @@
             </div>
         }
 
-        <!-- Municipality picker — only shown when more than one LGU is live (single-tenant stays clean) -->
-        @if (_showMunicipalityPicker)
-        {
-            <div class="login-field">
-                <div class="login-label">Municipality</div>
-                <div class="login-input-wrap">
-                    <svg viewBox="0 0 24 24"><path d="M3 9.5 12 4l9 5.5" /><path d="M4 9.5h16" /><path d="M5.5 11v7M9.5 11v7M14.5 11v7M18.5 11v7" /><path d="M3 20.5h18" /></svg>
-                    <select @bind="SelectedMunicipalityCode">
-                        <option value="">Select your municipality…</option>
-                        @foreach (var m in _municipalities)
-                        {
-                            <option value="@m.Code">@m.Name</option>
-                        }
-                    </select>
-                </div>
-            </div>
-        }
+        <!-- Municipality is determined by the app's bind link (or the default tenant) — no picker. -->
 
         <!-- Username -->
         <div class="login-field">
@@ -527,11 +511,9 @@
     bool IsLoading = false;
     string ErrorMessage = string.Empty;
 
-    // Municipality picker: only prompt when more than one LGU is live. Single-tenant (Cantilan) shows no
-    // picker and sends no code — the backend login lookup stays global, exactly as before.
-    List<MunicipalityDto> _municipalities = new();
+    // Municipality is resolved automatically — from the app's bind link, or (unbound) the single live LGU
+    // or the default tenant. No picker: accounts are provisioned + bound per-LGU from the web portal.
     string? SelectedMunicipalityCode;
-    bool _showMunicipalityPicker = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -572,39 +554,40 @@
         StateHasChanged();
     });
 
-    // Reflect the current LGU binding into the login form: pin the code and hide the picker.
+    // Reflect the current LGU binding into the login form: pin the code (no picker to hide).
     private void ApplyBinding()
     {
         var bound = Session.BoundMunicipalityCode;
         if (!string.IsNullOrWhiteSpace(bound))
         {
             SelectedMunicipalityCode = bound;
-            _showMunicipalityPicker = false;
         }
     }
 
     private async Task LoadMunicipalitiesAsync()
     {
+        // App is unbound (no bind link opened) — there is no picker. Scope login to the single live LGU, or
+        // to the default tenant (Cantilan) when several are live, so the golden Cantilan path is preserved.
+        // A genuinely unknown multi-tenant case falls back to the global lookup (null code).
         try
         {
             var muni = await MunicipalitiesApi.GetMunicipalitiesAsync();
             if (muni.IsSuccess && muni.Value is not null)
             {
-                _municipalities = muni.Value.Where(m => m.IsActive).OrderBy(m => m.Name).ToList();
-                _showMunicipalityPicker = _municipalities.Count > 1;
-
-                // Even when there is only one active LGU, send its code so collector lookup is tenant-
-                // scoped. A null code triggers the legacy global lookup and becomes ambiguous as soon as
-                // two municipalities contain the same username or employee ID.
-                if (_municipalities.Count == 1)
+                var active = muni.Value.Where(m => m.IsActive).OrderBy(m => m.Name).ToList();
+                if (active.Count == 1)
                 {
-                    SelectedMunicipalityCode = _municipalities[0].Code;
+                    SelectedMunicipalityCode = active[0].Code;
+                }
+                else if (active.Count > 1)
+                {
+                    SelectedMunicipalityCode = active.FirstOrDefault(m => m.IsDefault)?.Code;
                 }
             }
         }
         catch
         {
-            // Offline / unreachable — no picker; login stays global (works for the single-tenant case).
+            // Offline / unreachable — login stays global (works for the single-tenant case).
         }
     }
 
@@ -636,12 +619,6 @@
         if (string.IsNullOrWhiteSpace(Password))
         {
             ErrorMessage = "Please enter your password.";
-            return;
-        }
-
-        if (_showMunicipalityPicker && string.IsNullOrWhiteSpace(SelectedMunicipalityCode))
-        {
-            ErrorMessage = "Please select your municipality.";
             return;
         }
 

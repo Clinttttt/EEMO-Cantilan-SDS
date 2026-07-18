@@ -101,20 +101,21 @@
         }
         else
         {
-            @foreach (var group in GroupedRecords)
+            @foreach (var group in GroupedRows)
             {
                 @* On a single-day selection the date header is redundant — skip it. *@
                 @if (!SingleDayMode)
                 {
                     <div class="section-label">
                         @group.Key
-                        <span class="section-count">@group.Value.Count() entries</span>
+                        <span class="section-count">@group.Value.Count entries</span>
                     </div>
                 }
 
-                @foreach (var rec in group.Value)
+                @foreach (var row in group.Value)
                 {
-                    <div class="record-card @CardClass(rec)" @onclick="() => OpenDetail(rec)">
+                    var rec = row.Primary;
+                    <div class="record-card @RowCardClass(row)" @onclick="() => OpenDetail(row)">
                         <div class="record-info">
                             <div class="record-name">@rec.PayorName</div>
                             <div class="record-meta">
@@ -130,7 +131,11 @@
                                 {
                                     <span class="record-admin-tag">Office</span>
                                 }
-                                @if (rec.SlaughterLines is { Count: > 1 })
+                                @if (row.IsMerged)
+                                {
+                                    <span class="record-section">@MergedLabel(row)</span>
+                                }
+                                else if (rec.SlaughterLines is { Count: > 1 })
                                 {
                                     <span class="record-section">@rec.SlaughterLines.Count animal types</span>
                                 }
@@ -138,8 +143,8 @@
                             </div>
                         </div>
                         <div class="record-amount-col">
-                            <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + rec.Amount.ToString("N0"))</div>
-                            <span class="record-status-pill @PillClass(rec)">@StatusLabel(rec)</span>
+                            <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalAmount.ToString("N0"))</div>
+                            <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
                         </div>
                     </div>
                 }
@@ -191,11 +196,28 @@
             <div class="detail-row"><span class="detail-key">Recorded by</span><span class="detail-val">@(SelectedRecord.IsAdminRecorded ? "Office / Admin" : Session.CollectorName)</span></div>
             <div class="detail-row"><span class="detail-key">Date &amp; Time</span><span class="detail-val">@SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt")</span></div>
             <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><span class="record-status-pill @PillClass(SelectedRecord)">@StatusLabel(SelectedRecord)</span></span></div>
-            <div class="detail-row"><span class="detail-key">Amount</span><span class="detail-val amount-val">₱@SelectedRecord.Amount.ToString("N0")</span></div>
-            @if (SelectedRecord.IsPartial)
+            @if (SelectedRow is { IsMerged: true })
             {
-                <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@SelectedRecord.AmountPaid.ToString("N0")</span></div>
-                <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRecord.Amount - SelectedRecord.AmountPaid).ToString("N0"))</span></div>
+                <div class="detail-row"><span class="detail-key">Payments in this receipt</span><span class="detail-val">@SelectedRow.Count</span></div>
+                @foreach (var it in SelectedRow.Items)
+                {
+                    <div class="detail-row"><span class="detail-key">· @it.Nature</span><span class="detail-val">₱@it.Amount.ToString("N0")</span></div>
+                }
+                <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@SelectedRow.TotalAmount.ToString("N0")</span></div>
+                @if (SelectedRow.AnyPartial)
+                {
+                    <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@SelectedRow.TotalPaid.ToString("N0")</span></div>
+                    <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRow.TotalAmount - SelectedRow.TotalPaid).ToString("N0"))</span></div>
+                }
+            }
+            else
+            {
+                <div class="detail-row"><span class="detail-key">Amount</span><span class="detail-val amount-val">₱@SelectedRecord.Amount.ToString("N0")</span></div>
+                @if (SelectedRecord.IsPartial)
+                {
+                    <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@SelectedRecord.AmountPaid.ToString("N0")</span></div>
+                    <div class="detail-row"><span class="detail-key">Balance Due</span><span class="detail-val" style="color:var(--error-red);font-weight:600;">₱@((SelectedRecord.Amount - SelectedRecord.AmountPaid).ToString("N0"))</span></div>
+                }
             }
 
             @if (SelectedRecord.Utility is { } u)
@@ -484,11 +506,54 @@
         || r.ORNumber.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
         || (r.StallNo ?? "").Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
 
-    Dictionary<string, IEnumerable<MobileCollectorRecordDto>> GroupedRecords =>
+    // Transaction rows: collapse records that belong to the SAME receipt (same OR number, payor, facility)
+    // into ONE row. A multi-month monthly payment writes one record per month sharing a single OR, so it
+    // renders as one row with the combined total; daily facilities issue a distinct OR per collection and
+    // never collapse. Presentation only — the underlying records + settlement are untouched.
+    Dictionary<string, IReadOnlyList<RecordRow>> GroupedRows =>
         FilteredRecords
             .OrderByDescending(r => r.CollectedAt)
             .GroupBy(r => DateLabel(r.CollectedAt))
-            .ToDictionary(g => g.Key, g => g.AsEnumerable());
+            .ToDictionary(g => g.Key, g => BuildRows(g));
+
+    static IReadOnlyList<RecordRow> BuildRows(IEnumerable<MobileCollectorRecordDto> recs)
+    {
+        var rows = new List<RecordRow>();
+        var byReceipt = new Dictionary<string, RecordRow>();
+        foreach (var r in recs)
+        {
+            // Only merge genuine multi-period receipts: a real OR number and not an absent mark.
+            if (!r.IsAbsent && !string.IsNullOrWhiteSpace(r.ORNumber))
+            {
+                var key = r.FacilityCode + "|" + r.PayorName + "|" + r.ORNumber;
+                if (byReceipt.TryGetValue(key, out var existing))
+                {
+                    existing.Items.Add(r);
+                    continue;
+                }
+                var row = new RecordRow(r);
+                byReceipt[key] = row;
+                rows.Add(row);
+            }
+            else
+            {
+                rows.Add(new RecordRow(r));
+            }
+        }
+        return rows;
+    }
+
+    sealed class RecordRow
+    {
+        public RecordRow(MobileCollectorRecordDto first) => Items = new List<MobileCollectorRecordDto> { first };
+        public List<MobileCollectorRecordDto> Items { get; }
+        public MobileCollectorRecordDto Primary => Items[0];
+        public int Count => Items.Count;
+        public bool IsMerged => Items.Count > 1;
+        public decimal TotalAmount => Items.Sum(i => i.Amount);
+        public decimal TotalPaid => Items.Sum(i => i.AmountPaid);
+        public bool AnyPartial => Items.Any(i => i.IsPartial) || TotalPaid < TotalAmount;
+    }
 
     static string DateLabel(DateTime dt)
     {
@@ -497,15 +562,38 @@
         return dt.ToString("MMMM d, yyyy");
     }
 
+    IEnumerable<RecordRow> AllRows => GroupedRows.SelectMany(g => g.Value);
+
     decimal TotalCollected => FilteredRecords.Sum(r => r.AmountPaid);
-    int PaidCount => FilteredRecords.Count(r => !r.IsPartial && !r.IsAbsent);
-    int PartialCount => FilteredRecords.Count(r => r.IsPartial);
-    int ExcusedCount => FilteredRecords.Count(r => r.IsAbsent);
+    int PaidCount => AllRows.Count(row => !row.Primary.IsAbsent && !row.AnyPartial);
+    int PartialCount => AllRows.Count(row => !row.Primary.IsAbsent && row.AnyPartial);
+    int ExcusedCount => AllRows.Count(row => row.Primary.IsAbsent);
 
     bool ShowDetailSheet = false;
+    RecordRow? SelectedRow;
     MobileCollectorRecordDto? SelectedRecord;
-    void OpenDetail(MobileCollectorRecordDto rec) { SelectedRecord = rec; ShowDetailSheet = true; }
-    void CloseDetail() { ShowDetailSheet = false; SelectedRecord = null; }
+    void OpenDetail(RecordRow row) { SelectedRow = row; SelectedRecord = row.Primary; ShowDetailSheet = true; }
+    void CloseDetail() { ShowDetailSheet = false; SelectedRow = null; SelectedRecord = null; }
+
+    // ── Merged-row display helpers (mirror the single-record helpers, over the whole receipt) ──
+    static string RowCardClass(RecordRow row) =>
+        row.Primary.IsAbsent ? "absent" : row.AnyPartial ? "unpaid" : "paid";
+
+    static string RowPillClass(RecordRow row) =>
+        row.Primary.IsAbsent ? "record-status-pill pill-absent"
+        : row.AnyPartial ? "record-status-pill pill-partial"
+        : "record-status-pill pill-paid";
+
+    static string RowStatusLabel(RecordRow row) =>
+        row.Primary.IsAbsent ? "Excused"
+        : row.AnyPartial ? $"₱{row.TotalPaid:N0} paid"
+        : "Paid";
+
+    // Tag on a collapsed row: monthly rentals collapse months; other facilities show a generic entry count.
+    string MergedLabel(RecordRow row) =>
+        (DailyFacilities.Contains(row.Primary.FacilityCode) || WeeklyFacilities.Contains(row.Primary.FacilityCode))
+            ? $"{row.Count} entries"
+            : $"{row.Count} months";
 
     // ── Offline pending queue (button right of the search bar) ──────────────
     bool ShowPendingSheet = false;

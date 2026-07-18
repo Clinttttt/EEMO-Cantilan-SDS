@@ -19,34 +19,59 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     cursor: pointer;
-    padding: 8px 16px;
-    border-radius: 10px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    transition: transform 0.14s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
-    .nav-item .nav-label {
-        font-size: 9px;
-        color: var(--text-nav);
-        letter-spacing: 0.5px;
+    .nav-item:active {
+        transform: scale(0.9);
     }
 
-    /* active tab: navy icon + label */
+    /* icon sits in a pill that fills with a soft gold tint when active */
+    .nav-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 30px;
+        border-radius: 15px;
+        background: transparent;
+        transition: background 0.18s ease;
+    }
+
+    .nav-item.active .nav-icon {
+        background: rgba(200, 168, 75, 0.16);
+    }
+
+    .nav-item .nav-label {
+        font-size: 10px;
+        color: var(--text-nav);
+        letter-spacing: 0.4px;
+        transition: color 0.18s ease;
+    }
+
+    /* active tab: navy label + gold-tinted icon pill */
     .nav-item.active .nav-label {
         color: var(--navy-primary);
         font-weight: 600;
     }
 
     .nav-item svg {
-        width: 22px;
-        height: 22px;
+        width: 21px;
+        height: 21px;
         stroke: var(--text-nav);
         stroke-width: 1.7;
         stroke-linecap: round;
         stroke-linejoin: round;
         fill: none;
+        transition: stroke 0.18s ease;
     }
 
     .nav-item.active svg {
         stroke: var(--navy-primary);
+        stroke-width: 1.95;
     }

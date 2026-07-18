@@ -165,9 +165,17 @@
         <div class="group-spacer"></div>
 
         <div class="signout-wrap">
-            <div class="signout-btn" @onclick="SignOut">
-                <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                Sign Out
+            <div class="signout-btn @(IsSigningOut ? "is-busy" : "")" @onclick="SignOut">
+                @if (IsSigningOut)
+                {
+                    <span class="signout-spinner"></span>
+                    <span>Signing out…</span>
+                }
+                else
+                {
+                    <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span>Sign Out</span>
+                }
             </div>
         </div>
 
@@ -181,6 +189,16 @@
     <!-- end .content -->
 
     <BottomNav ActiveTab="profile" />
+
+    @if (IsSigningOut)
+    {
+        <div class="signout-overlay">
+            <div class="signout-overlay-box">
+                <div class="eemo-loader-ring"></div>
+                <div class="signout-overlay-text">Signing out…</div>
+            </div>
+        </div>
+    }
 
 </div>
 <!-- end .page-shell -->
@@ -398,12 +416,27 @@
     List<FacilityItem> FacilityList = new();
 
     // ── Sign Out ──────────────────────────────────────────────────────────────
+    bool IsSigningOut = false;
+
     async Task SignOut()
     {
-        // Revoke the refresh token server-side and clear the local session/tokens
-        // so the next collector signs in fresh.
-        await Session.LogoutAsync();
-        Navigation.NavigateTo("/login", forceLoad: true);
+        if (IsSigningOut) return;
+
+        // Show a busy overlay immediately — LogoutAsync makes a server call (revoke refresh token), so the
+        // tap must not look frozen while that round-trip completes.
+        IsSigningOut = true;
+        StateHasChanged();
+
+        try
+        {
+            // Revoke the refresh token server-side and clear the local session/tokens
+            // so the next collector signs in fresh.
+            await Session.LogoutAsync();
+        }
+        finally
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+        }
     }
 
     // ── Edit Profile Sheet ────────────────────────────────────────────────────
@@ -793,6 +826,46 @@
             stroke-linecap: round;
             stroke-linejoin: round;
         }
+
+    /* signing-out busy state (inline spinner + blocking overlay) */
+    .signout-btn.is-busy { opacity: 0.92; pointer-events: none; }
+
+    .signout-spinner {
+        width: 15px; height: 15px;
+        border-radius: 50%;
+        border: 2px solid rgba(232,204,118,0.35);
+        border-top-color: var(--gold-light);
+        animation: eemo-spin 0.7s linear infinite;
+        flex-shrink: 0;
+    }
+
+    .signout-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 3000;
+        background: rgba(11,27,48,0.55);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .signout-overlay-box {
+        background: var(--bg-card);
+        border-radius: 16px;
+        padding: 26px 34px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .signout-overlay-text {
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--navy-primary);
+    }
 
     /* ── Edit Sheet — Avatar Picker ── */
     .edit-avatar-wrap {
