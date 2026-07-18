@@ -124,6 +124,43 @@ domains*). Wait for TLS to provision.
 Security: the bind link is presentation + login-scoping only — **not** a security boundary. Login and
 LGU-scoped accounts remain the real gate, so a mis-bound app still cannot read another LGU's data.
 
+## In-app update prompt (v2)
+
+The app checks `GET /api/mobile/version` on launch (post-login, once per session) and compares its
+installed Android `versionCode` against the server's. It's **config-driven** on the API — defaults report
+version 1 / no minimum, so nothing is ever prompted until you bump the settings:
+
+| App setting | Meaning | Default |
+| --- | --- | --- |
+| `Mobile:LatestVersionCode` | latest published `versionCode`; `> installed` ⇒ "update available" | `1` |
+| `Mobile:LatestVersion` | display version (e.g. `1.1.0`) | `1.0` |
+| `Mobile:MinSupportedVersionCode` | `> installed` ⇒ update is **mandatory** (blocking) | `0` |
+| `Mobile:DownloadUrl` | APK URL the prompt opens | `{AppBaseUrl}/download/stalltrack-collector-latest.apk` |
+| `Mobile:UpdateNotes` | optional text shown in the mandatory prompt | — |
+
+After publishing a new APK: set `Mobile:LatestVersionCode` to the new build's `versionCode` (and
+`Mobile:MinSupportedVersionCode` if you want to force it). Side-loaded APKs can't self-install silently, so
+the app opens the download link and the user taps to install (prompted, not silent — that's an Android
+constraint for non-Play installs).
+
+## CI/CD APK build (`.github/workflows/publish-apk.yml`)
+
+Manual **workflow_dispatch** job (never runs on push/PR, so it can't affect the API/web deploy). It builds
++ signs the release APK and uploads it as an artifact. Add these repository secrets first:
+
+| Secret | How to produce |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 stalltrack-release.keystore` |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore store password |
+| `ANDROID_KEY_ALIAS` | key alias |
+| `ANDROID_KEY_PASSWORD` | key password |
+| `GOOGLE_SERVICES_JSON_BASE64` | `base64 -w0 EEMOCantilanSDS.Mobile/Platforms/Android/google-services.json` |
+
+Then run the workflow (optionally passing a new `versionName` / `versionCode`), download the artifact, drop
+it at `download/stalltrack-collector-latest.apk`, redeploy this site, and bump `Mobile:LatestVersionCode`.
+The workflow has a commented placeholder where you can automate the upload + setting bump once hosting
+exists.
+
 ## Notes / open items
 
 - `assetlinks.json` fingerprint must match the **actual** signing key of the distributed APK, or links

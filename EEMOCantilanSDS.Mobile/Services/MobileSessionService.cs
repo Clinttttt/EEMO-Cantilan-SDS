@@ -367,4 +367,58 @@ public sealed class MobileSessionService(
         Preferences.Default.Remove(BoundCodeKey);
         Preferences.Default.Remove(BoundNameKey);
     }
+
+    // ── In-app update check (side-loaded APKs can't self-update; we prompt) ──────────────────────────────
+    // Checked once per app session. Best-effort + fail-open: any failure (offline, endpoint unset) returns
+    // null → no prompt. Config defaults on the server report version 1 / no minimum, so nothing is prompted
+    // until an operator bumps Mobile:LatestVersionCode after publishing a new APK.
+    private AppUpdateInfo? _cachedUpdate;
+    private bool _updateChecked;
+
+    public async Task<AppUpdateInfo?> GetUpdateInfoAsync()
+    {
+        if (_updateChecked)
+            return _cachedUpdate;
+        _updateChecked = true;
+
+        try
+        {
+            var installed = GetInstalledVersionCode();
+            if (installed <= 0)
+                return null;
+
+            var result = await mobileApiClient.GetAppVersionAsync();
+            if (!result.IsSuccess || result.Value is not { } v)
+                return null;
+
+            var available = v.LatestVersionCode > installed;
+            var mandatory = v.MinSupportedVersionCode > installed;
+            if (!available && !mandatory)
+                return null;
+
+            _cachedUpdate = new AppUpdateInfo(true, mandatory, v.ApkUrl, v.LatestVersion, v.Notes);
+            return _cachedUpdate;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int GetInstalledVersionCode()
+    {
+        try
+        {
+            // On Android, AppInfo.BuildString is the versionCode; VersionString is the versionName.
+            return int.TryParse(AppInfo.Current.BuildString, out var code) ? code : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
 }
+
+/// <summary>Result of the in-app update check: whether an update is available and, if so, whether it is
+/// mandatory (the installed build is below the minimum supported), plus where to get it.</summary>
+public sealed record AppUpdateInfo(bool Available, bool Mandatory, string ApkUrl, string LatestVersion, string? Notes);

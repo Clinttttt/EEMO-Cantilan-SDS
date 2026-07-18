@@ -45,4 +45,7 @@ public interface IMobileApiClient
 
     /// <summary>Resolves a collector-app bind token to its LGU + branding (anonymous, pre-login).</summary>
     Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token);
+
+    /// <summary>Gets the latest published app version for the in-app update check (anonymous).</summary>
+    Task<Result<MobileAppVersionDto>> GetAppVersionAsync();
 }

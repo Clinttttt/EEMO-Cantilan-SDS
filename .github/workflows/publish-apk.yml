@@ -1,0 +1,108 @@
+name: Publish Collector APK
+
+# Manual only — never runs on push/PR, so it can't affect the API/web CI or deploy. Produces a signed
+# release APK as a build artifact. Requires the signing secrets below; fails clearly if any are missing.
+#
+# Required repository secrets:
+#   ANDROID_KEYSTORE_BASE64      base64 of the release keystore  (base64 -w0 stalltrack-release.keystore)
+#   ANDROID_KEYSTORE_PASSWORD    keystore store password
+#   ANDROID_KEY_ALIAS            key alias
+#   ANDROID_KEY_PASSWORD         key password
+#   GOOGLE_SERVICES_JSON_BASE64  base64 of Platforms/Android/google-services.json (untracked; needed to build)
+
+on:
+  workflow_dispatch:
+    inputs:
+      versionName:
+        description: "Display version, e.g. 1.1.0 (optional; overrides csproj ApplicationDisplayVersion)"
+        required: false
+        default: ""
+      versionCode:
+        description: "Android versionCode integer — MUST increase each release (optional; overrides csproj)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build & sign Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android
+
+      - name: Restore google-services.json (required for the Android build)
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON_BASE64 secret is not set."; exit 1
+          fi
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > EEMOCantilanSDS.Mobile/Platforms/Android/google-services.json
+
+      - name: Decode signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set."; exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/stalltrack-release.keystore"
+
+      - name: Publish signed APK
+        env:
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VNAME: ${{ github.event.inputs.versionName }}
+          VCODE: ${{ github.event.inputs.versionCode }}
+        run: |
+          set -e
+          ARGS="-c Release -f net10.0-android \
+            -p:AndroidKeyStore=true \
+            -p:AndroidSigningKeyStore=$RUNNER_TEMP/stalltrack-release.keystore \
+            -p:AndroidSigningStorePass=$STORE_PASS \
+            -p:AndroidSigningKeyAlias=$KEY_ALIAS \
+            -p:AndroidSigningKeyPass=$KEY_PASS"
+          if [ -n "$VNAME" ]; then ARGS="$ARGS -p:ApplicationDisplayVersion=$VNAME"; fi
+          if [ -n "$VCODE" ]; then ARGS="$ARGS -p:ApplicationVersion=$VCODE"; fi
+          dotnet publish EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj $ARGS
+
+      - name: Collect signed APK
+        run: |
+          set -e
+          mkdir -p artifact
+          find EEMOCantilanSDS.Mobile/bin/Release/net10.0-android -name "*-Signed.apk" -print -exec cp {} artifact/stalltrack-collector-latest.apk \;
+          ls -la artifact
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stalltrack-collector-apk
+          path: artifact/*.apk
+          if-no-files-found: error
+          retention-days: 90
+
+      # ── Next step (once app.stalltrack.site hosting exists) ──────────────────────────────────────────
+      # Publish artifact/stalltrack-collector-latest.apk to the static site's /download/ (e.g. via
+      #   az storage blob upload ...   or   swa deploy ...
+      # ) and bump the API app setting Mobile:LatestVersionCode (>= the just-built versionCode) so the
+      # in-app "update available" prompt fires. Add those steps here with the appropriate cloud secrets.

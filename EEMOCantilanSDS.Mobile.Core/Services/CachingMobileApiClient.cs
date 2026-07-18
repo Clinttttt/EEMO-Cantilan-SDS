@@ -123,6 +123,10 @@ public sealed class CachingMobileApiClient(
     public Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token) =>
         inner.GetBindInfoAsync(token);
 
+    // Version check — anonymous, cheap, always live; pass straight through (no caching).
+    public Task<Result<MobileAppVersionDto>> GetAppVersionAsync() =>
+        inner.GetAppVersionAsync();
+
     // ── Read-through core ───────────────────────────────────────────────────
     private async Task<Result<T>> ReadThroughAsync<T>(string key, Func<Task<Result<T>>> fetch)
     {

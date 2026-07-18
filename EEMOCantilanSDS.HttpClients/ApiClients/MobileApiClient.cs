@@ -101,4 +101,7 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<MobileBindInfoDto>> GetBindInfoAsync(string token) =>
         await GetAsync<MobileBindInfoDto>($"api/mobile/bind/{Uri.EscapeDataString(token)}");
+
+    public async Task<Result<MobileAppVersionDto>> GetAppVersionAsync() =>
+        await GetAsync<MobileAppVersionDto>("api/mobile/version");
 }
