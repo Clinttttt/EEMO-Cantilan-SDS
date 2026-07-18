@@ -119,6 +119,8 @@ public class GetSystemSettingsQueryHandlerTests
         public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult(def);
 
         public Task<Municipality?> GetByIdAsync(Guid id, CancellationToken ct) => Task.FromResult(def);
+
+        public Task<Municipality?> GetByBindTokenAsync(string bindToken, CancellationToken ct) => Task.FromResult(def);
     }
 
     // Minimal fake — the handler only calls GetFacilityNamesAsync to learn which facilities the tenant has.

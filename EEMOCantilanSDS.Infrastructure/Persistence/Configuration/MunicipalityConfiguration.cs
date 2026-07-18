@@ -48,6 +48,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.PayMongoPublicKey).HasColumnType("text");
             builder.Property(x => x.PayMongoWebhookSecretEnc).HasColumnType("text");
 
+            // Collector-app bind token (opaque, URL-safe). Unique when set; Postgres allows multiple NULLs.
+            builder.Property(x => x.MobileBindToken).HasMaxLength(64);
+            builder.HasIndex(x => x.MobileBindToken).IsUnique();
+
             builder.Property(x => x.Status)
                 .IsRequired()
                 .HasConversion<int>();

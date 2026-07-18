@@ -1,10 +1,13 @@
 using EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials;
+using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
 using EEMOCantilanSDS.Application.Dtos.Settings;
+using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -17,8 +20,11 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 public class MunicipalityProfileController : ApiBaseController
 {
-    public MunicipalityProfileController(ISender sender) : base(sender)
+    private readonly IConfiguration _configuration;
+
+    public MunicipalityProfileController(ISender sender, IConfiguration configuration) : base(sender)
     {
+        _configuration = configuration;
     }
 
     [HttpPut]
@@ -42,5 +48,21 @@ public class MunicipalityProfileController : ApiBaseController
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);
+    }
+
+    /// <summary>Get (or rotate, with ?rotate=true) this LGU's collector-app bind link + the app download link.</summary>
+    [HttpPost("bind-link")]
+    public async Task<ActionResult<MobileBindLinkDto>> IssueBindLinkAsync([FromQuery] bool rotate = false)
+    {
+        var result = await Sender.Send(new IssueMobileBindLinkCommand(rotate));
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.Value))
+            return HandleResponse(Result<MobileBindLinkDto>.Failure(
+                result.Error ?? "Could not issue the bind link.", result.StatusCode ?? 400));
+
+        var token = result.Value!;
+        var appBase = (_configuration["Mobile:AppBaseUrl"] ?? "https://app.stalltrack.site").TrimEnd('/');
+        var downloadUrl = _configuration["Mobile:DownloadUrl"] ?? $"{appBase}/download/stalltrack-collector-latest.apk";
+        var dto = new MobileBindLinkDto(token, $"{appBase}/a/{token}", downloadUrl);
+        return HandleResponse(Result<MobileBindLinkDto>.Success(dto));
     }
 }

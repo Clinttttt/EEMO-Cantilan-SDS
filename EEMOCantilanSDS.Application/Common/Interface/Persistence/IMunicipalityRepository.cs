@@ -15,6 +15,9 @@ public interface IMunicipalityRepository
     /// or its <c>Code</c>. Used for public pre-login branding. Null when no match.</summary>
     Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct);
 
+    /// <summary>Resolves a single LGU by its opaque collector-app bind token. Null when no match.</summary>
+    Task<Municipality?> GetByBindTokenAsync(string bindToken, CancellationToken ct);
+
     /// <summary>Resolves a single LGU by its registry id. The registry is not tenant-owned, so this is
     /// safe to call from any tenant context (used by the anonymous webhook to pin the transaction's LGU).</summary>
     Task<Municipality?> GetByIdAsync(System.Guid id, CancellationToken ct);

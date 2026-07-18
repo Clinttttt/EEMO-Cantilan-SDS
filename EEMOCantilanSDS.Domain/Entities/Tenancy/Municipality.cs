@@ -54,6 +54,13 @@ public class Municipality : AuditableEntity
     /// <summary>True when this LGU has its own PayMongo secret configured (so it settles to its own account).</summary>
     public bool HasOwnPayMongoAccount => !string.IsNullOrWhiteSpace(PayMongoSecretKeyEnc);
 
+    /// <summary>
+    /// Opaque, LGU-scoped token embedded in the collector-app bind link (…/a/{token}). It binds a freshly
+    /// installed generic app to THIS municipality (branding + login scope) — it is NOT a security boundary
+    /// (login + LGU-scoped accounts remain the real gate). Rotatable if leaked.
+    /// </summary>
+    public string? MobileBindToken { get; private set; }
+
     private Municipality() { }
 
     public static Municipality Create(
@@ -136,5 +143,21 @@ public class Municipality : AuditableEntity
         PayMongoWebhookSecretEnc = null;
         UpdatedAt = DateTime.UtcNow;
         UpdatedBy = updatedBy;
+    }
+
+    /// <summary>Sets (or rotates) this LGU's collector-app bind token.</summary>
+    public void SetMobileBindToken(string token, string updatedBy = "System")
+    {
+        MobileBindToken = token;
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
+    }
+
+    /// <summary>Generates an opaque, URL-safe bind token (128-bit, base64url, no padding).</summary>
+    public static string GenerateBindToken()
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 }

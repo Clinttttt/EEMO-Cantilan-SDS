@@ -39,4 +39,13 @@ public class MunicipalityRepository(AppDbContext context) : IMunicipalityReposit
         => await context.Municipalities
             .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == id, ct);
+
+    public async Task<Municipality?> GetByBindTokenAsync(string bindToken, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(bindToken)) return null;
+        var token = bindToken.Trim();
+        return await context.Municipalities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.MobileBindToken == token, ct);
+    }
 }
