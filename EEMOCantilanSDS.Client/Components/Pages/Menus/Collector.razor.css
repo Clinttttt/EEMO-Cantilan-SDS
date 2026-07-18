@@ -10,6 +10,24 @@
     flex-wrap: wrap;
 }
 
+/* "Collector app link" toolbar button — constrain the icon (global .btn-ghost has no svg rule). */
+.btn-app-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+    .btn-app-link svg {
+        width: 15px;
+        height: 15px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
 .toolbar-left {
     display: flex;
     align-items: center;
