@@ -3,10 +3,12 @@
 @using EEMOCantilanSDS.Application.Command.Collectors.CreateCollector
 @using EEMOCantilanSDS.Application.Command.Collectors.UpdateCollector
 @using EEMOCantilanSDS.Application.Dtos
+@using EEMOCantilanSDS.Application.Dtos.Settings
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject Microsoft.JSInterop.IJSRuntime JS
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>@Branding.OfficeAcronym Admin — Collectors</PageTitle>
 
@@ -106,10 +108,16 @@
                         }
                     </div>
                 </div>
-                <button class="btn-primary" @onclick="OpenCreate">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Add Collector
-                </button>
+                <div class="toolbar-actions" style="display:flex; gap:10px;">
+                    <button class="btn-ghost" @onclick="OpenAppLink">
+                        <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
+                        Collector app link
+                    </button>
+                    <button class="btn-primary" @onclick="OpenCreate">
+                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                        Add Collector
+                    </button>
+                </div>
             </div>
 
             <!-- Collectors Table -->
@@ -538,6 +546,71 @@
 }
 
 
+<!-- ══════════════════════════════════════════════
+     COLLECTOR APP LINK
+══════════════════════════════════════════════ -->
+@if (ShowAppLink)
+{
+    <div class="eemo-modal-overlay" @onclick="() => ShowAppLink = false">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Collector App</div>
+                    <div class="eemo-modal-sub">Share the bind link with your collectors — their app opens as your LGU.</div>
+                </div>
+                <button class="eemo-modal-close" @onclick="() => ShowAppLink = false">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+            </div>
+            <div class="eemo-modal-body">
+                @if (AppLinkLoading)
+                {
+                    <p class="confirm-text">Loading…</p>
+                }
+                else if (AppLink is not null)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Bind link (share with collectors)</label>
+                        <div style="display:flex; gap:8px;">
+                            <input class="form-input" readonly value="@AppLink.BindUrl" />
+                            <button class="btn-ghost" @onclick="() => CopyAsync(AppLink.BindUrl)">Copy</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">App download link</label>
+                        <div style="display:flex; gap:8px;">
+                            <input class="form-input" readonly value="@AppLink.DownloadUrl" />
+                            <button class="btn-ghost" @onclick="() => CopyAsync(AppLink.DownloadUrl)">Copy</button>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(AppLinkNotice))
+                    {
+                        <p class="confirm-text" style="color:var(--green);">@AppLinkNotice</p>
+                    }
+                }
+                @if (!string.IsNullOrEmpty(AppLinkError))
+                {
+                    <div class="form-error">@AppLinkError</div>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                @if (RotateConfirm)
+                {
+                    <span class="confirm-text">Rotating invalidates the old link. Continue?</span>
+                    <button class="btn-danger" disabled="@AppLinkLoading" @onclick="RotateConfirmedAsync">Yes, rotate</button>
+                    <button class="btn-ghost" @onclick="() => RotateConfirm = false">Cancel</button>
+                }
+                else
+                {
+                    <button class="btn-ghost" disabled="@AppLinkLoading" @onclick="() => RotateConfirm = true">Rotate link</button>
+                    <button class="btn-primary" @onclick="() => ShowAppLink = false">Done</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
 @code {
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     private bool _loading = true;
@@ -821,6 +894,69 @@
         finally
         {
             IsSending = false;
+        }
+    }
+
+    // ── Collector app link (bind link) ──────────────────────────────────────────
+    bool ShowAppLink;
+    bool AppLinkLoading;
+    bool RotateConfirm;
+    MobileBindLinkDto? AppLink;
+    string? AppLinkError;
+    string? AppLinkNotice;
+
+    async Task OpenAppLink()
+    {
+        ShowAppLink = true;
+        RotateConfirm = false;
+        AppLinkError = null;
+        AppLinkNotice = null;
+        await LoadAppLinkAsync(rotate: false);
+    }
+
+    async Task LoadAppLinkAsync(bool rotate)
+    {
+        AppLinkLoading = true;
+        AppLinkError = null;
+        StateHasChanged();
+        try
+        {
+            var result = await CollectorsApi.GetCollectorAppLinkAsync(rotate);
+            if (result.IsSuccess && result.Value is not null)
+                AppLink = result.Value;
+            else
+                AppLinkError = result.Error ?? "Couldn't load the collector app link.";
+        }
+        catch
+        {
+            AppLinkError = "Couldn't load the collector app link.";
+        }
+        finally
+        {
+            AppLinkLoading = false;
+        }
+    }
+
+    async Task RotateConfirmedAsync()
+    {
+        RotateConfirm = false;
+        AppLinkNotice = null;
+        await LoadAppLinkAsync(rotate: true);
+        if (AppLinkError is null)
+            AppLinkNotice = "Link rotated. The previous link no longer works.";
+    }
+
+    async Task CopyAsync(string text)
+    {
+        AppLinkError = null;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+            AppLinkNotice = "Copied to clipboard.";
+        }
+        catch
+        {
+            AppLinkNotice = "Couldn't copy automatically — select the text and copy manually.";
         }
     }
 }

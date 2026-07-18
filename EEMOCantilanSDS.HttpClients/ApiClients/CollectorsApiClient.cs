@@ -38,4 +38,8 @@ public class CollectorsApiClient(HttpClient http) : HandleResponse(http), IColle
         await PostAsync<EEMOCantilanSDS.Application.Requests.Notifications.SendCollectorNotificationRequest, int>(
             $"api/Notifications/collectors/{collectorId}/send",
             new EEMOCantilanSDS.Application.Requests.Notifications.SendCollectorNotificationRequest(title, body));
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Settings.MobileBindLinkDto>> GetCollectorAppLinkAsync(bool rotate = false) =>
+        await PostAsync<object, EEMOCantilanSDS.Application.Dtos.Settings.MobileBindLinkDto>(
+            $"api/municipality-profile/bind-link?rotate={(rotate ? "true" : "false")}", new { });
 }
