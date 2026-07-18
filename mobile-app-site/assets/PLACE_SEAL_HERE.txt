@@ -1,0 +1,6 @@
+Place the platform seal here as:
+
+  seal.png    (shown in the download page hero; ~216x216 px, transparent PNG recommended)
+
+If absent, the page gracefully falls back to a gold "ST" monogram.
+A ready seal exists at ../../EEMOCantilanSDS.Mobile/wwwroot/images/stalltrack-seal.png.

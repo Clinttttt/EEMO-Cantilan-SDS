@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/staticwebapp.config.json",
+  "routes": [
+    {
+      "route": "/.well-known/assetlinks.json",
+      "headers": { "content-type": "application/json" }
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/download/*", "/assets/*", "/.well-known/*", "*.apk", "*.png", "*.css", "*.js"]
+  },
+  "mimeTypes": {
+    ".apk": "application/vnd.android.package-archive",
+    ".json": "application/json"
+  },
+  "globalHeaders": {
+    "cache-control": "no-cache"
+  }
+}

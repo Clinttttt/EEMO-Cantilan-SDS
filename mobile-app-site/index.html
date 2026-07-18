@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>StallTrack Collector — Download</title>
+    <meta name="description" content="Download the StallTrack Collector app for your municipality." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --navy: #0d2137;
+            --navy-2: #0b1b30;
+            --gold: #c8a84b;
+            --gold-light: #e8cc76;
+            --bg: #f0f4f8;
+            --text: #0d2137;
+            --muted: #8faabf;
+            --border: #dde4ea;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body { height: 100%; }
+
+        body {
+            font-family: 'DM Sans', system-ui, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Hero (full-bleed navy) ── */
+        .hero {
+            background:
+                radial-gradient(1200px 400px at 50% -10%, rgba(200,168,75,0.14), transparent 60%),
+                linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+            color: #fff;
+            padding: calc(env(safe-area-inset-top, 0px) + 56px) 24px 52px;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            left: 12%; right: 12%; bottom: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), var(--gold-light), var(--gold), transparent);
+        }
+
+        .seal {
+            width: 108px; height: 108px;
+            margin: 0 auto 22px;
+            display: grid; place-items: center;
+            border-radius: 50%;
+            border: 1px solid rgba(200,168,75,0.35);
+            background: rgba(255,255,255,0.03);
+            filter: drop-shadow(0 8px 24px rgba(0,0,0,0.35));
+            overflow: hidden;
+        }
+        .seal img { width: 100%; height: 100%; object-fit: contain; }
+        /* Fallback monogram when no seal image is present */
+        .seal .mono {
+            font-family: 'EB Garamond', serif;
+            font-size: 44px; font-weight: 600; color: var(--gold-light);
+            letter-spacing: 1px;
+        }
+
+        .eyebrow {
+            font-size: 10.5px; font-weight: 600; letter-spacing: 3px;
+            text-transform: uppercase; color: var(--gold);
+            margin-bottom: 10px;
+        }
+        .brand {
+            font-family: 'EB Garamond', serif;
+            font-size: 40px; font-weight: 600; line-height: 1.05;
+            letter-spacing: 0.5px;
+        }
+        .tagline {
+            margin-top: 10px; font-size: 14px; font-weight: 500;
+            color: var(--gold-light); letter-spacing: 0.2px;
+        }
+
+        /* ── Invited banner (shown when arriving via /a/{token}) ── */
+        .invited {
+            display: none;
+            margin: 22px auto 0; max-width: 460px;
+            background: rgba(200,168,75,0.10);
+            border: 1px solid rgba(200,168,75,0.35);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 13px; color: #f4ecd6;
+            line-height: 1.5;
+        }
+        .invited.show { display: block; }
+        .invited b { color: var(--gold-light); }
+
+        /* ── Content card ── */
+        main {
+            flex: 1;
+            width: 100%; max-width: 560px;
+            margin: -28px auto 0;
+            padding: 0 20px 40px;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 12px 40px rgba(13,33,55,0.10);
+            padding: 26px 24px 28px;
+        }
+
+        .cta {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%;
+            background: var(--navy);
+            color: var(--gold-light);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 15px; font-weight: 700; letter-spacing: 0.3px;
+            border: none; border-radius: 13px;
+            padding: 16px; cursor: pointer; text-decoration: none;
+            transition: transform 0.12s, opacity 0.12s;
+        }
+        .cta:active { transform: scale(0.99); opacity: 0.92; }
+        .cta svg { width: 20px; height: 20px; }
+
+        .cta-open {
+            display: none;
+            margin-top: 12px;
+            background: #fff; color: var(--navy);
+            border: 1.5px solid var(--navy);
+        }
+        .cta-open.show { display: flex; }
+
+        .version {
+            text-align: center; font-size: 11.5px; color: var(--muted);
+            margin-top: 12px;
+        }
+
+        h2 {
+            font-family: 'EB Garamond', serif;
+            font-size: 19px; font-weight: 600;
+            margin: 28px 0 4px;
+        }
+        .section-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+
+        ol.steps { list-style: none; counter-reset: s; display: grid; gap: 12px; }
+        ol.steps li {
+            counter-increment: s;
+            display: grid; grid-template-columns: 26px 1fr; gap: 12px;
+            align-items: start;
+            font-size: 13.5px; line-height: 1.5;
+        }
+        ol.steps li::before {
+            content: counter(s);
+            width: 26px; height: 26px; border-radius: 50%;
+            display: grid; place-items: center;
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--navy); font-weight: 700; font-size: 12px;
+        }
+        ol.steps b { font-weight: 600; }
+
+        .note {
+            margin-top: 22px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 13px 15px;
+            font-size: 12px; color: #6a8aa0; line-height: 1.55;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 11px; color: var(--muted);
+            padding: 22px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+        }
+    </style>
+</head>
+<body>
+    <header class="hero">
+        <div class="seal">
+            <!-- Drop your platform seal at /assets/seal.png to replace the monogram. -->
+            <img src="/assets/seal.png" alt="StallTrack" onerror="this.style.display='none';this.parentElement.querySelector('.mono').style.display='block'" />
+            <span class="mono" style="display:none">ST</span>
+        </div>
+        <div class="eyebrow">Republic of the Philippines</div>
+        <div class="brand">StallTrack</div>
+        <div class="tagline">Collector Mobile App</div>
+
+        <div class="invited" id="invited">
+            <b>You've been invited by your LGU.</b> Install the app below, then reopen your invite link on
+            your phone — the app will set itself up for your municipality automatically.
+        </div>
+    </header>
+
+    <main>
+        <div class="card">
+            <a class="cta" id="download" href="/download/stalltrack-collector-latest.apk">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Download for Android
+            </a>
+            <a class="cta cta-open" id="openApp" href="#">Open in the app</a>
+            <div class="version">Android 8.0+ · APK install</div>
+
+            <h2>How to install</h2>
+            <div class="section-sub">A one-time setup — takes about a minute.</div>
+            <ol class="steps">
+                <li><span><b>Download</b> the app using the button above.</span></li>
+                <li><span>When prompted, <b>allow installs from this source</b> (Android asks once for apps outside the Play Store).</span></li>
+                <li><span>Open the downloaded file and tap <b>Install</b>.</span></li>
+                <li><span><b>Open your invite link</b> (the one your office shared) — the app starts already set to your municipality.</span></li>
+                <li><span>Sign in with the <b>username and password</b> your administrator gave you.</span></li>
+            </ol>
+
+            <div class="note">
+                Accounts are created only by your office administrator through the web portal. If you don't
+                have an invite link or an account yet, contact your administrator.
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        StallTrack · Unified LGU Market Management Platform · For authorized personnel only
+    </footer>
+
+    <script>
+        // If arrived via a bind link (/a/{token}), surface the "invited" banner and offer a direct
+        // "Open in the app" action via the custom scheme (works once the app is installed).
+        (function () {
+            var path = window.location.pathname || "";
+            var m = path.match(/^\/a\/([^\/?#]+)/i);
+            if (!m) return;
+            var token = m[1];
+            document.getElementById("invited").classList.add("show");
+            var open = document.getElementById("openApp");
+            open.href = "stalltrack://a/" + encodeURIComponent(token);
+            open.classList.add("show");
+        })();
+    </script>
+</body>
+</html>

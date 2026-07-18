@@ -1,0 +1,6 @@
+Place the signed release APK here as:
+
+  stalltrack-collector-latest.apk   (the stable "latest" download the Head shares)
+
+Optionally keep versioned copies alongside it, e.g. stalltrack-collector-1.0.0.apk.
+See ../README.md (Step 1) for how to build + sign it.
