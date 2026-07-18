@@ -28,7 +28,9 @@ public class ActivatePayorAccountCommandHandlerTests
             .ReturnsAsync(new TokenResponseDto { AccessToken = "a", RefreshToken = "r" });
 
         var uow = new Mock<IUnitOfWork>();
-        return (new ActivatePayorAccountCommandHandler(repo.Object, token.Object, uow.Object), repo, uow);
+        var muniRepo = new Mock<IMunicipalityRepository>();
+        var tenantScope = new EEMOCantilanSDS.Infrastructure.Tenancy.RequestTenantScope();
+        return (new ActivatePayorAccountCommandHandler(repo.Object, muniRepo.Object, tenantScope, token.Object, uow.Object), repo, uow);
     }
 
     private static ActivatePayorAccountCommand Command(string password = Password) =>

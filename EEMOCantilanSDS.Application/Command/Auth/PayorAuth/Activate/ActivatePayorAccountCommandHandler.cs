@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -9,6 +10,8 @@ namespace EEMOCantilanSDS.Application.Command.Auth.PayorAuth.Activate;
 
 public class ActivatePayorAccountCommandHandler(
     IPayorRepository payorRepository,
+    IMunicipalityRepository municipalityRepository,
+    IRequestTenantScope tenantScope,
     ITokenService tokenService,
     IUnitOfWork unitOfWork) : IRequestHandler<ActivatePayorAccountCommand, Result<TokenResponseDto>>
 {
@@ -21,6 +24,13 @@ public class ActivatePayorAccountCommandHandler(
         // Validate the code without revealing which specific check failed (anti-enumeration).
         if (code is null || !code.CanBeRedeemedBy(contactNumber))
             return Result<TokenResponseDto>.Failure("Invalid or expired activation code.", 400);
+
+        // Activation is anonymous, so this request would otherwise resolve to the DEFAULT tenant (Cantilan).
+        // Pin it to the code's OWN municipality so the new payor account + stall link are stamped (and
+        // tenant-scoped) under the correct LGU. For a Cantilan code this resolves to Cantilan — unchanged.
+        var municipality = await municipalityRepository.GetByIdAsync(code.MunicipalityId, cancellationToken);
+        if (municipality is not null)
+            tenantScope.Use(municipality.Id, municipality.TenantCode);
 
         // One mobile number = one payor (enforced at code generation). If an account already exists for
         // this number, the payor has already activated — direct them to sign in. Never link the code's

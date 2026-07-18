@@ -25,8 +25,13 @@ public class PayorRepository(AppDbContext context, INpmMonthSettlementService np
     public async Task<PayorActivationCode?> GetActivationCodeAsync(string code, CancellationToken ct = default)
     {
         var normalized = code.Trim();
+        // Activation is anonymous (no JWT → resolves to the DEFAULT tenant), and the code is a globally
+        // unique, single-use secret. Span every LGU (bypass the tenant filter) so a code issued by ANY
+        // municipality is found; still exclude soft-deleted. The handler then pins the request to the
+        // code's own municipality before creating the payor.
         return await context.PayorActivationCodes
-            .FirstOrDefaultAsync(c => c.Code == normalized, ct);
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => !c.IsDeleted && c.Code == normalized, ct);
     }
 
     public async Task<bool> ActivationCodeExistsAsync(string code, CancellationToken ct = default)
