@@ -2,7 +2,7 @@ using EEMOCantilanSDS.Domain.Entities.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace EEMOCantilanSDS.Infrastructure.Configuration;
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration;
 
 public class CollectorDeviceTokenConfiguration : IEntityTypeConfiguration<CollectorDeviceToken>
 {

@@ -88,7 +88,7 @@ public class GetCollectionReportQueryHandler(
                 string.Empty, AnimalLabel(t), t.NumberOfHeads, t.RatePerHead, t.ORNumber, t.TotalAmount))
             .ToList();
         facilities.Add(new CollectionFacilityDto(
-            FacilityCode.SLH, FacilityName(FacilityCode.SLH), Model(FacilityCode.SLH), IsRental: false,
+            FacilityCode.SLH, ReportName(FacilityCode.SLH, facilityNames), Model(FacilityCode.SLH), IsRental: false,
             slhRows.Sum(r => r.Amount), 0m, Array.Empty<CollectionRentalRowDto>(), slhRows));
 
         // ── Transport Terminal (per-trip) ──
@@ -100,7 +100,7 @@ public class GetCollectionReportQueryHandler(
                 $"Trip #{t.TripNumber}", t.Route ?? string.Empty, 0, 0m, t.ORNumber, t.Fee))
             .ToList();
         facilities.Add(new CollectionFacilityDto(
-            FacilityCode.TRM, FacilityName(FacilityCode.TRM), Model(FacilityCode.TRM), IsRental: false,
+            FacilityCode.TRM, ReportName(FacilityCode.TRM, facilityNames), Model(FacilityCode.TRM), IsRental: false,
             trmRows.Sum(r => r.Amount), 0m, Array.Empty<CollectionRentalRowDto>(), trmRows));
 
         // ── Tabo-an Public Market (weekly, paid attendance only) ──
@@ -113,7 +113,7 @@ public class GetCollectionReportQueryHandler(
                 string.Empty, a.Goods ?? string.Empty, 0, 0m, a.ORNumber, a.Fee))
             .ToList();
         facilities.Add(new CollectionFacilityDto(
-            FacilityCode.TPM, FacilityName(FacilityCode.TPM), Model(FacilityCode.TPM), IsRental: false,
+            FacilityCode.TPM, ReportName(FacilityCode.TPM, facilityNames), Model(FacilityCode.TPM), IsRental: false,
             tpmRows.Sum(r => r.Amount), 0m, Array.Empty<CollectionRentalRowDto>(), tpmRows));
 
         var ordered = facilities.Where(f => tenantCodes.Contains(f.Code)).OrderBy(f => f.Code).ToList();

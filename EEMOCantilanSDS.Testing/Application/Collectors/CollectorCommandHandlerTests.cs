@@ -75,12 +75,16 @@ public class CollectorCommandHandlerTests
         repo.Setup(r => r.ReplaceFacilityAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<List<FacilityCode>>(), It.IsAny<CancellationToken>()))
             .Callback<Guid, List<FacilityCode>, CancellationToken>((_, codes, _) => replacedWith = codes)
             .Returns(Task.CompletedTask);
+        var facilityRepo1 = new Mock<IFacilityRepository>();
+        facilityRepo1.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>());
         var handler = new UpdateCollectorCommandHandler(
             repo.Object,
             user.Object,
             uow.Object,
             CacheTestDoubles.Invalidator,
             CacheTestDoubles.Tenant,
+            facilityRepo1.Object,
             new Mock<EEMOCantilanSDS.Application.Common.Interface.Services.IPushSender>().Object);
 
         var result = await handler.Handle(
@@ -102,9 +106,12 @@ public class CollectorCommandHandlerTests
         repo.Setup(r => r.ReplaceFacilityAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<List<FacilityCode>>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         var push = new Mock<IPushSender>();
+        var facilityRepo2 = new Mock<IFacilityRepository>();
+        facilityRepo2.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>());
         var handler = new UpdateCollectorCommandHandler(
             repo.Object, user.Object, uow.Object,
-            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, push.Object);
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, facilityRepo2.Object, push.Object);
 
         var result = await handler.Handle(
             new UpdateCollectorCommand(collector.Id, "N", "0999", "n@eemo.gov", new() { FacilityCode.NPM }),

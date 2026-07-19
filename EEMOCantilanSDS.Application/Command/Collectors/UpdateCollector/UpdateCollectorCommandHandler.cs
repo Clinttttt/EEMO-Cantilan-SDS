@@ -14,6 +14,7 @@ public class UpdateCollectorCommandHandler(
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext,
+    IFacilityRepository facilityRepo,
     IPushSender pushSender) : IRequestHandler<UpdateCollectorCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateCollectorCommand request, CancellationToken cancellationToken)
@@ -35,7 +36,12 @@ public class UpdateCollectorCommandHandler(
         {
             try
             {
-                var names = string.Join(", ", newlyAdded.Select(FacilityDisplayNames.Of));
+                // Use the tenant's own facility names (fallback to the canonical label → Cantilan unchanged).
+                var facilityNames = await facilityRepo.GetFacilityNamesAsync(cancellationToken);
+                var names = string.Join(", ", newlyAdded.Select(c =>
+                    facilityNames.TryGetValue(c, out var fn) && !string.IsNullOrWhiteSpace(fn)
+                        ? fn
+                        : FacilityDisplayNames.Of(c)));
                 var body = newlyAdded.Count == 1
                     ? $"You've been assigned to {names}. Open StallTrack to start collecting."
                     : $"You've been assigned to: {names}.";

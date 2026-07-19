@@ -110,8 +110,10 @@ public class GetMonthEndReportQueryHandler(
         }
 
         // ── Transaction facilities: itemised month records grouped by payor ──
+        // Service-facility display names are resolved from the tenant catalog (ReportName) at the call site,
+        // since the builder helpers are name-agnostic. Cantilan resolves to the seeded defaults (unchanged).
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(request.Year, request.Month, ct);
-        facilities.Add(BuildSlaughterFacility(slaughter));
+        facilities.Add(BuildSlaughterFacility(slaughter) with { Name = ReportName(FacilityCode.SLH, facilityNames) });
 
         var trips = await trmRepository.GetTripsByMonthAsync(request.Year, request.Month, ct);
         facilities.Add(BuildTransactionFacility(FacilityCode.TRM, trips
@@ -120,7 +122,7 @@ public class GetMonthEndReportQueryHandler(
                 t.RecordedAt.ToString("MMM d", CultureInfo.InvariantCulture),
                 $"Trip #{t.TripNumber}{(string.IsNullOrWhiteSpace(t.Route) ? "" : " · " + t.Route)}",
                 t.Fee,
-                t.ORNumber), (string?)t.Route))));
+                t.ORNumber), (string?)t.Route))) with { Name = ReportName(FacilityCode.TRM, facilityNames) });
 
         var attendance = await tpmRepository.GetMonthAttendanceAsync(request.Year, request.Month, ct);
         facilities.Add(BuildTransactionFacility(FacilityCode.TPM, attendance
@@ -130,7 +132,7 @@ public class GetMonthEndReportQueryHandler(
                 a.MarketDate.ToString("MMM d", CultureInfo.InvariantCulture),
                 string.IsNullOrWhiteSpace(a.Goods) ? "Friday market" : $"Friday market · {a.Goods}",
                 a.Fee,
-                a.ORNumber), (string?)a.Goods))));
+                a.ORNumber), (string?)a.Goods))) with { Name = ReportName(FacilityCode.TPM, facilityNames) });
 
         var ordered = facilities.Where(f => tenantCodes.Contains(f.Code)).OrderBy(f => f.Code).ToList();
 

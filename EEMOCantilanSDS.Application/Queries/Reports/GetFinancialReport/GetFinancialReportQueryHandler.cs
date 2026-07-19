@@ -199,7 +199,7 @@ public class GetFinancialReportQueryHandler(
 
             facilityRows.Add(new FinancialFacilityRowDto(
                 Code: code,
-                Name: FacilityName(code),
+                Name: ReportName(code, facilityNames),
                 Model: FacilityModel(code),
                 PaidOnService: true,
                 Collected: svcCollected,
@@ -293,7 +293,7 @@ public class GetFinancialReportQueryHandler(
 
         var dto = new FinancialReportDto(
             PeriodLabel: PeriodLabel(request),
-            ScopeLabel: request.Facility is null ? "All facilities" : FacilityName(request.Facility.Value),
+            ScopeLabel: request.Facility is null ? "All facilities" : ReportName(request.Facility.Value, facilityNames),
             Frequency: FrequencyLabel(request.Period),
             FacilityCount: facilityCount,
             Collected: collected,

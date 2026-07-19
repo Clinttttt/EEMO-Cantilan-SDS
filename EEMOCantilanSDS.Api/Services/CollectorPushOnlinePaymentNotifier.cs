@@ -14,6 +14,7 @@ public sealed class CollectorPushOnlinePaymentNotifier(
     IPushSender pushSender,
     IStallRepository stallRepository,
     ICollectorRepository collectorRepository,
+    IFacilityRepository facilityRepository,
     ILogger<CollectorPushOnlinePaymentNotifier> logger) : IOnlinePaymentNotifier
 {
     public async Task NotifyPaymentReceivedAsync(OnlinePaymentNotification notification, CancellationToken cancellationToken = default)
@@ -33,7 +34,12 @@ public sealed class CollectorPushOnlinePaymentNotifier(
             }
 
             const string title = "Online payment received";
-            var body = $"A payor paid \u20b1{notification.Amount:N0} online at {FacilityDisplayNames.Of(facility.Value)}. Open StallTrack to enter the OR number.";
+            // Use the tenant's own facility name (fallback to the canonical label → Cantilan unchanged).
+            var facilityNames = await facilityRepository.GetFacilityNamesAsync(cancellationToken);
+            var facilityName = facilityNames.TryGetValue(facility.Value, out var n) && !string.IsNullOrWhiteSpace(n)
+                ? n
+                : FacilityDisplayNames.Of(facility.Value);
+            var body = $"A payor paid \u20b1{notification.Amount:N0} online at {facilityName}. Open StallTrack to enter the OR number.";
 
             foreach (var collectorId in collectorIds)
             {

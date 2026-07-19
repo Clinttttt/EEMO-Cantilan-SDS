@@ -27,6 +27,14 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
     // Cantilan is byte-for-byte, refreshed per call in GetRecentTransactionsAsync.
     private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
 
+    // Tenant facility names, resolved once per feed build. Stall/daily rows read Facility.Name via their
+    // navigation; the transaction facilities TRM/TPM don't join Facility, so their display name is looked
+    // up here. Falls back to the canonical default, so Cantilan's feed is byte-for-byte unchanged.
+    private IReadOnlyDictionary<FacilityCode, string> _facilityNames = new Dictionary<FacilityCode, string>();
+
+    private string TenantFacilityName(FacilityCode code, string fallback) =>
+        _facilityNames.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n) ? n : fallback;
+
     public async Task<IReadOnlyList<TransactionFeedDto>> GetRecentTransactionsAsync(
         FacilityCode? facility, DateOnly? onDate, int limit, CancellationToken ct = default)
     {
@@ -38,6 +46,11 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
         // constant, so Cantilan's feed amounts are unchanged).
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         _npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, onDate ?? DateOnly.FromDateTime(PhilippineTime.Now));
+
+        // Tenant facility names for TRM/TPM feed rows (whose source tables don't join Facility).
+        _facilityNames = await context.Facilities
+            .AsNoTracking()
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
 
         // Resolve collector names once (small table) to attribute each row: collector-recorded rows show
         // the collector's name; admin/head-recorded rows (CollectorId null) fall back to the audit actor.
@@ -279,7 +292,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .ToListAsync(ct);
 
         return rows.Select(r => new TransactionFeedDto(
-            r.Id, FacilityCode.TRM, "Transport Terminal", PhilippineTime.ToPhilippineTime(r.When), true,
+            r.Id, FacilityCode.TRM, TenantFacilityName(FacilityCode.TRM, "Transport Terminal"), PhilippineTime.ToPhilippineTime(r.When), true,
             r.DriverName,
             $"{r.PlateNumber} · {r.Route}",
             "Terminal Trip", r.Fee, r.ORNumber, "Paid",
@@ -309,7 +322,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
             .ToListAsync(ct);
 
         return rows.Select(r => new TransactionFeedDto(
-            r.Id, FacilityCode.TPM, "Tabo-an Public Market", r.MarketDate.ToDateTime(TimeOnly.MinValue), false,
+            r.Id, FacilityCode.TPM, TenantFacilityName(FacilityCode.TPM, "Tabo-an Public Market"), r.MarketDate.ToDateTime(TimeOnly.MinValue), false,
             r.VendorName,
             r.Goods,
             "Market Day", r.Fee, r.ORNumber, "Paid",
