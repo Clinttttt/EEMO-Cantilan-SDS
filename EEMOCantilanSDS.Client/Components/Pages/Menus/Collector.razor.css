@@ -28,6 +28,70 @@
         flex-shrink: 0;
     }
 
+/* ── Collector App (bind link) modal — navy header, consistent with the confirm modal ── */
+.applink-modal {
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 0;
+}
+
+    .applink-modal .eemo-modal-header {
+        background: var(--navy);
+        margin: 0;
+        padding: 16px 20px;
+        border-bottom: none;
+        align-items: flex-start;
+    }
+
+    .applink-modal .eemo-modal-title {
+        color: #fff;
+    }
+
+    .applink-modal .eemo-modal-sub {
+        color: rgba(255, 255, 255, 0.72);
+    }
+
+    .applink-modal .eemo-modal-close {
+        color: var(--gold-light);
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+        .applink-modal .eemo-modal-close:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+    .applink-modal .eemo-modal-body {
+        padding: 20px;
+    }
+
+    .applink-modal .eemo-modal-footer {
+        padding: 14px 20px;
+        margin: 0;
+        border-top: 1px solid var(--border);
+        background: var(--bg);
+    }
+
+/* Link + Copy row: the link fills the row (no truncation), Copy stays fixed. */
+.applink-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.applink-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+}
+
+.applink-copy {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .toolbar-left {
     display: flex;
     align-items: center;

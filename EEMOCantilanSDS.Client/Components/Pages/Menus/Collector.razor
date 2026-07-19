@@ -552,7 +552,7 @@
 @if (ShowAppLink)
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowAppLink = false">
-        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+        <div class="eemo-modal eemo-modal-sm applink-modal" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Collector App</div>
@@ -571,16 +571,16 @@
                 {
                     <div class="form-group">
                         <label class="form-label">Bind link (share with collectors)</label>
-                        <div style="display:flex; gap:8px;">
-                            <input class="form-input" readonly value="@AppLink.BindUrl" />
-                            <button class="btn-ghost" @onclick="() => CopyAsync(AppLink.BindUrl)">Copy</button>
+                        <div class="applink-row">
+                            <input class="form-input applink-input" readonly value="@AppLink.BindUrl" title="@AppLink.BindUrl" />
+                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.BindUrl)">Copy</button>
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">App download link</label>
-                        <div style="display:flex; gap:8px;">
-                            <input class="form-input" readonly value="@AppLink.DownloadUrl" />
-                            <button class="btn-ghost" @onclick="() => CopyAsync(AppLink.DownloadUrl)">Copy</button>
+                        <div class="applink-row">
+                            <input class="form-input applink-input" readonly value="@AppLink.DownloadUrl" title="@AppLink.DownloadUrl" />
+                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.DownloadUrl)">Copy</button>
                         </div>
                     </div>
                     @if (!string.IsNullOrEmpty(AppLinkNotice))
