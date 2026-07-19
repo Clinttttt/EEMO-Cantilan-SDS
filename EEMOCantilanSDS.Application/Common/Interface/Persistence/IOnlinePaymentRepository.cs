@@ -49,4 +49,11 @@ public interface IOnlinePaymentRepository
     /// an OR. Lets a past month show only the online receipts that belonged to that period.
     /// </summary>
     Task<IReadOnlyList<OnlinePaymentAwaitingOrDto>> GetAwaitingOrByPeriodAsync(int year, int month, CancellationToken ct = default);
+
+    /// <summary>
+    /// Treasury overview + recent settled history for the admin Online Payments page — computed from the
+    /// LGU's own online-payment records (this-month / this-year collected, settled count, top method) plus
+    /// the most recent <paramref name="recentLimit"/> received payments with payor + facility resolved.
+    /// </summary>
+    Task<OnlinePaymentDashboardDto> GetDashboardAsync(int year, int month, int recentLimit, CancellationToken ct = default);
 }

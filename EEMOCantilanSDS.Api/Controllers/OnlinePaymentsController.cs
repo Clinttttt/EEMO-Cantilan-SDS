@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.IssueOrNumber;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetAwaitingOr;
+using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetDashboard;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -90,6 +91,15 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
     public async Task<ActionResult<IReadOnlyList<OnlinePaymentAwaitingOrDto>>> AwaitingOrAsync()
     {
         var result = await Sender.Send(new GetOnlinePaymentsAwaitingOrQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>Treasury overview + recent settled history for the admin Online Payments page (current LGU).</summary>
+    [HttpGet("dashboard")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<OnlinePaymentDashboardDto>> DashboardAsync()
+    {
+        var result = await Sender.Send(new GetOnlinePaymentDashboardQuery());
         return HandleResponse(result);
     }
 

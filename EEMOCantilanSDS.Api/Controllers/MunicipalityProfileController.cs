@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials;
 using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
+using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
@@ -65,4 +66,16 @@ public class MunicipalityProfileController : ApiBaseController
         var dto = new MobileBindLinkDto(token, $"{appBase}/a/{token}", downloadUrl);
         return HandleResponse(Result<MobileBindLinkDto>.Success(dto));
     }
+
+    /// <summary>Re-authentication: verify the current Head's own password before a sensitive change
+    /// (e.g. opening the online-payment account configuration). Returns whether it matched.</summary>
+    [HttpPost("verify-password")]
+    public async Task<ActionResult<bool>> VerifyPasswordAsync([FromBody] VerifyMyPasswordRequest request)
+    {
+        var result = await Sender.Send(new VerifyMyPasswordQuery(request.Password));
+        return HandleResponse(result);
+    }
 }
+
+/// <summary>Request body for the re-authentication check.</summary>
+public record VerifyMyPasswordRequest(string Password);

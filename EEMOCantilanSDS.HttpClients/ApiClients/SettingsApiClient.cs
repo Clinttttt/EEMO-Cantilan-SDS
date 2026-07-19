@@ -20,4 +20,7 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
         await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand, bool>(
             "api/municipality-profile/payment",
             new EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials.SetMunicipalityPaymentCredentialsCommand(secretKey, publicKey, webhookSecret));
+
+    public async Task<Result<bool>> VerifyMyPasswordAsync(string password) =>
+        await PostAsync<object, bool>("api/municipality-profile/verify-password", new { Password = password });
 }

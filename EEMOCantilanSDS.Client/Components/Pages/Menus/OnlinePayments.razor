@@ -131,21 +131,47 @@
     }
     else
     {
-        @if (_isHead && _paymentLoaded)
+        @if (_dashboard is not null)
         {
-            <div class="op-account @(_payment?.HasOwnAccount == true ? "is-own" : "")">
-                <span>@(_payment?.HasOwnAccount == true ? "Settling to your own PayMongo account." : "Using the platform's default account.")</span>
-                <button class="btn-ghost" @onclick="OpenSetup">@(_payment?.HasOwnAccount == true ? "Update" : "Configure")</button>
+            <div class="op-kpis">
+                <div class="op-kpi">
+                    <div class="op-kpi-label">Collected this month</div>
+                    <div class="op-kpi-value">₱@_dashboard.CollectedThisMonth.ToString("N2")</div>
+                    <div class="op-kpi-sub">@PhilippineTime.Now.ToString("MMMM yyyy") · online</div>
+                </div>
+                <div class="op-kpi">
+                    <div class="op-kpi-label">Collected this year</div>
+                    <div class="op-kpi-value">₱@_dashboard.CollectedThisYear.ToString("N2")</div>
+                    <div class="op-kpi-sub">@_dashboard.Year · online</div>
+                </div>
+                <div class="op-kpi">
+                    <div class="op-kpi-label">Settled transactions</div>
+                    <div class="op-kpi-value">@_dashboard.SettledCountThisYear.ToString("N0")</div>
+                    <div class="op-kpi-sub">@_dashboard.Year@(string.IsNullOrEmpty(_dashboard.TopMethod) ? "" : " · mostly " + MethodLabel(_dashboard.TopMethod))</div>
+                </div>
+                <div class="op-kpi">
+                    <div class="op-kpi-label">Awaiting Official Receipt</div>
+                    <div class="op-kpi-value @(Items.Count > 0 ? "is-attention" : "")">@Items.Count.ToString("N0")</div>
+                    <div class="op-kpi-sub">@(Items.Count == 0 ? "all caught up" : "need OR encoding below")</div>
+                </div>
             </div>
         }
 
-        <div class="op-intro">
-        <div class="op-intro-title">Online payments received — awaiting Official Receipt</div>
-        <div class="op-intro-sub">
-            These payors paid online and their balance is already cleared. Encode the manually-issued OR number to
-            complete each transaction. Amounts and the payor are shown for verification against the treasury report.
+        <div class="op-intro op-intro-row">
+            <div>
+                <div class="op-intro-title">Online payments received — awaiting Official Receipt</div>
+                <div class="op-intro-sub">Encode the manually-issued OR number to complete each cleared payment.</div>
+            </div>
+            @if (_isHead && _paymentLoaded)
+            {
+                <button class="op-config-btn" type="button"
+                        title="@(_payment?.HasOwnAccount == true ? "Settling to your own PayMongo account — click to configure" : "Using the platform default account — click to configure")"
+                        @onclick="RequestConfigure">
+                    <span class="op-config-status @(_payment?.HasOwnAccount == true ? "is-own" : "")">@(_payment?.HasOwnAccount == true ? "Own account" : "Default account")</span>
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                </button>
+            }
         </div>
-    </div>
 
     @if (!string.IsNullOrEmpty(Message))
     {
@@ -228,6 +254,90 @@
             </table>
         }
     </div>
+
+    @* ── Recent online payments (received) ── *@
+    <div class="op-intro op-history-head">
+        <div class="op-intro-title">Recent online payments</div>
+        <div class="op-intro-sub">
+            The latest online payments received across all facilities — for verification against the treasury report.
+        </div>
+    </div>
+    <div class="section-card">
+        @if (_dashboard is null || _dashboard.Recent.Count == 0)
+        {
+            <div class="op-empty">No online payments have been received yet.</div>
+        }
+        else
+        {
+            <table class="op-table">
+                <thead>
+                    <tr>
+                        <th>Paid</th>
+                        <th>Payor</th>
+                        <th>Facility / Stall</th>
+                        <th>Period</th>
+                        <th>Method</th>
+                        <th class="op-amt">Amount</th>
+                        <th>Status</th>
+                        <th>OR Number</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in _dashboard.Recent)
+                    {
+                        <tr>
+                            <td>
+                                <div class="op-strong">@(h.PaidAt.HasValue ? PhilippineTime.ToPhilippineTime(h.PaidAt.Value).ToString("MMM d, yyyy") : "—")</div>
+                                <div class="op-muted">@(h.PaidAt.HasValue ? PhilippineTime.ToPhilippineTime(h.PaidAt.Value).ToString("h:mm tt") : "")</div>
+                            </td>
+                            <td class="op-strong">@h.PayorName</td>
+                            <td>
+                                <div class="op-strong">@h.Facility</div>
+                                <div class="op-muted">Stall @h.StallNo</div>
+                            </td>
+                            <td class="op-mono">@h.Period</td>
+                            <td>@MethodLabel(h.Method)</td>
+                            <td class="op-amt op-strong">₱@h.Amount.ToString("N2")</td>
+                            <td><span class="op-status @(h.Status == "Completed" ? "is-done" : "is-await")">@h.Status</span></td>
+                            <td class="op-mono">@(string.IsNullOrEmpty(h.ORNumber) ? "—" : h.ORNumber)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @* Re-authentication before changing the online-payment account. *@
+    @if (_showPwConfirm)
+    {
+        <div class="eemo-modal-overlay" @onclick="() => _showPwConfirm = false">
+            <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+                <div class="eemo-modal-header">
+                    <div class="eemo-modal-title">Confirm it's you</div>
+                    <button class="eemo-modal-close" @onclick="() => _showPwConfirm = false">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="eemo-modal-body">
+                    <p class="op-pw-note">Enter your password to change the online-payment account.</p>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input class="form-input" type="password" autocomplete="current-password"
+                               @bind="_pwInput" @bind:event="oninput"
+                               @onkeydown="@(e => { if (e.Key == "Enter") { _ = ConfirmConfigureAsync(); } })" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_pwError))
+                    {
+                        <div class="op-banner op-banner-error">@_pwError</div>
+                    }
+                </div>
+                <div class="eemo-modal-footer">
+                    <button class="btn-ghost" disabled="@_pwVerifying" @onclick="() => _showPwConfirm = false">Cancel</button>
+                    <button class="btn-primary" disabled="@_pwVerifying" @onclick="ConfirmConfigureAsync">@(_pwVerifying ? "Verifying…" : "Continue")</button>
+                </div>
+            </div>
+        </div>
+    }
     }
 </div>
 
@@ -239,6 +349,9 @@
     private bool IsError;
     private List<OnlinePaymentAwaitingOrDto> Items = new();
     private readonly Dictionary<Guid, string> _orInputs = new();
+
+    // Treasury overview + recent history (all staff).
+    private OnlinePaymentDashboardDto? _dashboard;
 
     // ── Per-LGU online-payment account (Head only) ──────────────────────────────
     private PaymentSettingsDto? _payment;
@@ -253,6 +366,54 @@
     private bool _paySaving;
     private string? _payMsg;
     private string? _payError;
+
+    // ── Re-authentication before configuring the payment account ────────────────
+    private bool _showPwConfirm;
+    private string _pwInput = string.Empty;
+    private bool _pwVerifying;
+    private string? _pwError;
+
+    private void RequestConfigure()
+    {
+        _pwInput = string.Empty;
+        _pwError = null;
+        _showPwConfirm = true;
+    }
+
+    private async Task ConfirmConfigureAsync()
+    {
+        if (_pwVerifying) return;
+        if (string.IsNullOrWhiteSpace(_pwInput))
+        {
+            _pwError = "Enter your password.";
+            return;
+        }
+
+        _pwVerifying = true;
+        _pwError = null;
+        try
+        {
+            var result = await SettingsApi.VerifyMyPasswordAsync(_pwInput);
+            if (result.IsSuccess && result.Value)
+            {
+                _pwInput = string.Empty;
+                _showPwConfirm = false;
+                OpenSetup();
+            }
+            else
+            {
+                _pwError = "Incorrect password. Please try again.";
+            }
+        }
+        catch
+        {
+            _pwError = "Couldn't verify right now. Please try again.";
+        }
+        finally
+        {
+            _pwVerifying = false;
+        }
+    }
 
     [PersistentState(AllowUpdates = true)]
     public List<OnlinePaymentAwaitingOrDto>? CachedItems { get; set; }
@@ -273,6 +434,9 @@
         if (_isHead)
             await LoadPaymentAsync();
 
+        // Treasury overview + recent history (shown to all staff, independent of the cached awaiting list).
+        await LoadDashboardAsync();
+
         if (CachedItems is not null)
         {
             Items = CachedItems;
@@ -282,6 +446,25 @@
 
         await LoadAsync(paintLoading: true);
     }
+
+    private async Task LoadDashboardAsync()
+    {
+        var result = await OnlinePaymentsApi.GetDashboardAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _dashboard = result.Value;
+    }
+
+    // PayMongo method codes → friendly labels.
+    private static string MethodLabel(string? method) => method?.ToLowerInvariant() switch
+    {
+        null or "" => "—",
+        "gcash" => "GCash",
+        "grab_pay" or "grabpay" => "GrabPay",
+        "paymaya" or "maya" => "Maya",
+        "card" => "Card",
+        "dob" or "online_banking" or "brankas" => "Online Banking",
+        _ => char.ToUpperInvariant(method[0]) + method[1..]
+    };
 
     private async Task LoadPaymentAsync()
     {

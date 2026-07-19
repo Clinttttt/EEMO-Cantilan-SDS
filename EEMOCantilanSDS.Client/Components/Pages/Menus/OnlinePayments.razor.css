@@ -409,3 +409,153 @@
     color: var(--green);
     border-color: color-mix(in srgb, var(--green) 30%, transparent);
 }
+
+/* ── Treasury KPI cards ── */
+.op-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 1.25rem;
+}
+
+.op-kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+}
+
+    .op-kpi::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(180deg, var(--navy), var(--gold));
+    }
+
+.op-kpi-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.op-kpi-value {
+    margin-top: 6px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.1;
+}
+
+    .op-kpi-value.is-attention {
+        color: var(--red);
+    }
+
+.op-kpi-sub {
+    margin-top: 4px;
+    font-size: 0.76rem;
+    color: var(--text-subtle);
+}
+
+/* history section spacing */
+.op-history-head {
+    margin-top: 1.75rem;
+}
+
+/* awaiting-OR header row with the configure gear on the right */
+.op-intro-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.op-config-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 10px 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-subtle);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+    .op-config-btn:hover {
+        border-color: var(--gold);
+        color: var(--navy);
+    }
+
+    .op-config-btn svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.op-config-status {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    background: var(--bg-icon);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+    .op-config-status.is-own {
+        background: var(--green-bg);
+        color: var(--green);
+    }
+
+.op-pw-note {
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+/* status badge in the history table */
+.op-status {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+    .op-status.is-done {
+        background: var(--green-bg);
+        color: var(--green);
+    }
+
+    .op-status.is-await {
+        background: color-mix(in srgb, var(--gold) 18%, transparent);
+        color: color-mix(in srgb, var(--gold) 82%, #6a4b00);
+    }
+
+@media (max-width: 1024px) {
+    .op-kpis {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .op-kpis {
+        grid-template-columns: 1fr;
+    }
+}

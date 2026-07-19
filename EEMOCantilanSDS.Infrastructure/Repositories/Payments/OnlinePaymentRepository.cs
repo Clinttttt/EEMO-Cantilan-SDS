@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -207,5 +208,101 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
                 x.Method,
                 x.PaidAt))
             .ToList();
+    }
+
+    public async Task<OnlinePaymentDashboardDto> GetDashboardAsync(int year, int month, int recentLimit, CancellationToken ct = default)
+    {
+        // Treasury figures use Philippine-time period boundaries (PaidAt is stored UTC).
+        var (monthStartUtc, _) = PhilippineTime.DayUtcRange(new DateOnly(year, month, 1));
+        var (nextMonthUtc, _) = PhilippineTime.DayUtcRange(new DateOnly(year, month, 1).AddMonths(1));
+        var (yearStartUtc, _) = PhilippineTime.DayUtcRange(new DateOnly(year, 1, 1));
+        var (nextYearUtc, _) = PhilippineTime.DayUtcRange(new DateOnly(year, 1, 1).AddYears(1));
+
+        // "Settled" = money actually received (Paid, or OR-completed). Tenant-scoped by the global filter.
+        var settled = context.OnlinePaymentTransactions
+            .Where(t => t.Status == OnlinePaymentStatus.Paid || t.Status == OnlinePaymentStatus.Completed);
+
+        var collectedThisMonth = await settled
+            .Where(t => t.PaidAt >= monthStartUtc && t.PaidAt < nextMonthUtc)
+            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+
+        var yearSettled = settled.Where(t => t.PaidAt >= yearStartUtc && t.PaidAt < nextYearUtc);
+        var collectedThisYear = await yearSettled.SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+        var settledCountThisYear = await yearSettled.CountAsync(ct);
+
+        var topMethod = await yearSettled
+            .Where(t => t.Method != null)
+            .GroupBy(t => t.Method!)
+            .Select(g => new { Method = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .Select(x => x.Method)
+            .FirstOrDefaultAsync(ct);
+
+        // Recent received payments with payor + facility resolved. Monthly-rental targets resolve the
+        // facility/period via their PaymentRecord; NPM targets carry the stall + billing period directly.
+        // Both projections share an identical shape so they compose into one chronological list.
+        var monthlyRows = await (
+            from t in settled.Where(t => t.TargetKind == OnlinePaymentTargetKind.MonthlyRecord)
+            join r in context.PaymentRecords on t.PaymentRecordId equals (Guid?)r.Id
+            join s in context.Stalls on r.StallId equals s.Id
+            join f in context.Facilities on s.FacilityId equals f.Id
+            join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
+            from u in payor.DefaultIfEmpty()
+            select new
+            {
+                t.Id,
+                t.Reference,
+                Facility = f.Name,
+                s.StallNo,
+                PayorName = u != null ? u.FullName : null,
+                Year = r.BillingYear,
+                Month = r.BillingMonth,
+                t.Amount,
+                t.Method,
+                t.Status,
+                t.ORNumber,
+                t.PaidAt
+            }).ToListAsync(ct);
+
+        var npmRows = await (
+            from t in settled.Where(t => t.TargetKind != OnlinePaymentTargetKind.MonthlyRecord && t.TargetStallId != null)
+            join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id
+            join f in context.Facilities on s.FacilityId equals f.Id
+            join u in context.PayorUsers on t.PayorUserId equals u.Id into payor
+            from u in payor.DefaultIfEmpty()
+            select new
+            {
+                t.Id,
+                t.Reference,
+                Facility = f.Name,
+                s.StallNo,
+                PayorName = u != null ? u.FullName : null,
+                Year = t.TargetYear!.Value,
+                Month = t.TargetMonth!.Value,
+                t.Amount,
+                t.Method,
+                t.Status,
+                t.ORNumber,
+                t.PaidAt
+            }).ToListAsync(ct);
+
+        var recent = monthlyRows.Concat(npmRows)
+            .OrderByDescending(x => x.PaidAt ?? DateTime.MinValue)
+            .Take(recentLimit)
+            .Select(x => new OnlinePaymentHistoryItemDto(
+                x.Reference,
+                x.PayorName ?? "—",
+                x.Facility,
+                x.StallNo,
+                $"{x.Year:0000}-{x.Month:00}",
+                x.Amount,
+                x.Method,
+                x.Status == OnlinePaymentStatus.Completed ? "Completed" : "Awaiting OR",
+                x.ORNumber,
+                x.PaidAt))
+            .ToList();
+
+        return new OnlinePaymentDashboardDto(
+            collectedThisMonth, collectedThisYear, settledCountThisYear, topMethod, year, recent);
     }
 }

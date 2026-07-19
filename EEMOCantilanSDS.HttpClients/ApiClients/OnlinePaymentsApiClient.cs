@@ -11,4 +11,7 @@ public class OnlinePaymentsApiClient(HttpClient http) : HandleResponse(http), IO
 
     public async Task<Result<bool>> IssueOrNumberAsync(Guid transactionId, string orNumber) =>
         await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/or-number", new { ORNumber = orNumber });
+
+    public async Task<Result<OnlinePaymentDashboardDto>> GetDashboardAsync() =>
+        await GetAsync<OnlinePaymentDashboardDto>("api/onlinepayments/dashboard");
 }

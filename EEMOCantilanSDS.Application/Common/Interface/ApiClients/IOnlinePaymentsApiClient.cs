@@ -8,4 +8,7 @@ public interface IOnlinePaymentsApiClient
 {
     Task<Result<IReadOnlyList<OnlinePaymentAwaitingOrDto>>> GetAwaitingOrAsync();
     Task<Result<bool>> IssueOrNumberAsync(Guid transactionId, string orNumber);
+
+    /// <summary>Treasury overview + recent settled online-payment history for the admin page.</summary>
+    Task<Result<OnlinePaymentDashboardDto>> GetDashboardAsync();
 }
