@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials;
 using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
+using EEMOCantilanSDS.Application.Queries.Municipalities.GetOfficeProfile;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
@@ -32,6 +33,14 @@ public class MunicipalityProfileController : ApiBaseController
     public async Task<ActionResult<bool>> UpdateAsync([FromBody] UpdateOfficeProfileCommand command)
     {
         var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>The caller Head's current office/LGU branding, to pre-fill the self-service edit form.</summary>
+    [HttpGet("office")]
+    public async Task<ActionResult<OfficeProfileEditDto>> GetOfficeAsync()
+    {
+        var result = await Sender.Send(new GetMyOfficeProfileQuery());
         return HandleResponse(result);
     }
 

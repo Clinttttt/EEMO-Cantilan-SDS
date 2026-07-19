@@ -8,6 +8,6 @@ namespace EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile
     /// after go-live. Scoped to the caller's municipality via their token; only non-empty fields overwrite,
     /// so a partial update never blanks existing branding.
     /// </summary>
-    public record UpdateOfficeProfileCommand(string OfficeName, string? Address, string? SealPath)
+    public record UpdateOfficeProfileCommand(string OfficeName, string? Address, string? SealPath, string? OfficeAcronym = null)
         : IRequest<Result<bool>>;
 }

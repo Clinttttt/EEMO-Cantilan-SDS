@@ -83,5 +83,41 @@ namespace EEMOCantilanSDS.Testing.Municipalities
 
             Assert.False(result.IsSuccess);
         }
+
+        [Fact]
+        public async Task Acronym_IsAppliedFromRequest_AndUsernameIsNeverStoredAsAcronym()
+        {
+            var options = Options();
+            var (a, _) = await SeedAsync(options);
+
+            // Omit the acronym: it must stay null — regression guard for the old bug where the handler
+            // passed the actor's username into the officeAcronym parameter slot.
+            using (var ctx = new AppDbContext(options))
+            {
+                var result = await new UpdateOfficeProfileCommandHandler(
+                        ctx, new FakeCurrentUser(a), CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                    .Handle(new UpdateOfficeProfileCommand("Carmen EEO", "Addr", null), default);
+                Assert.True(result.IsSuccess);
+            }
+            using (var verify = new AppDbContext(options))
+            {
+                var carmen = await verify.Municipalities.IgnoreQueryFilters().FirstAsync(m => m.Id == a);
+                Assert.Null(carmen.OfficeAcronym); // not "head"
+            }
+
+            // Supply an acronym: it is stored as given.
+            using (var ctx = new AppDbContext(options))
+            {
+                var result = await new UpdateOfficeProfileCommandHandler(
+                        ctx, new FakeCurrentUser(a), CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant)
+                    .Handle(new UpdateOfficeProfileCommand("Carmen EEO", "Addr", null, "CEEO"), default);
+                Assert.True(result.IsSuccess);
+            }
+            using (var verify = new AppDbContext(options))
+            {
+                var carmen = await verify.Municipalities.IgnoreQueryFilters().FirstAsync(m => m.Id == a);
+                Assert.Equal("CEEO", carmen.OfficeAcronym);
+            }
+        }
     }
 }

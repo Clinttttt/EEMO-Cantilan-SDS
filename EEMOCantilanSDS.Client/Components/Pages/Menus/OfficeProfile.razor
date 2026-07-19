@@ -1,0 +1,229 @@
+@page "/office-profile"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Settings
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Client.Components.Shared
+@attribute [Authorize(Roles = "SuperAdmin")]
+@inject ISettingsApiClient SettingsApi
+@inject NavigationManager Navigation
+
+<PageTitle>@Branding.OfficeAcronym Admin — Office Profile</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Office &amp; LGU Profile</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Office Profile</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="op-form-wrap">
+        <section class="op-form-card">
+            <div class="op-form-accent"></div>
+
+            <div class="op-form-head">
+                <div class="op-form-title">Office &amp; LGU Profile</div>
+                <div class="op-form-sub">This identity appears across the portal, on reports and on official receipts.</div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="op-banner op-banner-error">@_error</div>
+            }
+            @if (_saved)
+            {
+                <div class="op-banner op-banner-ok">Office profile updated. Reload the portal to see it everywhere.</div>
+            }
+
+            @if (!_loaded)
+            {
+                <div class="op-form-loading">
+                    <Skeleton Width="120px" Height="120px" Radius="16px" />
+                    <div class="op-form-loading-lines">
+                        <Skeleton Width="60%" Height="14px" Radius="6px" />
+                        <Skeleton Width="45%" Height="14px" Radius="6px" />
+                        <Skeleton Width="70%" Height="14px" Radius="6px" />
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Official logo -->
+                <div class="op-logo-row">
+                    <div class="op-logo-preview">
+                        @if (!string.IsNullOrWhiteSpace(_sealPath))
+                        {
+                            <img src="@_sealPath" alt="Official logo" />
+                        }
+                        else
+                        {
+                            <div class="op-logo-placeholder">
+                                <svg viewBox="0 0 24 24"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>
+                            </div>
+                        }
+                    </div>
+                    <div class="op-logo-actions">
+                        <div class="op-logo-label">Official Logo / Seal</div>
+                        <InputFile id="logoInput" OnChange="OnLogoSelected" accept="image/*" class="op-file-hidden" />
+                        <label for="logoInput" class="btn-primary op-upload-btn">
+                            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                            @(string.IsNullOrWhiteSpace(_sealPath) ? "Upload logo" : "Replace logo")
+                        </label>
+                        <div class="op-logo-hint">PNG or JPG · square works best · up to 1&nbsp;MB.</div>
+                    </div>
+                </div>
+
+                <div class="op-field">
+                    <label class="form-label">Office name</label>
+                    <input class="form-input" type="text" maxlength="120" placeholder="e.g. Economic Enterprise &amp; Management Office"
+                           @bind="_officeName" @bind:event="oninput" />
+                </div>
+
+                <div class="op-field">
+                    <label class="form-label">Office acronym <span class="op-opt">(short label, e.g. EEMO)</span></label>
+                    <input class="form-input" type="text" maxlength="12" placeholder="e.g. EEMO"
+                           @bind="_acronym" @bind:event="oninput" />
+                </div>
+
+                <div class="op-field">
+                    <label class="form-label">Address <span class="op-opt">(optional)</span></label>
+                    <input class="form-input" type="text" maxlength="160" placeholder="e.g. Municipal Hall, Poblacion"
+                           @bind="_address" @bind:event="oninput" />
+                </div>
+
+                <div class="op-field-row">
+                    <div class="op-field">
+                        <label class="form-label">Municipality</label>
+                        <input class="form-input" type="text" value="@_municipality" readonly disabled />
+                        <div class="op-logo-hint">Core LGU identity — not editable here.</div>
+                    </div>
+                    <div class="op-field">
+                        <label class="form-label">Province</label>
+                        <input class="form-input" type="text" value="@_province" readonly disabled />
+                    </div>
+                </div>
+
+                <div class="op-form-actions">
+                    <button class="btn-ghost" @onclick="Cancel" disabled="@_saving">Back to Settings</button>
+                    <button class="btn-primary" @onclick="SaveAsync" disabled="@_saving">@(_saving ? "Saving…" : "Save changes")</button>
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private bool _loaded;
+    private bool _saving;
+    private bool _saved;
+    private string? _error;
+
+    private string _officeName = string.Empty;
+    private string _acronym = string.Empty;
+    private string _address = string.Empty;
+    private string _sealPath = string.Empty;      // data URI or hosted URL
+    private string _municipality = string.Empty;
+    private string _province = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Branding.EnsureLoadedAsync();
+        var result = await SettingsApi.GetOfficeProfileAsync();
+        if (result.IsSuccess && result.Value is { } p)
+        {
+            _officeName = p.OfficeName ?? string.Empty;
+            _acronym = p.OfficeAcronym ?? string.Empty;
+            _address = p.Address ?? string.Empty;
+            _sealPath = p.SealPath ?? string.Empty;
+            _municipality = p.Municipality ?? string.Empty;
+            _province = p.Province ?? string.Empty;
+        }
+        else
+        {
+            _error = result.Error ?? "Couldn't load the office profile.";
+        }
+        _loaded = true;
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _saved = false;
+        var file = e.File;
+        if (file is null) return;
+
+        const long maxBytes = 1024 * 1024; // 1 MB
+        if (file.Size > maxBytes)
+        {
+            _error = "The logo must be smaller than 1 MB.";
+            return;
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: maxBytes);
+            using var ms = new System.IO.MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "image/png" : file.ContentType;
+            _sealPath = $"data:{mime};base64,{base64}";
+        }
+        catch
+        {
+            _error = "Couldn't read that image. Please try another file.";
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _saved = false;
+
+        if (string.IsNullOrWhiteSpace(_officeName))
+        {
+            _error = "Office name is required.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var result = await SettingsApi.UpdateOfficeProfileAsync(
+                _officeName.Trim(),
+                string.IsNullOrWhiteSpace(_acronym) ? null : _acronym.Trim(),
+                string.IsNullOrWhiteSpace(_address) ? null : _address.Trim(),
+                string.IsNullOrWhiteSpace(_sealPath) ? null : _sealPath);
+
+            if (result.IsSuccess)
+                _saved = true;
+            else
+                _error = result.Error ?? "Couldn't save the office profile.";
+        }
+        catch
+        {
+            _error = "Couldn't save the office profile. Please try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Full reload so the updated branding (name, acronym, logo) refreshes across the portal.
+    private void Cancel() => Navigation.NavigateTo("/settings", forceLoad: _saved);
+}

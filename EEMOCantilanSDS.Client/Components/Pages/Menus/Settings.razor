@@ -124,13 +124,19 @@
                         }
                     }
                 </div>
-                @if (loaded)
+                @if (!loaded)
                 {
-                    <div class="set-note">Becomes editable via per-LGU configuration in the CARCANMADCARLAN release.</div>
+                    <div class="set-note"><Skeleton Width="82%" Height="12px" Radius="6px" /></div>
+                }
+                else if (_isHead)
+                {
+                    <div class="set-links">
+                        <a class="set-link" href="/office-profile">Edit office profile<span class="set-link-arrow">→</span></a>
+                    </div>
                 }
                 else
                 {
-                    <div class="set-note"><Skeleton Width="82%" Height="12px" Radius="6px" /></div>
+                    <div class="set-note">Managed by the @Branding.OfficeAcronym Head.</div>
                 }
             </section>
 

@@ -23,4 +23,13 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
 
     public async Task<Result<bool>> VerifyMyPasswordAsync(string password) =>
         await PostAsync<object, bool>("api/municipality-profile/verify-password", new { Password = password });
+
+    public async Task<Result<OfficeProfileEditDto>> GetOfficeProfileAsync() =>
+        await GetAsync<OfficeProfileEditDto>("api/municipality-profile/office");
+
+    public async Task<Result<bool>> UpdateOfficeProfileAsync(string officeName, string? officeAcronym, string? address, string? sealPath) =>
+        await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile.UpdateOfficeProfileCommand, bool>(
+            "api/municipality-profile",
+            new EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile.UpdateOfficeProfileCommand(
+                officeName, address, sealPath, officeAcronym));
 }

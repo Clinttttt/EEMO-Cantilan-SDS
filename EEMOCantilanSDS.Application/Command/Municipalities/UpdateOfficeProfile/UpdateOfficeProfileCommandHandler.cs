@@ -31,7 +31,7 @@ namespace EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile
                 return Result<bool>.NotFound();
 
             municipality.ApplyOnboardingProfile(
-                request.OfficeName, request.Address, request.SealPath, currentUser.Username ?? "Head");
+                request.OfficeName, request.Address, request.SealPath, request.OfficeAcronym, currentUser.Username ?? "Head");
 
             await context.SaveChangesAsync(ct);
             await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);

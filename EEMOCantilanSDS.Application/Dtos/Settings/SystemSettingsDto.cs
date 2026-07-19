@@ -18,6 +18,16 @@ public record OfficeProfileDto(
     string SystemName,
     string ReceiptsIssuedBy);
 
+/// <summary>Editable office/LGU branding for the Head's self-service profile page (current values to
+/// pre-fill the form). Municipality name + province are the LGU's core identity (shown read-only).</summary>
+public record OfficeProfileEditDto(
+    string OfficeName,
+    string? OfficeAcronym,
+    string? Address,
+    string? SealPath,
+    string Municipality,
+    string Province);
+
 public record SecurityPolicyDto(
     int AccessTokenMinutes,
     int RefreshTokenDays,

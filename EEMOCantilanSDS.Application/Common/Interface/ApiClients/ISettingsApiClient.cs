@@ -16,4 +16,10 @@ public interface ISettingsApiClient
     /// <summary>Re-authentication: verify the current user's own password before a sensitive change
     /// (e.g. changing the online-payment account). True when the password matches.</summary>
     Task<Result<bool>> VerifyMyPasswordAsync(string password);
+
+    /// <summary>The caller Head's current office/LGU branding (to pre-fill the profile edit form).</summary>
+    Task<Result<OfficeProfileEditDto>> GetOfficeProfileAsync();
+
+    /// <summary>Update the caller Head's office/LGU branding (office label, acronym, address, seal/logo).</summary>
+    Task<Result<bool>> UpdateOfficeProfileAsync(string officeName, string? officeAcronym, string? address, string? sealPath);
 }
