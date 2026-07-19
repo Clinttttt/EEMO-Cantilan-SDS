@@ -528,6 +528,50 @@
     margin-bottom: 14px;
 }
 
+/* Confirm-it's-you modal: navy header, restrained corners (overrides the global modal only here). */
+.eemo-modal.op-confirm {
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 0;
+}
+
+    .op-confirm .eemo-modal-header {
+        background: var(--navy);
+        margin: 0;
+        padding: 16px 20px;
+        border-bottom: none;
+        align-items: center;
+    }
+
+    .op-confirm .eemo-modal-title {
+        color: #fff;
+    }
+
+    .op-confirm .eemo-modal-close {
+        color: var(--gold-light);
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+        .op-confirm .eemo-modal-close:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+    .op-confirm .eemo-modal-body {
+        padding: 20px;
+    }
+
+    .op-confirm .eemo-modal-footer {
+        padding: 14px 20px;
+        margin: 0;
+        border-top: 1px solid var(--border);
+        background: var(--bg);
+    }
+
+    .op-confirm .form-input {
+        border-radius: 8px;
+    }
+
 /* status badge in the history table */
 .op-status {
     display: inline-block;

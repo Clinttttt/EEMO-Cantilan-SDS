@@ -311,7 +311,7 @@
     @if (_showPwConfirm)
     {
         <div class="eemo-modal-overlay" @onclick="() => _showPwConfirm = false">
-            <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal eemo-modal-sm op-confirm" @onclick:stopPropagation="true">
                 <div class="eemo-modal-header">
                     <div class="eemo-modal-title">Confirm it's you</div>
                     <button class="eemo-modal-close" @onclick="() => _showPwConfirm = false">
