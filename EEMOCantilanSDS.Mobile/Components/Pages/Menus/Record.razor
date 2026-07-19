@@ -332,6 +332,19 @@
     string ActivePeriodKey = "0";              // key within the active mode
     IReadOnlyList<MobileCollectorRecordDto> Records = Array.Empty<MobileCollectorRecordDto>();
 
+    // Instant re-open while online: keep the last records per (collector · facility · date-range) in memory,
+    // so returning to Records shows them immediately and then refreshes quietly in the background instead of
+    // a loading state every time. Keyed by CollectorId so two collectors on one device never mix.
+    private static readonly Dictionary<string, IReadOnlyList<MobileCollectorRecordDto>> _recordsCache = new();
+    private string RecordsCacheKey
+    {
+        get
+        {
+            var (from, to) = CurrentRange();
+            return $"{Session.Menu?.CollectorId:N}|{ActiveFacility?.ToString() ?? "all"}|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}";
+        }
+    }
+
     IReadOnlyList<FacilityCode> AssignedFacilities =>
         Session.Menu?.Facilities.Where(f => f.IsAssigned).Select(f => f.Code).OrderBy(c => c).ToList()
         ?? new List<FacilityCode>();
@@ -404,7 +417,7 @@
             // Assigned facilities are now known, so the period mode (daily/weekly/monthly) is resolved —
             // seed the active period with the first valid chip key for that mode.
             ActivePeriodKey = PeriodChips.FirstOrDefault()?.Key ?? "0";
-            await LoadRecordsAsync();
+            await LoadOrRefreshRecordsAsync();
 
             // Offline queue: show the pending badge and best-effort flush anything captured offline.
             Sync.Changed += OnSyncChanged;
@@ -423,7 +436,46 @@
     {
         var summary = await Sync.SyncNowAsync();
         if (summary.Synced > 0)
-            await InvokeAsync(LoadRecordsAsync);
+            await InvokeAsync(RefreshRecordsAsync);
+    }
+
+    // Show cached records instantly (no spinner) then refresh in the background; a cold range with no cache
+    // shows the full loading state. Keeps online navigation snappy and consistent.
+    async Task LoadOrRefreshRecordsAsync()
+    {
+        if (_recordsCache.TryGetValue(RecordsCacheKey, out var cached))
+        {
+            Records = cached;
+            IsLoading = false;
+            ErrorMessage = string.Empty;
+            StateHasChanged();
+            await RefreshRecordsAsync();
+        }
+        else
+        {
+            await LoadRecordsAsync();
+        }
+    }
+
+    // Quiet background refresh — updates the data + cache without flashing the loading state. A transient
+    // failure keeps the cached view.
+    async Task RefreshRecordsAsync()
+    {
+        try
+        {
+            var (from, to) = CurrentRange();
+            var result = await Api.GetRecordsAsync(ActiveFacility, from, to);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                Records = result.Value;
+                _recordsCache[RecordsCacheKey] = result.Value;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Keep the cached records on a transient/offline refresh failure.
+        }
     }
 
     (DateOnly From, DateOnly To) CurrentRange()
@@ -467,7 +519,10 @@
             var result = await Api.GetRecordsAsync(ActiveFacility, from, to);
 
             if (result.IsSuccess && result.Value is not null)
+            {
                 Records = result.Value;
+                _recordsCache[RecordsCacheKey] = result.Value;
+            }
             else
                 ErrorMessage = result.Error ?? "Unable to load your collection records.";
         }
@@ -490,13 +545,13 @@
         // Switching facilities can change the period mode (daily/weekly/monthly) — reset to the
         // first chip of the new mode so the active key is always valid.
         ActivePeriodKey = PeriodChips.FirstOrDefault()?.Key ?? "0";
-        await LoadRecordsAsync();
+        await LoadOrRefreshRecordsAsync();
     }
 
     async Task SetPeriodAsync(string key)
     {
         ActivePeriodKey = key;
-        await LoadRecordsAsync();
+        await LoadOrRefreshRecordsAsync();
     }
 
     // ── Client-side search over the loaded (already facility/period-filtered) records ──
@@ -614,7 +669,7 @@
         var summary = await Sync.SyncNowAsync();
         PendingOps = await Sync.GetAllAsync();
         if (summary.Synced > 0)
-            await LoadRecordsAsync();
+            await RefreshRecordsAsync();
     }
 
     async Task DiscardPendingAsync(Guid clientOperationId)
@@ -667,7 +722,7 @@
                     PendingOps = await Sync.GetAllAsync();
 
                 if (queueDrained)
-                    await LoadRecordsAsync();
+                    await RefreshRecordsAsync();
                 else
                     StateHasChanged();
             });
