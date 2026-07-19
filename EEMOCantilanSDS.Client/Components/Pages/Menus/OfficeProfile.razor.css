@@ -124,16 +124,35 @@
     margin-bottom: 8px;
 }
 
-.op-file-hidden {
-    display: none;
+.op-file-wrap ::deep input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
 }
 
 .op-upload-btn {
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    padding: 9px 16px;
+    border-radius: 9px;
+    background: var(--navy);
+    color: var(--gold-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
+    transition: opacity 0.15s;
 }
+
+    .op-upload-btn:hover {
+        opacity: 0.9;
+    }
 
     .op-upload-btn svg {
         width: 16px;
@@ -151,21 +170,62 @@
     color: var(--text-subtle);
 }
 
-.op-field {
-    margin-bottom: 16px;
-}
-
 .op-field-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 8px 18px;
 }
+
+    .op-field-row .form-group {
+        margin-bottom: 0;
+    }
 
 .op-opt {
     color: var(--text-subtle);
     font-weight: 400;
     text-transform: none;
     letter-spacing: 0;
+}
+
+.op-section-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin: 4px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.op-lock {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    background: var(--bg-icon);
+    padding: 2px 7px;
+    border-radius: 999px;
+    text-transform: none;
+}
+
+.op-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 22px 0 18px;
+}
+
+.op-hint {
+    font-size: 0.76rem;
+    color: var(--text-subtle);
+    margin-top: 6px;
+}
+
+.op-readonly {
+    background: var(--bg-icon) !important;
+    color: var(--text-subtle) !important;
+    cursor: not-allowed;
 }
 
 .op-form-actions {
