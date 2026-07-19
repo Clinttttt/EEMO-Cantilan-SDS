@@ -463,6 +463,32 @@
     color: var(--text-subtle);
 }
 
+/* KPI + history loading skeletons */
+.op-kpi-sk {
+    margin-top: 8px;
+}
+
+.op-kpi-sk-sm {
+    margin-top: 8px;
+}
+
+.op-history-sk {
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.op-history-sk-row {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+    .op-history-sk-row > :nth-child(2) {
+        flex: 1;
+    }
+
 /* history section spacing */
 .op-history-head {
     margin-top: 1.75rem;

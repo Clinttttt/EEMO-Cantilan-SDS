@@ -156,6 +156,19 @@
                 </div>
             </div>
         }
+        else if (!_dashboardLoaded)
+        {
+            <div class="op-kpis">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="op-kpi">
+                        <Skeleton Width="58%" Height="11px" Radius="6px" />
+                        <div class="op-kpi-sk"><Skeleton Width="72%" Height="22px" Radius="8px" /></div>
+                        <div class="op-kpi-sk-sm"><Skeleton Width="46%" Height="10px" Radius="6px" /></div>
+                    </div>
+                }
+            </div>
+        }
 
         <div class="op-intro op-intro-row">
             <div>
@@ -263,7 +276,21 @@
         </div>
     </div>
     <div class="section-card">
-        @if (_dashboard is null || _dashboard.Recent.Count == 0)
+        @if (!_dashboardLoaded)
+        {
+            <div class="op-history-sk">
+                @for (var i = 0; i < 5; i++)
+                {
+                    <div class="op-history-sk-row">
+                        <Skeleton Width="90px" Height="12px" Radius="6px" />
+                        <Skeleton Width="30%" Height="12px" Radius="6px" />
+                        <Skeleton Width="18%" Height="12px" Radius="6px" />
+                        <Skeleton Width="70px" Height="12px" Radius="6px" />
+                    </div>
+                }
+            </div>
+        }
+        else if (_dashboard is null || _dashboard.Recent.Count == 0)
         {
             <div class="op-empty">No online payments have been received yet.</div>
         }
@@ -352,6 +379,7 @@
 
     // Treasury overview + recent history (all staff).
     private OnlinePaymentDashboardDto? _dashboard;
+    private bool _dashboardLoaded;
 
     // ── Per-LGU online-payment account (Head only) ──────────────────────────────
     private PaymentSettingsDto? _payment;
@@ -449,9 +477,16 @@
 
     private async Task LoadDashboardAsync()
     {
-        var result = await OnlinePaymentsApi.GetDashboardAsync();
-        if (result.IsSuccess && result.Value is not null)
-            _dashboard = result.Value;
+        try
+        {
+            var result = await OnlinePaymentsApi.GetDashboardAsync();
+            if (result.IsSuccess && result.Value is not null)
+                _dashboard = result.Value;
+        }
+        finally
+        {
+            _dashboardLoaded = true;
+        }
     }
 
     // PayMongo method codes → friendly labels.

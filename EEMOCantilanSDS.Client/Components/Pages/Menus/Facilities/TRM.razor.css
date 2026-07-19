@@ -8,8 +8,11 @@
 .trm-columns {
     display: grid;
     grid-template-columns: 380px 1fr;
+    align-items: stretch;
     gap: 1.25rem;
     margin-top: 1.25rem;
+    /* Fill the viewport below the header/hero so the panels extend down instead of leaving whitespace. */
+    min-height: max(520px, calc(100vh - 250px));
 }
 
 /* -- Panel card ------------------------------------ */
@@ -168,7 +171,8 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    max-height: 440px;
+    flex: 1;
+    min-height: 0;
 }
 
 .trm-transporter-item {
