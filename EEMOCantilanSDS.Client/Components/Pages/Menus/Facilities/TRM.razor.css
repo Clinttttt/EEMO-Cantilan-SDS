@@ -4,6 +4,14 @@
    Uses EEMO CSS variables from app.css.
 --------------------------------------------------- */
 
+/* This page's content area fills the shell height so the panels stretch to the viewport bottom
+   WITHOUT overflowing (the lists scroll internally). Scoped to TRM's content-area only. */
+.content-area {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
 /* -- Two-column layout ---------------------------- */
 .trm-columns {
     display: grid;
@@ -11,8 +19,9 @@
     align-items: stretch;
     gap: 1.25rem;
     margin-top: 1.25rem;
-    /* Fill the viewport below the header/hero so the panels extend down instead of leaving whitespace. */
-    min-height: max(520px, calc(100vh - 250px));
+    /* Fill the remaining height under the hero, but never past the viewport (panels scroll inside). */
+    flex: 1;
+    min-height: 0;
 }
 
 /* -- Panel card ------------------------------------ */

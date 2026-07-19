@@ -508,8 +508,11 @@
         {
             _payment = result.Value;
             _payPublic = _payment.PublicKey ?? string.Empty;
-            // First-time: a non-default LGU that hasn't connected its own account yet.
-            _showSetup = !_payment.HasOwnAccount && !_isDefaultTenant;
+            // No longer force the first-time setup card: the normal dashboard shows for every LGU (an
+            // unconfigured non-default LGU still receives on the platform default account), and the Head
+            // opens configuration on demand via the gear button (password-gated). Prevents the setup card
+            // from masking the payments dashboard/loading state for LGUs like Carmen.
+            _showSetup = false;
         }
         _paymentLoaded = true;
     }
