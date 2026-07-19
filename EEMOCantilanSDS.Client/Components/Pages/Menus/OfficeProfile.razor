@@ -67,9 +67,9 @@
                 <div class="op-section-label">Official identity</div>
                 <div class="op-logo-row">
                     <div class="op-logo-preview">
-                        @if (!string.IsNullOrWhiteSpace(_sealPath))
+                        @if (!string.IsNullOrWhiteSpace(PreviewSrc))
                         {
-                            <img src="@_sealPath" alt="Official logo" />
+                            <img src="@PreviewSrc" alt="Official logo" />
                         }
                         else
                         {
@@ -150,6 +150,12 @@
     private string _sealPath = string.Empty;      // data URI or hosted URL
     private string _municipality = string.Empty;
     private string _province = string.Empty;
+
+    // What the preview shows: the stored/just-uploaded seal, else the effective current logo (the LGU's
+    // seal or the default), so the box is auto-filled with the real logo instead of a placeholder. This is
+    // display-only — a save without an upload leaves the stored seal unchanged.
+    private string PreviewSrc =>
+        !string.IsNullOrWhiteSpace(_sealPath) ? _sealPath : (Branding.SealPath ?? string.Empty);
 
     protected override async Task OnInitializedAsync()
     {
