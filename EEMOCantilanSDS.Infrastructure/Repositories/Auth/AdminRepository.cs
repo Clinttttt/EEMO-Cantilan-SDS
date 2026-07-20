@@ -12,6 +12,11 @@ public class AdminRepository(AppDbContext context) : IAdminRepository
     {
         return await context.AdminUsers
             .AsNoTracking()
+            // Exclude platform/console operators: they carry the SuperAdmin role but are a cross-LGU system
+            // identity, NOT one of the municipality's Head/admins. Listing them here made the account roster
+            // (and its "Head" count) show a phantom second Head. This mirrors SetupRepository +
+            // CountOtherActiveSuperAdminsAsync, which also treat platform operators as non-Heads.
+            .Where(a => !a.IsPlatformOperator)
             // SuperAdmin (the Head) first, then most recently created.
             .OrderBy(a => a.Role)
             .ThenByDescending(a => a.CreatedAt)

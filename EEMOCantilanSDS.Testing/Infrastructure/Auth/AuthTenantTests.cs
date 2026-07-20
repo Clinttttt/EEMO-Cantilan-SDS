@@ -120,5 +120,24 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             await ctx.SaveChangesAsync();
             Assert.Equal(1, await repo.CountOtherActiveSuperAdminsAsync(head.Id, CancellationToken.None));
         }
+
+        [Fact]
+        public async Task GetAllAdmins_ExcludesPlatformOperators()
+        {
+            // Regression: the account roster must not list the platform/console operator as an admin/Head of
+            // the LGU — doing so showed a phantom second "Head" in Account Management.
+            var options = Options();
+            var cantilan = Guid.NewGuid();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
+            ctx.Users.Add(AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true));
+            ctx.Users.Add(AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true));
+            await ctx.SaveChangesAsync();
+
+            var repo = new AdminRepository(ctx);
+            var admins = await repo.GetAllAsync(CancellationToken.None);
+
+            Assert.Single(admins);
+            Assert.Equal("head", admins[0].Username);
+        }
     }
 }

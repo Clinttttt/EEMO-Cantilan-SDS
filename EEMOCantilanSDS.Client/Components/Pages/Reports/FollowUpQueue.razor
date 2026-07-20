@@ -1323,7 +1323,10 @@
     private void ClearSearch() => _search = "";
 
     private int CountFor(string key) => AllItems.Count(i =>
-        (key == "all" || i.ReasonKind == key) && MatchesFacility(i) && MatchesSearch(i));
+        (key == "all" || i.ReasonKind == key) && MatchesFacility(i) && MatchesSearch(i)
+        // Dismissed (hidden) immediate items are removed from the live queue, so they must not inflate the
+        // tab badge either — mirrors ItemsFor/SectionTotal. Hiding is only offered for the immediate section.
+        && !(i.Section == SecImmediate && _hidden.Contains(HideKey(i))));
 
     private IReadOnlyList<FollowUpItemDto> Filtered() =>
         AllItems.Where(i => (_filter == "all" || i.ReasonKind == _filter) && MatchesFacility(i) && MatchesSearch(i)).ToList();
