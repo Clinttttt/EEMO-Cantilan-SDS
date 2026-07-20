@@ -7,6 +7,7 @@
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@inject EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor Connectivity
 @implements IDisposable
 
 <!-- ░░ PAGE SHELL ░░ -->
@@ -421,6 +422,7 @@
 
             // Offline queue: show the pending badge and best-effort flush anything captured offline.
             Sync.Changed += OnSyncChanged;
+            Connectivity.ConnectivityRestored += OnConnectivityRestored;
             await Sync.InitializeAsync();
             _ = InitialFlushAsync();
         }
@@ -469,6 +471,11 @@
             {
                 Records = result.Value;
                 _recordsCache[RecordsCacheKey] = result.Value;
+                // A successful refresh clears any stale error/offline state. Without this, a "Couldn't load
+                // records" screen (from a cold offline open) stayed stuck even after the data loaded once
+                // connectivity returned — because the render gate checks ErrorMessage before the records.
+                ErrorMessage = string.Empty;
+                IsLoading = false;
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -737,6 +744,26 @@
     {
         _disposed = true;
         Sync.Changed -= OnSyncChanged;
+        Connectivity.ConnectivityRestored -= OnConnectivityRestored;
+    }
+
+    // Auto-recover when internet returns: quietly re-fetch so a stuck "Couldn't load records" screen (from a
+    // cold offline open with no pending capture to drain the queue) resolves on its own — no manual "Try
+    // again" needed. Debounced because Android raises connectivity-restored in a burst, and marshaled onto
+    // the UI thread. RefreshRecordsAsync is quiet: a still-failing fetch keeps the current view unchanged.
+    private readonly object _connLock = new();
+    private DateTime _lastConnRefreshUtc = DateTime.MinValue;
+
+    private void OnConnectivityRestored()
+    {
+        if (_disposed) return;
+        lock (_connLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastConnRefreshUtc < TimeSpan.FromSeconds(3)) return;
+            _lastConnRefreshUtc = now;
+        }
+        _ = InvokeAsync(RefreshRecordsAsync);
     }
 
     static string CardClass(MobileCollectorRecordDto r) =>

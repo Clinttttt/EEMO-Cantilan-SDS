@@ -4,6 +4,8 @@
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor Connectivity
+@implements IDisposable
 
 <div class="page-shell">
 
@@ -639,6 +641,7 @@
 
             ActiveReportType = PrimaryReportTab;
             await LoadOrRefreshReportAsync();
+            Connectivity.ConnectivityRestored += OnConnectivityRestored;
         }
         catch (HttpRequestException)
         {
@@ -680,6 +683,10 @@
                 _reportCache[CacheKey] = result.Value;
                 if (!ReportTypes.Contains(ActiveReportType))
                     ActiveReportType = PrimaryReportTab;
+                // A successful refresh clears any stale error/offline state so the report renders instead of
+                // the "Couldn't load reports" screen staying stuck after connectivity returns.
+                ErrorMessage = string.Empty;
+                IsLoading = false;
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -687,6 +694,31 @@
         {
             // Keep the cached report on a transient/offline refresh failure.
         }
+    }
+
+    // Auto-recover when internet returns: quietly re-fetch so a stuck "Couldn't load reports" screen resolves
+    // on its own without a manual "Try again". Debounced (Android fires connectivity-restored in a burst) and
+    // marshaled onto the UI thread. RefreshReportAsync is quiet: a still-failing fetch leaves the view as-is.
+    private bool _disposed;
+    private readonly object _connLock = new();
+    private DateTime _lastConnRefreshUtc = DateTime.MinValue;
+
+    private void OnConnectivityRestored()
+    {
+        if (_disposed) return;
+        lock (_connLock)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastConnRefreshUtc < TimeSpan.FromSeconds(3)) return;
+            _lastConnRefreshUtc = now;
+        }
+        _ = InvokeAsync(RefreshReportAsync);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Connectivity.ConnectivityRestored -= OnConnectivityRestored;
     }
 
     async Task LoadReportAsync()
