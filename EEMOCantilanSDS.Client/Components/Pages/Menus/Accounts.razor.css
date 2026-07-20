@@ -751,6 +751,50 @@
         border-color: var(--border);
     }
 
+/* Role selector — segmented control in the create/edit drawer */
+.role-select {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.role-opt {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-subtle);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+}
+
+    .role-opt svg {
+        width: 15px;
+        height: 15px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .role-opt:hover {
+        border-color: color-mix(in srgb, var(--gold) 45%, var(--border));
+        color: var(--navy);
+    }
+
+    .role-opt.active {
+        color: var(--navy);
+        background: color-mix(in srgb, var(--gold) 15%, var(--bg-card));
+        border-color: color-mix(in srgb, var(--gold) 55%, transparent);
+    }
+
 /* Status — compact dot + label */
 .acct-status-cell {
     display: flex;

@@ -435,6 +435,25 @@
             </div>
         </div>
 
+        <div class="form-group">
+            <label class="form-label">Role <span class="req">*</span></label>
+            <div class="role-select">
+                <button type="button" class="role-opt @(AdminForm.Role == AdminRole.Admin ? "active" : "")"
+                        @onclick="() => AdminForm.Role = AdminRole.Admin">
+                    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                    Administrator
+                </button>
+                <button type="button" class="role-opt @(AdminForm.Role == AdminRole.SuperAdmin ? "active" : "")"
+                        @onclick="() => AdminForm.Role = AdminRole.SuperAdmin">
+                    <svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" /><polyline points="9 12 11 14 15 10" /></svg>
+                    Head
+                </button>
+            </div>
+            <div class="field-hint">
+                Administrators handle day-to-day operations. The Head has full control, including managing accounts.
+            </div>
+        </div>
+
         @if (!IsEditingAdmin)
         {
             <div class="form-group">
