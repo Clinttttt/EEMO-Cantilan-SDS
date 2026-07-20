@@ -48,7 +48,8 @@ public class ReportPageTests : TestContext
         Facilities: new List<FinancialFacilityRowDto>
         {
             new(FacilityCode.NPM, "New Public Market", "Daily stall", false, 2_242m, 1_410m, 4, 55, "Behind",
-                new NpmFacilityDetailDto(1_710m, 532m, 532m, 1_410m, 3_600m, 1_890m)),
+                new NpmFacilityDetailDto(1_710m, 532m, 532m, 1_410m, 3_600m, 1_890m,
+                    ElecCollected: 320m, WaterCollected: 180m, UtilityOutstanding: 90m)),
             new(FacilityCode.TRM, "Transport Terminal", "Per-trip", true, 300m, null, 10, 100, "Paid on service")
         },
         RecentRecords: new List<FinancialRecordDto>
@@ -68,6 +69,12 @@ public class ReportPageTests : TestContext
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        // BrandingState (via _Imports) and FacilityState (page-injected) — register with stub API clients;
+        // both fall back gracefully (Cantilan defaults / all facilities) so no data is needed to render.
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         this.AddTestAuthorization().SetAuthorized("Head");
 
         return RenderComponent<ReportPage>();
@@ -133,5 +140,7 @@ public class ReportPageTests : TestContext
         Assert.Contains("Full-month coverage balance", cut.Markup);
         Assert.Contains("₱1,890", cut.Markup);   // per-stall coverage balance
         Assert.Contains("Fish", cut.Markup);      // fish split line
+        Assert.Contains("Electricity", cut.Markup); // electricity & water utility breakdown
+        Assert.Contains("₱320", cut.Markup);        // electricity collected
     }
 }

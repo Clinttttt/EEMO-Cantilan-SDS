@@ -157,6 +157,8 @@ public class GetFinancialReportQueryHandler(
                         Math.Max(0m, Math.Max(0m, npmMonthly - s.AbsentDays * npmDaily) - s.AmountPaid));
                     excusedAmount = report.StallCompliance.Sum(s => s.AbsentDays * npmDaily);
                 }
+                // Electricity + water collection for the period (separate from the market-fee total).
+                var util = await reportsRepository.GetNpmUtilityTotalsAsync(request.Year, request.Month, ct);
                 detail = new NpmFacilityDetailDto(
                     DailyFeeCollected: dailyFee,
                     FishCollected: fishFee,
@@ -164,7 +166,10 @@ public class GetFinancialReportQueryHandler(
                     PeriodBalance: report.PendingPaymentAmount,
                     FullMonthCoverage: coverage,
                     FullMonthCoverageBalance: coverageBalance,
-                    ExcusedAmount: excusedAmount);
+                    ExcusedAmount: excusedAmount,
+                    ElecCollected: util.ElecCollected,
+                    WaterCollected: util.WaterCollected,
+                    UtilityOutstanding: util.Outstanding);
             }
 
             facilityRows.Add(new FinancialFacilityRowDto(

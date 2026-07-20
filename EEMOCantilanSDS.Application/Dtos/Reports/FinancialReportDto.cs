@@ -108,7 +108,12 @@ public record NpmFacilityDetailDto(
     decimal FullMonthCoverageBalance,
     // Total excused/absent amount for the period (Σ absent days × ₱30). Absent days are not owed, so
     // they reduce the full-month coverage; this line makes that deduction explicit. 0 = none.
-    decimal ExcusedAmount = 0m
+    decimal ExcusedAmount = 0m,
+    // NPM electricity + water collected this period, and the combined outstanding utility balance. Tracked
+    // separately from the market-fee Collected total (utilities don't change it). 0 = none.
+    decimal ElecCollected = 0m,
+    decimal WaterCollected = 0m,
+    decimal UtilityOutstanding = 0m
 );
 
 public record FinancialRecordDto(

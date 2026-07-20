@@ -72,6 +72,18 @@ public interface IFacilityReportsRepository
     );
 
     /// <summary>
+    /// NPM electricity + water collection totals for the period (a single month, or the whole year when
+    /// <paramref name="month"/> is null). Computed from utility bills' readings × rates and payment status,
+    /// SEPARATELY from the facility collection totals so it never alters Collected/Unpaid. Returns the
+    /// amount collected (paid) per utility plus the combined outstanding balance. Tenant-scoped.
+    /// </summary>
+    Task<(decimal ElecCollected, decimal WaterCollected, decimal Outstanding)> GetNpmUtilityTotalsAsync(
+        int year,
+        int? month,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
     /// Earliest calendar year that has any collection / billing / contract activity for this tenant —
     /// the floor for the Follow-up History year picker, so a back-dated (prior-year) settlement is
     /// reachable and not stranded outside the last-12-months window. Returns the current year when there
