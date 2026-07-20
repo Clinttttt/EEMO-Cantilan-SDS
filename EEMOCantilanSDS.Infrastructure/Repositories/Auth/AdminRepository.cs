@@ -58,9 +58,15 @@ public class AdminRepository(AppDbContext context) : IAdminRepository
 
     public async Task<int> CountOtherActiveSuperAdminsAsync(Guid excludingId, CancellationToken cancellationToken = default)
     {
+        // Count only REAL LGU Heads: exclude platform/console operators (IsPlatformOperator). They carry the
+        // SuperAdmin role but are a DISTINCT identity and are NOT counted as the municipality's Head by the
+        // first-run setup check (SetupRepository.IsSuperAdminExistsAsync). If we counted them here, the last
+        // real Head could be demoted/deactivated, which then makes the app think initial setup is required
+        // again (the Head-setup screen reappears). These two checks MUST stay in sync.
         return await context.AdminUsers
             .CountAsync(a => a.IsActive
                 && a.Role == AdminRole.SuperAdmin
+                && !a.IsPlatformOperator
                 && a.Id != excludingId, cancellationToken);
     }
 }

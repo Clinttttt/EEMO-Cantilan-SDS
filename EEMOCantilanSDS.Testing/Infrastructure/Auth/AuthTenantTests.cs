@@ -93,5 +93,32 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Auth
             await ctx.SaveChangesAsync();
             Assert.True(await repo.IsSuperAdminExistsAsync(CancellationToken.None));
         }
+
+        [Fact]
+        public async Task CountOtherActiveSuperAdmins_ExcludesPlatformOperators()
+        {
+            // Regression: a platform/console operator carries the SuperAdmin role but is NOT the LGU's Head.
+            // The demotion/deactivation guard must not count it, otherwise the last REAL Head could be demoted
+            // — which then makes the first-run setup check (IsSuperAdminExistsAsync) report setup is required
+            // again and the Head-setup screen reappears. This mirrors IsSuperAdminExistsAsync's exclusion.
+            var options = Options();
+            var cantilan = Guid.NewGuid();
+            using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
+            var head = AdminUser.Create("Cantilan Head", "head", "h@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true);
+            var op = AdminUser.Create("Console Op", "console.op", "op@x.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true, isPlatformOperator: true);
+            ctx.Users.AddRange(head, op);
+            await ctx.SaveChangesAsync();
+
+            var repo = new AdminRepository(ctx);
+
+            // Excluding the Head, the only other active SuperAdmin is the platform operator → must NOT count,
+            // so demoting/deactivating the Head is correctly blocked (0 other real Heads remain).
+            Assert.Equal(0, await repo.CountOtherActiveSuperAdminsAsync(head.Id, CancellationToken.None));
+
+            // A second genuine Head IS counted.
+            ctx.Users.Add(AdminUser.Create("Deputy Head", "deputy", "d@cantilan.gov", "Passw0rd!", AdminRole.SuperAdmin, cantilan, isActive: true));
+            await ctx.SaveChangesAsync();
+            Assert.Equal(1, await repo.CountOtherActiveSuperAdminsAsync(head.Id, CancellationToken.None));
+        }
     }
 }
