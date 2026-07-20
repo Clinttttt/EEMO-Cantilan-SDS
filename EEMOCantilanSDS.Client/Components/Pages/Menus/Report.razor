@@ -452,10 +452,13 @@
                                                     <div class="fac-detail-item"><span>Electricity</span><strong>@Money(nd.ElecCollected)</strong></div>
                                                     <div class="fac-detail-item"><span>Water</span><strong>@Money(nd.WaterCollected)</strong></div>
                                                     <div class="fac-detail-item fac-detail-total"><span>Total collected</span><strong>@Money(nd.ElecCollected + nd.WaterCollected)</strong></div>
-                                                    @if (nd.UtilityOutstanding > 0)
-                                                    {
-                                                        <div class="fac-detail-item"><span>Outstanding</span><strong class="fac-detail-red">@Money(nd.UtilityOutstanding)</strong></div>
-                                                    }
+                                                </div>
+                                            }
+                                            @if (nd.UtilityOutstanding > 0)
+                                            {
+                                                <div class="fac-detail-group">
+                                                    <div class="fac-detail-heading">Utilities Due</div>
+                                                    <div class="fac-detail-item"><span>Electricity &amp; water</span><strong class="fac-detail-red">@Money(nd.UtilityOutstanding)</strong></div>
                                                 </div>
                                             }
                                         </div>
