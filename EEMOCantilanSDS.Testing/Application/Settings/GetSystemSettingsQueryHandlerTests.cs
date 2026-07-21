@@ -145,5 +145,8 @@ public class GetSystemSettingsQueryHandlerTests
 
         public Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct) =>
             throw new NotImplementedException();
+
+        public Task<IReadOnlyList<NpmCustomSectionDto>> GetNpmCustomSectionsAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<NpmCustomSectionDto>>(new List<NpmCustomSectionDto>());
     }
 }

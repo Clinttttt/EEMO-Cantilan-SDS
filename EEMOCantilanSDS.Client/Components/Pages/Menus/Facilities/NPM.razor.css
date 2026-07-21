@@ -926,3 +926,29 @@
     border-radius: 20px;
     padding: 2px 10px;
 }
+
+
+/* Custom NPM section — remove control on an empty custom tab + inline error */
+.npm-sec-remove {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    border-radius: 6px;
+    margin-left: 4px;
+}
+
+    .npm-sec-remove:hover {
+        color: var(--red);
+        background: var(--red-bg);
+    }
+
+.npm-custom-err {
+    margin: 6px 2px 0;
+    color: var(--red);
+    font-size: 12px;
+    font-weight: 600;
+}

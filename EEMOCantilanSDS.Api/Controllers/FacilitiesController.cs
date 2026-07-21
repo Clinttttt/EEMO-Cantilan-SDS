@@ -3,12 +3,15 @@ using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityHistory;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityConfiguration;
 using EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
+using EEMOCantilanSDS.Application.Command.Facilities.AddNpmCustomSection;
+using EEMOCantilanSDS.Application.Command.Facilities.RemoveNpmCustomSection;
 using EEMOCantilanSDS.Application.Command.Facilities.SetFacilityStatus;
 using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetMonthEndReport;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilityReports;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummary;
 using EEMOCantilanSDS.Application.Queries.Facilities.GetFacilitySummaries;
+using EEMOCantilanSDS.Application.Queries.Facilities.GetNpmCustomSections;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetSectionSummaries;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacility;
 using EEMOCantilanSDS.Domain.Enums;
@@ -113,6 +116,30 @@ public class FacilitiesController(ISender sender) : ApiBaseController(sender)
         [FromQuery] int month)
     {
         var result = await Sender.Send(new GetMonthEndReportQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    // ── NPM custom sections (per-LGU registry) ──────────────────────────────────
+    [HttpGet("npm/custom-sections")]
+    public async Task<ActionResult<IReadOnlyList<NpmCustomSectionDto>>> GetNpmCustomSections()
+    {
+        var result = await Sender.Send(new GetNpmCustomSectionsQuery());
+        return HandleResponse(result);
+    }
+
+    [HttpPost("npm/custom-sections")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> AddNpmCustomSection([FromBody] AddNpmCustomSectionCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpPost("npm/custom-sections/remove")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> RemoveNpmCustomSection([FromBody] RemoveNpmCustomSectionCommand command)
+    {
+        var result = await Sender.Send(command);
         return HandleResponse(result);
     }
 }

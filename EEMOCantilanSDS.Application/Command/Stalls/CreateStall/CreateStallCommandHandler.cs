@@ -36,6 +36,11 @@ public class CreateStallCommandHandler(
             createdBy: "Admin",
             customSectionName: request.CustomSectionName);
 
+        // Register a brand-new NPM custom section so it becomes a reusable dropdown option going forward
+        // (no-op if it already exists). Only for NPM custom-section stalls; canonical stalls are unaffected.
+        if (facility.Code == FacilityCode.NPM && !string.IsNullOrWhiteSpace(request.CustomSectionName))
+            facility.AddCustomSection(request.CustomSectionName, "Admin");
+
         await stallRepo.AddAsync(stall, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
 

@@ -88,7 +88,35 @@
                         }
                     </div>
                 }
+                @* Per-LGU CUSTOM sections (registry ∪ stall names). A custom section with no stalls shows a
+                   remove control; one with stalls cannot be removed (guarded server-side too). *@
+                @foreach (var cs in _customSections)
+                {
+                    var custCount = StallsBySection(cs.Name).Count();
+                    var custUnpaid = StallsBySection(cs.Name).Count(s => !s.PaidToday && !s.AbsentToday);
+                    <div class="npm-sec-tab @(ActiveSection == cs.Name ? "active" : "")"
+                         @onclick="() => SetSection(cs.Name)">
+                        <div class="npm-sec-icon">@((MarkupString)CustomSectionIconSvg)</div>
+                        <div class="npm-sec-info">
+                            <div class="npm-sec-name">@cs.Name</div>
+                            <div class="npm-sec-sub">@custCount stalls @(custUnpaid > 0 ? $"· {custUnpaid} unpaid" : "")</div>
+                        </div>
+                        @if (custUnpaid > 0)
+                        {
+                            <span class="npm-sec-badge">@custUnpaid</span>
+                        }
+                        else if (cs.StallCount == 0)
+                        {
+                            <button class="npm-sec-remove" type="button" title="Remove this empty custom section"
+                                    @onclick="() => RemoveCustomSectionAsync(cs.Name)" @onclick:stopPropagation="true">&times;</button>
+                        }
+                    </div>
+                }
             </div>
+            @if (!string.IsNullOrEmpty(CustomSectionError))
+            {
+                <div class="npm-custom-err">@CustomSectionError</div>
+            }
 
             <!-- ── Toolbar (Reusable Component) ── -->
             <Toolbar SearchQuery="@SearchQuery"
@@ -105,10 +133,15 @@
                 var isAllSection = ActiveSection == "All";
                 var isFishSection = ActiveSection == "Fish Area";
                 var fishKgCollected = FishKgCollected;
-                var sectionLabel = isAllSection ? "All Sections" : FacilityCatalog.SectionLabelOf(FacilityCode.NPM, ActiveSection);
+                // Custom sections aren't in the canonical Sections dictionary — guard every lookup so an
+                // active custom tab can never throw. Label = the custom name; description = a generic note.
+                var isCustomSection = !isAllSection && !Sections.ContainsKey(ActiveSection);
+                var sectionLabel = isAllSection
+                    ? "All Sections"
+                    : isCustomSection ? ActiveSection : FacilityCatalog.SectionLabelOf(FacilityCode.NPM, ActiveSection);
                 var sectionDesc = isAllSection
                     ? "All NPM stalls — Vegetable · Fish · Meat"
-                    : Sections[ActiveSection].Description;
+                    : Sections.TryGetValue(ActiveSection, out var _secInfo) ? _secInfo.Description : "Custom section — daily collection";
                 // Fish: show the daily-rent portion only, with the ₱/kg fee broken out separately
                 // so the two aren't conflated when read or summed.
                 var collectedMonth = isAllSection
@@ -166,7 +199,8 @@
             else
             {
                 var sectionGroups = Sections
-                    .Select(sec => (sec.Key, sec.Value.Icon, Stalls: FilteredStallsFor(sec.Key).ToList()))
+                    .Select(sec => (Key: sec.Key, Icon: sec.Value.Icon, Stalls: FilteredStallsFor(sec.Key).ToList()))
+                    .Concat(_customSections.Select(cs => (Key: cs.Name, Icon: CustomSectionIconSvg, Stalls: FilteredStallsFor(cs.Name).ToList())))
                     .Where(g => g.Stalls.Count > 0)
                     .ToList();
 
@@ -258,6 +292,7 @@
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="NpmFacilityOptions"
                 FacilityLocked="true"
+                CustomSectionNames="_customSections.Select(c => c.Name).ToList()"
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
                 NpmFishRate="_npmFishRate"
@@ -318,6 +353,35 @@
     string ActiveStatus = "All";
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
 
+    // Per-LGU custom NPM sections (registry ∪ stall names, with stall counts). Drives the extra tabs/cards
+    // and the remove-when-empty control; empty for Cantilan so the page is unchanged.
+    private List<NpmCustomSectionDto> _customSections = new();
+    private string CustomSectionError = string.Empty;
+    private const string CustomSectionIconSvg = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"3\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/><rect x=\"14\" y=\"14\" width=\"7\" height=\"7\" rx=\"1\"/></svg>";
+
+    private async Task LoadCustomSectionsAsync()
+    {
+        var result = await FacilitiesApi.GetNpmCustomSectionsAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _customSections = result.Value.ToList();
+    }
+
+    private async Task RemoveCustomSectionAsync(string name)
+    {
+        CustomSectionError = string.Empty;
+        var result = await FacilitiesApi.RemoveNpmCustomSectionAsync(name);
+        if (result.IsSuccess)
+        {
+            if (ActiveSection == name) ActiveSection = "All";   // never leave an active tab that no longer exists
+            await LoadCustomSectionsAsync();
+        }
+        else
+        {
+            CustomSectionError = result.Error ?? "Couldn't remove the custom section.";
+        }
+        StateHasChanged();
+    }
+
     private RenderFragment NpmIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
 
     private List<FacilityHero.HeroStat> HeroStats => new()
@@ -346,6 +410,7 @@
         ResetState();
         InitializeToolbarActions();
         await LoadNpmRatesAsync();
+        await LoadCustomSectionsAsync();   // custom section tabs/options (both cached + fresh paths)
         var now = DateTime.Now;
         if (CachedNpmPage is { } state
             && state.Year == now.Year
@@ -796,7 +861,7 @@
             ContractName = s.ContractName,
             SelectedSection = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
                 ? s.Section.Replace(" Area", "").Replace(" Section", "")
-                : "__custom__",
+                : $"existing:{s.Section}",
             CustomSectionName = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
                 ? string.Empty
                 : s.Section,
@@ -917,17 +982,25 @@
         VendorFieldErrors.Clear();
         StateHasChanged();
 
-        MarketSection? section = VendorForm.SelectedSection switch
+        MarketSection? section;
+        string? customSectionName = null;
+        var sel = VendorForm.SelectedSection ?? string.Empty;
+        if (sel == "Vegetable") section = MarketSection.VegetableArea;
+        else if (sel == "Fish") section = MarketSection.FishSection;
+        else if (sel == "Meat") section = MarketSection.MeatSection;
+        else if (sel == "__custom__")
         {
-            "Vegetable" => MarketSection.VegetableArea,
-            "Fish" => MarketSection.FishSection,
-            "Meat" => MarketSection.MeatSection,
-            "__custom__" => null,
-            _ => MarketSection.VegetableArea
-        };
-        var customSectionName = VendorForm.SelectedSection == "__custom__"
-            ? (string.IsNullOrWhiteSpace(VendorForm.CustomSectionName) ? null : VendorForm.CustomSectionName.Trim())
-            : null;
+            // New custom section typed in the text field.
+            section = null;
+            customSectionName = string.IsNullOrWhiteSpace(VendorForm.CustomSectionName) ? null : VendorForm.CustomSectionName.Trim();
+        }
+        else if (sel.StartsWith("existing:", StringComparison.Ordinal))
+        {
+            // An existing custom section picked from the dropdown.
+            section = null;
+            customSectionName = sel["existing:".Length..];
+        }
+        else section = MarketSection.VegetableArea;   // safe default
 
         var fees = ApplicableFees.BaseRental;
         if (VendorForm.FeeTypes.Contains("Electricity"))
@@ -959,6 +1032,7 @@
         {
             // Reload from API so section mapping/GUIDs reflect backend truth
             await LoadStallsFromApi();
+            await LoadCustomSectionsAsync();   // a new custom section is now registered → refresh tabs + options
             CloseAddVendorModal();
         }
         else

@@ -36,4 +36,13 @@ public interface IFacilitiesApiClient
 
     /// <summary>Activates or deactivates a facility (deactivated = hidden from operational menus, history kept).</summary>
     Task<Result<bool>> SetFacilityStatusAsync(string code, bool active);
+
+    /// <summary>The current tenant's NPM custom sections (name + stall count).</summary>
+    Task<Result<IReadOnlyList<NpmCustomSectionDto>>> GetNpmCustomSectionsAsync();
+
+    /// <summary>Adds a custom NPM section to the registry (Head-only). Idempotent.</summary>
+    Task<Result<bool>> AddNpmCustomSectionAsync(string name);
+
+    /// <summary>Removes a custom NPM section (Head-only). Fails if any stall still uses it.</summary>
+    Task<Result<bool>> RemoveNpmCustomSectionAsync(string name);
 }

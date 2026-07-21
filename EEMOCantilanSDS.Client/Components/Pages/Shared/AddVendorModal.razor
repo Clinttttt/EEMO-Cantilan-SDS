@@ -645,6 +645,9 @@
     /// Fires when a fee toggle (Electricity / Water) is clicked — host calls ToggleFee(feeName)
     [Parameter] public EventCallback<string> OnToggleFee { get; set; }
 
+    /// NPM per-LGU custom section names (host-supplied) — shown as selectable options in the Section dropdown.
+    [Parameter] public IReadOnlyList<string> CustomSectionNames { get; set; } = Array.Empty<string>();
+
     // ── Private relay handlers ────────────────────────────────────────────────
 
     private async Task HandleCancel() => await OnCancel.InvokeAsync();
@@ -665,12 +668,22 @@
         StateHasChanged();
     }
 
-    // Options for the custom Section / Contract-duration dropdowns.
-    private static readonly IReadOnlyList<(string Value, string Label)> SectionOptions = new List<(string, string)>
+    // Options for the custom Section / Contract-duration dropdowns. NPM custom sections (passed by the host)
+    // appear as selectable "existing:{name}" options, followed by the "＋ Custom section…" add-new sentinel.
+    private IReadOnlyList<(string Value, string Label)> SectionOptions
     {
-        ("Vegetable", "Vegetable Area"), ("Fish", "Fish Area"), ("Meat", "Meat Area"),
-        ("__custom__", "＋ Custom section…"),
-    };
+        get
+        {
+            var opts = new List<(string, string)>
+            {
+                ("Vegetable", "Vegetable Area"), ("Fish", "Fish Area"), ("Meat", "Meat Area"),
+            };
+            foreach (var name in CustomSectionNames)
+                opts.Add(($"existing:{name}", name));
+            opts.Add(("__custom__", "＋ Custom section…"));
+            return opts;
+        }
+    }
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
         ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),

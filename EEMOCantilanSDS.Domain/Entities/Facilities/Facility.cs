@@ -30,6 +30,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// so another LGU can map its facilities to any billing behaviour.</summary>
         public BillingArchetype Archetype { get; private set; } = BillingArchetype.Custom;
 
+        // Per-LGU CUSTOM NPM section registry. NPM stalls may belong to one of these names (Stall.Section
+        // null + Stall.CustomSectionName) instead of a canonical MarketSection. Managed by the Head; a name
+        // may exist with zero stalls (so it can be pre-declared / removed while empty). Stored as a text[]
+        // column; EMPTY for Cantilan and every existing facility, so behaviour is byte-for-byte unchanged.
+        // Names are unique per facility (case-insensitive) and trimmed.
+        public List<string> CustomSectionNames { get; private set; } = new();
+
         public ICollection<Stall> Stalls { get; private set; } = new List<Stall>();
         public ICollection<CollectorFacilityAssignment> CollectorAssignments { get; private set; } = new List<CollectorFacilityAssignment>();
         private Facility() { }
@@ -73,6 +80,36 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
         public void Deactivate() => IsActive = false;
         public void Activate() => IsActive = true;
+
+        /// <summary>
+        /// Adds a custom NPM section name to this facility's registry. Trims and de-duplicates
+        /// case-insensitively. Returns false if the name is blank or already present (no-op).
+        /// </summary>
+        public bool AddCustomSection(string name, string updatedBy = "System")
+        {
+            var n = (name ?? string.Empty).Trim();
+            if (n.Length == 0) return false;
+            if (CustomSectionNames.Any(x => string.Equals(x, n, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            CustomSectionNames.Add(n);
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+            return true;
+        }
+
+        /// <summary>
+        /// Removes a custom NPM section name from the registry (case-insensitive). Returns false if the
+        /// name is not present. Callers MUST ensure no stall still uses the name before removing it.
+        /// </summary>
+        public bool RemoveCustomSection(string name, string updatedBy = "System")
+        {
+            var existing = CustomSectionNames.FirstOrDefault(x => string.Equals(x, (name ?? string.Empty).Trim(), StringComparison.OrdinalIgnoreCase));
+            if (existing is null) return false;
+            CustomSectionNames.Remove(existing);
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+            return true;
+        }
 
         /// <summary>
         /// Sets the display labels for this facility's market sections (e.g. "Gulayan" for the vegetable

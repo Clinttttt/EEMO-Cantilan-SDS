@@ -40,6 +40,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.FishSectionLabel).HasMaxLength(60);
             builder.Property(s => s.MeatSectionLabel).HasMaxLength(60);
 
+            // Per-LGU custom NPM section registry — native PostgreSQL text[] (empty for existing facilities).
+            builder.Property(s => s.CustomSectionNames)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'::text[]");
+
             builder.Property(s => s.IsActive)
                 .IsRequired()
                 .HasDefaultValue(true);

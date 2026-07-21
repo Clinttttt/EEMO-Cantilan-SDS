@@ -29,6 +29,40 @@ public class FacilityRepository(AppDbContext context) : IFacilityRepository
         await context.Facilities.AddAsync(facility, ct);
     }
 
+    public async Task<IReadOnlyList<NpmCustomSectionDto>> GetNpmCustomSectionsAsync(CancellationToken ct)
+    {
+        var npm = await context.Facilities.AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Code == FacilityCode.NPM, ct);
+        if (npm is null) return Array.Empty<NpmCustomSectionDto>();
+
+        // Stall count per custom section name (all non-deleted stalls — incl. Closed — so a section that
+        // still has ANY stall can't be removed and orphan it). The query filter scopes to this tenant.
+        var counts = await context.Stalls.AsNoTracking()
+            .Where(s => s.FacilityId == npm.Id && s.Section == null && s.CustomSectionName != null)
+            .GroupBy(s => s.CustomSectionName!)
+            .Select(g => new { Name = g.Key!, Count = g.Count() })
+            .ToListAsync(ct);
+
+        // Registry names UNION distinct stall names (legacy stalls made before the registry existed),
+        // de-duplicated case-insensitively.
+        var names = new List<string>();
+        void AddName(string? raw)
+        {
+            var n = (raw ?? string.Empty).Trim();
+            if (n.Length > 0 && !names.Any(x => string.Equals(x, n, StringComparison.OrdinalIgnoreCase)))
+                names.Add(n);
+        }
+        foreach (var r in npm.CustomSectionNames) AddName(r);
+        foreach (var c in counts) AddName(c.Name);
+
+        return names
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .Select(n => new NpmCustomSectionDto(
+                n,
+                counts.Where(c => string.Equals(c.Name.Trim(), n, StringComparison.OrdinalIgnoreCase)).Sum(c => c.Count)))
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<ConfiguredFacilityDto>> GetConfiguredFacilitiesAsync(CancellationToken ct)
     {
         var today = PhilippineTime.Today;

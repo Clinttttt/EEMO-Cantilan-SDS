@@ -20,4 +20,11 @@ public interface IFacilityRepository
 
     Task<FacilitySummaryDto> GetSummaryAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct);
     Task<IReadOnlyList<FacilitySidebarSummaryDto>> GetSidebarSummariesAsync(int year, int month, CancellationToken ct);
+
+    /// <summary>
+    /// The current tenant's NPM custom sections: the facility registry names UNION any distinct
+    /// CustomSectionName already on stalls (legacy), each with its current stall count. Drives the NPM
+    /// section tabs and the remove-when-empty guard.
+    /// </summary>
+    Task<IReadOnlyList<NpmCustomSectionDto>> GetNpmCustomSectionsAsync(CancellationToken ct);
 }
