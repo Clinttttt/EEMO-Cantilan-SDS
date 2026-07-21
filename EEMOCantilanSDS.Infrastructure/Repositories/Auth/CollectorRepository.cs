@@ -358,7 +358,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     && (d.CollectorId == collectorId || d.CollectorId == null)))
                 .Where(s => s.Facility!.Code == FacilityCode.NPM
                     && s.Status == StallStatus.Active
-                    && s.Section.HasValue
+                    && (s.Section.HasValue || s.CustomSectionName != null)
                     && s.Contracts.Any(c => c.IsActive))
                 .OrderBy(s => s.Section)
                 .ThenBy(s => s.StallNo)
@@ -498,7 +498,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     FacilityCode.NPM,
                     FacilityName(FacilityCode.NPM, facilityNames),
                     s.StallNo,
-                    GetSectionName(s.Section),
+                    SectionDisplayName(s),
                     status,
                     assessed,
                     rentalPaid,
@@ -1476,8 +1476,13 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         if (stall.AreaLocation.HasValue)
             return stall.AreaLocation.Value.ToString();
 
-        return stall.Section.HasValue ? GetSectionName(stall.Section) : string.Empty;
+        return stall.Section.HasValue ? GetSectionName(stall.Section) : (stall.CustomSectionName ?? string.Empty);
     }
+
+    // Resolves a stall's section name for display: a canonical MarketSection uses the canonical name; a
+    // custom NPM section (Section null) uses its per-stall CustomSectionName.
+    private static string SectionDisplayName(Stall s) =>
+        s.Section.HasValue ? GetSectionName(s.Section) : (s.CustomSectionName ?? string.Empty);
 
     private static string GetSectionName(MarketSection? section) => section switch
     {

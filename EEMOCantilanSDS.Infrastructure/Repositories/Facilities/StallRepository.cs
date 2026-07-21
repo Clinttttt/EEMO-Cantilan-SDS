@@ -101,8 +101,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .Where(s =>
                 s.Facility!.Code == FacilityCode.NPM &&
                 s.Status == StallStatus.Active &&
-                s.Section.HasValue)
+                (s.Section.HasValue || s.CustomSectionName != null))
             .OrderBy(s => s.Section)
+            .ThenBy(s => s.CustomSectionName)
             .ThenBy(s => s.StallNo)
             .ToListAsync(ct);
 
@@ -116,8 +117,12 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // becomes tenant-aware. Falls back to the canonical section name when no custom label is set.
         var npmFacility = await context.Facilities.AsNoTracking()
             .FirstOrDefaultAsync(f => f.Code == FacilityCode.NPM, ct);
-        string SectionDisplay(MarketSection? section)
-            => (section is { } s ? npmFacility?.SectionLabel(s) : null) ?? GetSectionName(section);
+        // A canonical section resolves to its tenant label (falling back to the canonical name); a custom
+        // section (Section null) shows its per-stall CustomSectionName.
+        string SectionDisplay(Stall s)
+            => s.Section is { } sec
+                ? (npmFacility?.SectionLabel(sec) ?? GetSectionName(sec))
+                : (s.CustomSectionName ?? string.Empty);
 
         var rows = stalls.Select(s =>
         {
@@ -151,7 +156,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
                 contract?.NameOnContract ?? contract?.ActualOccupant ?? string.Empty,
                 s.Section,
-                SectionDisplay(s.Section),
+                SectionDisplay(s),
                 s.Status,
                 dailyRate,
                 todayCollection is not null,
@@ -495,7 +500,8 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     s.AreaLocation,
                     s.AreaNote,
                     s.Remarks,
-                    activeContract?.DurationYears ?? 0
+                    activeContract?.DurationYears ?? 0,
+                    s.CustomSectionName
                 );
             }).ToList(),
             NextCursor = pagedResult.NextCursor,
@@ -533,7 +539,8 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 s.AreaLocation,
                 s.AreaNote,
                 s.Remarks,
-                activeContract?.DurationYears ?? 0
+                activeContract?.DurationYears ?? 0,
+                s.CustomSectionName
             );
         }).ToList();
     }

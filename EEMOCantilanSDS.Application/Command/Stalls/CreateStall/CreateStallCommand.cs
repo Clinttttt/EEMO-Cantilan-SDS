@@ -18,4 +18,5 @@ public record CreateStallCommand(
     string ActualOccupant,
     string? NameOnContract,
     DateTime? ContractDate,
-    int ContractYears) : IRequest<Result<StallDto>>;
+    int ContractYears,
+    string? CustomSectionName = null) : IRequest<Result<StallDto>>;

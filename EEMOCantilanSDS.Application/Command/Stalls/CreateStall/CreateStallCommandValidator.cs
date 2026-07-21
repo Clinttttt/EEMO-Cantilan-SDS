@@ -31,9 +31,16 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
             .GreaterThan(0).WithMessage("Contract duration must be at least 1 year")
             .LessThanOrEqualTo(10).WithMessage("Contract duration cannot exceed 10 years");
 
-        RuleFor(x => x.Section)
-            .NotNull().WithMessage("Section is required for NPM")
+        // An NPM stall belongs to EITHER a canonical market section OR a per-LGU custom section — exactly
+        // one. (Custom sections bill flat-daily like Vegetable/Meat.)
+        RuleFor(x => x)
+            .Must(x => x.Section.HasValue ^ !string.IsNullOrWhiteSpace(x.CustomSectionName))
+            .WithMessage("Choose a market section or enter a custom section name (not both).")
             .When(x => x.FacilityCode == FacilityCode.NPM);
+
+        RuleFor(x => x.CustomSectionName)
+            .MaximumLength(60).WithMessage("Custom section name cannot exceed 60 characters")
+            .When(x => !string.IsNullOrWhiteSpace(x.CustomSectionName));
 
         RuleFor(x => x.DailyRate)
             .NotNull().WithMessage("Daily rate is required for NPM")

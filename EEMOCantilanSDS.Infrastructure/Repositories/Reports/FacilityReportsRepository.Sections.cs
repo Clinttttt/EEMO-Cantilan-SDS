@@ -47,25 +47,18 @@ public partial class FacilityReportsRepository
         var sections = new[] { MarketSection.VegetableArea, MarketSection.FishSection, MarketSection.MeatSection };
         var breakdown = new List<SectionBreakdownDto>();
 
-        // Calculate revenue and expected revenue for each section
-        foreach (var section in sections)
+        // Builds one section card from a set of stalls, using the SAME revenue/expected/rate/count logic for
+        // canonical AND custom sections — so every card is computed identically and the cards reconcile to the
+        // facility total. An empty set yields a ₱0 card (canonical sections always render; custom ones are only
+        // built for groups that exist).
+        async Task<SectionBreakdownDto> BuildCardAsync(string sectionName, List<Stall> stalls)
         {
-            var stalls = await _context.Stalls
-                .AsNoTracking()
-                .Where(s => s.FacilityId == facilityId && s.Section == section)
-                .Include(s => s.Contracts.Where(c => c.IsActive))
-                .ToListAsync(ct);
-
             if (stalls.Count == 0)
-            {
-                breakdown.Add(new SectionBreakdownDto(SectionLabel(section), 0m, 0m, 0, 0, 0, 0));
-                continue;
-            }
+                return new SectionBreakdownDto(sectionName, 0m, 0m, 0, 0, 0, 0);
 
             var stallIds = stalls.Select(s => s.Id).ToList();
             var stallsById = stalls.ToDictionary(s => s.Id);
 
-            // Get payment records for this section
             var allPaymentRecords = await _context.PaymentRecords
                 .AsNoTracking()
                 .Where(pr => stallIds.Contains(pr.StallId))
@@ -89,7 +82,6 @@ public partial class FacilityReportsRepository
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
                     && dc.IsPaid
-                   
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
 
@@ -120,12 +112,11 @@ public partial class FacilityReportsRepository
             // billable performance and can never read above 100%.
             var rentCollected = dailyFeeRevenue + monthlyDailyFeeRevenue;
             var percentage = expectedRevenue > 0 ? Math.Min(100m, (rentCollected / expectedRevenue) * 100m) : 0m;
-            var sectionName = SectionLabel(section);
             var activeStalls = stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
             var noContractStalls = stalls.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive));
 
-            breakdown.Add(new SectionBreakdownDto(
+            return new SectionBreakdownDto(
                 sectionName,
                 actualRevenue,
                 percentage,
@@ -133,7 +124,36 @@ public partial class FacilityReportsRepository
                 activeStalls,
                 closedStalls,
                 noContractStalls
-            ));
+            );
+        }
+
+        // Canonical sections — always rendered (even at ₱0), so Cantilan's report is byte-for-byte unchanged.
+        foreach (var section in sections)
+        {
+            var stalls = await _context.Stalls
+                .AsNoTracking()
+                .Where(s => s.FacilityId == facilityId && s.Section == section)
+                .Include(s => s.Contracts.Where(c => c.IsActive))
+                .ToListAsync(ct);
+
+            breakdown.Add(await BuildCardAsync(SectionLabel(section), stalls));
+        }
+
+        // Per-LGU CUSTOM sections: NPM stalls with no canonical Section (Section == null) but a
+        // CustomSectionName. Surface each distinct custom section as its own card — mirrors NCC's AreaNote
+        // handling — so the section cards still reconcile to the facility total. Cantilan's NPM stalls all
+        // carry a canonical Section, so nothing is added there.
+        var customStalls = await _context.Stalls
+            .AsNoTracking()
+            .Where(s => s.FacilityId == facilityId && s.Section == null && s.CustomSectionName != null)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .ToListAsync(ct);
+
+        foreach (var group in customStalls
+            .GroupBy(s => s.CustomSectionName!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            breakdown.Add(await BuildCardAsync(group.Key, group.ToList()));
         }
 
         return breakdown;

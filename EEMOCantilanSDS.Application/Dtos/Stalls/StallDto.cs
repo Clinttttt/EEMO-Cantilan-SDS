@@ -18,5 +18,6 @@ public record StallDto(
     NccAreaLocation? AreaLocation,
     string? AreaNote,
     string? Remarks,
-    int ContractYears = 0
+    int ContractYears = 0,
+    string? CustomSectionName = null
 );

@@ -34,6 +34,7 @@ public class GetUtilityRegisterQueryHandler(
         {
             var occupant = string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!;
             var section = SectionLabel(s.Section);
+            if (string.IsNullOrWhiteSpace(section)) section = s.CustomSectionName ?? string.Empty;
 
             if (byStall.TryGetValue(s.Id, out var b))
             {

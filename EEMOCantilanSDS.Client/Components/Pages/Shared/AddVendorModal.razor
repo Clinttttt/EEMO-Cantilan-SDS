@@ -160,7 +160,18 @@
                                     <span class="form-error">@GetFieldError("Section")</span>
                                 }
                             </div>
-                            <div class="avm-group" style="visibility:hidden;"></div>
+                            <div class="avm-group">
+                                @if (Form.SelectedSection == "__custom__")
+                                {
+                                    <label class="avm-label">Custom section name <span class="avm-req">*</span></label>
+                                    <input class="avm-input" maxlength="60" placeholder="e.g. Sari-sari Area"
+                                           @bind="Form.CustomSectionName" @bind:event="oninput" />
+                                    @if (GetFieldError("CustomSectionName") != string.Empty)
+                                    {
+                                        <span class="form-error">@GetFieldError("CustomSectionName")</span>
+                                    }
+                                }
+                            </div>
                         </div>
                     }
 
@@ -658,6 +669,7 @@
     private static readonly IReadOnlyList<(string Value, string Label)> SectionOptions = new List<(string, string)>
     {
         ("Vegetable", "Vegetable Area"), ("Fish", "Fish Area"), ("Meat", "Meat Area"),
+        ("__custom__", "＋ Custom section…"),
     };
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
@@ -716,6 +728,8 @@
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
         public string SelectedSection { get; set; } = string.Empty;
+        // NPM only: the free-text name when SelectedSection is the "＋ Custom section…" sentinel.
+        public string CustomSectionName { get; set; } = string.Empty;
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public int ContractYears { get; set; }

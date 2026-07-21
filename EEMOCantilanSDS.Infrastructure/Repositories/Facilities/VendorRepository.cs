@@ -91,7 +91,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 s.Facility!.Code,
                 s.Facility.Name,
                 s.Section,
-                s.Section.HasValue ? s.Section.Value.ToString() : null,
+                s.Section.HasValue ? s.Section.Value.ToString() : s.CustomSectionName,
                 s.AreaLocation,
                 s.AreaLocation.HasValue ? s.AreaLocation.Value.ToString() : null,
                 s.MonthlyRate,

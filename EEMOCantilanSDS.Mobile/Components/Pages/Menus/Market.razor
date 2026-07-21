@@ -103,9 +103,13 @@
             }
             else
             {
-                @foreach (var sectionGroup in FilteredStalls.GroupBy(s => s.Section))
+                @foreach (var sectionGroup in FilteredStalls
+                    .GroupBy(s => s.SectionName)
+                    .OrderBy(g => g.First().Section is null)
+                    .ThenBy(g => g.First().Section)
+                    .ThenBy(g => g.Key))
                 {
-                    <div class="section-label">@sectionGroup.First().SectionName</div>
+                    <div class="section-label">@sectionGroup.Key</div>
 
                     @foreach (var stall in sectionGroup)
                     {

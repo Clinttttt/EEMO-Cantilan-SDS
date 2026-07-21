@@ -37,6 +37,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.Section)
                 .HasConversion<int?>();
 
+            // Per-LGU custom NPM section name (set only when Section is null). Kept short like the section
+            // display labels on Facility.
+            builder.Property(s => s.CustomSectionName)
+                .HasMaxLength(60);
+
             builder.Property(s => s.AreaLocation)
                 .HasConversion<int?>();
 

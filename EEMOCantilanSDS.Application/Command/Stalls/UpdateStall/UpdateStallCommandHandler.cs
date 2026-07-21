@@ -57,7 +57,8 @@ public class UpdateStallCommandHandler(
             stall.Section,
             stall.AreaLocation,
             request.AreaNote,
-            request.Remarks);
+            request.Remarks,
+            CustomSectionName: stall.CustomSectionName);
 
         return Result<StallDto>.Success(dto);
     }

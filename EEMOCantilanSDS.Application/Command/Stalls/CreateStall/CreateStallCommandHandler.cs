@@ -33,7 +33,8 @@ public class CreateStallCommandHandler(
             request.AreaNote,
             request.DailyRate,
             null,
-            createdBy: "Admin");
+            createdBy: "Admin",
+            customSectionName: request.CustomSectionName);
 
         await stallRepo.AddAsync(stall, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
@@ -67,7 +68,8 @@ public class CreateStallCommandHandler(
             request.Section,
             request.AreaLocation,
             request.AreaNote,
-            null
+            null,
+            CustomSectionName: stall.CustomSectionName
             );
 
         return Result<StallDto>.Success(dto);

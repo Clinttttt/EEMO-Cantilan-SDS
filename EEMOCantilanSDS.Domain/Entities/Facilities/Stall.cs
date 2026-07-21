@@ -27,6 +27,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         // NPM-specific
         public MarketSection? Section { get; private set; }
 
+        // NPM per-LGU CUSTOM section: when an NPM stall belongs to a section that is NOT one of the three
+        // canonical MarketSection values, Section is null and this holds the custom section name (e.g.
+        // "Sari-sari Area"). Mirrors how NCC stalls use AreaNote for custom areas. A custom section bills
+        // exactly like the Vegetable/Meat sections — flat daily fee, never fish/weight. A stall carries
+        // EITHER a canonical Section OR a CustomSectionName, never both.
+        public string? CustomSectionName { get; private set; }
+
         // NCC-specific
         public NccAreaLocation? AreaLocation { get; private set; }
 
@@ -59,7 +66,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             string? remarks = null,
             StallType type = StallType.Permanent,
             string createdBy = "System",
-            Guid municipalityId = default)
+            Guid municipalityId = default,
+            string? customSectionName = null)
         {
             return new Stall
             {
@@ -71,6 +79,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 DailyRate = dailyRate,
                 Fees = fees,
                 Section = section,
+                // A stall is either a canonical Section OR a custom-named section, never both.
+                CustomSectionName = section.HasValue || string.IsNullOrWhiteSpace(customSectionName)
+                    ? null : customSectionName.Trim(),
                 AreaLocation = areaLocation,
                 AreaSqm = areaSqm,
                 AreaNote = areaNote,
@@ -144,6 +155,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public void SetType(StallType type, string updatedBy = "System")
         {
             Type = type;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
+        /// Sets this NPM stall's section: EITHER a canonical <see cref="MarketSection"/> OR a per-LGU custom
+        /// section name, never both. A non-null <paramref name="section"/> clears any custom name; a custom
+        /// name (with null section) clears <see cref="Section"/>. A custom section bills like Vegetable/Meat
+        /// — flat daily fee, no fish.
+        /// </summary>
+        public void SetSection(MarketSection? section, string? customSectionName, string updatedBy = "System")
+        {
+            Section = section;
+            CustomSectionName = section.HasValue || string.IsNullOrWhiteSpace(customSectionName)
+                ? null : customSectionName.Trim();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

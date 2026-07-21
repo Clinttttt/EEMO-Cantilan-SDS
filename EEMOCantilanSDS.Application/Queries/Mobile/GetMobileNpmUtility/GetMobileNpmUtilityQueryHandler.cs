@@ -44,6 +44,7 @@ public class GetMobileNpmUtilityQueryHandler(
                 byStall.TryGetValue(b.StallId, out var s);
                 var occupant = string.IsNullOrWhiteSpace(s?.ActualOccupant) ? "—" : s!.ActualOccupant!;
                 var section = SectionLabel(npm, s?.Section);
+                if (string.IsNullOrWhiteSpace(section)) section = s?.CustomSectionName ?? string.Empty;
                 return new MobileUtilityBillDto(
                     b.Id, s?.StallNo ?? "—", occupant, section,
                     b.ElecCharge, b.ElecStatus.ToString(), b.ElecBalanceDue,

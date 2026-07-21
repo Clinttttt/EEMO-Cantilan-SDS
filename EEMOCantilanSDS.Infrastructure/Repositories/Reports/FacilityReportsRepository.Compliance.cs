@@ -239,7 +239,7 @@ public partial class FacilityReportsRepository
                 s.StallNo,
                 contract?.ActualOccupant ?? string.Empty,
                 contract?.NameOnContract ?? string.Empty,
-                s.Section.HasValue ? SectionLabel(s.Section) : s.AreaLocation?.ToString() ?? string.Empty,
+                s.Section.HasValue ? SectionLabel(s.Section) : (s.CustomSectionName ?? s.AreaLocation?.ToString() ?? string.Empty),
                 s.Type.ToString(),
                 s.MonthlyRate,
                 // NPM bills per day at the tenant's resolved rate, so report the RESOLVED rate (not the

@@ -411,7 +411,8 @@
                     MarketSection.VegetableArea => "Vegetable Area",
                     MarketSection.FishSection => "Fish Area",
                     MarketSection.MeatSection => "Meat Area",
-                    _ => "Vegetable Area"
+                    // A custom-section NPM stall (Section null) carries its per-LGU custom name.
+                    _ => string.IsNullOrWhiteSpace(dto.CustomSectionName) ? "Vegetable Area" : dto.CustomSectionName!
                 };
 
                 bool isPaid = false;
@@ -793,7 +794,12 @@
             StallNo = s.StallNo,
             ActualOccupant = s.ActualOccupant,
             ContractName = s.ContractName,
-            SelectedSection = s.Section.Replace(" Area", "").Replace(" Section", ""),
+            SelectedSection = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
+                ? s.Section.Replace(" Area", "").Replace(" Section", "")
+                : "__custom__",
+            CustomSectionName = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
+                ? string.Empty
+                : s.Section,
             AreaSqm = s.AreaSqm,
             MonthlyRate = s.MonthlyRate,
             ContractDate = s.ContractDate,
@@ -911,13 +917,17 @@
         VendorFieldErrors.Clear();
         StateHasChanged();
 
-        var section = VendorForm.SelectedSection switch
+        MarketSection? section = VendorForm.SelectedSection switch
         {
             "Vegetable" => MarketSection.VegetableArea,
             "Fish" => MarketSection.FishSection,
             "Meat" => MarketSection.MeatSection,
+            "__custom__" => null,
             _ => MarketSection.VegetableArea
         };
+        var customSectionName = VendorForm.SelectedSection == "__custom__"
+            ? (string.IsNullOrWhiteSpace(VendorForm.CustomSectionName) ? null : VendorForm.CustomSectionName.Trim())
+            : null;
 
         var fees = ApplicableFees.BaseRental;
         if (VendorForm.FeeTypes.Contains("Electricity"))
@@ -940,7 +950,8 @@
             VendorForm.ActualOccupant.Trim(),
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
-            VendorForm.ContractYears);
+            VendorForm.ContractYears,
+            customSectionName);
 
         var result = await StallsApi.CreateStallAsync(command);
 
