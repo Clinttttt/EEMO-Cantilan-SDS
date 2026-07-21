@@ -111,7 +111,15 @@
             }
 
             @{
-                var sections = new[] { "Fish Area", "Meat Area", "Vegetable Area" };
+                var canonicalSections = new[] { "Fish Area", "Meat Area", "Vegetable Area" };
+                // Canonical three first (Cantilan renders exactly these), then any per-LGU CUSTOM sections
+                // present in the data — so every stall's row appears in a section block and the per-section
+                // tables reconcile with the header totals (no silently-dropped custom-section rows).
+                var customSections = PrintRows.Select(r => r.Section)
+                    .Where(sn => !string.IsNullOrWhiteSpace(sn) && !canonicalSections.Contains(sn))
+                    .Distinct()
+                    .OrderBy(sn => sn, StringComparer.OrdinalIgnoreCase);
+                var sections = canonicalSections.Concat(customSections);
             }
             @foreach (var sec in sections)
             {

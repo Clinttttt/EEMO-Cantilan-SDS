@@ -484,7 +484,15 @@
             </thead>
             <tbody>
                 @{ var n = 1; }
-                @foreach (var sec in NpmSections.Skip(1))
+                @{
+                    // Canonical sections first, then any per-LGU custom sections present in the rows — so every
+                    // row is listed and the table reconciles with the subtotal (no dropped custom-section rows).
+                    var canonicalSecs = NpmSections.Skip(1).ToArray();
+                    var customSecs = rows.Select(r => r.Section)
+                        .Where(sn => !string.IsNullOrWhiteSpace(sn) && !canonicalSecs.Contains(sn))
+                        .Distinct().OrderBy(sn => sn, StringComparer.OrdinalIgnoreCase);
+                }
+                @foreach (var sec in canonicalSecs.Concat(customSecs))
                 {
                     var secRows = rows.Where(r => r.Section == sec).ToList();
                     if (secRows.Count == 0) continue;
