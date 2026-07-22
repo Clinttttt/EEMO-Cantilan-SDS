@@ -174,13 +174,29 @@
     font-size: 13px; color: var(--navy); font-weight: 600; text-align: right;
 }
 .imp-util {
+    position: relative;
     display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
-    padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border);
-    background: var(--bg-card); font-weight: 600; color: var(--text-subtle);
-    transition: color .12s ease, border-color .12s ease, background .12s ease;
+    padding: 8px 13px; border-radius: 7px; border: 1.5px solid var(--border);
+    background: var(--bg-card); font-weight: 600; font-size: 12.5px; color: var(--text-subtle);
+    transition: color .12s ease, border-color .12s ease, background .12s ease, box-shadow .12s ease;
 }
-    .imp-util input { accent-color: var(--navy); width: 15px; height: 15px; cursor: pointer; margin: 0; }
-    .imp-util.on { border-color: var(--navy); color: var(--navy); background: color-mix(in srgb, var(--navy) 6%, var(--bg-card)); }
+    /* The checkbox is the accessible control but the visual is the whole toggle. */
+    .imp-util input { position: absolute; opacity: 0; width: 0; height: 0; margin: 0; pointer-events: none; }
+    .imp-util svg { width: 15px; height: 15px; flex-shrink: 0; }
+    .imp-util:hover { border-color: var(--text-muted); color: var(--text); }
+    .imp-util.on {
+        border-color: var(--navy);
+        color: var(--navy);
+        background: color-mix(in srgb, var(--navy) 8%, var(--bg-card));
+        box-shadow: inset 0 0 0 1px var(--navy);
+    }
+    /* A small gold check badge on the selected toggle — clear "on" state without a raw checkbox. */
+    .imp-util.on::after {
+        content: '';
+        width: 7px; height: 7px; border-radius: 50%;
+        background: var(--gold); margin-left: 1px; flex-shrink: 0;
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 30%, transparent);
+    }
 
 /* ── Editable table ── */
 .imp-table-wrap {
