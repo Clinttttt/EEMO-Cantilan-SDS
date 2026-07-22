@@ -360,83 +360,76 @@ public sealed class MobileSessionService(
     public bool IsBound => BoundMunicipalityCode is not null;
 
     /// <summary>
-    /// If a bind link was opened, resolve its token against the API and persist the bound LGU (code + name).
-    /// Best-effort + fail-open: on any failure (unknown/rotated token, offline) the app keeps its current
-    /// binding — or stays unbound — so the existing picker / global login still works. Cantilan unaffected.
+    /// Resolves a PENDING bind token — from a freshly-opened invite link (deep link) or, as a fallback, the
+    /// invite page's clipboard hand-off — to its LGU + branding, WITHOUT persisting it. The login page shows
+    /// a branded "confirm your municipality" screen and calls <see cref="ConfirmBind"/> only when the collector
+    /// taps Confirm. Best-effort + fail-open: returns null on any failure (no token, offline, unknown/rotated
+    /// token) so the app simply stays unbound and the default tenant (Cantilan) path is unchanged.
     /// </summary>
-    public async Task TryConsumePendingBindAsync()
+    public async Task<MobileBindInfoDto?> ResolvePendingBindInfoAsync()
     {
+        if (IsBound)
+            return null;
+
+        // Deep link (MainActivity stored it) takes priority; clipboard hand-off is the fallback.
         var token = MobileBindBridge.TakePendingToken();
         if (string.IsNullOrWhiteSpace(token))
-            return;
+            token = await TryReadClipboardBindTokenAsync();
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
 
         try
         {
             var result = await mobileApiClient.GetBindInfoAsync(token);
             if (result.IsSuccess && result.Value is { } info && !string.IsNullOrWhiteSpace(info.MunicipalityCode))
-            {
-                Preferences.Default.Set(BoundCodeKey, info.MunicipalityCode);
-                Preferences.Default.Set(BoundNameKey, info.Name ?? string.Empty);
-            }
-            // On a real rejection (404/rotated) or offline: keep any existing binding; never clear here.
+                return info;
         }
         catch
         {
-            // Offline / unreachable — leave the binding untouched.
+            // Offline / unreachable — no confirmation shown; app stays unbound (default applies).
         }
+        return null;
+    }
+
+    /// <summary>Persists the LGU binding after the collector confirms it on the branded setup screen.</summary>
+    public void ConfirmBind(MobileBindInfoDto info)
+    {
+        if (string.IsNullOrWhiteSpace(info.MunicipalityCode))
+            return;
+        Preferences.Default.Set(BoundCodeKey, info.MunicipalityCode);
+        Preferences.Default.Set(BoundNameKey, info.Name ?? string.Empty);
     }
 
     /// <summary>
-    /// Deferred bind fallback for a FRESH sideloaded install opened directly (no deep link): the LGU invite
-    /// page copies <c>stalltrack://a/{token}</c> to the clipboard, and this picks it up on first launch and
-    /// binds — so a collector who just taps the app icon still lands on their own LGU. Sideloaded APKs have
-    /// no Play "install referrer", so the clipboard is the hand-off.
-    ///
-    /// <para>Guardrails: runs at most ONCE per install (a flag stops re-reading the clipboard — and the
-    /// Android 12+ paste toast — on every later launch), only while still UNBOUND (never overrides an
-    /// existing binding), and only for the exact <c>stalltrack://a/</c> marker (so unrelated clipboard text
-    /// is ignored). Fail-open: any failure leaves the app unbound and the existing default (Cantilan) applies,
-    /// so the golden tenant is unaffected.</para>
+    /// Reads the clipboard hand-off token (the invite page copies <c>stalltrack://a/{token}</c>) as a
+    /// fallback for a fresh install opened directly. Read only AFTER the window has focus (the caller invokes
+    /// this post-render — Android blocks clipboard reads for an unfocused activity). Capped to a few attempts
+    /// so an app kept unbound on purpose (Cantilan/default) stops reading — and stops the paste toast — and
+    /// only the exact <c>stalltrack://a/</c> marker is accepted (unrelated clipboard text is ignored).
     /// </summary>
-    public async Task TryConsumeClipboardBindAsync()
+    private async Task<string?> TryReadClipboardBindTokenAsync()
     {
-        if (IsBound)
-            return;
-
-        // Retry across the first several unbound launches. A single early read can miss — the clipboard may
-        // not be readable before the window has focus, or the collector may open the app once before copying
-        // the invite link. Capped so an app kept unbound on purpose (the default / Cantilan path) stops
-        // reading — and stops the Android paste toast — after a few tries.
         const string AttemptsKey = "stalltrack_clipboard_bind_attempts";
         var attempts = Preferences.Default.Get(AttemptsKey, 0);
         if (attempts >= 8)
-            return;
+            return null;
         Preferences.Default.Set(AttemptsKey, attempts + 1);
 
         try
         {
             if (!Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.HasText)
-                return;
+                return null;
 
             var text = (await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.GetTextAsync())?.Trim();
             if (string.IsNullOrWhiteSpace(text)
                 || !text.StartsWith("stalltrack://a/", StringComparison.OrdinalIgnoreCase))
-                return;
+                return null;
 
-            var token = MobileBindBridge.ExtractToken(text);
-            if (string.IsNullOrWhiteSpace(token))
-                return;
-
-            var result = await mobileApiClient.GetBindInfoAsync(token);
-            if (result.IsSuccess && result.Value is { } info && !string.IsNullOrWhiteSpace(info.MunicipalityCode))
-            {
-                Preferences.Default.Set(BoundCodeKey, info.MunicipalityCode);
-                Preferences.Default.Set(BoundNameKey, info.Name ?? string.Empty);
-            }
+            return MobileBindBridge.ExtractToken(text);
         }
         catch
         {
-            // Clipboard unavailable / offline / unknown token — stay unbound; the default path applies.
+            return null; // Clipboard unavailable / not focused — stay unbound; the default path applies.
         }
     }
 

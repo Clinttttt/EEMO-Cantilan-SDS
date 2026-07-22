@@ -1,5 +1,6 @@
 ﻿@page "/login"
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Mobile.Services
 @implements IDisposable
 @inject NavigationManager Navigation
@@ -400,10 +401,145 @@
         line-height: 1.6;
         margin-top: 20px;
     }
+    /* ── First-launch "Confirm your municipality" (bind) overlay ── */
+    .bind-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(13,33,55,0.74);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 200;
+    }
+
+    .bind-modal {
+        background: #ffffff;
+        border-radius: 20px;
+        padding: 28px 24px 22px;
+        width: 100%;
+        max-width: 360px;
+        text-align: center;
+        box-shadow: 0 24px 60px rgba(0,0,0,0.4);
+        border-top: 3px solid #c8a84b;
+    }
+
+    .bind-seal {
+        width: 84px;
+        height: 84px;
+        margin: 2px auto 16px;
+        border-radius: 50%;
+        background: #f0f4f8;
+        border: 2px solid #e8cc76;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+        .bind-seal img { width: 100%; height: 100%; object-fit: contain; }
+        .bind-seal svg { width: 36px; height: 36px; stroke: #0d2137; fill: none; }
+
+    .bind-eyebrow {
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: #8faabf;
+        margin-bottom: 4px;
+    }
+
+    .bind-name {
+        font-family: 'EB Garamond', serif;
+        font-size: 26px;
+        font-weight: 700;
+        color: #0d2137;
+        line-height: 1.15;
+    }
+
+    .bind-office {
+        font-size: 13px;
+        font-weight: 600;
+        color: #33475b;
+        margin-top: 6px;
+    }
+
+    .bind-prov {
+        font-size: 12px;
+        color: #8faabf;
+        margin-top: 2px;
+    }
+
+    .bind-note {
+        font-size: 12.5px;
+        color: #6a8aa0;
+        line-height: 1.55;
+        margin: 16px 4px 20px;
+    }
+
+    .bind-confirm {
+        width: 100%;
+        padding: 15px;
+        border: none;
+        border-radius: 13px;
+        background: #0d2137;
+        color: #e8cc76;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        box-shadow: 0 8px 22px rgba(13,33,55,0.22);
+        transition: transform 0.12s, opacity 0.12s;
+    }
+
+        .bind-confirm:active { transform: scale(0.99); opacity: 0.92; }
+
+    .bind-hint {
+        font-size: 11px;
+        color: #8faabf;
+        margin-top: 12px;
+        line-height: 1.45;
+    }
 </style>
 
 
 <div class="login-shell">
+
+    @* Branded first-launch confirmation: shown when an invite token resolved to an LGU. The collector
+       confirms their municipality before anything else — the professional, intentional bind moment. *@
+    @if (_pendingBindInfo is not null)
+    {
+        <div class="bind-overlay">
+            <div class="bind-modal">
+                <div class="bind-seal">
+                    @if (!string.IsNullOrWhiteSpace(_pendingBindInfo.SealPath))
+                    {
+                        <img src="@_pendingBindInfo.SealPath" alt="@_pendingBindInfo.Name seal" />
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></svg>
+                    }
+                </div>
+                <div class="bind-eyebrow">Set up StallTrack for</div>
+                <div class="bind-name">@_pendingBindInfo.Name</div>
+                @if (!string.IsNullOrWhiteSpace(_pendingBindInfo.OfficeName))
+                {
+                    <div class="bind-office">@_pendingBindInfo.OfficeName</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_pendingBindInfo.Province))
+                {
+                    <div class="bind-prov">@_pendingBindInfo.Province</div>
+                }
+                <div class="bind-note">
+                    This device will be set up to collect for this municipality. Confirm to continue to sign in.
+                </div>
+                <button type="button" class="bind-confirm" @onclick="ConfirmMunicipality">Confirm &amp; Continue</button>
+                <div class="bind-hint">Not your municipality? Ask your office for the correct invite link.</div>
+            </div>
+        </div>
+    }
 
     <!-- Top: STALLTRACK platform brand -->
     <div class="login-top">
@@ -515,13 +651,14 @@
     // or the default tenant. No picker: accounts are provisioned + bound per-LGU from the web portal.
     string? SelectedMunicipalityCode;
 
+    // A pending invite token resolved to this LGU's branding — drives the "confirm your municipality" setup
+    // screen. Non-null = show the confirmation; binding is only persisted when the collector taps Confirm.
+    MobileBindInfoDto? _pendingBindInfo;
+    bool _bindResolveStarted;
+
     protected override async Task OnInitializedAsync()
     {
         MobileBindBridge.PendingTokenChanged += OnBindTokenChanged;
-
-        // Resolve any freshly-opened bind link BEFORE anything else, so login scoping reflects the bound
-        // LGU. Best-effort + fail-open (offline / unknown token → the app simply stays unbound).
-        await Session.TryConsumePendingBindAsync();
 
         try
         {
@@ -538,28 +675,28 @@
 
         ApplyBinding();
 
-        // Bound app → no picker; the bound code is sent silently on login. Unbound → existing behaviour
-        // (picker only when 2+ LGUs are live; single-tenant Cantilan stays clean and global).
+        // Bound app → the bound code is sent silently on login. Unbound → scope to the single/default LGU
+        // (Cantilan) so the golden path is preserved; a pending invite token (below) shows a confirmation.
         if (!Session.IsBound)
         {
             await LoadMunicipalitiesAsync();
         }
     }
 
-    // The clipboard bind is read AFTER the first render, not during init: Android blocks clipboard reads
-    // while the activity isn't focused, so an early read during startup silently returns nothing. Runs only
-    // while still unbound; on a successful bind it re-pins the login scope to the bound LGU.
+    // Bind resolution runs AFTER first render — the window must be focused (Android blocks clipboard reads
+    // otherwise), and the deep-link token is read here too. If a pending invite token resolves to an LGU, we
+    // show a BRANDED confirmation (instead of binding silently). Runs once, only while unbound.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || Session.IsBound)
+        if (!firstRender || Session.IsBound || _bindResolveStarted)
             return;
+        _bindResolveStarted = true;
 
         await Task.Delay(250); // let the window settle into focus before touching the clipboard
-        await Session.TryConsumeClipboardBindAsync();
-
-        if (Session.IsBound)
+        var info = await Session.ResolvePendingBindInfoAsync();
+        if (info is not null)
         {
-            ApplyBinding();
+            _pendingBindInfo = info;
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -567,10 +704,26 @@
     // A bind link opened while this page is already foregrounded (Android OnNewIntent) arrives here.
     private void OnBindTokenChanged() => _ = InvokeAsync(async () =>
     {
-        await Session.TryConsumePendingBindAsync();
-        ApplyBinding();
-        StateHasChanged();
+        if (Session.IsBound)
+            return;
+        var info = await Session.ResolvePendingBindInfoAsync();
+        if (info is not null)
+        {
+            _pendingBindInfo = info;
+            StateHasChanged();
+        }
     });
+
+    // The collector confirmed the municipality on the branded setup screen → persist the binding and pin
+    // the login scope to it. One-time per install; every later launch skips this and goes straight to login.
+    private void ConfirmMunicipality()
+    {
+        if (_pendingBindInfo is null)
+            return;
+        Session.ConfirmBind(_pendingBindInfo);
+        ApplyBinding();
+        _pendingBindInfo = null;
+    }
 
     // Reflect the current LGU binding into the login form: pin the code (no picker to hide).
     private void ApplyBinding()
