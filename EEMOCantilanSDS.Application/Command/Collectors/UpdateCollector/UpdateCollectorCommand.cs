@@ -9,4 +9,5 @@ public record UpdateCollectorCommand(
     string FullName,
     string ContactNumber,
     string Email,
-    List<FacilityCode> AssignedFacilities) : IRequest<Result<bool>>;
+    List<FacilityCode> AssignedFacilities,
+    string? Username = null) : IRequest<Result<bool>>;

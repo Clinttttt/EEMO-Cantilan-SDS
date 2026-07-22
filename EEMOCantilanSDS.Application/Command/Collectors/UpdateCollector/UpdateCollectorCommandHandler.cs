@@ -22,6 +22,20 @@ public class UpdateCollectorCommandHandler(
         var collector = await collectorRepo.GetByIdAsync(request.CollectorId, cancellationToken);
         if (collector is null) return Result<bool>.NotFound();
 
+        // Optional username change (Head-initiated). Only when it actually changed — and it must be unique
+        // WITHIN this LGU (IsUsernameUniqueAsync is municipality-scoped), so a value used by another LGU is
+        // still allowed. Case-sensitive compare so a case-only correction still applies.
+        if (!string.IsNullOrWhiteSpace(request.Username))
+        {
+            var newUsername = request.Username.Trim();
+            if (!string.Equals(newUsername, collector.Username, StringComparison.Ordinal))
+            {
+                if (!await collectorRepo.IsUsernameUniqueAsync(newUsername, cancellationToken))
+                    return Result<bool>.Failure("That username is already taken in this municipality.", 409);
+                collector.ChangeUsername(newUsername, currentUser.Username ?? "Admin");
+            }
+        }
+
         // Capture the CURRENT assignments before replacing, so we can push only about NEWLY added facilities.
         var existing = collector.FacilityAssignments.Select(a => a.FacilityCode).ToHashSet();
 

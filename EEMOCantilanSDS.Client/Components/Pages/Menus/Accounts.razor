@@ -589,46 +589,80 @@
                 </button>
             </div>
             <div class="eemo-modal-body">
-                <p class="confirm-text">
-                    Set a new temporary password for <span class="confirm-name">@ResetTargetName</span>.
-                    @if (ResetIsCollector)
-                    {
-                        <span>They can sign in to the mobile app with it.</span>
-                    }
-                    else
-                    {
-                        <span>They will be asked to change it on next login.</span>
-                    }
-                </p>
-                <div class="form-group">
-                    <label class="form-label">New Password <span class="req">*</span></label>
-                    <div class="input-with-action">
-                        <input class="form-input" type="text" placeholder="At least 8 characters"
-                               @bind="ResetPasswordValue" @bind:event="oninput" />
-                        <button class="btn-ghost" type="button" @onclick="() => ResetPasswordValue = GeneratePassword()">Generate</button>
-                    </div>
-                    <div class="field-hint">Share this temporary password with the account holder securely.</div>
-                </div>
-                <div class="security-note">
-                    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                    <span>Security check — confirm it's really you before changing someone's password.</span>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Confirm With Your Password <span class="req">*</span></label>
-                    <input class="form-input" type="password" placeholder="Your own account password"
-                           @bind="ResetConfirmValue" @bind:event="oninput" autocomplete="current-password" />
-                </div>
-                @if (!string.IsNullOrEmpty(ResetError))
+                @if (ResetSuccess)
                 {
-                    <div class="form-error">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        @ResetError
+                    <div class="reset-success">
+                        <div class="reset-success-badge">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                        </div>
+                        <div class="reset-success-title">Password reset</div>
+                        <p class="confirm-text reset-success-text">
+                            A new temporary password has been set for <span class="confirm-name">@ResetTargetName</span>.
+                            @if (ResetIsCollector)
+                            {
+                                <span>Share it securely — they'll use it to sign in to the mobile app.</span>
+                            }
+                            else
+                            {
+                                <span>Share it securely — they'll be asked to change it on next login.</span>
+                            }
+                        </p>
+                        <div class="reset-success-pass">
+                            <span class="reset-success-pass-label">Temporary password</span>
+                            <code class="reset-success-pass-value">@ResetPasswordValue</code>
+                        </div>
                     </div>
+                }
+                else
+                {
+                    <p class="confirm-text">
+                        Set a new temporary password for <span class="confirm-name">@ResetTargetName</span>.
+                        @if (ResetIsCollector)
+                        {
+                            <span>They can sign in to the mobile app with it.</span>
+                        }
+                        else
+                        {
+                            <span>They will be asked to change it on next login.</span>
+                        }
+                    </p>
+                    <div class="form-group">
+                        <label class="form-label">New Password <span class="req">*</span></label>
+                        <div class="input-with-action">
+                            <input class="form-input" type="text" placeholder="At least 8 characters"
+                                   @bind="ResetPasswordValue" @bind:event="oninput" />
+                            <button class="btn-ghost" type="button" @onclick="() => ResetPasswordValue = GeneratePassword()">Generate</button>
+                        </div>
+                        <div class="field-hint">Share this temporary password with the account holder securely.</div>
+                    </div>
+                    <div class="security-note">
+                        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                        <span>Security check — confirm it's really you before changing someone's password.</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Confirm With Your Password <span class="req">*</span></label>
+                        <input class="form-input" type="password" placeholder="Your own account password"
+                               @bind="ResetConfirmValue" @bind:event="oninput" autocomplete="current-password" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(ResetError))
+                    {
+                        <div class="form-error">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                            @ResetError
+                        </div>
+                    }
                 }
             </div>
             <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="CloseReset">Cancel</button>
-                <button class="btn-primary" @onclick="ConfirmReset" disabled="@IsSaving">Reset Password</button>
+                @if (ResetSuccess)
+                {
+                    <button class="btn-primary" @onclick="CloseReset">Done</button>
+                }
+                else
+                {
+                    <button class="btn-ghost" @onclick="CloseReset">Cancel</button>
+                    <button class="btn-primary" @onclick="ConfirmReset" disabled="@IsSaving">Reset Password</button>
+                }
             </div>
         </div>
     </div>
@@ -922,6 +956,7 @@
     private string ResetPasswordValue = string.Empty;
     private string ResetConfirmValue = string.Empty;
     private string ResetError = string.Empty;
+    private bool ResetSuccess;
 
     private void OpenResetPassword(Guid id, string name, bool isCollector)
     {
@@ -931,6 +966,7 @@
         ResetPasswordValue = GeneratePassword();
         ResetConfirmValue = string.Empty;
         ResetError = string.Empty;
+        ResetSuccess = false;
         ShowReset = true;
     }
 
@@ -939,6 +975,7 @@
         ShowReset = false;
         ResetConfirmValue = string.Empty;
         ResetError = string.Empty;
+        ResetSuccess = false;
     }
 
     private async Task ConfirmReset()
@@ -956,7 +993,10 @@
             if (result.IsSuccess)
             {
                 await LoadAll();
-                CloseReset();
+                // Stay open and confirm success — the Head can copy the temporary password to share it,
+                // instead of the modal vanishing the instant the reset completes.
+                ResetError = string.Empty;
+                ResetSuccess = true;
             }
             else
             {

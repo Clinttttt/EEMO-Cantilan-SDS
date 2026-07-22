@@ -99,6 +99,51 @@ public class CollectorCommandHandlerTests
     }
 
     [Fact]
+    public async Task Update_ChangesUsername_WhenUniqueInMunicipality()
+    {
+        var collector = NewCollector(); // username "juan"
+        var (repo, user, uow) = Mocks(collector);
+        repo.Setup(r => r.ReplaceFacilityAssignmentsAsync(It.IsAny<Guid>(), It.IsAny<List<FacilityCode>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        repo.Setup(r => r.IsUsernameUniqueAsync("carrascal", It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var facilityRepo = new Mock<IFacilityRepository>();
+        facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>());
+        var handler = new UpdateCollectorCommandHandler(
+            repo.Object, user.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, facilityRepo.Object,
+            new Mock<IPushSender>().Object);
+
+        var result = await handler.Handle(
+            new UpdateCollectorCommand(collector.Id, "New Name", "0999", "new@eemo.gov", new() { FacilityCode.NPM }, Username: "carrascal"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("carrascal", collector.Username);
+    }
+
+    [Fact]
+    public async Task Update_RejectsUsername_WhenTakenInMunicipality()
+    {
+        var collector = NewCollector(); // username "juan"
+        var (repo, user, uow) = Mocks(collector);
+        repo.Setup(r => r.IsUsernameUniqueAsync("taken", It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var facilityRepo = new Mock<IFacilityRepository>();
+        var handler = new UpdateCollectorCommandHandler(
+            repo.Object, user.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, facilityRepo.Object,
+            new Mock<IPushSender>().Object);
+
+        var result = await handler.Handle(
+            new UpdateCollectorCommand(collector.Id, "New Name", "0999", "new@eemo.gov", new() { FacilityCode.NPM }, Username: "taken"),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal("juan", collector.Username); // unchanged
+    }
+
+    [Fact]
     public async Task Update_NewlyAssignedFacility_PushesToCollector()
     {
         var collector = NewCollector(); // no existing assignments

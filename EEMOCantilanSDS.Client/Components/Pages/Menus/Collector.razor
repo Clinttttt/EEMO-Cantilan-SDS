@@ -331,9 +331,9 @@
 
                 <div class="form-row-2">
                     <div class="form-group">
-                        <label class="form-label">Username <span class="req">@(IsEditing ? "" : "*")</span></label>
+                        <label class="form-label">Username <span class="req">*</span></label>
                         <input class="form-input" type="text" placeholder="Login username"
-                               @bind="Form.Username" @bind:event="oninput" readonly="@IsEditing" />
+                               @bind="Form.Username" @bind:event="oninput" />
                     </div>
                     <div class="form-group">
                         <label class="form-label">
@@ -749,7 +749,7 @@
     {
         if (string.IsNullOrWhiteSpace(Form.FullName)) { FormError = "Full name is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.EmployeeId)) { FormError = "Employee ID is required."; return; }
-        if (!IsEditing && string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
+        if (string.IsNullOrWhiteSpace(Form.Username)) { FormError = "Username is required."; return; }
         if (!IsEditing && string.IsNullOrWhiteSpace(Form.Password)) { FormError = "Password is required for new accounts."; return; }
         if (!Form.AssignedFacilities.Any()) { FormError = "Assign at least one facility."; return; }
 
@@ -760,7 +760,8 @@
                 Form.FullName.Trim(),
                 Form.ContactNumber.Trim(),
                 Form.Email.Trim(),
-                Form.AssignedFacilities);
+                Form.AssignedFacilities,
+                Username: Form.Username.Trim());
 
             var result = await CollectorsApi.UpdateCollectorAsync(command);
             if (result.IsSuccess)

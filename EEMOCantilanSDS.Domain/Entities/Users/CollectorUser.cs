@@ -54,6 +54,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             UpdatedBy = updatedBy;
         }
 
+        // Head-initiated username change (e.g. to a memorable login the collector can actually type).
+        // Uniqueness within the LGU is enforced by the caller; this only applies the trimmed value.
+        public void ChangeUsername(string username, string updatedBy)
+        {
+            Username = username.Trim();
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void Deactivate(string updatedBy)
         {
             IsActive = false;
