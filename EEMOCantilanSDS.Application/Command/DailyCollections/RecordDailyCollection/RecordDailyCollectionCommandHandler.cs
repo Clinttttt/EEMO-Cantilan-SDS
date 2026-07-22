@@ -91,9 +91,10 @@ public class RecordDailyCollectionCommandHandler(
         else
         {
             // Stamp the current municipality's resolved daily fee as of the collection date (falls back
-            // to the ordinance constant, so Cantilan stamps the same ₱30).
+            // to the ordinance constant, so Cantilan stamps the same ₱30). A custom-section stall uses its
+            // own daily rate instead (canonical sections are unaffected).
             var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-            var dailyFee = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, request.CollectionDate);
+            var dailyFee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, request.CollectionDate));
 
             var newCollection = DailyCollection.Create(
                 stallId: request.StallId,

@@ -73,7 +73,7 @@ public class SettleNpmMonthCommandHandler(
             if (dc is not null && (dc.IsPaid || dc.IsAbsent))
                 continue;                                               // already collected or excused
 
-            var fee = snapshot.Resolve(FeeRateKey.NpmDailyStall, day);
+            var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
             if (dc is null)
             {
                 dc = DailyCollection.Create(request.StallId, day, recordedBy, fee);

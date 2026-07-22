@@ -77,6 +77,25 @@ public class FacilityCustomSectionTests : RepositoryTestBase
     }
 
     [Fact]
+    public void ResolveDailyFee_CustomSectionUsesOwnRate_CanonicalUsesOrdinance()
+    {
+        // Canonical stall ignores any DailyRate on it → always the caller's ordinance rate (Cantilan unchanged).
+        var canonical = Stall.Create(Guid.NewGuid(), "1", 900m, ApplicableFees.DailyRental,
+            section: MarketSection.VegetableArea, dailyRate: 50m);
+        Assert.Equal(30m, canonical.ResolveDailyFee(30m));
+
+        // Custom-section stall uses its own DailyRate.
+        var custom = Stall.Create(Guid.NewGuid(), "2", 900m, ApplicableFees.DailyRental,
+            dailyRate: 50m, customSectionName: "Sari-sari Area");
+        Assert.Equal(50m, custom.ResolveDailyFee(30m));
+
+        // Custom-section stall with no positive rate falls back to the ordinance rate.
+        var customNoRate = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental,
+            customSectionName: "Kakanin Area");
+        Assert.Equal(30m, customNoRate.ResolveDailyFee(30m));
+    }
+
+    [Fact]
     public async Task RemoveNpmCustomSection_IsBlocked_WhenAnyStallStillUsesIt()
     {
         var facilityRepo = new Mock<IFacilityRepository>();

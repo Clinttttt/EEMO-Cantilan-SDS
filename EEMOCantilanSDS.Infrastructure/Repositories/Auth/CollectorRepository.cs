@@ -1395,7 +1395,9 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         DateOnly rangeStart,
         DateOnly rangeEnd)
     {
-        if (prepaidAmount <= 0m || _npmDailyRate <= 0m || rangeEnd < rangeStart)
+        // A custom-section stall's prepaid daily amount is divided by ITS daily rate; canonical uses ordinance.
+        var dailyRate = stall.ResolveDailyFee(_npmDailyRate);
+        if (prepaidAmount <= 0m || dailyRate <= 0m || rangeEnd < rangeStart)
             return 0m;
 
         var monthEnd = new DateOnly(monthStart.Year, monthStart.Month, DateTime.DaysInMonth(monthStart.Year, monthStart.Month));
@@ -1406,12 +1408,12 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 collectableDays.Add(date);
         }
 
-        var fullCoveredDays = (int)Math.Floor(prepaidAmount / _npmDailyRate);
-        var remainder = prepaidAmount % _npmDailyRate;
+        var fullCoveredDays = (int)Math.Floor(prepaidAmount / dailyRate);
+        var remainder = prepaidAmount % dailyRate;
         var amount = collectableDays
             .Take(fullCoveredDays)
             .Where(d => d >= rangeStart && d <= rangeEnd)
-            .Sum(_ => _npmDailyRate);
+            .Sum(_ => dailyRate);
 
         if (remainder > 0m && collectableDays.Count > fullCoveredDays)
         {

@@ -376,7 +376,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
             var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
             var billableDays = Math.Max(0, collectableDays - absentDays);
-            var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd);
+            var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -517,7 +517,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
-                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd);
+                var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
                 if (bill <= 0m)
                     continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
@@ -602,7 +602,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 var excusedDays = excused.Count(d => d >= m && d <= mEnd);
                 var billableDays = Math.Max(0, collectableDays - excusedDays);
                 if (billableDays == 0) continue;
-                var bill = billableDays * rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull);
+                var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
                 var paid = dailies.Where(d => d.CollectionDate >= m && d.CollectionDate <= mEndFull).Sum(d => d.DailyFee);
                 var balance = Math.Max(0m, bill - paid);
                 if (balance <= 0m) continue;
@@ -818,3 +818,4 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         await Task.CompletedTask;
     }
 }
+

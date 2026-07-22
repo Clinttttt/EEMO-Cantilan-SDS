@@ -100,4 +100,29 @@ public class FacilityReportsNpmCustomSectionTests : RepositoryTestBase
         Assert.Null(row.Section);
         Assert.Equal("Sari-sari Area", row.SectionName);
     }
+
+    [Fact]
+    public async Task CustomSection_Revenue_ReflectsItsOwnDailyRate()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        // Custom section priced at ₱50/day (not the ₱30 ordinance).
+        var custom = Stall.Create(facility.Id, "1", 1500m, ApplicableFees.DailyRental, dailyRate: 50m, customSectionName: "Sari-sari Area");
+        var contract = Contract.Create(custom.Id, "Payor", "Payor", new DateOnly(2026, 1, 1), 3, 1500m);
+        // One paid day stamped at the custom ₱50 rate (as RecordDailyCollection would via Stall.ResolveDailyFee).
+        var daily = DailyCollection.Create(custom.Id, new DateOnly(2026, 1, 10), "tester", 50m);
+        daily.MarkPaid("OR-1", Guid.NewGuid());
+
+        context.AddRange(facility, custom, contract, daily);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 1, null, CancellationToken.None);
+
+        // The custom section's collected revenue is the ₱50 daily fee — not the ₱30 ordinance rate.
+        var card = report.SectionBreakdown.Single(s => s.SectionName == "Sari-sari Area");
+        Assert.Equal(50m, card.Revenue);
+        Assert.Equal(report.TotalRevenue, report.SectionBreakdown.Sum(s => s.Revenue));
+    }
 }

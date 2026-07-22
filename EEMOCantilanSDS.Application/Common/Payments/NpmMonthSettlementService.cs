@@ -91,7 +91,7 @@ public sealed class NpmMonthSettlementService(
         // Tenant-aware: resolve BOTH the base fee and the fish ₱/kg from the current municipality's
         // snapshot as-of the day (custom LGUs use their configured rates; Cantilan the ordinance constant).
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var baseFee = snapshot.Resolve(FeeRateKey.NpmDailyStall, day);
+        var baseFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
         var fishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, day);
         return NpmFishDayQuote.Payable(baseFee + declaredKilos * fishRate, baseFee, fishRate);
     }
@@ -101,7 +101,7 @@ public sealed class NpmMonthSettlementService(
         Stall stall, DateOnly day, decimal declaredKilos, string recordedBy, CancellationToken ct)
     {
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        var baseFee = snapshot.Resolve(FeeRateKey.NpmDailyStall, day);
+        var baseFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
 
         var dc = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, day, ct);
         if (dc is null)
@@ -146,7 +146,7 @@ public sealed class NpmMonthSettlementService(
             existing.TryGetValue(day, out var dc);
             if (dc is not null && (dc.IsPaid || dc.IsAbsent))
                 continue;                                               // already collected or excused
-            days.Add((day, snapshot.Resolve(FeeRateKey.NpmDailyStall, day)));
+            days.Add((day, stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day))));
         }
         return days;
     }
@@ -165,3 +165,4 @@ public readonly record struct NpmFishDayQuote(bool IsPayable, string? Error, dec
         new(true, null, amount, baseFee, fishRatePerKilo);
     public static NpmFishDayQuote NotPayable(string error) => new(false, error, 0m, 0m, 0m);
 }
+

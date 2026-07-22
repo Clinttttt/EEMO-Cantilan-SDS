@@ -291,9 +291,18 @@
                         && (Form.SelectedSection == "__custom__"
                             || (Form.SelectedSection != null && Form.SelectedSection.StartsWith("existing:", StringComparison.Ordinal))))
                     {
-                        <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (custom section)</div>
-                            <div class="avm-hint-muted">Custom sections bill the standard daily stall fee — no fish/weight. Electricity and Water below can be enabled if this section is metered.</div>
+                        <div class="avm-row-2">
+                            <div class="avm-group">
+                                <label class="avm-label">Daily fee rate (₱/day) <span class="avm-req">*</span></label>
+                                <input class="avm-input" type="number" min="1" step="0.01" placeholder="e.g. 30"
+                                       @bind="Form.CustomDailyRate" @bind:event="oninput" />
+                                <div class="avm-hint-muted">This custom section bills this flat daily fee — no fish/weight. Enable Electricity &amp; Water below if the section is metered.</div>
+                                @if (GetFieldError("CustomDailyRate") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("CustomDailyRate")</span>
+                                }
+                            </div>
+                            <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
                     }
                 </div>
@@ -752,6 +761,9 @@
         public string SelectedSection { get; set; } = string.Empty;
         // NPM only: the free-text name when SelectedSection is the "＋ Custom section…" sentinel.
         public string CustomSectionName { get; set; } = string.Empty;
+        // NPM custom sections only: the flat daily stall fee for this section (canonical sections use the
+        // tenant ordinance rate). Stamped onto the stall's DailyRate and used by billing.
+        public decimal CustomDailyRate { get; set; }
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public int ContractYears { get; set; }

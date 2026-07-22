@@ -183,6 +183,15 @@
                         <span>Importing into the <strong>@_section</strong> section</span>
                         <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change section</button>
                     </div>
+                    @if (IsCustomSectionChosen)
+                    {
+                        <div class="imp-section-badge">
+                            <span>Daily fee rate (₱/day):</span>
+                            <input type="number" min="0" step="0.01"
+                                   style="width:150px;margin-left:8px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;"
+                                   placeholder="Blank = section rate / ₱30" @bind="_customDailyRate" @bind:event="oninput" />
+                        </div>
+                    }
                 }
                 <label class="imp-drop">
                     <InputFile OnChange="OnFileChange" class="imp-file-input" accept=".csv,.xlsx" />
@@ -400,6 +409,10 @@
     // NPM imports one section at a time (each section is a separate physical list).
     private bool RequiresSection => _facility?.ShortCode == "NPM";
     private bool NeedsSection => RequiresSection && string.IsNullOrEmpty(_section);
+    // A chosen section that isn't one of the canonical three is a per-LGU custom section.
+    private bool IsCustomSectionChosen => RequiresSection && !string.IsNullOrEmpty(_section) && MapSection(_section) is null;
+    // Daily fee rate for a custom-section import (0 = let the server use the section's existing rate or ₱30).
+    private decimal _customDailyRate = 0m;
     private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {_section}";
 
     private void ChooseSection(string section) => _section = section;
@@ -847,7 +860,8 @@
                 _rows.Select((r, i) => BuildRow(r, i + 1)).ToList(),
                 // A custom section has no canonical MarketSection — carry its name so rows land in it.
                 CustomSectionName: RequiresSection && MapSection(_section) is null && !string.IsNullOrEmpty(_section)
-                    ? _section : null);
+                    ? _section : null,
+                CustomDailyRate: IsCustomSectionChosen && _customDailyRate > 0m ? _customDailyRate : null);
 
             var result = await StallsApi.BulkImportStallholdersAsync(command);
             if (result.IsSuccess && result.Value is not null)

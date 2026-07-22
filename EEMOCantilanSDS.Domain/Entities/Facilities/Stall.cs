@@ -139,6 +139,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
         public bool IsActive() => Status == StallStatus.Active;
 
+        /// <summary>True when this NPM stall belongs to a per-LGU CUSTOM section (Section null + a custom name).</summary>
+        public bool IsCustomSection => Section is null && !string.IsNullOrWhiteSpace(CustomSectionName);
+
+        /// <summary>
+        /// The daily stall fee to bill for this stall. A CUSTOM-section stall uses its own <see cref="DailyRate"/>
+        /// (set at registration); every canonical NPM stall (and any stall without a positive custom rate) uses
+        /// the tenant's ordinance daily rate, which the caller resolves as-of the collection date. This keeps
+        /// Cantilan and all canonical sections on the ordinance rate exactly as before — only custom sections
+        /// diverge — so billing, settlement, and report obligations stay in sync via a single rule.
+        /// </summary>
+        public decimal ResolveDailyFee(decimal ordinanceDailyRate)
+            => IsCustomSection && DailyRate is { } r && r > 0m ? r : ordinanceDailyRate;
+
         /// <summary>
         /// True when this is an EXPIRED account: it has an active contract, but the term of every active
         /// contract has already lapsed (none still covers today), so it is no longer a current holder.

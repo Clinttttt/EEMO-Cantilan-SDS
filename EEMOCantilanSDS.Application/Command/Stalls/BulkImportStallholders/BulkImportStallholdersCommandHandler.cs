@@ -45,6 +45,13 @@ public class BulkImportStallholdersCommandHandler(
         var existingStalls = await stallRepo.GetStallsWithContractsByFacilityAsync(request.FacilityCode, section, customSectionName, ct);
         var today = PhilippineTime.Today;
 
+        // The daily rate stamped on imported NPM stalls: a custom section uses the rate from the import form
+        // (else inherits the section's existing rate, else the ordinance rate); canonical uses the ordinance
+        // rate exactly as before.
+        var npmStallDailyRate = customSectionName is not null
+            ? (request.CustomDailyRate is { } cr && cr > 0m ? cr : (existingStalls.FirstOrDefault()?.DailyRate ?? npmDailyRate))
+            : npmDailyRate;
+
         var existingByNo = new Dictionary<string, Stall>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in existingStalls)
             existingByNo[s.StallNo] = s;
@@ -106,7 +113,7 @@ public class BulkImportStallholdersCommandHandler(
                     c.Terminate(Actor);
                 if (existing.Status == StallStatus.Closed)
                     existing.Reopen(Actor);
-                existing.UpdateRates(row.MonthlyRate, isNpm ? npmDailyRate : existing.DailyRate, Actor);
+                existing.UpdateRates(row.MonthlyRate, isNpm ? npmStallDailyRate : existing.DailyRate, Actor);
                 if (areaSqm.HasValue)
                     existing.UpdateAreaInfo(areaSqm, existing.AreaNote, existing.Remarks, Actor);
 
@@ -122,7 +129,7 @@ public class BulkImportStallholdersCommandHandler(
             // Genuinely new stall number → create a new stall + contract.
             var stall = Stall.Create(
                 facility.Id, stallNo, row.MonthlyRate, fees, section, areaLocation, areaSqm, null,
-                isNpm ? npmDailyRate : null, null, StallType.Permanent, Actor, customSectionName: customSectionName);
+                isNpm ? npmStallDailyRate : null, null, StallType.Permanent, Actor, customSectionName: customSectionName);
             newStalls.Add(stall);
             newContracts.Add(Contract.Create(
                 stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,

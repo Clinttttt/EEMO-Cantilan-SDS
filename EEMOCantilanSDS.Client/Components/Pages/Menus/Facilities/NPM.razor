@@ -532,6 +532,7 @@
                     AreaSqm = dto.AreaSqm ?? 0,
                     ContractDate = dto.ContractDate,
                     MonthlyRate = dto.MonthlyRate,
+                    DailyRate = dto.DailyRate ?? 0m,
                     MonthlyExpected = monthlyExpected,
                     IsActive = dto.Status == StallStatus.Active,
                     ORNumber = orNumber,
@@ -702,6 +703,9 @@
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public decimal MonthlyRate { get; set; }
+        // The stall's daily fee rate (custom sections carry their own; canonical stalls carry the ordinance
+        // rate stamped at registration). Used to pre-fill the custom-section daily-rate input on Add Vendor.
+        public decimal DailyRate { get; set; }
         // Occupancy-prorated period bill (collectable days × ₱30) from the daily-aware report.
         // Falls back to MonthlyRate when no compliance row exists. This — not the flat MonthlyRate —
         // is what the payment modal bills against, so a mid-month payor isn't over-charged.
@@ -865,6 +869,7 @@
             CustomSectionName = (s.Section is "Vegetable Area" or "Fish Area" or "Meat Area")
                 ? string.Empty
                 : s.Section,
+            CustomDailyRate = s.DailyRate > 0m ? s.DailyRate : _npmDailyRate,
             AreaSqm = s.AreaSqm,
             MonthlyRate = s.MonthlyRate,
             ContractDate = s.ContractDate,
@@ -957,6 +962,7 @@
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
             SelectedSection = section,
+            CustomDailyRate = _npmDailyRate,
             AreaSqm = 0,
             MonthlyRate = 0,
             // Default the contract effectivity date to today (business day) — the admin can still change it.
@@ -986,6 +992,11 @@
     {
         // Reset fees when section changes - user will select what applies
         VendorForm.FeeTypes = new();
+        // Pre-fill the custom-section daily-rate input: inherit the section's existing rate (so stalls in the
+        // same custom section stay consistent), else fall back to the ordinance rate. Ignored for canonical.
+        var effective = EffectiveSelectedSectionName();
+        var existing = Stalls.FirstOrDefault(s => s.Section == effective && s.DailyRate > 0);
+        VendorForm.CustomDailyRate = existing?.DailyRate ?? _npmDailyRate;
     }
 
     private void ToggleVendorFee(string fee)
@@ -1022,6 +1033,12 @@
         }
         else section = MarketSection.VegetableArea;   // safe default
 
+        // Custom sections bill their own flat daily rate (from the modal input); canonical use the ordinance
+        // rate. Stamped onto Stall.DailyRate, which billing resolves via Stall.ResolveDailyFee.
+        var dailyRate = customSectionName is not null && VendorForm.CustomDailyRate > 0m
+            ? VendorForm.CustomDailyRate
+            : _npmDailyRate;
+
         var fees = ApplicableFees.BaseRental;
         if (VendorForm.FeeTypes.Contains("Electricity"))
             fees |= ApplicableFees.Electricity;
@@ -1039,7 +1056,7 @@
             null,
             VendorForm.AreaSqm,
             null,
-            _npmDailyRate,
+            dailyRate,
             VendorForm.ActualOccupant.Trim(),
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
