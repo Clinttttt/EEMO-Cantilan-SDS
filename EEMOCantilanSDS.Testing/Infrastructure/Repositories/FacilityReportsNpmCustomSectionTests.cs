@@ -125,4 +125,27 @@ public class FacilityReportsNpmCustomSectionTests : RepositoryTestBase
         Assert.Equal(50m, card.Revenue);
         Assert.Equal(report.TotalRevenue, report.SectionBreakdown.Sum(s => s.Revenue));
     }
+
+    [Fact]
+    public async Task CustomSection_MonthlyPaymentRecognition_UsesItsOwnDailyRate()
+    {
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var custom = Stall.Create(facility.Id, "1", 1550m, ApplicableFees.DailyRental, dailyRate: 50m, customSectionName: "Sari-sari Area");
+        var contract = Contract.Create(custom.Id, "Payor", "Payor", new DateOnly(2026, 1, 1), 3, 1550m);
+        // A whole-month monthly payment (₱50 × 31 days) — recognized as daily fees at the CUSTOM ₱50 rate.
+        var payment = PaymentRecord.Create(custom.Id, 2026, 1, 1550m);
+        payment.UpdateStatus(PaymentStatus.Paid);
+
+        context.AddRange(facility, custom, contract, payment);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 1, null, CancellationToken.None);
+
+        // Recognized at ₱50/day × 31 days = ₱1,550. At the ₱30 ordinance rate it would only recognize ₱930.
+        var card = report.SectionBreakdown.Single(s => s.SectionName == "Sari-sari Area");
+        Assert.Equal(1550m, card.Revenue);
+    }
 }
