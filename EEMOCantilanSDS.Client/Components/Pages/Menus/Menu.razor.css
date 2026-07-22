@@ -86,7 +86,7 @@
     font-weight: 700;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: var(--gold);
+    color: var(--text-muted);
 }
 
 .facility-card-name {
@@ -174,11 +174,11 @@
     }
 
     .fac-stat-val.paid-val {
-        color: var(--green);
+        color: var(--navy);
     }
 
     .fac-stat-val.partial-val {
-        color: #9a6b18;
+        color: var(--navy);
     }
 
 .fac-stat-key {
@@ -243,24 +243,26 @@
     gap: 5px;
     padding: 9px;
     border-radius: 8px;
-    background: var(--navy);
-    color: var(--gold-light);
+    background: var(--bg-card);
+    color: var(--navy);
+    border: 1px solid var(--border);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.15s;
+    transition: background 0.15s, border-color 0.15s;
     margin-top: auto;
     text-decoration: none;
 }
 
     .facility-card-btn:hover {
-        opacity: 0.88;
+        background: var(--bg);
+        border-color: var(--text-subtle);
     }
 
     .facility-card-btn svg {
         width: 14px;
         height: 14px;
-        stroke: var(--gold-light);
+        stroke: var(--navy);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
