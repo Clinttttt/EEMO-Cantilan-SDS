@@ -179,27 +179,37 @@
             <div class="imp-upload-card">
                 @if (RequiresSection)
                 {
-                    <div class="imp-section-badge">
-                        <span>Importing into the <strong>@_section</strong> section</span>
-                        <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change section</button>
-                    </div>
-                    @if (IsCustomSectionChosen)
-                    {
-                        <div class="imp-section-badge">
-                            <span>Daily fee rate (₱/day):</span>
-                            <input type="number" min="0" step="0.01"
-                                   style="width:150px;margin-left:8px;padding:5px 9px;border:1px solid var(--border);border-radius:6px;"
-                                   placeholder="Blank = section rate / ₱30" @bind="_customDailyRate" @bind:event="oninput" />
+                    <div class="imp-setup">
+                        <div class="imp-setup-group">
+                            <span class="imp-setup-key">Section</span>
+                            <span class="imp-setup-val">@_section</span>
+                            <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change</button>
                         </div>
-                    }
-                    <div class="imp-section-badge">
-                        <span>Utilities for these stalls:</span>
-                        <div style="display:flex;gap:18px;margin-left:8px;">
-                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--navy);">
-                                <input type="checkbox" @bind="_applyElectricity" /> Electricity
+
+                        @if (IsCustomSectionChosen)
+                        {
+                            <div class="imp-setup-divider"></div>
+                            <div class="imp-setup-group">
+                                <span class="imp-setup-key">Daily fee</span>
+                                <div class="imp-rate">
+                                    <span class="imp-rate-peso">₱</span>
+                                    <input type="number" min="0" step="0.01" placeholder="section rate"
+                                           @bind="_customDailyRate" @bind:event="oninput" />
+                                    <span class="imp-rate-unit">/day</span>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="imp-setup-divider"></div>
+                        <div class="imp-setup-group">
+                            <span class="imp-setup-key">Utilities</span>
+                            <label class="imp-util @(_applyElectricity ? "on" : "")">
+                                <input type="checkbox" @bind="_applyElectricity" />
+                                <span>Electricity</span>
                             </label>
-                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--navy);">
-                                <input type="checkbox" @bind="_applyWater" /> Water
+                            <label class="imp-util @(_applyWater ? "on" : "")">
+                                <input type="checkbox" @bind="_applyWater" />
+                                <span>Water</span>
                             </label>
                         </div>
                     </div>

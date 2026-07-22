@@ -122,6 +122,9 @@ public class BulkImportStallholdersCommandHandler(
                 existing.UpdateRates(row.MonthlyRate, isNpm ? npmStallDailyRate : existing.DailyRate, Actor);
                 if (areaSqm.HasValue)
                     existing.UpdateAreaInfo(areaSqm, existing.AreaNote, existing.Remarks, Actor);
+                // Apply the batch's utility choice to the renewed stall too (additive — never strips fees).
+                if (isNpm && (request.ApplyElectricity || request.ApplyWater))
+                    existing.AddUtilityFees(request.ApplyElectricity, request.ApplyWater, Actor);
 
                 newContracts.Add(Contract.Create(
                     existing.Id, occupant, nameOnContract, effectivity, row.ContractYears,

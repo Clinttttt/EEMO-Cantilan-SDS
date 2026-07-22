@@ -236,6 +236,26 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     [Fact]
+    public async Task NpmRenewal_WithUtilities_AddsUtilityFeesToReusedStall_PreservingOthers()
+    {
+        SetupFacility(FacilityCode.NPM);
+        var existing = ExistingStall("1", "Old Tenant", active: false, section: MarketSection.VegetableArea);
+        SetupExisting(FacilityCode.NPM, MarketSection.VegetableArea, existing);
+        _stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.NPM, MarketSection.VegetableArea,
+                new List<ImportStallRow> { Row(1, "New Tenant", "1") },
+                ApplyElectricity: true, ApplyWater: true),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.RenewedCount);
+        Assert.True(existing.Fees.HasFlag(ApplicableFees.Electricity)); // utilities applied to the reused stall
+        Assert.True(existing.Fees.HasFlag(ApplicableFees.Water));
+        Assert.True(existing.Fees.HasFlag(ApplicableFees.BaseRental)); // existing flags preserved (additive)
+    }
+
+    [Fact]
     public async Task ExistingActiveStall_IsSkipped_NotOverwritten()
     {
         SetupFacility(FacilityCode.TCC);

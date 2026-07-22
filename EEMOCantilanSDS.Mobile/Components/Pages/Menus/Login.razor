@@ -495,6 +495,21 @@
 
         .bind-confirm:active { transform: scale(0.99); opacity: 0.92; }
 
+    .bind-dismiss {
+        width: 100%;
+        margin-top: 10px;
+        padding: 11px;
+        border: none;
+        background: transparent;
+        color: #6a8aa0;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+        .bind-dismiss:active { opacity: 0.7; }
+
     .bind-hint {
         font-size: 11px;
         color: #8faabf;
@@ -536,6 +551,7 @@
                     This device will be set up to collect for this municipality. Confirm to continue to sign in.
                 </div>
                 <button type="button" class="bind-confirm" @onclick="ConfirmMunicipality">Confirm &amp; Continue</button>
+                <button type="button" class="bind-dismiss" @onclick="DismissBind">Not now</button>
                 <div class="bind-hint">Not your municipality? Ask your office for the correct invite link.</div>
             </div>
         </div>
@@ -572,11 +588,11 @@
 
         <!-- Username -->
         <div class="login-field">
-            <div class="login-label">Username / Employee ID</div>
+            <div class="login-label">Username</div>
             <div class="login-input-wrap">
                 <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                 <input type="text"
-                       placeholder="e.g. EEMO-2024-001"
+                       placeholder="Your username"
                        @bind="Username"
                        @bind:event="oninput"
                        @onkeydown="HandleKeyDown" />
@@ -725,6 +741,10 @@
         _pendingBindInfo = null;
     }
 
+    // Dismiss the setup screen without binding (e.g. a wrong invite link was opened) — returns to sign-in.
+    // Nothing is persisted, so re-opening the correct invite link shows the confirmation again.
+    private void DismissBind() => _pendingBindInfo = null;
+
     // Reflect the current LGU binding into the login form: pin the code (no picker to hide).
     private void ApplyBinding()
     {
@@ -783,7 +803,7 @@
 
         if (string.IsNullOrWhiteSpace(Username))
         {
-            ErrorMessage = "Please enter your username or employee ID.";
+            ErrorMessage = "Please enter your username.";
             return;
         }
 

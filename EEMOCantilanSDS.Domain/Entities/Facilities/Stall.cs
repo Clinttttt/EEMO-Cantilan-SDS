@@ -108,6 +108,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedBy = updatedBy;
         }
 
+        // Adds utility (electricity/water) applicability without touching the other flags — used by the bulk
+        // import so a batch's utility choice also applies to RENEWED (reused expired/closed) stalls. Additive
+        // by design: it never strips a fee a stall already carries (e.g. BaseRental/FishFee, or a utility set
+        // earlier), so re-importing can't silently remove billing.
+        public void AddUtilityFees(bool electricity, bool water, string updatedBy = "System")
+        {
+            if (electricity) Fees |= ApplicableFees.Electricity;
+            if (water) Fees |= ApplicableFees.Water;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void UpdateDetails(string actualOccupant, string? nameOnContract, double? areaSqm, string? areaNote, string? remarks, string updatedBy = "System")
         {
             AreaSqm = areaSqm;

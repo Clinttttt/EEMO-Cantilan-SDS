@@ -489,7 +489,13 @@
 </div>
 
 @code {
-    private static readonly string[] Sections = { "All", "Vegetable Area", "Fish Area", "Meat Area" };
+    // Section filter options — DATA-DRIVEN from the payors actually loaded for this facility, so per-LGU
+    // CUSTOM NPM sections (and only the sections that exist) appear alongside the canonical ones. "All" first.
+    private IEnumerable<string> Sections =>
+        new[] { "All" }.Concat(
+            _payors.Select(p => p.Section)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
 
     // Tenant's recurring-rental facilities (data-driven), rendered as the facility tabs.
     private IEnumerable<string> RentalFacilityCodes => FacilityCatalog.Rental.Select(c => c.ToString());
@@ -938,6 +944,7 @@
 
     private static string SectionLabelOf(StallDto s) =>
         s.Section.HasValue ? SectionLabel(s.Section.Value)
+        : !string.IsNullOrWhiteSpace(s.CustomSectionName) ? s.CustomSectionName!   // NPM per-LGU custom section
         : s.AreaLocation.HasValue ? s.AreaLocation.Value.ToString()
         : string.Empty;
 

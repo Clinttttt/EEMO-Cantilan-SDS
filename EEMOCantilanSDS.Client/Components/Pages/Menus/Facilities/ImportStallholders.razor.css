@@ -151,6 +151,37 @@
 }
 .imp-section-badge strong { color: var(--navy); }
 
+/* ── Import setup bar (section · daily fee · utilities) — one professional row ── */
+.imp-setup {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 16px; margin-bottom: 16px; font-size: 13px; color: var(--text);
+}
+.imp-setup-group { display: flex; align-items: center; gap: 10px; }
+.imp-setup-key {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-subtle);
+}
+.imp-setup-val { font-weight: 700; color: var(--navy); }
+.imp-setup-divider { width: 1px; align-self: stretch; background: var(--border); }
+.imp-rate {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 3px 9px;
+}
+.imp-rate-peso, .imp-rate-unit { color: var(--text-muted); font-size: 12px; }
+.imp-rate input {
+    width: 78px; border: none; outline: none; background: transparent;
+    font-size: 13px; color: var(--navy); font-weight: 600; text-align: right;
+}
+.imp-util {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+    padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg-card); font-weight: 600; color: var(--text-subtle);
+    transition: color .12s ease, border-color .12s ease, background .12s ease;
+}
+    .imp-util input { accent-color: var(--navy); width: 15px; height: 15px; cursor: pointer; margin: 0; }
+    .imp-util.on { border-color: var(--navy); color: var(--navy); background: color-mix(in srgb, var(--navy) 6%, var(--bg-card)); }
+
 /* ── Editable table ── */
 .imp-table-wrap {
     background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
