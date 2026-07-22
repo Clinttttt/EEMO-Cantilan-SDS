@@ -343,13 +343,19 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // Expired/closed rows still appear in the transaction/collection history — just not on this roster.
         stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired()).ToList();
 
+        // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection
+        // enum stays the logical key; only the SHOWN label becomes tenant-aware, falling back to the canonical
+        // name ("Vegetable Area"/…) when no custom label is set (so Cantilan is unchanged).
+        var facility = await context.Facilities.AsNoTracking()
+            .FirstOrDefaultAsync(f => f.Code == facilityCode, ct);
+
         // Group stalls by section (NPM has sections, others don't)
         var sectionsWithSection = stalls
             .Where(s => s.Section.HasValue)
             .GroupBy(s => s.Section!.Value)
             .Select(g => new StallHoldersSectionDto
             {
-                SectionName = g.Key.ToString(),
+                SectionName = facility?.SectionLabel(g.Key) ?? GetSectionName(g.Key),
                 StallCount = g.Count(),
                 Rows = g.Select((s, idx) =>
                 {

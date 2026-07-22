@@ -53,21 +53,14 @@
                     </div>
                     @if (IsFacility("npm"))
                     {
-                        <div class="lsh-hero-divider"></div>
-                        <div class="lsh-hero-stat">
-                            <div class="lsh-hero-val">@VegetableStalls.Count()</div>
-                            <div class="lsh-hero-key">Vegetable</div>
-                        </div>
-                        <div class="lsh-hero-divider"></div>
-                        <div class="lsh-hero-stat">
-                            <div class="lsh-hero-val">@FishStalls.Count()</div>
-                            <div class="lsh-hero-key">Fish</div>
-                        </div>
-                        <div class="lsh-hero-divider"></div>
-                        <div class="lsh-hero-stat">
-                            <div class="lsh-hero-val">@MeatStalls.Count()</div>
-                            <div class="lsh-hero-key">Meat</div>
-                        </div>
+                        @foreach (var sec in PresentSections)
+                        {
+                            <div class="lsh-hero-divider"></div>
+                            <div class="lsh-hero-stat">
+                                <div class="lsh-hero-val">@GetSectionStalls(sec).Count()</div>
+                                <div class="lsh-hero-key">@sec</div>
+                            </div>
+                        }
                     }
                 </div>
                 <div class="lsh-hero-progress">
@@ -303,18 +296,16 @@
     bool IsLoading = true;
 
     // Canonical section chips plus any per-LGU custom sections present in the loaded roster.
-    string[] SectionKeys => new[] { "All", "Vegetable Area", "Fish Area", "Meat Area" }
-        .Concat(NpmCustomSectionNames).ToArray();
+    string[] SectionKeys => new[] { "All" }.Concat(PresentSections).ToArray();
 
-    // Distinct custom section names among this facility's stalls (anything that isn't one of the canonical
-    // three), ordered case-insensitively. Empty for Cantilan/facilities with no custom sections.
-    IEnumerable<string> NpmCustomSectionNames => Stalls
-        .Where(s => s.Facility == (Facility?.ToLower() ?? "npm"))
+    // Section names present in this facility's roster, in the order the API returns them (canonical first,
+    // then any per-LGU custom sections). Fully data-driven: the API already resolves each section's display
+    // label (the tenant's own name, e.g. "Gulayan", or the canonical "Vegetable Area"), so nothing here is
+    // hardcoded. Distinct() over the in-order list preserves first-appearance (server) order.
+    IEnumerable<string> PresentSections => Stalls
+        .Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && !string.IsNullOrWhiteSpace(s.Section))
         .Select(s => s.Section)
-        .Where(sec => !string.IsNullOrWhiteSpace(sec)
-            && sec is not ("Vegetable Area" or "Fish Area" or "Meat Area"))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(sec => sec, StringComparer.OrdinalIgnoreCase);
+        .Distinct();
 
     // Facility detection
     string FacilityCode => Facility?.ToUpper() ?? "NPM";
@@ -329,16 +320,13 @@
     bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
 
     IEnumerable<string> VisibleSections => ActiveSection == "All"
-        ? new[] { "Vegetable Area", "Fish Area", "Meat Area" }.Concat(NpmCustomSectionNames)
+        ? PresentSections
         : new[] { ActiveSection };
 
     IEnumerable<NpmStall> GetSectionStalls(string sec) =>
         Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == sec).OrderBy(s => s.StallNo);
 
     IEnumerable<NpmStall> AllActiveStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.IsActive);
-    IEnumerable<NpmStall> VegetableStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Vegetable Area");
-    IEnumerable<NpmStall> FishStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Fish Area");
-    IEnumerable<NpmStall> MeatStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && s.Section == "Meat Area");
 
     IEnumerable<NpmStall> FilteredNonNpmStalls => Stalls.Where(s => s.Facility == (Facility?.ToLower() ?? "npm") && MatchSearch(s)).OrderBy(s => s.StallNo);
 
@@ -402,15 +390,10 @@
             {
                 foreach (var row in section.Rows)
                 {
-                    // Map enum section names to display names (NPM only)
-                    var sectionName = IsFacility("npm") ? section.SectionName switch
-                    {
-                        "VegetableArea" => "Vegetable Area",
-                        "FishSection" => "Fish Area",
-                        "MeatSection" => "Meat Area",
-                        _ => section.SectionName
-                    } : section.SectionName;
-                    
+                    // The API already resolves each section's display label (tenant's own name or the
+                    // canonical "Vegetable Area"/…), so use it as-is — no client-side enum mapping.
+                    var sectionName = section.SectionName;
+
                     Stalls.Add(new NpmStall
                     {
                         Id = id++,
