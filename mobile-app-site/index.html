@@ -126,6 +126,19 @@
         .cta:active { transform: scale(0.99); opacity: 0.92; }
         .cta svg { width: 20px; height: 20px; }
 
+        /* Invited "Open the app" action (custom-scheme bind) — gold so it reads as the finishing step. */
+        .cta.cta-open {
+            background: linear-gradient(90deg, #c8a84b, #e8cc76);
+            color: var(--navy);
+            margin-top: 12px;
+            box-shadow: 0 8px 22px rgba(200,168,75,0.28);
+        }
+        .cta.cta-open svg { stroke: var(--navy); }
+        .open-hint {
+            text-align: center; font-size: 12px; color: var(--muted);
+            margin-top: 10px; line-height: 1.5;
+        }
+
         .version {
             text-align: center; font-size: 11.5px; color: var(--muted);
             margin-top: 12px;
@@ -188,8 +201,8 @@
         <div class="tagline">Collector Mobile App</div>
 
         <div class="invited" id="invited">
-            <b>You've been invited by your LGU.</b> Install the app below, then reopen your invite link on
-            your phone — the app will set itself up for your municipality automatically.
+            <b>You've been invited by your LGU.</b> Install the app below, then tap <b>Open the App</b> to
+            finish setup — it will configure itself for your municipality automatically.
         </div>
     </header>
 
@@ -203,6 +216,19 @@
             </a>
             <div class="version">For Android 8.0 and above · installs directly (APK)</div>
 
+            <!-- Shown only when arriving via an LGU invite link (/a/{token}). Uses the custom scheme so it
+                 opens the ALREADY-INSTALLED app and hands it the bind token — the reliable way to bind after
+                 a fresh install (an https link can bounce back to the browser). -->
+            <a class="cta cta-open" id="openApp" href="#" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 18l6-6-6-6" />
+                </svg>
+                Open the App
+            </a>
+            <div class="open-hint" id="openHint" style="display:none;">
+                Already installed? Tap <b>Open the App</b> to set it up for your municipality.
+            </div>
+
             <div class="install-head">
                 <h2>How to install</h2>
                 <div class="section-sub">A one-time setup — it takes about a minute.</div>
@@ -210,8 +236,8 @@
             <ol class="steps">
                 <li><span>Tap <b>Download the App</b> above and wait for the file to finish downloading.</span></li>
                 <li><span>If Android asks, <b>allow installs from this source</b> — it only prompts once for apps outside the Play Store.</span></li>
-                <li><span>Open the downloaded file and tap <b>Install</b>, then <b>Open</b>.</span></li>
-                <li><span>Tap the <b>invite link</b> your office sent you — the app sets itself up for your municipality automatically.</span></li>
+                <li><span>Open the downloaded file and tap <b>Install</b>.</span></li>
+                <li><span>Come back to this page and tap <b>Open the App</b> — it sets itself up for your municipality automatically.</span></li>
                 <li><span>Sign in with the <b>username and password</b> your administrator gave you.</span></li>
             </ol>
 
@@ -227,12 +253,22 @@
     </footer>
 
     <script>
-        // If arrived via a bind link (/a/{token}), surface the "invited" banner.
+        // Arrived via an LGU invite link (/a/{token}): show the invited banner and wire the "Open the App"
+        // button to the custom scheme (stalltrack://a/{token}), which opens the installed app and binds it
+        // to this LGU. Downloading alone can't bind (the APK is generic) — this one tap delivers the token.
         (function () {
-            var path = window.location.pathname || "";
-            if (/^\/a\/[^\/?#]+/i.test(path)) {
-                document.getElementById("invited").classList.add("show");
+            var m = (window.location.pathname || "").match(/^\/a\/([^\/?#]+)/i);
+            if (!m || !m[1]) return;
+            var token = m[1];
+            var invited = document.getElementById("invited");
+            if (invited) invited.classList.add("show");
+            var openBtn = document.getElementById("openApp");
+            if (openBtn) {
+                openBtn.href = "stalltrack://a/" + token;
+                openBtn.style.display = "";
             }
+            var openHint = document.getElementById("openHint");
+            if (openHint) openHint.style.display = "";
         })();
     </script>
 </body>
