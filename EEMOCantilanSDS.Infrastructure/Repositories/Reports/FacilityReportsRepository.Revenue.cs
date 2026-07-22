@@ -42,14 +42,6 @@ public partial class FacilityReportsRepository
         _ => 0m
     };
 
-    private decimal CalculateNpmDailyObligation(DateOnly startDate, DateOnly endDate)
-    {
-        if (endDate < startDate)
-            return 0m;
-
-        return (endDate.DayNumber - startDate.DayNumber + 1) * _npmDailyRate;
-    }
-
     private static bool IsContractCollectableOn(Contract contract, DateOnly date)
         => contract.IsActive
             && contract.EffectivityDate <= date
@@ -117,21 +109,6 @@ public partial class FacilityReportsRepository
             return 0m;
 
         return stalls.Sum(s => CalculateNpmDailyObligation(s, startDate, endDate));
-    }
-
-    private decimal CalculateNpmSelectedBill(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
-    {
-        var bill = CalculateNpmDailyObligation(
-            startDate > new DateOnly(pr.BillingYear, pr.BillingMonth, 1) ? startDate : new DateOnly(pr.BillingYear, pr.BillingMonth, 1),
-            endDate < new DateOnly(pr.BillingYear, pr.BillingMonth, DateTime.DaysInMonth(pr.BillingYear, pr.BillingMonth))
-                ? endDate
-                : new DateOnly(pr.BillingYear, pr.BillingMonth, DateTime.DaysInMonth(pr.BillingYear, pr.BillingMonth)));
-
-        if (!IsWholeBillingMonthSelected(pr, startDate, endDate))
-            return bill;
-
-        return bill
-            + (pr.FishKilos.HasValue ? pr.FishKilos.Value * _npmFishRate : 0m);
     }
 
     private decimal CalculateNpmAdditionalCharges(PaymentRecord pr, DateOnly startDate, DateOnly endDate)
