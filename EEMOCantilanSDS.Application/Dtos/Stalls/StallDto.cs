@@ -19,5 +19,7 @@ public record StallDto(
     string? AreaNote,
     string? Remarks,
     int ContractYears = 0,
-    string? CustomSectionName = null
+    string? CustomSectionName = null,
+    bool HasElectricity = false,
+    bool HasWater = false
 );

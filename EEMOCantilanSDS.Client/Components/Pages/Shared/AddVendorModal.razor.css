@@ -353,9 +353,14 @@
     border-radius: 8px;
     border: 0.5px solid var(--border);
     margin-bottom: 8px;
-    pointer-events: none;
+    cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
     user-select: none;
+}
+
+/* The checkbox is a visual indicator only — the whole row is the click target (single toggle). */
+.avm-fee-checkbox {
+    pointer-events: none;
 }
 
     .avm-fee-toggle:hover {

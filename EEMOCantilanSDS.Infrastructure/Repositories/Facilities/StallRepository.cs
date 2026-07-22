@@ -540,7 +540,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     s.AreaNote,
                     s.Remarks,
                     activeContract?.DurationYears ?? 0,
-                    s.CustomSectionName
+                    s.CustomSectionName,
+                    s.Fees.HasFlag(ApplicableFees.Electricity),
+                    s.Fees.HasFlag(ApplicableFees.Water)
                 );
             }).ToList(),
             NextCursor = pagedResult.NextCursor,
@@ -579,7 +581,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 s.AreaNote,
                 s.Remarks,
                 activeContract?.DurationYears ?? 0,
-                s.CustomSectionName
+                s.CustomSectionName,
+                s.Fees.HasFlag(ApplicableFees.Electricity),
+                s.Fees.HasFlag(ApplicableFees.Water)
             );
         }).ToList();
     }

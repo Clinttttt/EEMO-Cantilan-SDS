@@ -226,3 +226,10 @@
     color: var(--red, #8b3a3a);
     stroke: var(--red, #8b3a3a);
 }
+
+
+/* Locked utility action — stall has no electricity/water charge (not metered). */
+.action-btn.action-locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}

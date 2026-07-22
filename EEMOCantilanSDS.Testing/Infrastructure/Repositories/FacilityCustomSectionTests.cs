@@ -96,6 +96,30 @@ public class FacilityCustomSectionTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task GetStallsByFacility_PopulatesUtilityFlags_FromApplicableFees()
+    {
+        var context = NewContext();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        // Electricity only.
+        var withElec = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental | ApplicableFees.Electricity, section: MarketSection.VegetableArea);
+        // A custom section that isn't metered → no utility.
+        var noUtil = Stall.Create(npm.Id, "2", 900m, ApplicableFees.DailyRental, customSectionName: "Sari-sari Area");
+        context.AddRange(npm, withElec, noUtil);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+        var stalls = await repo.GetStallsByFacilityAsync(FacilityCode.NPM, null, CancellationToken.None);
+
+        var e = stalls.Single(s => s.StallNo == "1");
+        Assert.True(e.HasElectricity);
+        Assert.False(e.HasWater);
+
+        var n = stalls.Single(s => s.StallNo == "2");
+        Assert.False(n.HasElectricity);   // → utility icon shows LOCKED for this stall
+        Assert.False(n.HasWater);
+    }
+
+    [Fact]
     public async Task RemoveNpmCustomSection_IsBlocked_WhenAnyStallStillUsesIt()
     {
         var facilityRepo = new Mock<IFacilityRepository>();

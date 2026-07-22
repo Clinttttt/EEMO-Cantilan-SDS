@@ -137,9 +137,18 @@
                                 </button>
                                 @if (OnUtilityClick.HasDelegate)
                                 {
-                                    <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                                    </button>
+                                    @if (HasUtility(s))
+                                    {
+                                        <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="action-btn action-locked" title="No electricity or water for this stall — enable it when editing the stall" disabled>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                                        </button>
+                                    }
                                 }
                                 <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
                                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
@@ -214,9 +223,18 @@
                                 </button>
                                 @if (OnUtilityClick.HasDelegate)
                                 {
-                                    <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                                    </button>
+                                    @if (HasUtility(s))
+                                    {
+                                        <button class="action-btn @GetUtilityClass(s)" title="Electricity &amp; Water Bill" @onclick="() => OnUtilityClick.InvokeAsync(s)">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="action-btn action-locked" title="No electricity or water for this stall — enable it when editing the stall" disabled>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                                        </button>
+                                    }
                                 }
                                 <button class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">
                                     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
@@ -389,6 +407,13 @@
     // Utility (electricity+water) bill status → icon colour class. Read reflectively as a string so this
     // generic table stays decoupled from the enum; a stall DTO without a "UtilityStatus" property (or a
     // null value = no bill this month) yields no class, so the icon stays neutral. Icon only, not the card.
+    // A stall has a utility bill icon only when it actually carries an electricity and/or water charge
+    // (from its ApplicableFees). Stalls without either — e.g. a custom section that isn't metered — show a
+    // locked icon instead of a clickable one.
+    private bool HasUtility(TStall stall) =>
+        (GetPropertyValue<bool?>(stall, "HasElectricity") ?? false)
+        || (GetPropertyValue<bool?>(stall, "HasWater") ?? false);
+
     private string GetUtilityClass(TStall stall)
     {
         var status = GetPropertyValue<object>(stall, "UtilityStatus")?.ToString();

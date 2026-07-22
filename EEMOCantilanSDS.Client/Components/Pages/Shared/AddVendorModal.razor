@@ -424,10 +424,8 @@
                                         <div class="avm-fee-title">Electricity</div>
                                         <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
                                     </div>
-                                    <input type="checkbox" class="avm-fee-checkbox"
-                                           checked="@Form.FeeTypes.Contains("Electricity")"
-                                           @onchange='() => HandleToggleFee("Electricity")'
-                                           @onclick:stopPropagation="true" />
+                                    <input type="checkbox" class="avm-fee-checkbox" tabindex="-1"
+                                           checked="@Form.FeeTypes.Contains("Electricity")" readonly />
                                 </div>
 
                                 <!-- Water -->
@@ -442,10 +440,8 @@
                                         <div class="avm-fee-title">Water</div>
                                         <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
                                     </div>
-                                    <input type="checkbox" class="avm-fee-checkbox"
-                                           checked="@Form.FeeTypes.Contains("Water")"
-                                           @onchange='() => HandleToggleFee("Water")'
-                                           @onclick:stopPropagation="true" />
+                                    <input type="checkbox" class="avm-fee-checkbox" tabindex="-1"
+                                           checked="@Form.FeeTypes.Contains("Water")" readonly />
                                 </div>
 
                                 <!-- Fish fee — Fish Area only -->

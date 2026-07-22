@@ -534,6 +534,8 @@
                     MonthlyRate = dto.MonthlyRate,
                     DailyRate = dto.DailyRate ?? 0m,
                     MonthlyExpected = monthlyExpected,
+                    HasElectricity = dto.HasElectricity,
+                    HasWater = dto.HasWater,
                     IsActive = dto.Status == StallStatus.Active,
                     ORNumber = orNumber,
                     IsPaid = isPaid,
