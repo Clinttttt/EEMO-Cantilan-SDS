@@ -386,6 +386,55 @@ public sealed class MobileSessionService(
         }
     }
 
+    /// <summary>
+    /// Deferred bind fallback for a FRESH sideloaded install opened directly (no deep link): the LGU invite
+    /// page copies <c>stalltrack://a/{token}</c> to the clipboard, and this picks it up on first launch and
+    /// binds — so a collector who just taps the app icon still lands on their own LGU. Sideloaded APKs have
+    /// no Play "install referrer", so the clipboard is the hand-off.
+    ///
+    /// <para>Guardrails: runs at most ONCE per install (a flag stops re-reading the clipboard — and the
+    /// Android 12+ paste toast — on every later launch), only while still UNBOUND (never overrides an
+    /// existing binding), and only for the exact <c>stalltrack://a/</c> marker (so unrelated clipboard text
+    /// is ignored). Fail-open: any failure leaves the app unbound and the existing default (Cantilan) applies,
+    /// so the golden tenant is unaffected.</para>
+    /// </summary>
+    public async Task TryConsumeClipboardBindAsync()
+    {
+        if (IsBound)
+            return;
+
+        const string ClipboardCheckedKey = "stalltrack_clipboard_bind_checked";
+        if (Preferences.Default.Get(ClipboardCheckedKey, false))
+            return;
+        Preferences.Default.Set(ClipboardCheckedKey, true);
+
+        try
+        {
+            if (!Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.HasText)
+                return;
+
+            var text = (await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.GetTextAsync())?.Trim();
+            if (string.IsNullOrWhiteSpace(text)
+                || !text.StartsWith("stalltrack://a/", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var token = MobileBindBridge.ExtractToken(text);
+            if (string.IsNullOrWhiteSpace(token))
+                return;
+
+            var result = await mobileApiClient.GetBindInfoAsync(token);
+            if (result.IsSuccess && result.Value is { } info && !string.IsNullOrWhiteSpace(info.MunicipalityCode))
+            {
+                Preferences.Default.Set(BoundCodeKey, info.MunicipalityCode);
+                Preferences.Default.Set(BoundNameKey, info.Name ?? string.Empty);
+            }
+        }
+        catch
+        {
+            // Clipboard unavailable / offline / unknown token — stay unbound; the default path applies.
+        }
+    }
+
     /// <summary>Clears the LGU binding (explicit "switch LGU"). Login then falls back to the picker.</summary>
     public void ClearBinding()
     {

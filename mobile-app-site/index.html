@@ -253,22 +253,40 @@
     </footer>
 
     <script>
-        // Arrived via an LGU invite link (/a/{token}): show the invited banner and wire the "Open the App"
-        // button to the custom scheme (stalltrack://a/{token}), which opens the installed app and binds it
-        // to this LGU. Downloading alone can't bind (the APK is generic) — this one tap delivers the token.
+        // Arrived via an LGU invite link (/a/{token}): show the invited banner, wire the "Open the App"
+        // button to the custom scheme (stalltrack://a/{token}), and copy that same deep-link to the
+        // clipboard so the app can bind itself on first launch even if the collector opens it directly
+        // (sideloaded APKs have no Play "install referrer" — the clipboard is the hand-off).
         (function () {
             var m = (window.location.pathname || "").match(/^\/a\/([^\/?#]+)/i);
             if (!m || !m[1]) return;
             var token = m[1];
+            var deep = "stalltrack://a/" + token;
+
             var invited = document.getElementById("invited");
             if (invited) invited.classList.add("show");
+
             var openBtn = document.getElementById("openApp");
             if (openBtn) {
-                openBtn.href = "stalltrack://a/" + token;
+                openBtn.href = deep;
                 openBtn.style.display = "";
             }
             var openHint = document.getElementById("openHint");
             if (openHint) openHint.style.display = "";
+
+            // Copy the LGU deep-link to the clipboard (best-effort). Runs on the Download/Open taps (a user
+            // gesture — the reliable path) and once on load. The app reads this on first launch to bind.
+            function copyToken() {
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(deep).catch(function () {});
+                    }
+                } catch (e) { /* clipboard blocked — the "Open the App" button still binds reliably */ }
+            }
+            var dl = document.getElementById("download");
+            if (dl) dl.addEventListener("click", copyToken);
+            if (openBtn) openBtn.addEventListener("click", copyToken);
+            copyToken();
         })();
     </script>
 </body>

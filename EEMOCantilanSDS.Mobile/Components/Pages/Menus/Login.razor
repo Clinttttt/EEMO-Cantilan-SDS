@@ -523,6 +523,10 @@
         // LGU. Best-effort + fail-open (offline / unknown token → the app simply stays unbound).
         await Session.TryConsumePendingBindAsync();
 
+        // Fresh install opened directly (no deep link)? Pick up the LGU token the invite page left on the
+        // clipboard. First-launch only, unbound only — never overrides an existing binding.
+        await Session.TryConsumeClipboardBindAsync();
+
         try
         {
             if (await Session.RestoreSessionAsync())
