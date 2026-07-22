@@ -19,8 +19,9 @@ namespace EEMOCantilanSDS.Testing;
 
 public class UtilityCommandTests
 {
-    private static StallDto Stall(Guid id, string no, MarketSection section, string occupant) =>
-        new(id, no, StallStatus.Active, occupant, null, null, null, 900m, 30m, null, section, null, null, null);
+    private static StallDto Stall(Guid id, string no, MarketSection section, string occupant, bool hasUtility = true) =>
+        new(id, no, StallStatus.Active, occupant, null, null, null, 900m, 30m, null, section, null, null, null,
+            HasElectricity: hasUtility, HasWater: hasUtility);
 
     [Fact]
     public async Task Register_ComposesRows_BilledAndUnbilled_WithTotals()
@@ -62,6 +63,34 @@ public class UtilityCommandTests
         var unbilledRow = dto.Rows.Single(r => r.StallId == unbilled);
         Assert.False(unbilledRow.HasBill);
         Assert.Equal("Unbilled", unbilledRow.Status);
+    }
+
+    [Fact]
+    public async Task Register_ExcludesLockedStalls_WithNoUtilityCharge_AndNoBill()
+    {
+        var metered = Guid.NewGuid();
+        var locked = Guid.NewGuid();
+
+        var stalls = new Mock<IStallRepository>();
+        stalls.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<StallDto>
+            {
+                Stall(metered, "1", MarketSection.VegetableArea, "Ana Villanueva"),                 // metered
+                Stall(locked, "2", MarketSection.VegetableArea, "Sari Fan", hasUtility: false),      // locked — no elec/water
+            });
+
+        var bills = new Mock<IUtilityBillRepository>();
+        bills.Setup(r => r.GetForMonthAsync(2026, 7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<UtilityBill>());
+
+        var handler = new GetUtilityRegisterQueryHandler(stalls.Object, bills.Object);
+        var result = await handler.Handle(new GetUtilityRegisterQuery(2026, 7, null), CancellationToken.None);
+
+        var dto = result.Value!;
+        // Only the metered stall appears; the locked (unmetered) stall is excluded from the utility report.
+        Assert.Single(dto.Rows);
+        Assert.Equal(metered, dto.Rows[0].StallId);
+        Assert.Equal(1, dto.UnbilledCount);
     }
 
     private static (Mock<IUtilityBillRepository> bills, RecordUtilityPaymentCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IEemoCacheInvalidator> cache) PaymentHandler(UtilityBill bill, bool orUnique)

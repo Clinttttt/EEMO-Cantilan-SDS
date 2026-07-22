@@ -15,16 +15,19 @@ public class GetUtilityRegisterQueryHandler(
     {
         var stalls = await stallRepository.GetStallsByFacilityAsync(FacilityCode.NPM, request.Section, ct);
 
+        var bills = await utilityRepository.GetForMonthAsync(request.Year, request.Month, ct);
+        var byStall = bills.ToDictionary(b => b.StallId);
+
         // Only current payors: active stalls, a real occupant (not a closed/vacant placeholder), and a
-        // contract that has not expired.
+        // contract that has not expired. Also exclude stalls whose utilities are "locked" (no electricity
+        // and no water in their charges) — they aren't metered, so they don't belong on the utility billing
+        // report — while never hiding a stall that already has a bill recorded this month.
         var now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now.Date;
         var active = stalls.Where(s => s.Status == StallStatus.Active
                 && !IsPlaceholderOccupant(s.ActualOccupant)
-                && !(s.ContractDate is { } cd && s.ContractYears > 0 && cd.AddYears(s.ContractYears).Date < now))
+                && !(s.ContractDate is { } cd && s.ContractYears > 0 && cd.AddYears(s.ContractYears).Date < now)
+                && (s.HasElectricity || s.HasWater || byStall.ContainsKey(s.Id)))
             .ToList();
-
-        var bills = await utilityRepository.GetForMonthAsync(request.Year, request.Month, ct);
-        var byStall = bills.ToDictionary(b => b.StallId);
 
         var rows = new List<UtilityRegisterRowDto>(active.Count);
         decimal totalDue = 0m, totalPaid = 0m, totalUnpaid = 0m;
