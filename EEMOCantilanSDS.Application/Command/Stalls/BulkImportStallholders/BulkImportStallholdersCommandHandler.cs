@@ -91,6 +91,12 @@ public class BulkImportStallholdersCommandHandler(
             var fees = ApplicableFees.BaseRental;
             if (isNpm && section == MarketSection.FishSection)
                 fees |= ApplicableFees.FishFee; // fish stalls always carry the ₱1/kg fee
+            // Utility applicability chosen for this import batch (NPM only) — electricity/water are metered
+            // add-ons per stall, so the batch flag stamps them onto every newly created NPM stall.
+            if (isNpm && request.ApplyElectricity)
+                fees |= ApplicableFees.Electricity;
+            if (isNpm && request.ApplyWater)
+                fees |= ApplicableFees.Water;
             var areaLocation = ParseNccAreaLocation(request.FacilityCode, row.AreaLocation);
             var effectivity = DateOnly.FromDateTime(row.EffectivityDate ?? PhilippineTime.Now);
             var nameOnContract = string.IsNullOrWhiteSpace(row.NameOnContract) ? null : row.NameOnContract!.Trim();

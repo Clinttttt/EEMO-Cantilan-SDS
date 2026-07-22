@@ -16,4 +16,6 @@ public record BulkImportStallholdersCommand(
     MarketSection? Section,
     IReadOnlyList<ImportStallRow> Rows,
     string? CustomSectionName = null,
-    decimal? CustomDailyRate = null) : IRequest<Result<BulkImportResultDto>>;
+    decimal? CustomDailyRate = null,
+    bool ApplyElectricity = false,
+    bool ApplyWater = false) : IRequest<Result<BulkImportResultDto>>;

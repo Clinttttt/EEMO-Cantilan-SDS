@@ -192,6 +192,17 @@
                                    placeholder="Blank = section rate / ₱30" @bind="_customDailyRate" @bind:event="oninput" />
                         </div>
                     }
+                    <div class="imp-section-badge">
+                        <span>Utilities for these stalls:</span>
+                        <div style="display:flex;gap:18px;margin-left:8px;">
+                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--navy);">
+                                <input type="checkbox" @bind="_applyElectricity" /> Electricity
+                            </label>
+                            <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600;color:var(--navy);">
+                                <input type="checkbox" @bind="_applyWater" /> Water
+                            </label>
+                        </div>
+                    </div>
                 }
                 <label class="imp-drop">
                     <InputFile OnChange="OnFileChange" class="imp-file-input" accept=".csv,.xlsx" />
@@ -413,6 +424,10 @@
     private bool IsCustomSectionChosen => RequiresSection && !string.IsNullOrEmpty(_section) && MapSection(_section) is null;
     // Daily fee rate for a custom-section import (0 = let the server use the section's existing rate or ₱30).
     private decimal _customDailyRate = 0m;
+    // Utility applicability chosen for the whole import batch (NPM only) — stamps Electricity/Water onto
+    // every newly created stall in this import.
+    private bool _applyElectricity;
+    private bool _applyWater;
     private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {_section}";
 
     private void ChooseSection(string section) => _section = section;
@@ -861,7 +876,10 @@
                 // A custom section has no canonical MarketSection — carry its name so rows land in it.
                 CustomSectionName: RequiresSection && MapSection(_section) is null && !string.IsNullOrEmpty(_section)
                     ? _section : null,
-                CustomDailyRate: IsCustomSectionChosen && _customDailyRate > 0m ? _customDailyRate : null);
+                CustomDailyRate: IsCustomSectionChosen && _customDailyRate > 0m ? _customDailyRate : null,
+                // Utilities apply to NPM stalls only; the batch flags stamp them onto every new stall.
+                ApplyElectricity: RequiresSection && _applyElectricity,
+                ApplyWater: RequiresSection && _applyWater);
 
             var result = await StallsApi.BulkImportStallholdersAsync(command);
             if (result.IsSuccess && result.Value is not null)
@@ -924,6 +942,8 @@
         _saveError = null;
         _autoContinued = false;
         _existingMax = 0;
+        _applyElectricity = false;
+        _applyWater = false;
         _existingOccupants.Clear();
     }
 

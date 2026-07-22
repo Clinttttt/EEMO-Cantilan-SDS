@@ -168,6 +168,48 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     [Fact]
+    public async Task NpmImport_WithUtilities_StampsElectricityAndWaterFees()
+    {
+        SetupFacility(FacilityCode.NPM);
+        SetupUnique(true);
+        Stall? captured = null;
+        _stallRepo.Setup(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()))
+            .Callback<Stall, CancellationToken>((s, _) => captured = s)
+            .Returns(Task.CompletedTask);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.NPM, MarketSection.VegetableArea,
+            new List<ImportStallRow> { Row(1, "Vega Ven", "1") },
+            ApplyElectricity: true, ApplyWater: true);
+
+        var result = await Handler().Handle(cmd, CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.CreatedCount);
+        Assert.NotNull(captured);
+        Assert.True(captured!.Fees.HasFlag(ApplicableFees.Electricity));
+        Assert.True(captured.Fees.HasFlag(ApplicableFees.Water));
+    }
+
+    [Fact]
+    public async Task NpmImport_WithoutUtilities_DoesNotStampUtilityFees()
+    {
+        SetupFacility(FacilityCode.NPM);
+        SetupUnique(true);
+        Stall? captured = null;
+        _stallRepo.Setup(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()))
+            .Callback<Stall, CancellationToken>((s, _) => captured = s)
+            .Returns(Task.CompletedTask);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.NPM, MarketSection.VegetableArea,
+            new List<ImportStallRow> { Row(1, "Vega Ven", "1") });
+
+        await Handler().Handle(cmd, CancellationToken.None);
+
+        Assert.NotNull(captured);
+        Assert.False(captured!.Fees.HasFlag(ApplicableFees.Electricity));
+        Assert.False(captured.Fees.HasFlag(ApplicableFees.Water));
+    }
+
+    [Fact]
     public async Task ExistingExpiredStall_IsRenewed_NotDuplicated()
     {
         SetupFacility(FacilityCode.TCC);
