@@ -58,6 +58,25 @@ public class FacilityCustomSectionTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task IsStallNoUnique_ScopesByCustomSection_ForNullSectionNpmStalls()
+    {
+        var context = NewContext();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var s = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental, customSectionName: "Sari-sari Area");
+        context.AddRange(npm, s);
+        await context.SaveChangesAsync();
+
+        var repo = new StallRepository(context);
+
+        // Same number in the SAME custom section → not unique.
+        Assert.False(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, null, "Sari-sari Area", "1", CancellationToken.None));
+        // Same number in a DIFFERENT custom section → unique (independent per-section numbering).
+        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, null, "Kakanin Area", "1", CancellationToken.None));
+        // Canonical sections are unaffected — "1" is free in Vegetable.
+        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.VegetableArea, null, "1", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task RemoveNpmCustomSection_IsBlocked_WhenAnyStallStillUsesIt()
     {
         var facilityRepo = new Mock<IFacilityRepository>();

@@ -63,10 +63,13 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsUnique()
                 .HasFilter("\"Section\" IS NOT NULL");
 
-            builder.HasIndex(s => new { s.FacilityId, s.StallNo })
-                .IsUnique()
-                .HasFilter("\"Section\" IS NULL");
-            
+            // Null-section stalls (monthly-rental facilities AND NPM custom-section stalls) are kept unique
+            // per (FacilityId, COALESCE(CustomSectionName,''), StallNo) via a raw expression index created in
+            // migration 20260722xxxxx_ReplaceNullSectionStallUniqueIndexPerCustomSection. That lets each NPM
+            // custom section number its stalls independently (1,2,3…) while non-NPM facilities (CustomSectionName
+            // null → '') keep per-facility uniqueness exactly as before. It is NOT declared here because EF cannot
+            // express the COALESCE; leaving it out keeps EF from trying to manage/drop it.
+
             builder.HasOne(s => s.Facility)
                 .WithMany(f => f.Stalls)
                 .HasForeignKey(s => s.FacilityId)

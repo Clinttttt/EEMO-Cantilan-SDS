@@ -42,7 +42,7 @@ public class BulkImportStallholdersCommandHandler(
 
         // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED
         // stall number renews that stall instead of being rejected, while an ACTIVE stall is protected.
-        var existingStalls = await stallRepo.GetStallsWithContractsByFacilityAsync(request.FacilityCode, section, ct);
+        var existingStalls = await stallRepo.GetStallsWithContractsByFacilityAsync(request.FacilityCode, section, customSectionName, ct);
         var today = PhilippineTime.Today;
 
         var existingByNo = new Dictionary<string, Stall>(StringComparer.OrdinalIgnoreCase);

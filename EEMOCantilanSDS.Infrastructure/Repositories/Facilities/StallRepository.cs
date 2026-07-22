@@ -763,7 +763,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 
-    public async Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, CancellationToken ct)
+    public async Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, CancellationToken ct)
     {
         // Tracked (no AsNoTracking) so import renewals — terminating old contracts, reopening a closed
         // stall, adding a new contract — are persisted on SaveChanges.
@@ -771,9 +771,22 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .Include(s => s.Contracts)
             .Where(s => s.Facility!.Code == facilityCode);
 
-        query = facilityCode == FacilityCode.NPM
-            ? query.Where(s => s.Section == section)
-            : query.Where(s => s.Section == null);
+        if (facilityCode == FacilityCode.NPM)
+        {
+            if (section.HasValue)
+                query = query.Where(s => s.Section == section);
+            else
+            {
+                // A specific NPM custom section (its stalls are numbered independently). A null custom name
+                // here means "all null-section NPM stalls" (kept for safety), but callers pass the name.
+                var name = (customSectionName ?? string.Empty).Trim();
+                query = query.Where(s => s.Section == null && s.CustomSectionName == name);
+            }
+        }
+        else
+        {
+            query = query.Where(s => s.Section == null);
+        }
 
         return await query.ToListAsync(ct);
     }
@@ -794,15 +807,28 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         await Task.CompletedTask;
     }
 
-    public async Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string stallNo, CancellationToken ct)
+    public async Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo, CancellationToken ct)
     {
         var query = context.Stalls.Where(s =>
             s.Facility!.Code == facilityCode &&
             s.StallNo == stallNo);
 
-        query = facilityCode == FacilityCode.NPM
-            ? query.Where(s => s.Section == section)
-            : query.Where(s => s.Section == null);
+        if (facilityCode == FacilityCode.NPM)
+        {
+            if (section.HasValue)
+                query = query.Where(s => s.Section == section);
+            else
+            {
+                // Custom NPM section — unique per (facility, custom section, stall no), so the same number
+                // may exist in a different custom section (matches the DB expression index).
+                var name = (customSectionName ?? string.Empty).Trim();
+                query = query.Where(s => s.Section == null && s.CustomSectionName == name);
+            }
+        }
+        else
+        {
+            query = query.Where(s => s.Section == null);
+        }
 
         return !await query.AnyAsync(ct);
     }

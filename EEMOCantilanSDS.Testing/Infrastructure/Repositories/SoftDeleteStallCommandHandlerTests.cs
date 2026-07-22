@@ -43,13 +43,13 @@ public class SoftDeleteStallCommandHandlerTests : RepositoryTestBase
 
         var repo = new StallRepository(context);
         // Before: the number is taken.
-        Assert.False(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, "1", CancellationToken.None));
+        Assert.False(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, null, "1", CancellationToken.None));
 
         var result = await Build(context).Handle(new SoftDeleteStallCommand(stall.Id), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         // After: soft-deleted → the number is free again for a fresh add.
-        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, "1", CancellationToken.None));
+        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, null, "1", CancellationToken.None));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class SoftDeleteStallCommandHandlerTests : RepositoryTestBase
 
         Assert.True(result.IsSuccess);
         var repo = new StallRepository(context);
-        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.TCC, null, "7", CancellationToken.None));
+        Assert.True(await repo.IsStallNoUniqueAsync(FacilityCode.TCC, null, null, "7", CancellationToken.None));
     }
 
     [Fact]
@@ -88,6 +88,6 @@ public class SoftDeleteStallCommandHandlerTests : RepositoryTestBase
 
         // Untouched → its number is still taken.
         var repo = new StallRepository(context);
-        Assert.False(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, "5", CancellationToken.None));
+        Assert.False(await repo.IsStallNoUniqueAsync(FacilityCode.NPM, MarketSection.FishSection, null, "5", CancellationToken.None));
     }
 }

@@ -19,7 +19,7 @@ public class BulkImportStallholdersCommandHandlerTests
     {
         // Default: the facility has no existing stalls. Renewal/skip tests override this.
         _stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(
-                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<Stall>());
     }
 
@@ -34,7 +34,7 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     private void SetupExisting(FacilityCode code, MarketSection? section, params Stall[] stalls)
-        => _stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(code, section, It.IsAny<CancellationToken>()))
+        => _stallRepo.Setup(r => r.GetStallsWithContractsByFacilityAsync(code, section, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(stalls);
 
     private BulkImportStallholdersCommandHandler Handler()
@@ -46,7 +46,7 @@ public class BulkImportStallholdersCommandHandlerTests
 
     private void SetupUnique(bool unique)
         => _stallRepo.Setup(r => r.IsStallNoUniqueAsync(
-                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(unique);
 
     private static ImportStallRow Row(int n, string occupant, string stallNo,
