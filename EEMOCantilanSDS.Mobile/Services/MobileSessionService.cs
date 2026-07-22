@@ -403,10 +403,15 @@ public sealed class MobileSessionService(
         if (IsBound)
             return;
 
-        const string ClipboardCheckedKey = "stalltrack_clipboard_bind_checked";
-        if (Preferences.Default.Get(ClipboardCheckedKey, false))
+        // Retry across the first several unbound launches. A single early read can miss — the clipboard may
+        // not be readable before the window has focus, or the collector may open the app once before copying
+        // the invite link. Capped so an app kept unbound on purpose (the default / Cantilan path) stops
+        // reading — and stops the Android paste toast — after a few tries.
+        const string AttemptsKey = "stalltrack_clipboard_bind_attempts";
+        var attempts = Preferences.Default.Get(AttemptsKey, 0);
+        if (attempts >= 8)
             return;
-        Preferences.Default.Set(ClipboardCheckedKey, true);
+        Preferences.Default.Set(AttemptsKey, attempts + 1);
 
         try
         {

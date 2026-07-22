@@ -523,10 +523,6 @@
         // LGU. Best-effort + fail-open (offline / unknown token → the app simply stays unbound).
         await Session.TryConsumePendingBindAsync();
 
-        // Fresh install opened directly (no deep link)? Pick up the LGU token the invite page left on the
-        // clipboard. First-launch only, unbound only — never overrides an existing binding.
-        await Session.TryConsumeClipboardBindAsync();
-
         try
         {
             if (await Session.RestoreSessionAsync())
@@ -547,6 +543,24 @@
         if (!Session.IsBound)
         {
             await LoadMunicipalitiesAsync();
+        }
+    }
+
+    // The clipboard bind is read AFTER the first render, not during init: Android blocks clipboard reads
+    // while the activity isn't focused, so an early read during startup silently returns nothing. Runs only
+    // while still unbound; on a successful bind it re-pins the login scope to the bound LGU.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Session.IsBound)
+            return;
+
+        await Task.Delay(250); // let the window settle into focus before touching the clipboard
+        await Session.TryConsumeClipboardBindAsync();
+
+        if (Session.IsBound)
+        {
+            ApplyBinding();
+            await InvokeAsync(StateHasChanged);
         }
     }
 
