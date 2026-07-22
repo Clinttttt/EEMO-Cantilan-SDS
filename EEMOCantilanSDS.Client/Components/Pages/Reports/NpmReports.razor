@@ -1529,7 +1529,14 @@ else
     // ── Utility register filter + search + per-payor history ──
     string _utilSection = "All";
     string _utilSearch = "";
-    static readonly string[] UtilitySections = { "All", "Vegetable Area", "Fish Area", "Meat Area" };
+    // Canonical tabs + any per-LGU custom sections present in the utility rows (so a custom section's
+    // electricity/water can be filtered and checked). Empty custom set → exactly the canonical tabs.
+    IReadOnlyList<string> UtilitySections => new[] { "All", "Vegetable Area", "Fish Area", "Meat Area" }
+        .Concat(UtilityRows.Select(r => r.Section)
+            .Where(s => !string.IsNullOrWhiteSpace(s) && s is not ("Vegetable Area" or "Fish Area" or "Meat Area"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
+        .ToList();
 
     IReadOnlyList<UtilityBillingRow> FilteredUtilityRows =>
         UtilityRows.Where(r =>

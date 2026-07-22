@@ -287,6 +287,15 @@
                             <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Meat vendors)</div>
                         </div>
                     }
+                    @if (Form.FacilityCode == "NPM"
+                        && (Form.SelectedSection == "__custom__"
+                            || (Form.SelectedSection != null && Form.SelectedSection.StartsWith("existing:", StringComparison.Ordinal))))
+                    {
+                        <div class="avm-fee-highlight">
+                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (custom section)</div>
+                            <div class="avm-hint-muted">Custom sections bill the standard daily stall fee — no fish/weight. Electricity and Water below can be enabled if this section is metered.</div>
+                        </div>
+                    }
                 </div>
 
                 <!-- §5 Additional Information -->
