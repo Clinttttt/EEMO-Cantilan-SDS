@@ -377,8 +377,47 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 SectionFishFeeTotal = 0   // base rental only — additional fees (fish/elec/water) are not part of this list
             }).ToList();
 
-        // Handle stalls without sections (TCC, NCC, BBQ, ICE, SLH)
-        var stallsWithoutSection = stalls.Where(s => !s.Section.HasValue).ToList();
+        // NPM per-LGU CUSTOM sections: Section is null but a CustomSectionName is set. Group each custom
+        // section into its own named group (mirrors the canonical grouping) so the roster shows and counts
+        // them, instead of lumping them into "All Stalls".
+        foreach (var group in stalls
+            .Where(s => !s.Section.HasValue && !string.IsNullOrWhiteSpace(s.CustomSectionName))
+            .GroupBy(s => s.CustomSectionName!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var groupStalls = group.ToList();
+            sectionsWithSection.Add(new StallHoldersSectionDto
+            {
+                SectionName = group.Key,
+                StallCount = groupStalls.Count,
+                Rows = groupStalls.Select((s, idx) =>
+                {
+                    var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+                    return new StallHolderRowDto
+                    {
+                        RowNumber = idx + 1,
+                        ActualOccupant = contract?.ActualOccupant ?? "",
+                        NameOnContract = contract?.NameOnContract ?? "",
+                        StallNo = s.StallNo,
+                        EffectivityDate = contract?.EffectivityDate ?? default,
+                        DurationYears = contract?.DurationYears ?? 0,
+                        AreaSqm = s.AreaSqm,
+                        MonthlyRentalRate = s.MonthlyRate,
+                        ActualMonthlyRental = s.MonthlyRate,
+                        WholeYearRental = s.MonthlyRate * 12,
+                        FishFeeTotal = null,
+                        IsClosed = s.Status == StallStatus.Closed
+                    };
+                }).ToList(),
+                SectionMonthlyTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionActualMonthly = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
+                SectionWholeYearTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
+                SectionFishFeeTotal = 0
+            });
+        }
+
+        // Handle truly section-less stalls (TCC, NCC, BBQ, ICE, SLH — no Section AND no custom section).
+        var stallsWithoutSection = stalls.Where(s => !s.Section.HasValue && string.IsNullOrWhiteSpace(s.CustomSectionName)).ToList();
         if (stallsWithoutSection.Any())
         {
             sectionsWithSection.Add(new StallHoldersSectionDto

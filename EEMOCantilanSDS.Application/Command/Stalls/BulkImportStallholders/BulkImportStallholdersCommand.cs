@@ -14,4 +14,5 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 public record BulkImportStallholdersCommand(
     FacilityCode FacilityCode,
     MarketSection? Section,
-    IReadOnlyList<ImportStallRow> Rows) : IRequest<Result<BulkImportResultDto>>;
+    IReadOnlyList<ImportStallRow> Rows,
+    string? CustomSectionName = null) : IRequest<Result<BulkImportResultDto>>;

@@ -29,6 +29,11 @@ public class BulkImportStallholdersCommandHandler(
 
         var isNpm = request.FacilityCode == FacilityCode.NPM;
         var section = isNpm ? request.Section : null;
+        // NPM custom section (Section null + a name): every imported row lands in this custom section,
+        // billed flat-daily like Vegetable/Meat.
+        var customSectionName = isNpm && section is null && !string.IsNullOrWhiteSpace(request.CustomSectionName)
+            ? request.CustomSectionName.Trim()
+            : null;
 
         // Resolve the current municipality's NPM daily fee (falls back to the ordinance constant, so
         // Cantilan seeds the same ₱30 DailyRate). Imported NPM stalls are stamped with this rate.
@@ -117,7 +122,7 @@ public class BulkImportStallholdersCommandHandler(
             // Genuinely new stall number → create a new stall + contract.
             var stall = Stall.Create(
                 facility.Id, stallNo, row.MonthlyRate, fees, section, areaLocation, areaSqm, null,
-                isNpm ? npmDailyRate : null, null, StallType.Permanent, Actor);
+                isNpm ? npmDailyRate : null, null, StallType.Permanent, Actor, customSectionName: customSectionName);
             newStalls.Add(stall);
             newContracts.Add(Contract.Create(
                 stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,
@@ -128,6 +133,10 @@ public class BulkImportStallholdersCommandHandler(
 
         if (newStalls.Count > 0 || newContracts.Count > 0)
         {
+            // Register the custom section so it becomes a reusable option (no-op if already present).
+            if (customSectionName is not null)
+                facility.AddCustomSection(customSectionName, Actor);
+
             // New stalls + all new contracts (incl. renewals on tracked existing stalls) persist together.
             foreach (var stall in newStalls)
                 await stallRepo.AddAsync(stall, ct);

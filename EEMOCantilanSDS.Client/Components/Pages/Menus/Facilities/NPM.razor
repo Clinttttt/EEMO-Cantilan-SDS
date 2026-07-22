@@ -912,11 +912,28 @@
     }
 
     // Existing stall numbers within the currently-selected NPM section — feeds the modal's next-number
-    // suggestion (per section, since NPM numbering/uniqueness is per section).
+    // suggestion (per section, since NPM numbering/uniqueness is per section). Resolves canonical AND
+    // custom selections to the stall's Section string so the auto-increment is correct for custom sections.
     private IReadOnlyCollection<string> NpmSectionStallNos =>
-        Stalls.Where(s => s.Section.Replace(" Area", "").Replace(" Section", "") == VendorForm.SelectedSection)
+        Stalls.Where(s => s.Section == EffectiveSelectedSectionName())
               .Select(s => s.StallNo)
               .ToList();
+
+    // The Section string a stall would carry for the modal's current selection: canonical label,
+    // the typed new custom name ("__custom__"), or the chosen existing custom name ("existing:{name}").
+    private string EffectiveSelectedSectionName()
+    {
+        var sel = VendorForm.SelectedSection ?? string.Empty;
+        return sel switch
+        {
+            "Vegetable" => "Vegetable Area",
+            "Fish" => "Fish Area",
+            "Meat" => "Meat Area",
+            "__custom__" => VendorForm.CustomSectionName?.Trim() ?? string.Empty,
+            _ when sel.StartsWith("existing:", StringComparison.Ordinal) => sel["existing:".Length..],
+            _ => sel
+        };
+    }
 
     private void OpenAddVendorModal()
     {
@@ -925,10 +942,13 @@
 
         // Default the Section/Category to the section the admin is currently viewing (the active card),
         // so the stall-number suggestion (which follows VendorForm.SelectedSection) matches that section.
-        // "All Sections" has no specific section → fall back to Vegetable. Mirrors the display→value mapping.
+        // "All Sections" has no specific section → fall back to Vegetable. A custom section maps to its
+        // "existing:{name}" option so the modal opens on that custom section (not a mis-mapped Vegetable).
         var section = ActiveSection == "All"
             ? "Vegetable"
-            : ActiveSection.Replace(" Area", "").Replace(" Section", "");
+            : ActiveSection is "Vegetable Area" or "Fish Area" or "Meat Area"
+                ? ActiveSection.Replace(" Area", "").Replace(" Section", "")
+                : $"existing:{ActiveSection}";
 
         VendorForm = new()
         {

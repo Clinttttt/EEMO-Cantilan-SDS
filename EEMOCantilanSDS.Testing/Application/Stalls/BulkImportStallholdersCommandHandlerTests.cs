@@ -75,6 +75,33 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     [Fact]
+    public async Task NpmCustomSection_Import_CreatesStallsWithCustomName_AndRegistersSection()
+    {
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        _facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.NPM, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(facility);
+        SetupUnique(true);
+
+        Stall? captured = null;
+        _stallRepo.Setup(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()))
+            .Callback<Stall, CancellationToken>((s, _) => captured = s);
+
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.NPM, null, new List<ImportStallRow>
+        {
+            Row(1, "Juan Dela Cruz", "1"),
+        }, CustomSectionName: "Sari-sari Area");
+
+        var result = await Handler().Handle(cmd, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Value!.CreatedCount);
+        Assert.NotNull(captured);
+        Assert.Null(captured!.Section);                                 // custom section → no canonical enum
+        Assert.Equal("Sari-sari Area", captured.CustomSectionName);
+        Assert.Contains("Sari-sari Area", facility.CustomSectionNames);  // registered as a reusable option
+    }
+
+    [Fact]
     public async Task DuplicateStallNoWithinBatch_SecondRowFails()
     {
         SetupFacility(FacilityCode.TCC);

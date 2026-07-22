@@ -302,7 +302,19 @@
     string ActiveSection = "All";
     bool IsLoading = true;
 
-    readonly string[] SectionKeys = ["All", "Vegetable Area", "Fish Area", "Meat Area"];
+    // Canonical section chips plus any per-LGU custom sections present in the loaded roster.
+    string[] SectionKeys => new[] { "All", "Vegetable Area", "Fish Area", "Meat Area" }
+        .Concat(NpmCustomSectionNames).ToArray();
+
+    // Distinct custom section names among this facility's stalls (anything that isn't one of the canonical
+    // three), ordered case-insensitively. Empty for Cantilan/facilities with no custom sections.
+    IEnumerable<string> NpmCustomSectionNames => Stalls
+        .Where(s => s.Facility == (Facility?.ToLower() ?? "npm"))
+        .Select(s => s.Section)
+        .Where(sec => !string.IsNullOrWhiteSpace(sec)
+            && sec is not ("Vegetable Area" or "Fish Area" or "Meat Area"))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(sec => sec, StringComparer.OrdinalIgnoreCase);
 
     // Facility detection
     string FacilityCode => Facility?.ToUpper() ?? "NPM";
@@ -317,7 +329,7 @@
     bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
 
     IEnumerable<string> VisibleSections => ActiveSection == "All"
-        ? new[] { "Vegetable Area", "Fish Area", "Meat Area" }
+        ? new[] { "Vegetable Area", "Fish Area", "Meat Area" }.Concat(NpmCustomSectionNames)
         : new[] { ActiveSection };
 
     IEnumerable<NpmStall> GetSectionStalls(string sec) =>

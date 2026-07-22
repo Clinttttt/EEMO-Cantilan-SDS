@@ -13,6 +13,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
+@inject IFacilitiesApiClient FacilitiesApi
 
 @*
     ImportStallholders — facility-aware bulk import for stallholders (NPM, TCC, NCC, BBQ, ICE).
@@ -158,6 +159,15 @@
                             <span class="imp-pick-icon @sec.Css">@((MarkupString)sec.Icon)</span>
                             <span class="imp-pick-name">@sec.Name</span>
                             <span class="imp-pick-desc">@sec.Desc</span>
+                        </button>
+                    }
+                    @foreach (var cs in _customSections)
+                    {
+                        var csName = cs;
+                        <button type="button" class="imp-pick-card" @onclick="() => ChooseSection(csName)">
+                            <span class="imp-pick-icon">@((MarkupString)CustomSectionIconSvg)</span>
+                            <span class="imp-pick-name">@csName</span>
+                            <span class="imp-pick-desc">Custom section · ₱30/day</span>
                         </button>
                     }
                 </div>
@@ -355,9 +365,22 @@
 
     private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         _facility = Configs.TryGetValue((Facility ?? string.Empty).Trim().ToLowerInvariant(), out var cfg) ? cfg : null;
+        if (RequiresSection)
+            await LoadCustomSectionsAsync();
+    }
+
+    // Per-LGU custom NPM sections offered as import targets (in addition to Vegetable/Fish/Meat).
+    private List<string> _customSections = new();
+    private const string CustomSectionIconSvg = "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>";
+
+    private async Task LoadCustomSectionsAsync()
+    {
+        var result = await FacilitiesApi.GetNpmCustomSectionsAsync();
+        if (result.IsSuccess && result.Value is not null)
+            _customSections = result.Value.Select(c => c.Name).ToList();
     }
 
     private string StepClass(int step)
@@ -821,7 +844,10 @@
             var command = new BulkImportStallholdersCommand(
                 _facility.Code,
                 RequiresSection ? MapSection(_section) : null,
-                _rows.Select((r, i) => BuildRow(r, i + 1)).ToList());
+                _rows.Select((r, i) => BuildRow(r, i + 1)).ToList(),
+                // A custom section has no canonical MarketSection — carry its name so rows land in it.
+                CustomSectionName: RequiresSection && MapSection(_section) is null && !string.IsNullOrEmpty(_section)
+                    ? _section : null);
 
             var result = await StallsApi.BulkImportStallholdersAsync(command);
             if (result.IsSuccess && result.Value is not null)
