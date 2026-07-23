@@ -311,12 +311,8 @@
     stroke: var(--navy-3); fill: none;
     stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
-.kpi-revenue .kpi-icon { background: #e6f4ef; }
-.kpi-revenue .kpi-icon svg { stroke: var(--green); }
-.kpi-rate    .kpi-icon { background: rgba(200,168,75,.12); }
-.kpi-rate    .kpi-icon svg { stroke: var(--gold); }
-.kpi-pending .kpi-icon { background: var(--red-bg); }
-.kpi-pending .kpi-icon svg { stroke: var(--red); }
+/* Neutral, uniform icon tiles — no per-metric colour. Keeps the KPI strip clean and government-plain;
+   emphasis stays on the numbers, not decorative colour. */
 
 .kpi-label {
     font-size: 11px; font-weight: 600;
@@ -2392,14 +2388,8 @@
     color: var(--navy);
     line-height: 1;
 }
-.risk-total.unpaid {
-    background: color-mix(in srgb, var(--red-bg) 70%, white);
-    border-color: color-mix(in srgb, var(--red) 18%, var(--border));
-}
-.risk-total.partial {
-    background: color-mix(in srgb, var(--gold) 12%, white);
-    border-color: color-mix(in srgb, var(--gold) 28%, var(--border));
-}
+/* All three risk totals share the same neutral card (consistent with "Open items") — the numbers carry the
+   meaning, not the card colour. */
 .audit-risk-ledger {
     display: grid;
     gap: 7px;
