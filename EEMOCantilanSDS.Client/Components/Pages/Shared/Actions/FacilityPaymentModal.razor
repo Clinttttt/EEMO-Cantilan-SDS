@@ -379,8 +379,8 @@
             // First, get the payment record to obtain its ID
             var paymentResult = await PaymentsApi.GetPaymentRecordAsync(
                 stallGuid,
-                DateTime.Now.Year,
-                DateTime.Now.Month);
+                PhilippineTime.Now.Year,
+                PhilippineTime.Now.Month);
 
             if (paymentResult.IsSuccess && paymentResult.Value != null)
             {

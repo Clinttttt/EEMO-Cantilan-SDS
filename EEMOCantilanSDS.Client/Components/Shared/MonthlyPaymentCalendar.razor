@@ -23,8 +23,8 @@
         @foreach (var mo in Months)
         {
             var moKey = mo.ToString("yyyy-MM");
-            var isFuture = mo > new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
-            var isThisMo = mo.Year == DateTime.Now.Year && mo.Month == DateTime.Now.Month;
+            var isFuture = mo > new DateTime(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
+            var isThisMo = mo.Year == PhilippineTime.Now.Year && mo.Month == PhilippineTime.Now.Month;
             var paymentRec = GetPaymentRecord(mo);
             var beforeContract = paymentRec == null && ContractStartMonth.HasValue && mo < ContractStartMonth.Value;
             var isPaid = paymentRec != null && paymentRec.Status == PaymentStatus.Paid;
@@ -207,12 +207,12 @@
     /// </summary>
     [Parameter] public bool ReadOnly { get; set; } = false;
 
-    private int CurrentYear = DateTime.Now.Year;
+    private int CurrentYear = PhilippineTime.Now.Year;
     private List<DateTime> Months => Enumerable.Range(1, 12).Select(m => new DateTime(CurrentYear, m, 1)).ToList();
     private DateTime? ContractStartMonth => ContractDate.HasValue 
         ? new DateTime(ContractDate.Value.Year, ContractDate.Value.Month, 1) 
         : null;
-    private bool CanGoNext => CurrentYear < DateTime.Now.Year;
+    private bool CanGoNext => CurrentYear < PhilippineTime.Now.Year;
 
     private PaymentHistoryDto? GetPaymentRecord(DateTime month)
     {
@@ -253,7 +253,7 @@
     private void OpenPaymentModal(DateTime month, PaymentHistoryDto? payment)
     {
         if (ReadOnly) return;
-        if (month > new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1)) return;
+        if (month > new DateTime(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1)) return;
         if (ContractStartMonth.HasValue && month < ContractStartMonth.Value) return;
 
         SelectedMonth = month;

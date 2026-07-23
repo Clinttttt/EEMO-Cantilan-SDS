@@ -526,7 +526,7 @@
     // daily-equivalent reference hint, mirroring how NPM is billed (daily × collectable days).
     private int NpmDaysInMonth
     {
-        get { var d = Form.ContractDate ?? DateTime.Today; return DateTime.DaysInMonth(d.Year, d.Month); }
+        get { var d = Form.ContractDate ?? PhilippineTime.Now.Date; return DateTime.DaysInMonth(d.Year, d.Month); }
     }
 
     // Reference figure shown beside the (manual) Monthly Rental field for NPM — the field itself is

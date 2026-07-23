@@ -217,7 +217,7 @@
     public string OwnerName { get; set; } = string.Empty;
 
     [Parameter]
-    public DateTime TransactionDate { get; set; } = DateTime.Now;
+    public DateTime TransactionDate { get; set; } = PhilippineTime.Now;
 
     [Parameter]
     public string ORNumber { get; set; } = string.Empty;
@@ -299,7 +299,7 @@
 
     public class AddTransactionForm
     {
-        public DateTime TransactionDate { get; set; } = DateTime.Now;
+        public DateTime TransactionDate { get; set; } = PhilippineTime.Now;
         public int HogHeads { get; set; } = 0;
         public int CarabaoHeads { get; set; } = 0;
         public int CowHeads { get; set; } = 0;

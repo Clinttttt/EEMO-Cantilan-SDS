@@ -655,7 +655,7 @@
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = DateOnly.FromDateTime(PhilippineTime.Now);
         if (CachedTrmPage is { } state && state.Date == today)
         {
             overview = state.Overview;
@@ -691,7 +691,7 @@
         var tripsResult = await tripsTask;
         if (tripsResult.IsSuccess) AllTrips = tripsResult.Value?.ToList() ?? new();
 
-        CachedTrmPage = new TrmPageState(DateOnly.FromDateTime(DateTime.Now), overview, Transporters.ToList(), AllTrips.ToList());
+        CachedTrmPage = new TrmPageState(DateOnly.FromDateTime(PhilippineTime.Now), overview, Transporters.ToList(), AllTrips.ToList());
         isLoading = false; StateHasChanged();
     }
 

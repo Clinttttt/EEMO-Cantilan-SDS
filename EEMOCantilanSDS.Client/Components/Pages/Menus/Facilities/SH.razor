@@ -458,8 +458,8 @@
 
     // -- STATE ----------------------------------------------------
     private bool isLoading = true;
-    private int CurrentYear = DateTime.Now.Year;
-    private int CurrentMonth = DateTime.Now.Month;
+    private int CurrentYear = PhilippineTime.Now.Year;
+    private int CurrentMonth = PhilippineTime.Now.Month;
     private List<OwnerTransactionGroupDto> GroupedOwnerTransactions = new();
     private Dictionary<string, OwnerTransactionHistoryDto> OwnerHistories = new();
     private SlaughterOverviewDto? Overview;
@@ -469,7 +469,7 @@
     private bool ShowAddTransactionModal { get; set; }
     private bool ShowEditModal { get; set; }
     private string SelectedOwnerName { get; set; } = string.Empty;
-    private DateTime SelectedTransactionDate { get; set; } = DateTime.Now;
+    private DateTime SelectedTransactionDate { get; set; } = PhilippineTime.Now;
     private string SelectedORNumber { get; set; } = string.Empty;
     private SlaughterTransactionDto? SelectedEntry { get; set; }
     private List<SlaughterTransactionDto> SelectedGroupEntries { get; set; } = new();
@@ -657,7 +657,7 @@
     {
         ShowAddTransactionModal = false;
         SelectedOwnerName = string.Empty;
-        SelectedTransactionDate = DateTime.Now;
+        SelectedTransactionDate = PhilippineTime.Now;
         SelectedORNumber = string.Empty;
         ErrorMessage = string.Empty;
     }

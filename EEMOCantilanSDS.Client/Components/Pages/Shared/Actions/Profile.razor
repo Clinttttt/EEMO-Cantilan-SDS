@@ -257,9 +257,9 @@
                             </div>
                             <div class="prof-field">
                                 <span class="prof-field-label">Contract Expiry</span>
-                                <span class="prof-field-val @(Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < DateTime.Now.AddMonths(3) ? "text-warn" : "")">
+                                <span class="prof-field-val @(Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < PhilippineTime.Now.AddMonths(3) ? "text-warn" : "")">
                                     @(Stall.ContractExpiry.HasValue? Stall.ContractExpiry.Value.ToString("MMMM d, yyyy") : "—")
-                                    @if (Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < DateTime.Now.AddMonths(3))
+                                    @if (Stall.ContractExpiry.HasValue && Stall.ContractExpiry.Value < PhilippineTime.Now.AddMonths(3))
                                     {
                                         <span class="prof-expiry-warn">Expiring soon</span>
                                     }
@@ -902,10 +902,10 @@
                 // instead of awaiting them one after another. The NPM daily heatmap still runs after the
                 // Stall object is built, because it reads the contract date from it.
                 var historyTask = PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
-                var currentPaymentTask = PaymentsApi.GetPaymentRecordAsync(stallDto.Id, DateTime.Now.Year, DateTime.Now.Month);
+                var currentPaymentTask = PaymentsApi.GetPaymentRecordAsync(stallDto.Id, PhilippineTime.Now.Year, PhilippineTime.Now.Month);
                 var ledgerTask = PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id);
                 var reportTask = FacilityId.ToUpper() == "NPM"
-                    ? FacilitiesApi.GetFacilityReportsAsync(facilityCode, Domain.Enums.ReportPeriod.Monthly, DateTime.Now.Year, DateTime.Now.Month)
+                    ? FacilitiesApi.GetFacilityReportsAsync(facilityCode, Domain.Enums.ReportPeriod.Monthly, PhilippineTime.Now.Year, PhilippineTime.Now.Month)
                     : null;
                 var pending = new List<Task> { historyTask, currentPaymentTask, ledgerTask };
                 if (reportTask is not null) pending.Add(reportTask);

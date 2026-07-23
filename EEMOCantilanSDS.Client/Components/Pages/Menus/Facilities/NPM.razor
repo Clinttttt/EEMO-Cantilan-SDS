@@ -411,7 +411,7 @@
         InitializeToolbarActions();
         await LoadNpmRatesAsync();
         await LoadCustomSectionsAsync();   // custom section tabs/options (both cached + fresh paths)
-        var now = DateTime.Now;
+        var now = PhilippineTime.Now;
         if (CachedNpmPage is { } state
             && state.Year == now.Year
             && state.Month == now.Month)
@@ -434,7 +434,7 @@
             await PaintLoadingStateAsync();
         }
 
-        var now = DateTime.Now;
+        var now = PhilippineTime.Now;
 
         // Daily-aware monthly report for the hero + section stats (same source as the Reports page).
         var reportTask = FacilitiesApi.GetFacilityReportsAsync(
@@ -754,7 +754,7 @@
     {
         var d = new Dictionary<string, bool>();
         for (int i = 11; i >= 0; i--)
-            d[DateTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
+            d[PhilippineTime.Now.AddMonths(-i).ToString("yyyy-MM")] = (11 - i) < paid;
         return d;
     }
 

@@ -73,7 +73,7 @@
             <div class="tpm-friday-list">
                 @foreach (var friday in MarketDaysInMonth(CalendarMonth, MarketDay))
                 {
-                    var isFuture = friday > DateTime.Today;
+                    var isFuture = friday > PhilippineTime.Now.Date;
                     var record = MarketDays.FirstOrDefault(m => m.MarketDate.ToDateTime(TimeOnly.MinValue).Date == friday.Date);
                     var isSelected = SelectedFriday.HasValue && SelectedFriday.Value.Date == friday.Date;
 
@@ -462,8 +462,8 @@
     [PersistentState(AllowUpdates = true)]
     public TpmPageState? CachedTpmPage { get; set; }
 
-    private DateTime CalendarMonth = new(DateTime.Now.Year, DateTime.Now.Month, 1);
-    private DateTime CurrentMonthStart => new(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DateTime CalendarMonth = new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
+    private DateTime CurrentMonthStart => new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
     private DateTime? SelectedFriday;
     private string VendorSearch = string.Empty;
     private bool isLoadingAttendance;

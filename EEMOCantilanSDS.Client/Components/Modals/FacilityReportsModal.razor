@@ -525,7 +525,7 @@
     [Parameter] public RenderFragment? AdditionalCharts { get; set; }
 
     private string SelectedPeriod { get; set; } = "Monthly";
-    private DateTime CurrentDate { get; set; } = DateTime.Now;
+    private DateTime CurrentDate { get; set; } = PhilippineTime.Now;
     
     private bool IsLoading { get; set; } = false;
     private string? ErrorMessage { get; set; }
