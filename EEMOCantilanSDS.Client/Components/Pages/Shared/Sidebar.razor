@@ -6,7 +6,16 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-<aside class="sidebar @(SidebarCollapsed ? "collapsed" : "")">
+<button class="sidebar-hamburger" type="button" @onclick="() => _mobileOpen = !_mobileOpen" aria-label="Toggle navigation">
+    <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+</button>
+
+@if (_mobileOpen)
+{
+    <div class="sidebar-backdrop" @onclick="() => _mobileOpen = false"></div>
+}
+
+<aside class="sidebar @(SidebarCollapsed ? "collapsed" : "") @(_mobileOpen ? "mobile-open" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
             <img src="@Branding.SealPath" alt="@Branding.Municipality" />
@@ -123,6 +132,7 @@
 
 @code {
     private bool SidebarCollapsed;
+    private bool _mobileOpen;   // off-canvas drawer open state (mobile only; desktop ignores it)
     private string _portalLabel = "Admin Portal";
     private bool _isHead;   // Head (SuperAdmin) sees Collectors + Audit; a plain Admin gets them locked.
     private string? _pendingPath;
@@ -143,6 +153,7 @@
         => _ = InvokeAsync(() =>
         {
             _pendingPath = null;
+            _mobileOpen = false;   // navigating closes the mobile drawer
             StateHasChanged();
         });
 
@@ -150,6 +161,7 @@
     {
         var targetPath = NormalizePath(href);
         _pendingPath = targetPath;
+        _mobileOpen = false;   // tapping a nav item closes the drawer (incl. same-page taps)
     }
 
     private string NavItemClass(string href)

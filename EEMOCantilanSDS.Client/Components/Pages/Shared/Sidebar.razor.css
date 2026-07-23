@@ -267,3 +267,73 @@
     justify-content: center;
     padding: 9px 0;
 }
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — off-canvas drawer (mobile/tablet ≤768px)
+   Desktop (≥769px) is untouched: these rules only exist below the breakpoint.
+   Lives in the sidebar's SCOPED stylesheet so it can override the sidebar's own
+   scoped base rules (a global app.css rule can't win on specificity).
+══════════════════════════════════════════ */
+.sidebar-hamburger { display: none; }
+.sidebar-backdrop { display: none; }
+
+@media (max-width: 768px) {
+    /* Slide the sidebar in from the left as a drawer; hidden off-canvas by default. Always full width
+       (ignore the desktop collapse), and it sits above the backdrop. */
+    .sidebar,
+    .sidebar.collapsed {
+        width: var(--sidebar-w);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+    }
+
+        .sidebar.mobile-open {
+            transform: translateX(0);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+        }
+
+    /* Hamburger: fixed top-left, above the sticky topbar (z-index 100) but below the open sidebar (z 200),
+       so the sidebar covers it when the drawer is open. */
+    .sidebar-hamburger {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        top: 10px;
+        left: 12px;
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--navy);
+        cursor: pointer;
+        z-index: 150;
+        box-shadow: 0 2px 8px rgba(13, 33, 55, 0.12);
+    }
+
+        .sidebar-hamburger svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    /* Dimmed overlay behind the open drawer — tap to close. */
+    .sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(13, 33, 55, 0.5);
+        z-index: 150;
+    }
+
+    /* The desktop collapse toggle is meaningless in drawer mode. */
+    .sidebar-toggle {
+        display: none;
+    }
+}

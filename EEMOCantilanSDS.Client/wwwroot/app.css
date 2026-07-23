@@ -1247,10 +1247,9 @@ a.topbar-admin.account-chip {
 }
 
 @media (max-width: 768px) {
-    .sidebar {
-        display: none;
-    }
-
+    /* Sidebar becomes an off-canvas drawer on mobile — handled in Sidebar.razor.css (scoped, so it can
+       override the sidebar's own scoped base rules; a global .sidebar rule here can't win on specificity).
+       Content spans the full width. */
     .admin-main {
         margin-left: 0;
         width: 100%;
@@ -1274,7 +1273,7 @@ a.topbar-admin.account-chip {
     }
 
     .topbar {
-        padding: 0 16px;
+        padding: 0 16px 0 58px;   /* reserve the top-left for the drawer hamburger */
     }
 
     .toolbar-left {
