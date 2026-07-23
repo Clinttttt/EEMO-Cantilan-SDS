@@ -80,6 +80,11 @@ namespace EEMOCantilanSDS.HttpClients
                 return response.StatusCode switch
             {
                 HttpStatusCode.OK => await HandleOkAsync<TResponse>(response),
+                // 201 Created carries the created resource in its body (the API returns Created("", value)),
+                // so deserialize it exactly like 200. Without this, a successful create (e.g. a mobile
+                // record/trip/vendor POST) was mis-read as a failure, prompting a retry and a possible
+                // DUPLICATE record.
+                HttpStatusCode.Created => await HandleOkAsync<TResponse>(response),
                 HttpStatusCode.NoContent => Result<TResponse>.NoContent(),
                 HttpStatusCode.NotFound => Result<TResponse>.NotFound(),
                 HttpStatusCode.Unauthorized => Result<TResponse>.Unauthorized(),

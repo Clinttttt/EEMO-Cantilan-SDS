@@ -45,9 +45,6 @@ namespace EEMOCantilanSDS.Mobile
                 // Login may need to wake the production database and run password verification.
                 // Keep the timeout bounded, but do not fail a valid sign-in during a brief Azure delay.
                 client.Timeout = TimeSpan.FromSeconds(30);
-                // ngrok free tier shows an HTML interstitial to browser-like requests; this header skips it
-                // so JSON responses come through clean. Harmless on localhost (unknown header is ignored).
-                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
             // Anonymous pre-login municipalities list — powers the collector login's municipality picker so
@@ -56,7 +53,6 @@ namespace EEMOCantilanSDS.Mobile
             {
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 client.Timeout = TimeSpan.FromSeconds(10);
-                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             }).AddHttpMessageHandler<MobileLoopbackFallbackHandler>();
 
             // Inner HTTP client (concrete) — the real network calls. IMobileApiClient is exposed as the
@@ -66,7 +62,6 @@ namespace EEMOCantilanSDS.Mobile
                 client.BaseAddress = new Uri(GetApiBaseUrl());
                 // Keep reads short so transient failures fall back to the offline cache promptly.
                 client.Timeout = TimeSpan.FromSeconds(10);
-                client.DefaultRequestHeaders.Add("ngrok-skip-browser-warning", "true");
             })
             .AddHttpMessageHandler<MobileLoopbackFallbackHandler>()
             .AddHttpMessageHandler<MobileRefreshTokenDelegatingHandler>()
@@ -89,11 +84,9 @@ namespace EEMOCantilanSDS.Mobile
         internal static string GetApiBaseUrl()
         {
 #if DEBUG
-            // ── Production Now!! ──────────────────────────────────────────────────────────────────────
-            
-            const string ApiBaseUrlOverride = "https://api.stalltrack.site/";
-            if (!string.IsNullOrWhiteSpace(ApiBaseUrlOverride))
-                return ApiBaseUrlOverride;
+            // NOTE: DEBUG builds target the LOCAL dev API (below); only RELEASE builds — the ones
+            // distributed to collectors — target production. Do NOT reintroduce a forced production
+            // override here, or a Debug build would silently hit the live database.
 
 #if ANDROID            // Android emulator uses 10.0.2.2 to reach the host machine (localhost on the dev PC).
             // USB-connected phone uses localhost via: adb reverse tcp:5117 tcp:5117
