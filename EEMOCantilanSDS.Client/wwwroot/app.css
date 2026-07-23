@@ -1974,19 +1974,9 @@ a.topbar-admin.account-chip {
     align-items: center;
     justify-content: center;
 }
-.st-splash-ring::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 3px solid color-mix(in srgb, var(--navy, #0d2137) 12%, transparent);
-    border-top-color: var(--gold, #c8a84b);
-    border-right-color: var(--gold, #c8a84b);
-    animation: st-splash-spin 1s linear infinite;
-}
 .st-splash-logo {
-    width: 74px;
-    height: 74px;
+    width: 104px;
+    height: 104px;
     object-fit: contain;
     filter: drop-shadow(0 8px 18px rgba(13, 33, 55, .18));
 }
@@ -2016,13 +2006,12 @@ a.topbar-admin.account-chip {
     color: var(--text-subtle, #6a8aa0);
     font-size: 13.5px;
 }
-@keyframes st-splash-spin { to { transform: rotate(360deg); } }
 @keyframes st-splash-bar {
     0% { transform: translateX(-120%); }
     100% { transform: translateX(320%); }
 }
 @media (prefers-reduced-motion: reduce) {
-    .st-splash-ring::before, .st-splash-bar span { animation: none; }
+    .st-splash-bar span { animation: none; }
 }
 
 /* ── Reusable table/list row skeleton (reads like real rows, not bare blocks) ── */

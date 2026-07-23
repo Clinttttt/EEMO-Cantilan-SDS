@@ -8,7 +8,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 
-<PageTitle>EEMO — Payor Portal</PageTitle>
+<PageTitle>@Branding.OfficeAcronym — Payor Portal</PageTitle>
 
 @if (Loading)
 {
@@ -60,7 +60,7 @@ else
     }
 
     <div class="pp-foot">
-        EEMO Revenue Collection · Municipality of Cantilan, Surigao del Sur
+        @Branding.OfficeAcronym Revenue Collection · Municipality of @Branding.Municipality, @Branding.Province
     </div>
 }
 

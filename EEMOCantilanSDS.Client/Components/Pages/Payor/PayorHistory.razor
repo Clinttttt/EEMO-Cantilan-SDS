@@ -11,7 +11,7 @@
 @inject EEMOCantilanSDS.Client.Securities.PayorRealtimeNotifier Realtime
 @implements IDisposable
 
-<PageTitle>EEMO — Payment History</PageTitle>
+<PageTitle>@Branding.OfficeAcronym — Payment History</PageTitle>
 
 <div class="pp-page-title">Payment History</div>
 
@@ -72,10 +72,10 @@ else
             <div class="pp-sheet-handle"></div>
             <div class="pp-receipt">
                 <div class="pp-rcpt-head">
-                    <img class="pp-rcpt-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="EEMO seal" />
+                    <img class="pp-rcpt-seal" src="@Branding.SealPath" alt="@Branding.OfficeAcronym seal" />
                     <div class="pp-rcpt-gov">Republic of the Philippines</div>
-                    <div class="pp-rcpt-org">Economic Enterprise &amp; Management Office</div>
-                    <div class="pp-rcpt-muni">Municipality of Cantilan, Surigao del Sur</div>
+                    <div class="pp-rcpt-org">@Branding.OfficeName</div>
+                    <div class="pp-rcpt-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                     <div class="pp-rcpt-doc">@PayorFormat.FacilityName(Selected.Facility)</div>
                     @if (AwaitingOr(Selected.Item))
                     {

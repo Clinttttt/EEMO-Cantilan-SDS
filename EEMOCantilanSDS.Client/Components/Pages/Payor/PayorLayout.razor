@@ -9,9 +9,9 @@
     <header class="pp-appbar">
         <div class="pp-appbar-inner">
             <div class="pp-brand">
-                <img class="pp-seal" src="/images/LGU_CANTILAN_LOGO.jpg" alt="LGU Cantilan" />
+                <img class="pp-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
                 <div class="pp-brand-text">
-                    <span class="pp-eyebrow">EEMO · Municipality of Cantilan</span>
+                    <span class="pp-eyebrow">@Branding.OfficeAcronym · Municipality of @Branding.Municipality</span>
                     <span class="pp-title">Payor Portal</span>
                 </div>
             </div>
@@ -70,6 +70,14 @@
     {
         Nav.LocationChanged += OnLocationChanged;
         UpdateNav();
+    }
+
+    // Load the signed-in LGU's branding (office acronym / municipality / seal) once per circuit so the
+    // payor shell shows the correct tenant. Fails safe: on error the BrandingState fallbacks (Cantilan)
+    // remain, so the default tenant is byte-for-byte unchanged.
+    protected override async Task OnInitializedAsync()
+    {
+        await Branding.EnsureLoadedAsync();
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

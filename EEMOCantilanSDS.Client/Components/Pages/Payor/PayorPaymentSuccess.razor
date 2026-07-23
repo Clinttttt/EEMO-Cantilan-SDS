@@ -5,7 +5,7 @@
 @inject IPayorApiClient PayorApi
 @inject NavigationManager Nav
 
-<PageTitle>EEMO — Payment Received</PageTitle>
+<PageTitle>@Branding.OfficeAcronym — Payment Received</PageTitle>
 
 <div class="pp-page-title">Payment received</div>
 
@@ -21,7 +21,7 @@
 
 <a class="pp-pay-cta" href="/payor">Back to portal</a>
 
-<div class="pp-foot">EEMO Revenue Collection · Municipality of Cantilan, Surigao del Sur</div>
+<div class="pp-foot">@Branding.OfficeAcronym Revenue Collection · Municipality of @Branding.Municipality, @Branding.Province</div>
 
 @code {
     private enum ConfirmState { Confirming, Paid, Pending, Failed }

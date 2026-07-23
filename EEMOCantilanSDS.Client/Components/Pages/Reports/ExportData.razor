@@ -11,8 +11,7 @@
 @* ───────────────────────────────────────────────────────────────────────────────
    Export Data — a clean, paper-ready collection report per facility (or all), for the
    selected month. Built for documentation/export: Print, Save as PDF (browser print),
-   and Download CSV. This is HARDCODED placeholder data for layout approval; the real
-   version will bind GetMonthEndReportAsync(year, month) and select the chosen facility.
+   and Download CSV. Binds live data via ReportsApi.GetCollectionReportAsync(year, month).
 
    Per-facility shapes: rental facilities (NPM/TCC/NCC/BBQ/ICE) show per-payor
    compliance (NPM grouped by section; NCC adds Area Location); transaction facilities
