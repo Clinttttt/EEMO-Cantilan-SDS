@@ -85,8 +85,8 @@ public sealed class PayMongoPaymentGateway(
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogError("PayMongo checkout session creation failed ({Status}): {Payload}",
-                    (int)response.StatusCode, payload);
+                logger.LogError("PayMongo checkout session creation failed ({Status}): {Error}",
+                    (int)response.StatusCode, SummarizePayMongoError(payload));
                 return Result<CheckoutSessionResult>.Failure(
                     $"Payment provider rejected the request ({(int)response.StatusCode}).", 502);
             }
@@ -98,7 +98,7 @@ public sealed class PayMongoPaymentGateway(
 
             if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(checkoutUrl))
             {
-                logger.LogError("PayMongo checkout session response missing id/checkout_url: {Payload}", payload);
+                logger.LogError("PayMongo checkout session response missing id/checkout_url (status {Status}).", (int)response.StatusCode);
                 return Result<CheckoutSessionResult>.Failure("Payment provider returned an incomplete response.", 502);
             }
 
@@ -315,6 +315,33 @@ public sealed class PayMongoPaymentGateway(
 
     private static AuthenticationHeaderValue BasicAuth(string secretKey) =>
         new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{secretKey}:")));
+
+    // PayMongo error bodies can echo billing details; log only the provider's error code/detail —
+    // never the raw payload — so logs never carry payor PII.
+    private static string SummarizePayMongoError(string payload)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            if (doc.RootElement.TryGetProperty("errors", out var errors)
+                && errors.ValueKind == JsonValueKind.Array)
+            {
+                var sb = new StringBuilder();
+                foreach (var err in errors.EnumerateArray())
+                {
+                    var code = err.TryGetProperty("code", out var c) ? c.GetString() : null;
+                    var detail = err.TryGetProperty("detail", out var d) ? d.GetString() : null;
+                    if (sb.Length > 0) sb.Append(" | ");
+                    sb.Append(string.IsNullOrWhiteSpace(code) ? "error" : code);
+                    if (!string.IsNullOrWhiteSpace(detail)) sb.Append(": ").Append(detail);
+                }
+                if (sb.Length > 0) return sb.ToString();
+            }
+        }
+        catch (JsonException) { /* fall through to redacted note */ }
+        return "(error body redacted)";
+    }
+
 
     private static bool SignatureMatches(string computedHex, string? providedHex)
     {

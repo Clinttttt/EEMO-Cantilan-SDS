@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.OnlinePayments.HandleWebhook;
 
@@ -68,7 +69,17 @@ public class HandlePaymentWebhookCommandHandler(
         {
             case PaymentGatewayEventType.Paid:
                 // Single, idempotent settle path shared with the confirmation/reconciliation fallback.
-                return await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                // If a concurrent webhook (or the payor-return confirm) is settling the SAME transaction
+                // at the same time, the xmin optimistic-concurrency token rejects the loser's write; treat
+                // that as success (the winner already settled) so a payment is never double-settled.
+                try
+                {
+                    return await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Result<bool>.Success(true);
+                }
 
             case PaymentGatewayEventType.Failed:
                 transaction.MarkFailed(evt.RawPayload);

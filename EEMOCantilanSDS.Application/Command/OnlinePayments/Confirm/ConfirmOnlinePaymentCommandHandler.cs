@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
 
@@ -49,11 +50,20 @@ public class ConfirmOnlinePaymentCommandHandler(
         switch (evt.Type)
         {
             case PaymentGatewayEventType.Paid:
-                // Single, idempotent settle path shared with the webhook handler.
-                var settle = await settlementService.SettleAsync(transaction, evt, cancellationToken);
-                if (!settle.IsSuccess)
-                    return Result<ConfirmOnlinePaymentResultDto>.Failure(
-                        settle.Error ?? "Could not settle the payment.", settle.StatusCode ?? 500);
+                // Single, idempotent settle path shared with the webhook handler. If a concurrent webhook
+                // is settling the SAME transaction, xmin optimistic concurrency rejects the loser's write;
+                // treat that as already-settled (Paid) so the payor still sees success and nothing double-settles.
+                try
+                {
+                    var settle = await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                    if (!settle.IsSuccess)
+                        return Result<ConfirmOnlinePaymentResultDto>.Failure(
+                            settle.Error ?? "Could not settle the payment.", settle.StatusCode ?? 500);
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    // Concurrent webhook already settled this transaction — fall through to the Paid result.
+                }
 
                 return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Paid", true));
 

@@ -97,6 +97,22 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+            // Optimistic concurrency for online-payment settlement — PostgreSQL only (the system xmin
+            // column; no migration needed). Two webhooks, or a webhook racing the payor-return confirm, that
+            // both try to settle the SAME transaction row conflict on save; the loser throws
+            // DbUpdateConcurrencyException, which the settle handlers treat as "already settled" so a payment
+            // can never be double-settled. Guarded to Npgsql so the InMemory test provider (no xmin) is
+            // unaffected and Cantilan's runtime behavior is otherwise unchanged.
+            if (Database.IsNpgsql())
+            {
+                modelBuilder.Entity<OnlinePaymentTransaction>()
+                    .Property<uint>("xmin")
+                    .HasColumnType("xid")
+                    .ValueGeneratedOnAddOrUpdate()
+                    .IsConcurrencyToken();
+            }
+
             ApplyQueryFilters(modelBuilder);
         }
 
