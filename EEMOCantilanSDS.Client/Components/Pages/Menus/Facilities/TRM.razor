@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.TransportTerminal
 @using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter
+@using EEMOCantilanSDS.Domain.Constants
 
 @using EEMOCantilanSDS.Application.Requests.TransportTerminal
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
@@ -644,7 +645,7 @@
     int TripsWithOrCount => TodayTrips.Count(t => !string.IsNullOrWhiteSpace(t.ORNumber));
     int PendingTripsCount => overview?.PendingORCount ?? TodayTrips.Count(t => string.IsNullOrWhiteSpace(t.ORNumber));
     int ActiveTransportersToday => TodayTrips.Select(t => t.TransporterId).Distinct().Count();
-    decimal TrmPendingOrAmount => PendingTripsCount * 30m;
+    decimal TrmPendingOrAmount => PendingTripsCount * FeeRates.TrmTripFee;
     decimal TrmOrCompletionRate => TodayTrips.Any() ? (TripsWithOrCount * 100m) / TodayTrips.Count() : 0m;
     IReadOnlyList<FacilityReportsModal.ReportTrendPoint> TrmTrendPoints => TodayTrips
         .GroupBy(t => t.RecordedAt.Hour)

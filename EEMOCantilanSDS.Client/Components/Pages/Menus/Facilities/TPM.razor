@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using EEMOCantilanSDS.Application.Requests.TaboanMarket
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITpmApiClient TpmApi
 @inject NavigationManager Navigation
@@ -483,7 +484,7 @@
         : Overview?.CollectedThisMonth ?? 0m;
     private decimal TpmUncollectedAmount => Attendance.Any()
         ? Attendance.Where(v => !v.IsPaid).Sum(v => v.Fee)
-        : TpmUnpaidCount * 100m;
+        : TpmUnpaidCount * FeeRates.TpmVendorFee;
     private decimal TpmCollectionRate => Attendance.Any()
         ? (TpmPaidCount * 100m) / Attendance.Count
         : Overview?.CollectionRate ?? 0m;

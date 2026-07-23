@@ -108,10 +108,10 @@
     private string DetailText => _state switch
     {
         ConfirmState.Paid =>
-            "Your balance has been updated. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history.",
+            $"Your balance has been updated. The Official Receipt (OR) is issued by {Branding.OfficeAcronym} afterwards and will appear in your payment history.",
         ConfirmState.Failed =>
-            "If you were charged, please contact the EEMO office — your payment will be reconciled. You can also try paying again from the portal.",
+            $"If you were charged, please contact the {Branding.OfficeAcronym} office — your payment will be reconciled. You can also try paying again from the portal.",
         _ =>
-            "Your balance updates automatically once the payment is confirmed — this is usually immediate but can take a moment. The Official Receipt (OR) is issued by EEMO afterwards and will appear in your payment history."
+            $"Your balance updates automatically once the payment is confirmed — this is usually immediate but can take a moment. The Official Receipt (OR) is issued by {Branding.OfficeAcronym} afterwards and will appear in your payment history."
     };
 }
