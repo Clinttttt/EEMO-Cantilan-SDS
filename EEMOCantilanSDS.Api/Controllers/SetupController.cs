@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Queries.Auth.GetSetupStatus;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
@@ -16,7 +17,11 @@ public class SetupController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    // Anonymous first-run bootstrap: self-disables once an admin exists. Rate-limited + antiforgery-exempt
+    // for parity with PlatformSetupController.CreateFirstOperator (both are unauthenticated setup POSTs).
     [HttpPost("create-first-admin")]
+    [IgnoreAntiforgeryToken]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<bool>> CreateFirstAdmin([FromBody] CreateFirstAdminCommand request)
     {
         var result = await Sender.Send(request);

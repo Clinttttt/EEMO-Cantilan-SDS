@@ -21,6 +21,8 @@ public class CreateFirstAdminCommandValidator : AbstractValidator<CreateFirstAdm
 
         RuleFor(x => x.Password)
             .NotEmpty()
-            .MinimumLength(8);
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters.")
+            .Matches("[A-Za-z]").WithMessage("Password must contain a letter.")
+            .Matches("[0-9]").WithMessage("Password must contain a digit.");
     }
 }
