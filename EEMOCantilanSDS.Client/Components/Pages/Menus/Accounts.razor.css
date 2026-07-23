@@ -1294,8 +1294,6 @@
     letter-spacing: 1px;
 }
 
-/* â”€â”€ Responsive hero (mobile/tablet <=768px). Desktop untouched. â”€â”€ */
-@media (max-width: 768px) {
 /* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
 @media (max-width: 768px) {
     .vs-hero { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 18px; padding: 16px 16px 18px; }
