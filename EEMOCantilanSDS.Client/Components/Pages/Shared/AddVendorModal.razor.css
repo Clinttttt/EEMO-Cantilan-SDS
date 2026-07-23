@@ -758,3 +758,17 @@
     width: 15px;
     height: 15px;
 }
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — Add/Edit Vendor modal (mobile/tablet ≤768px)
+   Desktop (≥769px) is untouched.
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Two-column form rows (e.g. Stall No. + Monthly Rate) collapse to one column — a ~150px input on a
+       phone is too cramped for its label + placeholder. */
+    .avm-row-2 {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+}

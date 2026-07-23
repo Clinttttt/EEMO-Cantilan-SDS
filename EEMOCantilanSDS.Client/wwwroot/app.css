@@ -751,6 +751,46 @@ a.topbar-admin.account-chip {
 }
 
 /* ══════════════════════════════════════════
+   RESPONSIVE — shared modal shell as a bottom sheet (mobile/tablet ≤768px)
+   Desktop (≥769px) is untouched — a floating centered dialog stays exactly as it is.
+   Every modal built on .eemo-modal-overlay/.eemo-modal (across the whole app) gets this treatment.
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .eemo-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .eemo-modal,
+    .eemo-modal-wide,
+    .eemo-modal-sm {
+        max-width: 100%;
+        width: 100%;
+        max-height: 88vh;
+        border-radius: 18px 18px 0 0;
+    }
+
+    .eemo-modal-header {
+        padding: 16px 16px 14px;
+    }
+
+    .eemo-modal-body {
+        padding: 16px;
+    }
+
+    .eemo-modal-footer {
+        padding: 12px 16px;
+        flex-direction: column-reverse;
+    }
+
+        /* Full-width, stacked action buttons regardless of the specific button class used (btn-primary,
+           btn-ghost, btn-outline, or a bespoke one) — targets any direct child so every modal is covered. */
+        .eemo-modal-footer > * {
+            width: 100%;
+        }
+}
+
+/* ══════════════════════════════════════════
    FORM ELEMENTS (used in modals)
 ══════════════════════════════════════════ */
 .form-row-2 {
