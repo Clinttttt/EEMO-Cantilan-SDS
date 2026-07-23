@@ -1280,6 +1280,18 @@ a.topbar-admin.account-chip {
         flex-direction: column;
         align-items: flex-start;
     }
+
+    /* Section header (title + actions) stacks so the heading doesn't get squeezed into one-word-per-line. */
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    /* Wide tables scroll horizontally within their panel instead of overflowing the page. */
+    .panel {
+        overflow-x: auto;
+    }
 }
 
 

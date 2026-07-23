@@ -881,3 +881,12 @@
     .hist-head { flex-wrap: wrap; }
     .hist-table { font-size: 12px; }
 }
+
+/* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
+@media (max-width: 768px) {
+    .vs-hero { flex-direction: column; align-items: stretch; gap: 14px; padding: 16px 16px 18px; }
+    .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; }
+    .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
+    .vs-hero-divider { display: none; }
+    .vs-hero-sub2 { display: none; }
+}
