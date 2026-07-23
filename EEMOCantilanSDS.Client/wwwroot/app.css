@@ -1285,6 +1285,16 @@ a.topbar-admin.account-chip {
         line-height: 1.25;
     }
 
+    /* In-page back buttons in the topbar (every facility/report page has its own class, e.g. .tcc-back-btn,
+       .npm-back-btn, .ncc-back-btn, .back-btn…) are redundant with the drawer hamburger + the breadcrumb's
+       own "Dashboard" link, and they squeeze a wrapping title into a narrower column. Drop them on mobile
+       via an attribute selector so every page is covered without touching a dozen files; the title gets
+       the full width. */
+    .topbar-left > a[class$="-back-btn"],
+    .topbar-left > a.back-btn {
+        display: none;
+    }
+
     .toolbar-left {
         flex-direction: column;
         align-items: flex-start;

@@ -232,19 +232,48 @@
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
     .tcc-hero {
-        padding: 20px;
-        gap: 16px;
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .tcc-hero-left {
+        flex: none;
+        min-width: 0;
+        gap: 12px;
+    }
+
+    /* Icon dropped on mobile — one less decorative element competing with the title for width. */
+    .tcc-hero-icon {
+        display: none;
     }
 
     .tcc-hero-title {
-        font-size: 18px;
+        font-size: 19px;
+    }
+
+    /* Stats reflow into a clean grid instead of a horizontal strip that overflows; dividers (meant for a
+       horizontal row) are dropped. */
+    .tcc-hero-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 10px;
+        width: 100%;
     }
 
     .tcc-hero-val {
-        font-size: 18px;
+        font-size: 19px;
     }
 
     .tcc-hero-stat {
-        padding: 0 12px;
+        padding: 0;
+        text-align: left;
+        min-width: 0;
+    }
+
+    .tcc-hero-divider {
+        display: none;
     }
 }
