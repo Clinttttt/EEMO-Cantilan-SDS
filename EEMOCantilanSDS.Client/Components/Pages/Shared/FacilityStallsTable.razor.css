@@ -30,6 +30,15 @@
     border-radius: 10px;
     overflow: hidden;
 }
+
+/* Mobile: a 2-up grid leaves ~150px per card — too narrow for the badge + 3 action icons + name/rate,
+   which is what caused the clipped/overlapping cards. One column reads cleanly instead. */
+@media (max-width: 640px) {
+    .ops-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .ops-card {
     background: var(--bg-card);
     padding: 14px 18px 12px;

@@ -888,6 +888,7 @@
     .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; }
     .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
     .vs-hero-divider { display: none; }
+    .vs-hero-icon { display: none; }
     .vs-hero-sub2 { display: none; }
 }
 
@@ -899,5 +900,7 @@
     .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; flex: none; }
     .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
     .vs-hero-divider { display: none; }
+    .vs-hero-icon { display: none; }
     .vs-hero-sub2 { display: none; }
 }
+

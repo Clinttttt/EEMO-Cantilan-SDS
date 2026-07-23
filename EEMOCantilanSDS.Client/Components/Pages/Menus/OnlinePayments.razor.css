@@ -116,10 +116,27 @@
     }
 }
 
+.op-table-wrap {
+    width: 100%;
+}
+
 .op-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.88rem;
+}
+
+/* Table scrolls horizontally within its panel on mobile instead of overflowing the page (the dark bleed
+   behind the table in the screenshot was the sidebar/backdrop showing through the overflowed content). */
+@media (max-width: 768px) {
+    .op-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .op-table {
+        min-width: 640px;
+    }
 }
 
 .op-table thead th {

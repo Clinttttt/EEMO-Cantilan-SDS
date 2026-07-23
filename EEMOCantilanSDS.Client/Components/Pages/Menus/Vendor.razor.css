@@ -1994,5 +1994,46 @@ TABLE
     .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; flex: none; }
     .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
     .vs-hero-divider { display: none; }
+    .vs-hero-icon { display: none; }
     .vs-hero-sub2 { display: none; }
+}
+
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — vendors toolbar (mobile/tablet ≤768px)
+   Desktop (≥769px) is untouched.
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Desktop packs facility selector + status tabs + search into one non-wrapping row (flex-shrink:0 on
+       every child) — nothing can give, so it overflows and overlaps on a phone. Stack them instead. */
+    .vs-toolbar-unified {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .facility-selector {
+        width: 100%;
+        order: 1;
+    }
+
+    .fac-trigger {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .filter-tabs-inline {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+        .filter-tabs-inline::-webkit-scrollbar { display: none; }
+
+    .search-box {
+        order: 2;
+        width: 100%;
+    }
 }

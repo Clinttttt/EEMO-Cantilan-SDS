@@ -1,6 +1,6 @@
-/* ══════════════════════════════════════════
-   DASHBOARD / MENU — Facility grid & Bottom row
-══════════════════════════════════════════ */
+﻿/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   DASHBOARD / MENU â€” Facility grid & Bottom row
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .facility-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -108,7 +108,7 @@
     letter-spacing: .2px;
 }
 
-/* Paid-on-service indicator (SLH/TRM/TPM) replaces the rate progress bar — kept slim so it doesn't
+/* Paid-on-service indicator (SLH/TRM/TPM) replaces the rate progress bar â€” kept slim so it doesn't
    bloat the card relative to the stall cards' thin progress row. */
 .facility-onservice {
     display: inline-flex;
@@ -269,9 +269,9 @@
         stroke-linejoin: round;
     }
 
-/* ══════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    BOTTOM ROW (Dashboard)
-══════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .bottom-row {
     display: grid;
     grid-template-columns: 1fr 340px;
@@ -361,11 +361,11 @@
     margin-top: 2px;
 }
 
-/* ══════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    DASHBOARD HERO BANNER (vs-hero)
    Copied from Vendor_razor.css so Menu page
    has the same dark hero component
-══════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 .vs-hero {
     position: relative;
     background: var(--navy);
@@ -611,12 +611,12 @@ a.dashboard-report-tab:hover {
 }
 
 
-/* ══════════════════════════════════════════
-   RESPONSIVE — dashboard (mobile/tablet ≤768px)
-   Desktop (≥769px) is untouched: these rules only exist below the breakpoint.
-══════════════════════════════════════════ */
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   RESPONSIVE â€” dashboard (mobile/tablet â‰¤768px)
+   Desktop (â‰¥769px) is untouched: these rules only exist below the breakpoint.
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 @media (max-width: 768px) {
-    /* Hero: stack the identity block over a clean 2×2 stat grid. No vertical dividers, and the tiny
+    /* Hero: stack the identity block over a clean 2Ã—2 stat grid. No vertical dividers, and the tiny
        sub-detail lines are hidden on mobile for a calmer, more readable summary. */
     .vs-hero {
         flex-direction: column;
@@ -646,6 +646,7 @@ a.dashboard-report-tab:hover {
     }
 
     .vs-hero-divider { display: none; }
+    .vs-hero-icon { display: none; }
     .vs-hero-sub2 { display: none; }
 
     /* Report shortcut tabs scroll horizontally instead of overflowing the row. */
@@ -668,7 +669,7 @@ a.dashboard-report-tab:hover {
     /* Recent Transactions (OR#/Payor/Facility/Amount/Recorded By/Time) doesn't fit a phone width even
        scrolled. Drop the least essential columns (1st = OR#, last = Time) and tighten padding so the
        remaining ones (Payor, Facility, Amount, Recorded By) read cleanly with no wrapped multi-line cells.
-       Scoped to THIS page's table only — other pages' data-tables are untouched. */
+       Scoped to THIS page's table only â€” other pages' data-tables are untouched. */
     .panel .data-table th:first-child,
     .panel .data-table td:first-child,
     .panel .data-table th:last-child,
@@ -686,3 +687,4 @@ a.dashboard-report-tab:hover {
         font-size: 12px;
     }
 }
+

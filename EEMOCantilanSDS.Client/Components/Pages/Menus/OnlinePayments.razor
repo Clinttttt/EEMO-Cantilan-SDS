@@ -219,20 +219,21 @@
         }
         else
         {
-            <table class="op-table">
-                <thead>
-                    <tr>
-                        <th>Paid</th>
-                        <th>Payor</th>
-                        <th>Stall / Period</th>
-                        <th>Reference</th>
-                        <th class="op-amt">Amount</th>
-                        <th>OR Number</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in Items)
+            <div class="op-table-wrap">
+                <table class="op-table">
+                    <thead>
+                        <tr>
+                            <th>Paid</th>
+                            <th>Payor</th>
+                            <th>Stall / Period</th>
+                            <th>Reference</th>
+                            <th class="op-amt">Amount</th>
+                            <th>OR Number</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Items)
                     {
                         <tr>
                             <td>
@@ -264,7 +265,8 @@
                         </tr>
                     }
                 </tbody>
-            </table>
+                </table>
+            </div>
         }
     </div>
 
@@ -296,21 +298,22 @@
         }
         else
         {
-            <table class="op-table">
-                <thead>
-                    <tr>
-                        <th>Paid</th>
-                        <th>Payor</th>
-                        <th>Facility / Stall</th>
-                        <th>Period</th>
-                        <th>Method</th>
-                        <th class="op-amt">Amount</th>
-                        <th>Status</th>
-                        <th>OR Number</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var h in _dashboard.Recent)
+            <div class="op-table-wrap">
+                <table class="op-table">
+                    <thead>
+                        <tr>
+                            <th>Paid</th>
+                            <th>Payor</th>
+                            <th>Facility / Stall</th>
+                            <th>Period</th>
+                            <th>Method</th>
+                            <th class="op-amt">Amount</th>
+                            <th>Status</th>
+                            <th>OR Number</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in _dashboard.Recent)
                     {
                         <tr>
                             <td>
@@ -329,8 +332,9 @@
                             <td class="op-mono">@(string.IsNullOrEmpty(h.ORNumber) ? "—" : h.ORNumber)</td>
                         </tr>
                     }
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         }
     </div>
 

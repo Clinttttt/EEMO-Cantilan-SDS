@@ -952,3 +952,15 @@
     font-size: 12px;
     font-weight: 600;
 }
+
+
+
+/* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
+@media (max-width: 768px) {
+    .npm-hero { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 14px; padding: 16px; }
+    .npm-hero-left { flex: none; min-width: 0; gap: 12px; }
+    .npm-hero-icon { display: none; }
+    .npm-hero-title { font-size: 19px; }
+    .npm-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; width: 100%; }
+    .npm-hero-stat { padding: 0; text-align: left; min-width: 0; }
+}

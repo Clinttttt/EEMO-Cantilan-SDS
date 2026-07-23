@@ -280,3 +280,24 @@
     flex-direction: column;
     gap: 6px;
 }
+
+
+
+/* ── Responsive controls row (mobile/tablet <=768px). Desktop untouched. ── */
+@media (max-width: 768px) {
+    .txn-segment {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        max-width: 100%;
+    }
+
+        .txn-segment::-webkit-scrollbar { display: none; }
+
+    .txn-seg-tab { flex-shrink: 0; }
+
+    .txn-controls > div {
+        width: 100%;
+    }
+}

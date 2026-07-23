@@ -129,3 +129,54 @@
     border-radius: 0 2px 2px 0;
     transition: width .5s ease;
 }
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — facility hero (mobile/tablet ≤768px)
+   Shared by all 8 facility pages (NPM/TCC/NCC/BBQ/ICE/SLH/TRM/TPM) + Custom facilities.
+   Desktop (≥769px) is untouched — these rules only exist below the breakpoint.
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .facility-hero {
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .facility-hero-left {
+        flex: none;
+        min-width: 0;
+        gap: 12px;
+    }
+
+    /* Icon dropped on mobile — one less decorative element competing with the title for width, cleaner
+       and more legible on a narrow screen. */
+    .facility-hero-icon {
+        display: none;
+    }
+
+    .facility-hero-title {
+        font-size: 19px;
+    }
+
+    /* Stats reflow into a clean, evenly-spaced grid instead of a horizontal strip that overflows; dividers
+       (meant for a horizontal row) are dropped. */
+    .facility-hero-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 10px;
+        width: 100%;
+    }
+
+    .facility-hero-stat {
+        padding: 0;
+        text-align: left;
+        min-width: 0;
+    }
+
+    .facility-hero-divider {
+        display: none;
+    }
+}

@@ -1273,7 +1273,16 @@ a.topbar-admin.account-chip {
     }
 
     .topbar {
-        padding: 0 16px 0 58px;   /* reserve the top-left for the drawer hamburger */
+        height: auto;
+        min-height: var(--topbar-h);
+        padding: 10px 16px 10px 58px;   /* reserve the top-left for the drawer hamburger */
+    }
+
+    /* The facility name can wrap to two lines on a narrow phone (e.g. "Tampak Commercial Center") — let
+       the topbar grow to fit instead of clipping the title/breadcrumb into the content below it. */
+    .topbar-title {
+        font-size: 15px;
+        line-height: 1.25;
     }
 
     .toolbar-left {
