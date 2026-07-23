@@ -621,8 +621,14 @@ a.dashboard-report-tab:hover {
     .vs-hero {
         flex-direction: column;
         align-items: stretch;
-        gap: 14px;
+        flex-wrap: nowrap;
+        gap: 18px;
         padding: 16px 16px 18px;
+    }
+
+    .vs-hero-left {
+        flex: none;
+        gap: 14px;
     }
 
     .vs-hero-stats {
@@ -630,6 +636,7 @@ a.dashboard-report-tab:hover {
         grid-template-columns: 1fr 1fr;
         gap: 14px 10px;
         width: 100%;
+        flex: none;
     }
 
     .vs-hero-stat {
@@ -657,4 +664,25 @@ a.dashboard-report-tab:hover {
 
     /* Recent transactions + overdue panels stack into one column. */
     .bottom-row { grid-template-columns: 1fr; }
+
+    /* Recent Transactions (OR#/Payor/Facility/Amount/Recorded By/Time) doesn't fit a phone width even
+       scrolled. Drop the least essential columns (1st = OR#, last = Time) and tighten padding so the
+       remaining ones (Payor, Facility, Amount, Recorded By) read cleanly with no wrapped multi-line cells.
+       Scoped to THIS page's table only — other pages' data-tables are untouched. */
+    .panel .data-table th:first-child,
+    .panel .data-table td:first-child,
+    .panel .data-table th:last-child,
+    .panel .data-table td:last-child {
+        display: none;
+    }
+
+    .panel .data-table thead th,
+    .panel .data-table tbody td {
+        padding: 9px 8px;
+        white-space: normal;
+    }
+
+    .panel .data-table {
+        font-size: 12px;
+    }
 }
