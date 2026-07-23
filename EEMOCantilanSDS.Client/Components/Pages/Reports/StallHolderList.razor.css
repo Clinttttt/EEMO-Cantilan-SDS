@@ -171,3 +171,39 @@
     gap: 8px;
     margin-top: 8px;
 }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Stall Holder List document (mobile/tablet ≤768px).
+   Desktop untouched.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* The report "sheet" had 28px padding — too much on a phone. */
+    .sh-sheet {
+        padding: 16px 14px;
+    }
+
+    /* The multi-column holder tables were forcing the sheet (and the whole document) wider than the
+       viewport. Each table now scrolls horizontally inside its own wrapper instead. */
+    .sh-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sh-table {
+        min-width: 620px;
+    }
+
+    /* Signature footer stacks instead of three cramped columns. */
+    .sh-rpt-foot {
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    /* Facility header stats wrap under the name rather than overflow. */
+    .sh-fac-stats {
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+}

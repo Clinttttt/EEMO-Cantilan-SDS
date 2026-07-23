@@ -230,7 +230,7 @@
                     @if (f.IsRental && payors.Count > 0)
                     {
                         var isDaily = f.Code == FacilityCode.NPM;
-                        <table class="me-table">
+                        <div class="me-table-wrap"><table class="me-table">
                             <thead>
                                 <tr>
                                     <th>Stall</th>
@@ -291,6 +291,7 @@
                                 </tr>
                             </tfoot>
                         </table>
+                        </div>
                     }
                     else if (!f.IsRental && txnPayors.Count > 0)
                     {
@@ -305,7 +306,7 @@
                             FacilityCode.TPM => ("Vendor", "Goods", "Market days"),
                             _ => ("Payor", "Detail", "Records")
                         };
-                        <table class="me-table">
+                        <div class="me-table-wrap"><table class="me-table">
                             <thead>
                                 <tr>
                                     <th>@payorCol</th>
@@ -359,6 +360,7 @@
                                 </tr>
                             </tfoot>
                         </table>
+                        </div>
                     }
                     else if (!f.IsRental)
                     {

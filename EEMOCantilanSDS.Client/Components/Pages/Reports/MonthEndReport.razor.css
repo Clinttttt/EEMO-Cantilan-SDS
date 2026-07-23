@@ -221,3 +221,41 @@
     gap: 8px;
     margin-top: 12px;
 }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Month-End Report document (mobile/tablet ≤768px). Desktop untouched.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .me-sheet {
+        padding: 16px 14px;
+    }
+
+    /* 4-up summary cards → 2-up on a phone. */
+    .me-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Wide multi-column report tables scroll horizontally instead of forcing the sheet (and the whole
+       document) wider than the viewport. */
+    .me-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .me-table {
+        min-width: 680px;
+    }
+
+    /* Facility header stats wrap under the name; signature footer stacks. */
+    .me-fac-stats {
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .me-rpt-foot {
+        flex-direction: column;
+        gap: 12px;
+    }
+}

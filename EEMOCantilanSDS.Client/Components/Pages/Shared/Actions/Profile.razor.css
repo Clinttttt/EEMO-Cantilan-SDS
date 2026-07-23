@@ -1272,3 +1272,47 @@
     letter-spacing: .02em;
     vertical-align: middle;
 }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Stall Profile (mobile/tablet ≤768px). Desktop untouched.
+   Root cause of the "whole page shifted left / labels clipped" bug:
+   .prof-field-label was min-width:160px + flex-shrink:0 while .prof-field-val
+   had no min-width:0, so a long field value could not shrink — the field row
+   (and therefore the card and the whole document) grew wider than the phone
+   viewport, making the page horizontally scrollable and dragging the topbar +
+   hero off-screen. Fix: let the label/value shrink & wrap, and add a hard
+   overflow-x guard so nothing can shift the page again.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Belt: no descendant may make the document horizontally scrollable.
+       (The daily heatmap keeps its OWN inner .ph-heat-scroll, so it is unaffected.) */
+    .content-area {
+        overflow-x: hidden;
+    }
+
+    /* Suspenders: field rows fit by letting the label size to its text and the
+       value shrink + wrap instead of forcing the card wider than the screen. */
+    .prof-field {
+        gap: 10px;
+    }
+
+    .prof-field-label {
+        min-width: 0;
+    }
+
+    .prof-field-val {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    /* History stat grids must be able to shrink below their content width. */
+    .prof-hist-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .prof-hist-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

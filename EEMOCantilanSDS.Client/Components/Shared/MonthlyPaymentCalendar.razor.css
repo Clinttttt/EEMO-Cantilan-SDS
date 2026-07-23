@@ -598,3 +598,46 @@
         background: var(--navy);
         color: #fff;
     }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Monthly Payment (Collection Management) calendar (≤768px).
+   Desktop untouched. Shrinks the 12-month grid + footer cards so the whole
+   calendar fits comfortably on a phone.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .mo-cal-grid {
+        gap: 4px;
+        margin: 10px 0;
+    }
+
+    /* Shorter, tighter month cells so all 12 (4×3) fit without a huge scroll. */
+    .mo-cal-cell {
+        height: 56px;
+        padding: 5px 3px;
+        border-radius: 7px;
+    }
+
+    .mo-cell-name {
+        font-size: 10px;
+        letter-spacing: 0.3px;
+    }
+
+    .mo-cell-header {
+        gap: 4px;
+    }
+
+    /* Footer summary cards: keep 2-up but drop the tall min-height and heavy padding. */
+    .cal-footer-stats {
+        gap: 8px;
+    }
+
+    .cal-sum-item {
+        padding: 10px 12px;
+        min-height: 0;
+    }
+
+    .cal-sum-val {
+        font-size: 17px;
+    }
+}

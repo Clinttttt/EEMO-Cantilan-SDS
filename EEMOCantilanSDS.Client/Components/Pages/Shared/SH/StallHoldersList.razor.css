@@ -565,3 +565,65 @@
         page-break-inside: avoid;
     }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — List of Stall Holders (mobile/tablet ≤768px). Desktop untouched.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Hero: stack, drop the decorative icon, and lay the stats out as a shrinkable grid. */
+    .lsh-hero {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        padding: 18px 16px 14px;
+    }
+
+    .lsh-hero-left {
+        flex: none;
+        min-width: 0;
+        gap: 12px;
+    }
+
+    .lsh-hero-icon {
+        display: none;
+    }
+
+    .lsh-hero-title {
+        font-size: 19px;
+    }
+
+    .lsh-hero-stats {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 10px;
+        width: 100%;
+    }
+
+    .lsh-hero-stat {
+        padding: 0;
+        text-align: left;
+    }
+
+    .lsh-hero-divider {
+        display: none;
+    }
+
+    /* Document panel: tighten the generous print padding and drop the tall min-height on a phone. */
+    .lsh-doc-panel {
+        padding: 16px 12px 24px;
+        min-height: 0;
+    }
+
+    /* The ~10-column stallholder document table is unreadable if crushed into the viewport, so scroll it
+       horizontally at a comfortable width instead. */
+    .lsh-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .lsh-table {
+        table-layout: auto;
+        min-width: 760px;
+    }
+}

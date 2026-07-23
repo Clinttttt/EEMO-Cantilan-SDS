@@ -225,3 +225,20 @@
 .ca-fac-stats strong {
     color: var(--text, #0d2137);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — Closed Accounts document (mobile/tablet ≤768px). Desktop untouched.
+   (The ≤860px block above already handles the summary grid, actions row and
+   horizontal table scroll; this only tightens the sheet chrome for phones.)
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .ca-sheet {
+        padding: 16px 14px;
+    }
+
+    .ca-rpt-foot {
+        flex-direction: column;
+        gap: 14px;
+    }
+}

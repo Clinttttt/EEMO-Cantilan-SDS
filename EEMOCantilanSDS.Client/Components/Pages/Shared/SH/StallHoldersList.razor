@@ -137,7 +137,7 @@
                                 <span class="lsh-section-count">@sectionStalls.Count stall@(sectionStalls.Count != 1 ? "s" : "")</span>
                             </div>
 
-                            <table class="lsh-table">
+                            <div class="lsh-table-wrap"><table class="lsh-table">
                                 <thead>
                                     <tr>
                                         <th class="col-no">#</th>
@@ -185,7 +185,7 @@
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
                                     </tr>
                                 </tfoot>
-                            </table>
+                            </table></div>
                         </div>
                     }
                 }
@@ -198,7 +198,7 @@
                             <span class="lsh-section-count">@FilteredNonNpmStalls.Count() stall@(FilteredNonNpmStalls.Count() != 1 ? "s" : "")</span>
                         </div>
 
-                        <table class="lsh-table">
+                        <div class="lsh-table-wrap"><table class="lsh-table">
                             <thead>
                                 <tr>
                                     <th class="col-no">#</th>
@@ -256,7 +256,7 @@
                                     }
                                 </tr>
                             </tfoot>
-                        </table>
+                        </table></div>
                     </div>
                 }
 

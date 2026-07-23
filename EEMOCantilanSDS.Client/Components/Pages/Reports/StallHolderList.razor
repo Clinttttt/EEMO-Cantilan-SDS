@@ -346,6 +346,7 @@
     {
         var isNcc = code == FacilityCode.NCC;
         var activeRows = rows.Where(r => !r.IsClosed).ToList();
+        <div class="sh-table-wrap">
         <table class="sh-table">
             <thead>
                 <tr>
@@ -398,5 +399,6 @@
                 </tr>
             </tfoot>
         </table>
+        </div>
     };
 }

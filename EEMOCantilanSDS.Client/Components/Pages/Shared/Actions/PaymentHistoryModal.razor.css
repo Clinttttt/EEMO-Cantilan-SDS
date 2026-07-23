@@ -320,3 +320,38 @@
     stroke-linejoin: round;
     flex-shrink: 0;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — 12-Month Payment History modal (mobile/tablet ≤768px).
+   Desktop untouched.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* The status badge is absolutely positioned top-right and the title eyebrow spans the full width
+       beneath it, so on a phone "12-Month Payment Record" ran under the "Consistent Payer" badge.
+       The badge is non-essential here (the outstanding/status is restated by the footer bar), so hide it
+       and reserve space for the close button so the eyebrow/name stay clear of it. */
+    .ph-status-badge {
+        display: none;
+    }
+
+    .ph-header-text {
+        padding-right: 34px;
+    }
+
+    /* The 7-column stat strip gave each cell ~50px on a phone, truncating every peso value to "₱...".
+       Reflow to a clean, fully-readable 3-up grid with row + column dividers. */
+    .ph-header-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .ph-hstat {
+        border-right: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+        padding: 9px 10px;
+    }
+
+        .ph-hstat:nth-child(3n) {
+            border-right: none;
+        }
+}
