@@ -162,6 +162,24 @@
     flex-shrink: 0;
 }
 
+/* Head-only items (Collectors, Audit Trail) shown to a plain Admin: visible for context but locked —
+   dimmed, non-navigable, with a small padlock. Keeps the nav honest without hiding capabilities. */
+.nav-item-locked {
+    color: rgba(255,255,255,0.3);
+    cursor: not-allowed;
+}
+    .nav-item-locked:hover {
+        background: transparent;
+        color: rgba(255,255,255,0.3);
+    }
+    .nav-item-locked .nav-lock {
+        margin-left: auto;
+        width: 13px !important;
+        height: 13px !important;
+        opacity: 0.85;
+        flex-shrink: 0;
+    }
+
     .nav-item:hover {
         background: rgba(255,255,255,0.07);
         color: rgba(255,255,255,0.85);

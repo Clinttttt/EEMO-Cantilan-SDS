@@ -96,7 +96,7 @@
             </div>
             <div class="filter-tabs">
                 <div class="filter-tab @(ActiveTab == "Admins" ? "active" : "")" @onclick='() => ActiveTab = "Admins"'>
-                    Administrators (@(Admins?.Count ?? 0))
+                    Management (@(Admins?.Count ?? 0))
                 </div>
                 <div class="filter-tab @(ActiveTab == "Collectors" ? "active" : "")" @onclick='() => ActiveTab = "Collectors"'>
                     Collectors (@(Collectors?.Count ?? 0))

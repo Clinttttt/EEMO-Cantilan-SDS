@@ -26,10 +26,21 @@
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
             <span>Dashboard</span>
         </NavLink>
-        <NavLink href="/collectors" class="@NavItemClass("/collectors")" @onclick='() => SetPendingPath("/collectors")'>
-            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
-            <span>Collectors</span>
-        </NavLink>
+        @if (_isHead)
+        {
+            <NavLink href="/collectors" class="@NavItemClass("/collectors")" @onclick='() => SetPendingPath("/collectors")'>
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+                <span>Collectors</span>
+            </NavLink>
+        }
+        else
+        {
+            <div class="nav-item nav-item-locked" title="Only the Head can manage collectors">
+                <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+                <span>Collectors</span>
+                <svg class="nav-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+            </div>
+        }
         <NavLink href="/vendors" class="@NavItemClass("/vendors")" @onclick='() => SetPendingPath("/vendors")'>
             <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" /></svg>
             <span>Vendors &amp; Stalls</span>
@@ -74,10 +85,21 @@
             <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
             <span>Financial Reports</span>
         </NavLink>
-        <NavLink href="/audit-trail" class="@NavItemClass("/audit-trail")" @onclick='() => SetPendingPath("/audit-trail")'>
-            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-            <span>Audit Trail</span>
-        </NavLink>
+        @if (_isHead)
+        {
+            <NavLink href="/audit-trail" class="@NavItemClass("/audit-trail")" @onclick='() => SetPendingPath("/audit-trail")'>
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                <span>Audit Trail</span>
+            </NavLink>
+        }
+        else
+        {
+            <div class="nav-item nav-item-locked" title="Only the Head can view the audit trail">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                <span>Audit Trail</span>
+                <svg class="nav-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+            </div>
+        }
         <NavLink href="/export" class="@NavItemClass("/export")" @onclick='() => SetPendingPath("/export")'>
             <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             <span>Export Data</span>
@@ -102,6 +124,7 @@
 @code {
     private bool SidebarCollapsed;
     private string _portalLabel = "Admin Portal";
+    private bool _isHead;   // Head (SuperAdmin) sees Collectors + Audit; a plain Admin gets them locked.
     private string? _pendingPath;
     private readonly DateTime _statePeriod = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
     private Dictionary<FacilityCode, int> _unpaidByCode = new();
@@ -162,11 +185,11 @@
     {
         await Branding.EnsureLoadedAsync();
         var state = await AuthState.GetAuthenticationStateAsync();
-        var isHead = state.User.IsInRole("SuperAdmin")
+        _isHead = state.User.IsInRole("SuperAdmin")
             || state.User.Claims.Any(c =>
                 string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
-        _portalLabel = isHead ? "Head Portal" : "Admin Portal";
+        _portalLabel = _isHead ? "Head Portal" : "Admin Portal";
 
         // Paint instantly from persisted state (avoids a prerender→interactive flash), but ALWAYS
         // revalidate from the API afterwards. The server summaries cache is short-lived (60s TTL), so a

@@ -161,10 +161,11 @@
     flex-shrink: 0;
 }
 .kpi-icon-wrap svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.kpi-icon-green { background: var(--green-bg); color: var(--green); }
-.kpi-icon-gold  { background: color-mix(in srgb, var(--gold) 12%, var(--bg-card)); color: var(--gold); }
-.kpi-icon-red   { background: var(--red-bg); color: var(--red); }
-.kpi-icon-neutral { background: var(--bg-icon); color: var(--navy); }
+/* Uniform neutral icon tiles — consistent across all facility reports. */
+.kpi-icon-green,
+.kpi-icon-gold,
+.kpi-icon-red,
+.kpi-icon-neutral { background: var(--bg-icon); color: var(--navy-3); }
 .kpi-body { flex: 1; min-width: 0; }
 .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 5px; }
 .kpi-value { font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1; }
