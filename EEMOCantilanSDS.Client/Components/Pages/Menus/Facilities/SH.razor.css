@@ -650,3 +650,45 @@
     gap: 6px;
     pointer-events: none;
 }
+
+
+
+/* ══════════════════════════════════════════
+   RESPONSIVE — SLH toolbar (mobile/tablet ≤768px)
+   Desktop (≥769px) is untouched.
+══════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Desktop packs search + animal filter tabs + action buttons into one non-wrapping row (search has a
+       180px min-width, tabs/buttons are flex-shrink:0) — nothing can give, so it overflows on a phone.
+       Stack them instead: search full-width, tabs scrollable, actions wrap. */
+    .toolbar-unified {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .search-box {
+        min-width: 100%;
+        max-width: 100%;
+        order: 1;
+    }
+
+    .filter-tabs-inline {
+        order: 2;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+        .filter-tabs-inline::-webkit-scrollbar { display: none; }
+
+    .toolbar-actions {
+        order: 3;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+        .toolbar-actions .btn {
+            flex: 1 1 auto;
+        }
+}
