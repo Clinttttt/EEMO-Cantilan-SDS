@@ -4,15 +4,16 @@
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @implements IDisposable
 
-<button class="sidebar-hamburger" type="button" @onclick="() => _mobileOpen = !_mobileOpen" aria-label="Toggle navigation">
+<button class="sidebar-hamburger" type="button" @onclick="ToggleMobileDrawer" aria-label="Toggle navigation">
     <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
 </button>
 
 @if (_mobileOpen)
 {
-    <div class="sidebar-backdrop" @onclick="() => _mobileOpen = false"></div>
+    <div class="sidebar-backdrop" @onclick="CloseMobileDrawer"></div>
 }
 
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "") @(_mobileOpen ? "mobile-open" : "")">
@@ -153,7 +154,7 @@
         => _ = InvokeAsync(() =>
         {
             _pendingPath = null;
-            _mobileOpen = false;   // navigating closes the mobile drawer
+            SetMobileOpen(false);   // navigating closes the mobile drawer
             StateHasChanged();
         });
 
@@ -161,7 +162,26 @@
     {
         var targetPath = NormalizePath(href);
         _pendingPath = targetPath;
-        _mobileOpen = false;   // tapping a nav item closes the drawer (incl. same-page taps)
+        SetMobileOpen(false);   // tapping a nav item closes the drawer (incl. same-page taps)
+    }
+
+    // Toggling the mobile drawer also locks/unlocks page scroll (JS interop) — otherwise the dimmed
+    // backdrop can still be scrolled, dragging the page underneath and making the open drawer look
+    // "broken" mid-scroll. Best-effort: a JS failure just means scroll isn't locked; the drawer still works.
+    private void ToggleMobileDrawer() => SetMobileOpen(!_mobileOpen);
+
+    private void CloseMobileDrawer() => SetMobileOpen(false);
+
+    private void SetMobileOpen(bool open)
+    {
+        _mobileOpen = open;
+        _ = SetBodyScrollLockedAsync(open);
+    }
+
+    private async Task SetBodyScrollLockedAsync(bool locked)
+    {
+        try { await JS.InvokeVoidAsync("stallTrackSetBodyScrollLocked", locked); }
+        catch { /* JS unavailable (prerender/circuit not ready) — non-critical */ }
     }
 
     private string NavItemClass(string href)

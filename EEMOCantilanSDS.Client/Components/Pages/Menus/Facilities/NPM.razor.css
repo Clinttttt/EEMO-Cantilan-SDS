@@ -830,28 +830,52 @@
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
     .npm-hero {
-        padding: 20px;
-        gap: 16px;
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
+        gap: 14px;
+        padding: 16px;
+    }
+
+    .npm-hero-left {
+        flex: none;
+        min-width: 0;
+        gap: 12px;
+    }
+
+    .npm-hero-icon {
+        display: none;
     }
 
     .npm-hero-title {
-        font-size: 18px;
+        font-size: 19px;
+    }
+
+    .npm-hero-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 10px;
+        width: 100%;
     }
 
     .npm-hero-val {
-        font-size: 18px;
+        font-size: 19px;
     }
 
     .npm-hero-stat {
-        padding: 0 12px;
+        padding: 0;
+        text-align: left;
+        min-width: 0;
     }
 
     .npm-section-tabs {
         gap: 8px;
     }
 
+    /* One section card per row — a 2-up grid left ~170px per card, too narrow for the icon + name/sub-text
+       + unpaid badge, causing the clipped/overlapping cards. */
     .npm-sec-tab {
-        flex: 1 1 calc(50% - 4px);
+        flex: 1 1 100%;
     }
 
     .hist-grid {
@@ -954,13 +978,3 @@
 }
 
 
-
-/* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
-@media (max-width: 768px) {
-    .npm-hero { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 14px; padding: 16px; }
-    .npm-hero-left { flex: none; min-width: 0; gap: 12px; }
-    .npm-hero-icon { display: none; }
-    .npm-hero-title { font-size: 19px; }
-    .npm-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 10px; width: 100%; }
-    .npm-hero-stat { padding: 0; text-align: left; min-width: 0; }
-}

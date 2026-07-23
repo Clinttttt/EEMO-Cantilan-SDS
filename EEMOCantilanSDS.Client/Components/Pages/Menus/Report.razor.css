@@ -969,6 +969,30 @@
     .rfp-badge {
         display: none;
     }
+
+    /* Belt-and-suspenders against horizontal page overflow: constrain every level of the filter panel
+       explicitly. A flex child with an internal overflow-x:auto scroller (the facility chip strip) can,
+       in some browsers, still report its unclipped natural width to ancestors during layout — which
+       widened the whole page and let it be dragged sideways (the dark bleed past the white content). */
+    .rpt-filter-panel,
+    .rfp-top,
+    .rfp-bottom,
+    .rfp-fac-row {
+        max-width: 100%;
+    }
+
+    .rfp-fac-row {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .rfp-chips {
+        max-width: 100%;
+    }
+
+    .rfp-top {
+        gap: 10px;
+    }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1009,29 +1033,7 @@
     background: var(--border);
 }
 
-.rpt-scope-coverage {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    color: var(--text-muted);
-    background: var(--green-bg, #e9f5ee);
-    border: 1px solid rgba(45, 122, 95, .25);
-    border-radius: 999px;
-    padding: 5px 12px;
-    white-space: nowrap;
-}
 
-    .rpt-scope-coverage svg {
-        width: 14px;
-        height: 14px;
-        stroke: var(--green);
-        flex-shrink: 0;
-    }
-
-    .rpt-scope-coverage strong {
-        color: var(--green);
-    }
 
 /* Export note ties controls to scope */
 .rfp-export-note {

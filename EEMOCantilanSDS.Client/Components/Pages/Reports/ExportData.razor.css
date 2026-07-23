@@ -148,6 +148,25 @@
     .ex-summary { grid-auto-flow: row; grid-template-columns: repeat(2, 1fr); }
     .ex-actions { justify-content: flex-start; }
     .ex-table { font-size: 11.5px; }
+
+    /* Period + Export sit side by side at align-items:flex-end on desktop; wrapped on mobile that made
+       the "EXPORT" label float at the bottom of its flex line, overlapping the facility chip grid above.
+       Stack each control block full-width and top-align instead. */
+    .ex-control-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .ex-control-block,
+    .ex-control-grow {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .ex-actions {
+        flex-wrap: wrap;
+    }
 }
 
 /* ── Print: only the sheet, full width ── */

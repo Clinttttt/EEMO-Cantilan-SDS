@@ -51,6 +51,12 @@
             var status = el.querySelector('[data-splash-status]');
             if (status) status.textContent = 'Still connecting...';
         }, 15000);
+
+        // Mobile sidebar drawer: lock page scroll while it's open, so scrolling the dimmed backdrop
+        // doesn't shift the page underneath (which made the open drawer look "broken" mid-scroll).
+        window.stallTrackSetBodyScrollLocked = function (locked) {
+            document.body.classList.toggle('st-scroll-locked', !!locked);
+        };
     </script>
 </body>
 
