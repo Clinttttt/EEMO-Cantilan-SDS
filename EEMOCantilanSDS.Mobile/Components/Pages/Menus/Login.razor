@@ -532,9 +532,16 @@
                     {
                         <img src="@_pendingBindInfo.SealPath" alt="@_pendingBindInfo.Name seal" />
                     }
+                    else if (string.Equals(_pendingBindInfo.MunicipalityCode, "CANTILAN", StringComparison.OrdinalIgnoreCase))
+                    {
+                        @* Default tenant with no uploaded seal → the bundled Cantilan seal (same fallback the
+                           signed-in app uses), so the confirm card shows the LGU's own logo, not a generic icon. *@
+                        <img src="images/LGU_CANTILAN_LOGO.jpg" alt="@_pendingBindInfo.Name seal" />
+                    }
                     else
                     {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></svg>
+                        @* Other LGU with no uploaded seal → the neutral platform seal (never Cantilan's). *@
+                        <img src="images/stalltrack-seal.png" alt="@_pendingBindInfo.Name seal" />
                     }
                 </div>
                 <div class="bind-eyebrow">Set up StallTrack for</div>
