@@ -8,7 +8,8 @@ public class UpdateCollectorCommandValidator : AbstractValidator<UpdateCollector
     {
         RuleFor(x => x.CollectorId).NotEmpty();
         RuleFor(x => x.FullName).NotEmpty();
-        RuleFor(x => x.Email).NotEmpty().EmailAddress();
+        // Email is optional (blank = no email on file); validate format only when supplied.
+        RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrWhiteSpace(x.Email));
         RuleFor(x => x.AssignedFacilities).NotEmpty();
 
         // Username is optional on update (blank = keep current); when supplied it must be a valid login.

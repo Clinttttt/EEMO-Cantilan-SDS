@@ -20,8 +20,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
        string fullName,
        string employeeId,
        string username,
-       string email,
-       string contactNumber,
+       string? email,
+       string? contactNumber,
        string password,
        Guid municipalityId = default)
         {
@@ -43,8 +43,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
         public void UpdateProfile(
        string fullName,
-       string contactNumber,
-       string email,
+       string? contactNumber,
+       string? email,
        string updatedBy)
         {
             FullName = fullName;

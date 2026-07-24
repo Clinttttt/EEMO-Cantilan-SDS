@@ -39,7 +39,11 @@ public class UpdateCollectorCommandHandler(
         // Capture the CURRENT assignments before replacing, so we can push only about NEWLY added facilities.
         var existing = collector.FacilityAssignments.Select(a => a.FacilityCode).ToHashSet();
 
-        collector.UpdateProfile(request.FullName, request.ContactNumber, request.Email, currentUser.Username ?? "Admin");
+        // Email + contact are optional; store blank as NULL so the per-LGU unique (MunicipalityId, Email)
+        // index treats "no email" collectors as distinct.
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        var contactNumber = string.IsNullOrWhiteSpace(request.ContactNumber) ? null : request.ContactNumber.Trim();
+        collector.UpdateProfile(request.FullName, contactNumber, email, currentUser.Username ?? "Admin");
         await collectorRepo.ReplaceFacilityAssignmentsAsync(request.CollectorId, request.AssignedFacilities, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);

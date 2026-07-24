@@ -1308,11 +1308,23 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
     public async Task<string> GenerateNextEmployeeIdAsync(CancellationToken cancellationToken = default)
     {
         var currentYear = PhilippineTime.Now.Year;
-        var prefix = $"EEMO-{currentYear}-";
+        var mid = context.CurrentMunicipalityId;
 
+        // Per-LGU prefix from the tenant's own office acronym (Cantilan = "EEMO"); fallback keeps it
+        // non-empty for a tenant that hasn't set one. Uppercased for a consistent ID format.
+        var acronym = await context.Municipalities
+            .IgnoreQueryFilters()
+            .Where(m => m.Id == mid)
+            .Select(m => m.OfficeAcronym)
+            .FirstOrDefaultAsync(cancellationToken);
+        var prefixCode = string.IsNullOrWhiteSpace(acronym) ? "EMP" : acronym.Trim().ToUpperInvariant();
+        var prefix = $"{prefixCode}-{currentYear}-";
+
+        // Numbering is scoped to THIS municipality (employee IDs are unique per LGU), across soft-deleted
+        // rows too. Cantilan was the only tenant, so its sequence is unchanged.
         var lastEmployeeId = await context.CollectorUsers
             .IgnoreQueryFilters()
-            .Where(c => c.EmployeeId!.StartsWith(prefix))
+            .Where(c => (mid == Guid.Empty || c.MunicipalityId == mid) && c.EmployeeId!.StartsWith(prefix))
             .OrderByDescending(c => c.EmployeeId)
             .Select(c => c.EmployeeId)
             .FirstOrDefaultAsync(cancellationToken);

@@ -18,12 +18,17 @@ public class CreateCollectorCommandHandler(
 {
     public async Task<Result<CollectorDto>> Handle(CreateCollectorCommand request, CancellationToken cancellationToken)
     {
+        // Email + contact number are optional. Store blank as NULL so the per-LGU unique (MunicipalityId,
+        // Email) index treats "no email" collectors as distinct (Postgres allows multiple NULLs).
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        var contactNumber = string.IsNullOrWhiteSpace(request.ContactNumber) ? null : request.ContactNumber.Trim();
+
         var collector = CollectorUser.Create(
             request.FullName,
             request.EmployeeId,
             request.Username,
-            request.Email,
-            request.ContactNumber,
+            email,
+            contactNumber,
             request.Password);
 
         await collectorRepo.AddAsync(collector, cancellationToken);
@@ -44,8 +49,8 @@ public class CreateCollectorCommandHandler(
             collector.FullName!,
             collector.EmployeeId!,
             collector.Username!,
-            collector.Email!,
-            collector.ContactNumber!,
+            collector.Email ?? string.Empty,
+            collector.ContactNumber ?? string.Empty,
             collector.IsActive,
             assignedFacilities);
 
