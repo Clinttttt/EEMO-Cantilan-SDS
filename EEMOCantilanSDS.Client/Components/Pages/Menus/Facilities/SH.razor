@@ -96,12 +96,16 @@
 
         <!-- SLAUGHTER RECORD MODAL -->
         <SlaughterRecordModal ShowModal="ShowRecordModal"
+                              HogRate="@(Overview?.HogRatePerHead ?? 250m)"
+                              LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
                               OnClose="CloseRecordModal"
                               OnSubmit="SubmitSlaughterRecord"
                               ErrorMessage="@ErrorMessage" />
 
         <!-- ADD TRANSACTION MODAL -->
         <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
+                                      HogRate="@(Overview?.HogRatePerHead ?? 250m)"
+                                      LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
                                       OwnerName="@SelectedOwnerName"
                                       TransactionDate="@SelectedTransactionDate"
                                       ORNumber="@SelectedORNumber"
@@ -111,6 +115,8 @@
 
         <!-- EDIT TRANSACTION MODAL -->
         <EditSlaughterTransactionModal ShowModal="ShowEditModal"
+                                       HogRate="@(Overview?.HogRatePerHead ?? 250m)"
+                                       LargeRate="@(Overview?.LargeRatePerHead ?? 365m)"
                                        OnClose="CloseEditModal"
                                        OnSave="SubmitEditTransaction"
                                        ErrorMessage="@ErrorMessage"
@@ -138,7 +144,7 @@
                             <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
 
                             <div class="slh-tooltip-section">
-                                <div class="slh-tooltip-animal">Hog — ₱250 total</div>
+                                <div class="slh-tooltip-animal">Hog — ₱@((Overview?.HogRatePerHead ?? 250m).ToString("0")) total</div>
                                 <div class="slh-tooltip-breakdown">
                                     <span>Slaughter</span><span>₱50</span>
                                     <span>Ante Mortem</span><span>₱20</span>
@@ -150,7 +156,7 @@
                             <div class="slh-tooltip-divider"></div>
 
                             <div class="slh-tooltip-section">
-                                <div class="slh-tooltip-animal">Carabao / Cow — ₱365 total</div>
+                                <div class="slh-tooltip-animal">Carabao / Cow — ₱@((Overview?.LargeRatePerHead ?? 365m).ToString("0")) total</div>
                                 <div class="slh-tooltip-breakdown">
                                     <span>Slaughter</span><span>₱150</span>
                                     <span>Permit</span><span>₱100</span>

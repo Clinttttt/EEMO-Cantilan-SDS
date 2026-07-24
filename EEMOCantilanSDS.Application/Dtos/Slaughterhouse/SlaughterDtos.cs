@@ -29,7 +29,11 @@ public record SlaughterOverviewDto(
     int HogCount,
     int CarabaoCount,
     int CowCount,
-    int OthersCount
+    int OthersCount,
+    // Tenant-resolved per-head rates (250 / 365 ordinance fallback keeps Cantilan identical), so the UI
+    // shows this LGU's own rates. Trailing defaults keep the existing positional repository construction valid.
+    decimal HogRatePerHead = 250m,
+    decimal LargeRatePerHead = 365m
 );
 
 public record OwnerTransactionGroupDto(

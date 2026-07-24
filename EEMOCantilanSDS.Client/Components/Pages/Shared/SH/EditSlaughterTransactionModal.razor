@@ -59,7 +59,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Hog</div>
-                    <div class="slh-edit-animal-rate">₱250 per head</div>
+                    <div class="slh-edit-animal-rate">₱@(HogRate.ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.HogHeads > 0)
@@ -85,7 +85,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Carabao</div>
-                    <div class="slh-edit-animal-rate">₱365 per head</div>
+                    <div class="slh-edit-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.CarabaoHeads > 0)
@@ -111,7 +111,7 @@
                 </div>
                 <div class="slh-edit-animal-info">
                     <div class="slh-edit-animal-name">Cow</div>
-                    <div class="slh-edit-animal-rate">₱365 per head</div>
+                    <div class="slh-edit-animal-rate">₱@(LargeRate.ToString("0")) per head</div>
                 </div>
                 <div class="slh-edit-animal-check">
                     @if (EditForm.CowHeads > 0)
@@ -183,6 +183,14 @@
 @code {
     [Parameter]
     public bool ShowModal { get; set; }
+
+    // Tenant-resolved per-head rates for the animal cards (250 / 365 ordinance fallback keeps Cantilan
+    // identical); passed in by the SLH page from the resolved overview.
+    [Parameter]
+    public decimal HogRate { get; set; } = 250m;
+
+    [Parameter]
+    public decimal LargeRate { get; set; } = 365m;
 
     [Parameter]
     public EventCallback OnClose { get; set; }
