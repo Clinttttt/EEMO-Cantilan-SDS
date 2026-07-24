@@ -158,7 +158,7 @@
                         <button type="button" class="imp-pick-card" @onclick="() => ChooseSection(sec.Name)">
                             <span class="imp-pick-icon @sec.Css">@((MarkupString)sec.Icon)</span>
                             <span class="imp-pick-name">@sec.Name</span>
-                            <span class="imp-pick-desc">@sec.Desc</span>
+                            <span class="imp-pick-desc">@SectionDesc(sec)</span>
                         </button>
                     }
                     @foreach (var cs in _customSections)
@@ -167,7 +167,7 @@
                         <button type="button" class="imp-pick-card" @onclick="() => ChooseSection(csName)">
                             <span class="imp-pick-icon">@((MarkupString)CustomSectionIconSvg)</span>
                             <span class="imp-pick-name">@csName</span>
-                            <span class="imp-pick-desc">Custom section · ₱30/day</span>
+                            <span class="imp-pick-desc">Custom section · ₱@(_npmDailyRate.ToString("0"))/day</span>
                         </button>
                     }
                 </div>
@@ -401,8 +401,33 @@
     {
         _facility = Configs.TryGetValue((Facility ?? string.Empty).Trim().ToLowerInvariant(), out var cfg) ? cfg : null;
         if (RequiresSection)
+        {
+            await LoadNpmRatesAsync();
             await LoadCustomSectionsAsync();
+        }
     }
+
+    // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), shown
+    // in the section-picker descriptions. Loaded once.
+    private decimal _npmDailyRate = 30m;
+    private decimal _npmFishRate = 1m;
+    private bool _ratesLoaded;
+
+    private async Task LoadNpmRatesAsync()
+    {
+        if (_ratesLoaded) return;
+        var result = await StallsApi.GetNpmRatesAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _npmDailyRate = result.Value.DailyRate;
+            _npmFishRate = result.Value.FishRate;
+        }
+        _ratesLoaded = true;
+    }
+
+    // Section-option description with the tenant's resolved rate appended (Fish adds the per-kilo fee).
+    private string SectionDesc(NpmSectionOption sec) =>
+        $"{sec.Desc} · ₱{_npmDailyRate:0}/day" + (sec.Name == "Fish" ? $" + ₱{_npmFishRate:0}/kg" : "");
 
     // Per-LGU custom NPM sections offered as import targets (in addition to Vegetable/Fish/Meat).
     private List<string> _customSections = new();
@@ -460,11 +485,11 @@
 
     private static readonly List<NpmSectionOption> NpmSections = new()
     {
-        new("Vegetable", "Vegetable stalls · ₱30/day", "veg",
+        new("Vegetable", "Vegetable stalls", "veg",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M12 2c0 0-1 3-1 6s1 5 1 5'/><path d='M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z'/><path d='M9 4c-2 1-3 3-3 5'/><path d='M15 4c2 1 3 3 3 5'/></svg>"),
-        new("Fish", "Fish stalls · ₱30/day + ₱1/kg", "fish",
+        new("Fish", "Fish stalls", "fish",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z'/><circle cx='14' cy='11' r='1' fill='currentColor' stroke='none'/></svg>"),
-        new("Meat", "Meat stalls · ₱30/day", "meat",
+        new("Meat", "Meat stalls", "meat",
             "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z'/><path d='M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z'/></svg>"),
     };
 
