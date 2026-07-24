@@ -2,6 +2,9 @@
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
 @using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility
+@using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Application.Dtos.TransportTerminal
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
@@ -462,12 +465,103 @@
             {
                 <div class="hist-loading"><span class="set-spinner"></span></div>
             }
-            else if (_isTxnFacility)
+            else if (_isTxnFacility && _historyCode == FacilityCode.TPM)
             {
-                <div class="fac-empty">
-                    @_historyName is a per-transaction facility — ₱@_txnCollected.ToString("N2") collected in @_historyPeriodLabel.
-                    Open the facility from the sidebar for the full per-transaction breakdown and receipts.
-                </div>
+                @if (_tpmRows.Count == 0)
+                {
+                    <div class="fac-empty">No vendor entries for @_historyPeriodLabel.</div>
+                }
+                else
+                {
+                    <table class="hist-table">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Vendor</th><th>Goods / Product</th><th>Market day</th>
+                                <th class="hist-r">OR No.</th><th class="hist-r">Fee</th><th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var tpmIdx = 1; }
+                            @foreach (var a in _tpmRows.OrderByDescending(x => x.MarketDate).ThenBy(x => x.VendorName))
+                            {
+                                <tr>
+                                    <td>@(tpmIdx++)</td>
+                                    <td>@a.VendorName</td>
+                                    <td>@(string.IsNullOrWhiteSpace(a.Goods) ? "—" : a.Goods)</td>
+                                    <td>@a.MarketDate.ToString("MMM d, yyyy")</td>
+                                    <td class="hist-r hist-or">@(string.IsNullOrWhiteSpace(a.ORNumber) ? "—" : a.ORNumber)</td>
+                                    <td class="hist-r">₱@a.Fee.ToString("N2")</td>
+                                    <td><span class="hist-status hist-@(a.IsPaid ? "paid" : "unpaid")">@(a.IsPaid ? "Paid" : "Unpaid")</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+            else if (_isTxnFacility && _historyCode == FacilityCode.TRM)
+            {
+                @if (_trmRows.Count == 0)
+                {
+                    <div class="fac-empty">No trips recorded for @_historyPeriodLabel.</div>
+                }
+                else
+                {
+                    <table class="hist-table">
+                        <thead>
+                            <tr>
+                                <th>Trip</th><th>Driver</th><th>Organization</th><th>Route</th><th>Date</th>
+                                <th class="hist-r">OR No.</th><th class="hist-r">Fee</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var trip in _trmRows.OrderByDescending(x => x.RecordedAt))
+                            {
+                                <tr>
+                                    <td>@trip.TripNumber</td>
+                                    <td>@(string.IsNullOrWhiteSpace(trip.DriverName) ? "—" : trip.DriverName)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(trip.Organization) ? "—" : trip.Organization)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(trip.Route) ? "—" : trip.Route)</td>
+                                    <td>@PhilippineTime.ToPhilippineTime(trip.RecordedAt).ToString("MMM d, yyyy")</td>
+                                    <td class="hist-r hist-or">@(string.IsNullOrWhiteSpace(trip.ORNumber) ? "—" : trip.ORNumber)</td>
+                                    <td class="hist-r">₱@trip.Fee.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+            else if (_isTxnFacility && _historyCode == FacilityCode.SLH)
+            {
+                @if (_slhRows.Count == 0)
+                {
+                    <div class="fac-empty">No slaughter transactions for @_historyPeriodLabel.</div>
+                }
+                else
+                {
+                    <table class="hist-table">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Owner</th><th>Animal</th><th class="hist-r">Heads</th><th>Date</th>
+                                <th class="hist-r">OR No.</th><th class="hist-r">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ var slhIdx = 1; }
+                            @foreach (var tx in _slhRows.OrderByDescending(x => x.TransactionDate).ThenBy(x => x.OwnerName))
+                            {
+                                <tr>
+                                    <td>@(slhIdx++)</td>
+                                    <td>@tx.OwnerName</td>
+                                    <td>@(!string.IsNullOrWhiteSpace(tx.CustomAnimalType) ? tx.CustomAnimalType : tx.AnimalType.ToString())</td>
+                                    <td class="hist-r">@tx.NumberOfHeads</td>
+                                    <td>@tx.TransactionDate.ToString("MMM d, yyyy")</td>
+                                    <td class="hist-r hist-or">@(string.IsNullOrWhiteSpace(tx.ORNumber) ? "—" : tx.ORNumber)</td>
+                                    <td class="hist-r">₱@tx.TotalAmount.ToString("N2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             }
             else if (_report is null)
             {
@@ -766,6 +860,9 @@
 
     private bool _isTxnFacility;
     private decimal _txnCollected;
+    private IReadOnlyList<TpmVendorAttendanceDto> _tpmRows = Array.Empty<TpmVendorAttendanceDto>();
+    private IReadOnlyList<TrmTripDto> _trmRows = Array.Empty<TrmTripDto>();
+    private IReadOnlyList<SlaughterTransactionDto> _slhRows = Array.Empty<SlaughterTransactionDto>();
 
     private async Task LoadHistory()
     {
@@ -778,7 +875,7 @@
 
         if (_isTxnFacility)
         {
-            _txnCollected = await LoadTransactionCollectedAsync();
+            await LoadTransactionDataAsync();
             _historyLoading = false;
             return;
         }
@@ -791,29 +888,47 @@
             _historyError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't load the collection history." : res.Error;
     }
 
-    // The selected month's collected total for a per-transaction facility, from its own collection history.
-    private async Task<decimal> LoadTransactionCollectedAsync()
+    // Loads the selected month's per-transaction rows for a transaction facility and derives the collected
+    // total from them (matches what the facility page shows). Fails soft to a zeroed/empty view.
+    private async Task LoadTransactionDataAsync()
     {
+        _tpmRows = Array.Empty<TpmVendorAttendanceDto>();
+        _trmRows = Array.Empty<TrmTripDto>();
+        _slhRows = Array.Empty<SlaughterTransactionDto>();
+        _txnCollected = 0m;
         try
         {
             switch (_historyCode)
             {
                 case FacilityCode.TPM:
-                    var t = await TpmApi.GetHistoryAsync(_historyYear);
-                    return t.IsSuccess ? (t.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.Collected ?? 0m) : 0m;
+                    var t = await TpmApi.GetMonthAttendanceAsync(_historyYear, _historyMonth);
+                    if (t.IsSuccess && t.Value is not null)
+                    {
+                        _tpmRows = t.Value;
+                        _txnCollected = _tpmRows.Where(a => a.IsPaid).Sum(a => a.Fee);
+                    }
+                    break;
                 case FacilityCode.TRM:
-                    var r = await TrmApi.GetHistoryAsync(_historyYear);
-                    return r.IsSuccess ? (r.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.Collected ?? 0m) : 0m;
+                    var r = await TrmApi.GetTripsAsync(_historyYear, _historyMonth);
+                    if (r.IsSuccess && r.Value is not null)
+                    {
+                        _trmRows = r.Value;
+                        _txnCollected = _trmRows.Sum(x => x.Fee);
+                    }
+                    break;
                 case FacilityCode.SLH:
-                    var s = await SlaughterApi.GetHistoryAsync(_historyYear);
-                    return s.IsSuccess ? (s.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.TotalCollected ?? 0m) : 0m;
-                default:
-                    return 0m;
+                    var s = await SlaughterApi.GetTransactionsAsync(_historyYear, _historyMonth);
+                    if (s.IsSuccess && s.Value is not null)
+                    {
+                        _slhRows = s.Value;
+                        _txnCollected = _slhRows.Sum(x => x.TotalAmount);
+                    }
+                    break;
             }
         }
         catch
         {
-            return 0m;
+            // Leave zeroed/empty — the modal shows a "no records" state rather than an error.
         }
     }
 
