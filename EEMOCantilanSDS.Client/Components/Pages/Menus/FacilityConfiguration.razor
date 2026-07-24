@@ -5,6 +5,9 @@
 @using EEMOCantilanSDS.Domain.Enums
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IFacilitiesApiClient FacilitiesApi
+@inject ITpmApiClient TpmApi
+@inject ITrmApiClient TrmApi
+@inject ISlaughterApiClient SlaughterApi
 
 @*
     Facility Configuration. The Head's own municipality only (API scopes every row to the caller's tenant).
@@ -433,7 +436,14 @@
             <button class="cfg-close cfg-close-dark" @onclick="CloseHistory" aria-label="Close">✕</button>
         </div>
 
-        @if (_report is not null && _historyError is null)
+        @if (_isTxnFacility && _historyError is null)
+        {
+            <div class="hist-summary">
+                <span><strong>₱@_txnCollected.ToString("N2")</strong> collected</span>
+                <span class="hist-summary-muted">Per-transaction facility</span>
+            </div>
+        }
+        else if (_report is not null && _historyError is null)
         {
             <div class="hist-summary">
                 <span><strong>₱@_report.TotalRevenue.ToString("N2")</strong> collected</span>
@@ -448,7 +458,18 @@
             {
                 <div class="cfg-error">@_historyError</div>
             }
-            else if (_historyLoading || _report is null)
+            else if (_historyLoading)
+            {
+                <div class="hist-loading"><span class="set-spinner"></span></div>
+            }
+            else if (_isTxnFacility)
+            {
+                <div class="fac-empty">
+                    @_historyName is a per-transaction facility — ₱@_txnCollected.ToString("N2") collected in @_historyPeriodLabel.
+                    Open the facility from the sidebar for the full per-transaction breakdown and receipts.
+                </div>
+            }
+            else if (_report is null)
             {
                 <div class="hist-loading"><span class="set-spinner"></span></div>
             }
@@ -737,11 +758,30 @@
         await LoadHistory();
     }
 
+    // TPM/TRM/SLH are per-transaction facilities — their collections live in transaction tables, not in
+    // stall payment records, so the stall-based facility report reads ₱0 for them. Detect them and pull the
+    // month's collected total from the facility's own collection history instead.
+    private static bool IsTransactionFacility(FacilityCode code) =>
+        code is FacilityCode.TPM or FacilityCode.TRM or FacilityCode.SLH;
+
+    private bool _isTxnFacility;
+    private decimal _txnCollected;
+
     private async Task LoadHistory()
     {
         _historyLoading = true;
         _historyError = null;
+        _report = null;
+        _txnCollected = 0m;
+        _isTxnFacility = IsTransactionFacility(_historyCode);
         await InvokeAsync(StateHasChanged);
+
+        if (_isTxnFacility)
+        {
+            _txnCollected = await LoadTransactionCollectedAsync();
+            _historyLoading = false;
+            return;
+        }
 
         var res = await FacilitiesApi.GetFacilityReportsAsync(_historyCode, ReportPeriod.Monthly, _historyYear, _historyMonth);
         _historyLoading = false;
@@ -749,6 +789,32 @@
             _report = res.Value;
         else
             _historyError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't load the collection history." : res.Error;
+    }
+
+    // The selected month's collected total for a per-transaction facility, from its own collection history.
+    private async Task<decimal> LoadTransactionCollectedAsync()
+    {
+        try
+        {
+            switch (_historyCode)
+            {
+                case FacilityCode.TPM:
+                    var t = await TpmApi.GetHistoryAsync(_historyYear);
+                    return t.IsSuccess ? (t.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.Collected ?? 0m) : 0m;
+                case FacilityCode.TRM:
+                    var r = await TrmApi.GetHistoryAsync(_historyYear);
+                    return r.IsSuccess ? (r.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.Collected ?? 0m) : 0m;
+                case FacilityCode.SLH:
+                    var s = await SlaughterApi.GetHistoryAsync(_historyYear);
+                    return s.IsSuccess ? (s.Value?.Monthly.FirstOrDefault(m => m.Month == _historyMonth)?.TotalCollected ?? 0m) : 0m;
+                default:
+                    return 0m;
+            }
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 
     private async Task ChangeMonth(int delta)
