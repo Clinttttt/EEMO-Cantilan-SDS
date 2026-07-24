@@ -4,7 +4,7 @@
 <div class="detail-section @SectionClass">
     <div class="detail-section-title">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-        Daily Collection — ₱30/day@(IsFishSection ? " + Fish Fee (₱1/kg)" : "")
+        Daily Collection — ₱@(DailyRate.ToString("0"))/day@(IsFishSection ? $" + Fish Fee (₱{FishRate.ToString("0")}/kg)" : "")
     </div>
 
     <div class="cal-nav">
@@ -177,6 +177,9 @@
     [Parameter] public Guid StallId { get; set; }
     [Parameter] public DateTime? ContractDate { get; set; }
     [Parameter] public bool IsFishSection { get; set; }
+    // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical).
+    [Parameter] public decimal DailyRate { get; set; } = 30m;
+    [Parameter] public decimal FishRate { get; set; } = 1m;
     [Parameter] public string SectionClass { get; set; } = "";
     /// <summary>
     /// When true, the calendar is display-only. Day cells are not clickable and

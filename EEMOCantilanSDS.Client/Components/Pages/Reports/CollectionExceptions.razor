@@ -442,7 +442,7 @@
                             @if (eff == "collected" && IsDay && IsFishPayor)
                             {
                                 <div class="ce-or ce-fish">
-                                    <label class="ce-or-label">Fish Weight <span class="ce-or-opt">(kg — adds ₱1/kg on top of the ₱30 daily fee)</span></label>
+                                    <label class="ce-or-label">Fish Weight <span class="ce-or-opt">(kg — adds ₱@(_npmFishRate.ToString("0"))/kg on top of the ₱@(_npmDailyRate.ToString("0")) daily fee)</span></label>
                                     <div class="ce-fish-row">
                                         <input class="ce-or-input ce-fish-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" @bind="CurrentFishKilos" @bind:event="oninput" />
                                         <span class="ce-fish-unit">kg</span>
@@ -551,9 +551,25 @@
     // NPM Fish Area payors owe ₱1/kg on top of the ₱30 daily fee, so a collected fish day can carry a weight.
     private bool IsFishPayor => IsNpm && SelectedStall is not null && SelectedStall.Section == "Fish Area";
 
+    // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), used in
+    // the fish-weight hint so a custom-fee LGU sees its own rates.
+    private decimal _npmDailyRate = 30m;
+    private decimal _npmFishRate = 1m;
+
+    private async Task LoadNpmRatesAsync()
+    {
+        var result = await StallsApi.GetNpmRatesAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _npmDailyRate = result.Value.DailyRate;
+            _npmFishRate = result.Value.FishRate;
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        await LoadNpmRatesAsync();
         // Default to a rental facility the tenant actually operates (avoids a phantom default like NPM).
         if (!FacilityCatalog.Rental.Any(c => c.ToString() == _facility))
             _facility = FacilityCatalog.Rental.Select(c => c.ToString()).FirstOrDefault() ?? _facility;
