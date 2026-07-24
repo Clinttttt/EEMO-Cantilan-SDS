@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Domain.Constants;
+
 namespace EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 
 public record TrmOverviewDto
@@ -6,6 +8,10 @@ public record TrmOverviewDto
     public int TripsToday { get; init; }
     public int TotalTransporters { get; init; }
     public int PendingORCount { get; init; }
+
+    // The tenant's resolved per-trip fee (₱30 ordinance fallback keeps Cantilan identical), so the UI shows
+    // this LGU's own fee instead of a hardcoded ₱30.
+    public decimal TripFee { get; init; } = FeeRates.TrmTripFee;
 }
 
 public record TrmTransporterListDto

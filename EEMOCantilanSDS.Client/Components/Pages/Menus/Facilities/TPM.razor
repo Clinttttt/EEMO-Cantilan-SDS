@@ -69,7 +69,7 @@
                 </div>
             </div>
 
-            <div class="tpm-cal-desc">Every @MarketDay · ₱100 per vendor</div>
+            <div class="tpm-cal-desc">Every @MarketDay · ₱@((Overview?.VendorFee ?? 100m).ToString("0")) per vendor</div>
 
             <div class="tpm-friday-list">
                 @foreach (var friday in MarketDaysInMonth(CalendarMonth, MarketDay))

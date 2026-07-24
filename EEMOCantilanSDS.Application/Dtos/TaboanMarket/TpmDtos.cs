@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Domain.Constants;
+
 namespace EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 
 public record TpmOverviewDto
@@ -10,6 +12,10 @@ public record TpmOverviewDto
     // The LGU's configured weekly market weekday (Cantilan default = Friday). Lets the UI render the
     // correct calendar/labels per tenant (e.g. Madrid = Saturday) instead of hardcoding Friday.
     public DayOfWeek MarketDay { get; init; } = DayOfWeek.Friday;
+
+    // The tenant's resolved per-vendor market-day fee (₱100 ordinance fallback keeps Cantilan identical),
+    // so the UI shows this LGU's own fee instead of a hardcoded ₱100.
+    public decimal VendorFee { get; init; } = FeeRates.TpmVendorFee;
 }
 
 public record TpmMarketDayDto

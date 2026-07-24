@@ -146,7 +146,7 @@
             </div>
 
             <div class="trm-panel-desc">
-                Click a transporter to view profile · ₱30 terminal fee
+                Click a transporter to view profile · ₱@((overview?.TripFee ?? 30m).ToString("0")) terminal fee
             </div>
 
             <div class="trm-search-wrap">
@@ -316,7 +316,7 @@
                 </div>
                 <div class="trm-profile-info-row">
                     <span class="trm-profile-info-key">Terminal Fee</span>
-                    <span class="trm-profile-info-val trm-fee-green">₱30.00 / trip</span>
+                    <span class="trm-profile-info-val trm-fee-green">₱@((overview?.TripFee ?? 30m).ToString("N2")) / trip</span>
                 </div>
             </div>
 
@@ -453,7 +453,7 @@
                     </div>
                     <div class="trm-record-info-row">
                         <span class="trm-record-info-key">Terminal Fee</span>
-                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
+                <span class="trm-record-info-val trm-fee-green">₱@((overview?.TripFee ?? 30m).ToString("N2"))</span>
                     </div>
                     <div class="trm-record-info-row">
                         <span class="trm-record-info-key">OR Number</span>
@@ -596,7 +596,7 @@
                     </div>
                     <div class="trm-record-info-row">
                         <span class="trm-record-info-key">Fee</span>
-                        <span class="trm-record-info-val trm-fee-green">₱30.00</span>
+                <span class="trm-record-info-val trm-fee-green">₱@((overview?.TripFee ?? 30m).ToString("N2"))</span>
                     </div>
                 </div>
                 <div class="form-group">
