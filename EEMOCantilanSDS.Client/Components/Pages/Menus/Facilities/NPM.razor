@@ -916,6 +916,21 @@
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
         }
+        SyncSectionRateDescriptions();
+    }
+
+    // Keep the section descriptions in step with the tenant's resolved daily/fish rates (₱30/₱1 ordinance
+    // fallback keeps Cantilan identical) so a custom-fee LGU sees its own numbers, not hardcoded ₱30/₱1.
+    private void SyncSectionRateDescriptions()
+    {
+        var daily = _npmDailyRate.ToString("0");
+        var fish = _npmFishRate.ToString("0");
+        if (Sections.TryGetValue("Vegetable Area", out var veg))
+            veg.Description = $"Fresh vegetable stalls — ₱{daily}/day · Water · Electricity";
+        if (Sections.TryGetValue("Fish Area", out var fishSec))
+            fishSec.Description = $"Fish stalls — ₱{daily}/day · ₱{fish}/kg · Water · Electricity";
+        if (Sections.TryGetValue("Meat Area", out var meat))
+            meat.Description = $"Meat stalls — ₱{daily}/day · Water · Electricity";
     }
 
     // Existing stall numbers within the currently-selected NPM section — feeds the modal's next-number

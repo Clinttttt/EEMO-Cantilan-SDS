@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IStallsApiClient StallsApi
 @inject IUtilitiesApiClient UtilitiesApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -976,12 +977,12 @@ else
             <div class="mini-panel">
                 <div class="mini-panel-title">Fee Type Breakdown</div>
                 <div class="fee-row">
-                    <span class="fee-label">Daily stall fee (₱30/day)</span>
+                    <span class="fee-label">Daily stall fee (₱@(_npmDailyRate.ToString("0"))/day)</span>
                     <div class="mini-meter"><div class="mini-meter-fill" style="width:100%; background:#2d7a5f"></div></div>
                     <strong class="fee-value">₱@DailyFeeTotal.ToString("N0")</strong>
                 </div>
                 <div class="fee-row">
-                    <span class="fee-label">Fish kilo fee (₱1/kg)</span>
+                    <span class="fee-label">Fish kilo fee (₱@(_npmFishRate.ToString("0"))/kg)</span>
                     <div class="mini-meter"><div class="mini-meter-fill" style="width:@FishFeePct%; background:#4a9eff"></div></div>
                     <strong class="fee-value">₱@FishFeeTotal.ToString("N0")</strong>
                 </div>
@@ -1079,7 +1080,7 @@ else
     </div>
 
     <div class="rpt-fish-panel">
-        <p class="fish-caption">Throughput fee at ₱1/kg — tracked separately from the ₱30/day stall rent.</p>
+        <p class="fish-caption">Throughput fee at ₱@(_npmFishRate.ToString("0"))/kg — tracked separately from the ₱@(_npmDailyRate.ToString("0"))/day stall rent.</p>
         <div class="fish-kpi-row">
             <div class="fish-kpi">
                 <div class="fish-kpi-val">@TotalFishKilos.ToString("N0") <span class="fish-kpi-unit">kg</span></div>
@@ -1087,7 +1088,7 @@ else
             </div>
             <div class="fish-kpi">
                 <div class="fish-kpi-val">₱@FishFeeTotal.ToString("N0")</div>
-                <div class="fish-kpi-lbl">Fish Fee Collected (₱1/kg)</div>
+                <div class="fish-kpi-lbl">Fish Fee Collected (₱@(_npmFishRate.ToString("0"))/kg)</div>
             </div>
             <div class="fish-kpi">
                 <div class="fish-kpi-val">@FishStallCount</div>
@@ -1294,10 +1295,26 @@ else
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        await LoadNpmRatesAsync();
         if (TryApplyCachedReport())
             return;
 
         await LoadAsync();
+    }
+
+    // Tenant-resolved NPM daily + fish ordinance rates (₱30 / ₱1 fallback keeps Cantilan identical), used
+    // for the fee-label captions so a custom-fee LGU sees its own rates.
+    private decimal _npmDailyRate = 30m;
+    private decimal _npmFishRate = 1m;
+
+    private async Task LoadNpmRatesAsync()
+    {
+        var result = await StallsApi.GetNpmRatesAsync();
+        if (result.IsSuccess && result.Value is not null)
+        {
+            _npmDailyRate = result.Value.DailyRate;
+            _npmFishRate = result.Value.FishRate;
+        }
     }
 
     async Task LoadAsync()
