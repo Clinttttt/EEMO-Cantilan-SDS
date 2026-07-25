@@ -106,6 +106,10 @@ namespace EEMOCantilanSDS.Infrastructure
             configuration.GetSection("Email").Bind(emailOptions);
             service.AddSingleton(emailOptions);
             service.AddScoped<IEmailSender, EEMOCantilanSDS.Infrastructure.Services.SmtpEmailSender>();
+            // Issues + emails one-time email-confirmation links (used on admin create, email change, and
+            // Head-triggered resend). Lives in Application; registered here beside the SMTP sender it uses.
+            service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IEmailVerificationSender,
+                EEMOCantilanSDS.Application.Common.Services.EmailVerificationSender>();
 
             // Per-LGU payment credentials (Option A): AES-GCM protector for secrets at rest + a resolver that
             // returns the current tenant's PayMongo account, falling back to the global config (Cantilan default).

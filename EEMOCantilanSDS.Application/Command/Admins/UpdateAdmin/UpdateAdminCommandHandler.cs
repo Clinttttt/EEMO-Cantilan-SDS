@@ -13,7 +13,8 @@ public class UpdateAdminCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<UpdateAdminCommand, Result<bool>>
+    ITenantContext tenantContext,
+    IEmailVerificationSender verificationSender) : IRequestHandler<UpdateAdminCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(UpdateAdminCommand request, CancellationToken cancellationToken)
     {
@@ -39,10 +40,20 @@ public class UpdateAdminCommandHandler(
         }
 
         var actor = currentUser.Username ?? "Admin";
-        admin.UpdateProfile(request.FullName.Trim(), newUsername, request.Email.Trim(), actor);
+        var newEmail = request.Email.Trim();
+        var emailChanged = !string.Equals(admin.Email, newEmail, StringComparison.OrdinalIgnoreCase);
+
+        // UpdateProfile clears EmailVerified when the address changes (the new one is unproven).
+        admin.UpdateProfile(request.FullName.Trim(), newUsername, newEmail, actor);
         admin.ChangeRole(request.Role, actor);
 
         await uow.SaveChangesAsync(cancellationToken);
+
+        // A new address needs proving before it can receive password-reset links, so send the confirmation
+        // link straight away. Best-effort — the profile change is already saved.
+        if (emailChanged && !string.IsNullOrWhiteSpace(newEmail))
+            await verificationSender.SendAsync(admin, save: true, cancellationToken);
+
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
         return Result<bool>.Success(true);
     }

@@ -1,0 +1,179 @@
+@page "/verify-email/{Token}"
+@attribute [AllowAnonymous]
+
+@using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail
+@using EEMOCantilanSDS.Application.Dtos.Tenancy
+@using Microsoft.AspNetCore.WebUtilities
+@inject IAuthApiClient AuthApi
+@inject IMunicipalitiesApiClient MunicipalitiesApi
+@inject NavigationManager Navigation
+
+<PageTitle>@OfficeAcronym StallTrack — Confirm Email</PageTitle>
+
+@*
+    Email confirmation. Proving the address is what makes self-service password recovery possible: an
+    unconfirmed address can never receive a reset link (so a mistyped address can't be used to take over an
+    account). Confirming grants nothing else — no session, no password change, no account activation.
+
+    The token is consumed on load, so opening the link is all the user has to do.
+*@
+
+<div class="setup-root">
+
+    <AuthBrandPanel SealPath="@SealPath"
+                    MunicipalityName="@MunicipalityName"
+                    OfficeAcronym="@OfficeAcronym"
+                    OfficeName="@OfficeName"
+                    IsDefaultBrand="@_isDefaultBrand" />
+
+    <div class="setup-right">
+        <div class="setup-form-wrap">
+            <section class="login-card">
+
+                @if (IsLoading)
+                {
+                    <div class="setup-form-header">
+                        <div class="setup-form-title">Confirming your email…</div>
+                        <div class="setup-form-desc">One moment while we verify your link.</div>
+                    </div>
+                }
+                else if (Confirmed)
+                {
+                    <div class="setup-form-header">
+                        <div class="login-header-icon activated-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /><path d="m9 13 2 2 4-4" />
+                            </svg>
+                        </div>
+                        <div class="setup-form-title">
+                            @(AlreadyConfirmed ? "Email already confirmed" : "Email confirmed")
+                        </div>
+                        <div class="setup-form-desc">
+                            @if (!string.IsNullOrWhiteSpace(Username))
+                            {
+                                <span><strong>@Username</strong> — </span>
+                            }
+                            this address is confirmed, so you can now reset your own password from the sign-in
+                            page if you ever forget it. Nothing else about your account changed.
+                        </div>
+                    </div>
+                    <div class="setup-form">
+                        <button class="setup-submit" @onclick="GoToLogin">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+                            </svg>
+                            <span>Continue to sign in</span>
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="setup-form-header">
+                        <div class="setup-form-title">Link invalid or expired</div>
+                        <div class="setup-form-desc">
+                            @(ErrorMessage.Length > 0 ? ErrorMessage : "This confirmation link is invalid or has expired.")
+                            Ask your @OfficeAcronym Head to send you a new confirmation email.
+                        </div>
+                    </div>
+                    <div class="setup-form">
+                        <button class="setup-submit" @onclick="GoToLogin">
+                            <span>Back to sign in</span>
+                        </button>
+                    </div>
+                }
+
+            </section>
+        </div>
+    </div>
+
+</div>
+
+@code {
+    [Parameter] public string? Token { get; set; }
+
+    bool IsLoading = true;
+    bool Confirmed;
+    bool AlreadyConfirmed;
+    string Username = string.Empty;
+    string ErrorMessage = string.Empty;
+
+    // ── Per-LGU branding (defaults are Cantilan's, so the default LGU is unchanged) ──
+    const string DefaultSealPath = "/images/LGU_CANTILAN_LOGO.jpg";
+    const string NeutralSealPath = "/images/stalltrack-seal.png";
+    string SealPath = DefaultSealPath;
+    string MunicipalityName = "Cantilan";
+    string OfficeAcronym = "EEMO";
+    string OfficeName = "Economic Enterprise and Management Office";
+    bool _isDefaultBrand = true;
+    string LguParam = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("lgu", out var lguValues))
+        {
+            var lgu = lguValues.ToString().Trim();
+            if (!string.IsNullOrEmpty(lgu))
+            {
+                LguParam = lgu;
+                try
+                {
+                    var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(lgu);
+                    if (branding.IsSuccess && branding.Value is not null)
+                        ApplyBranding(branding.Value);
+                }
+                catch { /* keep default branding — never block confirmation */ }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            IsLoading = false;
+            return;
+        }
+
+        try
+        {
+            var result = await AuthApi.VerifyEmailAsync(new VerifyEmailCommand(Token!));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                Confirmed = true;
+                AlreadyConfirmed = result.Value.AlreadyVerified;
+                Username = result.Value.Username;
+                // Prefer the account's own office/LGU (the token identifies it) over the query string.
+                if (!string.IsNullOrWhiteSpace(result.Value.Municipality))
+                    MunicipalityName = result.Value.Municipality!;
+                if (!string.IsNullOrWhiteSpace(result.Value.OfficeAcronym))
+                    OfficeAcronym = result.Value.OfficeAcronym!;
+            }
+            else
+            {
+                ErrorMessage = result.Error ?? string.Empty;
+            }
+        }
+        catch
+        {
+            ErrorMessage = "We couldn't confirm your email right now. Please try the link again.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    void ApplyBranding(MunicipalityBrandingDto b)
+    {
+        var isCantilan = string.Equals(b.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase);
+        _isDefaultBrand = isCantilan;
+        SealPath = !string.IsNullOrWhiteSpace(b.SealPath) ? b.SealPath!
+            : isCantilan ? DefaultSealPath : NeutralSealPath;
+        MunicipalityName = string.IsNullOrWhiteSpace(b.Name) ? "Cantilan" : b.Name;
+        OfficeAcronym = !string.IsNullOrWhiteSpace(b.OfficeAcronym) ? b.OfficeAcronym!
+            : isCantilan ? "EEMO" : MunicipalityName;
+        OfficeName = string.IsNullOrWhiteSpace(b.OfficeName) ? "Economic Enterprise and Management Office" : b.OfficeName;
+    }
+
+    void GoToLogin() =>
+        Navigation.NavigateTo(string.IsNullOrEmpty(LguParam) ? "/login" : $"/login?lgu={Uri.EscapeDataString(LguParam)}");
+}

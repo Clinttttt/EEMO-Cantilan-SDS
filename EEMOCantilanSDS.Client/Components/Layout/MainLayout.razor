@@ -57,7 +57,8 @@ else
         .Contains("/activate") && !path
         .Contains("/payor") && !path
         .Contains("/forgot-password") && !path
-        .Contains("/reset-password");
+        .Contains("/reset-password") && !path
+        .Contains("/verify-email");
     
     }
     public void Dispose()

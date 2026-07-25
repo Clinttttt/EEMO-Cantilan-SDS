@@ -47,6 +47,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
        string? email,
        string updatedBy)
         {
+            // A replaced address is unproven — clear the verified flag (see BaseUser.OnEmailChanged).
+            if (!string.Equals(Email, email, StringComparison.OrdinalIgnoreCase))
+                OnEmailChanged();
+
             FullName = fullName;
             ContactNumber = contactNumber;
             Email = email;

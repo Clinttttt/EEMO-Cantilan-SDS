@@ -23,4 +23,7 @@ public class AdminsApiClient(HttpClient http) : HandleResponse(http), IAdminsApi
 
     public async Task<Result<bool>> ResetAdminPasswordAsync(Guid id, string newPassword, string confirmPassword) =>
         await UpdateAsync<ResetPasswordRequest, bool>($"api/Admins/{id}/reset-password", new ResetPasswordRequest(newPassword, confirmPassword));
+
+    public async Task<Result<bool>> SendAdminEmailVerificationAsync(Guid id) =>
+        await PostAsync<object, bool>($"api/Admins/{id}/send-email-verification", new { });
 }

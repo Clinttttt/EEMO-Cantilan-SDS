@@ -14,6 +14,10 @@ namespace EEMOCantilanSDS.Testing;
 
 public class AdminCommandHandlerTests
 {
+    // Email confirmation is a best-effort side-effect of create/update; these tests don't assert on it.
+    private static readonly IEmailVerificationSender NoOpVerificationSender =
+        Mock.Of<IEmailVerificationSender>();
+
     private static AdminUser NewAdmin(AdminRole role = AdminRole.Admin) =>
         AdminUser.Create("Old Name", "olduser", "old@eemo.gov", "Secret123!", role);
 
@@ -42,7 +46,8 @@ public class AdminCommandHandlerTests
             repo.Object,
             uow.Object,
             cacheInvalidator.Object,
-            tenantContext.Object);
+            tenantContext.Object,
+            NoOpVerificationSender);
 
         var result = await handler.Handle(
             new CreateAdminCommand("Maria Santos", "maria", "maria@eemo.gov", "Secret123!", AdminRole.Admin),
@@ -149,7 +154,8 @@ public class AdminCommandHandlerTests
             user.Object,
             uow.Object,
             CacheTestDoubles.Invalidator,
-            CacheTestDoubles.Tenant);
+            CacheTestDoubles.Tenant,
+            NoOpVerificationSender);
 
         var result = await handler.Handle(
             new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),
@@ -171,7 +177,8 @@ public class AdminCommandHandlerTests
             user.Object,
             uow.Object,
             CacheTestDoubles.Invalidator,
-            CacheTestDoubles.Tenant);
+            CacheTestDoubles.Tenant,
+            NoOpVerificationSender);
 
         var result = await handler.Handle(
             new UpdateAdminCommand(admin.Id, "New Name", "olduser", "new@eemo.gov", AdminRole.Admin),

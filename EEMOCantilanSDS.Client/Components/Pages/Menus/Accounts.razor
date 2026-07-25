@@ -127,6 +127,14 @@
         </div>
     }
 
+    @if (VerificationNotice is not null)
+    {
+        <div class="acct-notice">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /><path d="m9 13 2 2 4-4" /></svg>
+            @VerificationNotice
+        </div>
+    }
+
     @if (ActiveTab == "Admins")
     {
         <!-- ADMINISTRATORS -->
@@ -229,6 +237,16 @@
                                                     Reset pending
                                                 </span>
                                             }
+                                            @if (!a.EmailVerified)
+                                            {
+                                                @* An unconfirmed address cannot receive password-reset links, so this
+                                                   account can only be recovered by the Head. Surfaced so a typo or a
+                                                   missed confirmation email is visible instead of silently blocking. *@
+                                                <span class="acct-flag" title="Email not confirmed — this account cannot use 'Forgot password' until the address is confirmed. Use the Send confirmation action.">
+                                                    <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+                                                    Email unconfirmed
+                                                </span>
+                                            }
                                         </div>
                                     </td>
                                     <td class="cell-login"><span class="acct-meta">@(a.LastLoginAt?.ToString("MMM d, yyyy") ?? "Never")</span></td>
@@ -243,6 +261,14 @@
                                             <button class="action-btn" title="Reset Password" @onclick="() => OpenResetPassword(a.Id, a.FullName, false)">
                                                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                                             </button>
+                                            @if (!a.EmailVerified)
+                                            {
+                                                <button class="action-btn" title="Send email confirmation link (lets this admin reset their own password)"
+                                                        disabled="@(_sendingVerificationFor == a.Id)"
+                                                        @onclick="() => SendEmailVerification(a.Id)">
+                                                    <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /><path d="m9 13 2 2 4-4" /></svg>
+                                                </button>
+                                            }
                                             <button class="action-btn @(a.IsActive ? "action-danger" : "action-success")"
                                                     title="@(a.IsActive ? "Deactivate" : "Activate")"
                                                     @onclick="() => OpenToggle(a.Id, a.FullName, a.IsActive, false)">
@@ -844,6 +870,42 @@
         || a.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
         || a.Username.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
         || a.Email.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+
+    // ── Email confirmation ───────────────────────────────────────────────
+    // Confirming an admin's address is what lets them use "Forgot password" later; until then only the Head
+    // can restore their access. This re-sends that one-time link (e.g. the first email was missed, or the
+    // account predates email confirmation).
+    private Guid? _sendingVerificationFor;
+
+    private async Task SendEmailVerification(Guid adminId)
+    {
+        if (_sendingVerificationFor is not null) return;
+
+        _sendingVerificationFor = adminId;
+        LoadError = null;
+        VerificationNotice = null;
+        StateHasChanged();
+        try
+        {
+            var result = await AdminsApi.SendAdminEmailVerificationAsync(adminId);
+            if (result.IsSuccess)
+                VerificationNotice = "Confirmation email sent. The admin must open the link to confirm their address.";
+            else
+                LoadError = result.Error ?? "We couldn't send the confirmation email.";
+        }
+        catch
+        {
+            LoadError = "We couldn't send the confirmation email. Please try again.";
+        }
+        finally
+        {
+            _sendingVerificationFor = null;
+            await LoadAll();          // refresh so the flag clears once confirmed
+            StateHasChanged();
+        }
+    }
+
+    private string? VerificationNotice;
 
     private IEnumerable<CollectorListDto> FilteredCollectors => (Collectors ?? new()).Where(c =>
         string.IsNullOrWhiteSpace(SearchQuery)

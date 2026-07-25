@@ -46,11 +46,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
 
         /// <summary>
         /// True once the account's email address has been proven to be reachable and owned by the user —
-        /// set when they complete activation through the emailed one-time link. Only a verified address is
-        /// eligible for self-service password reset, so an unconfirmed (possibly mistyped) address can
-        /// never be used to take over an account.
+        /// set when they complete activation through the emailed one-time link, or when they confirm an
+        /// emailed verification link. Only a verified address is eligible for self-service password reset,
+        /// so an unconfirmed (possibly mistyped) address can never be used to take over an account.
         /// </summary>
         public bool EmailVerified { get; protected set; }
+
+        // One-time EMAIL-VERIFICATION token (hashed at rest). Issued when an account is created with an
+        // address, or whenever that address changes, so the address can be proven without granting any
+        // other capability: confirming it ONLY sets EmailVerified.
+        public string? EmailVerificationTokenHash { get; protected set; }
+        public DateTime? EmailVerificationTokenExpiry { get; protected set; }
 
         public void SetRefreshToken(string token, DateTime expiry)
         {
@@ -138,6 +144,56 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             if (EmailVerified) return;
             EmailVerified = true;
             UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Stamps a one-time email-verification token (store the HASH, never the raw token). Issuing a new
+        /// token invalidates any previous one.
+        /// </summary>
+        public void SetEmailVerificationToken(string tokenHash, DateTime expiry)
+        {
+            EmailVerificationTokenHash = tokenHash;
+            EmailVerificationTokenExpiry = expiry;
+        }
+
+        /// <summary>
+        /// True when the supplied token hash matches an unexpired email-verification token. Fixed-time
+        /// comparison so the token cannot be recovered by timing the response.
+        /// </summary>
+        public bool IsEmailVerificationTokenValid(string tokenHash)
+        {
+            if (string.IsNullOrEmpty(EmailVerificationTokenHash) || string.IsNullOrEmpty(tokenHash))
+                return false;
+            if (!EmailVerificationTokenExpiry.HasValue || EmailVerificationTokenExpiry.Value <= DateTime.UtcNow)
+                return false;
+
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(EmailVerificationTokenHash),
+                Encoding.UTF8.GetBytes(tokenHash));
+        }
+
+        /// <summary>
+        /// Confirms the email address via its one-time link: marks it verified and consumes the token.
+        /// Grants nothing else — it never activates an account or changes a password.
+        /// </summary>
+        public void ConfirmEmail()
+        {
+            EmailVerified = true;
+            EmailVerificationTokenHash = null;
+            EmailVerificationTokenExpiry = null;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Called when the account's email address is replaced: the new address has NOT been proven, so the
+        /// verified flag is cleared (otherwise a changed address would inherit the old one's trust and could
+        /// be used to receive password-reset links). Any outstanding verification token is invalidated too.
+        /// </summary>
+        protected void OnEmailChanged()
+        {
+            EmailVerified = false;
+            EmailVerificationTokenHash = null;
+            EmailVerificationTokenExpiry = null;
         }
 
         /// <summary>Sets the account's sign-in username (chosen by the user at activation). Caller

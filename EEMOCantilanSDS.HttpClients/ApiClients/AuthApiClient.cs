@@ -1,9 +1,11 @@
 ﻿using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Domain.Common;
 
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
@@ -24,4 +26,10 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
 
     public async Task<Result<bool>> ResetPasswordByTokenAsync(ResetPasswordByTokenCommand command) =>
         await PostAsync<ResetPasswordByTokenCommand, bool>("api/AdminAuth/reset-password", command);
+
+    public async Task<Result<TokenAccountContextDto>> GetPasswordResetContextAsync(string token) =>
+        await GetAsync<TokenAccountContextDto>($"api/AdminAuth/reset-context/{Uri.EscapeDataString(token)}");
+
+    public async Task<Result<VerifiedAccountDto>> VerifyEmailAsync(VerifyEmailCommand command) =>
+        await PostAsync<VerifyEmailCommand, VerifiedAccountDto>("api/AdminAuth/verify-email", command);
 }

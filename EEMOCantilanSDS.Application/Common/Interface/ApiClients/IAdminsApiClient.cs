@@ -12,4 +12,7 @@ public interface IAdminsApiClient
     Task<Result<bool>> UpdateAdminAsync(UpdateAdminCommand command);
     Task<Result<bool>> ToggleAdminStatusAsync(Guid id, bool isActive);
     Task<Result<bool>> ResetAdminPasswordAsync(Guid id, string newPassword, string confirmPassword);
+
+    /// <summary>(Re)sends the admin's email-confirmation link (Head action).</summary>
+    Task<Result<bool>> SendAdminEmailVerificationAsync(Guid id);
 }

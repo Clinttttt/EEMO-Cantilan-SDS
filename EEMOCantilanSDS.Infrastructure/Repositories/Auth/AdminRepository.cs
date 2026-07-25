@@ -29,7 +29,8 @@ public class AdminRepository(AppDbContext context) : IAdminRepository
                 a.IsActive,
                 a.MustChangePassword,
                 a.LastLoginAt,
-                a.CreatedAt))
+                a.CreatedAt,
+                a.EmailVerified))
             .ToListAsync(cancellationToken);
     }
 

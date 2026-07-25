@@ -1305,3 +1305,29 @@
     .vs-hero-sub2 { display: none; }
 }
 
+
+/* Confirmation-email sent notice (informational, not an error). */
+.acct-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1rem;
+    padding: 10px 14px;
+    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
+    border-radius: 9px;
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.acct-notice svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}

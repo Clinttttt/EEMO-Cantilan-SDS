@@ -2,6 +2,9 @@ using EEMOCantilanSDS.Api.Extensions;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
+using EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext;
+using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
 using EEMOCantilanSDS.Application.Command.Auth.Logout;
 using EEMOCantilanSDS.Application.Dtos;
@@ -78,6 +81,33 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     [EnableRateLimiting("auth")]
     [HttpPost("reset-password")]
     public async Task<ActionResult<bool>> ResetPasswordAsync([FromBody] ResetPasswordByTokenCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Resolves which account a password-reset token belongs to, so the reset page can state the username,
+    /// office and municipality before a new password is set (one mailbox can hold links for several LGUs).
+    /// Anonymous (the token is the credential) and rate-limited; generic failure for any bad token.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpGet("reset-context/{token}")]
+    public async Task<ActionResult<TokenAccountContextDto>> GetResetContextAsync(string token)
+    {
+        var result = await Sender.Send(new GetPasswordResetContextQuery(token));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Confirms an email address via its one-time link. Anonymous (the token is the credential) and
+    /// rate-limited. Confirming only marks the address verified — it grants no session or other capability.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("verify-email")]
+    public async Task<ActionResult<VerifiedAccountDto>> VerifyEmailAsync([FromBody] VerifyEmailCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

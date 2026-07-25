@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
 using EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
+using EEMOCantilanSDS.Application.Command.Admins.SendAdminEmailVerification;
 using EEMOCantilanSDS.Application.Command.Admins.ToggleAdminStatus;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 using EEMOCantilanSDS.Application.Dtos;
@@ -25,6 +26,17 @@ public class AdminsController : ApiBaseController
     public async Task<ActionResult<IReadOnlyList<AdminListDto>>> GetAllAdminsAsync()
     {
         var result = await Sender.Send(new GetAllAdminsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// (Re)sends an admin's email-confirmation link. Confirming the address is what lets that admin reset
+    /// their own password later, so this is the Head's remedy when the first message was missed.
+    /// </summary>
+    [HttpPost("{id:guid}/send-email-verification")]
+    public async Task<ActionResult<bool>> SendEmailVerificationAsync(Guid id)
+    {
+        var result = await Sender.Send(new SendAdminEmailVerificationCommand(id));
         return HandleResponse(result);
     }
 

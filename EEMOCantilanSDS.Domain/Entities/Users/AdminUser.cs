@@ -45,6 +45,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
         public void UpdateProfile(string fullName, string username, string email, string updatedBy)
         {
+            // A replaced address is unproven: clear the verified flag (and any pending token) so it cannot
+            // inherit the previous address's trust and start receiving password-reset links.
+            if (!string.Equals(Email, email, StringComparison.OrdinalIgnoreCase))
+                OnEmailChanged();
+
             FullName = fullName;
             Username = username;
             Email = email;
