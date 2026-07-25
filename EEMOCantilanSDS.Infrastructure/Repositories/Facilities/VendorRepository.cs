@@ -58,10 +58,20 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
             return payment?.Status == PaymentStatus.Paid;
         });
 
+        // A partially-paid stall still owes a balance, so it is NOT counted as "paid this month".
+        // It folds into the unpaid bucket — which keeps (paid + unpaid) == monthly billable as an
+        // invariant and aligns with TotalOutstanding, which already carries its remaining balance.
+        // PartialCount is surfaced separately for transparency (0 for Cantilan today).
+        var partialCount = monthlyStalls.Count(s =>
+        {
+            var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
+            return payment?.Status == PaymentStatus.Partial;
+        });
+
         var unpaidCount = monthlyStalls.Count(s =>
         {
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
-            return payment == null || payment.Status == PaymentStatus.Unpaid;
+            return payment == null || payment.Status == PaymentStatus.Unpaid || payment.Status == PaymentStatus.Partial;
         });
 
         var totalOutstanding = monthlyStalls.Sum(s =>
@@ -111,6 +121,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
             monthlyStalls.Count,
             paidCount,
             unpaidCount,
+            partialCount,
             totalOutstanding,
             monthlyTarget,
             vendors

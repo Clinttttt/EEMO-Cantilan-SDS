@@ -65,7 +65,7 @@
                         <div class="vs-hero-stat">
                             <div class="vs-hero-val">@(RegistryData?.UnpaidCount ?? 0)</div>
                             <div class="vs-hero-key">Unpaid</div>
-                            <div class="vs-hero-sub2">@((RegistryData?.TotalOutstanding ?? 0).ToString("N0")) outstanding</div>
+                            <div class="vs-hero-sub2">@((RegistryData?.TotalOutstanding ?? 0).ToString("N0")) outstanding@(RegistryData is { PartialCount: > 0 } ? $" · {RegistryData.PartialCount} partial" : "")</div>
                         </div>
                         <div class="vs-hero-divider"></div>
                         <div class="vs-hero-stat">

@@ -7,6 +7,7 @@ public sealed record VendorRegistryDto(
     int MonthlyBillableVendors,
     int PaidThisMonth,
     int UnpaidCount,
+    int PartialCount,
     decimal TotalOutstanding,
     decimal MonthlyTarget,
     IReadOnlyList<VendorListItemDto> Vendors
