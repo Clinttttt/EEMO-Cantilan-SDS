@@ -1033,6 +1033,30 @@
     background: var(--border);
 }
 
+/* Right-side coverage note in the scope card ("N facilities · mixed collection cycles"). The check icon
+   had no size rule, so the 24×24 SVG rendered unconstrained (huge) and blew out the hero — constrain it. */
+.rpt-scope-coverage {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+    .rpt-scope-coverage svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        stroke: var(--green);
+        fill: none;
+    }
+
+    .rpt-scope-coverage strong {
+        color: var(--navy);
+        font-weight: 700;
+    }
+
 
 
 /* Export note ties controls to scope */
