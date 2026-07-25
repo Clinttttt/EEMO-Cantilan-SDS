@@ -69,6 +69,14 @@
                     <button class="ca-search-clear" type="button" @onclick="@(() => _search = "")" aria-label="Clear search">&times;</button>
                 }
             </div>
+            @if (ExpiredInView > 0)
+            {
+                <button class="ca-renew-all-btn no-print" type="button" @onclick="OpenRenewAll"
+                        title="Start a new contract term for every expired account currently listed">
+                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                    Renew all (@ExpiredInView)
+                </button>
+            }
             <button class="ca-print-btn" type="button" @onclick="Print">
                 <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                 Print
@@ -361,6 +369,43 @@
     </div>
 }
 
+@* ── Renew all (bulk) confirm modal ── *@
+@if (_renewAllOpen)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew all expired accounts</div></div>
+            <div class="eemo-modal-body">
+                <p class="confirm-text">
+                    Start a new contract term for <strong>@_renewAllTargets.Count expired account@(_renewAllTargets.Count != 1 ? "s" : "")</strong>@(_facility is null ? "" : " in this facility") — beginning
+                    <strong>@_renewAllEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@_renewAllDuration year(s)</strong>.
+                    Each keeps its own occupant and contract name. The lapsed period is not back-billed.
+                </p>
+                <div class="ca-form">
+                    <label>Start date
+                        <input type="date" @bind="_renewAllEffectivity" />
+                    </label>
+                    <label>Duration (years)
+                        <input type="number" min="1" max="50" @bind="_renewAllDuration" />
+                    </label>
+                </div>
+                @if (_renewAllProgress is not null)
+                {
+                    <p class="confirm-text">@_renewAllProgress</p>
+                }
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmRenewAll" disabled="@_busy">@(_busy ? "Working…" : $"Renew {_renewAllTargets.Count}")</button>
+            </div>
+        </div>
+    </div>
+}
+
 @* ── Remove confirm modal (SuperAdmin) ── *@
 @if (_removeTarget is not null)
 {
@@ -422,6 +467,16 @@
     private string? _renewName;
     private bool _busy;
     private string? _actionError;
+
+    // ── Renew all (bulk renew of the expired accounts currently in view) ──
+    private bool _renewAllOpen;
+    private DateOnly _renewAllEffectivity;
+    private int _renewAllDuration = 3;
+    private List<ClosedStallAccountDto> _renewAllTargets = new();
+    private string? _renewAllProgress;
+
+    // Expired accounts in the current filtered view (the ones the "Renew" row action applies to).
+    private int ExpiredInView => Filtered().Count(r => r.State == InactiveAccountState.Expired);
 
     protected override async Task OnInitializedAsync()
     {
@@ -528,12 +583,63 @@
         else _actionError = result.Error ?? "Failed to renew the contract.";
     }
 
+    // ── Renew all (bulk) ──
+    private void OpenRenewAll()
+    {
+        _renewAllTargets = Filtered().Where(r => r.State == InactiveAccountState.Expired).ToList();
+        _renewAllEffectivity = PhilippineTime.Today;   // fresh start today; the lapsed gap is never back-billed
+        _renewAllDuration = 3;
+        _renewAllProgress = null;
+        _actionError = null;
+        _renewAllOpen = true;
+    }
+
+    private async Task ConfirmRenewAll()
+    {
+        if (_renewAllTargets.Count == 0) { CloseModals(); return; }
+        if (_renewAllDuration < 1) { _actionError = "Duration must be at least 1 year."; return; }
+
+        _busy = true;
+        _actionError = null;
+        var ok = 0;
+        var failed = 0;
+        // Each account keeps its own occupant + contract name; only the (common) start date + term are applied.
+        foreach (var r in _renewAllTargets)
+        {
+            _renewAllProgress = $"Renewing {ok + failed + 1} of {_renewAllTargets.Count}…";
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                var req = new RenewStallContractRequest(_renewAllEffectivity, _renewAllDuration, r.Occupant, r.ContractName);
+                var res = await StallsApi.RenewStallContractAsync(r.StallId, req);
+                if (res.IsSuccess) ok++; else failed++;
+            }
+            catch { failed++; }
+        }
+        _busy = false;
+
+        if (failed == 0)
+        {
+            CloseModals();
+            await Load();
+        }
+        else
+        {
+            _actionError = $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
+            await Load();   // refresh so the successfully-renewed rows drop off the list
+            _renewAllTargets = Filtered().Where(r => r.State == InactiveAccountState.Expired).ToList();
+            _renewAllProgress = null;
+        }
+    }
+
     private void CloseModals()
     {
         _reopenTarget = null;
         _renewTarget = null;
         _removeTarget = null;
         _renewEditing = false;
+        _renewAllOpen = false;
+        _renewAllProgress = null;
         _actionError = null;
     }
 
