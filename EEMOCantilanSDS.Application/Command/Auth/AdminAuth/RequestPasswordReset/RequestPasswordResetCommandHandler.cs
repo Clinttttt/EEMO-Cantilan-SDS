@@ -1,4 +1,7 @@
 using System;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -39,6 +42,12 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
         /// <summary>Minimum gap between reset emails for the same account (anti mail-bombing).</summary>
         private const int RequestThrottleMinutes = 2;
 
+        /// <summary>
+        /// Safety cap on how many accounts one request may serve. The same address can legitimately be
+        /// registered in a few LGUs; this bounds the work (and the emails) if it is ever registered in many.
+        /// </summary>
+        private const int MaxAccountsPerRequest = 5;
+
         public async Task<Result<bool>> Handle(RequestPasswordResetCommand request, CancellationToken ct)
         {
             // Every exit path below returns this identical result. Do not add a distinguishing failure.
@@ -69,25 +78,58 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
                 query = query.Where(u => u.MunicipalityId == mid);
 
             // Matched on the registered EMAIL only — the reset link can only be delivered there.
-            var user = await query.FirstOrDefaultAsync(
-                u => u.Email != null && u.Email.ToLower() == lowered, ct);
-
-            // Silent no-ops: unknown account, disabled account, missing/unverified email. An unverified
-            // address is not proof of ownership, so it is never eligible; those users are reset by their Head.
-            if (user is null || !user.IsActive || !user.EmailVerified || string.IsNullOrWhiteSpace(user.Email))
-                return neutral;
+            //
+            // IMPORTANT (multi-tenant): email uniqueness is per-LGU (UNIQUE MunicipalityId+Email), so the
+            // SAME address can legitimately be registered in several municipalities. When the request is not
+            // scoped to one LGU we must therefore NOT pick an arbitrary match — doing so silently reset a
+            // different municipality's account than the one the user meant. Every eligible match gets its
+            // own single-use link instead, and each email names its LGU and username so the owner can tell
+            // them apart. A scoped request (?lgu=) still resolves exactly one account.
+            var candidates = await query
+                .Where(u => u.Email != null && u.Email.ToLower() == lowered)
+                .OrderBy(u => u.CreatedAt)
+                .Take(MaxAccountsPerRequest)
+                .ToListAsync(ct);
 
             var now = DateTime.UtcNow;
-            if (user.PasswordResetRequestedAt is { } last
-                && last.AddMinutes(RequestThrottleMinutes) > now)
-                return neutral;   // already emailed a link moments ago
 
-            var (rawToken, tokenHash) = GenerateResetToken();
-            user.SetPasswordResetToken(tokenHash, now.AddMinutes(TokenLifetimeMinutes), now);
+            // Silent no-ops: unknown address, disabled account, missing/unverified email. An unverified
+            // address is not proof of ownership, so it is never eligible; those users are reset by their Head.
+            // A per-account throttle keeps a known address from being flooded.
+            var eligible = candidates
+                .Where(u => u.IsActive
+                            && u.EmailVerified
+                            && !string.IsNullOrWhiteSpace(u.Email)
+                            && (u.PasswordResetRequestedAt is not { } last
+                                || last.AddMinutes(RequestThrottleMinutes) <= now))
+                .ToList();
+
+            if (eligible.Count == 0)
+                return neutral;
+
+            // Issue every token first, then persist once, so a partial failure cannot leave some accounts
+            // with a token the owner never received a link for.
+            var issued = new List<(BaseUser User, string RawToken)>(eligible.Count);
+            foreach (var account in eligible)
+            {
+                var (rawToken, tokenHash) = GenerateResetToken();
+                account.SetPasswordResetToken(tokenHash, now.AddMinutes(TokenLifetimeMinutes), now);
+                issued.Add((account, rawToken));
+            }
             await context.SaveChangesAsync(ct);
 
-            // Per-LGU branding: address the user by their own municipality/office, falling back to the
-            // platform name so an unresolved tenant still sends a sensible email.
+            foreach (var (account, rawToken) in issued)
+                await SendResetEmailAsync(account, rawToken, ct);
+
+            return neutral;
+        }
+
+        /// <summary>
+        /// Sends one account's reset link, branded with that account's own municipality/office so a user
+        /// whose address serves several LGUs can tell the links apart.
+        /// </summary>
+        private async Task SendResetEmailAsync(BaseUser user, string rawToken, CancellationToken ct)
+        {
             var municipalityRow = await context.Municipalities
                 .IgnoreQueryFilters()
                 .Where(m => m.Id == user.MunicipalityId)
@@ -114,8 +156,6 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
             // Best-effort: SendAsync never throws and no-ops when SMTP is unconfigured, so an email outage
             // cannot turn into a failed request that would reveal whether the account exists.
             await emailSender.SendAsync(user.Email!, user.FullName, $"{officeName} StallTrack — password reset", body, ct);
-
-            return neutral;
         }
 
         // A url-safe, cryptographically-random one-time token; only its SHA-256 hash is stored.

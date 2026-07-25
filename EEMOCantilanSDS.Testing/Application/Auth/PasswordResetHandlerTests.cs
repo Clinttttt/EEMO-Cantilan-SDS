@@ -141,6 +141,50 @@ public class PasswordResetHandlerTests
         Assert.Equal(0, email.SendCount);            // and nothing emailed
     }
 
+    /// <summary>
+    /// Regression: email uniqueness is per-LGU, so the SAME address can be registered in several
+    /// municipalities. An UNSCOPED request (plain /forgot-password, no ?lgu=) must not silently pick one
+    /// arbitrary account — that reset a different LGU's account than the user meant, leaving their own
+    /// password unchanged ("invalid username or password" on the next sign-in). Every eligible match now
+    /// gets its own single-use link, each email naming its own LGU and username.
+    /// </summary>
+    [Fact]
+    public async Task Request_Unscoped_SharedEmailAcrossLgus_IssuesALinkForEveryAccount()
+    {
+        var options = Options();
+        Guid cantilanId, carmenId;
+
+        using (var seed = new AppDbContext(options))
+        {
+            var cantilan = AdminUser.Create("Cantilan Head", "head2", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            cantilan.MarkEmailVerified();
+            var carmen = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            carmen.MarkEmailVerified();
+            seed.AdminUsers.AddRange(cantilan, carmen);
+            await seed.SaveChangesAsync();
+            cantilanId = cantilan.Id;
+            carmenId = carmen.Id;
+        }
+
+        var email = new RecordingEmailSender();
+        using (var ctx = new AppDbContext(options))
+        {
+            // No municipality code — exactly the plain /forgot-password case.
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("shared@lgu.gov.ph"), default);
+            Assert.True(result.IsSuccess);
+        }
+
+        using var verify = new AppDbContext(options);
+        var a = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == cantilanId);
+        var b = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == carmenId);
+
+        // BOTH accounts get their own token — neither is silently skipped, and the tokens differ.
+        Assert.False(string.IsNullOrEmpty(a.PasswordResetTokenHash));
+        Assert.False(string.IsNullOrEmpty(b.PasswordResetTokenHash));
+        Assert.NotEqual(a.PasswordResetTokenHash, b.PasswordResetTokenHash);
+        Assert.Equal(2, email.SendCount);
+    }
+
     // ── Request: enumeration-safety & eligibility ────────────────────────────────────────────────
 
     [Fact]
