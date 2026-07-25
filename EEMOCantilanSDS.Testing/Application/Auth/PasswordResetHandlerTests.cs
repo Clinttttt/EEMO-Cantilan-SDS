@@ -86,7 +86,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head@eemo.gov.ph"), default);
             Assert.True(result.IsSuccess);
         }
 
@@ -103,7 +103,7 @@ public class PasswordResetHandlerTests
     }
 
     [Fact]
-    public async Task Request_MatchesByEmailAddress_Too()
+    public async Task Request_EmailMatchIsCaseInsensitive()
     {
         var options = Options();
         var (id, _) = await SeedVerifiedAdminAsync(options);
@@ -118,6 +118,29 @@ public class PasswordResetHandlerTests
         Assert.Equal(1, email.SendCount);
     }
 
+    /// <summary>
+    /// Recovery is EMAIL-only: a username is not an accepted identifier, so it can never be used as a
+    /// username→mailbox oracle. The response stays the same neutral success.
+    /// </summary>
+    [Fact]
+    public async Task Request_UsernameIsNotAccepted_OnlyEmail()
+    {
+        var options = Options();
+        var (id, _) = await SeedVerifiedAdminAsync(options, username: "head", email: "head@eemo.gov.ph");
+        var email = new RecordingEmailSender();
+
+        using (var ctx = new AppDbContext(options))
+        {
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            Assert.True(result.IsSuccess);   // still neutral
+        }
+
+        using var verify = new AppDbContext(options);
+        var admin = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
+        Assert.Null(admin.PasswordResetTokenHash);   // no token issued for a username
+        Assert.Equal(0, email.SendCount);            // and nothing emailed
+    }
+
     // ── Request: enumeration-safety & eligibility ────────────────────────────────────────────────
 
     [Fact]
@@ -129,7 +152,7 @@ public class PasswordResetHandlerTests
 
         using var ctx = new AppDbContext(options);
         var result = await RequestHandler(ctx, email)
-            .Handle(new RequestPasswordResetCommand("does-not-exist"), default);
+            .Handle(new RequestPasswordResetCommand("nobody@nowhere.gov.ph"), default);
 
         // Identical to the happy path — the caller cannot tell whether the account exists.
         Assert.True(result.IsSuccess);
@@ -145,7 +168,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head@eemo.gov.ph"), default);
             Assert.True(result.IsSuccess);
         }
 
@@ -164,7 +187,7 @@ public class PasswordResetHandlerTests
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head@eemo.gov.ph"), default);
             Assert.True(result.IsSuccess);
         }
 
@@ -183,14 +206,14 @@ public class PasswordResetHandlerTests
 
         string? firstHash;
         using (var ctx = new AppDbContext(options))
-            await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head@eemo.gov.ph"), default);
 
         using (var read = new AppDbContext(options))
             firstHash = (await read.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id)).PasswordResetTokenHash;
 
         using (var ctx = new AppDbContext(options))
         {
-            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head"), default);
+            var result = await RequestHandler(ctx, email).Handle(new RequestPasswordResetCommand("head@eemo.gov.ph"), default);
             Assert.True(result.IsSuccess);   // still neutral
         }
 
@@ -208,13 +231,14 @@ public class PasswordResetHandlerTests
         var options = Options();
         Guid targetId, otherId, targetMunicipalityId;
 
-        // The same username exists in two LGUs — the scoped request must resolve exactly one.
+        // The SAME email address is registered in two LGUs (a shared office mailbox), so only the LGU code
+        // can disambiguate — the scoped request must resolve exactly one account.
         using (var seed = new AppDbContext(options))
         {
             targetMunicipalityId = Guid.NewGuid();
-            var target = AdminUser.Create("Carmen Head", "shared.head", "carmen@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, targetMunicipalityId);
+            var target = AdminUser.Create("Carmen Head", "carmen.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, targetMunicipalityId);
             target.MarkEmailVerified();
-            var other = AdminUser.Create("Cantilan Head", "shared.head", "cantilan@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
+            var other = AdminUser.Create("Cantilan Head", "cantilan.head", "shared@lgu.gov.ph", "OldPass123", AdminRole.SuperAdmin, Guid.NewGuid());
             other.MarkEmailVerified();
             seed.AdminUsers.AddRange(target, other);
             await seed.SaveChangesAsync();
@@ -230,7 +254,7 @@ public class PasswordResetHandlerTests
         using (var ctx = new AppDbContext(options))
         {
             var result = await RequestHandler(ctx, email, carmen)
-                .Handle(new RequestPasswordResetCommand("shared.head", "CARMEN"), default);
+                .Handle(new RequestPasswordResetCommand("shared@lgu.gov.ph", "CARMEN"), default);
             Assert.True(result.IsSuccess);
         }
 
@@ -239,7 +263,7 @@ public class PasswordResetHandlerTests
         var other2 = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == otherId);
         Assert.False(string.IsNullOrEmpty(target2.PasswordResetTokenHash));   // the scoped LGU's account
         Assert.Null(other2.PasswordResetTokenHash);                           // the other LGU untouched
-        Assert.Equal("carmen@lgu.gov.ph", email.LastTo);
+        Assert.Equal("shared@lgu.gov.ph", email.LastTo);
     }
 
     [Fact]
@@ -253,7 +277,7 @@ public class PasswordResetHandlerTests
         {
             // resolved: null => unknown code
             var result = await RequestHandler(ctx, email, resolved: null)
-                .Handle(new RequestPasswordResetCommand("head", "NOPE"), default);
+                .Handle(new RequestPasswordResetCommand("head@eemo.gov.ph", "NOPE"), default);
             Assert.True(result.IsSuccess);
         }
 

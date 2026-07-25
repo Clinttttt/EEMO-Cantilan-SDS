@@ -6,10 +6,11 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
     {
         public RequestPasswordResetCommandValidator()
         {
-            // Only a presence/length check: any further validation (or a "no such account" message) would
-            // leak whether an identifier exists. The handler answers uniformly regardless.
-            RuleFor(x => x.UsernameOrEmail)
-                .NotEmpty().WithMessage("Enter your username or email address.")
+            // Format-only checks. Whether the address belongs to an account is NEVER validated here — that
+            // would leak which addresses exist; the handler answers uniformly either way.
+            RuleFor(x => x.Email)
+                .NotEmpty().WithMessage("Enter the email address on your account.")
+                .EmailAddress().WithMessage("Enter a valid email address.")
                 .MaximumLength(200);
         }
     }

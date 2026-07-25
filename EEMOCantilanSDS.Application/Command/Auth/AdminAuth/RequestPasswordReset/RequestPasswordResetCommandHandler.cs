@@ -44,13 +44,13 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
             // Every exit path below returns this identical result. Do not add a distinguishing failure.
             var neutral = Result<bool>.Success(true);
 
-            var identifier = request.UsernameOrEmail?.Trim();
+            var identifier = request.Email?.Trim();
             if (string.IsNullOrWhiteSpace(identifier))
                 return neutral;
 
             // Per-LGU scoping mirrors LoginCommandHandler: when the caller came through a scoped LGU URL
-            // (?lgu={code}) the lookup is restricted to that municipality, so a username shared across LGUs
-            // resolves to the right tenant. With no code the lookup stays global — unchanged default
+            // (?lgu={code}) the lookup is restricted to that municipality, so the same address reused across
+            // LGUs resolves to the right tenant. With no code the lookup stays global — unchanged default
             // (Cantilan) behaviour. An unknown code returns the same neutral response (no probing).
             Guid? scopeMunicipalityId = null;
             if (!string.IsNullOrWhiteSpace(request.MunicipalityCode))
@@ -68,9 +68,9 @@ namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordRese
             if (scopeMunicipalityId is { } mid)
                 query = query.Where(u => u.MunicipalityId == mid);
 
+            // Matched on the registered EMAIL only — the reset link can only be delivered there.
             var user = await query.FirstOrDefaultAsync(
-                u => (u.Username != null && u.Username.ToLower() == lowered)
-                     || (u.Email != null && u.Email.ToLower() == lowered), ct);
+                u => u.Email != null && u.Email.ToLower() == lowered, ct);
 
             // Silent no-ops: unknown account, disabled account, missing/unverified email. An unverified
             // address is not proof of ownership, so it is never eligible; those users are reset by their Head.
