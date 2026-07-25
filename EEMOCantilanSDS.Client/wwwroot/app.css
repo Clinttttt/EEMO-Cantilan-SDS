@@ -1940,6 +1940,7 @@ a.topbar-admin.account-chip {
    overrides the per-page @page rules that CSS-isolation leaks globally. */
 @media print {
     .sidebar { display: none !important; }
+    .sidebar-hamburger, .sidebar-backdrop { display: none !important; }
     .admin-main { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
     .admin-layout { display: block !important; }
     .no-print { display: none !important; }
