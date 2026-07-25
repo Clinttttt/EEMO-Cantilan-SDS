@@ -94,6 +94,7 @@
     bool IsLoading = true;
     bool Confirmed;
     bool AlreadyConfirmed;
+    bool _confirmAttempted;   // guards against a second confirmation call on re-render
     string Username = string.Empty;
     string ErrorMessage = string.Empty;
 
@@ -126,10 +127,25 @@
                 catch { /* keep default branding — never block confirmation */ }
             }
         }
+    }
+
+    /// <summary>
+    /// The confirmation call runs HERE, not in OnInitializedAsync, and only on the first interactive render.
+    /// OnInitializedAsync executes twice under prerendering (once server-prerendered, once on the circuit),
+    /// which would fire the request twice; OnAfterRender never runs during prerender, so this guarantees a
+    /// single call and the result the user sees is the one that actually happened.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _confirmAttempted)
+            return;
+
+        _confirmAttempted = true;
 
         if (string.IsNullOrWhiteSpace(Token))
         {
             IsLoading = false;
+            StateHasChanged();
             return;
         }
 
@@ -141,7 +157,7 @@
                 Confirmed = true;
                 AlreadyConfirmed = result.Value.AlreadyVerified;
                 Username = result.Value.Username;
-                // Prefer the account's own office/LGU (the token identifies it) over the query string.
+                // The token identifies the tenant authoritatively — prefer it over the query string.
                 if (!string.IsNullOrWhiteSpace(result.Value.Municipality))
                     MunicipalityName = result.Value.Municipality!;
                 if (!string.IsNullOrWhiteSpace(result.Value.OfficeAcronym))
@@ -159,6 +175,7 @@
         finally
         {
             IsLoading = false;
+            StateHasChanged();
         }
     }
 

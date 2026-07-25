@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
@@ -14,6 +15,7 @@ namespace EEMOCantilanSDS.Application.Command.Admins.SendAdminEmailVerification
     public class SendAdminEmailVerificationCommandHandler(
         IAdminRepository adminRepo,
         IEmailVerificationSender verificationSender,
+        ICurrentUserService currentUser,
         IUnitOfWork uow)
         : IRequestHandler<SendAdminEmailVerificationCommand, Result<bool>>
     {
@@ -21,6 +23,10 @@ namespace EEMOCantilanSDS.Application.Command.Admins.SendAdminEmailVerification
         {
             var admin = await adminRepo.GetByIdAsync(request.AdminId, ct);
             if (admin is null) return Result<bool>.NotFound();
+
+            // A Head may not act on a PEER Head's account (only their own, or ordinary Admins).
+            if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
+                return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
             if (string.IsNullOrWhiteSpace(admin.Email))
                 return Result<bool>.Failure("This account has no email address to confirm.");

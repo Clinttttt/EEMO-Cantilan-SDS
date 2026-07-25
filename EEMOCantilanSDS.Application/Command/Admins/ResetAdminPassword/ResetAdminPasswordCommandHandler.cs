@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
@@ -21,6 +22,11 @@ public class ResetAdminPasswordCommandHandler(
 
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
         if (admin is null) return Result<bool>.NotFound();
+
+        // A Head may not reset a PEER Head's password (only their own, or ordinary Admins). Re-authentication
+        // above proves identity; this proves authority over the target.
+        if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
         admin.ResetPassword(request.NewPassword, currentUser.Username ?? "Admin");
 

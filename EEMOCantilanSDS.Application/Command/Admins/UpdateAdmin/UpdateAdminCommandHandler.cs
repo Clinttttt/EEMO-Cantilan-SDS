@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -20,6 +21,10 @@ public class UpdateAdminCommandHandler(
     {
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
         if (admin is null) return Result<bool>.NotFound();
+
+        // A Head may not edit a PEER Head's account (only their own, or ordinary Admins).
+        if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
         // Guard: never demote the last remaining active SuperAdmin (would lock everyone out of
         // account management). This covers demoting yourself or the only other Head.

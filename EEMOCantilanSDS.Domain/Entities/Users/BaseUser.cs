@@ -173,14 +173,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         }
 
         /// <summary>
-        /// Confirms the email address via its one-time link: marks it verified and consumes the token.
-        /// Grants nothing else — it never activates an account or changes a password.
+        /// Confirms the email address via its one-time link: marks it verified. Grants nothing else — it
+        /// never activates an account or changes a password.
+        /// <para>
+        /// The token is deliberately NOT consumed here: it stays usable until it expires (or until the
+        /// address changes, which clears it). Because confirming only sets a flag, replaying the link is
+        /// harmless — and keeping it idempotent means a page refresh, a forwarded copy, or a prerender +
+        /// interactive double-render cannot leave the user staring at "link already used".
+        /// </para>
         /// </summary>
         public void ConfirmEmail()
         {
+            if (EmailVerified) return;      // already confirmed — nothing to change
             EmailVerified = true;
-            EmailVerificationTokenHash = null;
-            EmailVerificationTokenExpiry = null;
             UpdatedAt = DateTime.UtcNow;
         }
 

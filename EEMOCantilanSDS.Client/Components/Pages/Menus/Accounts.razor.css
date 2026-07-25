@@ -188,6 +188,17 @@
         background: var(--border);
     }
 
+    /* Locked actions (a peer Head's account, or deactivating yourself): visibly unavailable rather than
+       silently failing when clicked. Hover is suppressed so it doesn't read as interactive. */
+    .action-btn:disabled {
+        opacity: 0.42;
+        cursor: not-allowed;
+    }
+
+        .action-btn:disabled:hover {
+            background: var(--bg-icon);
+        }
+
     .action-btn svg {
         width: 13px;
         height: 13px;

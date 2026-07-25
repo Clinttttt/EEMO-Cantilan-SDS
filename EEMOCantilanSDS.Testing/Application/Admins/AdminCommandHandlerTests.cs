@@ -102,13 +102,16 @@ public class AdminCommandHandlerTests
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>
+    /// Peer-Head protection: one Head may not deactivate another Head's account. This supersedes the
+    /// "last active Head" check for peer targets — the request is refused before it gets that far.
+    /// </summary>
     [Fact]
-    public async Task Toggle_Deactivate_BlockedForLastSuperAdmin()
+    public async Task Toggle_Deactivate_PeerHead_IsDenied()
     {
         var admin = NewAdmin(AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(admin);
-        user.SetupGet(c => c.UserId).Returns(Guid.NewGuid()); // a different head is acting
-        repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(0);
+        user.SetupGet(c => c.UserId).Returns(Guid.NewGuid()); // a DIFFERENT head is acting
         var handler = new ToggleAdminStatusCommandHandler(
             repo.Object,
             user.Object,
@@ -119,7 +122,28 @@ public class AdminCommandHandlerTests
         var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(403, result.StatusCode);
+        Assert.True(admin.IsActive);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    /// <summary>A Head deactivating their OWN account is still blocked (self-lockout guard).</summary>
+    [Fact]
+    public async Task Toggle_Deactivate_Self_IsBlocked()
+    {
+        var admin = NewAdmin(AdminRole.SuperAdmin);
+        var (repo, user, uow) = Mocks(admin);
+        user.SetupGet(c => c.UserId).Returns(admin.Id);      // acting on self
+        var handler = new ToggleAdminStatusCommandHandler(
+            repo.Object,
+            user.Object,
+            uow.Object,
+            CacheTestDoubles.Invalidator,
+            CacheTestDoubles.Tenant);
+
+        var result = await handler.Handle(new ToggleAdminStatusCommand(admin.Id, Activate: false), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
         Assert.True(admin.IsActive);
     }
 
@@ -148,6 +172,8 @@ public class AdminCommandHandlerTests
     {
         var admin = NewAdmin(AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(admin);
+        // Act as self so this exercises the last-Head rule rather than the peer-Head guard.
+        user.SetupGet(c => c.UserId).Returns(admin.Id);
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(0);
         var handler = new UpdateAdminCommandHandler(
             repo.Object,
@@ -171,6 +197,8 @@ public class AdminCommandHandlerTests
     {
         var admin = NewAdmin(AdminRole.SuperAdmin);
         var (repo, user, uow) = Mocks(admin);
+        // A Head may act on their OWN account, so self-demotion is the legitimate path here.
+        user.SetupGet(c => c.UserId).Returns(admin.Id);
         repo.Setup(r => r.CountOtherActiveSuperAdminsAsync(admin.Id, It.IsAny<CancellationToken>())).ReturnsAsync(1);
         var handler = new UpdateAdminCommandHandler(
             repo.Object,

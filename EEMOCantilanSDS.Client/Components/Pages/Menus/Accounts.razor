@@ -6,8 +6,10 @@
 @using EEMOCantilanSDS.Domain.Entities.Users
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Authorization
+@using System.Security.Claims
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
+@inject AuthenticationStateProvider AuthState
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>@Branding.OfficeAcronym Admin — Accounts</PageTitle>
 
@@ -230,13 +232,6 @@
                                                 <span class="acct-status-dot"></span>
                                                 @(a.IsActive ? "Active" : "Inactive")
                                             </span>
-                                            @if (a.MustChangePassword)
-                                            {
-                                                <span class="acct-flag" title="Must change password on next login">
-                                                    <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
-                                                    Reset pending
-                                                </span>
-                                            }
                                             @if (!a.EmailVerified)
                                             {
                                                 @* An unconfirmed address cannot receive password-reset links, so this
@@ -251,26 +246,33 @@
                                     </td>
                                     <td class="cell-login"><span class="acct-meta">@(a.LastLoginAt?.ToString("MMM d, yyyy") ?? "Never")</span></td>
                                     <td class="col-actions">
+                                        @{
+                                            // Peer Heads are read-only to each other (server-enforced); own account is editable.
+                                            var manageable = CanManageAdmin(a);
+                                            var lockedTitle = manageable ? null : "Locked — another Head's account can only be managed by that Head";
+                                        }
                                         <div class="action-btns">
                                             <button class="action-btn" title="View Profile" @onclick="() => OpenAdminProfile(a)">
                                                 <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                                             </button>
-                                            <button class="action-btn" title="Edit" @onclick="() => OpenEditAdmin(a)">
+                                            <button class="action-btn" title="@(lockedTitle ?? "Edit")" disabled="@(!manageable)" @onclick="() => OpenEditAdmin(a)">
                                                 <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                                             </button>
-                                            <button class="action-btn" title="Reset Password" @onclick="() => OpenResetPassword(a.Id, a.FullName, false)">
+                                            <button class="action-btn" title="@(lockedTitle ?? "Reset Password")" disabled="@(!manageable)" @onclick="() => OpenResetPassword(a.Id, a.FullName, false)">
                                                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                                             </button>
                                             @if (!a.EmailVerified)
                                             {
-                                                <button class="action-btn" title="Send email confirmation link (lets this admin reset their own password)"
-                                                        disabled="@(_sendingVerificationFor == a.Id)"
+                                                <button class="action-btn"
+                                                        title="@(lockedTitle ?? "Send email confirmation link (lets this admin reset their own password)")"
+                                                        disabled="@(!manageable || _sendingVerificationFor == a.Id)"
                                                         @onclick="() => SendEmailVerification(a.Id)">
                                                     <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /><path d="m9 13 2 2 4-4" /></svg>
                                                 </button>
                                             }
                                             <button class="action-btn @(a.IsActive ? "action-danger" : "action-success")"
-                                                    title="@(a.IsActive ? "Deactivate" : "Activate")"
+                                                    title="@(lockedTitle ?? (a.IsActive ? "Deactivate" : "Activate"))"
+                                                    disabled="@(!manageable || IsSelf(a))"
                                                     @onclick="() => OpenToggle(a.Id, a.FullName, a.IsActive, false)">
                                                 @if (a.IsActive)
                                                 {
@@ -846,11 +848,43 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await ResolveCurrentUserAsync();
+
         if (Admins is not null && Collectors is not null)
             return;
 
         await LoadAll();
     }
+
+    // ── Peer-Head protection (mirrors the server-side AdminManagementGuard) ───────────────────────
+    // A municipality can have several Heads. One Head must not manage another Head's account — only their
+    // own, plus ordinary Admin accounts. The server enforces this; the UI disables the buttons so the rule
+    // is visible rather than only discovered on failure.
+    private Guid? _currentUserId;
+
+    private async Task ResolveCurrentUserAsync()
+    {
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var id = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                     ?? state.User.FindFirst("sub")?.Value
+                     ?? state.User.FindFirst("nameid")?.Value;
+            if (Guid.TryParse(id, out var parsed))
+                _currentUserId = parsed;
+        }
+        catch
+        {
+            // Unknown identity → treat every Head row as "not mine" (fail closed, matching the server).
+            _currentUserId = null;
+        }
+    }
+
+    /// <summary>True when the signed-in Head may act on this row (own account, or any non-Head admin).</summary>
+    private bool CanManageAdmin(AdminListDto a) =>
+        a.Role != AdminRole.SuperAdmin || (_currentUserId is { } id && id == a.Id);
+
+    private bool IsSelf(AdminListDto a) => _currentUserId is { } id && id == a.Id;
 
     private async Task LoadAll()
     {
@@ -889,7 +923,7 @@
         {
             var result = await AdminsApi.SendAdminEmailVerificationAsync(adminId);
             if (result.IsSuccess)
-                VerificationNotice = "Confirmation email sent. The admin must open the link to confirm their address.";
+                ShowVerificationNotice("Confirmation email sent. The admin must open the link to confirm their address.");
             else
                 LoadError = result.Error ?? "We couldn't send the confirmation email.";
         }
@@ -906,6 +940,39 @@
     }
 
     private string? VerificationNotice;
+    private CancellationTokenSource? _noticeCts;
+
+    /// <summary>
+    /// Shows a transient confirmation banner that clears itself after a few seconds, so a one-off
+    /// acknowledgement doesn't linger above the roster. Re-arming cancels the previous timer.
+    /// </summary>
+    private void ShowVerificationNotice(string message)
+    {
+        VerificationNotice = message;
+
+        _noticeCts?.Cancel();
+        _noticeCts?.Dispose();
+        var cts = _noticeCts = new CancellationTokenSource();
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3), cts.Token);
+                await InvokeAsync(() =>
+                {
+                    // Only clear if this timer is still the current one (no newer notice took over).
+                    if (!cts.IsCancellationRequested)
+                    {
+                        VerificationNotice = null;
+                        StateHasChanged();
+                    }
+                });
+            }
+            catch (OperationCanceledException) { /* superseded or the page went away */ }
+            catch (ObjectDisposedException) { /* circuit disposed while waiting */ }
+        });
+    }
 
     private IEnumerable<CollectorListDto> FilteredCollectors => (Collectors ?? new()).Where(c =>
         string.IsNullOrWhiteSpace(SearchQuery)

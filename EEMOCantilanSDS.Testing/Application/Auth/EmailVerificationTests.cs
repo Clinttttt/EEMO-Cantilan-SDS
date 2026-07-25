@@ -32,7 +32,7 @@ public class EmailVerificationTests
     // ── Confirming the address ───────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task VerifyEmail_ValidToken_MarksVerified_AndConsumesToken()
+    public async Task VerifyEmail_ValidToken_MarksVerified()
     {
         var options = Options();
         Guid id, municipalityId = Guid.NewGuid();
@@ -61,13 +61,17 @@ public class EmailVerificationTests
         using var verify = new AppDbContext(options);
         var saved = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == id);
         Assert.True(saved.EmailVerified);
-        Assert.Null(saved.EmailVerificationTokenHash);   // single use
-        // Confirming grants nothing else.
+        // Confirming grants nothing else — the password is untouched and the account state is unchanged.
         Assert.True(saved.VerifyPassword("OldPass123"));
     }
 
+    /// <summary>
+    /// The confirmation link is IDEMPOTENT until it expires: opening it twice (a refresh, a forwarded copy,
+    /// or a prerender + interactive double render) must keep succeeding rather than reporting "already used",
+    /// which is safe because confirming only sets a flag. Replays report AlreadyVerified.
+    /// </summary>
     [Fact]
-    public async Task VerifyEmail_TokenCannotBeReused()
+    public async Task VerifyEmail_LinkIsIdempotent_ReplayStillSucceeds()
     {
         var options = Options();
         using (var seed = new AppDbContext(options))
@@ -79,10 +83,31 @@ public class EmailVerificationTests
         }
 
         using (var ctx = new AppDbContext(options))
-            Assert.True((await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default)).IsSuccess);
+        {
+            var first = await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default);
+            Assert.True(first.IsSuccess);
+            Assert.False(first.Value!.AlreadyVerified);
+        }
 
         using (var ctx = new AppDbContext(options))
-            Assert.False((await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default)).IsSuccess);
+        {
+            var second = await new VerifyEmailCommandHandler(ctx).Handle(new VerifyEmailCommand(RawToken), default);
+            Assert.True(second.IsSuccess);                 // no "link already used" dead end
+            Assert.True(second.Value!.AlreadyVerified);
+        }
+    }
+
+    /// <summary>Changing the address invalidates the outstanding link, so an old email cannot confirm a new address.</summary>
+    [Fact]
+    public void ChangingEmail_InvalidatesOutstandingConfirmationLink()
+    {
+        var admin = AdminUser.Create("Head", "head", "old@eemo.gov.ph", "OldPass123", AdminRole.Admin, Guid.NewGuid());
+        admin.SetEmailVerificationToken(Hash(RawToken), DateTime.UtcNow.AddDays(7));
+        Assert.True(admin.IsEmailVerificationTokenValid(Hash(RawToken)));
+
+        admin.UpdateProfile("Head", "head", "new@eemo.gov.ph", "tester");
+
+        Assert.False(admin.IsEmailVerificationTokenValid(Hash(RawToken)));
     }
 
     [Fact]

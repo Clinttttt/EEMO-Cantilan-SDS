@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -19,6 +20,10 @@ public class ToggleAdminStatusCommandHandler(
     {
         var admin = await adminRepo.GetByIdAsync(request.AdminId, cancellationToken);
         if (admin is null) return Result<bool>.NotFound();
+
+        // A Head may not enable/disable a PEER Head's account (only their own, or ordinary Admins).
+        if (!AdminManagementGuard.CanActOn(admin, currentUser.UserId))
+            return Result<bool>.Failure(AdminManagementGuard.PeerHeadDenied, 403);
 
         if (!request.Activate)
         {
