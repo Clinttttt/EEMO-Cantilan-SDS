@@ -1,0 +1,63 @@
+@*
+    Shared pre-login branding panel (left side of the split auth layout).
+
+    Markup is a verbatim copy of the Login page's left panel so the sign-in, forgot-password and
+    reset-password screens are visually identical, and per-LGU consistent:
+
+      • two seals — the LGU's own seal plus the StallTrack mark;
+      • IsDefaultBrand=false adds "setup-left--neutral", which swaps Cantilan's building-photo backdrop
+        for a neutral one (that photo carries "Municipality of Cantilan" signage, so it must never appear
+        behind another municipality's branding);
+      • all copy is driven by the resolved LGU (defaults are Cantilan's, so the default LGU is unchanged).
+
+    The copy is deliberately identical to sign-in ("Secure Access Portal", "Version 1.0") so a user moving
+    between sign-in and account recovery sees one continuous, consistent screen.
+*@
+
+<div class="setup-left @(IsDefaultBrand ? "" : "setup-left--neutral")">
+    <div class="setup-left-inner">
+        <div class="setup-seal government-seals">
+            <div class="government-logo-card">
+                <img src="@SealPath" alt="@MunicipalityName seal" />
+            </div>
+            <div class="government-logo-card stalltrack-logo">
+                <img src="/images/stalltrack-final-logo-transparent.png" alt="StallTrack Seal" />
+            </div>
+        </div>
+        <div class="setup-brand">
+            <div class="setup-brand-label">Republic of the Philippines</div>
+            <div class="setup-brand-city">Municipality of @MunicipalityName</div>
+            <div class="setup-brand-title">@OfficeAcronym</div>
+            <div class="setup-brand-sub">@OfficeName</div>
+        </div>
+        <div class="login-secure-access">
+            <div class="login-secure-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                    <rect x="9" y="10" width="6" height="5" rx="1" />
+                    <path d="M10.5 10V8.5a1.5 1.5 0 013 0V10" />
+                </svg>
+            </div>
+            <div>
+                <div class="login-secure-title">Secure Access Portal</div>
+                <p>This system is for authorized @OfficeAcronym personnel only.</p>
+            </div>
+        </div>
+        <div class="setup-left-footer">
+            <div class="setup-system-name">Revenue Collection System</div>
+            <div class="setup-version">Version 1.0</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Resolved LGU seal (Cantilan's by default; a neutral mark for an LGU without one).</summary>
+    [Parameter] public string SealPath { get; set; } = "/images/LGU_CANTILAN_LOGO.jpg";
+
+    [Parameter] public string MunicipalityName { get; set; } = "Cantilan";
+    [Parameter] public string OfficeAcronym { get; set; } = "EEMO";
+    [Parameter] public string OfficeName { get; set; } = "Economic Enterprise and Management Office";
+
+    /// <summary>True for Cantilan (the default LGU) or before any LGU resolves — keeps its photo backdrop.</summary>
+    [Parameter] public bool IsDefaultBrand { get; set; } = true;
+}
