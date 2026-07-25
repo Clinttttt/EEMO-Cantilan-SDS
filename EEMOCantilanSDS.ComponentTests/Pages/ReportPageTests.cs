@@ -18,6 +18,13 @@ using ReportPage = EEMOCantilanSDS.Client.Components.Pages.Menus.Report;
 /// </summary>
 public class ReportPageTests : TestContext
 {
+    /// <summary>
+    /// bUnit's default WaitForAssertion timeout is 1 second. The page renders its KPIs, table and trend bars
+    /// only after an async API load completes, so on a loaded machine (both test assemblies running at once)
+    /// 1s can elapse before the second render — a false failure. An explicit, generous timeout makes these
+    /// render assertions deterministic without slowing the passing path (they return as soon as they pass).
+    /// </summary>
+    private static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(10);
     private static FinancialReportDto SampleReport() => new(
         PeriodLabel: "March 2026",
         ScopeLabel: "All facilities",
@@ -92,7 +99,7 @@ public class ReportPageTests : TestContext
             Assert.Contains("₱57,400", cut.Markup);                        // Unpaid KPI
             Assert.Contains("81%", cut.Markup);                            // Collection rate
             Assert.Contains("168 of 210", cut.Markup);                     // record completion
-        });
+        }, RenderTimeout);
     }
 
     [Fact]
@@ -107,7 +114,7 @@ public class ReportPageTests : TestContext
             Assert.Contains("Paid on service", cut.Markup);
             // Two trend points → two bar groups.
             Assert.Equal(2, cut.FindAll(".bar-group").Count);
-        });
+        }, RenderTimeout);
     }
 
     [Fact]
@@ -122,7 +129,7 @@ public class ReportPageTests : TestContext
             Assert.Contains("Rosa Magbanua", cut.Markup);
             Assert.Contains("3 unpaid months", cut.Markup);
             Assert.Contains("Jose Dalumpines", cut.Markup);
-        });
+        }, RenderTimeout);
     }
 
     [Fact]
@@ -131,7 +138,7 @@ public class ReportPageTests : TestContext
         var cut = RenderReport(SampleReport());
 
         // No detail strip until the NPM row is expanded.
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-expandable")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fac-expandable")), RenderTimeout);
         Assert.Empty(cut.FindAll(".fac-detail-row"));
 
         cut.FindAll(".fac-expandable").First().Click();

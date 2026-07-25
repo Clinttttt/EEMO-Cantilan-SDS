@@ -10,6 +10,7 @@
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
 @inject AuthenticationStateProvider AuthState
+@implements IDisposable
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>@Branding.OfficeAcronym Admin — Accounts</PageTitle>
 
@@ -919,22 +920,27 @@
         LoadError = null;
         VerificationNotice = null;
         StateHasChanged();
+
+        // Held locally because LoadAll() clears LoadError as its first step — assigning the failure before
+        // the refresh would silently erase it and the click would look like it did nothing.
+        string? failure = null;
         try
         {
             var result = await AdminsApi.SendAdminEmailVerificationAsync(adminId);
             if (result.IsSuccess)
                 ShowVerificationNotice("Confirmation email sent. The admin must open the link to confirm their address.");
             else
-                LoadError = result.Error ?? "We couldn't send the confirmation email.";
+                failure = result.Error ?? "We couldn't send the confirmation email.";
         }
         catch
         {
-            LoadError = "We couldn't send the confirmation email. Please try again.";
+            failure = "We couldn't send the confirmation email. Please try again.";
         }
         finally
         {
             _sendingVerificationFor = null;
             await LoadAll();          // refresh so the flag clears once confirmed
+            LoadError = failure ?? LoadError;
             StateHasChanged();
         }
     }
@@ -972,6 +978,18 @@
             catch (OperationCanceledException) { /* superseded or the page went away */ }
             catch (ObjectDisposedException) { /* circuit disposed while waiting */ }
         });
+    }
+
+    /// <summary>Cancels the auto-dismiss timer when the page goes away, so no timer outlives the circuit.</summary>
+    public void Dispose()
+    {
+        try
+        {
+            _noticeCts?.Cancel();
+            _noticeCts?.Dispose();
+        }
+        catch (ObjectDisposedException) { /* already disposed */ }
+        _noticeCts = null;
     }
 
     private IEnumerable<CollectorListDto> FilteredCollectors => (Collectors ?? new()).Where(c =>
