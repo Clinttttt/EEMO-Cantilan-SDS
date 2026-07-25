@@ -69,14 +69,6 @@
                     <button class="ca-search-clear" type="button" @onclick="@(() => _search = "")" aria-label="Clear search">&times;</button>
                 }
             </div>
-            @if (ExpiredInView > 0)
-            {
-                <button class="ca-renew-all-btn no-print" type="button" @onclick="OpenRenewAll"
-                        title="Start a new contract term for every expired account currently listed">
-                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                    Renew all (@ExpiredInView)
-                </button>
-            }
             <button class="ca-print-btn" type="button" @onclick="Print">
                 <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                 Print
@@ -187,13 +179,25 @@
                 var facGroups = yr.GroupBy(r => r.FacilityName, StringComparer.OrdinalIgnoreCase)
                                   .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
                 var singleFacility = facGroups.Count == 1;
+                var expiredInGroup = yr.Where(r => r.State == InactiveAccountState.Expired).ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
                         <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
-                        <span class="ca-year-stats">
-                            <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
-                            <strong>@Money(yr.Sum(r => r.Uncollected))</strong> uncollected
-                        </span>
+                        <div class="ca-year-right">
+                            <span class="ca-year-stats">
+                                <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
+                                <strong>@Money(yr.Sum(r => r.Uncollected))</strong> uncollected
+                            </span>
+                            @if (expiredInGroup.Count > 0)
+                            {
+                                <button class="ca-renew-all-btn no-print" type="button"
+                                        @onclick="() => OpenRenewAll(expiredInGroup)"
+                                        title="Start a new contract term for every expired account in this group">
+                                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                                    Renew all (@expiredInGroup.Count)
+                                </button>
+                            }
+                        </div>
                     </div>
 
                     @foreach (var facGrp in facGroups)
@@ -475,9 +479,6 @@
     private List<ClosedStallAccountDto> _renewAllTargets = new();
     private string? _renewAllProgress;
 
-    // Expired accounts in the current filtered view (the ones the "Renew" row action applies to).
-    private int ExpiredInView => Filtered().Count(r => r.State == InactiveAccountState.Expired);
-
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
@@ -584,9 +585,9 @@
     }
 
     // ── Renew all (bulk) ──
-    private void OpenRenewAll()
+    private void OpenRenewAll(IReadOnlyList<ClosedStallAccountDto> expired)
     {
-        _renewAllTargets = Filtered().Where(r => r.State == InactiveAccountState.Expired).ToList();
+        _renewAllTargets = expired.ToList();
         _renewAllEffectivity = PhilippineTime.Today;   // fresh start today; the lapsed gap is never back-billed
         _renewAllDuration = 3;
         _renewAllProgress = null;
@@ -626,8 +627,11 @@
         else
         {
             _actionError = $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
+            var targetIds = _renewAllTargets.Select(t => t.StallId).ToHashSet();
             await Load();   // refresh so the successfully-renewed rows drop off the list
-            _renewAllTargets = Filtered().Where(r => r.State == InactiveAccountState.Expired).ToList();
+            _renewAllTargets = _accounts
+                .Where(r => r.State == InactiveAccountState.Expired && targetIds.Contains(r.StallId))
+                .ToList();
             _renewAllProgress = null;
         }
     }
