@@ -377,3 +377,5 @@ FodyWeavers.xsd
 # Database backup dumps — never commit (contain tenant financial/PII data)
 *.dump
 _stalltrack_backup_*.dump
+
+stalltrack-release.keystore

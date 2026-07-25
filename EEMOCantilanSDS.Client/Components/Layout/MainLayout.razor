@@ -50,9 +50,15 @@ else
     private void UpdateSidebarVisibility()
     {
         var path = new Uri(Navigation.Uri).AbsolutePath.ToLower();
-        showSidebar = !path.Contains("/login") && !path.Contains("/setup") && !path.Contains("account-setup-admin") && !path.Contains("/activate") && !path.Contains("/payor");
+        showSidebar = !path
+        .Contains("/login") && !path
+        .Contains("/setup") && !path
+        .Contains("account-setup-admin") && !path
+        .Contains("/activate") && !path
+        .Contains("/payor") && !path
+        .Contains("/forgot-password");
+    
     }
-
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
