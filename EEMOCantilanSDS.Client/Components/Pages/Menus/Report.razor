@@ -185,8 +185,20 @@
                     <div class="kpi-label">Collected — @PeriodLabel</div>
                     @if (Model.CollectedPreviousPeriod is decimal prev && Model.PreviousPeriodLabel is not null && prev > 0)
                     {
-                        var delta = (Model.Collected - prev) / prev * 100m;
-                        <div class="kpi-sub"><span class="@(delta >= 0 ? "up" : "down")">@(delta >= 0 ? "↑" : "↓") @Math.Abs(delta).ToString("0.0")%</span> vs @Model.PreviousPeriodLabel</div>
+                        var deltaAbs = Model.Collected - prev;
+                        var deltaPct = deltaAbs / prev * 100m;
+                        var up = deltaAbs >= 0;
+                        // A percentage from a near-zero prior period (e.g. a pre-rollout month) is
+                        // misleading — a swing of 10x or more shows the actual peso movement plus the
+                        // prior base instead, which stays honest at any LGU's collection scale.
+                        if (Math.Abs(deltaPct) < 1000m)
+                        {
+                            <div class="kpi-sub"><span class="@(up ? "up" : "down")">@(up ? "↑" : "↓") @Math.Abs(deltaPct).ToString("0.0")%</span> vs @Model.PreviousPeriodLabel</div>
+                        }
+                        else
+                        {
+                            <div class="kpi-sub"><span class="@(up ? "up" : "down")">@(up ? "↑" : "↓") @Money(Math.Abs(deltaAbs))</span> vs @Model.PreviousPeriodLabel (@Money(prev))</div>
+                        }
                     }
                     else
                     {
