@@ -2,6 +2,7 @@
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
+using EEMOCantilanSDS.Application.Command.Auth.Mfa;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Dtos.Auth;
@@ -26,4 +27,11 @@ public interface IAuthApiClient
 
     /// <summary>Confirms an email address using the one-time token from the confirmation link.</summary>
     Task<Result<VerifiedAccountDto>> VerifyEmailAsync(VerifyEmailCommand command);
+
+    // ── Two-factor (own account) ──
+    Task<Result<MfaStatusDto>> GetMfaStatusAsync();
+    Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command);
+    Task<Result<MfaRecoveryCodesDto>> ConfirmMfaEnrollmentAsync(ConfirmMfaEnrollmentCommand command);
+    Task<Result<bool>> DisableMfaAsync(DisableMfaCommand command);
+    Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command);
 }

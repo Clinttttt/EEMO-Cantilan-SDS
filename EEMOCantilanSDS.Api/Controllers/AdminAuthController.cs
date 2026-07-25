@@ -3,6 +3,8 @@ using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
+using EEMOCantilanSDS.Application.Command.Auth.Mfa;
+using EEMOCantilanSDS.Application.Queries.Auth.GetMfaStatus;
 using EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext;
 using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
@@ -113,6 +115,40 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
    
+
+    /// <summary>
+    /// Two-factor authentication for the SIGNED-IN user's own account. Enrollment is opt-in and does not yet
+    /// gate sign-in (that arrives in the login slice), so these endpoints are safe to expose now.
+    /// Every one of them re-authenticates with the current password.
+    /// </summary>
+    [HttpGet("mfa/status")]
+    [Authorize]
+    public async Task<ActionResult<MfaStatusDto>> GetMfaStatusAsync()
+        => HandleResponse(await Sender.Send(new GetMfaStatusQuery()));
+
+    [HttpPost("mfa/enroll")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MfaEnrollmentDto>> BeginMfaEnrollmentAsync([FromBody] BeginMfaEnrollmentCommand command)
+        => HandleResponse(await Sender.Send(command));
+
+    [HttpPost("mfa/confirm")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MfaRecoveryCodesDto>> ConfirmMfaEnrollmentAsync([FromBody] ConfirmMfaEnrollmentCommand command)
+        => HandleResponse(await Sender.Send(command));
+
+    [HttpPost("mfa/disable")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<bool>> DisableMfaAsync([FromBody] DisableMfaCommand command)
+        => HandleResponse(await Sender.Send(command));
+
+    [HttpPost("mfa/recovery-codes")]
+    [Authorize]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync([FromBody] RegenerateRecoveryCodesCommand command)
+        => HandleResponse(await Sender.Send(command));
 
     [HttpPost("logout")]
     public async Task<ActionResult> Logout([FromBody] RefreshTokenCommand request)

@@ -1,0 +1,319 @@
+@using EEMOCantilanSDS.Application.Command.Auth.Mfa
+@using EEMOCantilanSDS.Application.Common.Security
+@using EEMOCantilanSDS.Application.Dtos.Auth
+@inject IAuthApiClient AuthApi
+
+@*
+    Two-factor authentication panel for the signed-in user's own account (Settings page).
+
+    Slice 1: enrollment is OPT-IN and sign-in is NOT yet gated by it, so turning this on is safe and fully
+    reversible. Every mutation re-authenticates with the current password, and turning it OFF additionally
+    requires a valid code — a session alone can neither add nor remove the second factor.
+
+    Styles are self-contained (mfa-* classes in this component's own scoped stylesheet) rather than reusing
+    the Settings page's `set-card` classes, because scoped CSS only applies to the component that declares
+    the markup.
+*@
+
+<section class="mfa-card">
+    <div class="mfa-head">
+        <div class="mfa-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
+            </svg>
+        </div>
+        <div class="mfa-titles">
+            <div class="mfa-title">Two-Factor Authentication</div>
+            <div class="mfa-sub">Authenticator app code in addition to your password</div>
+        </div>
+        @if (_status is not null)
+        {
+            <span class="mfa-state @(_status.Enabled ? "mfa-state-on" : "mfa-state-off")">
+                @(_status.Enabled ? "On" : _status.PendingEnrollment ? "Setup unfinished" : "Off")
+            </span>
+        }
+    </div>
+
+    @if (_status is null)
+    {
+        <div class="mfa-body"><Skeleton Width="70%" Height="12px" Radius="6px" /></div>
+    }
+    else if (_recoveryCodes is not null)
+    {
+        @* Shown exactly once — the codes are not recoverable afterwards. *@
+        <div class="mfa-body">
+            <div class="mfa-notice mfa-notice-warn">
+                Save these recovery codes now. Each one works once if you lose your phone, and they cannot be
+                shown again — you can only generate a new set.
+            </div>
+            <ul class="mfa-codes">
+                @foreach (var recoveryCode in _recoveryCodes)
+                {
+                    <li>@recoveryCode</li>
+                }
+            </ul>
+            <div class="mfa-actions">
+                <button class="mfa-btn mfa-btn-primary" type="button" @onclick="AcknowledgeCodes">I've saved them</button>
+            </div>
+        </div>
+    }
+    else if (_enrollment is not null)
+    {
+        <div class="mfa-body">
+            <div class="mfa-step">Scan this with Google Authenticator, Microsoft Authenticator or any TOTP app.</div>
+            <div class="mfa-enroll">
+                <img class="mfa-qr" src="@_enrollment.QrCodeDataUri" alt="Two-factor setup QR code" />
+                <div class="mfa-manual">
+                    <div class="mfa-manual-label">Can't scan? Enter this key manually</div>
+                    <code class="mfa-key">@_enrollment.ManualKey</code>
+                    <div class="mfa-manual-hint">Time-based · 6 digits · 30 seconds</div>
+                </div>
+            </div>
+
+            <label class="mfa-label" for="mfa-confirm-code">Enter the 6-digit code from your app</label>
+            <div class="mfa-inline">
+                <input id="mfa-confirm-code" class="mfa-input" inputmode="numeric" autocomplete="one-time-code"
+                       maxlength="6" placeholder="000000"
+                       value="@_code" @oninput="e => _code = e.Value?.ToString() ?? string.Empty" />
+                <button class="mfa-btn mfa-btn-primary" type="button" disabled="@_busy" @onclick="ConfirmAsync">
+                    @(_busy ? "Verifying…" : "Turn on")
+                </button>
+                <button class="mfa-btn" type="button" disabled="@_busy" @onclick="CancelEnrollment">Cancel</button>
+            </div>
+        </div>
+    }
+    else if (_status.Enabled)
+    {
+        <div class="mfa-body">
+            <div class="mfa-rows">
+                <div class="mfa-row">
+                    <span class="mfa-key-label">Enabled on</span>
+                    <span class="mfa-val">@(_status.EnrolledAt.HasValue ? PhilippineTime.ToPhilippineTime(_status.EnrolledAt.Value).ToString("MMM d, yyyy") : "—")</span>
+                </div>
+                <div class="mfa-row">
+                    <span class="mfa-key-label">Recovery codes left</span>
+                    <span class="mfa-val">
+                        @_status.RecoveryCodesRemaining of @RecoveryCodes.SetSize
+                        @if (_status.RecoveryCodesRemaining <= 2)
+                        {
+                            <span class="mfa-pill-warn">running low</span>
+                        }
+                    </span>
+                </div>
+            </div>
+
+            <div class="mfa-actions">
+                <button class="mfa-btn" type="button" @onclick="() => _mode = Mode.Regenerate">New recovery codes</button>
+                <button class="mfa-btn mfa-btn-danger" type="button" @onclick="() => _mode = Mode.Disable">Turn off</button>
+            </div>
+
+            @if (_mode == Mode.Regenerate || _mode == Mode.Disable)
+            {
+                <div class="mfa-confirm">
+                    <div class="mfa-step">
+                        @(_mode == Mode.Disable
+                            ? "Confirm with your password and a current code (or a recovery code) to switch two-factor off."
+                            : "Confirm with your password. Your existing recovery codes will stop working.")
+                    </div>
+                    <div class="mfa-inline">
+                        <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
+                               placeholder="Current password"
+                               value="@_password" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                        @if (_mode == Mode.Disable)
+                        {
+                            <input class="mfa-input" inputmode="numeric" autocomplete="one-time-code" maxlength="11"
+                                   placeholder="Code"
+                                   value="@_code" @oninput="e => _code = e.Value?.ToString() ?? string.Empty" />
+                        }
+                        <button class="mfa-btn @(_mode == Mode.Disable ? "mfa-btn-danger" : "mfa-btn-primary")"
+                                type="button" disabled="@_busy"
+                                @onclick="@(_mode == Mode.Disable ? DisableAsync : RegenerateAsync)">
+                            @(_busy ? "Working…" : _mode == Mode.Disable ? "Turn off" : "Generate")
+                        </button>
+                        <button class="mfa-btn" type="button" disabled="@_busy" @onclick="ResetPrompts">Cancel</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="mfa-body">
+            <div class="mfa-step">
+                Add a second step to your sign-in. You'll enter a 6-digit code from an authenticator app
+                along with your password.
+                @if (_status.PendingEnrollment)
+                {
+                    <strong> A previous setup wasn't finished — starting again issues a new key.</strong>
+                }
+            </div>
+            <div class="mfa-inline">
+                <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
+                       placeholder="Confirm your current password"
+                       value="@_password" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                <button class="mfa-btn mfa-btn-primary" type="button" disabled="@_busy" @onclick="BeginAsync">
+                    @(_busy ? "Preparing…" : "Set up")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="mfa-notice mfa-notice-error">@_error</div>
+    }
+    @if (!string.IsNullOrEmpty(_ok))
+    {
+        <div class="mfa-notice mfa-notice-ok">@_ok</div>
+    }
+</section>
+
+@code {
+    private enum Mode { None, Disable, Regenerate }
+
+    private MfaStatusDto? _status;
+    private MfaEnrollmentDto? _enrollment;
+    private IReadOnlyList<string>? _recoveryCodes;
+    private Mode _mode = Mode.None;
+
+    private string _password = string.Empty;
+    private string _code = string.Empty;
+    private bool _busy;
+    private string? _error;
+    private string? _ok;
+
+    protected override async Task OnInitializedAsync() => await LoadStatusAsync();
+
+    private async Task LoadStatusAsync()
+    {
+        try
+        {
+            var result = await AuthApi.GetMfaStatusAsync();
+            _status = result.IsSuccess && result.Value is not null
+                ? result.Value
+                : new MfaStatusDto(false, false, null, 0);
+        }
+        catch
+        {
+            _status = new MfaStatusDto(false, false, null, 0);
+        }
+    }
+
+    private async Task BeginAsync()
+    {
+        if (!Validate(needPassword: true, needCode: false)) return;
+
+        _busy = true; _error = null; _ok = null;
+        try
+        {
+            var result = await AuthApi.BeginMfaEnrollmentAsync(new BeginMfaEnrollmentCommand(_password));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _enrollment = result.Value;
+                _password = string.Empty;   // don't keep it in memory longer than needed
+                _code = string.Empty;
+            }
+            else _error = result.Error ?? "We couldn't start the setup.";
+        }
+        catch { _error = "We couldn't start the setup. Please try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (!Validate(needPassword: false, needCode: true)) return;
+
+        _busy = true; _error = null;
+        try
+        {
+            var result = await AuthApi.ConfirmMfaEnrollmentAsync(new ConfirmMfaEnrollmentCommand(_code));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _recoveryCodes = result.Value.Codes;    // shown once
+                _enrollment = null;
+                _code = string.Empty;
+                await LoadStatusAsync();
+            }
+            else _error = result.Error ?? "That code wasn't accepted.";
+        }
+        catch { _error = "We couldn't verify that code. Please try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task DisableAsync()
+    {
+        if (!Validate(needPassword: true, needCode: true)) return;
+
+        _busy = true; _error = null;
+        try
+        {
+            var result = await AuthApi.DisableMfaAsync(new DisableMfaCommand(_password, _code));
+            if (result.IsSuccess)
+            {
+                ResetPrompts();
+                _ok = "Two-factor authentication is now off.";
+                await LoadStatusAsync();
+            }
+            else _error = result.Error ?? "We couldn't switch two-factor off.";
+        }
+        catch { _error = "We couldn't switch two-factor off. Please try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task RegenerateAsync()
+    {
+        if (!Validate(needPassword: true, needCode: false)) return;
+
+        _busy = true; _error = null;
+        try
+        {
+            var result = await AuthApi.RegenerateRecoveryCodesAsync(new RegenerateRecoveryCodesCommand(_password));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _recoveryCodes = result.Value.Codes;
+                ResetPrompts();
+                await LoadStatusAsync();
+            }
+            else _error = result.Error ?? "We couldn't generate new codes.";
+        }
+        catch { _error = "We couldn't generate new codes. Please try again."; }
+        finally { _busy = false; }
+    }
+
+    private bool Validate(bool needPassword, bool needCode)
+    {
+        _error = null;
+        if (needPassword && string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Enter your current password.";
+            return false;
+        }
+        if (needCode && string.IsNullOrWhiteSpace(_code))
+        {
+            _error = "Enter the code from your authenticator app (or a recovery code).";
+            return false;
+        }
+        return true;
+    }
+
+    private void CancelEnrollment()
+    {
+        // The pending secret stays server-side and is replaced on the next attempt; nothing is enabled.
+        _enrollment = null;
+        ResetPrompts();
+    }
+
+    private void AcknowledgeCodes()
+    {
+        _recoveryCodes = null;
+        _ok = "Two-factor authentication is on.";
+    }
+
+    private void ResetPrompts()
+    {
+        _mode = Mode.None;
+        _password = string.Empty;
+        _code = string.Empty;
+        _error = null;
+    }
+}

@@ -106,6 +106,11 @@ namespace EEMOCantilanSDS.Infrastructure
             configuration.GetSection("Email").Bind(emailOptions);
             service.AddSingleton(emailOptions);
             service.AddScoped<IEmailSender, EEMOCantilanSDS.Infrastructure.Services.SmtpEmailSender>();
+            // Two-factor: RFC 6238 TOTP + QR rendering. Stateless, so singletons are fine.
+            service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.ITotpService,
+                EEMOCantilanSDS.Infrastructure.Security.TotpService>();
+            service.AddSingleton<EEMOCantilanSDS.Application.Common.Interface.Services.IQrCodeGenerator,
+                EEMOCantilanSDS.Infrastructure.Security.QrCodeGenerator>();
             // Issues + emails one-time email-confirmation links (used on admin create, email change, and
             // Head-triggered resend). Lives in Application; registered here beside the SMTP sender it uses.
             service.AddScoped<EEMOCantilanSDS.Application.Common.Interface.Services.IEmailVerificationSender,

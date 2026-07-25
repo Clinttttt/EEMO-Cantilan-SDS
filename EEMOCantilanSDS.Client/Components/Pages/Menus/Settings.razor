@@ -172,6 +172,11 @@
                 </div>
             </section>
 
+            @* ── Two-factor authentication (own account) ──
+               Self-contained component: opt-in enrollment with an authenticator app. Sign-in is not gated by
+               it yet, so enabling it here is safe and reversible. *@
+            <TwoFactorPanel />
+
             <!-- ── Collection & Billing Rules ── -->
             <section class="set-card">
                 <div class="set-card-head">

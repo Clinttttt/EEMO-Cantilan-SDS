@@ -58,6 +58,41 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public string? EmailVerificationTokenHash { get; protected set; }
         public DateTime? EmailVerificationTokenExpiry { get; protected set; }
 
+        // ── Two-factor authentication (TOTP / authenticator app) ────────────────────────────────────
+        // The shared secret is stored ENCRYPTED (AES-256-GCM via ICredentialProtector), never in plaintext
+        // and never returned again after enrollment.
+        //
+        // State machine, deliberately using just these fields (no extra "pending" column):
+        //   secret == null                  → not enrolled
+        //   secret != null && !MfaEnabled   → enrollment started, awaiting a first valid code
+        //   secret != null &&  MfaEnabled   → active
+        public string? MfaSecretCipher { get; protected set; }
+        public bool MfaEnabled { get; protected set; }
+        public DateTime? MfaEnrolledAt { get; protected set; }
+
+        /// <summary>
+        /// The highest TOTP time-step already accepted for this account. Codes from that step or earlier are
+        /// refused, so an observed code cannot be replayed inside its own 30-second validity window.
+        /// </summary>
+        public long? MfaLastUsedStep { get; protected set; }
+
+        /// <summary>
+        /// HASHES of the unused single-use recovery codes, ';'-separated. Codes themselves are shown to the
+        /// user exactly once at enrollment and are never recoverable from this value.
+        /// </summary>
+        public string? MfaRecoveryCodeHashes { get; protected set; }
+
+        /// <summary>True once a secret exists but has not yet been confirmed with a valid code.</summary>
+        public bool HasPendingMfaEnrollment => MfaSecretCipher is not null && !MfaEnabled;
+
+        /// <summary>How many single-use recovery codes remain.</summary>
+        public int MfaRecoveryCodesRemaining =>
+            string.IsNullOrEmpty(MfaRecoveryCodeHashes)
+                ? 0
+                : MfaRecoveryCodeHashes.Split(RecoveryCodeSeparator, StringSplitOptions.RemoveEmptyEntries).Length;
+
+        private const char RecoveryCodeSeparator = ';';
+
         public void SetRefreshToken(string token, DateTime expiry)
         {
             RefreshToken = token;
@@ -143,6 +178,112 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         {
             if (EmailVerified) return;
             EmailVerified = true;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        // ── Two-factor authentication ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Starts (or restarts) enrollment with a freshly generated, already-encrypted secret. Enrollment is
+        /// NOT active until <see cref="ConfirmMfaEnrollment"/> succeeds, so an abandoned attempt leaves the
+        /// account exactly as it was able to sign in before. Restarting discards the previous pending secret.
+        /// </summary>
+        public void BeginMfaEnrollment(string secretCipher)
+        {
+            if (string.IsNullOrWhiteSpace(secretCipher))
+                throw new ArgumentException("An encrypted secret is required.", nameof(secretCipher));
+
+            MfaSecretCipher = secretCipher;
+            MfaEnabled = false;
+            MfaEnrolledAt = null;
+            MfaLastUsedStep = null;
+            MfaRecoveryCodeHashes = null;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Activates two-factor sign-in after the user proves they can generate codes. The confirming step is
+        /// recorded so that same code cannot be replayed, and the single-use recovery codes are stored hashed.
+        /// </summary>
+        public void ConfirmMfaEnrollment(long confirmedStep, IEnumerable<string> recoveryCodeHashes)
+        {
+            if (MfaSecretCipher is null)
+                throw new InvalidOperationException("Enrollment has not been started.");
+
+            MfaEnabled = true;
+            MfaEnrolledAt = DateTime.UtcNow;
+            MfaLastUsedStep = confirmedStep;
+            ReplaceRecoveryCodes(recoveryCodeHashes);
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>Records the time-step of an accepted code, closing the replay window behind it.</summary>
+        public void RecordMfaStep(long step)
+        {
+            if (MfaLastUsedStep is null || step > MfaLastUsedStep)
+            {
+                MfaLastUsedStep = step;
+                UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        /// <summary>Replaces the recovery-code set (regenerating invalidates every previous code).</summary>
+        public void ReplaceRecoveryCodes(IEnumerable<string> hashes)
+        {
+            var list = (hashes ?? Enumerable.Empty<string>())
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Select(h => h.Trim())
+                .ToList();
+
+            MfaRecoveryCodeHashes = list.Count == 0 ? null : string.Join(RecoveryCodeSeparator, list);
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Consumes a recovery code by its hash. Returns false when it is unknown or already used; a matched
+        /// code is removed so it can never be used twice. Comparison is fixed-time per candidate.
+        /// </summary>
+        public bool TryConsumeRecoveryCode(string codeHash)
+        {
+            if (string.IsNullOrWhiteSpace(codeHash) || string.IsNullOrEmpty(MfaRecoveryCodeHashes))
+                return false;
+
+            var remaining = MfaRecoveryCodeHashes
+                .Split(RecoveryCodeSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .ToList();
+
+            var candidate = Encoding.UTF8.GetBytes(codeHash.Trim());
+            var matchIndex = -1;
+            for (var i = 0; i < remaining.Count; i++)
+            {
+                if (CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(remaining[i]), candidate))
+                {
+                    matchIndex = i;
+                    break;
+                }
+            }
+
+            if (matchIndex < 0)
+                return false;
+
+            remaining.RemoveAt(matchIndex);
+            MfaRecoveryCodeHashes = remaining.Count == 0 ? null : string.Join(RecoveryCodeSeparator, remaining);
+            UpdatedAt = DateTime.UtcNow;
+            return true;
+        }
+
+        /// <summary>
+        /// Turns two-factor off and erases every trace of it (secret, codes, replay marker), so re-enrolling
+        /// always starts from a brand-new secret. Used by the owner disabling it, and by the platform
+        /// operator rescuing a Head who lost both their device and their recovery codes.
+        /// </summary>
+        public void DisableMfa()
+        {
+            MfaSecretCipher = null;
+            MfaEnabled = false;
+            MfaEnrolledAt = null;
+            MfaLastUsedStep = null;
+            MfaRecoveryCodeHashes = null;
             UpdatedAt = DateTime.UtcNow;
         }
 
