@@ -1,4 +1,6 @@
 ﻿using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
@@ -16,4 +18,10 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
 
     public async Task LogoutAsync(string refreshToken) =>
         await PostAsync("api/AdminAuth/logout", new RefreshTokenCommand { RefreshToken = refreshToken });
+
+    public async Task<Result<bool>> RequestPasswordResetAsync(RequestPasswordResetCommand command) =>
+        await PostAsync<RequestPasswordResetCommand, bool>("api/AdminAuth/forgot-password", command);
+
+    public async Task<Result<bool>> ResetPasswordByTokenAsync(ResetPasswordByTokenCommand command) =>
+        await PostAsync<ResetPasswordByTokenCommand, bool>("api/AdminAuth/reset-password", command);
 }

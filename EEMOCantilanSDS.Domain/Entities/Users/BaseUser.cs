@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -33,6 +34,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public string? ActivationTokenHash { get; protected set; }
         public DateTime? ActivationTokenExpiry { get; protected set; }
 
+        // One-time SELF-SERVICE password-reset token (hashed at rest). Deliberately separate from the
+        // activation token: an activation token activates the account, whereas a reset token may only
+        // change the password — so a reset link can never re-enable a deactivated account.
+        public string? PasswordResetTokenHash { get; protected set; }
+        public DateTime? PasswordResetTokenExpiry { get; protected set; }
+
+        // Timestamp of the last reset REQUEST (not the reset itself). Used to throttle per-account
+        // request bursts so a known address cannot be email-bombed through the anonymous endpoint.
+        public DateTime? PasswordResetRequestedAt { get; protected set; }
+
+        /// <summary>
+        /// True once the account's email address has been proven to be reachable and owned by the user —
+        /// set when they complete activation through the emailed one-time link. Only a verified address is
+        /// eligible for self-service password reset, so an unconfirmed (possibly mistyped) address can
+        /// never be used to take over an account.
+        /// </summary>
+        public bool EmailVerified { get; protected set; }
+
         public void SetRefreshToken(string token, DateTime expiry)
         {
             RefreshToken = token;
@@ -62,6 +81,65 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
                && ActivationTokenExpiry.HasValue
                && ActivationTokenExpiry.Value > DateTime.UtcNow;
 
+        /// <summary>
+        /// Stamps a one-time password-reset token (store the HASH, never the raw token) and records the
+        /// request time for throttling. Issuing a new token invalidates any previous one.
+        /// </summary>
+        public void SetPasswordResetToken(string tokenHash, DateTime expiry, DateTime requestedAt)
+        {
+            PasswordResetTokenHash = tokenHash;
+            PasswordResetTokenExpiry = expiry;
+            PasswordResetRequestedAt = requestedAt;
+        }
+
+        /// <summary>
+        /// True when the supplied token hash matches an unexpired password-reset token. The comparison is
+        /// fixed-time so a token cannot be recovered by timing the response.
+        /// </summary>
+        public bool IsPasswordResetTokenValid(string tokenHash)
+        {
+            if (string.IsNullOrEmpty(PasswordResetTokenHash) || string.IsNullOrEmpty(tokenHash))
+                return false;
+            if (!PasswordResetTokenExpiry.HasValue || PasswordResetTokenExpiry.Value <= DateTime.UtcNow)
+                return false;
+
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(PasswordResetTokenHash),
+                Encoding.UTF8.GetBytes(tokenHash));
+        }
+
+        /// <summary>Clears any outstanding password-reset token (single use / invalidation).</summary>
+        public void ClearPasswordResetToken()
+        {
+            PasswordResetTokenHash = null;
+            PasswordResetTokenExpiry = null;
+        }
+
+        /// <summary>
+        /// Completes a self-service password reset: sets the new password, consumes the one-time token, and
+        /// clears any lockout so the user can sign in immediately. Deliberately does NOT change IsActive —
+        /// a reset link can never re-enable a deactivated account — and does NOT set MustChangePassword,
+        /// because the user just chose this password themselves.
+        /// </summary>
+        public void CompletePasswordReset(string newPassword)
+        {
+            PasswordHash = new PasswordHasher<BaseUser>().HashPassword(null!, newPassword);
+            MustChangePassword = false;
+            FailedAttempts = 0;
+            LockedUntil = null;
+            ClearPasswordResetToken();
+            ClearRefreshToken();          // sign out every existing session after a credential change
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>Marks the account's email address as verified (proven reachable and owned).</summary>
+        public void MarkEmailVerified()
+        {
+            if (EmailVerified) return;
+            EmailVerified = true;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
         /// <summary>Sets the account's sign-in username (chosen by the user at activation). Caller
         /// guarantees it is normalized (trimmed/lower-cased) and unique within the municipality.</summary>
         public void SetUsername(string username)
@@ -84,6 +162,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             LockedUntil = null;
             ActivationTokenHash = null;
             ActivationTokenExpiry = null;
+            // Completing activation proves the emailed link reached this address, so it is now verified —
+            // which is what makes the account eligible for self-service password reset later.
+            EmailVerified = true;
             UpdatedAt = DateTime.UtcNow;
         }
 

@@ -182,14 +182,8 @@
                         <input type="checkbox" @bind="RememberMe" disabled="@IsLocked" />
                         <span>Remember me</span>
                     </label>
-                    <button type="button" class="login-forgot" @onclick="ToggleForgotHint">Forgot password?</button>
+                    <button type="button" class="login-forgot" @onclick="GoToForgotPassword">Forgot password?</button>
                 </div>
-                @if (ShowForgotHint)
-                {
-                    <div class="login-forgot-hint">
-                        Password resets are handled by your system administrator. Please contact the @OfficeAcronym Head to restore access.
-                    </div>
-                }
 
                 <!-- Failed attempts warning (shows after 1st fail, before lockout) -->
                 @if (FailedAttempts > 0 && FailedAttempts < 5 && !IsLocked)
@@ -324,7 +318,6 @@
 
     // ── Convenience controls (UI only; do not affect the auth flow) ───────────
     bool RememberMe = false;       // persists the username (never the password) in localStorage
-    bool ShowForgotHint = false;
     const string RememberKey = "eemo_remember_username";
 
     // ── Per-LGU branding (pre-login) ──────────────────────────────────────────
@@ -527,7 +520,12 @@
         }
     }
 
-    void ToggleForgotHint() => ShowForgotHint = !ShowForgotHint;
+    // Self-service recovery: hand off to the forgot-password page, carrying the LGU scope so the request
+    // resolves the right tenant (and the page keeps this municipality's branding).
+    void GoToForgotPassword() =>
+        Navigation.NavigateTo(string.IsNullOrEmpty(LguParam)
+            ? "/forgot-password"
+            : $"/forgot-password?lgu={Uri.EscapeDataString(LguParam)}");
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     void TogglePassword(MouseEventArgs _)
