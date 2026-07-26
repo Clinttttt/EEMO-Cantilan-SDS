@@ -21,6 +21,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
     public class MfaCommandHandlers(
         IAdminRepository adminRepo,
         ICurrentUserService currentUser,
+        IMunicipalityRepository municipalityRepo,
         ICredentialProtector protector,
         ITotpService totp,
         IQrCodeGenerator qr,
@@ -46,10 +47,11 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             user.BeginMfaEnrollment(protector.Protect(secret));
             await uow.SaveChangesAsync(ct);
 
-            // The issuer is what the user sees in their app; keep it recognisable per office.
-            var issuer = string.IsNullOrWhiteSpace(currentUser.MunicipalityCode)
-                ? "StallTrack"
-                : $"StallTrack {currentUser.MunicipalityCode}";
+            // The issuer is the label the user sees in their authenticator app. Data-driven per LGU from the
+            // municipality registry ("EEMO Cantilan", "CEEO Carmen", …) rather than the opaque tenant code,
+            // so every LGU reads correctly. Falls back to the platform name if the registry lookup fails.
+            var municipality = await municipalityRepo.GetByIdAsync(user.MunicipalityId, ct);
+            var issuer = BuildIssuer(municipality);
             var uri = totp.BuildProvisioningUri(secret, issuer, user.Username ?? "account");
 
             return Result<MfaEnrollmentDto>.Success(new MfaEnrollmentDto(
@@ -116,6 +118,29 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             await uow.SaveChangesAsync(ct);
 
             return Result<MfaRecoveryCodesDto>.Success(new MfaRecoveryCodesDto(plain));
+        }
+
+        /// <summary>
+        /// The authenticator-app label for an LGU: office acronym + municipality ("EEMO Cantilan"). Purely
+        /// data-driven from the registry so each LGU reads correctly, degrading to whichever part exists and
+        /// finally to the platform name.
+        /// </summary>
+        private static string BuildIssuer(Domain.Entities.Tenancy.Municipality? municipality)
+        {
+            if (municipality is null)
+                return "StallTrack";
+
+            var acronym = municipality.OfficeAcronym?.Trim();
+            var name = municipality.Name?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(acronym) && !string.IsNullOrWhiteSpace(name))
+                return $"{acronym} {name}";
+            if (!string.IsNullOrWhiteSpace(acronym))
+                return acronym!;
+            if (!string.IsNullOrWhiteSpace(name))
+                return $"StallTrack {name}";
+
+            return "StallTrack";
         }
 
         /// <summary>

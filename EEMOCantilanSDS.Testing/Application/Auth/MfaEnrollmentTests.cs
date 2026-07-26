@@ -8,7 +8,9 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Security;
 using EEMOCantilanSDS.Application.Queries.Auth.GetMfaStatus;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
 using Moq;
@@ -48,10 +50,20 @@ public class MfaEnrollmentTests
         currentUser.SetupGet(c => c.Username).Returns(user.Username);
         currentUser.SetupGet(c => c.MunicipalityCode).Returns("CANTILAN");
 
+        // The authenticator label is data-driven from the municipality registry ("EEMO Cantilan"), not the
+        // opaque tenant code, so the repository is stubbed with a realistic LGU record.
+        var municipality = Municipality.Create(
+            "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active,
+            tenantCode: "cantilan-sds", isDefault: true, officeAcronym: "EEMO");
+        var municipalityRepo = new Mock<IMunicipalityRepository>();
+        municipalityRepo.Setup(m => m.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(municipality);
+
         var uow = new Mock<IUnitOfWork>();
 
         var handlers = new MfaCommandHandlers(
-            repo.Object, currentUser.Object, new FakeProtector(), new TotpService(), new QrCodeGenerator(), uow.Object);
+            repo.Object, currentUser.Object, municipalityRepo.Object, new FakeProtector(),
+            new TotpService(), new QrCodeGenerator(), uow.Object);
 
         return (handlers, user, uow);
     }
@@ -77,7 +89,8 @@ public class MfaEnrollmentTests
         Assert.False(string.IsNullOrWhiteSpace(result.Value!.ManualKey));
         Assert.StartsWith("otpauth://totp/", result.Value.ProvisioningUri);
         Assert.StartsWith("data:image/png;base64,", result.Value.QrCodeDataUri);
-        Assert.Contains("issuer=StallTrack%20CANTILAN", result.Value.ProvisioningUri);
+        // Data-driven label: office acronym + municipality name, per LGU.
+        Assert.Contains("issuer=EEMO%20Cantilan", result.Value.ProvisioningUri);
 
         // Pending, not active — sign-in is unaffected until confirmation.
         Assert.False(user.MfaEnabled);

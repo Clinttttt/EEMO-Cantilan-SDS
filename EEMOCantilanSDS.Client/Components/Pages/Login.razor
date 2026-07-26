@@ -96,14 +96,77 @@
                     </svg>
                 </div>
                 <div class="setup-form-title" id="login-title">
-                    @(IsFromSetup ? "Sign In to Continue" : "Welcome Back")
+                    @(AwaitingMfa ? "Two-Factor Verification" : IsFromSetup ? "Sign In to Continue" : "Welcome Back")
                 </div>
                 <div class="setup-form-desc">
-                    @(IsFromSetup
-                        ? $"Your administrator account has been created. Sign in to access the {OfficeAcronym} Revenue Collection System."
-                        : $"Sign in to access the {OfficeAcronym} Revenue Collection System")
+                    @if (AwaitingMfa)
+                    {
+                        <span>Enter the 6-digit code from your authenticator app to finish signing in.</span>
+                    }
+                    else
+                    {
+                        @(IsFromSetup
+                            ? $"Your administrator account has been created. Sign in to access the {OfficeAcronym} Revenue Collection System."
+                            : $"Sign in to access the {OfficeAcronym} Revenue Collection System")
+                    }
                 </div>
             </div>
+
+            @* ── Two-factor step ──
+               Shown after a correct password on an MFA-enabled account. No session exists until the code is
+               verified, so leaving this screen simply leaves the user signed out. *@
+            @if (AwaitingMfa)
+            {
+                <div class="setup-form">
+                    <div class="form-group">
+                        <label class="form-label" for="login-mfa-code">Authenticator code</label>
+                        <div class="form-input-wrap">
+                            <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            <input id="login-mfa-code"
+                                   class="form-input"
+                                   inputmode="numeric"
+                                   autocomplete="one-time-code"
+                                   placeholder="000000"
+                                   value="@MfaCode"
+                                   @oninput="OnMfaCodeInput"
+                                   @onkeydown="HandleMfaKeyDown" />
+                        </div>
+                        <span class="form-hint">Lost your phone? Enter one of your recovery codes instead.</span>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(ErrorMessage))
+                    {
+                        <div class="setup-error">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                            @ErrorMessage
+                        </div>
+                    }
+
+                    <button class="setup-submit @(IsLoading ? "setup-submit-loading" : "")"
+                            @onclick="VerifyMfa" disabled="@IsLoading">
+                        @if (IsLoading)
+                        {
+                            <span class="setup-spinner"></span>
+                            <span>Verifying…</span>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" />
+                            </svg>
+                            <span>Verify &amp; Sign In</span>
+                        }
+                    </button>
+
+                    <button type="button" class="login-forgot" @onclick="CancelMfa">← Use a different account</button>
+                </div>
+            }
+            else
+            {
 
             <!-- ── Login Form ── -->
             <div class="setup-form">
@@ -265,8 +328,7 @@
 
             @if (!IsFromSetup)
             {
-                <div class="login-divider"><span>or</span></div>
-                <a class="login-network-link" href="https://www.stalltrack.site/select-municipality" aria-label="Access the CARCANMADCARLAN municipal network">
+                <div class="login-divider"><span>or</span></div>                <a class="login-network-link" href="https://www.stalltrack.site/select-municipality" aria-label="Access the CARCANMADCARLAN municipal network">
                     <span class="login-network-icon" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                             <path d="M3 9.5 12 4l9 5.5" />
@@ -282,6 +344,7 @@
                     <span class="login-network-arrow" aria-hidden="true">&#8594;</span>
                 </a>
             }
+            }@* end: password-form branch (else of AwaitingMfa) *@
 
             </section>
 
@@ -562,11 +625,20 @@
 
         try
         {
-            var success = await AuthService.LoginAsync(Username, Password, LguParam);
+            var outcome = await AuthService.LoginAsync(Username, Password, LguParam);
 
-            if (!success)
+            if (outcome.MfaRequired)
             {
-                ErrorMessage = "Invalid username or password.";
+                // Password accepted; no session yet. Switch to the authenticator-code step.
+                MfaChallengeToken = outcome.ChallengeToken;
+                MfaCode = string.Empty;
+                ErrorMessage = string.Empty;
+            }
+            else if (!outcome.Success)
+            {
+                ErrorMessage = string.IsNullOrWhiteSpace(outcome.Error)
+                    ? "Invalid username or password."
+                    : outcome.Error!;
             }
         }
         catch (Exception ex)
@@ -578,6 +650,69 @@
             IsLoading = false;
             StateHasChanged();
         }
+    }
+
+    // ── Two-factor step ────────────────────────────────────────────────────────
+    // Present only after a correct password on an MFA-enabled account. Until the code is verified there is
+    // no session at all, so abandoning this step leaves the user signed out.
+    string? MfaChallengeToken;
+    string MfaCode = string.Empty;
+
+    bool AwaitingMfa => !string.IsNullOrEmpty(MfaChallengeToken);
+
+    /// <summary>Keeps the field to digits, but allows a recovery code (letters + dash) to be pasted.</summary>
+    void OnMfaCodeInput(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString() ?? string.Empty;
+        MfaCode = raw.Length > 20 ? raw[..20] : raw;
+    }
+
+    /// <summary>Enter submits the code, matching the password form's behaviour.</summary>
+    async Task HandleMfaKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !IsLoading)
+            await VerifyMfa();
+    }
+
+    async Task VerifyMfa()    {
+        if (string.IsNullOrWhiteSpace(MfaCode))
+        {
+            ErrorMessage = "Enter the 6-digit code from your authenticator app.";
+            return;
+        }
+
+        IsLoading = true;
+        ErrorMessage = string.Empty;
+        StateHasChanged();
+        try
+        {
+            var outcome = await AuthService.VerifyMfaAsync(MfaChallengeToken!, MfaCode.Trim());
+            if (!outcome.Success)
+            {
+                ErrorMessage = string.IsNullOrWhiteSpace(outcome.Error)
+                    ? "That code is not valid."
+                    : outcome.Error!;
+                MfaCode = string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Abandons the two-factor step and returns to the password form (no session was created).</summary>
+    void CancelMfa()
+    {
+        MfaChallengeToken = null;
+        MfaCode = string.Empty;
+        Password = string.Empty;
+        ErrorMessage = string.Empty;
     }
 
     string GetFieldError(string fieldName) => FieldErrors.ContainsKey(fieldName) ? FieldErrors[fieldName] : string.Empty;

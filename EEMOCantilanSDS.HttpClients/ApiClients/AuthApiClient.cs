@@ -49,4 +49,7 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
 
     public async Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command) =>
         await PostAsync<RegenerateRecoveryCodesCommand, MfaRecoveryCodesDto>("api/AdminAuth/mfa/recovery-codes", command);
+
+    public async Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command) =>
+        await PostAsync<VerifyMfaLoginCommand, TokenResponseDto>("api/AdminAuth/mfa/verify-login", command);
 }

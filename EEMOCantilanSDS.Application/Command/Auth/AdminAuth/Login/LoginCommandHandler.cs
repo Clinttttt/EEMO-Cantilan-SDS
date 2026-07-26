@@ -5,6 +5,8 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 
@@ -53,7 +55,38 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
             return Result<TokenResponseDto>.Forbidden();
 
         user.RecordLogin();
+
+        // Two-factor gate: the password is correct, but on an MFA-enabled account NO session is issued here.
+        // Instead a short-lived, hashed, single-use challenge is stamped and returned; tokens are only minted
+        // by the verify step once the authenticator code (or a recovery code) checks out. Accounts without
+        // MFA are completely unaffected — the flow below is byte-for-byte the previous behaviour.
+        if (user.MfaEnabled)
+        {
+            var (challenge, challengeHash) = GenerateChallenge();
+            user.SetMfaChallenge(challengeHash, DateTime.UtcNow.AddMinutes(MfaChallengeMinutes));
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<TokenResponseDto>.Success(new TokenResponseDto
+            {
+                MfaRequired = true,
+                MfaChallengeToken = challenge
+            });
+        }
+
         // CreateTokenResponse persists the reset login state together with the new refresh token.
         return Result<TokenResponseDto>.Success(await tokenService.CreateTokenResponse(user));
+    }
+
+    /// <summary>How long the user has to enter their authenticator code after the password step.</summary>
+    private const int MfaChallengeMinutes = 5;
+
+    // A url-safe, cryptographically-random single-use challenge; only its SHA-256 hash is stored.
+    private static (string raw, string hash) GenerateChallenge()
+    {
+        Span<byte> bytes = stackalloc byte[32];
+        RandomNumberGenerator.Fill(bytes);
+        var raw = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        var hash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(raw)));
+        return (raw, hash);
     }
 }

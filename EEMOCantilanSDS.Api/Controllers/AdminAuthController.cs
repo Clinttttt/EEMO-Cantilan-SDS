@@ -31,9 +31,28 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     {
         var result = await Sender.Send(request);
 
-        if (result.IsSuccess)   
+        // On an MFA-enabled account the password step returns a challenge and NO tokens, so no auth cookie
+        // may be written here — the session is only established by mfa/verify-login.
+        if (result.IsSuccess && result.Value is { MfaRequired: false })
             CookieHelper.SetAuthCookies(Response, result.Value!.AccessToken, result.Value.RefreshToken);
-        
+
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Completes a two-factor sign-in: the challenge from the password step plus an authenticator code (or a
+    /// recovery code). Anonymous (no session exists yet) and rate-limited; issues the session on success.
+    /// </summary>
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("mfa/verify-login")]
+    public async Task<ActionResult<TokenResponseDto>> VerifyMfaLoginAsync([FromBody] VerifyMfaLoginCommand command)
+    {
+        var result = await Sender.Send(command);
+
+        if (result.IsSuccess && result.Value is not null)
+            CookieHelper.SetAuthCookies(Response, result.Value.AccessToken, result.Value.RefreshToken);
+
         return HandleResponse(result);
     }
 

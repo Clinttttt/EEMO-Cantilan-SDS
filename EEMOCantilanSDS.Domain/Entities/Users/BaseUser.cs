@@ -82,6 +82,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         /// </summary>
         public string? MfaRecoveryCodeHashes { get; protected set; }
 
+        // Short-lived MFA sign-in challenge (hashed at rest). Issued when the PASSWORD step succeeds on an
+        // MFA-enabled account: it proves "this password was just verified" and nothing else. No access or
+        // refresh token exists until the second factor is supplied, so a half-authenticated session can
+        // never reach the application.
+        public string? MfaChallengeTokenHash { get; protected set; }
+        public DateTime? MfaChallengeTokenExpiry { get; protected set; }
+
         /// <summary>True once a secret exists but has not yet been confirmed with a valid code.</summary>
         public bool HasPendingMfaEnrollment => MfaSecretCipher is not null && !MfaEnabled;
 
@@ -284,7 +291,42 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             MfaEnrolledAt = null;
             MfaLastUsedStep = null;
             MfaRecoveryCodeHashes = null;
+            ClearMfaChallenge();
             UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Stamps a short-lived sign-in challenge after a correct password on an MFA-enabled account (store
+        /// the HASH only). Issuing a new challenge invalidates any previous one, so parallel sign-in attempts
+        /// cannot both stay open.
+        /// </summary>
+        public void SetMfaChallenge(string tokenHash, DateTime expiry)
+        {
+            MfaChallengeTokenHash = tokenHash;
+            MfaChallengeTokenExpiry = expiry;
+        }
+
+        /// <summary>
+        /// True when the supplied challenge hash matches an unexpired challenge. Fixed-time comparison so the
+        /// challenge cannot be recovered by timing the response.
+        /// </summary>
+        public bool IsMfaChallengeValid(string tokenHash)
+        {
+            if (string.IsNullOrEmpty(MfaChallengeTokenHash) || string.IsNullOrEmpty(tokenHash))
+                return false;
+            if (!MfaChallengeTokenExpiry.HasValue || MfaChallengeTokenExpiry.Value <= DateTime.UtcNow)
+                return false;
+
+            return CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(MfaChallengeTokenHash),
+                Encoding.UTF8.GetBytes(tokenHash));
+        }
+
+        /// <summary>Consumes/aborts the sign-in challenge (single use).</summary>
+        public void ClearMfaChallenge()
+        {
+            MfaChallengeTokenHash = null;
+            MfaChallengeTokenExpiry = null;
         }
 
         /// <summary>

@@ -29,9 +29,11 @@ public interface IAuthApiClient
     Task<Result<VerifiedAccountDto>> VerifyEmailAsync(VerifyEmailCommand command);
 
     // ── Two-factor (own account) ──
-    Task<Result<MfaStatusDto>> GetMfaStatusAsync();
-    Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command);
+    Task<Result<MfaStatusDto>> GetMfaStatusAsync();    Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command);
     Task<Result<MfaRecoveryCodesDto>> ConfirmMfaEnrollmentAsync(ConfirmMfaEnrollmentCommand command);
     Task<Result<bool>> DisableMfaAsync(DisableMfaCommand command);
     Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command);
+
+    /// <summary>Completes a two-factor sign-in (challenge from the password step + authenticator code).</summary>
+    Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command);
 }
