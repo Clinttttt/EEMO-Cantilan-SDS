@@ -16,6 +16,15 @@
     gap: 14px;
 }
 
+/* Hosted in a modal: the modal supplies the surface, title and padding, so the panel adds none of its own
+   (avoids a card drawn inside a card). */
+.mfa-card-flat {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+}
+
 /* ── Header ── */
 .mfa-head {
     display: flex;

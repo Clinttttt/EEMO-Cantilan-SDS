@@ -15,24 +15,27 @@
     the markup.
 *@
 
-<section class="mfa-card">
-    <div class="mfa-head">
-        <div class="mfa-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
-            </svg>
+<section class="mfa-card @(Flat ? "mfa-card-flat" : "")">
+    @if (!Flat)
+    {
+        <div class="mfa-head">
+            <div class="mfa-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
+                </svg>
+            </div>
+            <div class="mfa-titles">
+                <div class="mfa-title">Two-Factor Authentication</div>
+                <div class="mfa-sub">Authenticator app code in addition to your password</div>
+            </div>
+            @if (_status is not null)
+            {
+                <span class="mfa-state @(_status.Enabled ? "mfa-state-on" : "mfa-state-off")">
+                    @(_status.Enabled ? "On" : _status.PendingEnrollment ? "Setup unfinished" : "Off")
+                </span>
+            }
         </div>
-        <div class="mfa-titles">
-            <div class="mfa-title">Two-Factor Authentication</div>
-            <div class="mfa-sub">Authenticator app code in addition to your password</div>
-        </div>
-        @if (_status is not null)
-        {
-            <span class="mfa-state @(_status.Enabled ? "mfa-state-on" : "mfa-state-off")">
-                @(_status.Enabled ? "On" : _status.PendingEnrollment ? "Setup unfinished" : "Off")
-            </span>
-        }
-    </div>
+    }
 
     @if (_status is null)
     {
@@ -174,6 +177,15 @@
 @code {
     private enum Mode { None, Disable, Regenerate }
 
+    /// <summary>
+    /// True when hosted inside a modal: the modal already supplies the card surface and title, so the panel
+    /// drops its own border/padding/header instead of drawing a card inside a card.
+    /// </summary>
+    [Parameter] public bool Flat { get; set; }
+
+    /// <summary>Raised whenever the two-factor state changes, so the host can refresh its own badge.</summary>
+    [Parameter] public EventCallback<MfaStatusDto> OnStatusChanged { get; set; }
+
     private MfaStatusDto? _status;
     private MfaEnrollmentDto? _enrollment;
     private IReadOnlyList<string>? _recoveryCodes;
@@ -217,6 +229,9 @@
         {
             _status = new MfaStatusDto(false, false, null, 0);
         }
+
+        if (OnStatusChanged.HasDelegate)
+            await OnStatusChanged.InvokeAsync(_status);
     }
 
     private async Task BeginAsync()

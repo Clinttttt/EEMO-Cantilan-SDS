@@ -287,3 +287,68 @@
     .vs-hero-sub2 { display: none; }
 }
 
+
+/* ── Two-factor entry point (bottom-right of the Security & Access Policy card) ──
+   The security card lists read-only policy rows; two-factor is an ACTION on your own account, so it sits
+   here as a button that opens a dialog instead of occupying a card of its own. */
+.set-links-split {
+    align-items: center;
+    justify-content: space-between;
+}
+
+.set-links-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    min-width: 0;
+}
+
+.set-2fa-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--navy);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, box-shadow .15s;
+}
+
+.set-2fa-btn:hover {
+    background: var(--bg-icon);
+    box-shadow: 0 3px 10px rgba(13, 33, 55, .08);
+}
+
+.set-2fa-btn:focus-visible {
+    outline: 2px solid var(--navy-3);
+    outline-offset: 2px;
+}
+
+.set-2fa-btn svg {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
+.set-2fa-state {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+}
+
+.set-2fa-state.is-on { background: var(--green-bg); color: var(--green); }
+.set-2fa-state.is-off { background: var(--bg-icon); color: var(--text-subtle); }
+
+@media (max-width: 768px) {
+    .set-links-split { align-items: flex-start; }
+    .set-2fa-btn { margin-left: 0; width: 100%; justify-content: center; }
+}

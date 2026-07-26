@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject ISettingsApiClient SettingsApi
+@inject IAuthApiClient AuthApi
 @inject AuthService AuthService
 @inject AuthenticationStateProvider AuthState
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -166,16 +167,25 @@
                         }
                     }
                 </div>
-                <div class="set-links">
-                    <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
-                    <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                <div class="set-links set-links-split">
+                    <div class="set-links-group">
+                        <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
+                        <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                    </div>
+                    @* Two-factor lives behind this button (bottom-right of the security card) rather than as
+                       its own card: it is an action the signed-in user takes on their own account, not a
+                       policy row. The badge mirrors the current state without opening the dialog. *@
+                    <button class="set-2fa-btn" type="button" @onclick="() => _show2fa = true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
+                        </svg>
+                        <span>Two-factor authentication</span>
+                        <span class="set-2fa-state @(_mfa?.Enabled == true ? "is-on" : "is-off")">
+                            @(_mfa is null ? "…" : _mfa.Enabled ? "On" : _mfa.PendingEnrollment ? "Unfinished" : "Off")
+                        </span>
+                    </button>
                 </div>
             </section>
-
-            @* ── Two-factor authentication (own account) ──
-               Self-contained component: opt-in enrollment with an authenticator app. Sign-in is not gated by
-               it yet, so enabling it here is safe and reversible. *@
-            <TwoFactorPanel />
 
             <!-- ── Collection & Billing Rules ── -->
             <section class="set-card">
@@ -371,9 +381,58 @@
     </div>
 </div>
 
+@* ── Two-factor authentication dialog ──
+   Opened from the Security & Access Policy card. The panel renders "flat" because the modal already
+   provides the surface, and reports state changes back so the button's badge stays accurate. *@
+@if (_show2fa)
+{
+    <div class="eemo-modal-overlay" @onclick="Close2fa">
+        <div class="eemo-modal" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div>
+                    <div class="eemo-modal-title">Two-Factor Authentication</div>
+                    <div class="eemo-modal-sub">Authenticator app code in addition to your password</div>
+                </div>
+                <button class="eemo-modal-close" type="button" @onclick="Close2fa" aria-label="Close">&times;</button>
+            </div>
+            <div class="eemo-modal-body">
+                <TwoFactorPanel Flat="true" OnStatusChanged="OnMfaStatusChanged" />
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private readonly DateTime _now = PhilippineTime.Now;
     private SystemSettingsDto? _model;
+
+    // ── Two-factor (own account) ──
+    // The badge on the security card reflects current state; the dialog hosts the actual enrolment flow.
+    private bool _show2fa;
+    private EEMOCantilanSDS.Application.Dtos.Auth.MfaStatusDto? _mfa;
+
+    private void Close2fa() => _show2fa = false;
+
+    private void OnMfaStatusChanged(EEMOCantilanSDS.Application.Dtos.Auth.MfaStatusDto status)
+    {
+        _mfa = status;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Reads the two-factor state for the button badge. Best-effort: a failure just leaves the badge
+    /// unresolved rather than breaking the Settings page.
+    /// </summary>
+    private async Task LoadMfaStatusAsync()
+    {
+        try
+        {
+            var result = await AuthApi.GetMfaStatusAsync();
+            if (result.IsSuccess && result.Value is not null)
+                _mfa = result.Value;
+        }
+        catch { /* leave the badge unresolved */ }
+    }
 
     // Compact list of the tenant's facility acronyms for the Facility Configuration card.
     private string FacilityCodes() =>
@@ -415,6 +474,9 @@
         // The LGU Head (SuperAdmin of ANY tenant) manages their own facilities — unlike the platform-only
         // database/backup tools, this is available to every LGU's Head.
         _isHead = isSuperAdmin;
+
+        // Two-factor state for the security card's badge (independent of the cached settings payload).
+        await LoadMfaStatusAsync();
 
         if (CachedSettings is not null)
         {
