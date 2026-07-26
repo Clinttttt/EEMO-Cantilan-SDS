@@ -125,16 +125,11 @@ namespace EEMOCantilanSDS.HttpClients
             try
             {
                 using var doc = JsonDocument.Parse(jsonContent);
-                var root = doc.RootElement;
-
-                if (root.TryGetProperty("error", out var errorProp))
-                {
-                    if (errorProp.ValueKind == JsonValueKind.String)
-                        return errorProp.GetString() ?? jsonContent;
-
-                    if (errorProp.ValueKind == JsonValueKind.Object)
-                        return JsonErrorParser.ExtractMessages(errorProp) ?? jsonContent;
-                }
+                // Handles the API's `error` string / `errors` object shapes (and ProblemDetails), so 409/500
+                // responses surface the real reason too.
+                var message = JsonErrorParser.ExtractFailureMessage(doc.RootElement);
+                if (!string.IsNullOrWhiteSpace(message))
+                    return message!;
             }
             catch { }
 
@@ -147,8 +142,15 @@ namespace EEMOCantilanSDS.HttpClients
             {
                 using var doc = JsonDocument.Parse(content);
                 var errors = JsonErrorParser.ValidationErrorHandler(doc.RootElement);
-                return !errors.ContainsKey("BadRequest") ? Result<TResponse>.ValidationFailure(errors)
-                        : Result<TResponse>.Failure("Bad Request", 400);
+                if (!errors.ContainsKey("BadRequest"))
+                    return Result<TResponse>.ValidationFailure(errors);
+
+                // Not field-keyed: the API sent a plain `error` message (e.g. "That code is not valid").
+                // Surface it — previously every non-validation 400 collapsed to the literal "Bad Request",
+                // which hid the reason from the user on every screen in the app.
+                var message = JsonErrorParser.ExtractFailureMessage(doc.RootElement);
+                return Result<TResponse>.Failure(
+                    string.IsNullOrWhiteSpace(message) ? "Bad Request" : message!, 400);
             }
             catch { }
             return Result<TResponse>.Failure("Bad Request", 400);

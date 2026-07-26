@@ -29,6 +29,7 @@
     <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
     <ProjectReference Include="..\EEMOCantilanSDS.Api\EEMOCantilanSDS.Api.csproj" />
     <ProjectReference Include="..\EEMOCantilanSDS.Mobile.Core\EEMOCantilanSDS.Mobile.Core.csproj" />
+    <ProjectReference Include="..\EEMOCantilanSDS.HttpClients\EEMOCantilanSDS.HttpClients.csproj" />
   </ItemGroup>
 
 </Project>
