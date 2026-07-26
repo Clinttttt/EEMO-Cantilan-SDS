@@ -73,7 +73,6 @@
     else if (_enrollment is not null)
     {
         <div class="mfa-body">
-            <div class="mfa-step">Scan this with Google Authenticator, Microsoft Authenticator or any TOTP app.</div>
             <div class="mfa-enroll">
                 <img class="mfa-qr" src="@_enrollment.QrCodeDataUri" alt="Two-factor setup QR code" />
                 <div class="mfa-manual">
@@ -83,7 +82,7 @@
                 </div>
             </div>
 
-            <label class="mfa-label" for="mfa-confirm-code">Now enter the 6-digit code your app shows</label>
+            <label class="mfa-label" for="mfa-confirm-code">Enter the 6-digit code your app shows</label>
             <div class="mfa-inline">
                 <input id="mfa-confirm-code" class="mfa-input" inputmode="numeric" autocomplete="one-time-code"
                        maxlength="6" placeholder="000000"
@@ -92,9 +91,6 @@
                     @(_busy ? "Verifying…" : "Turn on")
                 </button>
                 <button class="mfa-btn" type="button" disabled="@_busy" @onclick="CancelEnrollment">Cancel</button>
-            </div>
-            <div class="mfa-manual-hint">
-                That's the changing 6-digit number in the app — not the setup key above.
             </div>
         </div>
     }
