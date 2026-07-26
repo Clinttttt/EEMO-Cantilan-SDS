@@ -64,7 +64,11 @@ and the `Result<T>` pattern.
 
 Never:
 
-- Inject `DbContext`/`IAppDbContext` into handlers or UI
+- Inject `DbContext`/`IAppDbContext` into handlers or UI — **except** the established exception for
+  anonymous / tenant-less / onboarding flows (activation, password reset, email confirmation,
+  platform setup, onboarding drafts), where ~20 existing handlers already take `IAppDbContext`
+  directly because there is no tenant context for a repository to scope to. Follow that precedent
+  there; use repositories everywhere else.
 - Bypass repositories for data access
 - Place business/financial logic inside handlers or Razor components
 - Violate dependency direction
@@ -147,7 +151,67 @@ Therefore, after editing any `.razor.css`:
 - Verify the generated/served bundle is balanced (comments stripped) before
   trusting a deploy.
 
+## Blazor Server Rules (hard-won)
+
+- **Prerendering runs `OnInitializedAsync` TWICE** (once server-prerendered, once on the interactive
+  circuit — `App.razor` uses `InteractiveServerRenderMode(prerender: true)`). Never perform a
+  one-shot or *consuming* side-effect there (spending a one-time token, POSTing, sending mail):
+  the first pass consumes it and the second reports failure, so the user sees the wrong outcome.
+  Put such calls in `OnAfterRenderAsync(firstRender)` (never invoked during prerender) with an
+  idempotency guard field. Read-only lookups in `OnInitializedAsync` are fine (they just run twice).
+- Prefer **idempotent** one-time links where the capability is trivial (e.g. email confirmation only
+  sets a flag): keep the token valid until expiry instead of consuming it, so a refresh, forwarded
+  copy or double render can never dead-end. Reserve strict single-use for state-changing links
+  (password reset).
+- A new routable page under the split auth layout needs **its own `.razor.css`**: the card/form/panel
+  classes (`login-card`, `setup-form`, `login-header-icon`, `government-logo-card`, `login-forgot`, …)
+  are component-SCOPED per page, not global — `Login`, `AccountSetup` and `AdminActivate` each keep
+  their own copy. Forgetting this renders a completely unstyled page that still builds and passes
+  `/health`. Shared markup belongs in a component that owns its own stylesheet (see `AuthBrandPanel`).
+- Chrome-less routes must be added to `MainLayout.UpdateSidebarVisibility()`; otherwise the page
+  renders inside the admin sidebar shell when opened in a signed-in browser.
+- Beware helpers that reset shared UI state: `LoadAll()` clears `LoadError` as its first step, so
+  assigning an error *before* a refresh silently erases it. Hold the message in a local and re-apply
+  it after the reload.
+- Any page that starts a timer/`CancellationTokenSource` must `@implements IDisposable` and cancel it,
+  so nothing outlives the circuit.
+
+## Authentication & Account Recovery
+
+Current surface (all per-LGU, all enumeration-safe):
+
+- `POST api/AdminAuth/forgot-password` — **email only** (never username: that would be a
+  username→mailbox oracle). Always returns the same neutral success; a link is emailed only to an
+  **active account with a VERIFIED address**.
+- `POST api/AdminAuth/reset-password` — consumes a strict single-use, hashed, 30-min token; clears
+  lockout, revokes refresh tokens, never re-enables a deactivated account.
+- `GET api/AdminAuth/reset-context/{token}` — names the account (username + LGU) on the reset page.
+- `POST api/AdminAuth/verify-email` — idempotent confirmation; sets `EmailVerified` and nothing else.
+- `POST api/Admins/{id}/send-email-verification` — Head-triggered (re)send.
+- All anonymous auth endpoints carry `[AllowAnonymous]` + `[EnableRateLimiting("auth")]` (30/min/IP).
+
+Rules:
+
+- **Email uniqueness is per-LGU** (`UNIQUE (MunicipalityId, Email)`), so the same address can be
+  registered in several municipalities. In an anonymous flow NEVER resolve an account with a global
+  `FirstOrDefault` — it silently picks the wrong tenant. Scope by `?lgu={code}` when supplied
+  (mirroring `LoginCommandHandler`), and otherwise handle **every** match (one link per account,
+  each email naming its own LGU + username).
+- Store only token HASHES (SHA-256 of a 32-byte url-safe random value); compare with
+  `CryptographicOperations.FixedTimeEquals`; keep expiry in UTC.
+- `EmailVerified` is the gate for self-service recovery. It is set by completing activation or by
+  confirming an emailed link, and is **cleared whenever the address changes**
+  (`BaseUser.OnEmailChanged`, called from both `AdminUser`/`CollectorUser.UpdateProfile`) so a
+  replaced address can never inherit the previous one's trust.
+- **Peer-Head protection** (`AdminManagementGuard`): a Head may act on their OWN account and on
+  ordinary Admin accounts, but NOT on another Head's (403). Enforced in update / status-toggle /
+  password-reset / send-confirmation handlers; the UI only mirrors it. Fails closed when the acting
+  identity is unknown. Consequence to keep in mind: no peer can disable a departed Head's account.
+- MFA is NOT implemented (a later phase). Never ship MFA before recovery + recovery codes exist, or
+  the Head can lock themselves out permanently.
+
 ## EF Core Rules
+
 
 Watch for N+1 queries, missing `AsNoTracking`, premature `ToList`, multiple
 enumeration, client-side evaluation, over-fetching, missing projections, and
@@ -159,7 +223,10 @@ prematurely.
 - Backend loop: `dotnet build EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj -nologo`.
 - Touching page markup → run the ComponentTests project (`EEMOCantilanSDS.ComponentTests`, currently **4/4**).
 - Touching Application/Infrastructure/Domain → run the full unit suite
-  (`EEMOCantilanSDS.Testing`, currently **~670** passing).
+  (`EEMOCantilanSDS.Testing`, currently **707** passing).
+- Run the two suites in SEPARATE commands. Running them together loads both assemblies at once, and a
+  bUnit `WaitForAssertion` on the default **1-second** timeout can lose the race on a busy machine —
+  a false failure. Async render assertions must pass an explicit timeout (see `ReportPageTests`).
 - Add xUnit regression/edge-case/business-rule tests when fixing bugs or changing
   business rules, reports, calculations, or tenant scoping. Tests must prove correctness.
 
