@@ -52,4 +52,10 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
 
     public async Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command) =>
         await PostAsync<VerifyMfaLoginCommand, TokenResponseDto>("api/AdminAuth/mfa/verify-login", command);
+
+    public async Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync() =>
+        await GetAsync<IReadOnlyList<MfaEnrolledAccountDto>>("api/AdminAuth/mfa/enrolled-accounts");
+
+    public async Task<Result<bool>> ResetUserMfaAsync(ResetUserMfaCommand command) =>
+        await PostAsync<ResetUserMfaCommand, bool>("api/AdminAuth/mfa/reset-user", command);
 }

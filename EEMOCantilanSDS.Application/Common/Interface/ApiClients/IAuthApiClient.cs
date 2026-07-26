@@ -36,4 +36,11 @@ public interface IAuthApiClient
 
     /// <summary>Completes a two-factor sign-in (challenge from the password step + authenticator code).</summary>
     Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command);
+
+    // ── Platform-operator two-factor recovery ──
+    /// <summary>Every MFA-enrolled account across all LGUs (platform operator only).</summary>
+    Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync();
+
+    /// <summary>Clears an account's two-factor when its owner lost both device and recovery codes.</summary>
+    Task<Result<bool>> ResetUserMfaAsync(ResetUserMfaCommand command);
 }

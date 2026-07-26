@@ -14,6 +14,9 @@
             @Body
         </main>
     </div>
+    @* Heads must have two-factor enabled; this keeps them on the setup page until they do. Renders nothing,
+       fails open, and only applies to signed-in SuperAdmins. *@
+    <EEMOCantilanSDS.Client.Components.Shared.MfaEnforcementGate />
     <EEMOCantilanSDS.Client.Components.Shared.SessionGuard LoginPath="/login" LogoutEndpoint="/api/authproxy/logout" />
 }
 else

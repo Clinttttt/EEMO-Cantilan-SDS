@@ -1,0 +1,197 @@
+@using EEMOCantilanSDS.Application.Command.Auth.Mfa
+@using EEMOCantilanSDS.Application.Dtos.Auth
+@inject IAuthApiClient AuthApi
+
+@*
+    Platform-operator two-factor recovery (Settings → operator tools).
+
+    This is the rescue path for an account whose owner lost BOTH their authenticator device and their recovery
+    codes. It matters most for a HEAD: peer Heads are blocked from each other's accounts and self-service
+    recovery restores a password, not a second factor — so without this a Head would be locked out forever.
+
+    Clearing only removes the second factor. It never changes the target's password, role or active state:
+    the owner signs in with their existing password and enrols again.
+
+    Cross-tenant by design (the operator serves every LGU), and gated three ways: the PlatformOperator policy
+    on the endpoint, the same guard re-checked in the handler, and the operator's own password here.
+*@
+
+<section class="mfa-card">
+    <div class="mfa-head">
+        <div class="mfa-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="M9 12h6" />
+            </svg>
+        </div>
+        <div class="mfa-titles">
+            <div class="mfa-title">Two-Factor Recovery</div>
+            <div class="mfa-sub">Clear two-factor for an account that lost its device and codes</div>
+        </div>
+        @if (_accounts is not null)
+        {
+            <span class="mfa-state mfa-state-off">@_accounts.Count enrolled</span>
+        }
+    </div>
+
+    <div class="mfa-body">
+        @if (_accounts is null)
+        {
+            <Skeleton Width="70%" Height="12px" Radius="6px" />
+        }
+        else if (_accounts.Count == 0)
+        {
+            <div class="mfa-step">No account has two-factor authentication enabled yet.</div>
+        }
+        else
+        {
+            <div class="mfa-step">
+                Use this only when the owner has confirmed they cannot use their authenticator app and have no
+                recovery codes left. Verify who you are talking to first — clearing two-factor lowers that
+                account's protection until they enrol again.
+            </div>
+
+            <div class="mfa-rows">
+                @foreach (var account in _accounts)
+                {
+                    <div class="mfa-recov-row">
+                        <div class="mfa-recov-who">
+                            <div class="mfa-recov-name">
+                                @account.Username
+                                @if (account.IsHead)
+                                {
+                                    <span class="mfa-recov-tag">Head</span>
+                                }
+                            </div>
+                            <div class="mfa-recov-meta">
+                                @(string.IsNullOrWhiteSpace(account.OfficeAcronym) ? "StallTrack" : account.OfficeAcronym)
+                                @if (!string.IsNullOrWhiteSpace(account.Municipality))
+                                {
+                                    <span> · @account.Municipality</span>
+                                }
+                                <span> · @account.RecoveryCodesRemaining code@(account.RecoveryCodesRemaining == 1 ? "" : "s") left</span>
+                            </div>
+                        </div>
+                        <button class="mfa-btn mfa-btn-danger" type="button"
+                                disabled="@_busy"
+                                @onclick="() => Select(account)">
+                            Clear
+                        </button>
+                    </div>
+                }
+            </div>
+
+            @if (_selected is not null)
+            {
+                <div class="mfa-confirm">
+                    <div class="mfa-step">
+                        Clear two-factor for <strong>@_selected.Username</strong>
+                        @(string.IsNullOrWhiteSpace(_selected.Municipality) ? "" : $" ({_selected.Municipality})")?
+                        They will sign in with their password alone until they set it up again.
+                        Confirm with <strong>your</strong> password.
+                    </div>
+                    <div class="mfa-inline">
+                        <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
+                               placeholder="Your password"
+                               @key="@($"op-pw-{_formNonce}")"
+                               @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                        <button class="mfa-btn mfa-btn-danger" type="button" disabled="@_busy" @onclick="ConfirmResetAsync">
+                            @(_busy ? "Clearing…" : "Clear two-factor")
+                        </button>
+                        <button class="mfa-btn" type="button" disabled="@_busy" @onclick="Cancel">Cancel</button>
+                    </div>
+                </div>
+            }
+        }
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="mfa-notice mfa-notice-error">@_error</div>
+        }
+        @if (!string.IsNullOrEmpty(_ok))
+        {
+            <div class="mfa-notice mfa-notice-ok">@_ok</div>
+        }
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<MfaEnrolledAccountDto>? _accounts;
+    private MfaEnrolledAccountDto? _selected;
+    private string _password = string.Empty;
+    private int _formNonce;
+    private bool _busy;
+    private string? _error;
+    private string? _ok;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var result = await AuthApi.GetMfaEnrolledAccountsAsync();
+            _accounts = result.IsSuccess && result.Value is not null
+                ? result.Value
+                : Array.Empty<MfaEnrolledAccountDto>();
+            if (!result.IsSuccess && result.StatusCode is 401 or 403)
+                _error = "Only the platform operator can use two-factor recovery.";
+        }
+        catch
+        {
+            _accounts = Array.Empty<MfaEnrolledAccountDto>();
+        }
+    }
+
+    private void Select(MfaEnrolledAccountDto account)
+    {
+        _selected = account;
+        _password = string.Empty;
+        _formNonce++;
+        _error = null;
+        _ok = null;
+    }
+
+    private void Cancel()
+    {
+        _selected = null;
+        _password = string.Empty;
+        _formNonce++;
+        _error = null;
+    }
+
+    private async Task ConfirmResetAsync()
+    {
+        if (_selected is null) return;
+        if (string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Enter your password to confirm.";
+            return;
+        }
+
+        _busy = true; _error = null; _ok = null;
+        var target = _selected.Username;
+        try
+        {
+            var result = await AuthApi.ResetUserMfaAsync(new ResetUserMfaCommand(_selected.Id, _password));
+            if (result.IsSuccess)
+            {
+                _ok = $"Two-factor cleared for {target}. Ask them to sign in and set it up again.";
+                Cancel();
+                await LoadAsync();
+            }
+            else
+            {
+                _error = result.StatusCode switch
+                {
+                    401 => "Your session has expired. Please sign in again.",
+                    403 => "Only the platform operator can clear two-factor.",
+                    404 => "That account no longer exists.",
+                    429 => "Too many attempts. Please wait a minute and try again.",
+                    _ => string.IsNullOrWhiteSpace(result.Error) ? "We couldn't clear two-factor." : result.Error!
+                };
+            }
+        }
+        catch { _error = "We couldn't clear two-factor. Please try again."; }
+        finally { _busy = false; }
+    }
+}

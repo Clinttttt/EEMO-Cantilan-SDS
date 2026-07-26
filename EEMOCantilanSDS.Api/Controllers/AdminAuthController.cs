@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
 using EEMOCantilanSDS.Application.Command.Auth.Mfa;
 using EEMOCantilanSDS.Application.Queries.Auth.GetMfaStatus;
+using EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts;
 using EEMOCantilanSDS.Application.Queries.Auth.GetPasswordResetContext;
 using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Application.Command.Auth.GenerateRefreshToken;
@@ -167,6 +168,25 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     [Authorize]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync([FromBody] RegenerateRecoveryCodesCommand command)
+        => HandleResponse(await Sender.Send(command));
+
+    /// <summary>
+    /// Platform-operator two-factor recovery. Lists every MFA-enrolled account across all LGUs so the
+    /// operator can find the right one. Gated by the PlatformOperator policy AND re-checked in the handler.
+    /// </summary>
+    [HttpGet("mfa/enrolled-accounts")]
+    [Authorize(Policy = "PlatformOperator")]
+    public async Task<ActionResult<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync()
+        => HandleResponse(await Sender.Send(new GetMfaEnrolledAccountsQuery()));
+
+    /// <summary>
+    /// Clears two-factor on an account whose owner lost both their device and their recovery codes — the only
+    /// rescue path for a Head, who has nobody above them in their own LGU. Requires the operator's password.
+    /// </summary>
+    [HttpPost("mfa/reset-user")]
+    [Authorize(Policy = "PlatformOperator")]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<bool>> ResetUserMfaAsync([FromBody] ResetUserMfaCommand command)
         => HandleResponse(await Sender.Send(command));
 
     [HttpPost("logout")]

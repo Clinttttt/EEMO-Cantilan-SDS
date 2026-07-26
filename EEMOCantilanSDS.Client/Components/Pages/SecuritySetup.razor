@@ -1,0 +1,87 @@
+@page "/security-setup"
+@using EEMOCantilanSDS.Application.Dtos.Auth
+@inject IAuthApiClient AuthApi
+@inject NavigationManager Navigation
+@attribute [Authorize(Roles = "SuperAdmin")]
+
+<PageTitle>@Branding.OfficeAcronym Admin — Required Security Setup</PageTitle>
+
+@*
+    Mandatory two-factor enrolment gate for Heads (SuperAdmin).
+
+    Deliberately enforced AFTER sign-in, never before: the user is already authenticated when they land here,
+    so making it mandatory can never lock anyone out. They simply cannot use the rest of the portal until the
+    second factor is active — which is the point, since a Head can create accounts, reset passwords and read
+    every financial record in the LGU.
+
+    Once enabled, this page steps aside automatically.
+*@
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Required Security Setup</div>
+        <div class="topbar-breadcrumb">
+            <span class="breadcrumb-active">Two-factor authentication</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="secsetup-wrap">
+        <div class="secsetup-intro">
+            <div class="secsetup-badge">Required for @Branding.OfficeAcronym Heads</div>
+            <h1 class="secsetup-title">Protect your Head account</h1>
+            <p class="secsetup-text">
+                Your account can create and reset staff accounts and read every financial record for
+                @Branding.Municipality. Because of that, two-factor authentication is required before you
+                continue.
+            </p>
+            <p class="secsetup-text secsetup-text-muted">
+                You'll need a free authenticator app on your phone (Google Authenticator, Microsoft
+                Authenticator, or similar). Setup takes about a minute, and you'll get recovery codes to keep
+                somewhere safe in case you lose the phone.
+            </p>
+        </div>
+
+        @if (_enabled)
+        {
+            <div class="secsetup-done">
+                <div class="secsetup-done-title">Two-factor is active</div>
+                <p class="secsetup-text">Your account is protected. You can continue to the portal.</p>
+                <button class="secsetup-continue" type="button" @onclick="Continue">Continue to dashboard</button>
+            </div>
+        }
+        else
+        {
+            <TwoFactorPanel OnStatusChanged="OnStatusChanged" />
+        }
+    </div>
+</div>
+
+@code {
+    private bool _enabled;
+
+    private void OnStatusChanged(MfaStatusDto status)
+    {
+        // The panel reports every state change, so the gate lifts the moment enrolment completes.
+        _enabled = status.Enabled;
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Branding.EnsureLoadedAsync();
+        try
+        {
+            var status = await AuthApi.GetMfaStatusAsync();
+            if (status.IsSuccess && status.Value is not null)
+                _enabled = status.Value.Enabled;
+        }
+        catch { /* leave the gate in place if the check fails — it is only a convenience */ }
+    }
+
+    private void Continue() => Navigation.NavigateTo("/menu", forceLoad: true);
+}

@@ -275,6 +275,14 @@
                     </div>
                 </section>
             }
+
+            @* ── Two-factor recovery (platform operator only) ──
+               The rescue path for an account that lost both its authenticator device and its recovery codes.
+               Only the operator sees it; the API enforces the same rule independently. *@
+            @if (_isPlatformOperator)
+            {
+                <TwoFactorRecoveryPanel />
+            }
     <!-- ── System Information ── -->
             <section class="set-card">
                 <div class="set-card-head">
