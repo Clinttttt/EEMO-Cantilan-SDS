@@ -138,6 +138,9 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IDatabaseHealthApiClient, DatabaseHealthApiClient>(configuration);
             service.AddApiHttpClient<ITenantUsageApiClient, TenantUsageApiClient>(configuration);
             service.AddApiHttpClient<IMunicipalitiesApiClient, MunicipalitiesApiClient>(configuration);
+            // Two-factor operations that require an authenticated caller. Registered on the STANDARD pipeline
+            // (bearer token + automatic refresh) — unlike AuthClient, which is anonymous by design.
+            service.AddApiHttpClient<IMfaApiClient, MfaApiClient>(configuration);
 
             return service;
         }

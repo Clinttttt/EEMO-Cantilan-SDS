@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
+using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.RequestPasswordReset;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.ResetPasswordByToken;
 using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.VerifyEmail;
@@ -28,19 +28,6 @@ public interface IAuthApiClient
     /// <summary>Confirms an email address using the one-time token from the confirmation link.</summary>
     Task<Result<VerifiedAccountDto>> VerifyEmailAsync(VerifyEmailCommand command);
 
-    // ── Two-factor (own account) ──
-    Task<Result<MfaStatusDto>> GetMfaStatusAsync();    Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command);
-    Task<Result<MfaRecoveryCodesDto>> ConfirmMfaEnrollmentAsync(ConfirmMfaEnrollmentCommand command);
-    Task<Result<bool>> DisableMfaAsync(DisableMfaCommand command);
-    Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command);
-
     /// <summary>Completes a two-factor sign-in (challenge from the password step + authenticator code).</summary>
     Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command);
-
-    // ── Platform-operator two-factor recovery ──
-    /// <summary>Every MFA-enrolled account across all LGUs (platform operator only).</summary>
-    Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync();
-
-    /// <summary>Clears an account's two-factor when its owner lost both device and recovery codes.</summary>
-    Task<Result<bool>> ResetUserMfaAsync(ResetUserMfaCommand command);
 }

@@ -1,92 +1,172 @@
 /*
-   SecuritySetup — mandatory two-factor enrolment gate for Heads.
-   Self-contained: scoped CSS only applies to the component that declares the markup, so this page owns every
-   class it renders (the shared TwoFactorPanel brings its own styles).
+   SecuritySetup — mandatory two-factor enrolment, presented as a modal.
+
+   Self-contained: scoped CSS only applies to the component that declares the markup (the shared
+   TwoFactorPanel brings its own styles). Palette is the neutral government set from app.css — white surface,
+   navy text, restrained accents. No coloured success block: the confirmation is a quiet white row with a
+   small mark, which reads as official rather than celebratory.
 */
 
-.secsetup-wrap {
+.secsetup-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
     display: flex;
-    flex-direction: column;
-    gap: 18px;
-    max-width: 760px;
-    margin: 0 auto;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    overflow-y: auto;
+    background: rgba(10, 26, 43, .55);
+    backdrop-filter: blur(2px);
 }
 
-.secsetup-intro {
-    padding: 22px 24px;
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--gold);
-    border-radius: 14px;
+.secsetup-modal {
+    width: 100%;
+    max-width: 620px;
+    margin: auto;
     background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 28px 64px rgba(6, 20, 36, .34);
+    overflow: hidden;
 }
 
-.secsetup-badge {
-    display: inline-block;
-    margin-bottom: 10px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--gold) 16%, transparent);
+/* ── Header ── */
+.secsetup-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 22px 24px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.secsetup-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--navy) 14%, transparent);
+    background: var(--bg-icon);
+    color: var(--navy);
+}
+
+.secsetup-icon svg { width: 24px; height: 24px; }
+
+.secsetup-head-text { min-width: 0; }
+
+.secsetup-eyebrow {
+    margin-bottom: 5px;
     color: #7a5f13;
     font-size: 10.5px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: .5px;
+    letter-spacing: .55px;
 }
 
 .secsetup-title {
-    margin: 0 0 8px;
+    margin: 0 0 4px;
     color: var(--navy);
-    font-size: 22px;
+    font-size: 19px;
     font-weight: 800;
     letter-spacing: -.01em;
 }
 
-.secsetup-text {
-    margin: 0 0 8px;
+.secsetup-sub {
+    margin: 0;
+    color: var(--text-subtle);
+    font-size: 13px;
+}
+
+/* ── Body ── */
+.secsetup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px 24px;
+}
+
+.secsetup-note {
+    margin: 0;
     color: var(--text);
     font-size: 13.5px;
     line-height: 1.6;
 }
 
-.secsetup-text-muted {
-    margin-bottom: 0;
-    color: var(--text-subtle);
+/* Quiet, formal confirmation — deliberately NOT a green panel. */
+.secsetup-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg-card);
 }
 
-.secsetup-done {
-    padding: 22px 24px;
-    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
-    border-radius: 14px;
-    background: var(--green-bg);
-}
-
-.secsetup-done-title {
-    margin-bottom: 6px;
+.secsetup-confirm-mark {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--green) 45%, transparent);
     color: var(--green);
-    font-size: 15px;
-    font-weight: 800;
 }
 
-.secsetup-continue {
-    margin-top: 10px;
+.secsetup-confirm-mark svg { width: 16px; height: 16px; }
+
+.secsetup-confirm-title {
+    margin-bottom: 3px;
+    color: var(--navy);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* ── Footer ── */
+.secsetup-foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.secsetup-foot-note {
+    color: var(--text-subtle);
+    font-size: 12.5px;
+}
+
+.secsetup-btn {
     min-height: 44px;
     padding: 0 20px;
-    border: 1px solid var(--navy);
+    border: 1px solid var(--border);
     border-radius: 9px;
-    background: var(--navy);
-    color: #fff;
+    background: var(--bg-card);
+    color: var(--navy);
     font: inherit;
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
+    transition: background .15s;
 }
 
-.secsetup-continue:hover {
-    background: var(--navy-2);
+.secsetup-btn-primary {
+    border-color: var(--navy);
+    background: var(--navy);
+    color: #fff;
 }
+
+.secsetup-btn-primary:hover { background: var(--navy-2); }
 
 @media (max-width: 768px) {
-    .secsetup-intro, .secsetup-done { padding: 16px; }
-    .secsetup-title { font-size: 19px; }
-    .secsetup-continue { width: 100%; }
+    .secsetup-backdrop { padding: 12px; }
+    .secsetup-head, .secsetup-body, .secsetup-foot { padding-left: 16px; padding-right: 16px; }
+    .secsetup-title { font-size: 17px; }
+    .secsetup-foot { flex-direction: column; align-items: stretch; }
+    .secsetup-btn { width: 100%; }
 }

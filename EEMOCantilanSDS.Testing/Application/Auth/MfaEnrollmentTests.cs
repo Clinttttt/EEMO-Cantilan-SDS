@@ -85,7 +85,7 @@ public class MfaEnrollmentTests
     {
         var (handlers, user, _) = Build();
 
-        var result = await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        var result = await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
 
         Assert.True(result.IsSuccess);
         Assert.False(string.IsNullOrWhiteSpace(result.Value!.ManualKey));
@@ -126,23 +126,27 @@ public class MfaEnrollmentTests
         Assert.Equal(secret, protector.Unprotect(cipher));   // still reversible for validation
     }
 
+    /// <summary>
+    /// Enabling two-factor needs no password re-entry: the caller is already signed in and switching it ON
+    /// only raises protection. (Disabling and regenerating codes still demand the password — covered below.)
+    /// </summary>
     [Fact]
-    public async Task Begin_WithWrongPassword_IsRejected_AndChangesNothing()
+    public async Task Begin_RequiresNoPassword_BecauseTheCallerIsAlreadySignedIn()
     {
-        var (handlers, user, uow) = Build();
+        var (handlers, user, _) = Build();
 
-        var result = await handlers.Handle(new BeginMfaEnrollmentCommand("WrongPassword!"), default);
+        var result = await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
 
-        Assert.False(result.IsSuccess);
-        Assert.Null(user.MfaSecretCipher);
-        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(result.IsSuccess);
+        Assert.True(user.HasPendingMfaEnrollment);
+        Assert.False(user.MfaEnabled);            // still inert until confirmed
     }
 
     [Fact]
     public async Task Confirm_WithValidCode_EnablesMfa_AndReturnsRecoveryCodesOnce()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
 
         var result = await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default);
 
@@ -161,7 +165,7 @@ public class MfaEnrollmentTests
     public async Task Confirm_WithWrongCode_DoesNotEnable()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
 
         var result = await handlers.Handle(new ConfirmMfaEnrollmentCommand("000000"), default);
 
@@ -185,7 +189,7 @@ public class MfaEnrollmentTests
     public async Task Confirm_RecordsStep_SoTheSameCodeCannotBeReused()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         var code = CodeFor(user);
         await handlers.Handle(new ConfirmMfaEnrollmentCommand(code), default);
 
@@ -201,10 +205,10 @@ public class MfaEnrollmentTests
     public async Task Begin_WhenAlreadyEnabled_IsRejected()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default);
 
-        var again = await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        var again = await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
 
         Assert.False(again.IsSuccess);
         Assert.True(user.MfaEnabled);
@@ -216,7 +220,7 @@ public class MfaEnrollmentTests
     public async Task Disable_WithPasswordAndFreshCode_ClearsEverything()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default);
 
         // A later step, so it is not the already-consumed confirmation code.
@@ -233,7 +237,7 @@ public class MfaEnrollmentTests
     public async Task Disable_WithoutSecondFactor_IsRejected()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default);
 
         var result = await handlers.Handle(new DisableMfaCommand(Password, "000000"), default);
@@ -246,7 +250,7 @@ public class MfaEnrollmentTests
     public async Task Disable_AcceptsARecoveryCode_AndConsumesIt()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         var codes = (await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default)).Value!.Codes;
 
         var result = await handlers.Handle(new DisableMfaCommand(Password, codes[0]), default);
@@ -261,7 +265,7 @@ public class MfaEnrollmentTests
     public async Task Regenerate_IssuesANewSet_AndInvalidatesTheOldOnes()
     {
         var (handlers, user, _) = Build();
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         var original = (await handlers.Handle(new ConfirmMfaEnrollmentCommand(CodeFor(user)), default)).Value!.Codes;
 
         var regenerated = await handlers.Handle(new RegenerateRecoveryCodesCommand(Password), default);
@@ -315,7 +319,7 @@ public class MfaEnrollmentTests
         Assert.False(before.Value!.Enabled);
         Assert.False(before.Value.PendingEnrollment);
 
-        await handlers.Handle(new BeginMfaEnrollmentCommand(Password), default);
+        await handlers.Handle(new BeginMfaEnrollmentCommand(), default);
         var pending = await statusHandler.Handle(new GetMfaStatusQuery(), default);
         Assert.True(pending.Value!.PendingEnrollment);
         Assert.False(pending.Value.Enabled);

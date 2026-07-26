@@ -1,63 +1,82 @@
 @page "/security-setup"
 @using EEMOCantilanSDS.Application.Dtos.Auth
-@inject IAuthApiClient AuthApi
+@inject IMfaApiClient MfaApi
 @inject NavigationManager Navigation
 @attribute [Authorize(Roles = "SuperAdmin")]
 
 <PageTitle>@Branding.OfficeAcronym Admin — Required Security Setup</PageTitle>
 
 @*
-    Mandatory two-factor enrolment gate for Heads (SuperAdmin).
+    Mandatory two-factor enrolment for Heads, presented as a modal over a dimmed portal backdrop so it reads
+    as an unavoidable step rather than another page to browse past.
 
-    Deliberately enforced AFTER sign-in, never before: the user is already authenticated when they land here,
-    so making it mandatory can never lock anyone out. They simply cannot use the rest of the portal until the
-    second factor is active — which is the point, since a Head can create accounts, reset passwords and read
-    every financial record in the LGU.
-
-    Once enabled, this page steps aside automatically.
+    Enforced AFTER sign-in, never before: the Head is already authenticated when they arrive, so a mandatory
+    requirement can never lock anyone out. Once two-factor is active the dialog steps aside.
 *@
 
-<header class="topbar">
-    <div class="topbar-left">
-        <div class="topbar-title">Required Security Setup</div>
-        <div class="topbar-breadcrumb">
-            <span class="breadcrumb-active">Two-factor authentication</span>
-        </div>
-    </div>
-    <div class="topbar-right">
-        <AccountChip />
-    </div>
-</header>
+<div class="secsetup-backdrop">
+    <div class="secsetup-modal" role="dialog" aria-modal="true" aria-labelledby="secsetup-title">
 
-<div class="content-area">
-    <div class="secsetup-wrap">
-        <div class="secsetup-intro">
-            <div class="secsetup-badge">Required for @Branding.OfficeAcronym Heads</div>
-            <h1 class="secsetup-title">Protect your Head account</h1>
-            <p class="secsetup-text">
-                Your account can create and reset staff accounts and read every financial record for
-                @Branding.Municipality. Because of that, two-factor authentication is required before you
-                continue.
-            </p>
-            <p class="secsetup-text secsetup-text-muted">
-                You'll need a free authenticator app on your phone (Google Authenticator, Microsoft
-                Authenticator, or similar). Setup takes about a minute, and you'll get recovery codes to keep
-                somewhere safe in case you lose the phone.
-            </p>
-        </div>
-
-        @if (_enabled)
-        {
-            <div class="secsetup-done">
-                <div class="secsetup-done-title">Two-factor is active</div>
-                <p class="secsetup-text">Your account is protected. You can continue to the portal.</p>
-                <button class="secsetup-continue" type="button" @onclick="Continue">Continue to dashboard</button>
+        <div class="secsetup-head">
+            <div class="secsetup-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                    <rect x="9.5" y="10.5" width="5" height="4.5" rx="1" />
+                    <path d="M10.75 10.5V9.25a1.25 1.25 0 0 1 2.5 0v1.25" />
+                </svg>
             </div>
-        }
-        else
-        {
-            <TwoFactorPanel OnStatusChanged="OnStatusChanged" />
-        }
+            <div class="secsetup-head-text">
+                <div class="secsetup-eyebrow">Required for @Branding.OfficeAcronym Heads</div>
+                <h1 class="secsetup-title" id="secsetup-title">Secure your Head account</h1>
+                <p class="secsetup-sub">
+                    Two-factor authentication is required before you continue.
+                </p>
+            </div>
+        </div>
+
+        <div class="secsetup-body">
+            @if (_enabled)
+            {
+                <div class="secsetup-confirm">
+                    <div class="secsetup-confirm-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m5 13 4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="secsetup-confirm-title">Two-factor authentication is active</div>
+                        <p class="secsetup-note">
+                            Your account is protected. Keep your recovery codes somewhere safe.
+                        </p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="secsetup-note">
+                    Your account can create and reset staff accounts and read every financial record for
+                    @Branding.Municipality, so a second sign-in step is mandatory. You'll need a free
+                    authenticator app (Google Authenticator, Microsoft Authenticator or similar); setup takes
+                    about a minute and you'll receive recovery codes to keep on file.
+                </p>
+
+                <TwoFactorPanel Flat="true" OnStatusChanged="OnStatusChanged" />
+            }
+        </div>
+
+        <div class="secsetup-foot">
+            @if (_enabled)
+            {
+                <button class="secsetup-btn secsetup-btn-primary" type="button" @onclick="Continue">
+                    Continue to dashboard
+                </button>
+            }
+            else
+            {
+                <span class="secsetup-foot-note">You are signed in — completing this step unlocks the portal.</span>
+            }
+        </div>
+
     </div>
 </div>
 
@@ -76,11 +95,11 @@
         await Branding.EnsureLoadedAsync();
         try
         {
-            var status = await AuthApi.GetMfaStatusAsync();
+            var status = await MfaApi.GetMfaStatusAsync();
             if (status.IsSuccess && status.Value is not null)
                 _enabled = status.Value.Enabled;
         }
-        catch { /* leave the gate in place if the check fails — it is only a convenience */ }
+        catch { /* leave the requirement in place if the check fails — it is only a convenience */ }
     }
 
     private void Continue() => Navigation.NavigateTo("/menu", forceLoad: true);

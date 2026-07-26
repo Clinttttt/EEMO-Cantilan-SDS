@@ -1,6 +1,6 @@
 @using EEMOCantilanSDS.Application.Command.Auth.Mfa
 @using EEMOCantilanSDS.Application.Dtos.Auth
-@inject IAuthApiClient AuthApi
+@inject IMfaApiClient MfaApi
 
 @*
     Platform-operator two-factor recovery (Settings → operator tools).
@@ -16,8 +16,8 @@
     on the endpoint, the same guard re-checked in the handler, and the operator's own password here.
 *@
 
-<section class="mfa-card">
-    <div class="mfa-head">
+<section class="mfa-card @(Flat ? "mfa-card-flat" : "")">
+    <div class="mfa-head @(Flat ? "mfa-head-sub" : "")">
         <div class="mfa-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="M9 12h6" />
@@ -25,7 +25,7 @@
         </div>
         <div class="mfa-titles">
             <div class="mfa-title">Two-Factor Recovery</div>
-            <div class="mfa-sub">Clear two-factor for an account that lost its device and codes</div>
+            <div class="mfa-sub">Office use — clear two-factor for an account that lost its device and codes</div>
         </div>
         @if (_accounts is not null)
         {
@@ -115,6 +115,9 @@
 </section>
 
 @code {
+    /// <summary>Nested inside the two-factor dialog: drop the outer card chrome (no card inside a card).</summary>
+    [Parameter] public bool Flat { get; set; }
+
     private IReadOnlyList<MfaEnrolledAccountDto>? _accounts;
     private MfaEnrolledAccountDto? _selected;
     private string _password = string.Empty;
@@ -129,12 +132,20 @@
     {
         try
         {
-            var result = await AuthApi.GetMfaEnrolledAccountsAsync();
+            var result = await MfaApi.GetMfaEnrolledAccountsAsync();
             _accounts = result.IsSuccess && result.Value is not null
                 ? result.Value
                 : Array.Empty<MfaEnrolledAccountDto>();
-            if (!result.IsSuccess && result.StatusCode is 401 or 403)
-                _error = "Only the platform operator can use two-factor recovery.";
+
+            if (!result.IsSuccess)
+            {
+                _error = result.StatusCode switch
+                {
+                    401 => "Your session has expired. Please sign in again.",
+                    403 => "Only the platform operator can use two-factor recovery.",
+                    _ => null
+                };
+            }
         }
         catch
         {
@@ -172,7 +183,7 @@
         var target = _selected.Username;
         try
         {
-            var result = await AuthApi.ResetUserMfaAsync(new ResetUserMfaCommand(_selected.Id, _password));
+            var result = await MfaApi.ResetUserMfaAsync(new ResetUserMfaCommand(_selected.Id, _password));
             if (result.IsSuccess)
             {
                 _ok = $"Two-factor cleared for {target}. Ask them to sign in and set it up again.";

@@ -285,3 +285,11 @@
     .mfa-input, .mfa-input-wide { width: 100%; }
     .mfa-inline > .mfa-btn { flex: 1 1 auto; }
 }
+
+
+/* ── Nested operator-recovery section inside the dialog ── */
+.mfa-divider {
+    height: 1px;
+    margin: 6px 0 2px;
+    background: var(--border);
+}

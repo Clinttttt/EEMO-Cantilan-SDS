@@ -11,6 +11,12 @@ using EEMOCantilanSDS.Domain.Common;
 
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
+/// <summary>
+/// ANONYMOUS auth calls only. This client is registered without the authorization/refresh delegating
+/// handlers (it serves sign-in, refresh and logout), so it must never host an <c>[Authorize]</c> endpoint —
+/// such a call would carry no bearer token and fail with 401. Authenticated two-factor operations live on
+/// <see cref="IMfaApiClient"/>.
+/// </summary>
 public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClient
 {
     public async Task<Result<TokenResponseDto>> LoginAsync(LoginCommand command) => 
@@ -34,28 +40,7 @@ public class AuthApiClient(HttpClient http) : HandleResponse(http), IAuthApiClie
     public async Task<Result<VerifiedAccountDto>> VerifyEmailAsync(VerifyEmailCommand command) =>
         await PostAsync<VerifyEmailCommand, VerifiedAccountDto>("api/AdminAuth/verify-email", command);
 
-    // -- Two-factor (own account) --
-    public async Task<Result<MfaStatusDto>> GetMfaStatusAsync() =>
-        await GetAsync<MfaStatusDto>("api/AdminAuth/mfa/status");
-
-    public async Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command) =>
-        await PostAsync<BeginMfaEnrollmentCommand, MfaEnrollmentDto>("api/AdminAuth/mfa/enroll", command);
-
-    public async Task<Result<MfaRecoveryCodesDto>> ConfirmMfaEnrollmentAsync(ConfirmMfaEnrollmentCommand command) =>
-        await PostAsync<ConfirmMfaEnrollmentCommand, MfaRecoveryCodesDto>("api/AdminAuth/mfa/confirm", command);
-
-    public async Task<Result<bool>> DisableMfaAsync(DisableMfaCommand command) =>
-        await PostAsync<DisableMfaCommand, bool>("api/AdminAuth/mfa/disable", command);
-
-    public async Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command) =>
-        await PostAsync<RegenerateRecoveryCodesCommand, MfaRecoveryCodesDto>("api/AdminAuth/mfa/recovery-codes", command);
-
+    /// <summary>Anonymous by nature: the sign-in challenge is the credential, no session exists yet.</summary>
     public async Task<Result<TokenResponseDto>> VerifyMfaLoginAsync(VerifyMfaLoginCommand command) =>
         await PostAsync<VerifyMfaLoginCommand, TokenResponseDto>("api/AdminAuth/mfa/verify-login", command);
-
-    public async Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync() =>
-        await GetAsync<IReadOnlyList<MfaEnrolledAccountDto>>("api/AdminAuth/mfa/enrolled-accounts");
-
-    public async Task<Result<bool>> ResetUserMfaAsync(ResetUserMfaCommand command) =>
-        await PostAsync<ResetUserMfaCommand, bool>("api/AdminAuth/mfa/reset-user", command);
 }

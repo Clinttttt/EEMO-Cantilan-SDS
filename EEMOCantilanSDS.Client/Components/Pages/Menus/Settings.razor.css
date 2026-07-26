@@ -352,3 +352,32 @@
     .set-links-split { align-items: flex-start; }
     .set-2fa-btn { margin-left: 0; width: 100%; justify-content: center; }
 }
+
+
+/* ── Two-factor dialog header (shield mark + titles, government-formal) ── */
+.set-2fa-modal-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.set-2fa-modal-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    border: 1px solid color-mix(in srgb, var(--navy) 14%, transparent);
+    background: var(--bg-icon);
+    color: var(--navy);
+}
+
+.set-2fa-modal-icon svg { width: 23px; height: 23px; }
+
+.set-2fa-modal-titles { min-width: 0; flex: 1; }
+
+@media (max-width: 768px) {
+    .set-2fa-modal-icon { width: 38px; height: 38px; }
+    .set-2fa-modal-icon svg { width: 20px; height: 20px; }
+}

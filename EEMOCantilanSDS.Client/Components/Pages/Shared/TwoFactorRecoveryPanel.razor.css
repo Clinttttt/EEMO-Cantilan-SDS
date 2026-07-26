@@ -333,3 +333,17 @@
     .mfa-recov-row { flex-direction: column; align-items: stretch; }
     .mfa-recov-row .mfa-btn { width: 100%; }
 }
+
+
+/* Nested inside the two-factor dialog: a quieter sub-heading, since the dialog already has the main title. */
+.mfa-head-sub .mfa-title {
+    font-size: 13.5px;
+}
+
+.mfa-head-sub .mfa-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+}
+
+.mfa-head-sub .mfa-icon svg { width: 16px; height: 16px; }

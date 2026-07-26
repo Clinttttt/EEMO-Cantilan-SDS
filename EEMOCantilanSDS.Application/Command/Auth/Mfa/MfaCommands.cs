@@ -6,11 +6,14 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
 {
     /// <summary>
     /// Starts two-factor enrollment for the SIGNED-IN user and returns the secret to add to an authenticator
-    /// app (QR + manual key). Re-entering the current password is required so a hijacked session cannot bind
-    /// an attacker's authenticator to the account.
+    /// app (QR + manual key).
+    /// <para>
+    /// No password re-entry: the caller is already authenticated and turning two-factor ON only increases
+    /// protection. Disabling it, or regenerating recovery codes, DOES require the password.
+    /// </para>
     /// <para>Nothing is enforced until <see cref="ConfirmMfaEnrollmentCommand"/> succeeds.</para>
     /// </summary>
-    public record BeginMfaEnrollmentCommand(string CurrentPassword) : IRequest<Result<MfaEnrollmentDto>>;
+    public record BeginMfaEnrollmentCommand : IRequest<Result<MfaEnrollmentDto>>;
 
     /// <summary>
     /// Activates two-factor sign-in by proving the authenticator works. On success the single-use recovery

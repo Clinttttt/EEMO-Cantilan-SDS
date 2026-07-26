@@ -39,10 +39,17 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
 
         public async Task<Result<MfaEnrollmentDto>> Handle(BeginMfaEnrollmentCommand request, CancellationToken ct)
         {
-            var (user, failure) = await ResolveSelfAsync(request.CurrentPassword, ct);
-            if (failure is not null) return Result<MfaEnrollmentDto>.Failure(failure.Error!, failure.StatusCode ?? 400);
+            // Enabling two-factor only ever RAISES protection, and the caller is already authenticated, so no
+            // password re-entry is demanded here. The password is still required to DISABLE it or to
+            // regenerate recovery codes — the directions where a hijacked session could do harm.
+            if (currentUser.UserId is not { } selfId)
+                return Result<MfaEnrollmentDto>.Unauthorized();
 
-            if (user!.MfaEnabled)
+            var user = await adminRepo.GetByIdAsync(selfId, ct);
+            if (user is null)
+                return Result<MfaEnrollmentDto>.NotFound();
+
+            if (user.MfaEnabled)
                 return Result<MfaEnrollmentDto>.Failure("Two-factor authentication is already switched on.", 400);
 
             // A fresh secret every time enrollment starts, so an abandoned attempt can never be resumed.

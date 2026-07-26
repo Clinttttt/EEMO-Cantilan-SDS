@@ -1,6 +1,6 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Routing
-@inject IAuthApiClient AuthApi
+@inject IMfaApiClient MfaApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
 @implements IDisposable
@@ -39,7 +39,7 @@
             if (!IsHead(state.User))
                 return;
 
-            var status = await AuthApi.GetMfaStatusAsync();
+            var status = await MfaApi.GetMfaStatusAsync();
             // Fail open: only gate when the API positively reports two-factor as OFF.
             if (!status.IsSuccess || status.Value is null || status.Value.Enabled)
                 return;

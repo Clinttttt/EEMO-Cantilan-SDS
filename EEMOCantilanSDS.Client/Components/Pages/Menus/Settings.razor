@@ -5,7 +5,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject ISettingsApiClient SettingsApi
-@inject IAuthApiClient AuthApi
+@inject IMfaApiClient MfaApi
 @inject AuthService AuthService
 @inject AuthenticationStateProvider AuthState
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -275,14 +275,6 @@
                     </div>
                 </section>
             }
-
-            @* ── Two-factor recovery (platform operator only) ──
-               The rescue path for an account that lost both its authenticator device and its recovery codes.
-               Only the operator sees it; the API enforces the same rule independently. *@
-            @if (_isPlatformOperator)
-            {
-                <TwoFactorRecoveryPanel />
-            }
     <!-- ── System Information ── -->
             <section class="set-card">
                 <div class="set-card-head">
@@ -395,16 +387,27 @@
 @if (_show2fa)
 {
     <div class="eemo-modal-overlay" @onclick="Close2fa">
-        <div class="eemo-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
+        <div class="eemo-modal eemo-modal-wide" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header set-2fa-modal-head">
+                <div class="set-2fa-modal-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <rect x="9.5" y="10.5" width="5" height="4.5" rx="1" />
+                        <path d="M10.75 10.5V9.25a1.25 1.25 0 0 1 2.5 0v1.25" />
+                    </svg>
+                </div>
+                <div class="set-2fa-modal-titles">
                     <div class="eemo-modal-title">Two-Factor Authentication</div>
-                    <div class="eemo-modal-sub">Authenticator app code in addition to your password</div>
+                    <div class="eemo-modal-sub">An additional layer of security for your @Branding.OfficeAcronym account</div>
                 </div>
                 <button class="eemo-modal-close" type="button" @onclick="Close2fa" aria-label="Close">&times;</button>
             </div>
             <div class="eemo-modal-body">
-                <TwoFactorPanel Flat="true" OnStatusChanged="OnMfaStatusChanged" />
+                @* The operator recovery tool is folded into this same dialog rather than sitting in its own
+                   card, so two-factor has one authoritative place in Settings. *@
+                <TwoFactorPanel Flat="true"
+                                OnStatusChanged="OnMfaStatusChanged"
+                                ShowOperatorRecovery="_isPlatformOperator" />
             </div>
         </div>
     </div>
@@ -435,7 +438,7 @@
     {
         try
         {
-            var result = await AuthApi.GetMfaStatusAsync();
+            var result = await MfaApi.GetMfaStatusAsync();
             if (result.IsSuccess && result.Value is not null)
                 _mfa = result.Value;
         }

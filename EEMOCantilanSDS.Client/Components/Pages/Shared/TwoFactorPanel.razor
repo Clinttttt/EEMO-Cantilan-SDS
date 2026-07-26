@@ -1,7 +1,7 @@
 @using EEMOCantilanSDS.Application.Command.Auth.Mfa
 @using EEMOCantilanSDS.Application.Common.Security
 @using EEMOCantilanSDS.Application.Dtos.Auth
-@inject IAuthApiClient AuthApi
+@inject IMfaApiClient MfaApi
 
 @*
     Two-factor authentication panel for the signed-in user's own account (Settings page).
@@ -37,7 +37,17 @@
         </div>
     }
 
-    @if (_status is null)
+    @if (_statusUnavailable && _status is null)
+    {
+        @* Unknown ≠ off. Saying "Off" here would misrepresent a protected account. *@
+        <div class="mfa-body">
+            <div class="mfa-notice mfa-notice-warn">
+                We couldn't read your two-factor status. Your current setting has not changed. Sign in again
+                and reopen this window.
+            </div>
+        </div>
+    }
+    else if (_status is null)
     {
         <div class="mfa-body"><Skeleton Width="70%" Height="12px" Radius="6px" /></div>
     }
@@ -153,12 +163,12 @@
                     <strong> A previous setup wasn't finished — starting again issues a new key.</strong>
                 }
             </div>
-            <div class="mfa-inline">
-                <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
-                       placeholder="Confirm your current password"
-                       @key="@($"pw-{_formNonce}")" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+            @* No password prompt to ENABLE: the user is already signed in, and switching two-factor ON only
+               ever increases protection. The password IS still required to switch it off or to regenerate
+               recovery codes, where the risk runs the other way. *@
+            <div class="mfa-actions">
                 <button class="mfa-btn mfa-btn-primary" type="button" disabled="@_busy" @onclick="BeginAsync">
-                    @(_busy ? "Preparing…" : "Set up")
+                    @(_busy ? "Preparing…" : "Set up two-factor")
                 </button>
             </div>
         </div>
@@ -171,6 +181,16 @@
     @if (!string.IsNullOrEmpty(_ok))
     {
         <div class="mfa-notice mfa-notice-ok">@_ok</div>
+    }
+
+    @* ── Platform-operator recovery, folded into this same dialog ──
+       Kept here rather than in a separate Settings card: it is the same subject (two-factor) seen from the
+       operator's side, and a government portal reads better with one authoritative place per topic. Only the
+       platform operator ever sees this section; the API enforces that independently. *@
+    @if (ShowOperatorRecovery)
+    {
+        <div class="mfa-divider"></div>
+        <TwoFactorRecoveryPanel Flat="true" />
     }
 </section>
 
@@ -186,7 +206,16 @@
     /// <summary>Raised whenever the two-factor state changes, so the host can refresh its own badge.</summary>
     [Parameter] public EventCallback<MfaStatusDto> OnStatusChanged { get; set; }
 
+    /// <summary>
+    /// Renders the platform-operator recovery section inside this dialog. The host decides (it knows whether
+    /// the signed-in user is the operator); the API enforces the rule regardless.
+    /// </summary>
+    [Parameter] public bool ShowOperatorRecovery { get; set; }
+
     private MfaStatusDto? _status;
+
+    /// <summary>True when the status could not be read (expired session / network) — distinct from "off".</summary>
+    private bool _statusUnavailable;
     private MfaEnrollmentDto? _enrollment;
     private IReadOnlyList<string>? _recoveryCodes;
     private Mode _mode = Mode.None;
@@ -232,17 +261,27 @@
     {
         try
         {
-            var result = await AuthApi.GetMfaStatusAsync();
-            _status = result.IsSuccess && result.Value is not null
-                ? result.Value
-                : new MfaStatusDto(false, false, null, 0);
+            var result = await MfaApi.GetMfaStatusAsync();
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _status = result.Value;
+                _statusUnavailable = false;
+            }
+            else
+            {
+                // Never claim "Off" when the answer is simply unknown — that previously made a protected
+                // account look unprotected (and invited a pointless re-enrolment). Say so instead.
+                _statusUnavailable = true;
+                if (result.StatusCode is 401 or 403)
+                    _error = "Your session has expired. Please sign in again to manage two-factor.";
+            }
         }
         catch
         {
-            _status = new MfaStatusDto(false, false, null, 0);
+            _statusUnavailable = true;
         }
 
-        if (OnStatusChanged.HasDelegate)
+        if (_status is not null && OnStatusChanged.HasDelegate)
             await OnStatusChanged.InvokeAsync(_status);
     }
 
@@ -253,7 +292,7 @@
         _busy = true; _error = null; _ok = null;
         try
         {
-            var result = await AuthApi.BeginMfaEnrollmentAsync(new BeginMfaEnrollmentCommand(_password));
+            var result = await MfaApi.BeginMfaEnrollmentAsync(new BeginMfaEnrollmentCommand());
             if (result.IsSuccess && result.Value is not null)
             {
                 _enrollment = result.Value;
@@ -296,7 +335,7 @@
         _busy = true; _error = null;
         try
         {
-            var result = await AuthApi.ConfirmMfaEnrollmentAsync(new ConfirmMfaEnrollmentCommand(_code));
+            var result = await MfaApi.ConfirmMfaEnrollmentAsync(new ConfirmMfaEnrollmentCommand(_code));
             if (result.IsSuccess && result.Value is not null)
             {
                 _recoveryCodes = result.Value.Codes;    // shown once
@@ -318,7 +357,7 @@
         _busy = true; _error = null;
         try
         {
-            var result = await AuthApi.DisableMfaAsync(new DisableMfaCommand(_password, _code));
+            var result = await MfaApi.DisableMfaAsync(new DisableMfaCommand(_password, _code));
             if (result.IsSuccess)
             {
                 ResetPrompts();
@@ -338,7 +377,7 @@
         _busy = true; _error = null;
         try
         {
-            var result = await AuthApi.RegenerateRecoveryCodesAsync(new RegenerateRecoveryCodesCommand(_password));
+            var result = await MfaApi.RegenerateRecoveryCodesAsync(new RegenerateRecoveryCodesCommand(_password));
             if (result.IsSuccess && result.Value is not null)
             {
                 _recoveryCodes = result.Value.Codes;
