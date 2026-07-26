@@ -1,12 +1,76 @@
 /*
-   SecuritySetup — mandatory two-factor enrolment, presented as a modal.
+   SecuritySetup — mandatory two-factor enrolment, presented as a modal over the portal.
 
    Self-contained: scoped CSS only applies to the component that declares the markup (the shared
-   TwoFactorPanel brings its own styles). Palette is the neutral government set from app.css — white surface,
-   navy text, restrained accents. No coloured success block: the confirmation is a quiet white row with a
-   small mark, which reads as official rather than celebratory.
+   TwoFactorPanel brings its own styles), with one deliberate ::deep rule to centre the panel's action row
+   inside this dialog. Palette is the neutral government set from app.css — white surface, navy text,
+   restrained accents. No coloured success block: the confirmation is a quiet white row with a small mark,
+   which reads as official rather than celebratory.
 */
 
+/* ── Portal placeholder behind the dialog ──
+   Neutral bars only, never figures. Sits in normal page flow so the backdrop's blur falls on it, which is
+   what makes the portal read as held back instead of absent. */
+.secsetup-stage {
+    padding: 22px 26px;
+    pointer-events: none;
+    user-select: none;
+}
+
+.secsetup-stage-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.secsetup-stage-tiles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.secsetup-stage-main {
+    display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+    gap: 16px;
+}
+
+.secsetup-stage-card {
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg-card);
+}
+
+.secsetup-stage-table { display: flex; flex-direction: column; gap: 12px; }
+.secsetup-stage-side { display: flex; flex-direction: column; gap: 13px; }
+
+.secsetup-stage-row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+}
+
+.secsetup-bone {
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--border) 78%, #fff);
+}
+
+.secsetup-bone-title { width: 220px; height: 17px; margin-bottom: 8px; }
+.secsetup-bone-sub { width: 320px; height: 10px; }
+.secsetup-bone-btn { width: 132px; height: 38px; border-radius: 9px; }
+.secsetup-bone-num { width: 54px; height: 21px; margin-bottom: 9px; }
+.secsetup-bone-label { width: 96px; height: 9px; }
+.secsetup-bone-line { width: 100%; height: 11px; }
+.secsetup-bone-cell { height: 11px; }
+.secsetup-bone-cell-sm { max-width: 74px; }
+
+/* ── Backdrop ──
+   Blurs the placeholder above and the real portal chrome beneath it. */
 .secsetup-backdrop {
     position: fixed;
     inset: 0;
@@ -16,13 +80,13 @@
     justify-content: center;
     padding: 24px;
     overflow-y: auto;
-    background: rgba(10, 26, 43, .55);
-    backdrop-filter: blur(2px);
+    background: rgba(10, 26, 43, .5);
+    backdrop-filter: blur(5px);
 }
 
 .secsetup-modal {
     width: 100%;
-    max-width: 620px;
+    max-width: 660px;
     margin: auto;
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -35,8 +99,8 @@
 .secsetup-head {
     display: flex;
     align-items: flex-start;
-    gap: 14px;
-    padding: 22px 24px 18px;
+    gap: 16px;
+    padding: 26px 28px 20px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -44,20 +108,20 @@
     flex-shrink: 0;
     display: grid;
     place-items: center;
-    width: 46px;
-    height: 46px;
-    border-radius: 12px;
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
     border: 1px solid color-mix(in srgb, var(--navy) 14%, transparent);
     background: var(--bg-icon);
     color: var(--navy);
 }
 
-.secsetup-icon svg { width: 24px; height: 24px; }
+.secsetup-icon svg { width: 28px; height: 28px; }
 
 .secsetup-head-text { min-width: 0; }
 
 .secsetup-eyebrow {
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     color: #7a5f13;
     font-size: 10.5px;
     font-weight: 800;
@@ -66,25 +130,25 @@
 }
 
 .secsetup-title {
-    margin: 0 0 4px;
+    margin: 0 0 5px;
     color: var(--navy);
-    font-size: 19px;
+    font-size: 23px;
     font-weight: 800;
-    letter-spacing: -.01em;
+    letter-spacing: -.015em;
 }
 
 .secsetup-sub {
     margin: 0;
     color: var(--text-subtle);
-    font-size: 13px;
+    font-size: 13.5px;
 }
 
 /* ── Body ── */
 .secsetup-body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 20px 24px;
+    gap: 18px;
+    padding: 22px 28px;
 }
 
 .secsetup-note {
@@ -93,6 +157,13 @@
     font-size: 13.5px;
     line-height: 1.6;
 }
+
+/* Structured reasons live in the shared TwoFactorIntro component (with its own scoped stylesheet), so both
+   two-factor dialogs stay identical without a second copy of these rules here. */
+
+/* The dialog leads with one action, so the panel's action row is centred here (::deep is required: the
+   panel declares that markup, so this component's scoped selectors cannot reach it otherwise). */
+.secsetup-panel ::deep .mfa-actions { justify-content: center; }
 
 /* Quiet, formal confirmation — deliberately NOT a green panel. */
 .secsetup-confirm {
@@ -129,12 +200,22 @@
 .secsetup-foot {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 16px 24px;
+    justify-content: center;
+    gap: 12px;
+    padding: 15px 28px;
     border-top: 1px solid var(--border);
     background: var(--bg);
 }
+
+.secsetup-foot-mark {
+    display: grid;
+    place-items: center;
+    padding-right: 12px;
+    border-right: 1px solid var(--border);
+    color: var(--navy-3);
+}
+
+.secsetup-foot-mark svg { width: 17px; height: 17px; }
 
 .secsetup-foot-note {
     color: var(--text-subtle);
@@ -163,10 +244,15 @@
 
 .secsetup-btn-primary:hover { background: var(--navy-2); }
 
+@media (max-width: 1024px) {
+    .secsetup-stage-main { grid-template-columns: minmax(0, 1fr); }
+    .secsetup-stage-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 768px) {
+    .secsetup-stage { display: none; }
     .secsetup-backdrop { padding: 12px; }
-    .secsetup-head, .secsetup-body, .secsetup-foot { padding-left: 16px; padding-right: 16px; }
-    .secsetup-title { font-size: 17px; }
-    .secsetup-foot { flex-direction: column; align-items: stretch; }
+    .secsetup-head, .secsetup-body, .secsetup-foot { padding-left: 18px; padding-right: 18px; }
+    .secsetup-title { font-size: 19px; }
     .secsetup-btn { width: 100%; }
 }

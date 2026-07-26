@@ -7,12 +7,57 @@
 <PageTitle>@Branding.OfficeAcronym Admin — Required Security Setup</PageTitle>
 
 @*
-    Mandatory two-factor enrolment for Heads, presented as a modal over a dimmed portal backdrop so it reads
-    as an unavoidable step rather than another page to browse past.
+    Mandatory two-factor enrolment for Heads, presented as a modal over the portal.
 
     Enforced AFTER sign-in, never before: the Head is already authenticated when they arrive, so a mandatory
     requirement can never lock anyone out. Once two-factor is active the dialog steps aside.
+
+    The page deliberately renders a placeholder of the portal behind the dialog. The backdrop blurs whatever
+    sits beneath it, so the real sidebar and top bar read as the portal being held back rather than a blank
+    slab. The placeholder carries NO figures — only neutral bars — because inventing dashboard numbers, even
+    decoratively, would misrepresent the office's data.
 *@
+
+<div class="secsetup-stage" aria-hidden="true">
+    <div class="secsetup-stage-head">
+        <div>
+            <div class="secsetup-bone secsetup-bone-title"></div>
+            <div class="secsetup-bone secsetup-bone-sub"></div>
+        </div>
+        <div class="secsetup-bone secsetup-bone-btn"></div>
+    </div>
+
+    <div class="secsetup-stage-tiles">
+        @for (var tile = 0; tile < 4; tile++)
+        {
+            <div class="secsetup-stage-card">
+                <div class="secsetup-bone secsetup-bone-num"></div>
+                <div class="secsetup-bone secsetup-bone-label"></div>
+            </div>
+        }
+    </div>
+
+    <div class="secsetup-stage-main">
+        <div class="secsetup-stage-card secsetup-stage-table">
+            <div class="secsetup-bone secsetup-bone-label"></div>
+            @for (var row = 0; row < 6; row++)
+            {
+                <div class="secsetup-stage-row">
+                    <div class="secsetup-bone secsetup-bone-cell"></div>
+                    <div class="secsetup-bone secsetup-bone-cell secsetup-bone-cell-sm"></div>
+                    <div class="secsetup-bone secsetup-bone-cell secsetup-bone-cell-sm"></div>
+                </div>
+            }
+        </div>
+        <div class="secsetup-stage-card secsetup-stage-side">
+            <div class="secsetup-bone secsetup-bone-label"></div>
+            @for (var line = 0; line < 4; line++)
+            {
+                <div class="secsetup-bone secsetup-bone-line"></div>
+            }
+        </div>
+    </div>
+</div>
 
 <div class="secsetup-backdrop">
     <div class="secsetup-modal" role="dialog" aria-modal="true" aria-labelledby="secsetup-title">
@@ -53,14 +98,16 @@
             }
             else
             {
-                <p class="secsetup-note">
-                    Your account can create and reset staff accounts and read every financial record for
-                    @Branding.Municipality, so a second sign-in step is mandatory. You'll need a free
-                    authenticator app (Google Authenticator, Microsoft Authenticator or similar); setup takes
-                    about a minute and you'll receive recovery codes to keep on file.
-                </p>
+                @* Two rows: why it is required, then what it involves. Splitting the wall of prose into
+                   labelled rows lets a Head who is mid-task grasp the requirement at a glance. Shared with
+                   the Settings dialog so both read identically. *@
+                <TwoFactorIntro Reason="@($"Your account can create and reset staff accounts and read every financial record for {Branding.Municipality}, so an added sign-in step is required.")" />
 
-                <TwoFactorPanel Flat="true" OnStatusChanged="OnStatusChanged" />
+                @* ShowIntro="false": the rows above already say what the panel's opening sentence says, and
+                   repeating it inside the same dialog reads as padding. *@
+                <div class="secsetup-panel">
+                    <TwoFactorPanel Flat="true" ShowIntro="false" OnStatusChanged="OnStatusChanged" />
+                </div>
             }
         </div>
 
@@ -73,6 +120,12 @@
             }
             else
             {
+                <span class="secsetup-foot-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3.5" y="10.5" width="17" height="10.5" rx="2" />
+                        <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
+                    </svg>
+                </span>
                 <span class="secsetup-foot-note">You are signed in — completing this step unlocks the portal.</span>
             }
         </div>

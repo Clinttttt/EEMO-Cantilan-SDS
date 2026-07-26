@@ -1,0 +1,68 @@
+/*
+   TwoFactorIntro — shared explanatory rows for both two-factor dialogs.
+
+   Neutral government palette from app.css: white surface, navy marks, hairline rules. Nothing here is
+   coloured for emphasis; hierarchy comes from the rules and the icon circles.
+*/
+
+.tfi-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.tfi-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 15px 0;
+}
+
+.tfi-row:first-child { padding-top: 4px; }
+
+.tfi-row + .tfi-row { border-top: 1px solid var(--border); }
+
+.tfi-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--bg-icon);
+    color: var(--navy);
+}
+
+.tfi-icon svg { width: 21px; height: 21px; }
+
+.tfi-text {
+    margin: 0;
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+
+.tfi-apps {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    color: var(--text-subtle);
+    font-size: 12.5px;
+}
+
+.tfi-apps-mark {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    color: var(--navy-3);
+}
+
+.tfi-apps-mark svg { width: 16px; height: 16px; }
+
+@media (max-width: 768px) {
+    .tfi-row { align-items: flex-start; }
+    .tfi-icon { width: 36px; height: 36px; }
+    .tfi-icon svg { width: 18px; height: 18px; }
+}

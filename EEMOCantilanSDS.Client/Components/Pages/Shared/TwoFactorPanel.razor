@@ -6,9 +6,9 @@
 @*
     Two-factor authentication panel for the signed-in user's own account (Settings page).
 
-    Slice 1: enrollment is OPT-IN and sign-in is NOT yet gated by it, so turning this on is safe and fully
-    reversible. Every mutation re-authenticates with the current password, and turning it OFF additionally
-    requires a valid code — a session alone can neither add nor remove the second factor.
+    Asymmetric on purpose: turning two-factor ON needs no password (the user is already authenticated and the
+    change only adds protection), while turning it OFF requires the password AND a valid code, and generating
+    new recovery codes requires the password. A session alone can never weaken the second factor.
 
     Styles are self-contained (mfa-* classes in this component's own scoped stylesheet) rather than reusing
     the Settings page's `set-card` classes, because scoped CSS only applies to the component that declares
@@ -155,14 +155,18 @@
     else
     {
         <div class="mfa-body">
-            <div class="mfa-step">
-                Add a second step to your sign-in. You'll enter a 6-digit code from an authenticator app
-                along with your password.
-                @if (_status.PendingEnrollment)
-                {
-                    <strong> A previous setup wasn't finished — starting again issues a new key.</strong>
-                }
-            </div>
+            @if (ShowIntro)
+            {
+                <div class="mfa-step">
+                    Add a second step to your sign-in. You'll enter a 6-digit code from an authenticator app
+                    along with your password.
+                </div>
+            }
+            @if (_status.PendingEnrollment)
+            {
+                @* Always shown, intro or not: it changes what the button will do. *@
+                <div class="mfa-step"><strong>A previous setup wasn't finished — starting again issues a new key.</strong></div>
+            }
             @* No password prompt to ENABLE: the user is already signed in, and switching two-factor ON only
                ever increases protection. The password IS still required to switch it off or to regenerate
                recovery codes, where the risk runs the other way. *@
@@ -205,6 +209,13 @@
 
     /// <summary>Raised whenever the two-factor state changes, so the host can refresh its own badge.</summary>
     [Parameter] public EventCallback<MfaStatusDto> OnStatusChanged { get; set; }
+
+    /// <summary>
+    /// Set false when the host already explains what two-factor is (the required-setup dialog does), so the
+    /// same sentence is not printed twice in one dialog. The "previous setup unfinished" warning is never
+    /// suppressed — it changes what the button does.
+    /// </summary>
+    [Parameter] public bool ShowIntro { get; set; } = true;
 
     /// <summary>
     /// Renders the platform-operator recovery section inside this dialog. The host decides (it knows whether
@@ -287,8 +298,11 @@
 
     private async Task BeginAsync()
     {
-        if (!Validate(needPassword: true, needCode: false)) return;
-
+        // Deliberately NO password check here. The enable path renders no password field (the user is already
+        // signed in and turning two-factor ON only ever increases protection), so requiring one made the
+        // button fail with "Enter your current password." against a field that does not exist. The password
+        // IS still required by Validate() for disable and for regenerating recovery codes, where the risk
+        // runs the other way.
         _busy = true; _error = null; _ok = null;
         try
         {

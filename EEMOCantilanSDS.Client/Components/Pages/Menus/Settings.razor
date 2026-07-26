@@ -403,11 +403,23 @@
                 <button class="eemo-modal-close" type="button" @onclick="Close2fa" aria-label="Close">&times;</button>
             </div>
             <div class="eemo-modal-body">
+                @* Same explanatory rows as the required-setup dialog, so the two never drift apart. Shown
+                   only while two-factor is off: once it is on, the panel reports state and actions instead,
+                   and a "here is what setup involves" block would be stale advice. The default neutral
+                   wording is used here because Settings is open to Admins as well as Heads. *@
+                @if (_mfa is not null && !_mfa.Enabled)
+                {
+                    <TwoFactorIntro />
+                }
+
                 @* The operator recovery tool is folded into this same dialog rather than sitting in its own
                    card, so two-factor has one authoritative place in Settings. *@
-                <TwoFactorPanel Flat="true"
-                                OnStatusChanged="OnMfaStatusChanged"
-                                ShowOperatorRecovery="_isPlatformOperator" />
+                <div class="set-2fa-modal-panel">
+                    <TwoFactorPanel Flat="true"
+                                    ShowIntro="false"
+                                    OnStatusChanged="OnMfaStatusChanged"
+                                    ShowOperatorRecovery="_isPlatformOperator" />
+                </div>
             </div>
         </div>
     </div>

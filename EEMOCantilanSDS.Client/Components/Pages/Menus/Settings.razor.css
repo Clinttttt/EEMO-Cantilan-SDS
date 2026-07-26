@@ -365,17 +365,20 @@
     flex-shrink: 0;
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 11px;
+    width: 50px;
+    height: 50px;
+    border-radius: 13px;
     border: 1px solid color-mix(in srgb, var(--navy) 14%, transparent);
     background: var(--bg-icon);
     color: var(--navy);
 }
 
-.set-2fa-modal-icon svg { width: 23px; height: 23px; }
+.set-2fa-modal-icon svg { width: 26px; height: 26px; }
 
 .set-2fa-modal-titles { min-width: 0; flex: 1; }
+
+/* Separates the shared explanatory rows above from the panel's own controls. */
+.set-2fa-modal-panel { margin-top: 16px; }
 
 @media (max-width: 768px) {
     .set-2fa-modal-icon { width: 38px; height: 38px; }
