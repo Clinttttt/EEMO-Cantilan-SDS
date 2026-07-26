@@ -181,24 +181,46 @@ application log with the username — never a secret or a code.
 | Typed the setup key into the code box | The key goes **into the app**; the app then shows the 6-digit code to type into StallTrack. |
 | "Your session has expired" while setting up | The page was open too long (the API token lasts 15 minutes). Refresh, sign in, retry. |
 | Lost the phone | Use a recovery code to sign in, turn MFA off, then re-enrol on the new phone. |
-| Lost the phone **and** the recovery codes | Ordinary admins: the Head can help. A **Head** currently has no self-service route — see the gap below. |
+| Lost the phone **and** the recovery codes | Ordinary admins: the Head can help. A **Head**: the platform operator clears their two-factor (Settings → Two-Factor Recovery), then they enrol again. |
 | Changed phones | Turn MFA off (old phone still works), then set it up again on the new one. |
 | Deleted the app entry by accident | Same as losing the phone: use a recovery code. |
+| I'm a Head and I'm sent to a "Required Security Setup" page | Two-factor is mandatory for Heads. Enrol there and you'll be let through; you are already signed in, so you are never locked out. |
 
 ---
 
-## 9. Current scope and known gaps
+## 9. Current scope
 
-**Implemented:** opt-in enrollment for web admin/Head accounts, QR + manual key, sign-in enforcement,
-recovery codes, replay protection, lockout integration, per-LGU labelling.
+**Implemented:** opt-in enrollment for web admin accounts, QR + manual key, sign-in enforcement, recovery
+codes, replay protection, lockout integration, per-LGU labelling, **mandatory two-factor for Heads**, and
+**platform-operator recovery**.
 
-**Not yet implemented:**
+### Mandatory for Heads
 
-- **Mandatory MFA for Heads** — currently opt-in for everyone.
-- **Platform-operator MFA reset** — the agreed rescue path for a Head who loses both their phone and their
-  recovery codes. Until this ships, that situation means a **permanent lockout** of that account, so keep
-  recovery codes safe.
-- **Collector (mobile) MFA** — out of scope by design; field collectors sign in on the mobile app.
+A Head (SuperAdmin) must have two-factor enabled. Enforcement happens **after** sign-in, never before: the
+Head signs in normally with their password, and is then kept on `/security-setup` until they enrol. Because
+they are already authenticated at that point, the requirement can never lock anyone out. Sign-out and
+Settings stay reachable, and if the status check fails for any reason the gate **fails open** rather than
+blocking a legitimate Head. Ordinary Admins and Collectors are unaffected.
+
+### Platform-operator recovery (the last resort)
+
+When an account has lost both its authenticator device and every recovery code, the **platform operator**
+(Settings → **Two-Factor Recovery**) can clear its second factor. This exists because a Head has nobody above
+them: peer Heads are blocked from each other's accounts by design, and self-service recovery restores a
+password, not a second factor.
+
+Safeguards:
+
+- Restricted to the platform operator, enforced **twice** — the `PlatformOperator` policy on the endpoint and
+  the same guard re-checked inside the handler.
+- The operator must **re-enter their own password**, so a hijacked operator session is not enough.
+- Clearing removes **only** the second factor. The target's password, role and active state are untouched —
+  they sign in with their existing password and enrol again.
+- Always logged as a **Warning** naming both the operator and the target account.
+
+**Not implemented (by design or deferred):**
+
+- **Collector (mobile) MFA** — out of scope; field collectors sign in on the mobile app.
 - **"Remember this device"** — deliberately not offered; a code is required at every sign-in.
 
 ---
@@ -212,11 +234,16 @@ recovery codes, replay protection, lockout integration, per-LGU labelling.
 | Secret encryption | `EEMOCantilanSDS.Infrastructure/Security/AesCredentialProtector.cs` |
 | Account state + rules | `EEMOCantilanSDS.Domain/Entities/Users/BaseUser.cs` |
 | Enroll / confirm / disable / regenerate | `EEMOCantilanSDS.Application/Command/Auth/Mfa/MfaCommandHandlers.cs` |
+| Operator recovery (clear someone's MFA) | `EEMOCantilanSDS.Application/Command/Auth/Mfa/ResetUserMfaCommand.cs` |
+| Operator account list | `EEMOCantilanSDS.Application/Queries/Auth/GetMfaEnrolledAccounts/` |
+| Platform-operator authorization | `EEMOCantilanSDS.Application/Common/Authorization/PlatformOperatorGuard.cs` |
 | Recovery code generation | `EEMOCantilanSDS.Application/Common/Security/RecoveryCodes.cs` |
 | Sign-in gate (password step) | `EEMOCantilanSDS.Application/Command/Auth/AdminAuth/Login/LoginCommandHandler.cs` |
 | Sign-in second step | `EEMOCantilanSDS.Application/Command/Auth/Mfa/VerifyMfaLoginCommandHandler.cs` |
 | Endpoints | `EEMOCantilanSDS.Api/Controllers/AdminAuthController.cs` (`mfa/*`) |
 | Settings UI | `EEMOCantilanSDS.Client/Components/Pages/Shared/TwoFactorPanel.razor` |
+| Operator recovery UI | `EEMOCantilanSDS.Client/Components/Pages/Shared/TwoFactorRecoveryPanel.razor` |
+| Mandatory-enrolment gate (Heads) | `EEMOCantilanSDS.Client/Components/Shared/MfaEnforcementGate.razor` + `Components/Pages/SecuritySetup.razor` |
 | Login UI (code step) | `EEMOCantilanSDS.Client/Components/Pages/Login.razor` |
 | Tests | `EEMOCantilanSDS.Testing/Infrastructure/Security/TotpServiceTests.cs`, `EEMOCantilanSDS.Testing/Application/Auth/Mfa*Tests.cs` |
 
