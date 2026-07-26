@@ -6,6 +6,8 @@ using EEMOCantilanSDS.Application.Common.Security;
 using EEMOCantilanSDS.Application.Dtos.Auth;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
 {
@@ -25,7 +27,8 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
         ICredentialProtector protector,
         ITotpService totp,
         IQrCodeGenerator qr,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        ILogger<MfaCommandHandlers> logger)
         : IRequestHandler<BeginMfaEnrollmentCommand, Result<MfaEnrollmentDto>>,
           IRequestHandler<ConfirmMfaEnrollmentCommand, Result<MfaRecoveryCodesDto>>,
           IRequestHandler<DisableMfaCommand, Result<bool>>,
@@ -46,6 +49,10 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             var secret = totp.GenerateSecret();
             user.BeginMfaEnrollment(protector.Protect(secret));
             await uow.SaveChangesAsync(ct);
+
+            // Two-factor is a security control, so every state transition is logged (never a secret or a
+            // code). Without this, an incident leaves no trace at all in the application logs.
+            logger.LogInformation("MFA enrollment started for {Username}", user.Username);
 
             // The issuer is the label the user sees in their authenticator app. Data-driven per LGU from the
             // municipality registry ("EEMO Cantilan", "CEEO Carmen", …) rather than the opaque tenant code,
@@ -78,6 +85,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             var (plain, hashes) = RecoveryCodes.Generate();
             user.ConfirmMfaEnrollment(step, hashes);
             await uow.SaveChangesAsync(ct);
+            logger.LogInformation("MFA enabled for {Username}", user.Username);
 
             return Result<MfaRecoveryCodesDto>.Success(new MfaRecoveryCodesDto(plain));
         }
@@ -102,6 +110,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
 
             user.DisableMfa();
             await uow.SaveChangesAsync(ct);
+            logger.LogWarning("MFA DISABLED for {Username} (password + second factor verified)", user.Username);
             return Result<bool>.Success(true);
         }
 
@@ -116,6 +125,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             var (plain, hashes) = RecoveryCodes.Generate();
             user.ReplaceRecoveryCodes(hashes);          // every previous code stops working
             await uow.SaveChangesAsync(ct);
+            logger.LogInformation("MFA recovery codes regenerated for {Username}", user.Username);
 
             return Result<MfaRecoveryCodesDto>.Success(new MfaRecoveryCodesDto(plain));
         }

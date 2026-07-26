@@ -248,11 +248,25 @@
                 _password = string.Empty;   // don't keep it in memory longer than needed
                 _code = string.Empty;
             }
-            else _error = result.Error ?? "We couldn't start the setup.";
+            else _error = Explain(result.StatusCode, result.Error, "We couldn't start the setup.");
         }
         catch { _error = "We couldn't start the setup. Please try again."; }
         finally { _busy = false; }
     }
+
+    /// <summary>
+    /// Turns an API failure into something the user can act on. Several statuses carry NO message from the
+    /// server (401/403/404 by design), which previously surfaced as a bare "we couldn't…" and hid the real
+    /// cause — most often an expired session, since the page's cookie outlives the API access token.
+    /// </summary>
+    private static string Explain(int? statusCode, string? serverMessage, string fallback) => statusCode switch
+    {
+        401 => "Your session has expired. Please sign in again, then retry.",
+        403 => "You're not allowed to change this setting.",
+        404 => "Your account could not be found. Please sign in again.",
+        429 => "Too many attempts. Please wait a minute and try again.",
+        _ => string.IsNullOrWhiteSpace(serverMessage) ? fallback : serverMessage!
+    };
 
     private async Task ConfirmAsync()
     {
@@ -274,7 +288,7 @@
                 _code = string.Empty;
                 await LoadStatusAsync();
             }
-            else _error = result.Error ?? "That code wasn't accepted.";
+            else _error = Explain(result.StatusCode, result.Error, "That code wasn't accepted.");
         }
         catch { _error = "We couldn't verify that code. Please try again."; }
         finally { _busy = false; }
@@ -294,7 +308,7 @@
                 _ok = "Two-factor authentication is now off.";
                 await LoadStatusAsync();
             }
-            else _error = result.Error ?? "We couldn't switch two-factor off.";
+            else _error = Explain(result.StatusCode, result.Error, "We couldn't switch two-factor off.");
         }
         catch { _error = "We couldn't switch two-factor off. Please try again."; }
         finally { _busy = false; }
@@ -314,7 +328,7 @@
                 ResetPrompts();
                 await LoadStatusAsync();
             }
-            else _error = result.Error ?? "We couldn't generate new codes.";
+            else _error = Explain(result.StatusCode, result.Error, "We couldn't generate new codes.");
         }
         catch { _error = "We couldn't generate new codes. Please try again."; }
         finally { _busy = false; }

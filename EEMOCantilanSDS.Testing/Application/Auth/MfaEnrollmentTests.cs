@@ -13,6 +13,7 @@ using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -63,7 +64,8 @@ public class MfaEnrollmentTests
 
         var handlers = new MfaCommandHandlers(
             repo.Object, currentUser.Object, municipalityRepo.Object, new FakeProtector(),
-            new TotpService(), new QrCodeGenerator(), uow.Object);
+            new TotpService(), new QrCodeGenerator(), uow.Object,
+            NullLogger<MfaCommandHandlers>.Instance);
 
         return (handlers, user, uow);
     }
