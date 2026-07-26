@@ -77,7 +77,7 @@
             <div class="mfa-inline">
                 <input id="mfa-confirm-code" class="mfa-input" inputmode="numeric" autocomplete="one-time-code"
                        maxlength="6" placeholder="000000"
-                       value="@_code" @oninput="OnCodeInput" />
+                       @key="@($"code-{_formNonce}")" @oninput="OnCodeInput" />
                 <button class="mfa-btn mfa-btn-primary" type="button" disabled="@_busy" @onclick="ConfirmAsync">
                     @(_busy ? "Verifying…" : "Turn on")
                 </button>
@@ -124,12 +124,12 @@
                     <div class="mfa-inline">
                         <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
                                placeholder="Current password"
-                               value="@_password" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                               @key="@($"pw-{_formNonce}")" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
                         @if (_mode == Mode.Disable)
                         {
                             <input class="mfa-input" inputmode="numeric" autocomplete="one-time-code" maxlength="11"
                                    placeholder="Code"
-                                   value="@_code" @oninput="e => _code = e.Value?.ToString() ?? string.Empty" />
+                                   @key="@($"code2-{_formNonce}")" @oninput="e => _code = e.Value?.ToString() ?? string.Empty" />
                         }
                         <button class="mfa-btn @(_mode == Mode.Disable ? "mfa-btn-danger" : "mfa-btn-primary")"
                                 type="button" disabled="@_busy"
@@ -156,7 +156,7 @@
             <div class="mfa-inline">
                 <input class="mfa-input mfa-input-wide" type="password" autocomplete="current-password"
                        placeholder="Confirm your current password"
-                       value="@_password" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
+                       @key="@($"pw-{_formNonce}")" @oninput="e => _password = e.Value?.ToString() ?? string.Empty" />
                 <button class="mfa-btn mfa-btn-primary" type="button" disabled="@_busy" @onclick="BeginAsync">
                     @(_busy ? "Preparing…" : "Set up")
                 </button>
@@ -200,20 +200,32 @@
     protected override async Task OnInitializedAsync() => await LoadStatusAsync();
 
     /// <summary>
-    /// Keeps the confirmation box digits-only. Without this, pasting or typing the SETUP KEY into the code
-    /// box left letters in the field (silently truncated to 6 characters), which the server then rejected —
-    /// looking like a system fault when it was really the wrong value.
+    /// Records what was typed and warns if it looks like the setup key rather than a code. The value is NOT
+    /// rewritten here: the inputs are uncontrolled (no value= binding) so the browser owns the text, which is
+    /// what keeps typing instant on a slow connection. Normalisation happens at submit instead.
     /// </summary>
     private void OnCodeInput(ChangeEventArgs e)
     {
         var raw = e.Value?.ToString() ?? string.Empty;
-        var digits = new string(raw.Where(char.IsDigit).ToArray());
-        _code = digits.Length > 6 ? digits[..6] : digits;
+        _code = raw;
 
-        if (raw.Length > 0 && digits.Length == 0)
-            _error = "That looks like the setup key. Enter the 6-digit number your authenticator app shows.";
-        else
-            _error = null;
+        var digits = new string(raw.Where(char.IsDigit).ToArray());
+        _error = raw.Length > 0 && digits.Length == 0
+            ? "That looks like the setup key. Enter the 6-digit number your authenticator app shows."
+            : null;
+    }
+
+    /// <summary>
+    /// Bumped when a field must be cleared from code. Because the inputs are uncontrolled, changing this
+    /// @key recreates the element — the only way a programmatic clear reaches the DOM.
+    /// </summary>
+    private int _formNonce;
+
+    /// <summary>Digits only, capped at 6 — applied when submitting an authenticator code.</summary>
+    private static string NormaliseTotp(string value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        return digits.Length > 6 ? digits[..6] : digits;
     }
 
     private async Task LoadStatusAsync()
@@ -247,6 +259,7 @@
                 _enrollment = result.Value;
                 _password = string.Empty;   // don't keep it in memory longer than needed
                 _code = string.Empty;
+                _formNonce++;               // clears the uncontrolled inputs in the DOM
             }
             else _error = Explain(result.StatusCode, result.Error, "We couldn't start the setup.");
         }
@@ -271,6 +284,9 @@
     private async Task ConfirmAsync()
     {
         if (!Validate(needPassword: false, needCode: true)) return;
+
+        // Normalise here (not while typing) so the uncontrolled input is never rewritten under the user.
+        _code = NormaliseTotp(_code);
         if (_code.Length != 6)
         {
             _error = "Enter all 6 digits shown in your authenticator app.";
@@ -286,6 +302,7 @@
                 _recoveryCodes = result.Value.Codes;    // shown once
                 _enrollment = null;
                 _code = string.Empty;
+                _formNonce++;
                 await LoadStatusAsync();
             }
             else _error = Explain(result.StatusCode, result.Error, "That code wasn't accepted.");
@@ -369,5 +386,6 @@
         _password = string.Empty;
         _code = string.Empty;
         _error = null;
+        _formNonce++;               // clears the uncontrolled inputs in the DOM
     }
 }

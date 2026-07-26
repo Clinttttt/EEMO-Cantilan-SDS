@@ -124,12 +124,13 @@
                             <svg class="form-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
                             </svg>
+                            @* Uncontrolled (no value= binding) so typing stays instant on a slow link. *@
                             <input id="login-mfa-code"
+                                   @key="@($"mfa-{FormNonce}")"
                                    class="form-input"
                                    inputmode="numeric"
                                    autocomplete="one-time-code"
                                    placeholder="000000"
-                                   value="@MfaCode"
                                    @oninput="OnMfaCodeInput"
                                    @onkeydown="HandleMfaKeyDown" />
                         </div>
@@ -203,8 +204,12 @@
                             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0110 0v4" />
                         </svg>
-                        <input @key="@ShowPassword"
-                               value="@Password"
+                        @* Uncontrolled input: deliberately NO value= binding. Blazor Server sends every
+                           keystroke to the server; if the server also writes the value back, a slow or
+                           unstable connection makes characters revert and the caret jump. Omitting value
+                           lets the browser own the text while the server just records it. @key resets the
+                           element when the show/hide toggle flips or the field is cleared in code. *@
+                        <input @key="@($"pw-{ShowPassword}-{FormNonce}")"
                                @oninput="@((e) => Password = e.Value?.ToString() ?? string.Empty)"
                                @onkeydown="HandleKeyDown"
                                type="@(ShowPassword ? "text" : "password")"
@@ -632,6 +637,7 @@
                 // Password accepted; no session yet. Switch to the authenticator-code step.
                 MfaChallengeToken = outcome.ChallengeToken;
                 MfaCode = string.Empty;
+                FormNonce++;
                 ErrorMessage = string.Empty;
             }
             else if (!outcome.Success)
@@ -657,6 +663,13 @@
     // no session at all, so abandoning this step leaves the user signed out.
     string? MfaChallengeToken;
     string MfaCode = string.Empty;
+
+    /// <summary>
+    /// Bumped whenever a field must be cleared from code. The inputs are uncontrolled (no value= binding) so
+    /// the browser owns the text while typing; changing this @key recreates the element, which is how a
+    /// programmatic clear reaches the DOM.
+    /// </summary>
+    int FormNonce;
 
     bool AwaitingMfa => !string.IsNullOrEmpty(MfaChallengeToken);
 
@@ -693,6 +706,7 @@
                     ? "That code is not valid."
                     : outcome.Error!;
                 MfaCode = string.Empty;
+                FormNonce++;
             }
         }
         catch (Exception ex)
@@ -712,6 +726,7 @@
         MfaChallengeToken = null;
         MfaCode = string.Empty;
         Password = string.Empty;
+        FormNonce++;
         ErrorMessage = string.Empty;
     }
 
