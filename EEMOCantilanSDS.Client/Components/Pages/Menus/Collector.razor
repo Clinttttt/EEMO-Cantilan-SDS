@@ -636,15 +636,6 @@
                             </button>
                         </div>
                         <p class="applink-hint">Use this to install the Collector App on a new phone.</p>
-                        @if (!string.IsNullOrWhiteSpace(AppLink.DownloadQrCodeDataUri))
-                        {
-                            <div class="applink-qr applink-qr-sm">
-                                <img class="applink-qr-img" src="@AppLink.DownloadQrCodeDataUri" alt="QR code for the app download link" />
-                                <div class="applink-qr-text">
-                                    <p class="applink-hint">Scan to download the app on the phone itself.</p>
-                                </div>
-                            </div>
-                        }
                     </div>
 
                     @if (!string.IsNullOrEmpty(AppLinkNotice))

@@ -553,3 +553,75 @@
     border: 1px solid #cfd6de;
     border-top: none;
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   TOOLBAR SEGMENTED CONTROLS + "BY OWNER" ROSTER
+   Appended as its own block so the document styles above are untouched.
+   ══════════════════════════════════════════════════════════════ */
+
+/* One quiet rail per decision — which animals to list, and how to arrange them. Mirrors the reports
+   quick-links strip, so the two toolbars in this section of the portal read the same. */
+.slr-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+}
+
+.slr-seg-item {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    padding: 0 12px;
+    min-height: 32px;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.slr-seg-item:hover {
+    color: var(--navy);
+    background: var(--bg-card);
+}
+
+.slr-seg-item:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+}
+
+.slr-seg-item.active {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+/* Itemised animal lines under an owner's summary row: recessed, so the owner row stays the one that reads. */
+.slr-subrow td {
+    padding-top: 4px;
+    padding-bottom: 4px;
+    color: var(--text-subtle);
+    font-size: 12px;
+    background: var(--bg);
+}
+
+.slr-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-subtle);
+    font-size: 13px;
+}
+
+@media print {
+    /* The toolbar is a screen control; the printed roster keeps only the document. */
+    .slr-seg { display: none !important; }
+    .slr-subrow td { background: transparent; }
+}

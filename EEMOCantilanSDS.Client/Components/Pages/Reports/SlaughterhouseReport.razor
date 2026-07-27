@@ -102,7 +102,8 @@
         <div class="slr-hero">
             <div class="slr-hero-left">
                 <div class="slr-hero-icon">
-                    <svg viewBox="0 0 24 24"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>
+                    @* The facility's own mark, same as the sidebar and the facility page. *@
+                    <FacilityMark Code="FacilityCode.SLH" Ink="FacilityMarkInk.Gold" Size="26" />
                 </div>
                 <div>
                     <div class="slr-hero-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.SLH)</div>
@@ -148,25 +149,28 @@
                         <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
                     }
                 </div>
-                <div class="filter-tabs">
+                @* Segmented controls, matching the reports quick-links style: one quiet rail per decision —
+                   which animals to list, and how to arrange them — instead of a row of loose pills and a
+                   toggle button whose label had to change to explain itself. *@
+                <div class="slr-seg" role="group" aria-label="Animal type">
                     @foreach (var filter in AnimalFilters)
                     {
-                        <div class="filter-tab @(ActiveFilter == filter ? "active" : "")"
-                             @onclick="() => ActiveFilter = filter">
+                        <button type="button" class="slr-seg-item @(ActiveFilter == filter ? "active" : "")"
+                                aria-pressed="@(ActiveFilter == filter)"
+                                @onclick="() => ActiveFilter = filter">
                             @filter
-                        </div>
+                        </button>
                     }
                 </div>
-                <div>
-                    <button class="btn-outline" @onclick="ToggleGroupView">
-                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
-                            <rect x="3" y="3" width="7" height="7" />
-                            <rect x="14" y="3" width="7" height="7" />
-                            <rect x="3" y="14" width="7" height="7" />
-                            <rect x="14" y="14" width="7" height="7" />
-                        </svg>
-                        @(IsGroupedView ? "Ungroup" : "Group by Owner")
-                    </button>
+                <div class="slr-seg" role="group" aria-label="Arrangement">
+                    @foreach (var option in ViewOptions)
+                    {
+                        <button type="button" class="slr-seg-item @(View == option.Mode ? "active" : "")"
+                                aria-pressed="@(View == option.Mode)" title="@option.Hint"
+                                @onclick="() => View = option.Mode">
+                            @option.Label
+                        </button>
+                    }
                 </div>
             </div>
             <div style="display:flex;gap:8px;">
@@ -200,6 +204,86 @@
                 <div class="slr-doc-facility">@CurrentMonth.ToString("MMMM yyyy").ToUpper()</div>
             </div>
 
+            @if (View == SlhView.ByOwner)
+            {
+                @* One flat roster of people, not split by animal type: each owner appears once, with what
+                   they brought summarised as "Hog +1" and itemised underneath. No OR column — an owner's
+                   month can span several receipts, so a single cell could only mislead. *@
+                var owners = OwnerSummaries.ToList();
+                <div class="slr-section-block">
+                    <div class="slr-section-label-row">
+                        <span class="slr-section-label">OWNERS / CLIENTS</span>
+                        <span class="slr-section-count">@owners.Count owner@(owners.Count != 1 ? "s" : "")</span>
+                    </div>
+
+                    @if (!owners.Any())
+                    {
+                        <div class="slr-empty">No slaughter transactions match this view.</div>
+                    }
+                    else
+                    {
+                        <table class="slr-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-no">#</th>
+                                    <th class="col-date">Latest Date</th>
+                                    <th class="col-owner">Owner / Client</th>
+                                    <th class="col-animal">Animal</th>
+                                    <th class="col-heads">No. of<br />Heads</th>
+                                    <th class="col-rate">Rate /<br />Head</th>
+                                    <th class="col-amount">Total<br />Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ var ownerRow = 1; }
+                                @foreach (var owner in owners)
+                                {
+                                    <tr>
+                                        <td class="c">@ownerRow</td>
+                                        <td class="c">@owner.LatestDate.ToString("M/d/yyyy")</td>
+                                        <td class="tl fw">@owner.OwnerName</td>
+                                        <td class="c">@AnimalSummary(owner)</td>
+                                        <td class="c">@owner.Heads</td>
+                                        <td class="r">@RateCell(owner.Lines.Select(l => l.Rate))</td>
+                                        <td class="r">₱@owner.Total.ToString("N2")</td>
+                                    </tr>
+                                    @* Itemised only when there is more than one kind — a single-animal owner
+                                       would just repeat the row above. *@
+                                    @if (owner.Lines.Count > 1)
+                                    {
+                                        @foreach (var line in owner.Lines)
+                                        {
+                                            <tr class="slr-subrow">
+                                                <td></td>
+                                                <td></td>
+                                                <td></td>
+                                                <td class="c">↳ @line.Animal</td>
+                                                <td class="c">@line.Heads</td>
+                                                <td class="r">₱@line.Rate.ToString("N2")</td>
+                                                <td class="r">₱@line.Amount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    }
+                                    ownerRow++;
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr class="tfoot-row">
+                                    <td colspan="4" class="tfoot-label">
+                                        Total — @owners.Count owner@(owners.Count != 1 ? "s" : ""),
+                                        @owners.Sum(o => o.Heads) head@(owners.Sum(o => o.Heads) != 1 ? "s" : "")
+                                    </td>
+                                    <td class="c tfoot-val">@owners.Sum(o => o.Heads)</td>
+                                    <td class="r tfoot-val">@RateCell(owners.SelectMany(o => o.Lines).Select(l => l.Rate))</td>
+                                    <td class="r tfoot-val">₱@owners.Sum(o => o.Total).ToString("N2")</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    }
+                </div>
+            }
+            else
+            {
             @foreach (var animalType in VisibleAnimalTypes)
             {
                 var transactions = IsGroupedView 
@@ -224,7 +308,12 @@
                                 <th class="col-heads">No. of<br />Heads</th>
                                 <th class="col-rate">Rate /<br />Head</th>
                                 <th class="col-amount">Total<br />Amount</th>
-                                <th class="col-or">OR No.</th>
+                                @* An owner's grouped row can cover several receipts, so there is no single OR
+                                   number to print: the column is dropped rather than filled with a dash. *@
+                                @if (!IsGroupedView)
+                                {
+                                    <th class="col-or">OR No.</th>
+                                }
                             </tr>
                         </thead>
                         <tbody>
@@ -243,7 +332,6 @@
                                         <td class="c">@t.NumberOfHeads</td>
                                         <td class="r">@(t.NumberOfHeads > 0 ? "₱" + t.RatePerHead.ToString("N2") : "—")</td>
                                         <td class="r">₱@t.TotalAmount.ToString("N2")</td>
-                                        <td class="c mono">—</td>
                                     </tr>
                                     rowNum++;
                                 }
@@ -272,13 +360,21 @@
                                     @animalType Total — @transactions.Sum(t => t.NumberOfHeads) head@(transactions.Sum(t => t.NumberOfHeads) != 1 ? "s" : "")
                                 </td>
                                 <td class="c tfoot-val">@transactions.Sum(t => t.NumberOfHeads)</td>
-                                <td class="r tfoot-val">—</td>
+                                @* Every line in an animal section is normally billed at the same ordinance
+                                   rate, so state it instead of a bare dash; a dash is kept only when the rows
+                                   genuinely differ (e.g. a rate change mid-month), where no single figure is
+                                   truthful. *@
+                                <td class="r tfoot-val">@RateCell(transactions.Select(t => t.RatePerHead))</td>
                                 <td class="r tfoot-val">₱@transactions.Sum(t => t.TotalAmount).ToString("N2")</td>
-                                <td></td>
+                                @if (!IsGroupedView)
+                                {
+                                    <td></td>
+                                }
                             </tr>
                         </tfoot>
                     </table>
                 </div>
+            }
             }
 
             @if (ActiveFilter == "All")
@@ -312,7 +408,34 @@
     private DateTime CurrentMonth = PhilippineTime.Now;
     private string SearchQuery = string.Empty;
     private string ActiveFilter = "All";
-    private bool IsGroupedView = false;
+
+    /// <summary>How the roster is arranged. Replaces the old two-state "group by owner" toggle.</summary>
+    private enum SlhView
+    {
+        /// <summary>Every transaction as recorded, with its OR number — the auditable list.</summary>
+        Transactions,
+
+        /// <summary>Per animal type, one row per owner: how many head of that animal they brought.</summary>
+        ByTypeAndOwner,
+
+        /// <summary>One flat roster of people, animals summarised per owner.</summary>
+        ByOwner
+    }
+
+    private SlhView View = SlhView.Transactions;
+
+    /// <summary>Kept so the existing animal-section markup reads the same as before.</summary>
+    private bool IsGroupedView => View == SlhView.ByTypeAndOwner;
+
+    private sealed record ViewOption(SlhView Mode, string Label, string Hint);
+
+    private static readonly ViewOption[] ViewOptions =
+    [
+        new(SlhView.Transactions, "Transactions", "Every transaction as recorded, with its OR number"),
+        new(SlhView.ByTypeAndOwner, "By type & owner", "Per animal type, one row per owner"),
+        new(SlhView.ByOwner, "By owner", "One row per person, with their animals summarised")
+    ];
+
     private List<SlaughterTransactionDto> AllTransactions = new();
 
     [PersistentState(AllowUpdates = true)]
@@ -330,7 +453,54 @@
 
     private void ToggleGroupView()
     {
-        IsGroupedView = !IsGroupedView;
+        View = View == SlhView.ByTypeAndOwner ? SlhView.Transactions : SlhView.ByTypeAndOwner;
+    }
+
+    // ── "By owner" roster ────────────────────────────────────────────────────────
+    // One entry per person for the selected animal filter, with each kind of animal itemised. Heads and
+    // amounts are plain sums of the same transactions the other views show, so no total can disagree.
+    private sealed record OwnerLine(string Animal, int Heads, decimal Rate, decimal Amount);
+
+    private sealed record OwnerSummary(
+        string OwnerName,
+        DateOnly LatestDate,
+        int Heads,
+        decimal Total,
+        IReadOnlyList<OwnerLine> Lines);
+
+    private IEnumerable<OwnerSummary> OwnerSummaries =>
+        GetAnimalTransactions(ActiveFilter)
+            .Where(MatchSearch)
+            .GroupBy(t => t.OwnerName)
+            .Select(g => new OwnerSummary(
+                g.Key,
+                g.Max(t => t.TransactionDate),
+                g.Sum(t => t.NumberOfHeads),
+                g.Sum(t => t.TotalAmount),
+                g.GroupBy(t => GetAnimalTypeName(t.AnimalType, t.CustomAnimalType))
+                 .Select(a => new OwnerLine(a.Key, a.Sum(x => x.NumberOfHeads), a.First().RatePerHead, a.Sum(x => x.TotalAmount)))
+                 .OrderByDescending(l => l.Heads)
+                 .ThenBy(l => l.Animal, StringComparer.OrdinalIgnoreCase)
+                 .ToList()))
+            .OrderBy(o => o.OwnerName, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// "Hog" for one kind, "Hog +1" for two — the leading kind is the one with the most head, and the rest are
+    /// itemised in the sub-rows beneath, so the cell stays short without hiding anything.
+    /// </summary>
+    private static string AnimalSummary(OwnerSummary owner) =>
+        owner.Lines.Count <= 1
+            ? owner.Lines.FirstOrDefault()?.Animal ?? "—"
+            : $"{owner.Lines[0].Animal} +{owner.Lines.Count - 1}";
+
+    /// <summary>
+    /// A rate cell for a row that covers several lines: the rate when every line shares one, otherwise a dash,
+    /// because a mixed set has no single per-head figure that would be true.
+    /// </summary>
+    private static string RateCell(IEnumerable<decimal> rates)
+    {
+        var distinct = rates.Distinct().ToList();
+        return distinct.Count == 1 ? $"₱{distinct[0]:N2}" : "—";
     }
 
     private IEnumerable<SlaughterTransactionDto> GetAnimalTransactions(string animalType)

@@ -176,6 +176,7 @@
     .ex-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
     .content-area { padding: 0 !important; }
     .ex-table tbody tr:hover { background: transparent; }
+    .ex-subrow td { background: transparent; }
 
     /* Single-facility scope: the document's scope line already names the facility, and its
        collected/outstanding pair repeats the summary above, so the per-facility header row is dropped from
@@ -205,4 +206,14 @@
     flex-direction: column;
     gap: 8px;
     margin-top: 12px;
+}
+
+/* Itemised animal lines under a merged slaughterhouse receipt: recessed so the receipt row stays the one
+   that reads, while the breakdown remains available on the same page. */
+.ex-subrow td {
+    padding-top: 3px;
+    padding-bottom: 3px;
+    color: var(--text-subtle);
+    font-size: 11.5px;
+    background: var(--bg);
 }
