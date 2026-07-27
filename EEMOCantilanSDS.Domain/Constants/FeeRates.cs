@@ -59,6 +59,12 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const int MaxFailedLoginAttempts = 5;
         public const int LockoutMinutes = 15;
 
+        // A daily-collected facility has no monthly contract rate, but the official LGU roster and the
+        // ledger still state one: the monthly EQUIVALENT of the daily fee over a flat 30-day month
+        // (₱30/day → ₱900/month → ₱10,800/year). Calendar length is deliberately ignored — this is the
+        // paper convention the offices reconcile against, not a proration.
+        public const int DailyBilledMonthDays = 30;
+
         // Authentication token lifetimes (single source — also used by TokenService).
         public const int AccessTokenMinutes = 15;
         public const int RefreshTokenDays = 7;

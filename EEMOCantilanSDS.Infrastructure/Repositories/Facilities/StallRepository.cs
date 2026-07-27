@@ -343,6 +343,27 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // Expired/closed rows still appear in the transaction/collection history — just not on this roster.
         stalls = stalls.Where(s => s.Status != StallStatus.Closed && !s.IsContractExpired()).ToList();
 
+        // ── The monetary columns must state what the stall is actually billed ──
+        // A daily-collected facility (NPM) has no monthly contract rate. The official form's "Monthly
+        // Rentals" column is the monthly EQUIVALENT of the ordinance daily fee (daily × 30), which is the
+        // same figure the NPM report register prints. Previously this projection printed the stored
+        // Stall.MonthlyRate — a number typed by whoever registered the stall — which only ever coincides
+        // with the ordinance for a ₱30 municipality, so every other LGU was shown Cantilan's ₱900 next to
+        // its own ₱40/day rate.
+        //
+        // The rate is resolved through Stall.ResolveDailyFee, the SAME rule billing and settlement use, so
+        // a per-LGU CUSTOM section keeps its own rate and the roster can never disagree with the ledger.
+        // Cantilan resolves to ₱30 × 30 = ₱900, exactly what it showed before.
+        var isDailyBilled = facilityCode == FacilityCode.NPM;
+        var npmDailyRate = isDailyBilled
+            ? (await feeRateResolver.GetSnapshotAsync(ct))
+                .Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now))
+            : 0m;
+
+        decimal MonthlyOf(Stall s) => isDailyBilled
+            ? s.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays
+            : s.MonthlyRate;
+
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection
         // enum stays the logical key; only the SHOWN label becomes tenant-aware, falling back to the canonical
         // name ("Vegetable Area"/…) when no custom label is set (so Cantilan is unchanged).
@@ -370,16 +391,16 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         EffectivityDate = contract?.EffectivityDate ?? default,
                         DurationYears = durationYears,
                         AreaSqm = s.AreaSqm,
-                        MonthlyRentalRate = s.MonthlyRate,
-                        ActualMonthlyRental = s.MonthlyRate,
-                        WholeYearRental = s.MonthlyRate * 12,
+                        MonthlyRentalRate = MonthlyOf(s),
+                        ActualMonthlyRental = MonthlyOf(s),
+                        WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,   // List of Stallholders is base rental only — no fish/elec/water
                         IsClosed = s.Status == StallStatus.Closed
                     };
                 }).ToList(),
-                SectionMonthlyTotal = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionActualMonthly = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionWholeYearTotal = g.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
+                SectionMonthlyTotal = g.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionActualMonthly = g.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionWholeYearTotal = g.Where(s => s.Status == StallStatus.Active).Sum(s => MonthlyOf(s) * 12),
                 SectionFishFeeTotal = 0   // base rental only — additional fees (fish/elec/water) are not part of this list
             }).ToList();
 
@@ -408,16 +429,16 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         EffectivityDate = contract?.EffectivityDate ?? default,
                         DurationYears = contract?.DurationYears ?? 0,
                         AreaSqm = s.AreaSqm,
-                        MonthlyRentalRate = s.MonthlyRate,
-                        ActualMonthlyRental = s.MonthlyRate,
-                        WholeYearRental = s.MonthlyRate * 12,
+                        MonthlyRentalRate = MonthlyOf(s),
+                        ActualMonthlyRental = MonthlyOf(s),
+                        WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,
                         IsClosed = s.Status == StallStatus.Closed
                     };
                 }).ToList(),
-                SectionMonthlyTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionActualMonthly = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionWholeYearTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
+                SectionMonthlyTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionActualMonthly = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionWholeYearTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(s => MonthlyOf(s) * 12),
                 SectionFishFeeTotal = 0
             });
         }
@@ -443,17 +464,17 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         EffectivityDate = contract?.EffectivityDate ?? default,
                         DurationYears = durationYears,
                         AreaSqm = s.AreaSqm,
-                        MonthlyRentalRate = s.MonthlyRate,
-                        ActualMonthlyRental = s.MonthlyRate,
-                        WholeYearRental = s.MonthlyRate * 12,
+                        MonthlyRentalRate = MonthlyOf(s),
+                        ActualMonthlyRental = MonthlyOf(s),
+                        WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,
                         IsClosed = s.Status == StallStatus.Closed,
                         AreaLocation = s.AreaLocation?.ToString()
                     };
                 }).ToList(),
-                SectionMonthlyTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionActualMonthly = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-                SectionWholeYearTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12),
+                SectionMonthlyTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionActualMonthly = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+                SectionWholeYearTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(s => MonthlyOf(s) * 12),
                 SectionFishFeeTotal = 0
             });
         }
@@ -466,8 +487,8 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             MeatCount = stalls.Count(s => s.Section == MarketSection.MeatSection),
             Sections = sectionsWithSection,
             GrandTotalActiveStalls = stalls.Count(s => s.Status == StallStatus.Active),
-            GrandTotalMonthlyRate = stalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate),
-            GrandTotalWholeYearRental = stalls.Where(s => s.Status == StallStatus.Active).Sum(s => s.MonthlyRate * 12)
+            GrandTotalMonthlyRate = stalls.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
+            GrandTotalWholeYearRental = stalls.Where(s => s.Status == StallStatus.Active).Sum(s => MonthlyOf(s) * 12)
         };
     }
 

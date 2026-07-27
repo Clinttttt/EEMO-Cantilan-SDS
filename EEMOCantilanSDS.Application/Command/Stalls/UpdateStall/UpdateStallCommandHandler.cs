@@ -20,8 +20,12 @@ public class UpdateStallCommandHandler(
         if (stall is null)
             return Result<StallDto>.NotFound();
 
-        // Update stall rates and area
-        stall.UpdateRates(request.MonthlyRate, request.DailyRate, "Admin");
+        // A null DailyRate means "not supplied", NOT "clear it". Editing a stall from a screen that does
+        // not show the daily rate (the stall profile, the generic vendor registry) previously wiped or
+        // overwrote it: for a per-LGU CUSTOM section, whose own rate IS what billing charges via
+        // Stall.ResolveDailyFee, a routine occupant-name edit could silently change the money. Only an
+        // explicit value now moves the rate.
+        stall.UpdateRates(request.MonthlyRate, request.DailyRate ?? stall.DailyRate, "Admin");
         stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, request.Remarks, "Admin");
 
         // Update active contract occupant + terms
@@ -52,7 +56,7 @@ public class UpdateStallCommandHandler(
             request.AreaSqm,
             activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
             request.MonthlyRate,
-            request.DailyRate,
+            stall.DailyRate,      // the effective stored rate, which may have been preserved rather than set
             activeContract?.ORNumber,
             stall.Section,
             stall.AreaLocation,

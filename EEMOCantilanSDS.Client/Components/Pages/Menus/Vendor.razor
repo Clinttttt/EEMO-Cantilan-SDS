@@ -1164,7 +1164,11 @@
                 Fees: editFees,
                 AreaSqm: Form.AreaSqm > 0 ? Form.AreaSqm : null,
                 AreaNote: string.IsNullOrWhiteSpace(Form.AreaLocation) ? null : Form.AreaLocation.Trim(),
-                DailyRate: Form.FacilityCode == "NPM" ? 30.00m : null,
+                // Null = leave the stored daily rate alone. This screen does not edit it, and a
+                // custom-section stall's own rate is what billing charges — overwriting it here (this was
+                // a hardcoded ₱30, so any ₱40 LGU had its rate rewritten on an unrelated edit) would
+                // silently change the money.
+                DailyRate: null,
                 ActualOccupant: Form.ActualOccupant.Trim(),
                 NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
                 Remarks: null,
@@ -1214,7 +1218,9 @@
                 AreaLocation: nccAreaLocation,
                 AreaSqm: Form.AreaSqm > 0 ? Form.AreaSqm : null,
                 AreaNote: string.IsNullOrWhiteSpace(Form.AreaLocation) ? null : Form.AreaLocation.Trim(),
-                DailyRate: Form.FacilityCode == "NPM" ? 30.00m : null,
+                // The tenant's own resolved daily rate (loaded into _npmDailyRate from the facility rates),
+                // never a hardcoded ordinance figure — a ₱40 municipality must not be stamped with ₱30.
+                DailyRate: Form.FacilityCode == "NPM" ? _npmDailyRate : null,
                 ActualOccupant: Form.ActualOccupant.Trim(),
                 NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
                 ContractDate: Form.ContractDate,

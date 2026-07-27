@@ -1114,6 +1114,16 @@
             await SubmitAddVendor();
     }
 
+    // True when the form's selected section is a per-LGU CUSTOM section rather than one of the three
+    // canonical market sections — the same test SubmitAddVendor applies when it stamps the daily rate.
+    // Only a custom section carries its own daily rate (Stall.ResolveDailyFee), so only there may an edit
+    // move it; canonical stalls bill the tenant's ordinance rate.
+    private bool IsCustomSectionSelected()
+    {
+        var sel = VendorForm.SelectedSection ?? string.Empty;
+        return sel == "__custom__" || sel.StartsWith("existing:", StringComparison.Ordinal);
+    }
+
     private async Task SubmitEditVendor()
     {
         VendorErrorMessage = string.Empty;
@@ -1144,7 +1154,12 @@
                 fees,
                 VendorForm.AreaSqm,
                 null,
-                30m,
+                // A per-LGU CUSTOM section carries its own daily rate and the modal can edit it, so send
+                // the edited value. For a canonical section send null = leave the stored rate alone: this
+                // was a hardcoded ₱30, which rewrote a ₱40 municipality's stall on any unrelated edit.
+                VendorForm.CustomDailyRate > 0m && IsCustomSectionSelected()
+                    ? VendorForm.CustomDailyRate
+                    : null,
                 VendorForm.ActualOccupant.Trim(),
                 string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
                 null);

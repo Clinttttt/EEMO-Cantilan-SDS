@@ -11,6 +11,10 @@ public record UpdateStallCommand(
     ApplicableFees Fees,
     double? AreaSqm,
     string? AreaNote,
+    /// <summary>
+    /// The stall's own daily rate. Null means "not supplied — leave the stored rate alone", so a screen
+    /// that does not edit the daily rate cannot silently change what a custom-section stall is billed.
+    /// </summary>
     decimal? DailyRate,
     string ActualOccupant,
     string? NameOnContract,
