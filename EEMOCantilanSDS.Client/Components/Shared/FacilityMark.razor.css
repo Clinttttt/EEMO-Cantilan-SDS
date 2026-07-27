@@ -1,15 +1,13 @@
 /*
-   FacilityMark — the facility's official mark.
+   FacilityMark — the facility's line mark.
 
-   Only layout concerns live here: the artwork already carries its own colour (one file per ink), so there is
-   nothing to tint at runtime. object-fit keeps the square artwork undistorted at any requested size.
+   Layout only: stroke colour, width and caps are set on the element itself (one drawing, any ink), so this
+   sheet just keeps the mark from being stretched or from stealing clicks meant for the row behind it.
 */
 
 .fmark {
     display: block;
     flex-shrink: 0;
-    object-fit: contain;
-    /* Decorative only; never intercept clicks meant for the row or card behind it. */
     pointer-events: none;
     user-select: none;
 }

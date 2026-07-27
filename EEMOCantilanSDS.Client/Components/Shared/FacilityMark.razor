@@ -1,18 +1,22 @@
-@using EEMOCantilanSDS.Client.Utilities
+@using EEMOCantilanSDS.FacilityArt
 @using EEMOCantilanSDS.Domain.Enums
 
 @*
-    The official mark for a facility, drawn in the ink that suits the surface it sits on.
+    The mark for a facility, drawn as line art at the size the surface needs.
 
-    Purely decorative: every place that shows a mark also shows the facility's name, so the image is hidden
-    from assistive technology rather than repeating that name. Facilities without dedicated artwork (a
-    Head-added custom facility) render the caller's Fallback glyph instead, so nothing ever shows a blank.
+    Decorative: every place that shows a mark also shows the facility's name, so the drawing is hidden from
+    assistive technology rather than repeating it. Facilities without dedicated artwork (a Head-added custom
+    facility) render the caller's Fallback glyph, so nothing ever shows a blank.
 *@
 
-@if (_path is not null)
+@if (_paths is not null)
 {
-    <img class="fmark" src="@_path" alt="" aria-hidden="true" draggable="false"
-         width="@Size" height="@Size" style="width:@(Size)px;height:@(Size)px" />
+    <svg class="fmark" viewBox="0 0 24 24" width="@Size" height="@Size" aria-hidden="true" focusable="false"
+         fill="none" stroke="@FacilityMarkArt.StrokeFor(Ink)" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round"
+         style="width:@(Size)px;height:@(Size)px">
+        @((MarkupString)_paths)
+    </svg>
 }
 else
 {
@@ -20,19 +24,19 @@ else
 }
 
 @code {
-    /// <summary>The facility whose mark to show.</summary>
+    /// <summary>The facility whose mark to draw.</summary>
     [Parameter, EditorRequired] public FacilityCode Code { get; set; }
 
-    /// <summary>Ink to match the surface: Navy on light backgrounds, White on dark ones.</summary>
+    /// <summary>Ink to match the surface: Navy on light backgrounds, White on the sidebar, Gold on the hero.</summary>
     [Parameter] public FacilityMarkInk Ink { get; set; } = FacilityMarkInk.Navy;
 
-    /// <summary>Rendered size in CSS pixels (the artwork is 96px, so it stays crisp when scaled down).</summary>
+    /// <summary>Drawn size in CSS pixels.</summary>
     [Parameter] public int Size { get; set; } = 22;
 
-    /// <summary>Shown when this facility has no dedicated mark (custom facilities).</summary>
+    /// <summary>Shown when this facility has no dedicated artwork (custom facilities).</summary>
     [Parameter] public RenderFragment? Fallback { get; set; }
 
-    private string? _path;
+    private string? _paths;
 
-    protected override void OnParametersSet() => _path = FacilityMarks.PathFor(Code, Ink);
+    protected override void OnParametersSet() => _paths = FacilityMarkArt.PathsFor(Code);
 }

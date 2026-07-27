@@ -1,11 +1,10 @@
 /*
-   FacilityMark (collector app) — layout only; the artwork carries its own colour (one file per ink).
+   FacilityMark (collector app) — layout only; stroke colour and width are set on the element itself.
 */
 
 .fmark {
     display: block;
     flex-shrink: 0;
-    object-fit: contain;
     pointer-events: none;
     user-select: none;
 }

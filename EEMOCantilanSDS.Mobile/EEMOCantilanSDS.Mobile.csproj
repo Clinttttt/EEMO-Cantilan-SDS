@@ -94,6 +94,13 @@
     </ItemGroup>
 
     <ItemGroup>
+      <!-- The facility line art is shared with the portal by compiling the SAME file here, rather than
+           keeping a second copy: this project cannot reference the Client, and two copies of a drawing
+           table is exactly how the two apps would end up showing different icons. -->
+      <Compile Include="..\EEMOCantilanSDS.Client\Utilities\FacilityMarkArt.cs" Link="Utilities\FacilityMarkArt.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
       <Folder Include="wwwroot\images\" />
     </ItemGroup>
 
