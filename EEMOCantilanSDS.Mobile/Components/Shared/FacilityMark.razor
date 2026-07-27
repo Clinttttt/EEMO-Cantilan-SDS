@@ -1,0 +1,36 @@
+@using EEMOCantilanSDS.Mobile.Utilities
+@using EEMOCantilanSDS.Domain.Enums
+
+@*
+    The official mark for a facility (collector app). Mirrors the portal's component so both surfaces show the
+    same artwork; the images are written to this project's wwwroot by tools/generate-facility-marks.ps1.
+
+    Decorative: the facility's name is always shown beside it, so the image is hidden from assistive tech.
+*@
+
+@if (_path is not null)
+{
+    <img class="fmark" src="@_path" alt="" aria-hidden="true" draggable="false"
+         width="@Size" height="@Size" style="width:@(Size)px;height:@(Size)px" />
+}
+else
+{
+    @Fallback
+}
+
+@code {
+    [Parameter, EditorRequired] public FacilityCode Code { get; set; }
+
+    /// <summary>Ink to match the surface: Navy on light backgrounds, White on dark ones.</summary>
+    [Parameter] public FacilityMarkInk Ink { get; set; } = FacilityMarkInk.Navy;
+
+    /// <summary>Rendered size in CSS pixels (artwork is 96px, so it stays crisp when scaled down).</summary>
+    [Parameter] public int Size { get; set; } = 22;
+
+    /// <summary>Shown when this facility has no dedicated mark (custom facilities).</summary>
+    [Parameter] public RenderFragment? Fallback { get; set; }
+
+    private string? _path;
+
+    protected override void OnParametersSet() => _path = FacilityMarks.PathFor(Code, Ink);
+}

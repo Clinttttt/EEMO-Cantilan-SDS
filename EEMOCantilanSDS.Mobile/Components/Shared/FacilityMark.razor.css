@@ -1,0 +1,11 @@
+/*
+   FacilityMark (collector app) — layout only; the artwork carries its own colour (one file per ink).
+*/
+
+.fmark {
+    display: block;
+    flex-shrink: 0;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+}

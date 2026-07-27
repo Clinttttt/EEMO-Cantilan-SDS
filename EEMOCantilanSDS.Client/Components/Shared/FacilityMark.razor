@@ -1,0 +1,38 @@
+@using EEMOCantilanSDS.Client.Utilities
+@using EEMOCantilanSDS.Domain.Enums
+
+@*
+    The official mark for a facility, drawn in the ink that suits the surface it sits on.
+
+    Purely decorative: every place that shows a mark also shows the facility's name, so the image is hidden
+    from assistive technology rather than repeating that name. Facilities without dedicated artwork (a
+    Head-added custom facility) render the caller's Fallback glyph instead, so nothing ever shows a blank.
+*@
+
+@if (_path is not null)
+{
+    <img class="fmark" src="@_path" alt="" aria-hidden="true" draggable="false"
+         width="@Size" height="@Size" style="width:@(Size)px;height:@(Size)px" />
+}
+else
+{
+    @Fallback
+}
+
+@code {
+    /// <summary>The facility whose mark to show.</summary>
+    [Parameter, EditorRequired] public FacilityCode Code { get; set; }
+
+    /// <summary>Ink to match the surface: Navy on light backgrounds, White on dark ones.</summary>
+    [Parameter] public FacilityMarkInk Ink { get; set; } = FacilityMarkInk.Navy;
+
+    /// <summary>Rendered size in CSS pixels (the artwork is 96px, so it stays crisp when scaled down).</summary>
+    [Parameter] public int Size { get; set; } = 22;
+
+    /// <summary>Shown when this facility has no dedicated mark (custom facilities).</summary>
+    [Parameter] public RenderFragment? Fallback { get; set; }
+
+    private string? _path;
+
+    protected override void OnParametersSet() => _path = FacilityMarks.PathFor(Code, Ink);
+}

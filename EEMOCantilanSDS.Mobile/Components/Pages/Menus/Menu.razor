@@ -103,7 +103,7 @@
                 @foreach (var facility in OpenFacilities)
                 {
                     <div class="menu-card" role="button" tabindex="0" @onclick="() => OpenFacility(facility)">
-                        <div class="card-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
+                        <div class="card-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="24"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
                         <div class="card-info">
                             <div class="card-title">@facility.Name</div>
                             <div class="card-sub">@facility.Description</div>
@@ -121,7 +121,7 @@
                 @foreach (var facility in ComingSoonFacilities)
                 {
                     <div class="menu-card soon">
-                        <div class="card-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
+                        <div class="card-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="24"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
                         <div class="card-info">
                             <div class="card-title">@facility.Name</div>
                             <div class="card-sub">@facility.Description</div>
@@ -138,7 +138,7 @@
                 @foreach (var facility in LockedFacilities)
                 {
                     <div class="menu-card locked" aria-disabled="true">
-                        <div class="card-icon locked-icon">@((MarkupString)GetFacilityIcon(facility.Code))</div>
+                        <div class="card-icon locked-icon"><FacilityMark Code="facility.Code" Ink="FacilityMarkInk.Navy" Size="24"><Fallback>@((MarkupString)GetFacilityIcon(facility.Code))</Fallback></FacilityMark></div>
                         <div class="card-info">
                             <div class="card-title">@facility.Name</div>
                             <div class="card-sub">Not assigned to your account</div>

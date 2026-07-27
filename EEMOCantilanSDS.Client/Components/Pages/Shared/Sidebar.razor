@@ -80,7 +80,11 @@
             var href = "/facility/" + EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(
                 f.Code, f.ShortName, (FacilitySummaries ?? new()).Select(x => (x.Code, (string?)x.ShortName)));
             <NavLink href="@href" class="@NavItemClass(href)" @onclick="() => SetPendingPath(href)">
-                @((MarkupString)display.Icon)
+                @* The office's own facility mark, in white ink for the navy rail. A facility with no
+                   dedicated artwork (Head-added custom facility) keeps its generic glyph. *@
+                <FacilityMark Code="f.Code" Ink="FacilityMarkInk.White" Size="18">
+                    <Fallback>@((MarkupString)display.Icon)</Fallback>
+                </FacilityMark>
                 <span>@f.Name</span>
                 @if (unpaid > 0)
                 {

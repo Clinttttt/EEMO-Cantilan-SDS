@@ -153,7 +153,10 @@
                         <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
                             <div class="facility-card-header">
                                 <div class="facility-card-icon">
-                                    @((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? DefaultIcon))
+                                    @* Navy ink here: this tile is light, unlike the sidebar's navy rail. *@
+                                    <FacilityMark Code="fac.Code" Ink="FacilityMarkInk.Navy" Size="24">
+                                        <Fallback>@((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? DefaultIcon))</Fallback>
+                                    </FacilityMark>
                                 </div>
                                 <div class="facility-card-meta">
                                     <div class="facility-card-code">@fac.ShortName</div>
