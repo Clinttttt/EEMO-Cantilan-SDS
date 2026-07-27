@@ -176,6 +176,11 @@
     .ex-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
     .content-area { padding: 0 !important; }
     .ex-table tbody tr:hover { background: transparent; }
+
+    /* Single-facility scope: the document's scope line already names the facility, and its
+       collected/outstanding pair repeats the summary above, so the per-facility header row is dropped from
+       the paper/PDF copy only. The all-facilities report keeps it — there it separates the sections. */
+    .ex-sheet-single .ex-fac-head { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════

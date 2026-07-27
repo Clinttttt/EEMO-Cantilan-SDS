@@ -53,13 +53,27 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             if (string.IsNullOrEmpty(request.OperatorPassword) || !operatorAccount.VerifyPassword(request.OperatorPassword))
                 return Result<bool>.Failure("Your password is incorrect.", 400);
 
-            // Cross-tenant by design: the operator rescues accounts in any municipality.
+            // Reaching into another municipality is a PLATFORM-OPERATOR power. A dedicated operator account
+            // (the console) may rescue any LGU's Head. The backward-compatible fallback — the default
+            // municipality's Head — is confined to its own municipality, so it cannot clear another LGU's
+            // second factor even if it knows the account id. Answered as NotFound rather than Forbidden so
+            // the response never confirms that an account outside the caller's scope exists.
+            var seesEveryMunicipality = await PlatformOperatorGuard.IsDedicatedOperatorAsync(context, currentUser, ct);
+
             var target = await context.AdminUsers
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(u => u.Id == request.UserId && !u.IsDeleted, ct);
 
             if (target is null)
                 return Result<bool>.NotFound();
+
+            if (!seesEveryMunicipality && target.MunicipalityId != currentUser.MunicipalityId)
+            {
+                logger.LogWarning(
+                    "Fallback operator {Operator} attempted to clear two-factor for account {TargetId} in another municipality",
+                    operatorAccount.Username, target.Id);
+                return Result<bool>.NotFound();
+            }
 
             if (!target.MfaEnabled && !target.HasPendingMfaEnrollment)
                 return Result<bool>.Failure("That account does not have two-factor authentication set up.", 400);

@@ -15,8 +15,10 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts
 {
     /// <summary>
-    /// Lists every account with two-factor enabled, across ALL municipalities, for the platform operator's
-    /// recovery tool. Cross-tenant by necessity — the operator's job is to rescue a Head of any LGU.
+    /// Lists accounts with two-factor enabled for the recovery tool. A DEDICATED platform operator (the
+    /// console) sees every municipality, because rescuing a Head of any LGU is its job. The
+    /// backward-compatible fallback operator — the default municipality's Head — sees only its own
+    /// municipality, so one LGU's portal never displays another's accounts.
     /// </summary>
     public record GetMfaEnrolledAccountsQuery : IRequest<Result<IReadOnlyList<MfaEnrolledAccountDto>>>;
 
@@ -33,11 +35,28 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.GetMfaEnrolledAccounts
             if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
                 return Result<IReadOnlyList<MfaEnrolledAccountDto>>.Forbidden();
 
-            // Join to the municipality registry so the operator can tell two LGUs' accounts apart.
-            var accounts = await context.AdminUsers
+            // Cross-tenant listing is a PLATFORM-OPERATOR power, not a Head's. A dedicated operator account
+            // (the IsPlatformOperator flag, used by the console) keeps the full view because rescuing any
+            // LGU's Head is its job. The backward-compatible fallback — the default municipality's Head, who
+            // is a municipal officer first — is scoped to its OWN municipality: another LGU's Head usernames
+            // and work emails have no business appearing inside one municipality's portal.
+            var seesEveryMunicipality = await PlatformOperatorGuard.IsDedicatedOperatorAsync(context, currentUser, ct);
+
+            var enrolled = context.AdminUsers
                 .AsNoTracking()
                 .IgnoreQueryFilters()
-                .Where(u => u.MfaEnabled && !u.IsDeleted)
+                .Where(u => u.MfaEnabled && !u.IsDeleted);
+
+            if (!seesEveryMunicipality)
+            {
+                if (currentUser.MunicipalityId is not Guid ownMunicipalityId)
+                    return Result<IReadOnlyList<MfaEnrolledAccountDto>>.Forbidden();
+
+                enrolled = enrolled.Where(u => u.MunicipalityId == ownMunicipalityId);
+            }
+
+            // Join to the municipality registry so the operator can tell two LGUs' accounts apart.
+            var accounts = await enrolled
                 .Select(u => new
                 {
                     u.Id,

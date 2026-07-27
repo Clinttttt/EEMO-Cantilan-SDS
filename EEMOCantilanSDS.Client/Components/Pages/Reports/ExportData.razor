@@ -185,8 +185,12 @@
         }
     </div>
 
-    <!-- Printable document -->
-    <section class="ex-sheet">
+    <!-- Printable document.
+         When a single facility is selected the sheet is marked so the per-facility header row can be dropped
+         from the printed/PDF copy: the document's own scope line already names that facility, so repeating it
+         (plus its collected/outstanding pair, which duplicates the summary cards) is noise on paper. The
+         on-screen view keeps it, where those figures are useful while filtering. -->
+    <section class="ex-sheet @(_facility is not null ? "ex-sheet-single" : "")">
         <table class="ex-frame">
             <thead><tr><td><div class="ex-frame-space"></div></td></tr></thead>
             <tfoot><tr><td><div class="ex-frame-space"></div></td></tr></tfoot>
@@ -461,7 +465,10 @@
     // dedicated "Total Fish Fees" line totals the ₱1/kg charge — kept cleanly separate from rent/coverage.
     private RenderFragment NpmTable(ExFacility f, IReadOnlyList<ExRental> rows, bool showFish) => __builder =>
     {
-        var span = showFish ? 11 : 10;   // total columns (for divider rows)
+        // Total columns (for the section divider rows). The daily table carries NO "OR No." column: a
+        // daily-collected stall has no monthly official receipt — the OR is recorded per collection day in
+        // the daily ledger — so the column was a dash on every row.
+        var span = showFish ? 10 : 9;
         <table class="ex-table">
             <thead>
                 <tr>
@@ -478,7 +485,6 @@
                     {
                         <th class="ex-r">Fish (kg)</th>
                     }
-                    <th>OR No.</th>
                 </tr>
             </thead>
             <tbody>
@@ -512,7 +518,6 @@
                             {
                                 <td class="ex-r">@(r.FishKilos > 0 ? r.FishKilos.ToString("N1") : "—")</td>
                             }
-                            <td>@(string.IsNullOrWhiteSpace(r.Or) ? "—" : r.Or)</td>
                         </tr>
                         n++;
                     }
@@ -529,7 +534,6 @@
                     {
                         <td class="ex-r">@(rows.Sum(r => r.FishKilos).ToString("N1"))</td>
                     }
-                    <td></td>
                 </tr>
             </tfoot>
         </table>

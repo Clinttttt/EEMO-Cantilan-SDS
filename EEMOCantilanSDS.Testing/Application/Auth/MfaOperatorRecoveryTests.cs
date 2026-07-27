@@ -194,14 +194,71 @@ public class MfaOperatorRecoveryTests
             Assert.True(account.IsHead);
             Assert.Equal(0, account.RecoveryCodesRemaining);
         }
+    }
 
-        using (var ctx = new AppDbContext(options))
+    [Fact]
+    public async Task EnrolledAccounts_NonOperatorHead_IsDenied()
+    {
+        // A Head of a non-default municipality is not an operator at all.
+        var options = Options();
+        var (_, carmenHeadId, _, carmenId) = await SeedAsync(options);
+
+        using var ctx = new AppDbContext(options);
+        var denied = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(carmenHeadId, carmenId, "SuperAdmin"))
+            .Handle(new GetMfaEnrolledAccountsQuery(), default);
+
+        Assert.False(denied.IsSuccess);
+        Assert.Equal(403, denied.StatusCode);
+    }
+
+    [Fact]
+    public async Task EnrolledAccounts_FallbackOperator_SeesOnlyItsOwnMunicipality()
+    {
+        // The Cantilan Head is a municipal officer who merely INHERITS operator powers (no
+        // IsPlatformOperator flag). Regression: the recovery list showed every LGU's Head — Carrascal's and
+        // Madrid's usernames and work emails appeared inside Cantilan's own portal.
+        var options = Options();
+        var (fallbackHeadId, _, cantilanId, _) = await SeedAsync(options, operatorFlag: false);
+
+        // Give the Cantilan side an enrolled account of its own so "empty" cannot be mistaken for "scoped".
+        using (var seed = new AppDbContext(options))
         {
-            var denied = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(carmenHeadId, carmenId, "SuperAdmin"))
-                .Handle(new GetMfaEnrolledAccountsQuery(), default);
-
-            Assert.False(denied.IsSuccess);
-            Assert.Equal(403, denied.StatusCode);
+            var cantilanAdmin = AdminUser.Create("Cantilan Clerk", "cantilan.clerk", "clerk@cantilan.gov.ph",
+                "ClerkPass1!", AdminRole.Admin, cantilanId);
+            cantilanAdmin.BeginMfaEnrollment("enc:SECRET");
+            cantilanAdmin.ConfirmMfaEnrollment(100, Array.Empty<string>());
+            seed.AdminUsers.Add(cantilanAdmin);
+            await seed.SaveChangesAsync();
         }
+
+        using var ctx = new AppDbContext(options);
+        var result = await new GetMfaEnrolledAccountsQueryHandler(ctx, new FakeCurrentUser(fallbackHeadId, cantilanId, "SuperAdmin"))
+            .Handle(new GetMfaEnrolledAccountsQuery(), default);
+
+        Assert.True(result.IsSuccess);
+        var account = Assert.Single(result.Value!);
+        Assert.Equal("cantilan.clerk", account.Username);          // its own municipality only
+        Assert.DoesNotContain(result.Value!, a => a.Username == "carmen.head");
+    }
+
+    [Fact]
+    public async Task Reset_FallbackOperator_CannotClearAnotherMunicipalitysHead()
+    {
+        // Scoping the list is not enough on its own: the reset takes an account id, so the same confinement
+        // has to hold on the write path.
+        var options = Options();
+        var (fallbackHeadId, carmenHeadId, cantilanId, _) = await SeedAsync(options, operatorFlag: false);
+
+        using var ctx = new AppDbContext(options);
+        var result = await Handler(ctx, fallbackHeadId, cantilanId, "SuperAdmin")
+            .Handle(new ResetUserMfaCommand(carmenHeadId, OperatorPassword), default);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);   // never confirms an out-of-scope account exists
+
+        // And the target's second factor is untouched.
+        using var verify = new AppDbContext(options);
+        var carmenHead = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == carmenHeadId);
+        Assert.True(carmenHead.MfaEnabled);
     }
 }

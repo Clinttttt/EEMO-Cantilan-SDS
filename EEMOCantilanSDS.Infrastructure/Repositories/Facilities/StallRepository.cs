@@ -773,7 +773,11 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 contract.NameOnContract,
                 contract.EffectivityDate,
                 contract.DurationYears,
-                stall.MonthlyRate,
+                // A daily-collected stall has no monthly contract rate: state the monthly equivalent of the
+                // rate it was actually billed at (the same ResolveDailyFee rule the ledger and the
+                // stallholder roster use), not the hand-entered figure stored on the stall — that only
+                // matches the ordinance for a ₱30 municipality.
+                isNpm ? stall.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays : stall.MonthlyRate,
                 isClosed ? stall.ClosedAt : null,
                 contractExpiry,
                 lifetimeCollected,

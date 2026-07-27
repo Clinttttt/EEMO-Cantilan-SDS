@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -14,6 +15,46 @@ namespace EEMOCantilanSDS.Testing;
 /// </summary>
 public class ClosedStallAccountsTests : RepositoryTestBase
 {
+    [Fact]
+    public async Task ClosedNpmStall_StatesTheMonthlyEquivalentOfTheTenantsDailyRate()
+    {
+        // Same defect as the stallholder roster: the register showed the hand-entered Stall.MonthlyRate
+        // (₱900 — Cantilan's figure) for a ₱40/day municipality. It must state ₱40 × 30 = ₱1,200 instead,
+        // resolved through the very rule the arrears beside it are computed with.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Diego Brando", "Diego Brando", new DateOnly(2026, 6, 1), 3, 900m);
+        var rate = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m, new DateOnly(2020, 1, 1), Guid.Empty);
+        stall.Close(new DateOnly(2026, 6, 10), "Head");
+
+        context.AddRange(facility, stall, contract, rate);
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        Assert.Equal(1_200m, row.MonthlyRate);
+    }
+
+    [Fact]
+    public async Task ClosedNpmStall_WithNoTenantRate_KeepsTheOrdinanceFigure()
+    {
+        // Cantilan's case: no rate rows → ₱30 ordinance → ₱900, exactly what the register showed before.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Ana Reyes", "Ana Reyes", new DateOnly(2026, 6, 1), 3, 900m);
+        stall.Close(new DateOnly(2026, 6, 10), "Head");
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, row.MonthlyRate);
+        Assert.Equal(900m, row.MonthlyRate);
+    }
+
     [Fact]
     public async Task ClosedMonthlyStall_ReportsLifetimeCollected_AndArrearsUpToCloseMonth()
     {
