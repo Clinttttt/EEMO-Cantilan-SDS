@@ -568,12 +568,19 @@
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowAppLink = false">
         <div class="eemo-modal eemo-modal-sm applink-modal" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header">
-                <div>
+            <div class="eemo-modal-header applink-head">
+                <div class="applink-head-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+                        <circle cx="12" cy="10" r="1.8" />
+                        <path d="M8.8 14.6a3.6 3.6 0 0 1 6.4 0" />
+                    </svg>
+                </div>
+                <div class="applink-head-text">
                     <div class="eemo-modal-title">Collector App</div>
                     <div class="eemo-modal-sub">Share the bind link with your collectors — their app opens as your LGU.</div>
                 </div>
-                <button class="eemo-modal-close" @onclick="() => ShowAppLink = false">
+                <button class="eemo-modal-close" @onclick="() => ShowAppLink = false" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
@@ -584,20 +591,62 @@
                 }
                 else if (AppLink is not null)
                 {
-                    <div class="form-group">
-                        <label class="form-label">Bind link (share with collectors)</label>
+                    <div class="applink-field">
+                        <label class="applink-label">Bind link (share with collectors)</label>
                         <div class="applink-row">
                             <input class="form-input applink-input" readonly value="@AppLink.BindUrl" title="@AppLink.BindUrl" />
-                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.BindUrl)">Copy</button>
+                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.BindUrl)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                </svg>
+                                Copy
+                            </button>
                         </div>
+                        <p class="applink-hint">Share this link with your collectors so their app binds to @Branding.Municipality.</p>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">App download link</label>
+
+                    @* Scanning beats copying in the field: the collector points their camera at this and the
+                       phone opens the link. Generated per request by the API, so a rotated link can never leave
+                       a stale image pointing at a dead token. *@
+                    @if (!string.IsNullOrWhiteSpace(AppLink.BindQrCodeDataUri))
+                    {
+                        <div class="applink-qr">
+                            <img class="applink-qr-img" src="@AppLink.BindQrCodeDataUri" alt="QR code for the collector-app bind link" />
+                            <div class="applink-qr-text">
+                                <div class="applink-qr-title">Or scan to bind</div>
+                                <p class="applink-hint">
+                                    Have the collector open their phone camera and scan this. It opens the same
+                                    bind link — nothing to type.
+                                </p>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="applink-divider"></div>
+
+                    <div class="applink-field">
+                        <label class="applink-label">App download link</label>
                         <div class="applink-row">
                             <input class="form-input applink-input" readonly value="@AppLink.DownloadUrl" title="@AppLink.DownloadUrl" />
-                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.DownloadUrl)">Copy</button>
+                            <button class="btn-ghost applink-copy" @onclick="() => CopyAsync(AppLink.DownloadUrl)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                </svg>
+                                Copy
+                            </button>
                         </div>
+                        <p class="applink-hint">Use this to install the Collector App on a new phone.</p>
+                        @if (!string.IsNullOrWhiteSpace(AppLink.DownloadQrCodeDataUri))
+                        {
+                            <div class="applink-qr applink-qr-sm">
+                                <img class="applink-qr-img" src="@AppLink.DownloadQrCodeDataUri" alt="QR code for the app download link" />
+                                <div class="applink-qr-text">
+                                    <p class="applink-hint">Scan to download the app on the phone itself.</p>
+                                </div>
+                            </div>
+                        }
                     </div>
+
                     @if (!string.IsNullOrEmpty(AppLinkNotice))
                     {
                         <p class="confirm-text" style="color:var(--green);">@AppLinkNotice</p>
@@ -617,7 +666,12 @@
                 }
                 else
                 {
-                    <button class="btn-ghost" disabled="@AppLinkLoading" @onclick="() => RotateConfirm = true">Rotate link</button>
+                    <button class="btn-ghost applink-rotate" disabled="@AppLinkLoading" @onclick="() => RotateConfirm = true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12a9 9 0 1 1-3-6.7" /><polyline points="21 3 21 9 15 9" />
+                        </svg>
+                        Rotate link
+                    </button>
                     <button class="btn-primary" @onclick="() => ShowAppLink = false">Done</button>
                 }
             </div>

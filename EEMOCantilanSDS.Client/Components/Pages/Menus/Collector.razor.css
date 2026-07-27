@@ -832,3 +832,105 @@
     .vs-hero-sub2 { display: none; }
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   COLLECTOR APP MODAL — header mark, field hints, QR blocks
+   Appended as its own block: the modal's existing navy header and link row are untouched above, so this
+   only adds the mark, the per-field guidance and the scan panels.
+   ══════════════════════════════════════════════════════════════ */
+
+.applink-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.applink-head-icon {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, .10);
+    border: 1px solid rgba(255, 255, 255, .18);
+    color: #fff;
+}
+
+.applink-head-icon svg { width: 22px; height: 22px; }
+
+.applink-head-text { min-width: 0; flex: 1; }
+
+.applink-field + .applink-field { margin-top: 4px; }
+
+.applink-label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--text-subtle);
+    font-size: 10.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.applink-hint {
+    margin: 7px 0 0;
+    color: var(--text-subtle);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.applink-copy svg,
+.applink-rotate svg {
+    width: 15px;
+    height: 15px;
+    margin-right: 6px;
+    vertical-align: -3px;
+}
+
+.applink-divider {
+    height: 1px;
+    margin: 18px 0;
+    background: var(--border);
+}
+
+/* Scan panel: the QR beside a short instruction, on a quiet surface so it reads as guidance, not decoration. */
+.applink-qr {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg);
+}
+
+.applink-qr-img {
+    flex-shrink: 0;
+    width: 104px;
+    height: 104px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    padding: 5px;
+    /* A QR must stay pixel-crisp; smoothing softens the modules and can defeat a scan. */
+    image-rendering: pixelated;
+}
+
+.applink-qr-sm .applink-qr-img { width: 76px; height: 76px; }
+
+.applink-qr-text { min-width: 0; }
+
+.applink-qr-title {
+    margin-bottom: 2px;
+    color: var(--navy);
+    font-size: 13.5px;
+    font-weight: 700;
+}
+
+.applink-qr-text .applink-hint { margin-top: 0; }
+
+@media (max-width: 560px) {
+    .applink-qr { flex-direction: column; align-items: flex-start; }
+}

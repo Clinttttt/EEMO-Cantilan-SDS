@@ -41,8 +41,13 @@ public static class FacilityMarkArt
     public static string? PathsFor(FacilityCode code) => code switch
     {
         // Public market — a market stall: canopy wider than the frame, two posts, counter.
-        FacilityCode.NPM or FacilityCode.TPM =>
+        FacilityCode.NPM =>
             """<path d="M3 9.5 5.5 4.5h13L21 9.5Z"/><path d="M6 9.5V19"/><path d="M18 9.5V19"/><path d="M6 13.5h12"/>""",
+
+        // Tabo-an — the same market family, but a scalloped awning rather than a flat canopy, so the weekly
+        // open-air market is not mistaken for the public market two rows above it in the same list.
+        FacilityCode.TPM =>
+            """<path d="M3 9 5.5 4.5h13L21 9"/><path d="M3 9c1.2 0 1.2 1.4 2.4 1.4S6.6 9 7.8 9s1.2 1.4 2.4 1.4S11.4 9 12.6 9s1.2 1.4 2.4 1.4S16.2 9 17.4 9s1.2 1.4 2.4 1.4S21 9 21 9"/><path d="M6 11V19"/><path d="M18 11V19"/><path d="M6 15h12"/>""",
 
         // Commercial centres — one storefront block: windows and a door (shared by both by design).
         FacilityCode.TCC or FacilityCode.NCC =>
@@ -58,11 +63,11 @@ public static class FacilityMarkArt
         FacilityCode.ICE =>
             """<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M12 8v8"/><path d="m8.6 10 6.8 4"/><path d="m15.4 10-6.8 4"/>""",
 
-        // Slaughterhouse — a livestock head: outswept horns and a muzzle line. The horns carry the shape at
-        // small sizes. Chosen over a cleaver (read as a video camera) and over a shed (indistinguishable from
-        // the other buildings), and it suits an official document better than a blade.
+        // Slaughterhouse — a livestock head: horns swept up and out, muzzle below. The horns are what make it
+        // read as livestock at 16 px; without them it flattened into a blank oval. Chosen over a cleaver (read
+        // as a video camera) and over a shed (indistinguishable from the other buildings).
         FacilityCode.SLH =>
-            """<path d="M3.5 8.5 8 5.5"/><path d="M20.5 8.5 16 5.5"/><path d="M8 5.5h8l2.5 4.5a6.5 6.5 0 0 1-13 0z"/><path d="M10.5 13.5h3"/>""",
+            """<path d="M4 5c2.6 0 4 1.6 4.3 3.4"/><path d="M20 5c-2.6 0-4 1.6-4.3 3.4"/><path d="M8.2 8.4h7.6l1.6 3.4a5.4 5.4 0 0 1-10.8 0z"/><path d="M10.6 15.6h2.8"/><path d="M12 15.6v2.6"/>""",
 
         // Transport terminal — a bus: body, window band, two wheels.
         FacilityCode.TRM =>

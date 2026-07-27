@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetOfficeProfile;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
@@ -23,10 +24,13 @@ namespace EEMOCantilanSDS.Api.Controllers;
 public class MunicipalityProfileController : ApiBaseController
 {
     private readonly IConfiguration _configuration;
+    private readonly IQrCodeGenerator _qrCodes;
 
-    public MunicipalityProfileController(ISender sender, IConfiguration configuration) : base(sender)
+    public MunicipalityProfileController(ISender sender, IConfiguration configuration, IQrCodeGenerator qrCodes)
+        : base(sender)
     {
         _configuration = configuration;
+        _qrCodes = qrCodes;
     }
 
     [HttpPut]
@@ -72,7 +76,18 @@ public class MunicipalityProfileController : ApiBaseController
         var token = result.Value!;
         var appBase = (_configuration["Mobile:AppBaseUrl"] ?? "https://app.stalltrack.site").TrimEnd('/');
         var downloadUrl = _configuration["Mobile:DownloadUrl"] ?? $"{appBase}/download/stalltrack-collector-latest.apk";
-        var dto = new MobileBindLinkDto(token, $"{appBase}/a/{token}", downloadUrl);
+        var bindUrl = $"{appBase}/a/{token}";
+
+        // QR codes for both links: a collector in the field scans with their phone camera instead of copying a
+        // long URL by hand (the same generator the authenticator enrolment uses). Rendered per request rather
+        // than stored — the link can be rotated at any time, and a stale image would send collectors to a dead
+        // token.
+        var dto = new MobileBindLinkDto(
+            token,
+            bindUrl,
+            downloadUrl,
+            _qrCodes.ToPngDataUri(bindUrl),
+            _qrCodes.ToPngDataUri(downloadUrl));
         return HandleResponse(Result<MobileBindLinkDto>.Success(dto));
     }
 
