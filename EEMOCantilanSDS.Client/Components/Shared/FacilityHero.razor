@@ -5,7 +5,20 @@
 <div class="facility-hero">
     <div class="facility-hero-left">
         <div class="facility-hero-icon">
-            @Icon
+            @* The facility's own mark, in gold to match the hero's accent. Rendered here rather than by each
+               facility page so every page — bespoke or generic — shows the same icon as the sidebar. The
+               page's Icon fragment remains the fallback: for a facility without dedicated artwork, and for a
+               caller that supplies no Code at all. *@
+            @if (Code is { } markCode)
+            {
+                <FacilityMark Code="markCode" Ink="FacilityMarkInk.Gold" Size="26">
+                    <Fallback>@Icon</Fallback>
+                </FacilityMark>
+            }
+            else
+            {
+                @Icon
+            }
         </div>
         <div>
             <div class="facility-hero-eyebrow">@EffectiveEyebrow</div>

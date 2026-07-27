@@ -53,14 +53,16 @@ public static class FacilityMarkArt
         FacilityCode.BBQ =>
             """<path d="M4 9.5h16"/><path d="M5.5 9.5c0 4.2 2.9 6.8 6.5 6.8s6.5-2.6 6.5-6.8"/><path d="m9.5 16-2.5 4.5"/><path d="m14.5 16 2.5 4.5"/><path d="M9.5 4c-.9 1.1.9 1.9 0 3"/><path d="M14.5 4c-.9 1.1.9 1.9 0 3"/>""",
 
-        // Iceplant — a snowflake: cold storage, and never mistakable for a currency symbol.
+        // Iceplant — a block of ice with a crystal inside. An unadorned snowflake read as a plain asterisk
+        // (or arrowheads) at 16 px and looked out of context; the block gives it an object to be.
         FacilityCode.ICE =>
-            """<path d="M12 3v18"/><path d="m4.2 7.5 15.6 9"/><path d="m19.8 7.5-15.6 9"/><path d="m9.6 5.4 2.4-2.4 2.4 2.4"/><path d="m9.6 18.6 2.4 2.4 2.4-2.4"/>""",
+            """<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M12 8v8"/><path d="m8.6 10 6.8 4"/><path d="m15.4 10-6.8 4"/>""",
 
-        // Slaughterhouse — a livestock head (horns carry the shape at small sizes). Chosen over a cleaver,
-        // which read as a video camera at 16 px, and it suits an official document better.
+        // Slaughterhouse — a livestock head: outswept horns and a muzzle line. The horns carry the shape at
+        // small sizes. Chosen over a cleaver (read as a video camera) and over a shed (indistinguishable from
+        // the other buildings), and it suits an official document better than a blade.
         FacilityCode.SLH =>
-            """<path d="M5 5.5c1.9 0 3.1 1.1 3.5 2.5"/><path d="M19 5.5c-1.9 0-3.1 1.1-3.5 2.5"/><path d="M7.5 8h9a2 2 0 0 1 2 2v1.5a6.5 6.5 0 0 1-13 0V10a2 2 0 0 1 2-2Z"/><path d="M10.5 14h3"/>""",
+            """<path d="M3.5 8.5 8 5.5"/><path d="M20.5 8.5 16 5.5"/><path d="M8 5.5h8l2.5 4.5a6.5 6.5 0 0 1-13 0z"/><path d="M10.5 13.5h3"/>""",
 
         // Transport terminal — a bus: body, window band, two wheels.
         FacilityCode.TRM =>
