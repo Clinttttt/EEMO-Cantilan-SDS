@@ -324,6 +324,7 @@
                 Issue payor activation code
             </button>
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseCollectionSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmCollectionAsync" disabled="@IsSaving">
@@ -417,6 +418,7 @@
                     <div class="form-error">@ActivationError</div>
                 }
 
+                <SlowSaveHint Active="IsSaving" />
                 <div class="sheet-btn-row">
                     <button class="btn-cancel" type="button" @onclick="CloseActivation" disabled="@IsGenerating">Cancel</button>
                     <button class="btn-confirm" type="button" @onclick="GenerateActivationAsync" disabled="@IsGenerating">
@@ -439,6 +441,7 @@
                     Give this code to the payor. They activate at the Payor Portal using this code and the mobile
                     number above. Generating a new code voids this one.
                 </div>
+                <SlowSaveHint Active="IsSaving" />
                 <div class="sheet-btn-row">
                     <button class="btn-confirm" type="button" @onclick="CloseActivation">Done</button>
                 </div>

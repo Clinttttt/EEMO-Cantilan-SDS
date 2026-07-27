@@ -1,0 +1,33 @@
+/*
+   SlowSaveHint — shown only when a save outlasts the patience of someone standing at a terminal gate.
+   Amber, not red: the save has not failed, it is just slow, and the wording says so.
+*/
+
+.slow-save {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 9px 11px;
+    border: 1px solid var(--amber-border, #e3d3a1);
+    border-radius: 10px;
+    background: var(--amber-bg, #fdf7e6);
+    color: var(--text-primary, #0d2137);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.slow-save-dot {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background: #c8a84b;
+    animation: slow-save-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes slow-save-pulse {
+    0%, 100% { opacity: .35; }
+    50% { opacity: 1; }
+}

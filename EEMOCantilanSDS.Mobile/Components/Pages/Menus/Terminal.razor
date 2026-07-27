@@ -292,6 +292,7 @@
                 }
             </div>
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="ClosePicker">Cancel</button>
             </div>
@@ -334,6 +335,7 @@
                 <div class="form-error">@QuickTripError</div>
             }
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseQuickTripSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmQuickTripAsync" disabled="@IsSaving">
@@ -371,6 +373,7 @@
                 <div class="form-error">@NewTransporterError</div>
             }
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseNewTransporterSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmNewTransporterAsync" disabled="@IsSaving">
@@ -413,6 +416,7 @@
                 <div class="form-error">@SheetError</div>
             }
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">

@@ -216,6 +216,7 @@
                 <div class="form-error">@SheetError</div>
             }
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseSheet" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
@@ -376,6 +377,7 @@
                 <div class="form-error">@EditError</div>
             }
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="CloseEdit" disabled="@IsSaving">Cancel</button>
                 <button class="btn-confirm" type="button" @onclick="ConfirmEditAsync" disabled="@IsSaving">
@@ -428,6 +430,7 @@
                 }
             </div>
 
+            <SlowSaveHint Active="IsSaving" />
             <div class="sheet-btn-row">
                 <button class="btn-cancel" type="button" @onclick="ClosePicker">Cancel</button>
             </div>

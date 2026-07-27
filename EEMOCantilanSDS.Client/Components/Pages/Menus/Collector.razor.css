@@ -854,7 +854,8 @@
     border-radius: 11px;
     background: rgba(255, 255, 255, .10);
     border: 1px solid rgba(255, 255, 255, .18);
-    color: #fff;
+    /* Gold, matching the close button and the hero accents across the portal. */
+    color: var(--gold-light);
 }
 
 .applink-head-icon svg { width: 22px; height: 22px; }

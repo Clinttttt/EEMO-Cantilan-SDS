@@ -1,0 +1,63 @@
+@implements IDisposable
+
+@*
+    A quiet line that appears only when a save is taking unusually long — the field reality on 2-3 bars, where
+    the button sits on "Saving..." with nothing to explain it and the collector starts wondering whether to
+    close the app or tap again.
+
+    Purely additive: it observes the page's existing saving flag and never touches the request. It deliberately
+    offers no cancel button — the server may already have committed the record, and abandoning the wait is how
+    a collector ends up recording the same payment twice. Instead it says what is happening and that a retry is
+    safe, which is true: writes carry a client operation id, so the API discards a duplicate.
+*@
+
+@if (_visible)
+{
+    <div class="slow-save" role="status" aria-live="polite">
+        <span class="slow-save-dot" aria-hidden="true"></span>
+        <span>@Message</span>
+    </div>
+}
+
+@code {
+    /// <summary>The page's existing saving flag. The hint shows only while this is true.</summary>
+    [Parameter] public bool Active { get; set; }
+
+    /// <summary>How long a save may take before it is worth explaining. Short saves stay silent.</summary>
+    [Parameter] public int AfterSeconds { get; set; } = 4;
+
+    [Parameter]
+    public string Message { get; set; } =
+        "Still saving — the connection looks slow. Keep this open; if it fails you can safely try again.";
+
+    private System.Threading.Timer? _timer;
+    private bool _visible;
+
+    protected override void OnParametersSet()
+    {
+        if (Active)
+        {
+            if (_timer is null)
+            {
+                _timer = new System.Threading.Timer(
+                    _ => InvokeAsync(() => { _visible = true; StateHasChanged(); }),
+                    null,
+                    TimeSpan.FromSeconds(AfterSeconds),
+                    Timeout.InfiniteTimeSpan);
+            }
+        }
+        else
+        {
+            Stop();
+        }
+    }
+
+    private void Stop()
+    {
+        _timer?.Dispose();
+        _timer = null;
+        _visible = false;
+    }
+
+    public void Dispose() => Stop();
+}
