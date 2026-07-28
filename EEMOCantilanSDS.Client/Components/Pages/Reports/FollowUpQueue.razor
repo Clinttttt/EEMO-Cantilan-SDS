@@ -450,6 +450,8 @@
                       Section="@UtilityKindFor(_utilityItem)"
                       Year="@AsOf.Year"
                       Month="@AsOf.Month"
+                      HasElectricity="_utilityItem.StallHasElectricity"
+                      HasWater="_utilityItem.StallHasWater"
                       OnClose="CloseUtilityBill"
                       OnSaved="OnUtilityBillSaved"
                       RequireUpdateConfirmation="true" />

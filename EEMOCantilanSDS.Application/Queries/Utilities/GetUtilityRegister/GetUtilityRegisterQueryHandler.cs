@@ -57,7 +57,8 @@ public class GetUtilityRegisterQueryHandler(
                     b.ElecPreviousReading, b.ElecCurrentReading, b.ElecConsumption, b.ElecCharge,
                     b.WaterPreviousReading, b.WaterCurrentReading, b.WaterConsumption, b.WaterCharge,
                     b.TotalCharge, b.Status.ToString(), b.BalanceDue,
-                    b.ElecStatus.ToString(), b.WaterStatus.ToString()));
+                    b.ElecStatus.ToString(), b.WaterStatus.ToString(),
+                    s.HasElectricity, s.HasWater));
             }
             else
             {
@@ -68,7 +69,8 @@ public class GetUtilityRegisterQueryHandler(
                     0, 0, 0, 0,
                     0, 0, 0, 0,
                     0, "Unbilled", 0,
-                    "Unbilled", "Unbilled"));
+                    "Unbilled", "Unbilled",
+                    s.HasElectricity, s.HasWater));
             }
         }
 

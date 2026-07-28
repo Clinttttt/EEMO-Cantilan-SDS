@@ -1368,9 +1368,19 @@
     padding: 0;
     min-width: 0;
 }
-.utility-status.paid { color: var(--green); }
-.utility-status.partial { color: #9a741b; }
+/* Government report, not a dashboard: the status reads in navy like the rest of the sheet, and colour is
+   spent only where it means "money still owed". A settled or unbilled line needs no colour at all. */
+.utility-status.paid { color: var(--navy); }
+.utility-status.partial { color: #7a5f13; }
 .utility-status.unpaid { color: var(--red); }
+
+/* A utility this stall is not metered for — stated plainly rather than reported as a status. */
+.utility-na {
+    display: block;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-style: italic;
+}
 
 
 

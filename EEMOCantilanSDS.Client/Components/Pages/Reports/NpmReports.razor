@@ -372,19 +372,42 @@ else if (ShowUtilityBilling)
                                         <span class="utility-payor-note">@row.Note</span>
                                     </td>
                                     <td>@row.Section</td>
+                                    @* Only the utilities this stall is metered for. A stall billed for water
+                                       alone has no electricity meter, so a reading and a status there would be
+                                       reporting on a service the vendor does not have. *@
                                     <td>
-                                        <span class="utility-reading">@row.ElectricPrevious.ToString("N0") to @row.ElectricCurrent.ToString("N0") kWh</span>
-                                        <small>&#8369;@row.ElectricAmount.ToString("N2") due</small>
+                                        @if (row.HasElectricity)
+                                        {
+                                            <span class="utility-reading">@row.ElectricPrevious.ToString("N0") to @row.ElectricCurrent.ToString("N0") kWh</span>
+                                            <small>&#8369;@row.ElectricAmount.ToString("N2") due</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="utility-na">Not metered</span>
+                                        }
                                     </td>
                                     <td>
-                                        <span class="utility-reading">@row.WaterPrevious.ToString("N0") to @row.WaterCurrent.ToString("N0") cu.m</span>
-                                        <small>&#8369;@row.WaterAmount.ToString("N2") due</small>
+                                        @if (row.HasWater)
+                                        {
+                                            <span class="utility-reading">@row.WaterPrevious.ToString("N0") to @row.WaterCurrent.ToString("N0") cu.m</span>
+                                            <small>&#8369;@row.WaterAmount.ToString("N2") due</small>
+                                        }
+                                        else
+                                        {
+                                            <span class="utility-na">Not metered</span>
+                                        }
                                     </td>
                                     <td class="utility-due">&#8369;@row.TotalDue.ToString("N2")</td>
                                     <td>
                                         <div class="utility-status-pair">
-                                            <span class="utility-status @row.ElecStatusCss" title="Electricity charge status">E · @row.ElecStatus</span>
-                                            <span class="utility-status @row.WaterStatusCss" title="Water charge status">W · @row.WaterStatus</span>
+                                            @if (row.HasElectricity)
+                                            {
+                                                <span class="utility-status @row.ElecStatusCss" title="Electricity charge status">E · @row.ElecStatus</span>
+                                            }
+                                            @if (row.HasWater)
+                                            {
+                                                <span class="utility-status @row.WaterStatusCss" title="Water charge status">W · @row.WaterStatus</span>
+                                            }
                                         </div>
                                     </td>
                                 </tr>
@@ -1518,9 +1541,12 @@ else
         string Status,
         string Note,
         string ElecStatus,
-        string WaterStatus)
+        string WaterStatus,
+        bool HasElectricity,
+        bool HasWater)
     {
-        public decimal TotalDue => ElectricAmount + WaterAmount;
+        // A utility the stall is not metered for contributes nothing to what it owes.
+        public decimal TotalDue => (HasElectricity ? ElectricAmount : 0m) + (HasWater ? WaterAmount : 0m);
         public string StatusCss => Css(Status);
         public string ElecStatusCss => Css(ElecStatus);
         public string WaterStatusCss => Css(WaterStatus);
@@ -1540,7 +1566,8 @@ else
                 ? (r.Status == "Paid" ? "Settled for the period"
                    : r.BalanceDue > 0 ? $"Balance \u20b1{r.BalanceDue:N2}" : "Recorded")
                 : "No reading recorded yet",
-            r.ElecStatus, r.WaterStatus))
+            r.ElecStatus, r.WaterStatus,
+            r.HasElectricity, r.HasWater))
         .ToList();
 
     // ── Utility register filter + search + per-payor history ──

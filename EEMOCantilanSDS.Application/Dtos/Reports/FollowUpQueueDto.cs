@@ -36,5 +36,14 @@ public record FollowUpItemDto(
     string Status,
     string Action,       // button label, e.g. "View vendor", "Encode OR"
     string Link,         // client route, e.g. "/profile/bbq/4"
-    Guid? StallId = null // present for rows that act on a specific stall (e.g. inline daily Add-OR)
+    Guid? StallId = null, // present for rows that act on a specific stall (e.g. inline daily Add-OR)
+
+    /// <summary>
+    /// For a utility row: whether the stall is actually billed for electricity / water (its
+    /// <c>ApplicableFees</c> flags). The queue opens the utility-bill dialog, which must offer only the
+    /// services the vendor has — a stall registered with water alone has no electricity meter to read.
+    /// Both default to false because they are meaningless on non-utility rows.
+    /// </summary>
+    bool StallHasElectricity = false,
+    bool StallHasWater = false
 );

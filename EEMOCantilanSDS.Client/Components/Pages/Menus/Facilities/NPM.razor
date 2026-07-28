@@ -253,6 +253,9 @@
                   Section="@(UtilityStall?.Section ?? string.Empty)"
                   Year="@PhilippineTime.Now.Year"
                   Month="@PhilippineTime.Now.Month"
+                  @* Only the utilities this stall is registered for are billable. *@
+                  HasElectricity="@(UtilityStall?.HasElectricity ?? false)"
+                  HasWater="@(UtilityStall?.HasWater ?? false)"
                   OnClose="CloseUtility"
                   OnSaved="OnUtilitySaved" />
 

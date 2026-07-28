@@ -130,7 +130,20 @@
                     {
                         <button type="button" class="fac-card fac-card-btn @(f.IsActive ? "" : "fac-card-inactive")" @onclick="() => OpenConfigure(f)">
                             <div class="fac-card-top">
-                                <div class="fac-badge">@f.ShortName</div>
+                                @* The facility's own mark, as in the sidebar and on its page. A custom facility
+                                   has no dedicated artwork, so it keeps its short code. *@
+                                <div class="fac-badge">
+                                    @if (CodeOf(f.Code) is { } markCode)
+                                    {
+                                        <FacilityMark Code="markCode" Ink="FacilityMarkInk.White" Size="24">
+                                            <Fallback><span class="fac-badge-code">@f.ShortName</span></Fallback>
+                                        </FacilityMark>
+                                    }
+                                    else
+                                    {
+                                        <span class="fac-badge-code">@f.ShortName</span>
+                                    }
+                                </div>
                                 <div class="fac-titles">
                                     <div class="fac-name">@f.Name</div>
                                 </div>
@@ -245,10 +258,6 @@
                     <span class="fac-field-label">Short name</span>
                     <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
                 </label>
-                <label class="fac-field">
-                    <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
-                    <input class="fac-input" @bind="_addDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
-                </label>
 
                 <div class="cfg-hint">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
@@ -306,10 +315,9 @@
                         </div>
                     }
                 </div>
-                <label class="fac-field">
-                    <span class="fac-field-label">Description <span class="fac-field-opt">(optional)</span></span>
-                    <input class="fac-input" @bind="_cfgDescription" @bind:event="oninput" maxlength="400" placeholder="Short note shown on this facility" />
-                </label>
+                @* The description was a free-text note that nothing in the portal displayed — the cards and
+                   dialogs show the facility's name, billing model and rates. Removed rather than left as a
+                   field that quietly went nowhere. Existing stored values are untouched. *@
 
                 @if (_cfgFacility is not null && string.Equals(_cfgFacility.Code, "NPM", StringComparison.OrdinalIgnoreCase))
                 {
@@ -612,6 +620,9 @@
     private AvailableFacilityDto? _addTarget;
     private string _addName = string.Empty;
     private string _addShortName = string.Empty;
+    // No longer edited: the description input was removed because nothing in the portal displayed it. Kept as
+    // a pass-through so a new facility is created with no description and, on configure, whatever is already
+    // stored is sent back UNCHANGED — writing null here would silently erase an existing note.
     private string _addDescription = string.Empty;
     private string? _addError;
 
@@ -619,7 +630,7 @@
     private ConfiguredFacilityDto? _cfgFacility;
     private string _cfgName = string.Empty;
     private string _cfgShortName = string.Empty;
-    private string _cfgDescription = string.Empty;
+    private string _cfgDescription = string.Empty;   // seeded from the facility, never edited (see above)
     private string _cfgVeg = string.Empty;
     private string _cfgFish = string.Empty;
     private string _cfgMeat = string.Empty;
@@ -650,6 +661,13 @@
     // Custom facilities use an internal slot code (Custom1..5) that should never be shown to users — the
     // Head-chosen short name/acronym is displayed instead.
     private static bool IsCustom(string code) => code.StartsWith("Custom", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The facility code as an enum, so the card can draw the facility's own mark. Null when the code is not
+    /// one the enum knows, in which case the card falls back to the short name.
+    /// </summary>
+    private static FacilityCode? CodeOf(string code) =>
+        Enum.TryParse<FacilityCode>(code, ignoreCase: true, out var parsed) ? parsed : null;
 
     private async Task LoadAsync()
     {
@@ -755,10 +773,17 @@
         _cfgError = null;
         _cfgSuccess = null;
 
-        var code = Enum.Parse<FacilityCode>(_cfgFacility.Code);
+        // TryParse, not Parse: an unrecognised code must not throw out of a click handler.
+        if (CodeOf(_cfgFacility.Code) is not { } code)
+        {
+            _cfgError = "This facility's code is not recognised, so its configuration cannot be saved here.";
+            _busy = false;
+            return;
+        }
+
         var changes = new List<string>();
 
-        // 1) Identity (name / short-name / description).
+        // 1) Identity (name / short-name / section labels).
         if (HasIdentityChanges())
         {
             var res = await FacilitiesApi.UpdateFacilityAsync(new UpdateFacilityCommand(
@@ -777,19 +802,35 @@
         }
 
         // 2) Changed fixed rates (effective today, never retroactive).
+        // Each rate is its own request, so a failure part-way through leaves the earlier ones applied. When
+        // that happens the drawer is still reloaded below and the message states exactly what DID save —
+        // reporting only the error would leave the office believing nothing changed.
         var changedRates = _cfgFacility.Rates.Where(r => _rateEdits.TryGetValue(r.Key, out var v) && v != r.Amount).ToList();
+        var savedRates = 0;
+        string? rateError = null;
         foreach (var r in changedRates)
         {
-            var key = Enum.Parse<FeeRateKey>(r.Key);
+            if (!Enum.TryParse<FeeRateKey>(r.Key, ignoreCase: true, out var key))
+            {
+                rateError = $"Unknown rate '{r.Key}' — it was not saved.";
+                break;
+            }
+
             var res = await FacilitiesApi.SetFacilityRateAsync(code, key, _rateEdits[r.Key]);
             if (!res.IsSuccess)
             {
-                _cfgError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't save a rate. Please try again." : res.Error;
-                _busy = false;
-                return;
+                rateError = string.IsNullOrWhiteSpace(res.Error) ? "Couldn't save a rate. Please try again." : res.Error;
+                break;
             }
+            savedRates++;
         }
-        if (changedRates.Count > 0) changes.Add($"{changedRates.Count} rate{(changedRates.Count == 1 ? "" : "s")}");
+        if (savedRates > 0) changes.Add($"{savedRates} rate{(savedRates == 1 ? "" : "s")}");
+        if (rateError is not null)
+        {
+            _cfgError = changes.Count > 0
+                ? $"{rateError} Saved so far: {string.Join(" · ", changes)}."
+                : rateError;
+        }
 
         _busy = false;
         await LoadAsync();
@@ -806,7 +847,8 @@
             _cfgMeat = _cfgFacility.MeatSectionLabel ?? string.Empty;
             _rateEdits.Clear();
             foreach (var r in _cfgFacility.Rates) _rateEdits[r.Key] = r.Amount;
-            _cfgSuccess = changes.Count > 0 ? $"Saved: {string.Join(" · ", changes)}." : null;
+            // Only a clean run reports success; a partial run already explained itself in _cfgError.
+            _cfgSuccess = rateError is null && changes.Count > 0 ? $"Saved: {string.Join(" · ", changes)}." : null;
         }
         else
         {

@@ -5,8 +5,12 @@
 @inject IUtilitiesApiClient UtilitiesApi
 
 @*
-    UtilityBillModal — record an NPM stall's meter readings (electricity + water) with per-bill rates,
-    and optionally collect payment. Electricity and water are settled independently. Admin/office use.
+    UtilityBillModal — record an NPM stall's meter readings with per-bill rates, and optionally collect
+    payment. Electricity and water are settled independently. Admin/office use.
+
+    Only the utilities the STALL is actually billed for are shown: a stall registered with water alone has no
+    electricity meter, so offering an electricity reading invited a charge against a service the vendor does
+    not have. Applicability comes from the stall's own ApplicableFees flags, passed in by the caller.
 *@
 
 @if (Show)
@@ -22,6 +26,16 @@
             </div>
 
             <div class="ub-body">
+                @if (!HasElectricity && !HasWater)
+                {
+                    @* Defensive: the caller should not offer this at all for such a stall. *@
+                    <div class="ub-none">
+                        This stall is not billed for electricity or water. Add a utility charge on the stall's
+                        record first, then record a reading here.
+                    </div>
+                }
+                @if (HasElectricity)
+                {
                 <div class="ub-meter">
                     <div class="ub-meter-title">Electricity <span>kWh</span></div>
                     <div class="ub-grid3">
@@ -44,7 +58,10 @@
                         <label class="ub-field">Electricity OR number<input type="text" maxlength="50" placeholder="e.g. OR-10231" @bind="ElecOr" @bind:event="oninput" /></label>
                     }
                 </div>
+                }
 
+                @if (HasWater)
+                {
                 <div class="ub-meter">
                     <div class="ub-meter-title">Water <span>cu.m</span></div>
                     <div class="ub-grid3">
@@ -67,6 +84,7 @@
                         <label class="ub-field">Water OR number<input type="text" maxlength="50" placeholder="e.g. OR-10232" @bind="WaterOr" @bind:event="oninput" /></label>
                     }
                 </div>
+                }
 
                 <div class="ub-total"><span>Total Utility Charge</span><strong>₱@TotalCharge.ToString("N2")</strong></div>
 
@@ -104,6 +122,16 @@
     [Parameter] public EventCallback OnSaved { get; set; }
     [Parameter] public bool RequireUpdateConfirmation { get; set; }
 
+    /// <summary>
+    /// Whether the stall is billed for electricity (its <c>ApplicableFees</c> carries the Electricity flag).
+    /// Defaults to true so an older caller keeps working, but every caller in this app passes the stall's own
+    /// flag — a stall with water only must not be offered an electricity reading.
+    /// </summary>
+    [Parameter] public bool HasElectricity { get; set; } = true;
+
+    /// <summary>Whether the stall is billed for water.</summary>
+    [Parameter] public bool HasWater { get; set; } = true;
+
     private decimal ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, ElecPartial, WaterPartial;
     private PaymentStatus ElecPay = PaymentStatus.Unpaid;
     private PaymentStatus WaterPay = PaymentStatus.Unpaid;
@@ -119,8 +147,9 @@
     private int _seededYear;
     private int _seededMonth;
 
-    private decimal ElecConsumption => Math.Max(0m, ElecCur - ElecPrev);
-    private decimal WaterConsumption => Math.Max(0m, WaterCur - WaterPrev);
+    // A utility the stall is not billed for contributes nothing, whatever is left in the fields.
+    private decimal ElecConsumption => HasElectricity ? Math.Max(0m, ElecCur - ElecPrev) : 0m;
+    private decimal WaterConsumption => HasWater ? Math.Max(0m, WaterCur - WaterPrev) : 0m;
     private decimal ElecCharge => ElecConsumption * ElecRate;
     private decimal WaterCharge => WaterConsumption * WaterRate;
     private decimal TotalCharge => ElecCharge + WaterCharge;
@@ -195,17 +224,23 @@
             return;
         }
 
-        if (ElecCur < ElecPrev || WaterCur < WaterPrev)
+        if (!HasElectricity && !HasWater)
+        {
+            Error = "This stall is not billed for electricity or water.";
+            return;
+        }
+
+        if ((HasElectricity && ElecCur < ElecPrev) || (HasWater && WaterCur < WaterPrev))
         {
             Error = "A current reading cannot be less than the previous reading.";
             return;
         }
-        if (ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
+        if (HasElectricity && ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
         {
             Error = "Enter an electricity partial amount greater than ₱0.";
             return;
         }
-        if (WaterPay == PaymentStatus.Partial && WaterPartial <= 0m)
+        if (HasWater && WaterPay == PaymentStatus.Partial && WaterPartial <= 0m)
         {
             Error = "Enter a water partial amount greater than ₱0.";
             return;
@@ -220,6 +255,9 @@
 
         Saving = true; Error = string.Empty;
 
+        // A utility the stall is not billed for is simply not shown, so its fields still hold exactly what the
+        // server seeded and are sent back unchanged. Deliberately NOT zeroed: if a caller's flag ever
+        // disagreed with stored data, zeroing would erase a real reading or a recorded payment.
         var reading = await UtilitiesApi.RecordReadingAsync(new RecordUtilityReadingCommand(
             StallId, Year, Month, ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, null));
         if (!reading.IsSuccess || reading.Value is null)

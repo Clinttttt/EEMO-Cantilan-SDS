@@ -316,7 +316,10 @@ public static class FollowUpComposer
             $"{statusLabel} - {consumptionLabel}",
             "Pay Bill",
             "/npm",
-            StallId: bill.StallId));
+            StallId: bill.StallId,
+            // The dialog this row opens must offer only the utilities the stall is billed for.
+            StallHasElectricity: bill.Stall?.Fees.HasFlag(ApplicableFees.Electricity) ?? false,
+            StallHasWater: bill.Stall?.Fees.HasFlag(ApplicableFees.Water) ?? false));
     }
 
     private static int PriorityRank(string priority) => priority switch

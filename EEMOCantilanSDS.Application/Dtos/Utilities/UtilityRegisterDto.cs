@@ -36,4 +36,13 @@ public record UtilityRegisterRowDto(
     string Status,          // "Paid" / "Partial" / "Unpaid" / "Unbilled" (overall)
     decimal BalanceDue,
     string ElecStatus,      // "Paid" / "Partial" / "Unpaid" / "Unbilled"
-    string WaterStatus);
+    string WaterStatus,
+
+    /// <summary>
+    /// Whether the stall is billed for electricity / water (its <c>ApplicableFees</c> flags). The register
+    /// lists only metered stalls, but a stall may be metered for ONE utility — the report must then show a
+    /// reading and a status for that utility alone, instead of reporting the other as "Unbilled" forever.
+    /// Default true so an older consumer keeps its previous behaviour.
+    /// </summary>
+    bool HasElectricity = true,
+    bool HasWater = true);

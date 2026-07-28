@@ -367,10 +367,13 @@
         border-color: var(--navy);
     }
 
-    /* Active state — electricity (amber) */
+    /* Selected state. A government form marks a choice with structure, not a wash of colour: the row keeps
+       its white surface and gains a navy hairline plus a filled checkbox, so the two utilities look like the
+       same control rather than an amber one and a blue one. */
     .avm-fee-toggle.active {
-        background: #fffbeb;
-        border-color: #f59e0b;
+        background: var(--bg-card);
+        border-color: var(--navy);
+        box-shadow: inset 2px 0 0 var(--navy);
     }
 
 .avm-fee-icon {
@@ -382,11 +385,12 @@
     justify-content: center;
     flex-shrink: 0;
     background: var(--bg);
+    color: var(--navy);
     transition: background 0.15s;
 }
 
 .avm-fee-toggle.active .avm-fee-icon {
-    background: #fff8e0;
+    background: var(--bg-icon);
 }
 
 .avm-fee-icon svg {
@@ -452,19 +456,20 @@
     margin: 0;
 }
 
-/* Water variant (blue tint) */
+/* Water shares the electricity treatment — one control, two services. Kept as a named class so the markup
+   does not have to change, but it no longer carries a tint of its own. */
 .avm-fee-toggle-water {
-    background: #eff8ff;
-    border-color: rgba(59,130,246,0.53);
+    background: var(--bg-card);
+    border-color: var(--border);
 }
 
     .avm-fee-toggle-water .avm-fee-icon {
-        background: #e8f4fb;
+        background: var(--bg);
     }
 
     .avm-fee-toggle-water.active {
-        background: #eff8ff;
-        border-color: rgba(59,130,246,0.53);
+        background: var(--bg-card);
+        border-color: var(--navy);
     }
 
         .avm-fee-toggle-water.active .avm-fee-check {

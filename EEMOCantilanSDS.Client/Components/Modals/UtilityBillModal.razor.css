@@ -82,3 +82,15 @@
 .ub-cancel { border: 1px solid var(--border, #dde4ea); background: #fff; color: var(--text-subtle, #6a8aa0); }
 .ub-save { border: 0; background: var(--navy, #0d2137); color: #fff; }
 .ub-cancel:disabled, .ub-save:disabled { opacity: .65; }
+
+
+/* No billable utility on this stall — a defensive state; the caller should not offer the dialog at all. */
+.ub-none {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text-subtle);
+    font-size: 13px;
+    line-height: 1.55;
+}
