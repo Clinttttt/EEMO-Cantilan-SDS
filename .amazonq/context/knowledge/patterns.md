@@ -1,433 +1,309 @@
-# EEMO Cantilan — Patterns Reference
-# Agent: read this fully before generating any handler, repo, query, or command.
+# Patterns Reference
+
+Copy these shapes. Consistency beats cleverness — if a new need does not fit, raise it rather than inventing a
+second convention.
 
 ---
 
-## API Client Pattern (Blazor → API)
+## 1. Command (write)
 
-All Blazor HTTP calls use typed API clients — never inject HttpClient directly into components.
+Three files in `Application/Command/{Feature}/{UseCase}/`.
 
-**HttpClient Extension Location:** `Client/Extensions/HttpClientExtensions.cs`
-
-Pattern:
-1. Define interface in `Application/Common/Interface/ApiClients/I{Feature}ApiClient.cs`
-2. Implement in `Infrastructure/HttpClients/ApiClients/{Feature}ApiClient.cs` extending `HandleResponse`
-3. Register in `Client/DependencyInjection.cs` using `AddApiHttpClient<TClient, TImplementation>(configuration)` extension
-
-The `AddApiHttpClient` extension (from `HttpClientExtensions.cs`) automatically:
-- Sets BaseAddress from configuration (`ApiBaseUrl`)
-- Adds RefreshTokenDelegatingHandler
-- Adds AuthorizationDelegatingHandler
-
-Extension signature:
 ```csharp
-public static IHttpClientBuilder AddApiHttpClient<TClient, TImplementation>
-    (this IServiceCollection services, IConfiguration configuration)
-    where TClient : class where TImplementation : class, TClient
+// CreateStallCommand.cs
+public record CreateStallCommand(
+    FacilityCode FacilityCode,
+    string StallNo,
+    decimal MonthlyRate,
+    ApplicableFees Fees,
+    MarketSection? Section,
+    /// <summary>Null means "not supplied — leave the stored rate alone".</summary>
+    decimal? DailyRate,
+    string ActualOccupant,
+    DateTime? ContractDate,
+    int ContractYears) : IRequest<Result<StallDto>>;
 ```
 
-For public endpoints (no auth needed like login), use raw `AddHttpClient` instead.
-
-Component usage:
 ```csharp
+// CreateStallCommandHandler.cs — primary constructor, interfaces only
+public class CreateStallCommandHandler(
+    IStallRepository stallRepo,
+    IFacilityRepository facilityRepo,
+    IUnitOfWork uow,
+    IEemoCacheInvalidator cacheInvalidator,
+    ITenantContext tenantContext) : IRequestHandler<CreateStallCommand, Result<StallDto>>
+{
+    public async Task<Result<StallDto>> Handle(CreateStallCommand request, CancellationToken ct)
+    {
+        var facility = await facilityRepo.GetByCodeAsync(request.FacilityCode, ct);
+        if (facility is null)
+            return Result<StallDto>.NotFound();
+
+        var stall = Stall.Create(facility.Id, request.StallNo, request.MonthlyRate, request.Fees,
+                                 request.Section, dailyRate: request.DailyRate, createdBy: "Admin");
+
+        await stallRepo.AddAsync(stall, ct);
+        await uow.SaveChangesAsync(ct);                                  // the only commit point
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
+
+        return Result<StallDto>.Success(Map(stall));
+    }
+}
+```
+
+```csharp
+// CreateStallCommandValidator.cs
+public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
+{
+    public CreateStallCommandValidator()
+    {
+        RuleFor(x => x.StallNo).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.MonthlyRate).GreaterThanOrEqualTo(0m);
+    }
+}
+```
+
+Rules: no validation inside the handler; no `DbContext`; return `Result<T>`; invalidate cache after a mutation.
+
+---
+
+## 2. Query (read), with caching
+
+```csharp
+public class GetStallHoldersListQueryHandler(
+    IStallRepository stallRepository,
+    IEemoAppCache cache,
+    ITenantContext tenantContext,
+    EemoCacheOptions cacheOptions)
+    : IRequestHandler<GetStallHoldersListQuery, Result<StallHoldersListDto>>
+{
+    public async Task<Result<StallHoldersListDto>> Handle(GetStallHoldersListQuery request, CancellationToken ct)
+    {
+        var key = EemoCacheKeys.StallHolderList(tenantContext.TenantCode, request.FacilityCode, request.Section, request.SearchTerm);
+        var regions = EemoCacheRegions.StallHolderListRegions(tenantContext.TenantCode);
+
+        var result = await cache.GetOrCreateAsync(
+            key, regions, cacheOptions.StallHolderListTtl,
+            token => stallRepository.GetStallHoldersListAsync(request.FacilityCode, request.Section, request.SearchTerm, token),
+            ct);
+
+        return Result<StallHoldersListDto>.Success(result);
+    }
+}
+```
+
+**The cached value is shared.** Anything derived (a resolved rate, a computed monthly figure) must be computed
+inside the repository projection, before it enters the cache — never by mutating the value afterwards.
+
+---
+
+## 3. Repository
+
+```csharp
+public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResolver) : IStallRepository
+{
+    // Convenience ctor keeps existing tests (`new StallRepository(context)`) working.
+    public StallRepository(AppDbContext context) : this(context, new FeeRateResolver(context)) { }
+
+    public async Task<StallHoldersListDto> GetStallHoldersListAsync(
+        FacilityCode facilityCode, MarketSection? section, string? searchTerm, CancellationToken ct)
+    {
+        var stalls = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == facilityCode && s.Status != StallStatus.Closed)
+            .ToListAsync(ct);
+
+        // Rates are per tenant and resolved AS OF a date.
+        var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var dailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now));
+
+        // One rule for the money, shared with billing and settlement.
+        decimal MonthlyOf(Stall s) => facilityCode == FacilityCode.NPM
+            ? s.ResolveDailyFee(dailyRate) * DomainRules.DailyBilledMonthDays
+            : s.MonthlyRate;
+
+        return new StallHoldersListDto { /* rows + section totals + grand totals, all via MonthlyOf */ };
+    }
+}
+```
+
+---
+
+## 4. Controller
+
+```csharp
+[Authorize(Roles = "SuperAdmin,Admin")]
+[Route("api/stalls")]
+[ApiController]
+public class StallsController(ISender sender) : ApiBaseController(sender)
+{
+    [HttpGet("holders")]
+    public async Task<ActionResult<StallHoldersListDto>> GetHoldersAsync(
+        [FromQuery] FacilityCode facilityCode, [FromQuery] MarketSection? section, [FromQuery] string? search)
+        => HandleResponse(await Sender.Send(new GetStallHoldersListQuery(facilityCode, section, search)));
+}
+```
+
+Thin: authorise, send, hand back. Sensitive mutations add `[EnableRateLimiting("auth")]`.
+
+---
+
+## 5. Typed API client
+
+```csharp
+// Application/Common/Interface/ApiClients/IMfaApiClient.cs
+public interface IMfaApiClient
+{
+    Task<Result<MfaStatusDto>> GetMfaStatusAsync();
+    Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command);
+}
+
+// HttpClients/ApiClients/MfaApiClient.cs
+public class MfaApiClient(HttpClient http) : HandleResponse, IMfaApiClient
+{
+    public async Task<Result<MfaStatusDto>> GetMfaStatusAsync() =>
+        await GetAsync<MfaStatusDto>("api/AdminAuth/mfa/status");
+
+    public async Task<Result<MfaEnrollmentDto>> BeginMfaEnrollmentAsync(BeginMfaEnrollmentCommand command) =>
+        await PostAsync<BeginMfaEnrollmentCommand, MfaEnrollmentDto>("api/AdminAuth/mfa/enroll", command);
+}
+```
+
+Registration decides whether calls are authenticated — get this wrong and every call silently 401s:
+
+```csharp
+// Authenticated: attaches loading, refresh and authorization handlers.
+service.AddApiHttpClient<IMfaApiClient, MfaApiClient>(configuration);
+
+// Anonymous ONLY (login, refresh, logout, mfa/verify-login). No [Authorize] endpoint belongs here.
+service.AddHttpClient<IAuthApiClient, AuthApiClient>("AuthClient", c => { /* ... */ });
+```
+
+---
+
+## 6. Blazor page
+
+```razor
+@page "/stalls"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
 @inject IStallsApiClient StallsApi
 
-var result = await StallsApi.GetStallHoldersList();
-if (result.IsSuccess) { ... }
-```
+<PageTitle>@Branding.OfficeAcronym Admin — Stalls</PageTitle>
 
----
+@if (_loading) { <Skeleton Width="70%" Height="12px" /> }
+else if (_error is not null) { <div class="form-error">@_error</div> }
+else { /* table */ }
 
-## Cursor Pagination
+@code {
+    private bool _loading = true;
+    private string? _error;
 
-For scrollable/infinite scroll tables, use cursor-based pagination.
+    [PersistentState(AllowUpdates = true)]
+    public StallsPageState? Cached { get; set; }
 
-**Extension Method Location:** `Application/Extensions/PaginationExtensions.cs`
-
-Query Pattern:
-- Add `DateTime? Cursor` and `int PageSize` parameters
-- Return `Result<CursorPagedResult<TDto>>`
-- Example: `GetStallsByFacilityPaginatedQuery(FacilityCode, Section, Cursor, PageSize)`
-
-Repository Pattern:
-- Filter by cursor: `if (cursor.HasValue) query = query.Where(x => x.CreatedAt < cursor.Value);`
-- Order by CreatedAt descending: `query = query.OrderByDescending(x => x.CreatedAt);`
-- Use extension: `await query.ToCursorPagedResultAsync(pageSize, x => x.CreatedAt, ct);`
-- Returns `CursorPagedResult<T>` with `Items`, `NextCursor`, `HasMore`
-- Extension signature: `ToCursorPagedResultAsync<T>(this IQueryable<T> query, int pageSize, Func<T, DateTime?> cursorSelector, CancellationToken ct)`
-
-Validation:
-- PageSize: `GreaterThan(0)` and `LessThanOrEqualTo(100)`
-
-Frontend:
-- Initial load: pass `Cursor = null`
-- Load more: pass `NextCursor` from previous response
-- Stop when `HasMore = false`
-
-CursorPagedResult Model (Domain/Common/CursorPagedResult.cs):
-```csharp
-public class CursorPagedResult<T>
-{
-    public List<T> Items { get; set; } = new();
-    public DateTime? NextCursor { get; set; }
-    public bool HasMore { get; set; }
-}
-```
-
----
-
-## CRITICAL — Never Violate These
-
-- NEVER inject IAppDbContext, AppDbContext, or any DbContext into a handler — not even for read-only queries
-- NEVER access context.PaymentRecords, context.Stalls, context.DailyCollections etc. from a handler
-- NEVER use computed properties in EF/LINQ queries — TotalBill, FishFeeAmount, IsActive, TotalAmount are C# computed, not DB columns. Recalculate from raw stored fields inside the repo when aggregating.
-- NEVER skip the repository — even simple dashboard aggregations go through a dedicated repo method
-- NEVER reference a property on an entity that is not listed in domain.md
-- NEVER check !x.IsDeleted in queries — HasQueryFilter handles soft delete filtering automatically
-- NEVER use IActionResult — always use ActionResult<T> with the generic type matching the Result<T> from the handler
-- NEVER inject HttpClient directly into Blazor components — always use typed API clients
-
----
-
-## Feature Folder Structure
-
-All Application code is organized by feature, not by type.
-
-Application/
-  Command/
-    Auth/
-      AdminAuth/
-        Login/
-        CreateFirstAdmin/
-      RefreshToken/
-    Collectors/
-      CreateCollector/
-    Payments/
-      SaveOrNumber/
-    Stalls/
-      ToggleStallStatus/
-  Queries/
-    Auth/
-      GetSetupStatus/
-    Dashboard/
-      GetDashboardOverview/
-    Payments/
-      GetPaymentHistory/
-    Stalls/
-  Common/
-    Interface/
-      ApiClients/
-        IAuthApiClient.cs
-        ISetupApiClient.cs
-        IStallsApiClient.cs
-      Persistence/
-        IUnitOfWork.cs
-        ISetupRepository.cs
-        IPaymentRepository.cs
-        IStallRepository.cs
-  Dtos/
-    Dashboard/
-    Payments/
-    Stalls/
-
-One folder per command/query. Each folder contains EXACTLY 3 separate files:
-- `{Name}Command.cs` or `{Name}Query.cs` — record definition only
-- `{Name}CommandHandler.cs` or `{Name}QueryHandler.cs` — handler class only
-- `{Name}CommandValidator.cs` or `{Name}QueryValidator.cs` — validator class only
-
-NEVER put record + handler + validator in the same file. Always 3 files, always separate.
-
----
-
-## Unit of Work
-
-Interface — Application/Common/Interface/Persistence/IUnitOfWork.cs
-- Contains ONLY: Task SaveChangesAsync(CancellationToken cancellationToken = default)
-- No repo properties, no DbSet properties, nothing else
-- No CommitAsync, no IDisposable
-
-Implementation — Infrastructure/Persistence/UnitOfWork.cs
-- Primary constructor: AppDbContext context only
-- SaveChangesAsync delegates to context.SaveChangesAsync(cancellationToken)
-- No repo fields or params
-
----
-
-## Repository Pattern
-
-Rule: every data access goes through a repo — no exceptions.
-Handlers inject repo interfaces + IUnitOfWork. They never touch DbContext directly.
-
-Interface: Application/Common/Interface/Persistence/I{Feature}Repository.cs
-Implementation: Infrastructure/Repositories/{Area}/{Feature}Repository.cs
-
-Repository implementations are grouped into domain subfolders for readability:
-`Auth` (Auth/Admin/Collector/Payor), `Facilities` (Facility/Stall/Vendor/Setup),
-`Payments` (Payment/DailyCollection/OnlinePayment), `Reports` (FacilityReports/Dashboard/
-TransactionFeed), `Suggestions`, and `Operations` (Tpm/Trm/Slaughter).
-The namespace stays FLAT (`EEMOCantilanSDS.Infrastructure.Repositories`) regardless of the
-subfolder, so moving a repo between groups never changes its references or DI registration.
-`FacilityReportsRepository` is one class split across `FacilityReportsRepository.*.cs`
-`partial` files (a public entry file plus region helper files) — same type, same namespace.
-
-Implementation rules:
-- Primary constructor: AppDbContext context
-- Namespace: `EEMOCantilanSDS.Infrastructure.Repositories` (flat — not folder-matched)
-- Use context.{DbSet} internally — DbContext lives only inside repos
-- Complex aggregations and projections belong inside the repo method, not the handler
-- Computed properties are not DB columns — recalculate from raw stored fields inline in the repo:
-  - TotalBill → use stored rate + utilities fields (check entity in domain.md for formula)
-  - FishFeeAmount → d.FishKilos * 1.0m
-  - SlaughterTransaction total → s.RatePerHead * s.NumberOfHeads (RatePerHead is stored; Hog 250, Large 365, Other = custom rate)
-- For dashboard/report queries: return a DTO directly from the repo — do not return entities and map in handler
-- Return types: Task<TEntity?>, Task<IReadOnlyList<TEntity>>, Task<TDto>, Task<bool>, Task<int>
-- Never return IQueryable out of a repo
-
-DI Registration — Infrastructure/DependencyInjection.cs:
-  services.AddScoped<IPaymentRepository, PaymentRepository>();
-Each repo registered individually. Not wired inside UnitOfWork.
-
----
-
-## Repo Method Naming Conventions
-
-- GetByIdAsync(Guid id, CancellationToken ct)
-- GetAllAsync(CancellationToken ct)
-- GetBy{Filter}Async(FilterType value, CancellationToken ct)
-- GetOverviewAsync(int year, int month, CancellationToken ct)   // dashboard-style projections
-- AddAsync(TEntity entity, CancellationToken ct)
-- UpdateAsync(TEntity entity, CancellationToken ct)
-- IsORNumberUniqueAsync(string orNumber, CancellationToken ct)
-- ExistsAsync(Guid id, CancellationToken ct)
-- IsSuperAdminExistsAsync(CancellationToken ct)  // Setup check
-
-For complex reads (dashboard, reports, summaries) — repo returns the DTO directly, not a list of entities.
-
----
-
-## CQRS / MediatR
-
-### File Structure (STRICT — 3 files per feature folder)
-```
-Command/Payments/RecordPayment/
-  RecordPaymentCommand.cs          ← record only, implements IRequest<Result<T>>
-  RecordPaymentCommandHandler.cs   ← handler class only
-  RecordPaymentCommandValidator.cs ← validator class only
-```
-Same pattern for Queries:
-```
-Queries/Payments/GetPaymentHistory/
-  GetPaymentHistoryQuery.cs
-  GetPaymentHistoryQueryHandler.cs
-  GetPaymentHistoryQueryValidator.cs
-```
-
-### Command Record File (`{Name}Command.cs`)
-```csharp
-using EEMOCantilanSDS.Domain.Common;
-using MediatR;
-
-namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
-
-public record RecordPaymentCommand(
-    Guid StallId,
-    int Year,
-    int Month,
-    PaymentStatus Status,
-    decimal? PartialAmount,
-    string? Remarks
-) : IRequest<Result<bool>>;
-```
-
-### Handler File (`{Name}CommandHandler.cs`)
-```csharp
-using EEMOCantilanSDS.Application.Common.Interface.Persistence;
-using EEMOCantilanSDS.Domain.Common;
-using MediatR;
-
-namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
-
-public class RecordPaymentCommandHandler(
-    IPaymentRepository paymentRepository,
-    IStallRepository stallRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<RecordPaymentCommand, Result<bool>>
-{
-    public async Task<Result<bool>> Handle(RecordPaymentCommand request, CancellationToken ct)
+    protected override async Task OnInitializedAsync()
     {
-        // fetch via repo → domain method → repo add/update → uow.SaveChangesAsync()
+        await Branding.EnsureLoadedAsync();
+        if (Cached is { } state) { /* reuse, skip the fetch */ return; }
+        await LoadAsync();
     }
+
+    // A one-time token is consumed HERE, not in OnInitializedAsync — that runs twice under prerendering.
+    protected override async Task OnAfterRenderAsync(bool firstRender) { if (firstRender) { /* ... */ } }
 }
 ```
 
-### Validator File (`{Name}CommandValidator.cs`)
-```csharp
-using FluentValidation;
+Every label comes from `Branding` or the facility catalog. Never a literal "Cantilan", "EEMO", ₱30 or ₱900.
 
-namespace EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+---
 
-public class RecordPaymentCommandValidator : AbstractValidator<RecordPaymentCommand>
+## 7. Shared component with a fallback
+
+```razor
+@if (_paths is not null)
 {
-    public RecordPaymentCommandValidator()
-    {
-        RuleFor(x => x.StallId).NotEmpty();
-        // inject repo interface in constructor only when async uniqueness check needed
-    }
+    <svg class="fmark" viewBox="0 0 24 24" width="@Size" height="@Size" aria-hidden="true"
+         fill="none" stroke="@FacilityMarkArt.StrokeFor(Ink)" stroke-width="1.8">
+        @((MarkupString)_paths)
+    </svg>
+}
+else { @Fallback }
+
+@code {
+    [Parameter, EditorRequired] public FacilityCode Code { get; set; }
+    [Parameter] public FacilityMarkInk Ink { get; set; } = FacilityMarkInk.Navy;
+    [Parameter] public int Size { get; set; } = 22;
+    /// <summary>Rendered when this facility has no dedicated artwork.</summary>
+    [Parameter] public RenderFragment? Fallback { get; set; }
 }
 ```
 
-Commands and Queries:
-- Defined as C# records inside their feature folder
-- Commands mutate state: {Action}{Entity}Command returns Result<TDto> or Result<bool>
-- Queries read data: Get{Entity}By{Filter}Query returns Result<TDto> or Result<IReadOnlyList<TDto>>
-- Never return raw entities, never return void
-
-Handler Rules:
-- Always primary constructor — never private readonly fields
-- Query handlers: inject only the needed repo(s) — no IUnitOfWork needed (no writes)
-- Command handlers: inject repo(s) + IUnitOfWork — call uow.SaveChangesAsync() after all writes
-- NEVER inject DbContext or IAppDbContext
-- Query step order: call repo method → return Result<T>.Success(dto)
-- Command step order: fetch → domain method → repo add/update → uow.SaveChangesAsync() → return DTO
-- Business logic stays in the entity — never inline in handler
-- Not found: Result<T>.NotFound() — never throw
-
-Validator Rules:
-- One AbstractValidator<T> per command/query — no exceptions
-- May inject repo interfaces for async checks (e.g. uniqueness)
-- OR Number uniqueness checked here via repo.IsORNumberUniqueAsync() — not in handler
-- Partial amount: required and > 0 only when Status == PaymentStatus.Partial
-- Handlers are validation-free
-
-Pipeline Order: Logging → Validation → Handler
-Registered via AddOpenBehavior inside AddMediatR.
+Render a shared mark in the SHARED host (`FacilityHero`, `FacilityPage`) rather than in each page, so a new
+page cannot forget it. Give the component its own `.razor.css`.
 
 ---
 
-## Result Pattern — Domain/Common/Result.cs
+## 8. Guard usage
 
-Factory                          | HTTP | When to use
-Result<T>.Success(value)         | 200  | Normal success
-Result<T>.NoContent()            | 204  | Success, no body
-Result<T>.Failure("msg", code)   | 400  | General failure
-Result<T>.ValidationFailure(err) | 400  | Validation errors dict
-Result<T>.NotFound()             | 404  | Not found
-Result<T>.Unauthorized()         | 401  | Auth failure
-Result<T>.Forbidden()            | 403  | Permission denied
-Result<T>.Conflict()             | 409  | Duplicate / conflict (e.g. SuperAdmin already exists)
-Result<T>.InternalServerError()  | 500  | Unexpected error
-
----
-
-## HandleResponse — Blazor HTTP Wrapper
-
-File: Infrastructure/HttpClients/HandleResponse.cs
-All Blazor service HTTP calls go through this — never raw HttpClient.
-Every method returns Result<TResponse>.
-- PostAsync<TRequest, TResponse>(url, request)
-- PostAsync<TResponse>(url)
-- GetAsync<TResponse>(url)
-- UpdateAsync<TRequest, TResponse>(url, request)
-- UpdateAsync<TResponse>(url)
-- DeleteAsync<TResponse>(url)
-
-ValidationErrorResponse shape: { Errors: Dictionary<string, string[]> }
-
----
-
-## EF Core Configuration Rules
-
-File: Infrastructure/Persistence/Configuration/{Entity}Configuration.cs — IEntityTypeConfiguration<TEntity>
-- builder.ToTable("TableName") first
-- builder.HasKey(x => x.Id) + HasColumnType("uuid")
-- Strings: HasColumnType("text") or HasColumnType("character varying(n)")
-- Decimals: HasColumnType("numeric(18,2)")
-- Enums: store as integer — never HasDefaultValue(1)
-
-TPH Users (CRITICAL):
-- Single table "Users", discriminator "UserType" with values "Admin" / "Collector"
-- HasKey() only in BaseUser config — never repeated in AdminUser or CollectorUser
-
-Unique Indexes:
-- Stall: (FacilityId, StallNo)
-- PaymentRecord: (StallId, BillingYear, BillingMonth)
-- DailyCollection: (StallId, CollectionDate)
-- CollectorFacilityAssignment: (CollectorId, FacilityId)
-- BaseUser: Username and Email separately
-
-Computed Properties — always builder.Ignore():
-- BaseUser: IsLockedOut
-- SlaughterTransaction: TotalAmount
-- PaymentRecord: TotalBill, BalanceDue, AmountPaid, FishFeeAmount, PeriodKey
-- DailyCollection: TotalCollected, FishFeeAmount
-- Contract: ExpiryDate, IsExpired, IsExpiringSoon, WholeYearRental
-- Stall: IsActive
-
----
-
-## Request Records (Controller Input Models)
-
-When a controller action needs a request body that doesn't map 1:1 to a Command (e.g. a simple wrapper with 1-2 fields), define it as a record in the Application layer:
-
-**Location:** `Application/Requests/{Feature}/{Feature}Requests.cs`  
-**Namespace:** `EEMOCantilanSDS.Application.Requests.{Feature}`
-
-Example:
 ```csharp
-// Application/Requests/Stalls/StallRequests.cs
-namespace EEMOCantilanSDS.Application.Requests.Stalls;
+if (!await PlatformOperatorGuard.IsCurrentAsync(context, currentUser, ct))
+    return Result<T>.Forbidden();
 
-public record ToggleStallStatusRequest(bool Close);
+// Cross-tenant reach needs the real operator flag; the default-municipality Head fallback is scoped to itself.
+var seesEveryMunicipality = await PlatformOperatorGuard.IsDedicatedOperatorAsync(context, currentUser, ct);
+if (!seesEveryMunicipality)
+{
+    if (currentUser.MunicipalityId is not Guid own) return Result<T>.Forbidden();
+    query = query.Where(u => u.MunicipalityId == own);
+}
 ```
 
-Rules:
-- NEVER define request records inline at the bottom of a controller file
-- Group all requests for a feature in one file: `{Feature}Requests.cs`
-- Controllers reference them via `using EEMOCantilanSDS.Application.Requests.{Feature};`
-- If the request body maps directly to a Command, bind `[FromBody]` to the Command directly — no wrapper needed
+Out-of-scope targets answer `NotFound()`, not `Forbidden()`, so a response never confirms that a record outside
+the caller's scope exists.
 
 ---
 
-## API Controllers
+## 9. Tests
 
-File: Api/Controllers/{Entity}Controller.cs
-- Inherit from ApiBaseController
-- Primary constructor: ISender sender
-- Return type: ActionResult<T> where T matches the Result<T> generic type from the handler
-- Example: `public async Task<ActionResult<StallDto>> GetStall(Guid id)` for handler returning `Result<StallDto>`
-- Example: `public async Task<ActionResult<IReadOnlyList<StallDto>>> GetStalls()` for handler returning `Result<IReadOnlyList<StallDto>>`
-- Example: `public async Task<ActionResult<bool>> DeleteStall(Guid id)` for handler returning `Result<bool>`
-- Always call HandleResponse(result) to convert Result<T> to ActionResult<T>
-- Controllers are thin — only IMediator.Send() and HandleResponse(), nothing else
+```csharp
+public class StallHoldersListDailyRateTests : RepositoryTestBase
+{
+    [Fact]
+    public async Task Npm_DerivesMonthlyFromTheTenantsDailyRate_NotTheStoredMonthlyRate()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var rate = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m, new DateOnly(2020, 1, 1), Guid.Empty);
+
+        context.AddRange(facility, stall, /* contract */ rate);
+        await context.SaveChangesAsync();
+
+        var dto = await new StallRepository(context).GetStallHoldersListAsync(FacilityCode.NPM, null, null, default);
+
+        Assert.Equal(1_200m, Assert.Single(Assert.Single(dto.Sections).Rows).MonthlyRentalRate);  // ₱40 × 30
+    }
+
+    [Fact]
+    public async Task Npm_WithNoTenantRate_KeepsTheOrdinanceFigures_SoCantilanIsUnchanged() { /* ₱900 */ }
+}
+```
+
+Handler tests use Moq for repositories; bUnit tests register the `_Imports` services and pass an explicit
+`WaitForAssertion` timeout. Prove a fix by reintroducing the defect once and watching the test fail.
 
 ---
 
-## Known Feature Commands and Queries
+## 10. Naming
 
-Auth:
-- LoginCommand (Command/Auth/AdminAuth/Login)
-- RefreshTokenCommand (Command/Auth/RefreshToken)
-- CreateFirstAdminCommand (Command/Auth/AdminAuth/CreateFirstAdmin) — checks IsSuperAdminExistsAsync, returns Conflict if exists
-- GetSetupStatusQuery (Queries/Auth/GetSetupStatus) — returns IsSetupRequired = !IsSuperAdminExistsAsync
-
-Dashboard:
-- GetDashboardOverviewQuery → DashboardOverviewDto (uses IDashboardRepository)
-
-Payments:
-- RecordPaymentCommand, UpdatePaymentStatusCommand
-- GetPaymentHistoryQuery
-
-Stalls:
-- CreateStallCommand, SoftDeleteStallCommand
-- GetStallsByFacilityQuery
-
-Collectors:
-- AddCollectorCommand, GetCollectorActivityQuery
-
-Daily Collections:
-- RecordDailyCollectionCommand, GetDailyCollectionQuery
-
-Slaughterhouse:
-- RecordSlaughterCommand, GetSlaughterTransactionsQuery
-
-Reports:
-- GetFacilitySummaryQuery, GetDelinquentVendorsQuery
+| Thing | Shape |
+|-------|-------|
+| Command / Query | `{Action}{Entity}Command` / `Get{Entity}By{Filter}Query` |
+| Handler / Validator | `{Name}Handler` / `{Name}Validator` |
+| DTO | `{Entity}Dto` |
+| Repository | `I{Entity}Repository` / `{Entity}Repository` |
+| API client | `I{Feature}ApiClient` / `{Feature}ApiClient` |
+| EF configuration | `{Entity}Configuration` |
+| Page state record | `{Page}PageState` |

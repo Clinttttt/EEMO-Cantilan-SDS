@@ -1,292 +1,104 @@
-# EEMO Cantilan SDS — Blazor Server Quick Reference
+# StallTrack — EEMO Revenue Collection System
 
-**Location:** `EEMOCantilanSDS.Client/` (Blazor Server + .NET 10)
+Multi-tenant revenue collection platform for LGU-managed economic enterprises. Each municipality is a tenant
+with its own facilities, fee rates, users, branding and data, isolated inside one database and one deployment.
 
-## Purpose
-Blazor Server frontend for the EEMO Revenue Collection System. Communicates with ASP.NET Core Web API backend.
-
----
-
-## Tech Stack
-
-- **Framework:** Blazor Server (.NET 10)
-- **Language:** C# 13
-- **Rendering:** Server-side with SignalR
-- **HTTP Client:** Typed API Clients (HttpClient wrapper)
-- **Styling:** Custom CSS + Component-scoped CSS
-- **Auth:** AuthenticationStateProvider + JWT Cookies
+**Reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur.
+**Status:** in production — web portal, API and Android collector app are live.
 
 ---
 
-## Full Documentation
+## What is here
 
-- **Architecture Rules:** `.amazonq/rules/arch-rules.md`
-- **Patterns Reference:** `.amazonq/rules/patterns.md`
-- **Domain Reference:** `.amazonq/rules/domain.md`
-- **API Documentation:** `CURRENT_API_DOCUMENTATION.md`
-- **Entity Documentation:** `CURRENT_ENTITY_DOCUMENTATION.md`
-- **Architecture Documentation:** `ARCHITECTURE_DOCUMENTATION.md`
+| Project | Target | Role |
+|---------|--------|------|
+| `EEMOCantilanSDS.Domain` | net9.0 | Entities, enums, constants, `Result<T>`, `PhilippineTime`. No dependencies |
+| `EEMOCantilanSDS.Application` | net9.0 | CQRS handlers (MediatR), DTOs, FluentValidation validators, interfaces |
+| `EEMOCantilanSDS.Infrastructure` | net9.0 | EF Core + Npgsql, repositories, tenancy, caching, security, fee rates |
+| `EEMOCantilanSDS.HttpClients` | net9.0 | Typed API clients shared by the portal and the collector app |
+| `EEMOCantilanSDS.Api` | net9.0 | ASP.NET Core Web API — thin controllers, JWT auth, SignalR hubs |
+| `EEMOCantilanSDS.Client` | net10.0 | Blazor Server portal, plus the public payor portal |
+| `EEMOCantilanSDS.Mobile` | net10.0-android | .NET MAUI collector app (offline-tolerant field collection) |
+| `EEMOCantilanSDS.Mobile.Core` | net9.0 | Platform-agnostic mobile services and models |
+| `EEMOCantilanSDS.Testing` | net9.0 | xUnit unit + integration tests |
+| `EEMOCantilanSDS.ComponentTests` | net10.0 | bUnit render tests |
+
+Also in the root: `.github/workflows/` (CI, production deploy, signed-APK publish, backup, restore),
+`mobile-app-site/` (the static site behind the collector-app download and bind links — **written to by
+`publish-apk.yml`**), `scripts/`, `tools/postgres-dev-mcp/` (local development MCP server),
+`docker-compose.yml`.
+
+The Angular operator console (LGU assessment → validation → activation) lives in a **separate repository**.
 
 ---
 
-## Design Tokens (CSS Variables)
+## Getting started
 
-```css
-/* app.css */
-:root {
-  --navy: #0d2137;
-  --navy-2: #112d47;
-  --navy-3: #1e3a5f;
-  --gold: #c8a84b;
-  --gold-light: #e8cc76;
-  --green: #2d7a5f;
-  --green-bg: #e6f4ef;
-  --red: #8b3a3a;
-  --red-bg: #fdf0f0;
-  --bg: #f0f4f8;
-  --bg-card: #ffffff;
-  --bg-icon: #eef2f6;
-  --border: #dde4ea;
-  --text: #0d2137;
-  --text-muted: #8faabf;
-  --text-subtle: #6a8aa0;
-}
+Requirements: .NET SDK with the `net9.0` and `net10.0` targets, the MAUI Android workload for the collector
+app, PostgreSQL, Node (for the portal's CSS tooling).
+
+```bash
+# Restore and build everything
+dotnet build EEMOCantilanSDS.slnx
+
+# Run the API and the portal (separate terminals)
+cd EEMOCantilanSDS.Api    && dotnet run
+cd EEMOCantilanSDS.Client && dotnet run
+
+# Collector app (Android)
+dotnet build EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj -f net10.0-android
+```
+
+Configuration comes from `appsettings.json` / `appsettings.Development.json`, with `.env` (see `.env.example`)
+for Docker Compose. **Secrets never live in source** — connection string, JWT signing key, `Encryption:Key`,
+PayMongo and Firebase credentials all come from environment configuration.
+
+### Tests
+
+Run the two suites **separately** — together they cause a bUnit timing flake.
+
+```bash
+dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
+```
+
+### Migrations
+
+Additive only — production applies migrations at startup, so destructive DDL would break a running tenant.
+
+```bash
+dotnet ef migrations add {Name} --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
+dotnet ef migrations script --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
 ```
 
 ---
 
-## Common Components
+## Deployment
 
-### Layout
-- `Sidebar.razor` — Navigation sidebar
-- `AdminLayout.razor` — Main app shell with sidebar + topbar
+A push to `master` builds both container images (tagged with the commit SHA), pushes them to Azure Container
+Registry, and updates the two Azure Web App sitecontainers — portal and API. Roughly 10–13 minutes.
+Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) do not trigger it.
 
-### Shared
-- `Toolbar.razor` — Search + filters + action buttons
-- `ActionBar.razor` — Facility-specific quick actions
-
-### Feature Components
-- `FacilityStallsTable.razor` — Generic stall table
-- `FacilityPaymentModal.razor` — Record payment modal
-- `PaymentHistoryModal.razor` — 12-month payment ledger
-- `PaymentConfirmationModal.razor` — Confirm payment before saving
-- `Profile.razor` — Stall profile page
+Verify rather than trust: the deployed image tag equals `HEAD`, API `/health` returns 200, portal `/login`
+returns 200, and the scoped CSS bundle is brace-balanced. Collector-app changes additionally need a RELEASE APK
+rebuild before collectors see them.
 
 ---
 
-## Quick Patterns
+## Conventions and rules
 
-### API Client Interface
-```csharp
-// Application/Common/Interface/ApiClients/IStallsApiClient.cs
-public interface IStallsApiClient
-{
-    Task<Result<IReadOnlyList<StallDto>>> GetStallsAsync();
-    Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command);
-}
-```
+Read these before changing code — they are the source of truth, in this order:
 
-### API Client Implementation
-```csharp
-// Infrastructure/HttpClients/ApiClients/StallsApiClient.cs
-public class StallsApiClient(HttpClient http) : HandleResponse, IStallsApiClient
-{
-    public async Task<Result<IReadOnlyList<StallDto>>> GetStallsAsync()
-        => await GetAsync<IReadOnlyList<StallDto>>("/api/stalls");
-    
-    public async Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command)
-        => await PostAsync<CreateStallCommand, StallDto>("/api/stalls", command);
-}
-```
+1. `.amazonq/context/knowledge/arch-rules.md` — what is allowed and what is forbidden
+2. `.amazonq/context/knowledge/patterns.md` — the code shapes to copy
+3. `.amazonq/context/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
+4. `.amazonq/context/knowledge/EEMO_Complete_Documentation.md` — the business truth
 
-### Page Component
-```razor
-@page "/stalls"
-@inject IStallsApiClient StallsApi
-@rendermode InteractiveServer
+Short versions of the same material live in `.kiro/steering/`.
 
-<PageTitle>Stalls</PageTitle>
+Three rules worth stating on the front page:
 
-@if (isLoading)
-{
-    <div class="spinner">Loading...</div>
-}
-else if (stalls != null)
-{
-    <div class="stalls-container">
-        <h1>Stalls</h1>
-        <StallTable Stalls="@stalls" />
-    </div>
-}
-
-@code {
-    private List<StallDto>? stalls;
-    private bool isLoading = true;
-    
-    protected override async Task OnInitializedAsync()
-    {
-        var result = await StallsApi.GetStallsAsync();
-        if (result.IsSuccess)
-        {
-            stalls = result.Value?.ToList();
-        }
-        isLoading = false;
-    }
-}
-```
-
-### Component with Parameters
-```razor
-@* StallTable.razor *@
-<table class="stall-table">
-    <thead>
-        <tr>
-            <th>Stall No</th>
-            <th>Occupant</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var stall in Stalls)
-        {
-            <tr>
-                <td>@stall.StallNo</td>
-                <td>@stall.ActualOccupant</td>
-                <td>@stall.Status</td>
-            </tr>
-        }
-    </tbody>
-</table>
-
-@code {
-    [Parameter]
-    public IReadOnlyList<StallDto> Stalls { get; set; } = Array.Empty<StallDto>();
-}
-```
-
----
-
-## Guidelines
-
-### What Goes Where
-
-**API Client Interfaces** (`Application/Common/Interface/ApiClients/`)
-- One interface per feature area
-- Methods return `Task<Result<T>>`
-- Defined in Application layer
-
-**API Client Implementations** (`Infrastructure/HttpClients/ApiClients/`)
-- Implement interface
-- Extend `HandleResponse` base class
-- Use `GetAsync`, `PostAsync`, `PutAsync`, `DeleteAsync` methods
-- Implemented in Infrastructure layer
-
-**Page Components** (`Components/Pages/`)
-- One per route
-- Use `@page` directive
-- Inject API clients via `@inject`
-- Handle loading/error states
-- Use `@rendermode InteractiveServer`
-
-**Feature Components** (`Components/Pages/Shared/` or `Components/Modals/`)
-- Domain-specific components
-- Receive data via `[Parameter]`
-- Emit events via `EventCallback`
-
-**Shared Components** (`Components/Shared/`)
-- Generic, reusable UI components
-- No domain knowledge
-- Fully controlled via parameters
-
----
-
-## Styling Rules
-
-- ✅ Use custom CSS classes
-- ✅ Use CSS variables from `app.css`
-- ✅ Component-scoped CSS via `.razor.css` files
-- ✅ Ensure responsive design
-- ✅ Add hover/focus states to interactive elements
-- ❌ No inline styles
-- ❌ No Tailwind CSS
-- ❌ No CSS-in-JS libraries
-
----
-
-## Auth Flow
-
-1. User logs in → access token stored in cookie (15min)
-2. Refresh token stored in httpOnly cookie (7 days)
-3. `AuthorizationDelegatingHandler` adds access token to requests
-4. On 401 → `RefreshTokenDelegatingHandler` auto refreshes → retry original request
-5. On refresh failure → clear auth → redirect to login
-6. `AuthenticationStateProvider` manages auth state
-
----
-
-## Error Handling
-
-- API clients return `Result<T>` (never throw)
-- Display errors using `result.Error` from API call
-- Backend validation errors: `result.Errors` (Dictionary<string, string[]>)
-- Show first error per field: `errors[fieldName]?.FirstOrDefault()`
-
----
-
-## Component Rules
-
-- Use `@rendermode InteractiveServer` for interactive components
-- Use `@inject` for dependency injection
-- Use `[Parameter]` for component inputs
-- Use `EventCallback` for component outputs
-- Use `@code` blocks for component logic
-- Use `protected override async Task OnInitializedAsync()` for data loading
-- Use `StateHasChanged()` to trigger re-render
-
----
-
-## Constants Matching Backend
-
-```csharp
-// Domain/Constants/FeeRates.cs (shared with backend)
-public static class FeeRates
-{
-    public const decimal NpmDailyFee = 30.00m;
-    public const decimal NpmFishFeePerKilo = 1.00m;
-    public const decimal TccMonthlyMin = 2400.00m;
-    // ... (all constants defined in backend)
-}
-
-public static class DomainRules
-{
-    public const int PaymentHistoryMonths = 12;
-    public const int DelinquentThresholdMonths = 3;
-    public const int ExpiringSoonMonths = 3;
-}
-```
-
----
-
-## DON'Ts
-
-- ❌ Store access token in localStorage
-- ❌ Inject HttpClient directly (use typed API clients)
-- ❌ Use inline styles
-- ❌ Put business logic in components
-- ❌ Use `<form>` tags (use `@onclick`/`@onchange`)
-- ❌ Check HTTP status codes (use `Result<T>.IsSuccess`)
-- ❌ Display all validation errors per field (show first only)
-- ❌ Inject DbContext in components
-
----
-
-## DOs
-
-- ✅ Use typed API clients for all data fetching
-- ✅ Use `Result<T>` pattern for error handling
-- ✅ Use component-scoped CSS
-- ✅ Handle loading/error states
-- ✅ Use `@rendermode InteractiveServer`
-- ✅ Follow component patterns
-- ✅ Ensure accessibility
-- ✅ Use `EventCallback` for parent-child communication
+- **Cantilan is the accuracy baseline.** A change made for another municipality must never move a Cantilan figure.
+- **Rates are data.** Resolve through `IFeeRateResolver` as of a date; the `FeeRates` constants are a fallback.
+- **Uniqueness is per tenant.** A username, email, stall number or OR number is unique within a municipality,
+  not globally.

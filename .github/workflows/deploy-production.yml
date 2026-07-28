@@ -5,7 +5,11 @@ on:
     branches: [master]
     paths-ignore:
       - '.github/**'
-      - 'docs/**'
+      # Documentation-only commits must not spend a production deployment. The agent-facing knowledge base
+      # and steering rules live here; the removed docs/ folder used to be listed instead.
+      - '.amazonq/**'
+      - '.kiro/**'
+      - 'README.md'
   workflow_dispatch:
 
 permissions:

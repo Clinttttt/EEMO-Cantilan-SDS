@@ -1,214 +1,164 @@
-# EEMO Cantilan — Architecture Rules
-# Agent: read this file fully before generating any code.
+# Architecture Rules
+
+Repository-wide rules. **This file wins** when it disagrees with the other knowledge files.
 
 ---
 
-## Project Identity
+## 1. Solution layout
 
-- System: EEMO Revenue Collection System
-- Client: Municipality of Cantilan, Surigao del Sur
-- Purpose: Digitize fee collection across 8 government-managed facilities
-- Solution name: `EEMOCantilanSDS`
-
----
-
-## Solution Layout
+Clean Architecture, dependencies pointing inward.
 
 ```
-EEMOCantilanSDS.sln
-├── EEMOCantilanSDS.Domain          → Entities, Enums, Constants, Domain Interfaces etc
-├── EEMOCantilanSDS.Application     → CQRS, MediatR, FluentValidation, DTOs, App Interfaces etc 
-├── EEMOCantilanSDS.Infrastructure  → EF Core, Repositories, UnitOfWork, Migrations etc
-├── EEMOCantilanSDS.Api             → ASP.NET Core Controllers, Middleware, DI etc
-├── EEMOCantilanSDS.Client          → Blazor Server (UI only, no business logic) etc
-├── EEMOCantilanSDS.Mobile          → .NET MAUI Hybrid (later phase)
-└── EEMOCantilanSDS.UnitTest        → xUnit
+EEMOCantilanSDS.Domain          entities, enums, constants, Result<T>, PhilippineTime   (no dependencies)
+EEMOCantilanSDS.Application     CQRS handlers, DTOs, validators, interfaces            (→ Domain)
+EEMOCantilanSDS.Infrastructure  EF Core, repositories, security, caching, tenancy      (→ Application, Domain)
+EEMOCantilanSDS.HttpClients     typed API clients used by the presentation apps        (→ Application)
+EEMOCantilanSDS.Api             controllers, middleware, hubs, auth                    (→ Application, Infrastructure)
+EEMOCantilanSDS.Client          Blazor Server portal + payor portal                    (→ Application, HttpClients)
+EEMOCantilanSDS.Mobile          .NET MAUI collector app                                (→ Application, HttpClients, Mobile.Core)
+EEMOCantilanSDS.Mobile.Core     platform-agnostic mobile services and models
+EEMOCantilanSDS.Testing         xUnit unit/integration tests (EEMOCantilanSDS.UnitTest.csproj)
+EEMOCantilanSDS.ComponentTests  bUnit render tests for Blazor components
 ```
 
----
+**Never:** Domain referencing anything; Application referencing Infrastructure; a presentation project
+referencing another presentation project; a repository or handler reaching into a UI concern.
 
-## Tech Stack
-
-- Frontend: Blazor Server (.NET 10)
-- Backend: ASP.NET Core Web API
-- ORM: Entity Framework Core 9 + Npgsql
-- Database: PostgreSQL
-- CQRS: MediatR
-- Validation: FluentValidation
-- Auth: Custom JWT — NO ASP.NET Identity
-- Password: `PasswordHasher<T>` from `Microsoft.AspNetCore.Identity` only
-- Patterns: Clean Architecture · DDD · CQRS · Result Pattern · UnitOfWork · Global Exception Handling
+The Client and the Mobile app do **not** reference each other. Where they must share a table of values, share
+the FILE via a linked `Compile` item (as `FacilityMarkArt.cs` is), not a copy.
 
 ---
 
-## Layer Responsibilities (STRICT — never cross these)
+## 2. Layer responsibilities
 
-### Domain
-- Entities with private setters and static `Create()` factories
-- Enums, `FeeRates`, `DomainRules` constants
-- Business rules live HERE — never in handlers
-- Zero external NuGet dependencies
+**Domain** — business state and invariants. Entities have private setters and expose intention-named methods
+(`ConfirmMfaEnrollment`, `RecordFailedLogin`, `Close`, `UpdateRates`). No EF attributes, no DTOs, no services.
 
-### Application
-- CQRS: Commands + Queries defined as records
-- Handlers: `IRequestHandler<TRequest, TResponse>`
-- Validators: `AbstractValidator<T>` — one per command/query, no exceptions
-- DTOs: never expose domain entities to callers
-- Interfaces: `IUnitOfWork`, `IStallRepository`, `IPaymentRepository`, etc. defined here
-- Pipeline behaviors: `ValidationBehavior`, `LoggingBehavior`
-- No EF Core `DbContext` reference here — only interfaces
+**Application** — one folder per use case, three files: the command/query record, its handler, its validator.
+Handlers depend on interfaces only (`IStallRepository`, `IFeeRateResolver`, `ICurrentUserService`,
+`IUnitOfWork`, `IEemoCacheInvalidator`). Handlers return `Result<T>` and never throw for expected failures.
 
-### Infrastructure
-- `AppDbContext : DbContext`
-- One `IEntityTypeConfiguration<T>` per entity
-- Soft-delete filtering is centralized in `AppDbContext`: every `AuditableEntity` is excluded by default through the global `IsDeleted == false` query filter
-- Repository implementations of Application interfaces
-- `UnitOfWork : IUnitOfWork` wraps only `AppDbContext` and exposes `SaveChangesAsync` — it does NOT hold or wrap repository instances
-- Migrations (auto-generated — never manually edited)
-- `DependencyInjection.cs` — registers DbContext, UnitOfWork, and each repository individually
+**Infrastructure** — EF Core configurations, repositories, the tenancy filter, caching, security
+(`TotpService`, `QrCodeGenerator`, `CredentialProtector`), fee-rate resolution. Repositories project to DTOs
+for reads; they do not decide policy.
 
-### API
-- Controllers are thin — only `IMediator.Send()`, nothing else
-- Middleware: `ExceptionHandlingMiddleware`, `JwtMiddleware`
-- Zero business logic
+**Api** — thin controllers: authorise, send the request, `HandleResponse(result)`. No business logic. Composing
+a URL from configuration or attaching a generated QR is acceptable; deciding money is not.
 
-### Client (Blazor Server)
-- Razor components only — zero business logic, zero direct DbContext
-- All API calls use typed API clients — never inject HttpClient directly
-- API clients registered via `AddApiHttpClient<TClient, TImplementation>(configuration)` extension
-- CSS: `app.css` globals + `{Component}.razor.css` isolation per component
-- No Tailwind — custom CSS only, use CSS variables from design tokens
+**Client / Mobile** — presentation only. All data through typed API clients. No DbContext, ever.
 
 ---
 
-## DI Registration Rules
+## 3. CQRS conventions
 
-- Infrastructure method: `AddInfrastructureService` (not `AddInfrastructure`)
-- Application method: `AddApplicationService` (not `AddApplication`)
-- Always use `typeof(ApplicationAssemblyMarker).Assembly` — never `Assembly.GetExecutingAssembly()`
-- Behaviors registered via `AddOpenBehavior` inside `AddMediatR` — never via `AddTransient`
-- Repositories are registered individually in `AddInfrastructureService` (e.g. `services.AddScoped<IPaymentRepository, PaymentRepository>()`) — they are NOT wired inside `UnitOfWork`
-- AutoMapper: optional — only uncomment when a profile actually exists
-
----
-
-## Naming Conventions
-
-| Thing | Pattern | Example |
-|---|---|---|
-| Command | `{Action}{Entity}Command` | `RecordPaymentCommand` |
-| Query | `Get{Entity}By{Filter}Query` | `GetStallsByFacilityQuery` |
-| Handler | `{Command/Query}Handler` | `RecordPaymentCommandHandler` |
-| Validator | `{Command/Query}Validator` | `RecordPaymentCommandValidator` |
-| DTO | `{Entity}Dto` or `{Entity}Response` | `PaymentRecordDto` |
-| EF Config | `{Entity}Configuration` | `StallConfiguration` |
-| Repo interface | `I{Entity}Repository` | `IStallRepository` |
-| Repo impl | `{Entity}Repository` | `StallRepository` |
-| Service | `{Name}Service` | `JwtService`, `AuditService` |
-| Controller | `{Entity}Controller` | `PaymentsController` |
-| Blazor page | `{PageName}.razor` | `Vendors.razor` |
-| Component CSS | `{Component}.razor.css` | `PaymentHistoryModal.razor.css` |
+- `{Action}{Entity}Command` / `Get{Entity}By{Filter}Query`, with `{Name}Handler` and `{Name}Validator`.
+- One use case per folder. Do not co-locate unrelated handlers.
+- A query never mutates. A command returns the minimum the caller needs.
+- Validation lives in FluentValidation validators, executed by a pipeline behaviour — not inside handlers.
+- `Result<T>`: `Success`, `Failure(message, statusCode)`, `NotFound()`, `Forbidden()`, `Unauthorized()`.
+  `Failure` takes an `int`; read it back as `result.StatusCode ?? 400`.
 
 ---
 
-## PostgreSQL Types — always use these, never SQL Server equivalents
+## 4. Multi-tenancy — the rule that breaks the most things
 
-| Use | Never |
-|---|---|
-| `text` | `nvarchar(max)` |
-| `character varying(n)` | `nvarchar(n)` |
-| `boolean` | `bit` |
-| `uuid` | `uniqueidentifier` |
-| `timestamp with time zone` | `datetime` / `datetime2` |
-| `numeric(18,2)` | `decimal(18,2)` |
-| `integer` | `int` |
-| `jsonb` | `nvarchar` for JSON |
+Every tenant-owned entity carries `MunicipalityId`, and a global query filter scopes reads to the current
+tenant. Consequences you must respect:
 
----
-
-## Auth Rules
-
-- No ASP.NET Identity — custom JWT only
-- `PasswordHasher<BaseUser>` used in `AdminUser.Create()` and `CollectorUser.Create()`
-- Access token: 15 minutes. Refresh token: 7 days, stored on `BaseUser`
-- Refresh tokens are hashed (SHA-256) at rest, single-source, and revoked on logout
-- `BaseUser` methods: `SetRefreshToken()`, `IsRefreshTokenValid()`, `ClearRefreshToken()`
-- Admin registration is closed — SuperAdmin only creates new accounts
-- 5 failed logins → account locked for 15 minutes (`DomainRules.MaxFailedLoginAttempts`, `DomainRules.LockoutMinutes`)
-- `IsLockedOut` is computed — must be ignored in EF config
-- `MustChangePassword = true` on first admin creation
+- **Uniqueness is per tenant.** A username, email, stall number or OR number is unique within a municipality,
+  not globally. Anything that resolves a user by email across tenants must handle MULTIPLE matches.
+- `IgnoreQueryFilters()` is a deliberate act, allowed only where no tenant context can exist yet
+  (sign-in, refresh, activation, platform-operator work) or where the platform operator is legitimately
+  cross-tenant. Every use needs a comment saying why.
+- Anything the user can see must be tenant-resolved: office name and acronym, seal, facility names, section
+  labels, fee rates, OR series, market day. **No hardcoded "Cantilan", "EEMO", ₱30 or ₱900 in the UI.**
+- Cantilan is the accuracy baseline. A change for another LGU that moves a Cantilan figure is a bug.
 
 ---
 
-## OR Number Rules
+## 5. Money rules
 
-- Entered manually by admin — never auto-generated by the system
-- Globally unique across all transaction types — `PaymentRecord`, `DailyCollection`, `SlaughterTransaction`, `TpmAttendance`, `TrmTrip`
-- Uniqueness validated in FluentValidation via `IUnitOfWork` — never in the handler
-- Only shown in UI when status is `Paid` or `Partial`
-- Format is free-form (e.g. `OR-2026-0301`)
-
----
-
-## Collector Attribution & Audit
-
-- The web app is admin/head only; collectors authenticate on the **mobile** app
-- `CollectorId` is taken from the authenticated actor via `ICurrentUserService.CollectorId` — NEVER from a client request
-- `ICurrentUserService.CollectorId` is the user id only when the role is `Collector`, otherwise `null` (admin-recorded entries leave `CollectorId` null; the admin is captured in audit fields)
-- Financial mutations (`PaymentRecord`, `DailyCollection`, `TpmAttendance`, `TrmTrip`, `SlaughterTransaction`) are audited automatically by `AuditSaveChangesInterceptor` — do NOT write `AuditLog` rows manually in handlers
+- Resolve rates through `IFeeRateResolver` **as of a date**; `FeeRates` constants are the fallback only.
+- A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
+- A daily-billed facility's "monthly" figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays`.
+  Never the stored `Stall.MonthlyRate`.
+- Writes that a field device may retry carry a **client operation id** so a duplicate is discarded.
+- Financial mutations must pass through the audit interceptor. Do not bypass `SaveChangesAsync`.
+- `decimal` for money, `numeric(18,2)` in Postgres. Never `double`.
 
 ---
 
-## Blazor Design Tokens
+## 6. EF Core and Postgres
 
-```
---navy: #0d2137        --gold: #c8a84b        --green: #2d7a5f
---navy-2: #112d47      --gold-light: #e8cc76  --green-bg: #e6f4ef
---navy-3: #1e3a5f      --bg: #f0f4f8          --red: #8b3a3a
---bg-card: #ffffff     --bg-icon: #eef2f6     --red-bg: #fdf0f0
---border: #dde4ea      --text-muted: #8faabf  --text-subtle: #6a8aa0
-```
-
----
-
-## Reusable Blazor Components (already built — do not recreate)
-
-- `Sidebar.razor` — collapsible nav sidebar
-- `Toolbar.razor` — search + filters + action buttons
-- `ActionBar.razor` — facility-specific quick actions
-- `FacilityStallsTable.razor` — generic stall table (`@typeparam TStall`)
-- `FacilityPaymentModal.razor` — record payment modal
-- `PaymentHistoryModal.razor` — 12-month payment ledger
-- `AddVendorModal.razor` — add/edit vendor
+- Postgres-native types only: `text`, `character varying(n)`, `boolean`, `uuid`,
+  `timestamp with time zone`, `numeric(18,2)`, `integer`, `jsonb`.
+- One `{Entity}Configuration` per entity. Migrations are **additive**: new nullable columns or new tables. No
+  destructive DDL — production applies migrations at startup (`Database__ApplyMigrationsAtStartup=true`).
+- Reads: `AsNoTracking()`, project to DTOs, batch to avoid N+1.
+- InMemory tests do not run migrations and will not catch Npgsql-only failures. Inspect
+  `dotnet ef migrations script` output for anything schema-shaped.
+- Note: `AddScoped<IAppDbContext, AppDbContext>()` currently creates a SECOND context instance per scope
+  alongside `AddDbContext<AppDbContext>`. Known, deliberately unchanged; do not "fix" it casually — roughly
+  twenty handlers depend on the current behaviour.
 
 ---
 
-## What NOT to Do (hard rules — never violate)
+## 7. Authentication and authorisation
 
-- Never add routine `!x.IsDeleted` predicates in repositories for `AuditableEntity` queries; rely on the global soft-delete query filter unless the query intentionally uses `IgnoreQueryFilters()` or needs an explicit exception documented in code
-- Never inject `DbContext` directly in handlers — use repos + `IUnitOfWork`
-- Never call `context.SaveChangesAsync` directly in handlers — always via `uow.SaveChangesAsync()`
-- Never call `uow.CommitAsync()` — the method is `SaveChangesAsync()`
-- Never use `IDisposable` on `IUnitOfWork` or `UnitOfWork`
-- Never use private readonly field injection in handlers — always primary constructor
-- Never use `nvarchar`, `datetime`, `uniqueidentifier` — PostgreSQL only
-- Never call `HasKey()` on `AdminUser` or `CollectorUser` — TPH shares base table key
-- Never put business rules in MediatR handlers — Domain entities only
-- Never return Domain entities from handlers — always DTOs
-- Never auto-generate OR Numbers — always manual admin input
-- Never accept `CollectorId` from a client request for attribution — use `ICurrentUserService.CollectorId`
-- Never use `AssignedArea` string on `CollectorUser` — use `CollectorFacilityAssignment`
-- Never use `HasDefaultValue(1)` on enum columns
-- Never skip FluentValidation — every command/query must have a validator
-- Never put validation logic in handlers — use `ValidationBehavior` pipeline
-- Never duplicate validation in Blazor components — always rely on handler validation (except UI-only checks like password confirmation)
-- Never check status codes in Blazor components — `HandleResponse` already maps all status codes to `Result<T>`, just use `result.Error`
-- Never display all validation errors per field — only show the first error message for each field using `error.Value.FirstOrDefault()`
-- Never hardcode fee values — always use `FeeRates` constants
-- Never use `FeeRates` Min/Max range constants for billing — use `Stall.MonthlyRate`
-- Never put `PayorId` on `Stall` — use `Contract` for tenant tracking
-- Never put business logic in Blazor components — API calls only
-- Never inject `HttpClient` directly in Blazor components — always use typed API clients
-- Never use `<form>` tags in Blazor — use `@onclick` / `@onchange`
-- Never map computed properties in EF — always `builder.Ignore()`
-- Never create public setters on entity properties — always `private set`
+- JWT access token 15 min, refresh token 7 days, hashed at rest, single-source, revoked on logout.
+- Lockout after 5 failed attempts for 15 minutes. A wrong second factor counts as a failed attempt.
+- Guards, not ad-hoc checks: `AdminManagementGuard` (no Head may act on a peer Head),
+  `PlatformOperatorGuard.IsCurrentAsync` (operator flag OR default-municipality Head fallback) and
+  `PlatformOperatorGuard.IsDedicatedOperatorAsync` (flag only — required for cross-tenant reach).
+- Guards fail **closed**.
+- Every authenticated API client must be registered with the authorization and refresh handlers
+  (`AddApiHttpClient`). `IAuthApiClient` is registered WITHOUT them and may host anonymous endpoints only —
+  putting an `[Authorize]` endpoint there silently produces 401s.
+- Error responses: the API may return `error` (string) or `errors` (field-keyed). The client parser handles
+  both, case-insensitively.
+
+---
+
+## 8. Blazor rules (portal and collector app)
+
+- `@rendermode InteractiveServer` for interactive pages; typed API clients for all data.
+- `OnInitializedAsync` runs **twice** under prerendering. Never consume a one-time token there — use
+  `OnAfterRenderAsync(firstRender)`, and prefer making the operation idempotent.
+- Card, form and panel classes are **component-scoped**. A new routable page or component needs its own
+  `.razor.css`; it cannot borrow another page's classes.
+- A chrome-less route must be listed in `MainLayout.UpdateSidebarVisibility()`.
+- Every `.razor.css` edit must be brace-balanced. One unbalanced brace corrupts the entire scoped bundle and
+  breaks every page, and neither `dotnet build` nor `/health` will catch it. Prefer appending a new block at
+  the end of the file over surgical edits, and count braces after editing.
+- Text inputs stay **uncontrolled** (no `value=` with `@oninput`). A controlled input round-trips every
+  keystroke and characters visibly revert on a slow connection; clear programmatically by bumping a `@key`.
+- Razor gotchas: a loop variable named `code` collides with the `@code` directive; Razor comments
+  (`@* *@`) are not valid in Angular or HTML files.
+- No inline styles, no Tailwind in components, no CSS-in-JS. Design tokens live in `app.css`.
+
+---
+
+## 9. Testing
+
+- Unit and integration tests in `EEMOCantilanSDS.Testing`; bUnit render tests in
+  `EEMOCantilanSDS.ComponentTests`.
+- **Run the two suites in separate commands.** Running them together causes a bUnit timing flake.
+- bUnit's default `WaitForAssertion` timeout is 1 second and pages render after an async load — pass an
+  explicit generous timeout.
+- Money, reports, delinquency and tenancy changes need a test that FAILS before the fix. Reintroduce the
+  defect once to prove the test catches it.
+- A behaviour that only one municipality exercises still needs a Cantilan-unchanged test beside it.
+
+---
+
+## 10. Working in this repository
+
+- Tooling: dedicated file editors only. Scripted in-place edits (PowerShell string replacement) have twice
+  corrupted source files — stripped a UTF-8 BOM, mangled `₱`/`—`/`…`, and produced invalid YAML. Do not use
+  them on tracked files.
+- Stage files by explicit path and check `git diff --cached --name-only` before committing. Never stage
+  `.gitignore`, `.env`, keystores, database dumps, APKs or `artifacts/`.
+- `master` is production: a push deploys (~10–13 minutes). Always verify afterwards — image tag equals HEAD,
+  API `/health` 200, portal `/login` 200, and the scoped CSS bundle brace-balanced.
+- Mobile changes need a RELEASE APK rebuild before collectors see them.
+- Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) are excluded from the deploy trigger.

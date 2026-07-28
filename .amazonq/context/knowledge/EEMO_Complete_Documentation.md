@@ -1,224 +1,194 @@
-# EEMO Revenue Collection System
-**Economic Enterprise and Management Office**  
-**Municipality of Cantilan, Surigao del Sur**
+# StallTrack — EEMO Revenue Collection System
+
+**Product:** StallTrack (multi-tenant LGU revenue collection platform)
+**First and reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur
+**Status:** In production. Web portal, API and collector app are all live; further LGUs onboard through the platform console.
+
+> This file is the source of truth for BUSINESS behaviour. For layering and coding rules see `arch-rules.md`,
+> for the reasons behind the design see `ARCHITECTURE_DOCUMENTATION.md`, and for code shapes to copy see
+> `patterns.md`. Where they disagree, `arch-rules.md` wins.
 
 ---
 
-## Executive Summary
+## 1. What the system does
 
-The EEMO Revenue Collection System is a digital platform developed for the Economic Enterprise and Management Office of the Municipality of Cantilan, Surigao del Sur. The system replaces a fully manual, paper-based revenue collection process with a streamlined digital workflow — enabling staff to record payments faster, track delinquent vendors, and generate accurate reports with minimal effort.
+Replaces a paper-based revenue collection process for LGU-managed economic enterprises. Staff record
+collections, the system tracks who owes what, and reports come out without manual computation.
 
----
-
-## Background
-
-The EEMO oversees eight government-managed facilities within the municipality that generate revenue through stall rentals, daily market fees, slaughterhouse charges, transport terminal fees, and weekly market vendor fees. Prior to this system, collection staff manually wrote or re-typed vendor names, stall details, and payment information every single transaction — a process that was slow, repetitive, and highly prone to human error. Reports had to be compiled by hand, and identifying delinquent vendors required going through records one by one.
-
----
-
-## Problem Statement
-
-- Staff manually re-enter the same vendor and stall information for every payment transaction
-- No centralized record of who has paid, who hasn't, and who is delinquent
-- Report generation is done manually and takes significant time
-- No audit trail for payments and collections
-- Difficult to monitor multiple facilities simultaneously
-- Risk of lost or inaccurate records due to paper-based process
+It is no longer a single-office tool. StallTrack is a **multi-tenant platform**: each municipality is a
+tenant with its own facilities, rates, users, branding and data, all in one database and one deployment,
+isolated per tenant. Cantilan is the default tenant and the accuracy baseline — its figures must never change
+when a feature is added for another LGU.
 
 ---
 
-## Objectives
+## 2. Facilities and how each one is billed
 
-1. Eliminate manual re-entry of vendor and stall data during payment collection
-2. Provide a real-time view of payment status across all facilities
-3. Automatically flag delinquent vendors based on payment history
-4. Generate collection reports without manual computation
-5. Maintain a complete and accurate audit trail of all transactions
-6. Enable both office-based (web) and field-based (mobile) collection workflows
+Eight canonical facility codes, plus per-LGU custom facilities.
 
----
+| Code | Facility (Cantilan name) | Billing model |
+|------|--------------------------|---------------|
+| NPM | New Public Market | **Daily** per stall, marked on a calendar; Fish section also charges per kilo; electricity and water billed separately |
+| TCC | Tampak Commercial Center | Monthly rental per contract |
+| NCC | New Commercial Center | Monthly rental per contract (Extension / Corner classifications) |
+| BBQ | Barbecue Stand | Monthly space rental |
+| ICE | Iceplant | Monthly space rental |
+| SLH | Slaughterhouse | Per head, by animal type |
+| TRM | Transport Terminal | Per trip, with queue/dispatch order |
+| TPM | Tabo-an Public Market | Per vendor per market day (a weekly market; the market DAY is per-LGU configurable) |
 
-## Scope
+**Custom facilities.** A Head can add facilities beyond the eight (`FacilityCode.Custom1..5`), which bill as
+monthly rental. NPM also supports **custom sections** beyond Vegetable / Meat / Fish; a custom section carries
+its own daily rate.
 
-### In Scope
+### Rates are per-tenant data, not constants
 
-- Management of vendor and stall records across all 8 EEMO facilities
-- Recording and tracking of daily, weekly, monthly, per-head, and per-trip fee collections
-- Trip queuing management for the Transport Terminal
-- Payment status monitoring (Paid, Partial, Unpaid) per vendor per period
-- Delinquency tracking and flagging
-- OR (Official Receipt) number recording and management
-- Contract management for stall lessees
-- Report generation for collections per facility and per period
-- User management for admin staff and field collectors
-- Mobile application for field collectors (later phase)
+`FeeRates` holds the Cantilan ordinance figures (NPM ₱30/day, fish ₱1/kg, SLH ₱250 hog and ₱365 large animal,
+TRM ₱30/trip, TPM ₱100/vendor) and they remain the **fallback**. Each LGU may set its own amounts, effective
+from a date, in the `FacilityRates` table.
 
-### Out of Scope
+- Always resolve through `IFeeRateResolver.GetSnapshotAsync()` then `snapshot.Resolve(FeeRateKey.X, asOf)`.
+- Never read `FeeRates.*` directly in a handler or repository to bill or report.
+- A snapshot is resolved **as of a date**, so a mid-month rate change bills correctly.
+- For a stall's daily fee use `Stall.ResolveDailyFee(ordinanceRate)`: a **custom-section** stall uses its own
+  stored `DailyRate`; every canonical stall uses the tenant's resolved rate. This one rule keeps billing,
+  settlement and the rosters in agreement.
 
-- Online payment processing or e-wallet integration
-- Accounting or general ledger functions beyond revenue collection
-- Payroll or HR management
-- Inventory management
-- Integration with national government systems (PhilSys, BIR, etc.)
+### The daily-billed month convention
 
----
-
-## Facilities Covered
-
-| Facility | Description | Fee Type |
-|----------|-------------|----------|
-| New Public Market (NPM) | Main public market with three sections — Vegetable, Fish, and Meat | Daily fee per stall + utilities + fish fee per kilo |
-| Tampak Commercial Center (TCC) | Commercial stall complex with monthly rental contracts | Monthly rental |
-| New Commercial Center (NCC) | Commercial center with extension and corner stall classifications | Monthly rental |
-| Barbecue Stand (BBQ) | Designated barbecue vendor stalls | Monthly rental |
-| Iceplant (ICE) | Ice production and distribution facility | Monthly rental |
-| Slaughterhouse (SLH) | Municipal slaughterhouse for hogs, carabao, and cattle | Per head slaughter fee |
-| Transport Terminal (TRM) | Municipal transport terminal managing driver departures and trip queuing | ₱30 per trip (paid by driver) |
-| Tabo-an Public Market (TPM) | Weekly public market held every Friday where vendors sell food and goods | ₱100 per vendor per market day (every Friday) |
+A daily-collected facility has no monthly contract rate. Where a document must state one (the stallholder
+roster, the closed-accounts register), it is the monthly **equivalent**: resolved daily rate ×
+`DomainRules.DailyBilledMonthDays` (a flat 30). Cantilan: ₱30 × 30 = ₱900 → ₱10,800 a year. The stored
+`Stall.MonthlyRate` is a hand-entered figure and must NOT be used for a daily-billed facility's reports.
 
 ---
 
-## Fee Details
+## 3. Core business rules
 
-### New Public Market (NPM)
-- Operates in three sections: **Vegetable**, **Meat**, and **Fish**
-- ₱30/day per stall + electricity + water charges
-- Fish section stalls are additionally charged **₱1 per kilo** of fish sold
-- Stall area: approximately **4.8 sq.m**
-- Monthly stall contract rate: ₱900 (Paid as ₱30 daily)
-
-### Tampak Commercial Center (TCC) & New Commercial Center (NCC)
-- Monthly rental under **3-year contracts** (contracts started **June 7, 2023**)
-- Stall sizes available: **10.5, 17.5, 35, and 70 sq.m**
-- Monthly rates: **TCC ₱2,400–₱4,800**; **NCC** Extension **₱1,200**, Corner **₱3,240–₱3,840** (actual rate stored per stall)
-- Corner slots are priced higher than standard slots
-
-### Slaughterhouse (SLH) — Fixed Fee Per Head
-
-Each slaughter transaction is a fixed amount — the breakdown below reflects the components that make up that total.
-
-| Animal | Fee Component | Amount |
-|--------|--------------|--------|
-| **Hogs** | Slaughter Fee | ₱50 |
-| | Ante Mortem | ₱20 |
-| | Table Charge | ₱30 |
-| | Entrance Fee | ₱150 |
-| | **Fixed Total** | **₱250** |
-| **Carabao / Cow** | Slaughter Fee | ₱150 |
-| | Permit | ₱100 |
-| | Ante Mortem | ₱20 |
-| | Post Mortem | ₱25 |
-| | Table Charge | ₱30 |
-| | Livestock Fee | ₱40 |
-| | **Fixed Total** | **₱365** |
-
-### Transport Terminal (TRM)
-- ₱30 per trip, paid by the driver upon departure
-
-### Tabo-an Public Market (TPM)
-- ₱100 per vendor per market day (every Friday)
-
-### Barbecue Stand (BBQ) & Iceplant (ICE)
-- Monthly rental; rates based on individual stall contracts
+- **Delinquency:** 3+ unpaid months inside a rolling 12-month window = delinquent; 1–2 = arrears.
+- **Contract expiry:** flagged when within 3 months; an expired contract drops off the current-holder roster
+  (it stays in history) and can be renewed, which starts a fresh term at the stall's current rate.
+- **Payment status:** Paid / Partial / Unpaid per stall per period. A **partial counts as unpaid** for the
+  paid-vs-unpaid invariant (Paid + Unpaid == Billable) and is additionally surfaced as a partial count.
+- **OR numbers** are entered by hand from the physical receipt book, never generated. Adding an OR number
+  never rewrites the original collector or timestamp. OR uniqueness is enforced per tenant.
+- **NPM is never billed monthly.** `RecordPayment` refuses an NPM stall — daily collections and the
+  month-settlement service are the only routes — and online payment routes NPM to a daily-derived path.
+- **Collector attribution:** `CollectorId` is taken from the authenticated user, never from the request body.
+  An admin-recorded entry leaves it null and is attributed through the audit fields instead.
+- **Business-day logic** (today, current month, expiry, streaks, trip day, market day) uses
+  `PhilippineTime` (UTC+8). Stored timestamps stay UTC. The mobile app is the exception: it uses device-local
+  time for the collector's own day.
+- **Excused / absent days** exist for NPM (a vendor who did not trade) and are excluded from arrears.
+- **Audit trail:** every financial mutation is written to `AuditLog` with actor, timestamp and before/after
+  values, independently of the editable created/updated fields.
 
 ---
 
-## Data Model Notes
+## 4. Roles and access
 
-- Each stall record holds two distinct occupant fields:
-  - **Actual Occupant** — the person physically operating the stall
-  - **Signed Lessee** — the person named on the contract (these may differ)
-- Stall statuses include: **Active**, **Closed**, and **No Contract (Space Only)**
-- Each stall record tracks: stall number, occupant, contract date, stall area, monthly rate, payment status, and delinquency standing
+| Role | Where | What it can do |
+|------|-------|----------------|
+| **Platform operator** | Operator console (separate Angular app) + portal | Assess, validate and activate LGUs; issue a Head account; clear a Head's second factor |
+| **Head** (SuperAdmin) | Web portal | Everything inside their own LGU: accounts, facilities, rates, records, reports, audit trail, backups |
+| **Admin** | Web portal | Records, OR entry, reports. No account management, no audit trail |
+| **Collector** | Collector app (Android) | Field collection for their assigned facilities only |
+| **Payor** | Payor portal (public) | Their own stall's dues and online payment |
 
----
+Rules that matter:
 
-## Key Features
-
-### Weekly Market Collection (Tabo-an Public Market)
-The Tabo-an Public Market operates every Friday as a public gathering where vendors sell food, goods, and other products. The system tracks vendor attendance and collects ₱100 per vendor each market day, replacing the manual list-based collection currently done on-site.
-
-### Trip Queuing & Terminal Collection (Transport Terminal)
-The Transport Terminal manages both fee collection and driver dispatch. Each driver pays ₱30 per trip, and the system tracks the queuing order — determining which driver departs next. This eliminates disputes over turn-taking and gives staff a clear, organized record of all trips and collections for the day.
-
-### Vendor & Stall Registry
-A centralized registry of all stalls and their occupants across every facility. Each stall record includes the actual occupant, the name on the contract (which may differ), stall area, monthly rate, contract dates, and current status.
-
-### Payment Collection
-Staff can quickly mark who has paid for the current period without retyping any information. Payments can be recorded as Paid, Partial, or Unpaid, and OR numbers from physical receipt books are logged against each transaction.
-
-### Daily Collection Tracking (New Public Market)
-The NPM operates on a daily collection model. The system provides a calendar view per stall where collectors mark each day as collected or missed. Fish section stalls additionally track kilos of fish sold for the per-kilo fee.
-
-### Delinquency Monitoring
-The system automatically identifies vendors who are behind on payments based on a rolling 12-month window. Vendors with 3 or more unpaid months are flagged as delinquent, while those with 1–2 unpaid months are marked as having arrears.
-
-### Contract Management
-Tracks the start date, duration, and expiry of each stall contract. Contracts expiring within 3 months are flagged as expiring soon, and expired contracts are clearly identified.
-
-### Reports
-Collection summaries can be generated per facility, per period, showing total collected, total outstanding, paid vs unpaid stall counts, and collection rates. Delinquent vendor reports can also be pulled for enforcement purposes.
-
-### User Management
-Two levels of system users: Admin staff (office-based, manages records and reports) and Collectors (field-based, records payments on mobile). Head has full control over account creation.
-
-### Audit Trail
-Every financial transaction (payments, daily collections, slaughter, terminal trips, and market attendance) is logged with the actor, timestamp, and before/after values — providing a tamper-evident history independent of the editable created/updated-by fields.
+- The web portal is **admin-only**; collectors authenticate in the mobile app.
+- A Head may act on their own account and on Admins, **never on another Head** (`AdminManagementGuard`,
+  fails closed with 403).
+- Platform-operator powers come from the `IsPlatformOperator` flag. A **backward-compatible fallback** also
+  treats the default municipality's Head as an operator — but only for their own municipality: cross-tenant
+  listing and cross-tenant MFA reset require the real flag.
+- Account lockout: 5 failed attempts = 15-minute lock. Access tokens 15 min, refresh tokens 7 days, hashed at
+  rest, single-source, revoked on logout.
 
 ---
 
-## Users
+## 5. Authentication and account security
 
-| Role | Description |
-|------|-------------|
-| Head | Full system access. Creates and manages admin accounts. |
-| Admin | Manages vendor records, records OR numbers, generates reports. |
-| Collector | Field staff. Marks payments on mobile app during rounds. |
+- **Password sign-in** issues a 15-minute access token and a 7-day refresh token.
+- **Two-factor (TOTP)** is opt-in for everyone and **mandatory for Heads**, enforced after sign-in by
+  `MfaEnforcementGate` so a requirement can never lock anyone out. RFC 6238 over `HMACSHA1`, verified against
+  the RFC's published vectors; secrets encrypted with `ICredentialProtector` (AES-256-GCM); 8 single-use
+  recovery codes; a used step is recorded so a code cannot be replayed.
+  The password step issues a hashed, single-use, 5-minute challenge and **no tokens**; `mfa/verify-login`
+  exchanges challenge + code for the session. Enabling does not ask for the password (the user is already
+  signed in); turning it off requires the password **and** a valid code.
+- **Self-service password recovery** by **email only** (never username), enumeration-safe, 30-minute
+  single-use hashed link, requires a verified email, cannot revive a deactivated account, revokes sessions.
+- **Email verification** with hashed 7-day links; changing an email clears the verified flag.
+- **Rescue path** for a Head who lost both device and codes: the platform operator clears the second factor
+  after re-entering their own password. Logged as a warning.
 
 ---
 
-## Workflow
+## 6. Money in and money out
+
+- **Field collection** (collector app): daily NPM marking, monthly stalls, slaughter transactions, terminal
+  trips, Tabo-an attendance. Reads fall back to an offline cache; writes carry a **client operation id** so a
+  retry after a flaky connection cannot double-record.
+- **Office collection** (portal): the same records, plus OR entry, utilities (electricity/water) and
+  corrections.
+- **Online payment** (payor portal): PayMongo, with each LGU able to hold its own credentials. One unfinished
+  checkout is reused rather than duplicated — the double-payment guard. NPM pays a whole month of daily fees,
+  fish days and utilities through their own paths.
+
+---
+
+## 7. Reporting
+
+Financial report (per facility and period, with month-over-month movement guarded against a near-zero
+baseline), month-end report, collection manager, follow-up queue and its history, collection exceptions,
+closed/inactive accounts register, stallholder roster (the official "List of Stallholders" form), per-facility
+reports (NPM, SLH, TRM, TPM), transactions feed, audit trail, and Export Data (print / PDF / CSV).
+
+Reporting invariants:
+
+- Rosters list **current holders only** — closed and expired accounts appear in history, not on the roster.
+- Monetary totals count **active** stalls only, consistent with the active-stall count.
+- A daily-billed facility's monthly figures are derived (see §2), never read from the stored monthly rate.
+- Total rows state a per-head or per-unit rate only when every line shares one; otherwise they show a dash,
+  because no single figure would be true.
+- The stallholder roster carries base rental only — no fish, electricity or water folded in.
+
+---
+
+## 8. Onboarding a new LGU
 
 ```
-Collector does rounds at the facility
-    → Marks each stall as Paid or Partial on the mobile app
-    → Physical OR (Official Receipt) is issued to the vendor
-
-Back at the office:
-    → Admin opens the web dashboard
-    → Reviews the payment records submitted by collectors
-    → Enters the OR number from the physical receipt book
-    → System saves the complete payment record
-
-End of period:
-    → Admin generates collection report
-    → Delinquent vendors are automatically listed
-    → Report is ready for submission to the municipal treasurer
+Assessment request (public form)
+  → Platform operator reviews          → declined, or approved
+  → LGU completes its onboarding       (facilities, sections, rates, accounts, branding)
+  → Operator validates the submission
+  → Operator ACTIVATES: the tenant is created, its facilities and rates are written,
+    accounts are provisioned inactive, and the Head receives a one-time activation link
+  → Head sets their password, enrols two-factor, and the portal opens as that LGU
 ```
 
----
-
-## Platforms
-
-| Platform | Users | Purpose |
-|----------|-------|---------|
-| Web Admin Dashboard | Admin, Head | Full management — vendor records, OR entry, reports, user management |
-| Mobile App | Collectors | Field collection — mark payments during daily rounds |
+Everything the portal shows is then tenant-resolved: office name and acronym, municipality and province,
+seal, facility names and short names, market-section labels, fee rates, OR series, market day, and the
+collector app's bind link.
 
 ---
 
-## Project Status
+## 9. Platforms
 
-| Component | Status |
-|-----------|--------|
-| Web Admin Dashboard | In Development |
-| Backend API | In Development |
-| Mobile App | Planned (later phase) |
+| Platform | Users | Notes |
+|----------|-------|-------|
+| Web portal (Blazor Server) | Head, Admin | Full management. Payor portal and public pages share the app |
+| Collector app (.NET MAUI, Android) | Collectors | Binds to an LGU by link or QR; offline-tolerant; push notifications |
+| Operator console (Angular, separate repo) | Platform operator | Assessment → validation → activation |
 
 ---
 
-## Client Information
+## 10. Vocabulary
 
-**Office:** Economic Enterprise and Management Office (EEMO)  
-**Municipality:** Cantilan, Surigao del Sur  
-**Region:** Region XIII (Caraga)
+- **Tenant / LGU** — one municipality's isolated data set.
+- **Bind link** — a per-LGU one-time link (also a QR) that points a fresh collector-app install at that LGU.
+- **Billable** — a stall that owes for the period (active, in term, not excused).
+- **Settlement** — converting a month of NPM daily marks into the month's payment record.
+- **Head** — the LGU's SuperAdmin, the office's own authority. Not the platform operator.

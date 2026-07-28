@@ -1,186 +1,45 @@
-# AI_AGENT_CONTEXT.md
+# Read this first
 
-# READ THIS FIRST
+The rules for this repository live in four files under `.amazonq/context/knowledge/`. Read them before
+generating, modifying, reviewing or refactoring code.
 
-This repository contains architecture, domain, and implementation rules spread across multiple files.
+| Order | File | Purpose |
+|-------|------|---------|
+| 1 | `.amazonq/context/knowledge/arch-rules.md` | **What is allowed and what is forbidden.** Layering, DI, CQRS, multi-tenancy, money rules, EF Core, auth, Blazor, testing, and how to work in this repo. Source of truth. |
+| 2 | `.amazonq/context/knowledge/patterns.md` | **Shapes to copy** — command, query with caching, repository, controller, typed API client, Blazor page, shared component, guard, tests, naming. |
+| 3 | `.amazonq/context/knowledge/ARCHITECTURE_DOCUMENTATION.md` | **Why** the architecture is the way it is, including the trade-offs behind multi-tenancy, `Result<T>`, rate resolution and the two-factor design. |
+| 4 | `.amazonq/context/knowledge/EEMO_Complete_Documentation.md` | **Business truth** — facilities, billing models, delinquency, roles, onboarding, reporting invariants, vocabulary. |
 
-Before generating, modifying, reviewing, or refactoring any code, read the following files in order:
+When they conflict, that order decides. The `.kiro/steering/` files (`product.md`, `tech.md`, `structure.md`)
+are the short version of the same material and are loaded automatically.
 
-## 1. Architecture Rules (MANDATORY)
-
-File:
-
-.amazonq/context/knowledge/arch-rules.md
-
-Purpose:
-
-* Repository-wide development rules
-* Layer responsibilities
-* Dependency injection rules
-* CQRS conventions
-* Entity rules
-* EF Core rules
-* Authentication rules
-* Naming conventions
-* Project structure
-
-This file defines WHAT is allowed and WHAT is forbidden.
-
-Always treat this file as the source of truth.
+Follow the existing patterns instead of inventing new ones. Consistency is preferred over creativity.
 
 ---
 
-## 2. Architecture Documentation (MANDATORY)
+## Before writing code
 
-File:
+1. Read the file you are about to change, and the nearest existing example of the same kind.
+2. Reuse the abstractions that are already there (`Result<T>`, repositories, `IFeeRateResolver`, the guards).
+3. Ask what the change does to **another municipality** and to **Cantilan's figures**. Cantilan is the baseline.
+4. Money, tenancy and auth changes need a test that fails before the fix.
 
-.amazonq/context/knowledge/ARCHITECTURE_DOCUMENTATION.md
+## When reviewing existing code
 
-Purpose:
+Look for: layer violations, an unscoped tenant query, `FeeRates` read directly instead of resolved, a stored
+`MonthlyRate` used for a daily-billed facility, a one-time token consumed in `OnInitializedAsync`, an
+`[Authorize]` endpoint on the anonymous HTTP client, N+1 reads, a mutation that bypasses `SaveChangesAsync`,
+missing validation, missing tests.
 
-* Clean Architecture design
-* DDD implementation
-* CQRS flow
-* MediatR pipeline
-* Repository pattern
-* UnitOfWork pattern
-* Result pattern
+## When refactoring
 
-Read this file to understand WHY the architecture exists.
+Reduce duplication and preserve behaviour. Do not introduce abstractions the code does not need, and do not
+rewrite working code without a reason you can state.
 
----
+## Verification is part of the work
 
-## 3. Patterns Reference (MANDATORY)
+Build, run both test suites in separate commands, and after a push to `master` verify the deployment (image tag
+equals HEAD, API `/health` 200, portal `/login` 200, scoped CSS bundle brace-balanced). Mobile changes need a
+RELEASE APK rebuild before collectors see them.
 
-File:
-
-.amazonq/rules/patterns.md
-
-Purpose:
-
-* Existing implementation patterns
-* Repository examples
-* Query examples
-* Command examples
-* Validator examples
-* API client patterns
-* Pagination patterns
-* Controller patterns
-
-When generating code:
-
-Follow the existing patterns instead of inventing new ones.
-
-Consistency is preferred over creativity.
-
----
-
-## 4. Business Domain Documentation (MANDATORY)
-
-File:
-
-.amazonq/context/knowledge/EEMO_Complete_Documentation.md
-
-Purpose:
-
-* Business rules
-* Revenue collection workflows
-* Facility definitions
-* Delinquency rules
-* Fee calculations
-* Report requirements
-* User roles
-* Collection processes
-
-This file is the source of truth for business logic.
-
-Never guess business behavior.
-
----
-
-## File Priority
-
-When conflicts exist:
-
-1. arch-rules.md
-2. patterns.md
-3. ARCHITECTURE_DOCUMENTATION.md
-4. EEMO_Complete_Documentation.md
-
-Follow this priority order.
-
----
-
-## When Reviewing Existing Code
-
-Check for:
-
-* Architecture violations
-* Rule violations
-* Pattern violations
-* Business logic violations
-* EF Core issues
-* LINQ inefficiencies
-* Report calculation bugs
-* Missing validation
-* Missing tests
-
----
-
-## When Creating New Code
-
-Before generating code:
-
-1. Read all referenced files.
-2. Identify existing patterns.
-3. Follow existing conventions.
-4. Reuse existing abstractions.
-5. Avoid introducing new patterns unless absolutely necessary.
-
----
-
-## When Refactoring
-
-Goals:
-
-* Reduce complexity
-* Remove duplication
-* Improve readability
-* Improve maintainability
-* Preserve behavior
-* Preserve architecture
-
-Do NOT:
-
-* Over-engineer
-* Introduce unnecessary abstractions
-* Rewrite working code without justification
-
----
-
-## When Writing Tests
-
-Create:
-
-* Happy path tests
-* Edge case tests
-* Failure tests
-* Regression tests
-
-Focus especially on:
-
-* Report calculations
-* Revenue totals
-* Delinquency calculations
-* Collection summaries
-* Payment workflows
-
----
-
-## Final Instruction
-
-Assume these files collectively define the architecture, business rules, and coding standards of the system.
-
-Read them before making decisions.
-
-If uncertain, consult the referenced files instead of making assumptions.
+If uncertain, consult the four files above rather than assuming.

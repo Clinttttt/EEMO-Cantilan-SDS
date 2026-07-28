@@ -1,58 +1,65 @@
 # Product Overview
 
-## EEMO Revenue Collection System
+## StallTrack — EEMO Revenue Collection System
 
-**Client:** Economic Enterprise and Management Office (EEMO), Municipality of Cantilan, Surigao del Sur
-**Purpose:** Digital revenue collection system replacing a manual, paper-based process for government-managed facilities
+**Product:** StallTrack, a multi-tenant revenue collection platform for LGU-managed economic enterprises.
+**Reference tenant:** Economic Enterprise & Management Office (EEMO), Municipality of Cantilan, Surigao del Sur.
+**Status:** In production — web portal, API and Android collector app are live; further LGUs onboard through the
+platform operator console.
 
-## What It Does
+## What it does
 
-Digitizes fee collection, payment tracking, delinquency monitoring, and reporting across **8 municipal facilities**:
+Digitises fee collection, payment tracking, delinquency monitoring and reporting across a municipality's
+facilities, for both office staff and field collectors.
 
-1. **New Public Market (NPM)** — Daily collection (₱30/day + electricity + water; Fish section adds ₱1/kg)
-2. **Tampak Commercial Center (TCC)** — Monthly rental (₱2,400–₱4,800)
-3. **New Commercial Center (NCC)** — Monthly rental (Extension ₱1,200, Corner ₱3,240–₱3,840)
-4. **Barbecue Stand (BBQ)** — Monthly space rental (₱1,600–₱9,600)
-5. **Iceplant (ICE)** — Monthly space rental (₱1,000–₱2,000)
-6. **Slaughterhouse (SLH)** — Per-head fees (Hog ₱250, Large animals/Carabao/Cow ₱365)
-7. **Transport Terminal (TRM)** — ₱30 per trip (paid by driver) with trip queuing/dispatch order
-8. **Tabo-an Public Market (TPM)** — ₱100 per vendor per market day (every Friday)
+Each municipality is a **tenant**: its own facilities, rates, users, branding and data, isolated inside one
+database and one deployment. **Cantilan is the accuracy baseline** — a change made for another LGU must never
+move a Cantilan figure.
 
-> Per-stall **MonthlyRate**, **DailyRate**, and **AreaSqm** are stored per stall (flexible, admin-entered). Fixed ordinance rates (NPM daily, fish/kg, SLH per-head, TPM, TRM) live in the `FeeRates` constants.
+## Facilities (eight canonical codes, plus per-LGU custom facilities)
 
-## Key Features
+| Code | Cantilan name | Billing |
+|------|---------------|---------|
+| NPM | New Public Market | Daily per stall (+ fish per kilo, electricity, water billed separately) |
+| TCC | Tampak Commercial Center | Monthly rental |
+| NCC | New Commercial Center | Monthly rental |
+| BBQ | Barbecue Stand | Monthly space rental |
+| ICE | Iceplant | Monthly space rental |
+| SLH | Slaughterhouse | Per head, by animal type |
+| TRM | Transport Terminal | Per trip, with queue order |
+| TPM | Tabo-an Public Market | Per vendor per market day (weekly; the day is per-LGU) |
 
-- **Multi-facility management** — stalls, contracts, occupants, and payments across all facilities
-- **Payment tracking** — Paid / Partial / Unpaid per stall per period, with payment history
-- **Daily collections (NPM)** — calendar-style daily fee marking with fish-weight tracking
-- **Trip queuing (TRM)** — per-day trip numbering and departure order
-- **Weekly market (TPM)** — Friday-only vendor attendance and per-vendor collection
-- **Slaughterhouse transactions** — per-head billing per animal type (incl. custom animals)
-- **Contract management** — occupant vs. signed lessee, terms, and expiry tracking
-- **Delinquency tracking** — automatic status from a rolling 12-month window
-- **Reports** — collection totals, outstanding, paid/unpaid counts, and collection rate per facility/period
-- **Audit trail** — every financial transaction (payments, daily collections, TPM/TRM/SLH) is logged with actor, timestamp, and before/after values
-- **Role-based access** — SuperAdmin/Admin (web) and Collector (mobile), with facility assignments
+## Rates are data, not constants
 
-## Platforms
+`FeeRates` holds Cantilan's ordinance figures as a **fallback only**. Each LGU sets its own amounts with an
+effective date in `FacilityRates`.
 
-- **Web Admin Dashboard** — Admin / Head only (records, OR entry, reports, user management)
-- **Mobile App (.NET MAUI)** — Collectors only, for field collection (later phase)
+- Resolve through `IFeeRateResolver.GetSnapshotAsync()` → `snapshot.Resolve(FeeRateKey.X, asOf)`.
+- A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedRate)` — custom NPM sections keep their own
+  rate, canonical sections use the tenant's.
+- A daily-billed facility's "monthly" figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays`
+  (flat 30), never the stored `Stall.MonthlyRate`.
 
-## User Roles
+## Roles
 
-- **SuperAdmin (Head)** — system setup, admin/collector account creation, full access
-- **Admin** — facility management, payment recording, OR-number entry, reporting (web)
-- **Collector** — field collection on mobile; assigned to specific facilities
+- **Platform operator** — onboards LGUs (assess → validate → activate), issues the Head account, can clear a
+  Head's second factor. Cross-tenant reach requires the `IsPlatformOperator` flag.
+- **Head (SuperAdmin)** — everything within their own LGU. May act on Admins and themselves, never on a peer Head.
+- **Admin** — records, OR entry, reports. No account management, no audit trail.
+- **Collector** — mobile only, limited to assigned facilities.
+- **Payor** — public portal for their own stall's dues and online payment.
 
-## Business Rules
+## Business rules
 
-- **Web is admin/head only**; collectors authenticate on the **mobile** app (field use)
-- **Collector attribution** — `CollectorId` records the collector who collected; it is taken from the authenticated user, never from the client request. Admin-recorded entries leave `CollectorId` null (the admin is captured in audit fields instead)
-- OR numbers are manually entered by admins (never auto-generated); adding an OR number never alters the original collector/timestamp
-- Delinquent status: 3+ unpaid months in a rolling 12-month window; 1–2 = arrears
-- Contract expiry warning: within 3 months of expiration
-- Account lockout: 5 failed login attempts = 15-minute lock
-- Access tokens expire in 15 minutes; refresh tokens are hashed at rest, single-source, and revoked on logout
-- Business-day logic (today, current month, contract expiry, streaks, trip-day) uses **Philippine time (UTC+8)**; stored timestamps stay in UTC
-- All fixed fee rates defined in `FeeRates` constants — never hardcoded in handlers
+- Web portal is admin-only; collectors authenticate in the mobile app.
+- `CollectorId` comes from the authenticated user, never the request body; admin entries leave it null.
+- OR numbers are entered by hand, never generated; adding one never rewrites the original collector or timestamp.
+- Delinquent = 3+ unpaid months in a rolling 12-month window; 1–2 = arrears. Contract expiry warns within 3 months.
+- A **partial payment counts as unpaid** for the paid-vs-unpaid invariant, and is reported separately as partial.
+- NPM is never billed monthly: `RecordPayment` refuses it; daily collections and month settlement are the routes.
+- Rosters list current holders only; monetary totals count active stalls only.
+- Business-day logic uses `PhilippineTime` (UTC+8); stored timestamps stay UTC. Mobile uses device-local time.
+- Two-factor is opt-in for all and **mandatory for Heads**, enforced after sign-in so nobody can be locked out.
+- Account lockout: 5 failed attempts = 15 minutes. Access token 15 min, refresh 7 days, hashed and revoked on logout.
+- Every financial mutation is audited with actor, timestamp and before/after values.
+- Field writes carry a client operation id, so a retry on a weak connection cannot double-record.

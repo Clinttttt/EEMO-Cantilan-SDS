@@ -1,149 +1,88 @@
 # Technology Stack
 
-## Framework & Runtime
+## Frameworks and runtimes
 
-- **.NET 9** - Target framework for all projects
-- **C# 13** - Language version with nullable reference types enabled
-- **PostgreSQL** - Primary database
+Mixed on purpose — the presentation apps run ahead of the shared libraries:
 
-## Backend Stack
+| Project | Target |
+|---------|--------|
+| Domain, Application, Infrastructure, HttpClients, Api, Testing | `net9.0` |
+| Client (Blazor Server portal), ComponentTests | `net10.0` |
+| Mobile (MAUI collector app) | `net10.0-android` |
 
-- **ASP.NET Core 9** - Web API
-- **Entity Framework Core 9** - ORM with Npgsql provider
-- **MediatR** - CQRS implementation
-- **FluentValidation** - Request validation
-- **JWT Authentication** - Custom implementation (no ASP.NET Identity)
-- **Swashbuckle** - API documentation (Swagger)
+- C# with nullable reference types enabled.
+- **PostgreSQL** (Npgsql) is the only database.
 
-## Frontend Stack
+## Backend
 
-- **Blazor Server (.NET 10)** - Server-side rendering with SignalR
-- **Custom CSS** - No Tailwind in components (Tailwind only for build tooling)
-- **CSS Variables** - Design tokens in `app.css`
-- **Component-scoped CSS** - `.razor.css` files
+- ASP.NET Core Web API, JWT bearer authentication (custom — no ASP.NET Identity framework; the
+  `PasswordHasher<T>` library type is used on its own).
+- Entity Framework Core 9 + Npgsql 9.
+- MediatR 12 for CQRS, FluentValidation 12 executed by a pipeline behaviour.
+- Swashbuckle for API docs; SignalR hubs for live updates.
+- `QRCoder` 1.6.0 (pinned, fully managed) for QR images — authenticator enrolment and the collector-app bind link.
+- Hand-written RFC 6238 TOTP over the BCL's `HMACSHA1`; secrets sealed with AES-256-GCM via `ICredentialProtector`.
+- PayMongo for online payments, with per-LGU credentials.
 
-## Build Tools
+## Frontend
 
-### Backend (.NET)
-```bash
-# Restore dependencies
-dotnet restore
-
-# Build solution
-dotnet build
-
-# Run API (from EEMOCantilanSDS.Api folder)
-dotnet run
-
-# Run Blazor Client (from EEMOCantilanSDS.Client folder)
-dotnet run
-
-# Create migration (from solution root)
-dotnet ef migrations add MigrationName --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
-
-# Update database
-dotnet ef database update --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
-
-# Run tests
-dotnet test
-```
-
-### Frontend (CSS)
-```bash
-# Watch CSS changes (from EEMOCantilanSDS.Client folder)
-npm run watch
-
-# Install dependencies
-npm install
-```
-
-## Key NuGet Packages
-
-**API Layer:**
-- Microsoft.AspNetCore.Authentication.JwtBearer (9.0.5)
-- Microsoft.AspNetCore.OpenApi (9.0.14)
-- Swashbuckle.AspNetCore (9.0.5)
-
-**Infrastructure Layer:**
-- Microsoft.EntityFrameworkCore (9.0.4)
-- Microsoft.EntityFrameworkCore.Tools (9.0.4)
-- Npgsql.EntityFrameworkCore.PostgreSQL (9.0.4)
-
-**Application Layer:**
-- MediatR
-- FluentValidation
-- AutoMapper (optional, only when profiles exist)
-
-**Client Layer:**
-- Microsoft.AspNetCore.Components.WebAssembly.Server (for Blazor Server)
-
-## Database
-
-**Provider:** Npgsql (PostgreSQL)  
-**Connection String:** Configured in `appsettings.json`
-
-### PostgreSQL Type Mappings
-Always use PostgreSQL-native types:
-- `text` (not `nvarchar(max)`)
-- `character varying(n)` (not `nvarchar(n)`)
-- `boolean` (not `bit`)
-- `uuid` (not `uniqueidentifier`)
-- `timestamp with time zone` (not `datetime`/`datetime2`)
-- `numeric(18,2)` for decimals
-- `integer` for ints
-- `jsonb` for JSON data
-
-## Development Ports
-
-- **API:** https://localhost:7167 or http://localhost:5198
-- **Blazor Client:** http://localhost:5173 or https://localhost:5173
-- **CORS:** Configured for local development origins
-
-## Authentication
-
-- **Access Token:** JWT, 15 minute expiry, stored in cookie
-- **Refresh Token:** 7 day expiry, httpOnly cookie
-- **Password Hashing:** `PasswordHasher<BaseUser>` from Microsoft.AspNetCore.Identity (library only, no Identity framework)
+- **Blazor Server** portal (`@rendermode InteractiveServer`), plus the public payor portal in the same app.
+- Custom CSS with design tokens in `app.css`; component-scoped `.razor.css`. **No Tailwind in components**, no
+  inline styles.
+- Static assets are fingerprinted through `@Assets[...]`, so a deployment cannot serve stale CSS.
+- Angular (Nx) operator console lives in a **separate repository** (`stalltrack-platform`, admin.stalltrack.site).
 
 ## Testing
 
-- **Framework:** xUnit
-- **Project:** EEMOCantilanSDS.Testing
+- xUnit. Unit and integration tests: `EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj`.
+- bUnit 1.40 render tests: `EEMOCantilanSDS.ComponentTests`. Moq for test doubles.
+- **Run the two suites in separate commands** — together they cause a bUnit timing flake.
 
-## Common Commands Summary
+## Common commands
 
 ```bash
-# Start API
-cd EEMOCantilanSDS.Api
-dotnet run
+# Build everything
+dotnet build EEMOCantilanSDS.slnx
 
-# Start Blazor Client
-cd EEMOCantilanSDS.Client
-dotnet run
+# Tests — separately, always
+dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj
+dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
 
-# Watch CSS (in separate terminal)
-cd EEMOCantilanSDS.Client
-npm run watch
+# Run locally
+cd EEMOCantilanSDS.Api && dotnet run          # API
+cd EEMOCantilanSDS.Client && dotnet run       # portal
+cd EEMOCantilanSDS.Client && npm run watch    # CSS watch
 
-# Add migration
-dotnet ef migrations add MigrationName --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
+# Migrations (from the solution root) — additive only
+dotnet ef migrations add {Name} --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
+dotnet ef migrations script --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
 
-# Update database
-dotnet ef database update --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Api
-
-# Run tests
-dotnet test
-
-# Build entire solution
-dotnet build
-
-# Clean solution
-dotnet clean
+# Collector app
+dotnet build EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj -f net10.0-android
 ```
 
-## Environment Configuration
+## Database conventions
 
-Configuration files:
-- `appsettings.json` - Base configuration
-- `appsettings.Development.json` - Development overrides
-- Connection strings, JWT secrets, and API URLs configured per environment
+Postgres-native types only: `text`, `character varying(n)`, `boolean`, `uuid`,
+`timestamp with time zone`, `numeric(18,2)`, `integer`, `jsonb`. Money is always `decimal`.
+
+Production applies migrations at startup (`Database__ApplyMigrationsAtStartup=true`), so **every migration must
+be additive** — new nullable columns or new tables, never destructive DDL.
+
+## Deployment
+
+- GitHub Actions on a push to `master`: build → container images tagged with the commit SHA → Azure Container
+  Registry → two Azure Web App sitecontainers (portal + API). Roughly 10–13 minutes.
+- Workflows: `ci.yml`, `deploy-production.yml`, `publish-apk.yml` (builds the signed APK and publishes it to the
+  download site), `backup.yml`, `restore.yml`.
+- Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) do not trigger a deployment.
+- `mobile-app-site/` is the static site behind the collector-app download and bind links; `publish-apk.yml`
+  writes the APK into it. **Do not delete it.**
+- Verify a deployment rather than trusting it: image tag equals `HEAD`, API `/health` 200, portal `/login` 200,
+  and the scoped CSS bundle brace-balanced.
+
+## Local configuration
+
+`appsettings.json` + `appsettings.Development.json`; `.env` / `.env.example` for Docker Compose. Secrets
+(`Encryption:Key`, JWT signing, connection strings, PayMongo, Firebase) come from environment configuration —
+never from source.
