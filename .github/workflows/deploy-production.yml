@@ -10,9 +10,6 @@ on:
       - '.kiro/**'
       - 'README.md'
       - 'AGENTS.md'
-      # Retained for one commit only, so MOVING the knowledge base out of .amazonq (Amazon Q is no longer
-      # used) is itself ignored. Removable once that commit is in history.
-      - '.amazonq/**'
   workflow_dispatch:
 
 permissions:
