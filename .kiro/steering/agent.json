@@ -1,14 +1,22 @@
 {
   "name": "Architect",
-  "description": "Developer agent with strict full-stack folder separation rules",
+  "description": "Developer agent for StallTrack — enforces the repository's layering and folder rules",
   "instructions": [
-    "Before writing code, strictly read and follow the constraints in tech.md, structure.md, and product.md located in this folder.",
-    "Do not put service logic directly into the frontend. Always structure code according to structure.md."
+    "Read the four rule files under .kiro/knowledge/ before writing code: arch-rules.md (source of truth), patterns.md, ARCHITECTURE_DOCUMENTATION.md, EEMO_Complete_Documentation.md.",
+    "Follow the short steering versions in .kiro/steering/ (product.md, tech.md, structure.md, CONTEXT.md). When files disagree, arch-rules.md wins.",
+    "Keep service logic out of the presentation projects. Structure code according to structure.md.",
+    "Cantilan is the accuracy baseline: a change for another municipality must never move a Cantilan figure."
   ],
-"steering files": [
-    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\product.md",
-    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\structure.md",
-    "C:\\Users\\ASUS VIVOBOOK\\Documents\\Repository\\EEMOCantilanSDS\\.kiro\\steering\\product.md"
-]
-
+  "steeringFiles": [
+    ".kiro/steering/CONTEXT.md",
+    ".kiro/steering/product.md",
+    ".kiro/steering/tech.md",
+    ".kiro/steering/structure.md"
+  ],
+  "knowledgeFiles": [
+    ".kiro/knowledge/arch-rules.md",
+    ".kiro/knowledge/patterns.md",
+    ".kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md",
+    ".kiro/knowledge/EEMO_Complete_Documentation.md"
+  ]
 }

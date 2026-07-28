@@ -161,4 +161,4 @@ tenant. Consequences you must respect:
 - `master` is production: a push deploys (~10–13 minutes). Always verify afterwards — image tag equals HEAD,
   API `/health` 200, portal `/login` 200, and the scoped CSS bundle brace-balanced.
 - Mobile changes need a RELEASE APK rebuild before collectors see them.
-- Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) are excluded from the deploy trigger.
+- Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) are excluded from the deploy trigger.

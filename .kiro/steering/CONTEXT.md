@@ -1,17 +1,18 @@
 # Read this first
 
-The rules for this repository live in four files under `.amazonq/context/knowledge/`. Read them before
+The rules for this repository live in four files under `.kiro/knowledge/`. Read them before
 generating, modifying, reviewing or refactoring code.
 
 | Order | File | Purpose |
 |-------|------|---------|
-| 1 | `.amazonq/context/knowledge/arch-rules.md` | **What is allowed and what is forbidden.** Layering, DI, CQRS, multi-tenancy, money rules, EF Core, auth, Blazor, testing, and how to work in this repo. Source of truth. |
-| 2 | `.amazonq/context/knowledge/patterns.md` | **Shapes to copy** — command, query with caching, repository, controller, typed API client, Blazor page, shared component, guard, tests, naming. |
-| 3 | `.amazonq/context/knowledge/ARCHITECTURE_DOCUMENTATION.md` | **Why** the architecture is the way it is, including the trade-offs behind multi-tenancy, `Result<T>`, rate resolution and the two-factor design. |
-| 4 | `.amazonq/context/knowledge/EEMO_Complete_Documentation.md` | **Business truth** — facilities, billing models, delinquency, roles, onboarding, reporting invariants, vocabulary. |
+| 1 | `.kiro/knowledge/arch-rules.md` | **What is allowed and what is forbidden.** Layering, DI, CQRS, multi-tenancy, money rules, EF Core, auth, Blazor, testing, and how to work in this repo. Source of truth. |
+| 2 | `.kiro/knowledge/patterns.md` | **Shapes to copy** — command, query with caching, repository, controller, typed API client, Blazor page, shared component, guard, tests, naming. |
+| 3 | `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` | **Why** the architecture is the way it is, including the trade-offs behind multi-tenancy, `Result<T>`, rate resolution and the two-factor design. |
+| 4 | `.kiro/knowledge/EEMO_Complete_Documentation.md` | **Business truth** — facilities, billing models, delinquency, roles, onboarding, reporting invariants, vocabulary. |
 
 When they conflict, that order decides. The `.kiro/steering/` files (`product.md`, `tech.md`, `structure.md`)
-are the short version of the same material and are loaded automatically.
+are the short version of the same material and are loaded automatically. `AGENTS.md` in the repository root is
+the entry point for agents that look there (Codex); it points at these same four files.
 
 Follow the existing patterns instead of inventing new ones. Consistency is preferred over creativity.
 

@@ -75,7 +75,7 @@ be additive** — new nullable columns or new tables, never destructive DDL.
   Registry → two Azure Web App sitecontainers (portal + API). Roughly 10–13 minutes.
 - Workflows: `ci.yml`, `deploy-production.yml`, `publish-apk.yml` (builds the signed APK and publishes it to the
   download site), `backup.yml`, `restore.yml`.
-- Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) do not trigger a deployment.
+- Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) do not trigger a deployment.
 - `mobile-app-site/` is the static site behind the collector-app download and bind links; `publish-apk.yml`
   writes the APK into it. **Do not delete it.**
 - Verify a deployment rather than trusting it: image tag equals `HEAD`, API `/health` 200, portal `/login` 200,

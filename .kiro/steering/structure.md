@@ -19,7 +19,7 @@ EEMOCantilanSDS/
 ```
 
 Repository root also holds: `.github/workflows/` (CI, deploy, APK publish, backup, restore),
-`.amazonq/context/knowledge/` (the four rule files), `.kiro/` (steering + skills),
+`.kiro/knowledge/` (the four rule files), `.kiro/steering/` + `.kiro/skills/`, `AGENTS.md` (Codex entry point),
 `mobile-app-site/` (the static site behind the APK download and bind links — **written to by
 `publish-apk.yml`, do not delete**), `scripts/`, `tools/postgres-dev-mcp/` (local dev MCP server),
 `docker-compose.yml`, `.env.example`.
@@ -115,4 +115,4 @@ Client/
   `DependencyInjection.cs` (note: `AddApiHttpClient` for authenticated clients, plain `AddHttpClient` for the
   anonymous `IAuthApiClient`).
 - Migrations run from the solution root against the Infrastructure project.
-- Rules: `.amazonq/context/knowledge/`; steering: `.kiro/steering/`.
+- Rules: `.kiro/knowledge/`; steering: `.kiro/steering/`.

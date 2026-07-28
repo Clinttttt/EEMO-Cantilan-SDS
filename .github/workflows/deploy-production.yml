@@ -5,11 +5,14 @@ on:
     branches: [master]
     paths-ignore:
       - '.github/**'
-      # Documentation-only commits must not spend a production deployment. The agent-facing knowledge base
-      # and steering rules live here; the removed docs/ folder used to be listed instead.
-      - '.amazonq/**'
+      # Documentation-only commits must not spend a production deployment. The agent-facing knowledge base,
+      # the steering rules and the Codex entry point are all documentation.
       - '.kiro/**'
       - 'README.md'
+      - 'AGENTS.md'
+      # Retained for one commit only, so MOVING the knowledge base out of .amazonq (Amazon Q is no longer
+      # used) is itself ignored. Removable once that commit is in history.
+      - '.amazonq/**'
   workflow_dispatch:
 
 permissions:

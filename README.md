@@ -77,7 +77,7 @@ dotnet ef migrations script --project EEMOCantilanSDS.Infrastructure --startup-p
 
 A push to `master` builds both container images (tagged with the commit SHA), pushes them to Azure Container
 Registry, and updates the two Azure Web App sitecontainers — portal and API. Roughly 10–13 minutes.
-Documentation-only paths (`.amazonq/**`, `.kiro/**`, `README.md`) do not trigger it.
+Documentation-only paths (`.kiro/**`, `README.md`, `AGENTS.md`) do not trigger it.
 
 Verify rather than trust: the deployed image tag equals `HEAD`, API `/health` returns 200, portal `/login`
 returns 200, and the scoped CSS bundle is brace-balanced. Collector-app changes additionally need a RELEASE APK
@@ -89,12 +89,13 @@ rebuild before collectors see them.
 
 Read these before changing code — they are the source of truth, in this order:
 
-1. `.amazonq/context/knowledge/arch-rules.md` — what is allowed and what is forbidden
-2. `.amazonq/context/knowledge/patterns.md` — the code shapes to copy
-3. `.amazonq/context/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
-4. `.amazonq/context/knowledge/EEMO_Complete_Documentation.md` — the business truth
+1. `.kiro/knowledge/arch-rules.md` — what is allowed and what is forbidden
+2. `.kiro/knowledge/patterns.md` — the code shapes to copy
+3. `.kiro/knowledge/ARCHITECTURE_DOCUMENTATION.md` — why the design is what it is
+4. `.kiro/knowledge/EEMO_Complete_Documentation.md` — the business truth
 
-Short versions of the same material live in `.kiro/steering/`.
+Short versions of the same material live in `.kiro/steering/`. `AGENTS.md` is the root entry point for agents
+that look there (Codex).
 
 Three rules worth stating on the front page:
 
