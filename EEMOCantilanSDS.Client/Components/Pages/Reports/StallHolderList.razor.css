@@ -72,7 +72,9 @@
 .sh-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .sh-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .sh-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
-.sh-doc { display: inline-block; margin-top: 10px; font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #8a6d1b; background: rgba(200, 168, 75, 0.14); padding: 4px 12px; border-radius: 999px; }
+/* The document's name is a heading on an official sheet, not a chip: a gold pill read as a status badge and
+   did not match the per-facility roster. */
+.sh-doc { display: block; margin-top: 12px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--navy); text-align: center; }
 
 /* Summary cards */
 .sh-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
@@ -271,6 +273,23 @@
     text-align: center;
 }
 
+/* The document's name is a heading on an official sheet, not a chip: the gold pill made it read as a status
+   badge and did not match the other two rosters. */
+.sh-doc {
+    text-align: center;
+}
+
+/* Section total reads exactly as it does on the per-facility roster: the label sits right against its
+   figures rather than floating on the left. */
+.sh-tfoot-row { background: #f8fafc; }
+.sh-tfoot-label { text-align: right !important; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
+.sh-tfoot-val { font-weight: 700; color: #111827; }
+
+/* The table sits directly under its section band. */
+.sh-table {
+    margin-bottom: 0;
+}
+
 /* Filtered to one facility: say it once, in the header. */
 .sh-sheet-single .sh-fac-head { display: none; }
 
@@ -293,19 +312,20 @@
     border: 1px solid #cfd6de;
 }
 
-/* Section band reads across the table, as on the office's paper form. */
+/* Section band reads across the table, as on the office's paper form. The row above is a flex container, so
+   centring has to come from the flex axis — text-align alone does nothing here. */
 .sh-section-label {
     position: relative;
+    justify-content: center;
     text-align: center;
     background: #f3f6f9;
     border: 1px solid #cfd6de;
     border-bottom: none;
+    border-radius: 0;
+    margin: 0;
     padding: 8px 12px;
     font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: .8px;
-    color: var(--navy);
 }
 
 /* The stall count keeps the right edge, so the band still states both facts. */
@@ -322,17 +342,44 @@
 }
 
 @media print {
+    /* Nothing but the document. Anything with a surface of its own — the summary cards, the toolbar, the
+       signature strip, loading and empty states — is dropped, so the sheet cannot end with an empty card or a
+       band of grey. The sheet itself loses its card treatment and prints as plain paper. */
+    .sh-controls, .sh-summary, .sh-rpt-foot, .sh-loading, .sh-state { display: none !important; }
+
+    .sh-sheet {
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .sh-facility { background: transparent; margin-bottom: 14px; }
+    .sh-facility:last-child { margin-bottom: 0; }
+
+    /* On paper only four things carry ink: the letterhead, the facility heading, the section band and the
+       table. Any other container inside the sheet is stripped of its surface, so nothing can print as an
+       empty card or a stray band of grey after the last row. */
+    .sh-sheet div:not(.sh-section-label):not(.sh-fac-head) {
+        background: transparent !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
     /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. */
     .sh-rpt-head { margin-bottom: 10px; }
     .sh-seal { width: 46px; height: 46px; }
     .sh-org { font-size: 13px; }
     .sh-gov, .sh-muni { font-size: 9.5px; }
-    .sh-doc { font-size: 12px; }
+    .sh-doc { font-size: 12px; margin-top: 6px; }
     .sh-doc-scope { font-size: 10px; }
 
     /* Rows stay whole; a block may span sheets but never right after its heading. */
     .sh-table tr { break-inside: avoid; }
     .sh-facility { break-inside: auto; }
     .sh-fac-head { break-after: avoid; }
+    .sh-section-label { break-after: avoid; }
     .sh-table thead { display: table-header-group; }
 }

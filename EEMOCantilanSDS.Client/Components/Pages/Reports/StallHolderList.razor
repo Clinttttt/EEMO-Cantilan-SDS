@@ -417,14 +417,15 @@
             <thead>
                 <tr>
                     <th class="sh-c">#</th>
-                    <th>Name of Lessee <span class="sh-th-sub">(Actual Occupant)</span></th>
-                    <th>Name per Signed Contract</th>
-                    <th class="sh-c">Stall / Space</th>
-                    <th class="sh-c">Effectivity</th>
-                    <th class="sh-c">Yrs</th>
+                    <th>Name of Lessee<br /><span class="sh-th-sub">(Actual Occupants)</span></th>
+                    <th>Name of Lessee per<br />Signed Contract</th>
+                    <th class="sh-c">Stall /<br />Space No.</th>
+                    <th class="sh-c">Effectivity of<br />Lessee Contract</th>
+                    <th class="sh-c">No. of<br />Years</th>
                     <th class="sh-c">Area</th>
-                    <th class="sh-r">Monthly Rate</th>
-                    <th class="sh-r">Whole-Year Rental</th>
+                    <th class="sh-r">Monthly Rentals<br />per Contract</th>
+                    <th class="sh-r">Actual Mo.<br />Rentals</th>
+                    <th class="sh-r">Whole Year<br />Rental</th>
                     @if (isNcc)
                     {
                         <th class="sh-c">Area Loc.</th>
@@ -444,7 +445,8 @@
                         <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
                         <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
                         <td class="sh-r">@(r.IsClosed ? "—" : Money(r.MonthlyRentalRate))</td>
-                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.MonthlyRentalRate * 12))</td>
+                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.ActualMonthlyRental))</td>
+                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.WholeYearRental))</td>
                         @if (isNcc)
                         {
                             <td class="sh-c">@(string.IsNullOrWhiteSpace(r.AreaLocation) ? "—" : r.AreaLocation)</td>
@@ -454,10 +456,11 @@
                 }
             </tbody>
             <tfoot>
-                <tr>
-                    <td colspan="7"><strong>Subtotal — @activeRows.Count active stall@(activeRows.Count != 1 ? "s" : "")</strong></td>
-                    <td class="sh-r"><strong>@Money(activeRows.Sum(r => r.MonthlyRentalRate))</strong></td>
-                    <td class="sh-r"><strong>@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</strong></td>
+                <tr class="sh-tfoot-row">
+                    <td colspan="7" class="sh-tfoot-label">Section Total — @activeRows.Count active stall@(activeRows.Count != 1 ? "s" : "")</td>
+                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</td>
+                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.ActualMonthlyRental))</td>
+                    <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.WholeYearRental))</td>
                     @if (isNcc)
                     {
                         <td></td>

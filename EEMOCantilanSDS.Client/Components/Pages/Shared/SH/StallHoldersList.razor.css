@@ -816,3 +816,48 @@
 .lsh-section-block {
     margin-bottom: 16px;
 }
+
+
+@media print {
+    /* Nothing but the document, and no surface that could print as an empty card: the hero, toolbar, search
+       and any loading or empty state are dropped, and the sheet loses its card treatment. Matches the Reports
+       roster and the collection report exactly, so all three print the same way. */
+    .lsh-hero, .page-toolbar, .lsh-actions, .lsh-seg, .search-box { display: none !important; }
+
+    .lsh-doc-panel {
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Compact letterhead — landscape leaves little vertical room. */
+    .lsh-doc-header { margin-bottom: 10px; }
+    .lsh-doc-logo { width: 46px; height: 46px; }
+    .lsh-doc-office { font-size: 13px; }
+    .lsh-doc-republic, .lsh-doc-gov { font-size: 9.5px; }
+    .lsh-doc-title { font-size: 12px; }
+    .lsh-doc-facility, .lsh-doc-section { font-size: 10px; }
+
+    /* Rows stay whole; a section never breaks straight after its band. */
+    .lsh-table tr { break-inside: avoid; }
+    .lsh-section-block { break-inside: auto; margin-bottom: 14px; }
+    .lsh-section-label-row { break-after: avoid; }
+    .lsh-table thead { display: table-header-group; }
+}
+
+
+@media print {
+    /* Protect rows, not whole sections. Guarding the entire block pushed a long section to the next sheet and
+       left the first one nearly empty — the same regression the other two sheets had. A section may now span
+       sheets, but a row never splits and a band never sits alone at the foot of a page. */
+    .lsh-section-block { page-break-inside: auto; break-inside: auto; }
+    .lsh-table tr { break-inside: avoid; }
+    .lsh-section-label-row { break-after: avoid; }
+    .lsh-table thead { display: table-header-group; }
+
+    /* Only the document's own ink prints: no card surfaces left over from the screen layout. */
+    .lsh-doc-panel { background: #fff !important; box-shadow: none !important; }
+}
