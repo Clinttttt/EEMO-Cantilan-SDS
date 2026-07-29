@@ -58,7 +58,11 @@ public class GetUtilityRegisterQueryHandler(
                     b.WaterPreviousReading, b.WaterCurrentReading, b.WaterConsumption, b.WaterCharge,
                     b.TotalCharge, b.Status.ToString(), b.BalanceDue,
                     b.ElecStatus.ToString(), b.WaterStatus.ToString(),
-                    s.HasElectricity, s.HasWater));
+                    // Metered now, OR already charged this period. A utility can be taken off a stall after a
+                    // bill was raised; hiding it then would drop a real balance out of the sheet while the
+                    // summary totals still counted it, so the report would no longer reconcile.
+                    s.HasElectricity || b.ElecCharge > 0m || b.ElecConsumption > 0m,
+                    s.HasWater || b.WaterCharge > 0m || b.WaterConsumption > 0m));
             }
             else
             {

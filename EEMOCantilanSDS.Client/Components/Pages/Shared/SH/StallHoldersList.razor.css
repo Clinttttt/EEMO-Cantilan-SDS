@@ -446,8 +446,8 @@
 }
 
 .txt-closed {
+    /* Plain, not italic: a government roster should not slant a lessee's name. */
     color: var(--text-subtle);
-    font-style: italic;
 }
 
 .txt-partial {
@@ -626,4 +626,86 @@
         table-layout: auto;
         min-width: 760px;
     }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOOLBAR EXPORT GROUP · CENTRED SECTION LINE · LANDSCAPE PRINTING
+   Appended as its own block so the document styles above are untouched.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Same export trio as the Export Data page, so both documents are operated identically. */
+.lsh-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.lsh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-card);
+    color: var(--navy);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+
+.lsh-btn:hover {
+    background: var(--bg);
+    border-color: var(--navy);
+}
+
+.lsh-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.lsh-btn-primary {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+.lsh-btn-primary:hover {
+    background: var(--navy-2);
+    border-color: var(--navy-2);
+}
+
+/* The filtered section, stated once in the document's centre instead of above the only table. */
+.lsh-doc-section {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+}
+
+@media print {
+    /* The office's paper form is landscape, and the roster carries ten columns — portrait squeezed them.
+       Printing landscape lets every column keep its width, so the sheet matches the form it replaces. */
+    @page {
+        size: landscape;
+        margin: 10mm;
+    }
+
+    .lsh-actions { display: none !important; }
+
+    /* Never slant a name or a figure on the printed record. */
+    .txt-closed, .lsh-table em, .lsh-table i { font-style: normal !important; }
 }

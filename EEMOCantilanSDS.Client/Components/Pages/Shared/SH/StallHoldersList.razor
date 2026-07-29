@@ -93,19 +93,24 @@
                         </div>
                     }
                 </div>
-                <div style="display:flex;gap:8px;">
-                    <button class="btn-outline" onclick="window.print()">
-                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
-                            <polyline points="6 9 6 2 18 2 18 9" />
-                            <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-                            <rect x="6" y="14" width="12" height="8" />
-                        </svg>
-                        Print / Export
+                <div class="lsh-actions">
+                    @* Same export trio as the Export Data page, so the two documents are operated the same way. *@
+                    <button class="lsh-btn" type="button" onclick="window.print()"
+                            title="Opens the print dialog — the sheet prints landscape so every column fits.">
+                        <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                        Print
                     </button>
-                    <a href="@BackLink" class="btn-outline">
-                        <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
-                            <polyline points="15 18 9 12 15 6" />
-                        </svg>
+                    <a class="lsh-btn" download="@CsvFileName" href="@CsvHref">
+                        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Download CSV
+                    </a>
+                    <button class="lsh-btn lsh-btn-primary" type="button" onclick="window.print()"
+                            title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
+                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                        Save as PDF
+                    </button>
+                    <a href="@BackLink" class="lsh-btn">
+                        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                         Back to @FacilityName
                     </a>
                 </div>
@@ -122,6 +127,12 @@
                     <div class="lsh-doc-gov">Municipality of @Branding.Municipality, @Branding.Province</div>
                     <div class="lsh-doc-title">List of Stallholders</div>
                     <div class="lsh-doc-facility">@FacilityName.ToUpper()</div>
+                    @* Filtering to one section makes it part of the document's identity, so it is stated once
+                       here in the centre instead of being repeated as a label above the only table. *@
+                    @if (IsSectionFiltered)
+                    {
+                        <div class="lsh-doc-section">@ActiveSection.ToUpper()</div>
+                    }
                 </div>
 
                 @if (IsFacility("npm"))
@@ -132,10 +143,13 @@
                         if (!sectionStalls.Any()) continue;
 
                         <div class="lsh-section-block">
-                            <div class="lsh-section-label-row">
-                                <span class="lsh-section-label">@sections.ToUpper()</span>
-                                <span class="lsh-section-count">@sectionStalls.Count stall@(sectionStalls.Count != 1 ? "s" : "")</span>
-                            </div>
+                            @if (!IsSectionFiltered)
+                            {
+                                <div class="lsh-section-label-row">
+                                    <span class="lsh-section-label">@sections.ToUpper()</span>
+                                    <span class="lsh-section-count">@sectionStalls.Count stall@(sectionStalls.Count != 1 ? "s" : "")</span>
+                                </div>
+                            }
 
                             <div class="lsh-table-wrap"><table class="lsh-table">
                                 <thead>
@@ -318,6 +332,59 @@
     string FacilityName => FacilityCatalog.NameOf(ParsedCode);
 
     bool IsFacility(string code) => Facility?.ToLower() == code || (string.IsNullOrEmpty(Facility) && code == "npm");
+
+    /// <summary>True when the roster is narrowed to one market section (NPM only).</summary>
+    bool IsSectionFiltered => IsFacility("npm") && ActiveSection != "All";
+
+    string CsvFileName =>
+        $"stallholders_{(Facility?.ToLower() ?? "npm")}{(IsSectionFiltered ? "_" + ActiveSection.Replace(' ', '-').ToLower() : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
+
+    /// <summary>
+    /// The roster as CSV, in the same column order as the printed form and honouring the current section
+    /// filter and search. Closed rows carry no figures on the sheet, so they carry none here either.
+    /// </summary>
+    string CsvHref
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+
+            void AppendRows(string sectionName, IEnumerable<NpmStall> rows)
+            {
+                foreach (var s in rows)
+                {
+                    sb.AppendLine(string.Join(',', new[]
+                    {
+                        Csv(sectionName),
+                        Csv(s.ActualOccupant),
+                        Csv(s.ContractName),
+                        Csv(s.StallNo),
+                        Csv(s.ContractDate?.ToString("M/d/yyyy") ?? ""),
+                        Csv("3"),
+                        Csv(s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : ""),
+                        Csv(s.IsActive ? s.MonthlyRate.ToString("0.00") : ""),
+                        Csv(s.IsActive ? s.MonthlyRate.ToString("0.00") : ""),
+                        Csv(s.IsActive ? (s.MonthlyRate * 12).ToString("0.00") : "")
+                    }));
+                }
+            }
+
+            if (IsFacility("npm"))
+                foreach (var section in VisibleSections)
+                    AppendRows(section, GetSectionStalls(section).Where(MatchSearch));
+            else
+                AppendRows(FacilityName, FilteredNonNpmStalls);
+
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
+        }
+    }
+
+    // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
+    static string Csv(string value) =>
+        value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? "\"" + value.Replace("\"", "\"\"") + "\""
+            : value;
 
     IEnumerable<string> VisibleSections => ActiveSection == "All"
         ? PresentSections

@@ -207,3 +207,48 @@
         flex-wrap: wrap;
     }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   EXPORT GROUP · LANDSCAPE PRINTING
+   Appended so the document styles above are untouched. The three actions now read as one group: the two
+   secondary buttons are outlined and only "Save as PDF" stays solid navy, matching the facility roster and
+   the Export Data page.
+   ══════════════════════════════════════════════════════════════ */
+
+.sh-print-btn {
+    background: var(--bg-card);
+    color: var(--navy);
+    border: 1px solid var(--border);
+    text-decoration: none;
+}
+
+.sh-print-btn:hover {
+    background: var(--bg);
+    border-color: var(--navy);
+}
+
+.sh-print-btn svg { stroke: currentColor; stroke-width: 1.8; }
+
+.sh-print-btn-primary {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+.sh-print-btn-primary:hover {
+    background: var(--navy-2, #112d47);
+    border-color: var(--navy-2, #112d47);
+}
+
+@media print {
+    /* The office's paper form is landscape and this roster carries up to eleven columns; portrait squeezed
+       them. Landscape keeps every column readable and matches the form being replaced. */
+    @page {
+        size: landscape;
+        margin: 10mm;
+    }
+
+    /* Never slant a name or a figure on the printed record. */
+    .sh-sheet em, .sh-sheet i, .sh-muted { font-style: normal !important; }
+}

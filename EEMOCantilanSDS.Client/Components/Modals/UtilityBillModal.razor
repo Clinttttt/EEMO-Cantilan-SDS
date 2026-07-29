@@ -26,7 +26,7 @@
             </div>
 
             <div class="ub-body">
-                @if (!HasElectricity && !HasWater)
+                @if (!ShowElec && !ShowWater)
                 {
                     @* Defensive: the caller should not offer this at all for such a stall. *@
                     <div class="ub-none">
@@ -34,7 +34,7 @@
                         record first, then record a reading here.
                     </div>
                 }
-                @if (HasElectricity)
+                @if (ShowElec)
                 {
                 <div class="ub-meter">
                     <div class="ub-meter-title">Electricity <span>kWh</span></div>
@@ -60,7 +60,7 @@
                 </div>
                 }
 
-                @if (HasWater)
+                @if (ShowWater)
                 {
                 <div class="ub-meter">
                     <div class="ub-meter-title">Water <span>cu.m</span></div>
@@ -132,6 +132,14 @@
     /// <summary>Whether the stall is billed for water.</summary>
     [Parameter] public bool HasWater { get; set; } = true;
 
+    // What the dialog actually offers: the stall's current charges, OR a utility that already carries figures
+    // on THIS month's bill. A utility can be removed from a stall after a bill was raised, and hiding it then
+    // would leave a real balance impossible to see or settle.
+    private bool ShowElec => HasElectricity || _seedHasElecData;
+    private bool ShowWater => HasWater || _seedHasWaterData;
+    private bool _seedHasElecData;
+    private bool _seedHasWaterData;
+
     private decimal ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, ElecPartial, WaterPartial;
     private PaymentStatus ElecPay = PaymentStatus.Unpaid;
     private PaymentStatus WaterPay = PaymentStatus.Unpaid;
@@ -148,8 +156,8 @@
     private int _seededMonth;
 
     // A utility the stall is not billed for contributes nothing, whatever is left in the fields.
-    private decimal ElecConsumption => HasElectricity ? Math.Max(0m, ElecCur - ElecPrev) : 0m;
-    private decimal WaterConsumption => HasWater ? Math.Max(0m, WaterCur - WaterPrev) : 0m;
+    private decimal ElecConsumption => ShowElec ? Math.Max(0m, ElecCur - ElecPrev) : 0m;
+    private decimal WaterConsumption => ShowWater ? Math.Max(0m, WaterCur - WaterPrev) : 0m;
     private decimal ElecCharge => ElecConsumption * ElecRate;
     private decimal WaterCharge => WaterConsumption * WaterRate;
     private decimal TotalCharge => ElecCharge + WaterCharge;
@@ -165,6 +173,7 @@
             ExistingBill = false; ExistingRecordedPayment = false; ConfirmingUpdate = false; SeedFailed = false;
             ElecPay = PaymentStatus.Unpaid; WaterPay = PaymentStatus.Unpaid;
             ElecPartial = WaterPartial = 0m;
+            _seedHasElecData = false; _seedHasWaterData = false;
             ElecPrev = ElecCur = ElecRate = WaterPrev = WaterCur = WaterRate = 0m;
 
             var seed = await UtilitiesApi.GetBillForEntryAsync(StallId, Year, Month);
@@ -172,6 +181,12 @@
             {
                 ElecPrev = s.ElecPreviousReading; ElecCur = s.ElecCurrentReading; ElecRate = s.ElecRatePerKwh;
                 WaterPrev = s.WaterPreviousReading; WaterCur = s.WaterCurrentReading; WaterRate = s.WaterRatePerCubicMeter;
+
+                // Keep a utility visible when this month's bill already carries figures for it, even if the
+                // stall is no longer metered for it — otherwise that balance could not be seen or settled.
+                _seedHasElecData = s.ElecPreviousReading > 0m || s.ElecCurrentReading > 0m;
+                _seedHasWaterData = s.WaterPreviousReading > 0m || s.WaterCurrentReading > 0m;
+
                 if (s.Exists)
                 {
                     ExistingBill = true;
@@ -224,23 +239,23 @@
             return;
         }
 
-        if (!HasElectricity && !HasWater)
+        if (!ShowElec && !ShowWater)
         {
             Error = "This stall is not billed for electricity or water.";
             return;
         }
 
-        if ((HasElectricity && ElecCur < ElecPrev) || (HasWater && WaterCur < WaterPrev))
+        if ((ShowElec && ElecCur < ElecPrev) || (ShowWater && WaterCur < WaterPrev))
         {
             Error = "A current reading cannot be less than the previous reading.";
             return;
         }
-        if (HasElectricity && ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
+        if (ShowElec && ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
         {
             Error = "Enter an electricity partial amount greater than ₱0.";
             return;
         }
-        if (HasWater && WaterPay == PaymentStatus.Partial && WaterPartial <= 0m)
+        if (ShowWater && WaterPay == PaymentStatus.Partial && WaterPartial <= 0m)
         {
             Error = "Enter a water partial amount greater than ₱0.";
             return;

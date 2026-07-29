@@ -58,9 +58,20 @@
                     <button class="sh-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
                 }
             </div>
-            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="Print">
+            @* Same export trio as the facility roster and the Export Data page. *@
+            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="Print"
+                    title="Opens the print dialog — the sheet prints landscape so every column fits.">
                 <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                 Print
+            </button>
+            <a class="sh-print-btn" download="@CsvFileName" href="@CsvHref">
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Download CSV
+            </a>
+            <button class="sh-print-btn sh-print-btn-primary" type="button" disabled="@_loading" @onclick="Print"
+                    title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                Save as PDF
             </button>
         </div>
     </div>
@@ -306,6 +317,56 @@
         !string.IsNullOrEmpty(value) && value.Contains(q, StringComparison.OrdinalIgnoreCase);
 
     private async Task Print() => await JS.InvokeVoidAsync("print");
+
+    private string CsvFileName =>
+        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
+
+    /// <summary>
+    /// The roster as CSV, in the printed form's column order, honouring the current facility filter and
+    /// search. Same shape as the per-facility roster's export so the two files can be compared directly.
+    /// </summary>
+    private string CsvHref
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+
+            foreach (var code in VisibleFacilities())
+            {
+                if (!_data.TryGetValue(code, out var dto)) continue;
+
+                foreach (var section in dto.Sections)
+                {
+                    foreach (var r in section.Rows.Where(MatchSearch))
+                    {
+                        sb.AppendLine(string.Join(',', new[]
+                        {
+                            Csv(FacilityCatalog.NameOf(code)),
+                            Csv(SectionDisplay(section.SectionName)),
+                            Csv(r.ActualOccupant),
+                            Csv(r.NameOnContract ?? string.Empty),
+                            Csv(r.StallNo),
+                            Csv(r.EffectivityDate == default ? "" : r.EffectivityDate.ToString("M/d/yyyy")),
+                            Csv(r.DurationYears.ToString()),
+                            Csv(r.AreaSqm is > 0 ? r.AreaSqm!.Value.ToString("0.##") : ""),
+                            Csv(r.MonthlyRentalRate.ToString("0.00")),
+                            Csv(r.ActualMonthlyRental.ToString("0.00")),
+                            Csv(r.WholeYearRental.ToString("0.00"))
+                        }));
+                    }
+                }
+            }
+
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
+        }
+    }
+
+    // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
+    private static string Csv(string value) =>
+        value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? "\"" + value.Replace("\"", "\"\"") + "\""
+            : value;
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
 

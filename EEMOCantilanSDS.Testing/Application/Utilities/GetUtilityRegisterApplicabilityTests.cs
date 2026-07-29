@@ -93,5 +93,34 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
             var row = Assert.Single(result.Value!.Rows);
             Assert.Equal("1", row.StallNo);
         }
+        [Fact]
+        public async Task Register_KeepsAUtilityThatIsNoLongerMeteredButWasAlreadyCharged()
+        {
+            // A utility can be taken off a stall AFTER a bill was raised. The charge is still owed, and the
+            // summary totals still count it, so the row must keep reporting that utility — otherwise the
+            // balance disappears from the sheet and the report stops reconciling.
+            var stall = Stall("1", electricity: false, water: true);
+
+            var bill = UtilityBill.Create(stall.Id, 2026, 7,
+                elecPreviousReading: 0m, elecCurrentReading: 34m, elecRatePerKwh: 1m,
+                waterPreviousReading: 0m, waterCurrentReading: 0m, waterRatePerCubicMeter: 1m,
+                createdBy: "test");
+
+            var stallRepo = new Mock<IStallRepository>();
+            stallRepo.Setup(r => r.GetStallsByFacilityAsync(FacilityCode.NPM, It.IsAny<MarketSection?>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<StallDto> { stall });
+
+            var utilityRepo = new Mock<IUtilityBillRepository>();
+            utilityRepo.Setup(r => r.GetForMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<UtilityBill> { bill });
+
+            var result = await new GetUtilityRegisterQueryHandler(stallRepo.Object, utilityRepo.Object)
+                .Handle(new GetUtilityRegisterQuery(2026, 7, null), CancellationToken.None);
+
+            Assert.True(result.IsSuccess);
+            var row = Assert.Single(result.Value!.Rows);
+            Assert.True(row.HasElectricity);   // no longer metered, but ₱34 was charged this period
+            Assert.True(row.HasWater);
+        }
     }
 }
