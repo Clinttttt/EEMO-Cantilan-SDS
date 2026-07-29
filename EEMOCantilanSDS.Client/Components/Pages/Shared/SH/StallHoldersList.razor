@@ -151,6 +151,9 @@
                             {
                                 <div class="lsh-section-label-row">
                                     <span class="lsh-section-label">@sections.ToUpper()</span>
+                                    @* Rename from the sheet itself; the pencil is never printed. The fully
+                                       qualified enum avoids this component's own string `FacilityCode` member. *@
+                                    <SectionLabelPencil Facility="EEMOCantilanSDS.Domain.Enums.FacilityCode.NPM" SectionKey="@sections" OnRenamed="StateHasChanged" />
                                     <span class="lsh-section-count">@sectionStalls.Count stall@(sectionStalls.Count != 1 ? "s" : "")</span>
                                 </div>
                             }

@@ -923,3 +923,14 @@
 .lsh-table tfoot td {
     border-bottom: 1px solid #cfd6de;
 }
+
+
+/* The total is the line the office reads first, so it carries a little more weight than a data row — and the
+   same weight on both official sheets. */
+.tfoot-label {
+    font-size: 10px;
+}
+
+.tfoot-val {
+    font-size: 13px;
+}

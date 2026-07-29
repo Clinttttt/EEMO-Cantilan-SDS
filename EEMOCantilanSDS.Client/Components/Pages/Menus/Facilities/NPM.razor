@@ -152,7 +152,14 @@
             }
             <div class="npm-section-info">
                 <div class="npm-section-info-left">
-                    <div class="npm-section-label">@sectionLabel</div>
+                    @* The Head can correct a section's name from where it is displayed; the pencil never prints. *@
+                    <div class="npm-section-label">
+                        @sectionLabel
+                        @if (!isAllSection && !isCustomSection)
+                        {
+                            <SectionLabelPencil Facility="FacilityCode.NPM" SectionKey="@ActiveSection" OnRenamed="OnSectionRenamed" />
+                        }
+                    </div>
                     <div class="npm-section-desc">@sectionDesc</div>
 
                 </div>
@@ -369,6 +376,13 @@
         if (result.IsSuccess && result.Value is not null)
             _customSections = result.Value.ToList();
     }
+
+    /// <summary>
+    /// After a section is renamed the label comes from the facility catalogue, which the pencil has already
+    /// re-read — so the page only needs to redraw. Section KEYS are canonical and unchanged, so nothing that
+    /// groups, filters or bills by section is affected.
+    /// </summary>
+    private void OnSectionRenamed() => StateHasChanged();
 
     private async Task RemoveCustomSectionAsync(string name)
     {

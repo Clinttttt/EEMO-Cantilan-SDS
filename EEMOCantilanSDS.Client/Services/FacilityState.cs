@@ -33,6 +33,13 @@ public class FacilityState(IFacilitiesApiClient api)
     /// <summary>Loads the tenant's facilities once per circuit; concurrent callers share the in-flight task.</summary>
     public Task EnsureLoadedAsync() => _loadTask ??= LoadAsync();
 
+    /// <summary>
+    /// Re-reads the tenant's facilities, discarding what was cached for this circuit. Used after the office
+    /// renames something (e.g. a market section's label) so every surface shows the new name at once instead
+    /// of after the next sign-in.
+    /// </summary>
+    public Task ReloadAsync() => _loadTask = LoadAsync();
+
     private async Task LoadAsync()
     {
         try

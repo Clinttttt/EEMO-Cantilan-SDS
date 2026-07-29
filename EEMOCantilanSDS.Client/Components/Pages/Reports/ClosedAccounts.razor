@@ -42,7 +42,7 @@
         <div class="ca-filter" role="group" aria-label="Year">
             <span class="ca-filter-cap">Year</span>
             <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
-                             Label="@(_year?.ToString() ?? "All years")"
+                             Label="@(_year?.ToString() ?? "Whole Time")"
                              OnSelectYear="OnPickYear" />
         </div>
 
@@ -60,8 +60,10 @@
             }
         </div>
 
-        @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list. *@
-        @if (SelectableSections.Count > 1)
+        @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list.
+           Shown whenever the facility has sections at all, so a market always states how its register is
+           divided even when every inactive account happens to sit in one section. *@
+        @if (SelectableSections.Count > 0)
         {
             <div class="ca-filter" role="group" aria-label="Section">
                 <button class="ca-chip @(_section is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(null)">All Sections</button>
@@ -168,7 +170,7 @@
                 <div class="ca-org">@Branding.OfficeName</div>
                 <div class="ca-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                 <div class="ca-doc">Register of Closed &amp; Expired Stall Accounts</div>
-                <div class="ca-doc-scope">@(_year?.ToString() ?? "All Years")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
+                <div class="ca-doc-scope">@(_year?.ToString() ?? "Whole Time")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
                 @if (_section is not null)
                 {
                     @* Stated once here, in the document's own navy, rather than repeated down the register. *@

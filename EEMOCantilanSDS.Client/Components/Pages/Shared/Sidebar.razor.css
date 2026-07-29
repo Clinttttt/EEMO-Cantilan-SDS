@@ -337,3 +337,12 @@
         display: none;
     }
 }
+
+
+/* The Dashboard mark is four separate panels; at 16px the sidebar's default 1.8 stroke thickened them until
+   they read as one grid. A thinner stroke keeps the page's geometry intact and the panels distinct. */
+:global(.nav-item .nav-icon-dashboard) {
+    stroke-width: 1.5;
+    stroke-linejoin: miter;
+    stroke-linecap: butt;
+}

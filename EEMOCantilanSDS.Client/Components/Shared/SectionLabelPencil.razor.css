@@ -1,0 +1,158 @@
+/* ══════════════════════════════════════════════════════════════════════
+   SectionLabelPencil — rename a market section's label where it is shown.
+   Deliberately quiet: the pencil is a faint glyph beside the label that only
+   gains colour on hover, so an official sheet is not decorated with controls.
+   ══════════════════════════════════════════════════════════════════════ */
+.slp {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+.slp-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: .55;
+    transition: opacity .15s, color .15s, background .15s;
+}
+
+    .slp-btn:hover {
+        opacity: 1;
+        color: var(--navy);
+        background: rgba(15, 35, 55, 0.06);
+    }
+
+    .slp-btn svg {
+        width: 13px;
+        height: 13px;
+    }
+
+/* Popover: small, anchored under the pencil, above the table's own stacking. */
+.slp-pop {
+    position: absolute;
+    top: 26px;
+    left: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    width: 250px;
+    padding: 12px;
+    text-align: left;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    box-shadow: 0 12px 28px rgba(15, 35, 55, 0.16);
+}
+
+.slp-pop-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.slp-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--navy);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+}
+
+    .slp-input:focus {
+        border-color: var(--gold);
+    }
+
+.slp-pop-hint {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text-subtle);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+}
+
+.slp-pop-error {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--red);
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+}
+
+.slp-pop-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.slp-cancel,
+.slp-clear,
+.slp-save {
+    height: 30px;
+    padding: 0 11px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: .2px;
+    border-radius: 7px;
+    cursor: pointer;
+    text-transform: none;
+}
+
+.slp-cancel,
+.slp-clear {
+    color: var(--navy);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+    .slp-cancel:hover,
+    .slp-clear:hover {
+        border-color: var(--navy);
+    }
+
+.slp-save {
+    color: #fff;
+    background: var(--navy);
+    border: 1px solid var(--navy);
+}
+
+    .slp-save:hover {
+        background: var(--navy-2, #112d47);
+    }
+
+    .slp-cancel:disabled,
+    .slp-clear:disabled,
+    .slp-save:disabled {
+        opacity: .6;
+        cursor: default;
+    }
+
+@media print {
+    /* Never on paper — an official sheet carries no controls. */
+    .slp {
+        display: none !important;
+    }
+}

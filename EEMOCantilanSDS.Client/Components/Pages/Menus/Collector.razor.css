@@ -934,3 +934,46 @@
 @media (max-width: 560px) {
     .applink-qr { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── Assigned facilities: two columns with the facility's own mark ────────────────────────────────────
+   Eight facilities in a single column ran past the dialog's height and pushed Cancel / Create Account off
+   the sheet. Two columns keep the whole assignment visible without scrolling. */
+.facility-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+}
+
+.fac-check-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--navy);
+}
+
+/* The name may be long ("Tampak Commercial Center") — it truncates rather than wrapping the row. */
+.fac-check-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .facility-checkboxes { grid-template-columns: 1fr; }
+}
+
+/* A hint under a label, matching the tone used elsewhere in the dialogs. */
+.form-hint {
+    margin: -2px 0 8px;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+}
+
+/* The password sits beside the username, so it must be exactly as wide: the eye button is positioned over
+   the field rather than taking part in the row's layout. */
+.pw-field {
+    display: block;
+    width: 100%;
+}

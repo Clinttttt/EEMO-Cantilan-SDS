@@ -62,8 +62,10 @@ public class LoginCommandHandlerTests
     }
 
     [Fact]
-    public async Task LockedOutAdmin_ReturnsUnauthorized_WithoutIssuingToken()
+    public async Task LockedOutAdmin_WithTheCorrectPassword_IsToldItIsLocked()
     {
+        // The owner of the account gets a straight answer instead of "invalid username or password" for the
+        // whole lockout window — and no token, obviously.
         var admin = NewAdmin();
         for (var i = 0; i < 5; i++) admin.RecordFailedLogin();
         Assert.True(admin.IsLockedOut);
@@ -71,8 +73,45 @@ public class LoginCommandHandlerTests
 
         var result = await handler.Handle(new LoginCommand("head", Password), CancellationToken.None);
 
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(423, result.StatusCode);
+        Assert.Contains("locked", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("5 failed sign-in attempts", result.Error);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LockedOutAdmin_WithAWrongPassword_StaysGeneric_AndTheLockIsNotExtended()
+    {
+        // Someone guessing passwords must not be able to use the lockout notice to discover that an account
+        // exists, and their guesses must not push the unlock time further out.
+        var admin = NewAdmin();
+        for (var i = 0; i < 5; i++) admin.RecordFailedLogin();
+        var lockedUntil = admin.LockedUntil;
+        var (handler, token, uow, _) = Build(admin);
+
+        var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
+
+        Assert.Equal(401, result.StatusCode);
+        Assert.Null(result.Error);
+        Assert.Equal(5, admin.FailedAttempts);
+        Assert.Equal(lockedUntil, admin.LockedUntil);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        token.Verify(t => t.CreateTokenResponse(It.IsAny<AdminUser>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task TheAttemptThatTripsTheLock_SaysSoImmediately()
+    {
+        var admin = NewAdmin();
+        for (var i = 0; i < 4; i++) admin.RecordFailedLogin();
+        var (handler, _, _, _) = Build(admin);
+
+        var result = await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
+
+        Assert.Equal(423, result.StatusCode);
+        Assert.Contains("15 minutes", result.Error);
+        Assert.True(admin.IsLockedOut);
+        Assert.Equal(5, admin.FailedAttempts);
     }
 
     [Fact]

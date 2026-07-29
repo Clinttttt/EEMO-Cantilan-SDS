@@ -1521,10 +1521,17 @@
     .kpi-row { grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; margin-bottom: 14px !important; }
     .kpi-card,
     .section-card { box-shadow: none !important; border: 1px solid #cfd6de !important; break-inside: avoid; page-break-inside: avoid; }
-    /* A card that lands at the top of a continuation sheet had nothing above it, because a page margin of zero
-       leaves no room and the container's own padding only applies once. Its own top padding travels with it,
-       so every sheet opens with the same breathing room as the first. */
-    .section-card { margin-bottom: 12px !important; padding-top: 8mm !important; }
+    .section-card { margin-bottom: 12px !important; }
+
+    /* A page margin of zero leaves no room above a card that starts a continuation sheet, and a margin on the
+       card itself is dropped at a forced break. A print-only spacer that owns the break carries the whitespace
+       instead, so the whole card sits clear of the paper's edge without changing the card's own padding. */
+    .rpt-page-space {
+        display: block !important;
+        break-before: page;
+        page-break-before: always;
+        height: 10mm;
+    }
 
     /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only
        repeat them. The chart keeps its legend and axis, which do carry information. */
@@ -1678,4 +1685,9 @@
     color: var(--text-subtle);
     font-size: .76rem;
     margin-top: 2px;
+}
+
+/* Screen-side the spacer is nothing at all; it only exists to carry the page break and its whitespace. */
+.rpt-page-space {
+    display: none;
 }

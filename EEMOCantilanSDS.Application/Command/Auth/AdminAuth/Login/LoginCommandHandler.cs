@@ -2,6 +2,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -34,14 +35,37 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         // Uniform 401 for both unknown username and wrong password — never reveal which usernames exist.
         if (user is null) return Result<TokenResponseDto>.Unauthorized();
 
-        if (user.IsLockedOut)
-            return Result<TokenResponseDto>.Unauthorized();
+        var passwordOk = new PasswordHasher<BaseUser>().VerifyHashedPassword(user, user.PasswordHash, request.Password)
+            != PasswordVerificationResult.Failed;
 
-        if (new PasswordHasher<BaseUser>().VerifyHashedPassword(user, user.PasswordHash, request.Password)
-            == PasswordVerificationResult.Failed)
+        // A locked account is told so — but only when the password is right. Someone guessing passwords keeps
+        // getting the same blank 401 and so cannot use the lockout notice to discover that an account exists,
+        // while the real owner is not left staring at "invalid credentials" for fifteen minutes. Attempts are
+        // not counted while locked, so guessing cannot extend the lock indefinitely.
+        if (user.IsLockedOut)
+        {
+            if (!passwordOk) return Result<TokenResponseDto>.Unauthorized();
+
+            var minutes = Math.Max(1, (int)Math.Ceiling((user.LockedUntil!.Value - DateTime.UtcNow).TotalMinutes));
+            return Result<TokenResponseDto>.Failure(
+                $"This account is temporarily locked after {DomainRules.MaxFailedLoginAttempts} failed sign-in attempts. " +
+                $"Please try again in {minutes} minute{(minutes == 1 ? "" : "s")}, or ask the office Head to reset your password.",
+                423);
+        }
+
+        if (!passwordOk)
         {
             user.RecordFailedLogin();
             await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // The attempt that trips the lock says so immediately, so the user is not left guessing why the
+            // next five minutes of correct passwords are refused.
+            if (user.IsLockedOut)
+                return Result<TokenResponseDto>.Failure(
+                    $"This account is now locked for {DomainRules.LockoutMinutes} minutes after " +
+                    $"{DomainRules.MaxFailedLoginAttempts} failed sign-in attempts.",
+                    423);
+
             return Result<TokenResponseDto>.Unauthorized();
         }
 

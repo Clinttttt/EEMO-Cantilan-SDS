@@ -279,8 +279,8 @@
 /* Section total reads exactly as it does on the per-facility roster: a small uppercase label pressed against
    its figures, and a hairline under the last row so the table closes properly on paper. */
 .sh-tfoot-row { background: #f8fafc; }
-.sh-tfoot-label { text-align: right !important; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
-.sh-tfoot-val { font-size: 12.5px; font-weight: 700; color: #111827; }
+.sh-tfoot-label { text-align: right !important; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
+.sh-tfoot-val { font-size: 13px; font-weight: 700; color: #111827; }
 .sh-table tfoot td { border-top: 1px solid #cfd6de !important; border-bottom: 1px solid #cfd6de !important; }
 
 /* The table sits directly under its section band. */

@@ -36,8 +36,16 @@ namespace EEMOCantilanSDS.Api.Controllers
                     }),
 
                 401 => Unauthorized(),
-                403 => StatusCode(403),          
+                403 => StatusCode(403),
                 404 => NotFound(),
+                // 423 Locked: a temporarily locked account. The body carries the message the sign-in page
+                // shows, which is safe because this status is only returned once the password itself checked
+                // out — a wrong password still gets a plain 401.
+                423 => StatusCode(423, new
+                {
+                    IsSuccess = false,
+                    Error = result.Error
+                }),
                 409 => Conflict(new
                 {
                     IsSuccess = false,

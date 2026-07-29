@@ -30,7 +30,7 @@
                 {
                     <div class="rpt-picker-grid">
                         <button type="button" class="rpt-picker-cell rpt-picker-cell-wide @(SelectedYear is null ? "selected" : "")" @onclick="() => PickFilter(null)">
-                            All years
+                            @AllYearsLabel
                         </button>
                         @foreach (var y in (FilterYears ?? Array.Empty<int>()))
                         {
@@ -114,11 +114,15 @@
     [Parameter] public EventCallback OnToday { get; set; }
     [Parameter] public EventCallback<(int Year, int Month)> OnPick { get; set; }
 
-    // Filter mode (no moving period / arrows): a year FILTER with an "All years" option — e.g. Closed Accounts.
+    // Filter mode (no moving period / arrows): a year FILTER with an unrestricted option — e.g. Closed Accounts.
     [Parameter] public bool YearFilterMode { get; set; }
     [Parameter] public int? SelectedYear { get; set; }
     [Parameter] public IReadOnlyList<int>? FilterYears { get; set; }
     [Parameter] public EventCallback<int?> OnSelectYear { get; set; }
+
+    /// <summary>Wording for the unrestricted option. A register that keeps every account ever closed reads
+    /// "Whole Time" rather than "All years", which sounded like a list of years.</summary>
+    [Parameter] public string AllYearsLabel { get; set; } = "Whole Time";
 
     private readonly DateTime _now = PhilippineTime.Now;
     private bool _open;

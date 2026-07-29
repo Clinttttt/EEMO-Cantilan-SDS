@@ -154,8 +154,8 @@
                     @if (loaded)
                     {
                         <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model!.Security.AccessTokenMinutes minutes</span></div>
-                        <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days · hashed, single-use</span></div>
-                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts → @_model.Security.LockoutMinutes-min lock</span></div>
+                        <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days</span></div>
+                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts</span></div>
                         <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the @Branding.OfficeAcronym Head</span></div>
                         <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
                     }
@@ -169,8 +169,18 @@
                 </div>
                 <div class="set-links set-links-split">
                     <div class="set-links-group">
-                        <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
-                        <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                        @* Account and collector management belongs to the Head. For an Administrator these are
+                           stated but not offered — a link that leads to a refusal is worse than no link. *@
+                        @if (_isHead)
+                        {
+                            <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
+                            <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                        }
+                        else
+                        {
+                            <span class="set-link set-link-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">Accounts</span>
+                            <span class="set-link set-link-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">Collectors</span>
+                        }
                     </div>
                     @* Two-factor lives behind this button (bottom-right of the security card) rather than as
                        its own card: it is an action the signed-in user takes on their own account, not a

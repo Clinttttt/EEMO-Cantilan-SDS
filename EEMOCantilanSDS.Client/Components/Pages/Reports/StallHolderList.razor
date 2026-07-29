@@ -219,7 +219,12 @@
                         {
                             var secRows = section.Rows.Where(MatchSearch).ToList();
                             if (secRows.Count == 0) continue;
-                            <div class="sh-section-label">@SectionDisplay(section.SectionName) <span>@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span></div>
+                            <div class="sh-section-label">
+                                @SectionDisplay(section.SectionName)
+                                @* The office can correct a section's name from the sheet itself; never printed. *@
+                                <SectionLabelPencil Facility="fc" SectionKey="@section.SectionName" OnRenamed="Load" />
+                                <span>@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span>
+                            </div>
                             @HolderTable(fc, secRows)
                         }
                     }

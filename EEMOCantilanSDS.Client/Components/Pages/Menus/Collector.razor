@@ -362,6 +362,11 @@
 
                 <div class="form-group">
                     <label class="form-label">Assigned Facilities <span class="req">*</span></label>
+                    <div class="form-hint">Select one or more facilities to assign to this collector.</div>
+                    @* Two columns with each facility's own mark: the eight facilities used to run down a single
+                       column and pushed the buttons out of the dialog. The mark is the same line art the
+                       sidebar and the facility pages use, so a collector's assignment reads the same
+                       everywhere. A facility added by the Head keeps its acronym as the fallback. *@
                     <div class="facility-checkboxes">
                         @foreach (var fac in AvailableFacilities)
                         {
@@ -374,6 +379,9 @@
                                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                                     }
                                 </div>
+                                <span class="fac-check-mark">
+                                    <FacilityMark Code="fac.Code" Ink="FacilityMarkInk.Navy" Size="20" />
+                                </span>
                                 <span class="code-badge">@fac.Code</span>
                                 <span class="fac-check-name">@fac.Name</span>
                             </div>

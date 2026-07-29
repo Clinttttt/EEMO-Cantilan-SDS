@@ -33,9 +33,10 @@
         <div class="nav-group-label">Main</div>
 
         <NavLink href="/menu" class="@NavItemClass("/menu")" Match="NavLinkMatch.All" @onclick='() => SetPendingPath("/menu")'>
-            @* The Dashboard page's own four-square mark. Rounded corners and a wider gap so it still reads as
-               four distinct panels at 16px, where square corners closed up into a single grid. *@
-            <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" /><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" /><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" /><rect x="13" y="13" width="7.5" height="7.5" rx="1.6" /></svg>
+            @* Exactly the Dashboard page's own mark: four 7x7 panels at 3/14 with square corners. An earlier
+               attempt rounded them and widened them to 7.5, which is why it never matched. The stroke is
+               thinned in CSS so the four panels stay separate at 16px. *@
+            <svg viewBox="0 0 24 24" class="nav-icon-dashboard"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
             <span>Dashboard</span>
         </NavLink>
         @if (_isHead)
