@@ -53,12 +53,25 @@
         </div>
 
         <div class="ca-filter" role="group" aria-label="Facility">
-            <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = null">All Facilities</button>
+            <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(null)">All Facilities</button>
             @foreach (var fc in Facilities)
             {
-                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => _facility = fc">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc) ? FacilityCatalog.ShortNameOf(_cc) : fc)</button>
+                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(fc)">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc) ? FacilityCatalog.ShortNameOf(_cc) : fc)</button>
             }
         </div>
+
+        @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list. *@
+        @if (SelectableSections.Count > 1)
+        {
+            <div class="ca-filter" role="group" aria-label="Section">
+                <button class="ca-chip @(_section is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(null)">All Sections</button>
+                @foreach (var section in SelectableSections)
+                {
+                    var name = section;
+                    <button class="ca-chip @(string.Equals(_section, name, StringComparison.OrdinalIgnoreCase) ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(name)">@name</button>
+                }
+            </div>
+        }
 
         <div class="ca-actions">
             <div class="ca-search">
@@ -156,6 +169,11 @@
                 <div class="ca-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                 <div class="ca-doc">Register of Closed &amp; Expired Stall Accounts</div>
                 <div class="ca-doc-scope">@(_year?.ToString() ?? "All Years")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
+                @if (_section is not null)
+                {
+                    @* Stated once here, in the document's own navy, rather than repeated down the register. *@
+                    <div class="ca-doc-section">@_section.ToUpper()</div>
+                }
                 <div class="ca-doc-period">As of @PhilippineTime.Today.ToString("MMMM d, yyyy")</div>
             </header>
 
@@ -448,8 +466,32 @@
     // ── Filters ──
     private int? _year;
     private string? _facility;
+    private string? _section;
     private InactiveAccountState? _state;
     private string _search = "";
+
+    /// <summary>
+    /// Sections present in the selected facility's inactive accounts, from the data itself — so each LGU's own
+    /// section labels appear and a facility without sections shows no rail.
+    /// </summary>
+    private IReadOnlyList<string> SelectableSections =>
+        _facility is null
+            ? Array.Empty<string>()
+            : _accounts
+                .Where(r => r.FacilityCode.ToString() == _facility && !string.IsNullOrWhiteSpace(r.Section))
+                .Select(r => r.Section)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+    // A section belongs to a facility, so changing facility drops the section filter.
+    private void SelectFacility(string? code)
+    {
+        _facility = code;
+        _section = null;
+    }
+
+    private void SelectSection(string? section) => _section = section;
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
     private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
@@ -534,6 +576,7 @@
         if (_year is int y) q = q.Where(r => EndOf(r).Year == y);
         if (_state is InactiveAccountState st) q = q.Where(r => r.State == st);
         if (_facility is not null) q = q.Where(r => r.FacilityCode.ToString() == _facility);
+        if (_section is not null) q = q.Where(r => string.Equals(r.Section, _section, StringComparison.OrdinalIgnoreCase));
         if (HasSearch)
         {
             var s = _search.Trim();

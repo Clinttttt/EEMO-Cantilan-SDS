@@ -515,18 +515,34 @@
         _error = null;
         await PaintLoadingStateAsync();
 
-        var result = await SettingsApi.GetSystemSettingsAsync();
-        if (result.IsSuccess && result.Value is not null)
+        // Cold-start resilience. On a hard refresh the page can ask for the configuration before the circuit
+        // has attached the JWT; the API then answers 401 and the page painted "Couldn't load settings" on a
+        // perfectly healthy system. Retry that one case briefly — the same pattern the report pages use — and
+        // only report a failure once the window has passed or the API answered something else.
+        string? lastError = null;
+
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            _model = result.Value;
-            CachedSettings = _model;
-        }
-        else
-        {
-            _error = string.IsNullOrWhiteSpace(result.Error)
+            var result = await SettingsApi.GetSystemSettingsAsync();
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _model = result.Value;
+                CachedSettings = _model;
+                _error = null;
+                return;
+            }
+
+            lastError = string.IsNullOrWhiteSpace(result.Error)
                 ? "The system configuration could not be retrieved."
                 : result.Error;
+
+            // 401 alone means "not authenticated yet"; a 403 is a real permission answer and must not be retried.
+            if (result.StatusCode != 401) break;
+
+            await Task.Delay(400);
         }
+
+        _error = lastError ?? "The system configuration could not be retrieved.";
     }
 
     private async Task PaintLoadingStateAsync()

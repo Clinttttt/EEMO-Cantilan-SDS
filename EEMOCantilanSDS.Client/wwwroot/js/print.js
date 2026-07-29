@@ -21,7 +21,9 @@ window.stalltrackPrint = {
         style.id = STYLE_ID;
         style.media = 'print';
         style.textContent =
-            '@page { size: landscape; margin: 0; }' +
+            // A paper size must be named alongside the orientation: `size: landscape` on its own is treated as
+            // a hint and the dialog still opened Portrait, so the ten-column roster came out over two sheets.
+            '@page { size: A4 landscape; margin: 0; }' +
             'html, body { margin: 0 !important; }' +
             'body { padding: 10mm 12mm !important; }';
         document.head.appendChild(style);

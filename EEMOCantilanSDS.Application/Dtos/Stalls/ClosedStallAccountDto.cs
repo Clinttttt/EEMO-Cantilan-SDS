@@ -23,5 +23,8 @@ public sealed record ClosedStallAccountDto(
     DateOnly ExpiryDate,
     decimal LifetimeCollected,
     decimal Uncollected,
-    string? ClosedBy
+    string? ClosedBy,
+    /// <summary>Market section (NPM) or area location, using the tenant's own label; empty for facilities
+    /// that have no sections. Lets the register be filtered and printed one section at a time.</summary>
+    string Section = ""
 );

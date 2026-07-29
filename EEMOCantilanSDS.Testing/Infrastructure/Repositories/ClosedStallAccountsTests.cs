@@ -56,6 +56,32 @@ public class ClosedStallAccountsTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task ClosedNpmStall_CarriesTheTenantsOwnSectionLabel()
+    {
+        // The register can be filtered and printed one section at a time, so each row must state its section
+        // using the LGU's own label — a municipality that calls its vegetable section "Gulayan" must not see
+        // the canonical name, and a custom section must state its own name.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        facility.SetSectionLabels("Gulayan", null, null);
+
+        var canonical = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var custom = Stall.Create(facility.Id, "2", 900m, ApplicableFees.DailyRental, section: null, customSectionName: "Sari-sari Area");
+        var canonicalContract = Contract.Create(canonical.Id, "Ana Reyes", "Ana Reyes", new DateOnly(2026, 6, 1), 3, 900m);
+        var customContract = Contract.Create(custom.Id, "Ben Cruz", "Ben Cruz", new DateOnly(2026, 6, 1), 3, 900m);
+        canonical.Close(new DateOnly(2026, 6, 10), "Head");
+        custom.Close(new DateOnly(2026, 6, 10), "Head");
+
+        context.AddRange(facility, canonical, custom, canonicalContract, customContract);
+        await context.SaveChangesAsync();
+
+        var rows = await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None);
+
+        Assert.Equal("Gulayan", rows.Single(r => r.StallNo == "1").Section);
+        Assert.Equal("Sari-sari Area", rows.Single(r => r.StallNo == "2").Section);
+    }
+
+    [Fact]
     public async Task ClosedMonthlyStall_ReportsLifetimeCollected_AndArrearsUpToCloseMonth()
     {
         var context = NewContext();

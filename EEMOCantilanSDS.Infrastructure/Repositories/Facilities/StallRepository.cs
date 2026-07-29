@@ -782,7 +782,12 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 contractExpiry,
                 lifetimeCollected,
                 uncollected,
-                stall.UpdatedBy));
+                stall.UpdatedBy,
+                // The tenant's own section label (canonical sections) or the stall's custom section name, so
+                // the register can be filtered and printed section by section like the roster.
+                stall.Section is { } closedSec
+                    ? (stall.Facility!.SectionLabel(closedSec) ?? GetSectionName(closedSec))
+                    : (stall.CustomSectionName ?? string.Empty)));
         }
 
         return result

@@ -911,3 +911,15 @@
     font-size: 11px;
     letter-spacing: .1em;
 }
+
+
+/* The facility keeps the office's gold; the section under it is set in the document's navy, so the letterhead
+   does not carry two headline colours. */
+.lsh-doc-section {
+    color: var(--navy);
+}
+
+/* Close the table under the total, as the paper form does. */
+.lsh-table tfoot td {
+    border-bottom: 1px solid #cfd6de;
+}

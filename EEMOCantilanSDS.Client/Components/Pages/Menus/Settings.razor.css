@@ -178,6 +178,8 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 14px;
+    /* Same gap the card grid leaves, so the state never sits flush against the Session card below it. */
+    margin-bottom: 18px;
 }
 .set-state-title { font-size: 15px; font-weight: 800; color: var(--navy); }
 .set-state-text { font-size: 13px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }

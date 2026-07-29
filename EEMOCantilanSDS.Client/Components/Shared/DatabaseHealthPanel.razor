@@ -25,8 +25,20 @@
 
     @if (_model is null && _error is null)
     {
+        @* Mirrors the panel it stands in for: the Connections row is stacked with its usage bar, then the eight
+           single-line metrics. A generic list of identical lines did not read as this card loading. *@
         <div class="set-rows">
-            @for (var i = 0; i < 9; i++)
+            <div class="set-row dh-row-stack">
+                <span class="sk dh-sk-key"></span>
+                <span class="set-val dh-conn-val">
+                    <span class="dh-conn-nums">
+                        <span class="sk dh-sk-num"></span>
+                        <span class="dh-conn-sub"><span class="sk dh-sk-sub"></span></span>
+                    </span>
+                    <span class="sk dh-sk-bar"></span>
+                </span>
+            </div>
+            @for (var i = 0; i < 8; i++)
             {
                 <div class="set-row"><span class="sk dh-sk-key"></span><span class="sk dh-sk-val"></span></div>
             }

@@ -1257,26 +1257,6 @@
     color: var(--text-muted);
 }
 
-.rpt-legend-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 12px 22px 16px;
-    font-size: 11.5px;
-    color: var(--text-subtle);
-    line-height: 1.5;
-}
-
-.rpt-legend-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    background: #fafbfc;
-    border: 1px solid var(--border);
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-
 /* ══════════════════════════════════════════════════════════════
    LOADING / ERROR / EMPTY STATES
    ══════════════════════════════════════════════════════════════ */
@@ -1541,12 +1521,14 @@
     .kpi-row { grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; margin-bottom: 14px !important; }
     .kpi-card,
     .section-card { box-shadow: none !important; border: 1px solid #cfd6de !important; break-inside: avoid; page-break-inside: avoid; }
-    .section-card { margin-bottom: 12px !important; }
+    /* A card that lands at the top of a continuation sheet had nothing above it, because a page margin of zero
+       leaves no room and the container's own padding only applies once. Its own top padding travels with it,
+       so every sheet opens with the same breathing room as the first. */
+    .section-card { margin-bottom: 12px !important; padding-top: 8mm !important; }
 
     /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only
        repeat them. The chart keeps its legend and axis, which do carry information. */
     .rpt-trend-card .section-header { display: none !important; }
-    .rpt-trend-card { padding-top: 14px !important; }
 
     /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print, and keep their
        fill: without this the printer drops the gradients and the chart comes out as empty outlines. */

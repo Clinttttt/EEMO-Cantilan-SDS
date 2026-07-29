@@ -256,3 +256,15 @@
         gap: 14px;
     }
 }
+
+/* Filtered section, stated once in the letterhead in the document's own navy — the same treatment the
+   stallholder roster and the collection report use. */
+.ca-doc-section {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    text-align: center;
+}
