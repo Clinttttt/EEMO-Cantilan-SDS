@@ -246,6 +246,8 @@
 
         </div><!-- end content-area -->
 
+@* Only the utilities this stall is registered for are billable — a Razor comment must sit OUTSIDE the tag:
+   inside an attribute list it is parsed as a parameter NAME, which compiles and then throws at render. *@
 <UtilityBillModal Show="ShowUtility"
                   StallId="@(UtilityStall?.StallGuid ?? Guid.Empty)"
                   StallNo="@(UtilityStall?.StallNo ?? string.Empty)"
@@ -253,7 +255,6 @@
                   Section="@(UtilityStall?.Section ?? string.Empty)"
                   Year="@PhilippineTime.Now.Year"
                   Month="@PhilippineTime.Now.Month"
-                  @* Only the utilities this stall is registered for are billable. *@
                   HasElectricity="@(UtilityStall?.HasElectricity ?? false)"
                   HasWater="@(UtilityStall?.HasWater ?? false)"
                   OnClose="CloseUtility"
