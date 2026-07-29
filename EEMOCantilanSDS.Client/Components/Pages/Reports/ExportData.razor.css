@@ -74,7 +74,7 @@
 .ex-frame > thead > tr > td, .ex-frame > tfoot > tr > td, .ex-frame > tbody > tr > td { padding: 0; border: none; }
 .ex-frame-space { height: 0; }
 .ex-rpt-head { text-align: center; margin-bottom: 20px; }
-.ex-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
+.ex-seal { width: 54px; height: 54px; object-fit: contain; margin: 0 auto 8px; display: block; }
 .ex-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .ex-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .ex-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
@@ -172,7 +172,9 @@
 /* ── Print: only the sheet, full width ── */
 @media print {
     .no-print { display: none !important; }
-    .ex-sheet { border: none; border-radius: 0; padding: 0 12mm; }
+    /* Paper margin comes from js/print.js (page margin is zero so the browser cannot draw its own header and
+       footer), so the sheet itself adds none. */
+    .ex-sheet { border: none; border-radius: 0; padding: 0; }
     .ex-frame-space { height: 12mm; }   /* repeats as top & bottom whitespace on every page */
     .content-area { padding: 0 !important; }
     .ex-table tbody tr:hover { background: transparent; }
@@ -305,4 +307,16 @@
     .ex-facility { break-inside: auto; }
     .ex-fac-head { break-after: avoid; }
     .ex-table thead { display: table-header-group; }   /* repeat column headings on each sheet */
+}
+
+/* ── Per-trip day grouping ────────────────────────────────────────────────────────────────────────────
+   The day is written once and spans its trips, so a reader never has to work out which day a trip number
+   belongs to. A hairline marks where one day ends and the next begins. */
+.ex-day-cell {
+    vertical-align: middle;
+    font-weight: 600;
+}
+
+.ex-day-start > td {
+    border-top: 1px solid #b9c3ce;
 }

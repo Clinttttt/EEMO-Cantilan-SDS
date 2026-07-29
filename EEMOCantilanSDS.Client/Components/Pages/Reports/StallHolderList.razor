@@ -76,6 +76,24 @@
         </div>
     </div>
 
+    @* Sections of the selected facility, straight from its data: a facility with a single section shows no
+       rail, and each LGU's own section labels appear without being named here. *@
+    @if (SelectableSections.Count > 1)
+    {
+        <div class="sh-controls sh-controls-sub no-print">
+            <div class="sh-filter">
+                <button class="sh-chip @(_section is null ? "sh-chip-active" : "")" type="button"
+                        @onclick="@(() => SelectSection(null))">All Sections</button>
+                @foreach (var section in SelectableSections)
+                {
+                    var name = section.SectionName;
+                    <button class="sh-chip @(_section == name ? "sh-chip-active" : "")" type="button"
+                            @onclick="@(() => SelectSection(name))">@SectionDisplay(name)</button>
+                }
+            </div>
+        </div>
+    }
+
     @if (_loading)
     {
         <div class="sh-loading no-print" aria-busy="true" aria-label="Loading stall holder list">
@@ -155,7 +173,7 @@
             </div>
         </div>
 
-        <section class="sh-sheet @(_facility is not null ? "sh-sheet-single" : "")">
+        <section class="sh-sheet @(_facility is not null ? "sh-sheet-single" : "") @(IsSectionFiltered ? "sh-sheet-section" : "")">
             <header class="sh-rpt-head">
                 <img class="sh-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
                 <div class="sh-gov">Republic of the Philippines</div>
@@ -165,6 +183,11 @@
                    instead of both crammed into one sentence. *@
                 <div class="sh-doc">List of Stallholders</div>
                 <div class="sh-doc-scope">@(_facility is null ? "ALL FACILITIES" : FacilityCatalog.NameOf(_facility.Value).ToUpper())</div>
+                @if (IsSectionFiltered)
+                {
+                    @* Stated once here, so the band inside the table is not repeated. *@
+                    <div class="sh-doc-section">@SectionDisplay(_section!).ToUpper()</div>
+                }
             </header>
 
             @if (allRows.Count == 0)
@@ -192,7 +215,7 @@
 
                     @if (fc == FacilityCode.NPM)
                     {
-                        @foreach (var section in _data[fc].Sections)
+                        @foreach (var section in SectionsFor(fc))
                         {
                             var secRows = section.Rows.Where(MatchSearch).ToList();
                             if (secRows.Count == 0) continue;
@@ -222,6 +245,7 @@
     private readonly Dictionary<FacilityCode, StallHoldersListDto> _data = new();
     private bool _loading = true;
     private FacilityCode? _facility;   // null = all
+    private string? _section;          // null = every section of the selected facility
     private string _search = "";
 
     [PersistentState(AllowUpdates = true)]
@@ -229,7 +253,15 @@
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
-    private void SelectFacility(FacilityCode? code) => _facility = code;
+    // Changing facility drops any section filter: sections belong to a facility, so keeping one would silently
+    // filter the new facility by a section it does not have.
+    private void SelectFacility(FacilityCode? code)
+    {
+        _facility = code;
+        _section = null;
+    }
+
+    private void SelectSection(string? section) => _section = section;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
 
@@ -304,10 +336,29 @@
     private IReadOnlyList<FacilityCode> VisibleFacilities() =>
         StallFacilities.Where(c => (_facility is null || _facility == c) && _data.ContainsKey(c)).ToList();
 
-    private IEnumerable<StallHolderRowDto> RowsFor(FacilityCode code) =>
+    /// <summary>
+    /// Sections of the selected facility that still have rows, in the order the API returned them. Drives the
+    /// section rail, so a facility with one section (or none) shows no rail and every LGU's own section names
+    /// appear without being hardcoded here.
+    /// </summary>
+    private IReadOnlyList<StallHoldersSectionDto> SelectableSections =>
+        _facility is not null && _data.TryGetValue(_facility.Value, out var dto)
+            ? dto.Sections.Where(s => s.Rows.Count > 0).ToList()
+            : Array.Empty<StallHoldersSectionDto>();
+
+    private bool IsSectionFiltered => _section is not null;
+
+    private bool MatchSection(StallHoldersSectionDto section) =>
+        _section is null || string.Equals(section.SectionName, _section, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Sections of a facility that pass the section filter and still have rows after the search.</summary>
+    private IEnumerable<StallHoldersSectionDto> SectionsFor(FacilityCode code) =>
         _data.TryGetValue(code, out var dto)
-            ? dto.Sections.SelectMany(s => s.Rows).Where(MatchSearch)
-            : Enumerable.Empty<StallHolderRowDto>();
+            ? dto.Sections.Where(s => MatchSection(s) && s.Rows.Any(MatchSearch))
+            : Enumerable.Empty<StallHoldersSectionDto>();
+
+    private IEnumerable<StallHolderRowDto> RowsFor(FacilityCode code) =>
+        SectionsFor(code).SelectMany(s => s.Rows).Where(MatchSearch);
 
     private bool MatchSearch(StallHolderRowDto r)
     {
@@ -324,11 +375,11 @@
     private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
 
     private string CsvFileName =>
-        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
+        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
 
     /// <summary>
-    /// The roster as CSV, in the printed form's column order, honouring the current facility filter and
-    /// search. Same shape as the per-facility roster's export so the two files can be compared directly.
+    /// The roster as CSV, in the printed form's column order, honouring the current facility filter, section
+    /// filter and search. Same shape as the per-facility roster's export so the two files can be compared.
     /// </summary>
     private string CsvHref
     {
@@ -339,9 +390,7 @@
 
             foreach (var code in VisibleFacilities())
             {
-                if (!_data.TryGetValue(code, out var dto)) continue;
-
-                foreach (var section in dto.Sections)
+                foreach (var section in SectionsFor(code))
                 {
                     foreach (var r in section.Rows.Where(MatchSearch))
                     {
@@ -456,8 +505,10 @@
                 }
             </tbody>
             <tfoot>
+                @* The band above already states the section and its stall count, so the total row carries only
+                   its figures — a government form repeats nothing. *@
                 <tr class="sh-tfoot-row">
-                    <td colspan="7" class="sh-tfoot-label">Section Total — @activeRows.Count active stall@(activeRows.Count != 1 ? "s" : "")</td>
+                    <td colspan="7" class="sh-tfoot-label">Total</td>
                     <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</td>
                     <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.ActualMonthlyRental))</td>
                     <td class="sh-r sh-tfoot-val">@Money(activeRows.Sum(r => r.WholeYearRental))</td>

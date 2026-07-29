@@ -68,7 +68,7 @@
 /* Sheet + document header */
 .sh-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
 .sh-rpt-head { text-align: center; margin-bottom: 20px; }
-.sh-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
+.sh-seal { width: 54px; height: 54px; object-fit: contain; margin: 0 auto 8px; display: block; }
 .sh-gov { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
 .sh-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
 .sh-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
@@ -244,12 +244,9 @@
 }
 
 @media print {
-    /* The office's paper form is landscape and this roster carries up to eleven columns; portrait squeezed
-       them. Landscape keeps every column readable and matches the form being replaced. */
-    @page {
-        size: landscape;
-        margin: 10mm;
-    }
+    /* Orientation and paper margin come from js/print.js, which injects them immediately before printing.
+       A scoped stylesheet's @page is not scoped by CSS isolation, so declaring it here would silently change
+       every other printable page in the app. */
 
     /* Never slant a name or a figure on the printed record. */
     .sh-sheet em, .sh-sheet i, .sh-muted { font-style: normal !important; }
@@ -383,3 +380,29 @@
     .sh-section-label { break-after: avoid; }
     .sh-table thead { display: table-header-group; }
 }
+
+/* ── Section rail + filtered scope ────────────────────────────────────────────────────────────────────
+   When a facility with several sections is selected, its own sections become a second rail below the
+   facility rail. The rail is built from the facility's data, so it carries whatever sections the LGU has. */
+.sh-controls-sub {
+    margin-top: -6px;
+    padding-top: 10px;
+    background: none;
+    border: none;
+    border-top: 1px dashed var(--border);
+    border-radius: 0;
+}
+
+/* Filtered scope is stated once in the letterhead, in the same gold as the facility line. */
+.sh-doc-section {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b98f27;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    text-align: center;
+}
+
+/* With the section named above, the band inside the table would only repeat it - on screen and on paper. */
+.sh-sheet-section .sh-section-label { display: none; }

@@ -1478,19 +1478,16 @@
     max-width: 300px;
 }
 
-/* Refreshing cue — shown above the still-visible report while a new period loads (no blank flash). */
-.rpt-refreshing {
+/* Refreshing cue — shown while a new period loads, so the report never blank-flashes. It lives at the right
+   of the scope rail, which was otherwise empty. */
+.rpt-scope-state {
     display: inline-flex;
     align-items: center;
     gap: 8px;
     font-size: 12.5px;
     font-weight: 600;
     color: var(--text-muted);
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 5px 14px;
-    margin-bottom: 14px;
+    white-space: nowrap;
 }
 .rpt-refreshing-dot {
     width: 8px;
@@ -1507,22 +1504,23 @@
 
 /* ══ Export PDF (browser print) — scoped to the Financial Reports page ══
    The Export PDF button calls window.print(); these rules narrow the printed
-   sheet to a formal header + KPI cards + Revenue Trend + Revenue by Facility,
-   hiding all page chrome and the sections outside that scope. Portrait A4 (the
-   global print default) with the whole summary on one clean paper. */
+   sheet to a formal header + KPI cards + the trend chart + Revenue by Facility,
+   hiding all page chrome and the sections outside that scope. Landscape A4, so
+   the chart and the seven-column facility table keep the shape they have on
+   screen; the paper margin comes from padding because the page margin is zero
+   (a zero margin leaves the browser nowhere to print its own date/URL header). */
 .rpt-pdf-header { display: none; }
 
 @media print {
     .topbar,
     .rpt-scope,
     .rpt-filter-panel,
-    .rpt-state,
-    .rpt-refreshing { display: none !important; }
+    .rpt-state { display: none !important; }
 
-    /* Only header + KPIs + Revenue Trend + Revenue by Facility print (Attention & Recent Records are excluded). */
+    /* Only header + KPIs + trend + Revenue by Facility print (Attention & Recent Records are excluded). */
     .content-area > .section-card:not(.pdf-include) { display: none !important; }
 
-    .content-area { page: report-doc; padding: 0 !important; background: #fff !important; }
+    .content-area { page: report-doc; padding: 10mm 12mm !important; background: #fff !important; }
 
     .rpt-pdf-header {
         display: block !important;
@@ -1534,8 +1532,8 @@
     }
     .rpt-pdf-logo { display: block; width: 54px; height: 54px; object-fit: contain; margin: 0 auto 8px; }
     .rpt-pdf-republic { text-transform: uppercase; letter-spacing: .12em; font-size: 10px; color: #374151; }
-    .rpt-pdf-office { font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 700; margin: 4px 0 0; }
-    .rpt-pdf-muni { font-size: 12px; color: #4b5563; }
+    .rpt-pdf-office { font-size: 15px; font-weight: 700; margin: 4px 0 0; }
+    .rpt-pdf-muni { font-size: 11px; color: #4b5563; }
     .rpt-pdf-title { margin-top: 12px; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; font-weight: 800; }
     .rpt-pdf-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 11px; color: #4b5563; }
 
@@ -1545,15 +1543,28 @@
     .section-card { box-shadow: none !important; border: 1px solid #cfd6de !important; break-inside: avoid; page-break-inside: avoid; }
     .section-card { margin-bottom: 12px !important; }
 
-    /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print. */
+    /* The sheet's own letterhead already states the scope and the period, so the chart's heading would only
+       repeat them. The chart keeps its legend and axis, which do carry information. */
+    .rpt-trend-card .section-header { display: none !important; }
+    .rpt-trend-card { padding-top: 14px !important; }
+
+    /* Trend bars animate + show hover tooltips on screen — freeze/hide for a static print, and keep their
+       fill: without this the printer drops the gradients and the chart comes out as empty outlines. */
     .bar-tip { display: none !important; }
     .bar { animation: none !important; }
+    .bar, .bar::before, .bar::after, .legend-dot, .rpt-grid-line {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
 
-    /* Compact the 7-column facility table so it fits the portrait page. */
+    /* Compact the 7-column facility table so it fits the page. */
     .rpt-table-scroll { overflow: visible !important; }
     .fac-table { font-size: 10.5px !important; }
     .fac-table th,
     .fac-table td { padding: 4px 7px !important; }
+
+    /* Nothing on paper can be expanded, so the disclosure arrow is only ink. */
+    .fac-caret { display: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════

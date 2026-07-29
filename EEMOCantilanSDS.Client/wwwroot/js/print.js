@@ -5,6 +5,11 @@
 // the rule to a global sheet is not an option either, because @page cannot be conditioned on a page or class.
 // Injecting it immediately before printing and removing it afterwards is deterministic and affects only the
 // document being printed.
+//
+// The page margin is deliberately zero. Chromium draws its own header and footer — the print date, the
+// document title and the page URL — inside the page margin, and there is no CSS switch for them; with no
+// margin there is nowhere to draw them, so an official sheet leaves the printer carrying only the office's
+// own letterhead. The paper margin is supplied as padding on the body instead.
 window.stalltrackPrint = {
     // Print the current page in landscape. Safe to call repeatedly: the injected rule is removed each time,
     // so a later portrait print (another page) is unaffected.
@@ -15,7 +20,10 @@ window.stalltrackPrint = {
         const style = document.createElement('style');
         style.id = STYLE_ID;
         style.media = 'print';
-        style.textContent = '@page { size: landscape; margin: 10mm; }';
+        style.textContent =
+            '@page { size: landscape; margin: 0; }' +
+            'html, body { margin: 0 !important; }' +
+            'body { padding: 10mm 12mm !important; }';
         document.head.appendChild(style);
 
         try {

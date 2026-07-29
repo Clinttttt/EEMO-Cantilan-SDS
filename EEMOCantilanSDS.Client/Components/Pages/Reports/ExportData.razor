@@ -478,6 +478,41 @@
     private sealed record ExSlhGroup(
         string Payor, string Date, string? Or, int Heads, decimal Amount, IReadOnlyList<ExTxnRow> Lines);
 
+    /// <summary>One day's transactions for a per-trip facility, in trip order.</summary>
+    private sealed record ExDayGroup(string Date, IReadOnlyList<ExTxnRow> Rows);
+
+    /// <summary>
+    /// Groups transactions by their day so the day can be written once and span its rows. Trip numbers restart
+    /// each day, so an ungrouped list reads as if a driver made "Trip #1" twice in the period. The report's
+    /// dates are formatted "MMM d"; they are parsed against the report's own year so days sort chronologically,
+    /// and anything that does not parse keeps the order the API returned it in.
+    /// </summary>
+    private static IReadOnlyList<ExDayGroup> GroupByDay(IReadOnlyList<ExTxnRow> rows, int year)
+    {
+        static DateTime? Day(string date, int year) =>
+            DateTime.TryParseExact($"{date} {year}", "MMM d yyyy",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var parsed)
+                ? parsed
+                : null;
+
+        static int TripNo(string reference)
+        {
+            var digits = new string(reference.Where(char.IsDigit).ToArray());
+            return int.TryParse(digits, out var value) ? value : int.MaxValue;
+        }
+
+        return rows
+            .Select((row, index) => (Row: row, Index: index))
+            .GroupBy(x => x.Row.Date)
+            .OrderBy(g => Day(g.Key, year) ?? DateTime.MaxValue)
+            .ThenBy(g => g.Min(x => x.Index))
+            .Select(g => new ExDayGroup(
+                g.Key,
+                g.OrderBy(x => TripNo(x.Row.Ref)).ThenBy(x => x.Index).Select(x => x.Row).ToList()))
+            .ToList();
+    }
+
     private static IReadOnlyList<ExSlhGroup> MergeSlh(IReadOnlyList<ExTxnRow> rows)
     {
         var byReceipt = new Dictionary<string, List<ExTxnRow>>();
@@ -733,19 +768,29 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @* Terminal trips are numbered per day, so "Trip #1" means nothing without its date. The
+                       day is written once and spans its trips, and the trips read in order within the day. *@
                     @{ var n = 1; }
-                    @foreach (var t in f.Txns)
+                    @foreach (var day in GroupByDay(f.Txns, _year))
                     {
-                        <tr>
-                            <td class="ex-c">@n</td>
-                            <td class="ex-l">@t.Payor</td>
-                            <td class="ex-c">@t.Date</td>
-                            <td class="ex-c">@t.Ref</td>
-                            <td class="ex-l">@t.Detail</td>
-                            <td class="ex-c">@(string.IsNullOrWhiteSpace(t.Or) ? "—" : t.Or)</td>
-                            <td class="ex-r">@Money(t.Amount)</td>
-                        </tr>
-                        n++;
+                        var firstOfDay = true;
+                        @foreach (var t in day.Rows)
+                        {
+                            <tr class="@(firstOfDay ? "ex-day-start" : "")">
+                                <td class="ex-c">@n</td>
+                                <td class="ex-l">@t.Payor</td>
+                                @if (firstOfDay)
+                                {
+                                    <td class="ex-c ex-day-cell" rowspan="@day.Rows.Count">@day.Date</td>
+                                }
+                                <td class="ex-c">@t.Ref</td>
+                                <td class="ex-l">@t.Detail</td>
+                                <td class="ex-c">@(string.IsNullOrWhiteSpace(t.Or) ? "—" : t.Or)</td>
+                                <td class="ex-r">@Money(t.Amount)</td>
+                            </tr>
+                            n++;
+                            firstOfDay = false;
+                        }
                     }
                 </tbody>
                 <tfoot>

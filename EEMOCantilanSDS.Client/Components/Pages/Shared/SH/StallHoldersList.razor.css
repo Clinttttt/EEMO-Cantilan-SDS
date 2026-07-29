@@ -697,12 +697,8 @@
 }
 
 @media print {
-    /* The office's paper form is landscape, and the roster carries ten columns — portrait squeezed them.
-       Printing landscape lets every column keep its width, so the sheet matches the form it replaces. */
-    @page {
-        size: landscape;
-        margin: 10mm;
-    }
+    /* Orientation and paper margin come from js/print.js, injected immediately before printing: CSS isolation
+       does not scope @page, so declaring it here would change every other printable page in the app. */
 
     .lsh-actions { display: none !important; }
 
@@ -860,4 +856,58 @@
 
     /* Only the document's own ink prints: no card surfaces left over from the screen layout. */
     .lsh-doc-panel { background: #fff !important; box-shadow: none !important; }
+}
+
+/* ── Letterhead: one scale for all three official sheets ──────────────────────────────────────────────
+   The roster used a 22px Georgia office name and a heavy black rule, while the Reports roster and the
+   collection report used the office's sans face at 15px with no rule. Three sheets from one office should
+   not disagree on their own letterhead, so this adopts the shared scale. */
+.lsh-doc-header {
+    margin-bottom: 20px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.lsh-doc-logo {
+    width: 54px;
+    height: 54px;
+    /* contain, never cover: another LGU's seal need not be square, and cropping a municipal seal is not
+       something a government sheet may do. */
+    object-fit: contain;
+    margin: 0 auto 8px;
+}
+
+.lsh-doc-republic {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+
+.lsh-doc-office {
+    margin: 2px 0 0;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--navy);
+}
+
+.lsh-doc-gov {
+    margin-top: 2px;
+    font-size: 11px;
+    color: var(--text-subtle);
+}
+
+.lsh-doc-title {
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    color: var(--navy);
+}
+
+.lsh-doc-facility, .lsh-doc-section {
+    margin-top: 4px;
+    font-size: 11px;
+    letter-spacing: .1em;
 }

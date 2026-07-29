@@ -196,7 +196,8 @@
                                 <tfoot>
                                     <tr class="tfoot-row">
                                         <td colspan="7" class="tfoot-label">
-                                            Section Total — @sectionStalls.Count(s => s.IsActive) active stall@(sectionStalls.Count(s => s.IsActive) != 1 ? "s" : "")
+                                            @* The band above already names the section and counts its stalls. *@
+                                            Total
                                         </td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
@@ -263,7 +264,7 @@
                             <tfoot>
                                 <tr class="tfoot-row">
                                     <td colspan="7" class="tfoot-label">
-                                        Total — @FilteredNonNpmStalls.Count(s => s.IsActive) active stall@(FilteredNonNpmStalls.Count(s => s.IsActive) != 1 ? "s" : "")
+                                        Total
                                     </td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>

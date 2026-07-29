@@ -17,9 +17,10 @@
        whitespace comes from inner padding. Degrades gracefully where named pages are unsupported. */
     @page report-landscape { size: A4 landscape; margin: 0; }
 
-    /* Portrait page WITH margins for the Financial Reports export: every page (including page 2+)
-       gets consistent top/side whitespace so content never jams against the sheet edge. */
-    @page report-doc { size: A4 portrait; margin: 12mm; }
+    /* Landscape page for the Financial Reports export: the trend chart and the seven-column facility table
+       are laid out for width, and portrait squeezed both. Margin is 0 so the browser has no margin box to
+       draw its automatic date / title / URL / page-number chrome into; the sheet pads itself instead. */
+    @page report-doc { size: A4 landscape; margin: 0; }
 
     .rpt-content,
     .print-report-sheet { page: report-landscape; }

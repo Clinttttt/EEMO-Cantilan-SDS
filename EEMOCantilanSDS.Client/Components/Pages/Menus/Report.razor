@@ -40,6 +40,14 @@
             <span class="rpt-scope-item">Frequency <strong>@FrequencyLabel</strong></span>
         </div>
 
+        @* The refresh state belongs with the scope it is refreshing: it used to appear as a loose strip above
+           the sheet, which pushed the whole report down every time a facility chip was pressed. *@
+        @if (Loading && Model is not null)
+        {
+            <div class="rpt-scope-state no-print" role="status" aria-live="polite">
+                <span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…
+            </div>
+        }
     </div>
 
     <!-- FILTER PANEL -->
@@ -153,10 +161,6 @@
     }
     else
     {
-        @if (Loading)
-        {
-            <div class="rpt-refreshing"><span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…</div>
-        }
         <!-- PRINT / PDF HEADER (only visible when printing) -->
         <div class="rpt-pdf-header pdf-include">
             <img class="rpt-pdf-logo" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
@@ -320,7 +324,7 @@
         </div>
 
         <!-- REVENUE TREND -->
-        <div class="section-card pdf-include" style="margin-bottom:20px;">
+        <div class="section-card pdf-include rpt-trend-card" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     <div class="section-title">Revenue Trend</div>
