@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    Profile.razor.css  —  Stall Profile page-scoped styles
    Blazor CSS isolation: only applies to Profile.razor
    Use --* tokens from app.css; do NOT redefine them here.
@@ -349,7 +349,6 @@
 .prof-no-contract {
     font-size: 11px;
     color: var(--text-subtle);
-    font-style: italic;
 }
 
 .prof-expiry-warn {
@@ -628,7 +627,6 @@
 
 .prof-notes-empty {
     color: var(--text-subtle);
-    font-style: italic;
 }
 
 

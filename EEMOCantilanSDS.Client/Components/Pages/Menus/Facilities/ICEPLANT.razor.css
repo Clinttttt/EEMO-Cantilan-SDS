@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    Iceplant.razor.css  —  Iceplant page-scoped styles
    Blazor CSS isolation: only applies to Iceplant.razor
    Use --* tokens from app.css; do NOT redefine them here.
@@ -295,7 +295,6 @@
 .no-contract {
     font-size: 11px;
     color: var(--text-subtle);
-    font-style: italic;
 }
 
 .amount-val {

@@ -316,7 +316,9 @@
     private static bool Contains(string? value, string q) =>
         !string.IsNullOrEmpty(value) && value.Contains(q, StringComparison.OrdinalIgnoreCase);
 
-    private async Task Print() => await JS.InvokeVoidAsync("print");
+    // Landscape: the official roster is a landscape form with eleven columns. js/print.js injects the @page
+    // rule just before printing, because a scoped stylesheet's @page does not reach the print engine.
+    private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
 
     private string CsvFileName =>
         $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";

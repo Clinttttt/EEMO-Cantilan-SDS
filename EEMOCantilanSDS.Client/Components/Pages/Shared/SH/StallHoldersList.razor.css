@@ -709,3 +709,66 @@
     /* Never slant a name or a figure on the printed record. */
     .txt-closed, .lsh-table em, .lsh-table i { font-style: normal !important; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   SECTION RAIL · CENTRED SECTION BAND
+   ══════════════════════════════════════════════════════════════ */
+
+/* One quiet rail instead of loose pills, matching the reports strip and the slaughterhouse report. */
+.lsh-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+}
+
+.lsh-seg-item {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    padding: 0 12px;
+    min-height: 32px;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+}
+
+.lsh-seg-item:hover {
+    color: var(--navy);
+    background: var(--bg-card);
+}
+
+.lsh-seg-item:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+}
+
+.lsh-seg-item.active {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+}
+
+/* The section band reads across the table, as on the office's paper form, rather than hugging the left edge.
+   The row is a flex container above, so the label is centred by the flex axis and the stall count is lifted
+   out of the flow to keep its place at the right — the row still states both facts. */
+.lsh-section-label-row {
+    position: relative;
+    justify-content: center;
+}
+
+.lsh-section-count {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+}

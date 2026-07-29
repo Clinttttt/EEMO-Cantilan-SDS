@@ -1,4 +1,4 @@
-﻿/* ═══════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════
    TPM.razor.css — Tabo-an Public Market
    All classes scoped under tpm- prefix.
    Uses EEMO CSS variables from app.css.
@@ -445,7 +445,6 @@
 
 .tpm-meta-none {
     color: var(--text-subtle);
-    font-style: italic;
 }
 
 .tpm-meta-future {

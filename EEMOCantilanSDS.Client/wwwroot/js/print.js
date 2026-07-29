@@ -1,0 +1,30 @@
+// Printing helpers.
+//
+// Why this exists: `@page { size: landscape }` written in a component's scoped stylesheet does not reliably
+// reach the print engine — the office's roster kept coming out portrait with its ten columns squeezed. Adding
+// the rule to a global sheet is not an option either, because @page cannot be conditioned on a page or class.
+// Injecting it immediately before printing and removing it afterwards is deterministic and affects only the
+// document being printed.
+window.stalltrackPrint = {
+    // Print the current page in landscape. Safe to call repeatedly: the injected rule is removed each time,
+    // so a later portrait print (another page) is unaffected.
+    landscape: function () {
+        const STYLE_ID = 'stalltrack-landscape-print';
+        document.getElementById(STYLE_ID)?.remove();
+
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.media = 'print';
+        style.textContent = '@page { size: landscape; margin: 10mm; }';
+        document.head.appendChild(style);
+
+        try {
+            window.print();
+        } finally {
+            // afterprint does not fire in every browser/dialog path, so clean up on a short timer as well.
+            const cleanup = () => document.getElementById(STYLE_ID)?.remove();
+            window.addEventListener('afterprint', cleanup, { once: true });
+            window.setTimeout(cleanup, 60000);
+        }
+    }
+};

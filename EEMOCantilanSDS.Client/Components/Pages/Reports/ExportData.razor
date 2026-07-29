@@ -396,8 +396,10 @@
         _ => code.ToString()
     };
 
-    private async Task Print() => await JS.InvokeVoidAsync("print");
-    private async Task SaveAsPdf() => await JS.InvokeVoidAsync("print");   // browser print dialog → "Save as PDF"
+    // Landscape for both paths: the collection report is a wide sheet and portrait squeezed the figures.
+    // js/print.js injects the @page rule immediately before printing.
+    private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
+    private async Task SaveAsPdf() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");   // dialog → "Save as PDF"
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
 

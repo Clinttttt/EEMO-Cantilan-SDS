@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>@Branding.OfficeAcronym Admin — List of Stall Holders</PageTitle>
@@ -82,20 +83,23 @@
                     </div>
                     @if (IsFacility("npm"))
                     {
-                        <div class="filter-tabs">
+                        @* Segmented rail, matching the reports strip and the slaughterhouse report — the loose
+                           pills read as stray buttons next to a government document. *@
+                        <div class="lsh-seg" role="group" aria-label="Market section">
                             @foreach (var sec in SectionKeys)
                             {
-                                <div class="filter-tab @(ActiveSection == sec ? "active" : "")"
-                                     @onclick="() => ActiveSection = sec">
+                                <button type="button" class="lsh-seg-item @(ActiveSection == sec ? "active" : "")"
+                                        aria-pressed="@(ActiveSection == sec)"
+                                        @onclick="() => ActiveSection = sec">
                                     @sec
-                                </div>
+                                </button>
                             }
                         </div>
                     }
                 </div>
                 <div class="lsh-actions">
                     @* Same export trio as the Export Data page, so the two documents are operated the same way. *@
-                    <button class="lsh-btn" type="button" onclick="window.print()"
+                    <button class="lsh-btn" type="button" @onclick="PrintAsync"
                             title="Opens the print dialog — the sheet prints landscape so every column fits.">
                         <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                         Print
@@ -104,7 +108,7 @@
                         <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                         Download CSV
                     </a>
-                    <button class="lsh-btn lsh-btn-primary" type="button" onclick="window.print()"
+                    <button class="lsh-btn lsh-btn-primary" type="button" @onclick="PrintAsync"
                             title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
                         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                         Save as PDF
@@ -335,6 +339,11 @@
 
     /// <summary>True when the roster is narrowed to one market section (NPM only).</summary>
     bool IsSectionFiltered => IsFacility("npm") && ActiveSection != "All";
+
+    // Landscape: the official form is landscape and this sheet carries ten columns. The rule is injected by
+    // js/print.js immediately before printing, because a scoped stylesheet's @page does not reach the print
+    // engine reliably.
+    async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
 
     string CsvFileName =>
         $"stallholders_{(Facility?.ToLower() ?? "npm")}{(IsSectionFiltered ? "_" + ActiveSection.Replace(' ', '-').ToLower() : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";

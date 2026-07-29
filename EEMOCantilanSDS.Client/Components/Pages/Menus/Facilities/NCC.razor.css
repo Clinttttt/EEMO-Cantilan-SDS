@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    NCC.razor.css  —  New Commercial Center page-scoped styles
    Blazor CSS isolation: only applies to NCC.razor
    Use --* tokens from app.css; do NOT redefine them here.
@@ -473,7 +473,6 @@
 /* ── Utilities ───────────────────────────────────────────── */
 .no-contract {
     color: var(--text-muted);
-    font-style: italic;
 }
 
 .mono {
