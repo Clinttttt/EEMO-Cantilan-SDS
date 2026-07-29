@@ -772,3 +772,47 @@
     top: 50%;
     transform: translateY(-50%);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   TYPE SCALE — matched to the Export Data sheet
+   The two documents sit side by side in the same folder, so they now share one scale: 12.5px body, 10px
+   uppercase column headings, and the same cell padding. Only sizing and spacing change here.
+   ══════════════════════════════════════════════════════════════ */
+
+.lsh-table {
+    font-size: 12.5px;
+}
+
+.lsh-table th {
+    font-size: 10px;
+    letter-spacing: .5px;
+    padding: 8px 10px;
+}
+
+.lsh-table th .th-sub {
+    font-size: 9px;
+    letter-spacing: normal;
+}
+
+.lsh-table td {
+    padding: 8px 10px;
+}
+
+.lsh-section-label {
+    font-size: 10.5px;
+    letter-spacing: .8px;
+}
+
+.lsh-section-count {
+    font-size: 10px;
+}
+
+/* Trim the vertical air between the letterhead, the rule and the first table so the sheet does not open with
+   a band of empty paper — the same rhythm the collection report uses. */
+.lsh-doc-header {
+    margin-bottom: 14px;
+}
+
+.lsh-section-block {
+    margin-bottom: 16px;
+}

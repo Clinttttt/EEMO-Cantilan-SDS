@@ -252,3 +252,87 @@
     /* Never slant a name or a figure on the printed record. */
     .sh-sheet em, .sh-sheet i, .sh-muted { font-style: normal !important; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   DOCUMENT — matched to the per-facility roster and the Export Data sheet
+   Same stacked letterhead, same 12.5px / 10px type scale, same hairline grid and centred section band. When a
+   single facility is filtered its repeated label row is dropped, because the header already names it.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Scope line under the document name, in the same gold as the other two sheets. */
+.sh-doc-scope {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b98f27;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    text-align: center;
+}
+
+/* Filtered to one facility: say it once, in the header. */
+.sh-sheet-single .sh-fac-head { display: none; }
+
+.sh-table {
+    font-size: 12.5px;
+    border-collapse: collapse;
+}
+
+.sh-table th {
+    font-size: 10px;
+    letter-spacing: .5px;
+    padding: 8px 10px;
+    background: #f3f6f9;
+    color: var(--navy);
+    border: 1px solid #cfd6de;
+}
+
+.sh-table td {
+    padding: 8px 10px;
+    border: 1px solid #cfd6de;
+}
+
+/* Section band reads across the table, as on the office's paper form. */
+.sh-section-label {
+    position: relative;
+    text-align: center;
+    background: #f3f6f9;
+    border: 1px solid #cfd6de;
+    border-bottom: none;
+    padding: 8px 12px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--navy);
+}
+
+/* The stall count keeps the right edge, so the band still states both facts. */
+.sh-section-label span {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-subtle);
+}
+
+@media print {
+    /* Compact letterhead: landscape leaves little height, and a full-size one pushed the table to sheet two. */
+    .sh-rpt-head { margin-bottom: 10px; }
+    .sh-seal { width: 46px; height: 46px; }
+    .sh-org { font-size: 13px; }
+    .sh-gov, .sh-muni { font-size: 9.5px; }
+    .sh-doc { font-size: 12px; }
+    .sh-doc-scope { font-size: 10px; }
+
+    /* Rows stay whole; a block may span sheets but never right after its heading. */
+    .sh-table tr { break-inside: avoid; }
+    .sh-facility { break-inside: auto; }
+    .sh-fac-head { break-after: avoid; }
+    .sh-table thead { display: table-header-group; }
+}

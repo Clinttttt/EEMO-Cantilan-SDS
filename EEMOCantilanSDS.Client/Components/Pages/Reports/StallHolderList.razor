@@ -155,13 +155,16 @@
             </div>
         </div>
 
-        <section class="sh-sheet">
+        <section class="sh-sheet @(_facility is not null ? "sh-sheet-single" : "")">
             <header class="sh-rpt-head">
                 <img class="sh-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
                 <div class="sh-gov">Republic of the Philippines</div>
                 <div class="sh-org">@Branding.OfficeName</div>
                 <div class="sh-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="sh-doc">List of Stallholders — @(_facility is null ? "All Facilities" : FacilityCatalog.NameOf(_facility.Value))</div>
+                @* Stacked like the per-facility roster: the document is named, then its scope on its own line,
+                   instead of both crammed into one sentence. *@
+                <div class="sh-doc">List of Stallholders</div>
+                <div class="sh-doc-scope">@(_facility is null ? "ALL FACILITIES" : FacilityCatalog.NameOf(_facility.Value).ToUpper())</div>
             </header>
 
             @if (allRows.Count == 0)

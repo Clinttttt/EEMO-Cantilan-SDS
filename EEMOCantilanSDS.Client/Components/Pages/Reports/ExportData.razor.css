@@ -182,6 +182,36 @@
        collected/outstanding pair repeats the summary above, so the per-facility header row is dropped from
        the paper/PDF copy only. The all-facilities report keeps it — there it separates the sections. */
     .ex-sheet-single .ex-fac-head { display: none; }
+
+    /* Compact letterhead on paper: landscape leaves little vertical room, and a full-size letterhead pushed
+       the table onto the next sheet. */
+    .ex-rpt-head { margin-bottom: 10px; }
+    .ex-seal { width: 46px; height: 46px; }
+    .ex-org { font-size: 13px; }
+    .ex-gov, .ex-muni, .ex-doc-period { font-size: 9.5px; }
+    .ex-doc { font-size: 12px; margin-top: 6px; }
+    .ex-doc-scope, .ex-doc-section { font-size: 10px; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FILTERED SCOPE — say it once, in the header
+   A specific facility or section is part of the document's identity, so it is stated in the centred header
+   and the repeated label above the table is dropped. Removing it on screen as well as on paper keeps the two
+   copies identical, which is what makes the printout predictable.
+   ══════════════════════════════════════════════════════════════ */
+
+.ex-sheet-single .ex-fac-head { display: none; }
+.ex-sheet-section .ex-sec-row { display: none; }
+
+/* The section, stated under the facility rather than replacing it. */
+.ex-doc-section {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    text-align: center;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -265,8 +295,14 @@
 }
 
 @media print {
-    /* Keep the grid visible on paper and never break a block across pages mid-row. */
+    /* Keep the grid visible on paper. Only individual rows are protected from splitting: an earlier attempt
+       also guarded the whole facility block, which pushed a long table to the next sheet and left page 1
+       holding nothing but the letterhead. */
     .ex-table th, .ex-table td, .ex-sec-row td, .ex-subtotal td { border-color: #9aa7b4; }
     .ex-table tr { break-inside: avoid; }
-    .ex-facility { break-inside: avoid; }
+
+    /* A block may split across sheets, but never immediately after its own heading. */
+    .ex-facility { break-inside: auto; }
+    .ex-fac-head { break-after: avoid; }
+    .ex-table thead { display: table-header-group; }   /* repeat column headings on each sheet */
 }

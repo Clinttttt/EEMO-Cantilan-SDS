@@ -186,11 +186,11 @@
     </div>
 
     <!-- Printable document.
-         When a single facility is selected the sheet is marked so the per-facility header row can be dropped
-         from the printed/PDF copy: the document's own scope line already names that facility, so repeating it
-         (plus its collected/outstanding pair, which duplicates the summary cards) is noise on paper. The
-         on-screen view keeps it, where those figures are useful while filtering. -->
-    <section class="ex-sheet @(_facility is not null ? "ex-sheet-single" : "")">
+         When a single facility is selected the sheet is marked so the redundant per-facility header row is
+         dropped: the document's own scope line already names that facility, and its collected/outstanding pair
+         repeats the summary cards directly above. Selecting one NPM section drops that section's divider row
+         too, since the section is then stated in the header. -->
+    <section class="ex-sheet @(_facility is not null ? "ex-sheet-single" : "") @(SectionScope is not null ? "ex-sheet-section" : "")">
         <table class="ex-frame">
             <thead><tr><td><div class="ex-frame-space"></div></td></tr></thead>
             <tfoot><tr><td><div class="ex-frame-space"></div></td></tr></tfoot>
@@ -202,6 +202,10 @@
             <div class="ex-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
             <div class="ex-doc">Collection Report</div>
             <div class="ex-doc-scope">@ScopeName</div>
+            @if (SectionScope is { } sectionScope)
+            {
+                <div class="ex-doc-section">@sectionScope.ToUpper()</div>
+            }
             <div class="ex-doc-period">For the month of @PeriodLabel</div>
         </header>
 
@@ -275,9 +279,15 @@
 
     private string PeriodLabel => _data?.PeriodLabel ?? new DateTime(_year, _month, 1).ToString("MMMM yyyy");
     private string ScopeName =>
-        _facility is null ? "All Facilities"
-        : _facility == FacilityCode.NPM && _npmSection != "All Sections" ? _npmSection
-        : Facilities.NameOf(_facility.Value);
+        _facility is null ? "All Facilities" : Facilities.NameOf(_facility.Value);
+
+    /// <summary>
+    /// The market section when one is selected, shown as its own centred line under the facility. Previously
+    /// the section REPLACED the facility name in the scope line, so the sheet no longer said which facility
+    /// it belonged to.
+    /// </summary>
+    private string? SectionScope =>
+        _facility == FacilityCode.NPM && _npmSection != "All Sections" ? _npmSection : null;
 
     protected override async Task OnInitializedAsync()
     {
