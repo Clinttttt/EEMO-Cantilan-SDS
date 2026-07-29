@@ -64,4 +64,69 @@ public class BrandingState(IMunicipalitiesApiClient api)
 
     private static string Nonempty(string? value, string fallback)
         => string.IsNullOrWhiteSpace(value) ? fallback : value!;
+
+    // ── Report signatories ────────────────────────────────────────────────────────────────────────────
+    // The lines an official sheet carries at its foot. Stored per LGU as JSON; when unset (or unreadable)
+    // the office's standard trio is used, so every sheet keeps exactly the footer it has today.
+
+    /// <summary>One signatory line: the caption above the rule and the name beneath it.</summary>
+    public record Signatory(string Caption, string Name);
+
+    private IReadOnlyList<Signatory>? _signatories;
+
+    /// <summary>The office's default trio, used until an LGU sets its own.</summary>
+    public IReadOnlyList<Signatory> DefaultSignatories => new[]
+    {
+        new Signatory("Prepared by", "Administrative Staff"),
+        new Signatory("Reviewed by", $"Head, {OfficeAcronym} Office"),
+        new Signatory("Received by", "Authorized Representative"),
+    };
+
+    /// <summary>This LGU's signatory lines, falling back to the default trio.</summary>
+    public IReadOnlyList<Signatory> Signatories
+    {
+        get
+        {
+            if (_signatories is not null) return _signatories;
+
+            var json = _branding?.ReportSignatories;
+            if (string.IsNullOrWhiteSpace(json)) return DefaultSignatories;
+
+            try
+            {
+                var parsed = System.Text.Json.JsonSerializer.Deserialize<List<Signatory>>(json!,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (parsed is { Count: > 0 })
+                    return _signatories = parsed;
+            }
+            catch
+            {
+                // A stored value we cannot read must never blank the footer of an official sheet.
+            }
+
+            return DefaultSignatories;
+        }
+    }
+
+    /// <summary>
+    /// Replaces this LGU's signatory lines. An empty list restores the office's default trio. The local copy
+    /// is updated on success so every open document redraws with the new footer immediately.
+    /// </summary>
+    public async Task<string?> SaveSignatoriesAsync(
+        ISettingsApiClient settingsApi, IReadOnlyList<Signatory> signatories)
+    {
+        var payload = signatories
+            .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name))
+            .ToList();
+
+        var result = await settingsApi.SaveReportSignatoriesAsync(payload);
+        if (!result.IsSuccess)
+            return string.IsNullOrWhiteSpace(result.Error) ? "Couldn't save the signatories." : result.Error;
+
+        _signatories = signatories.Count == 0 ? null : signatories;
+        if (signatories.Count == 0 && _branding is not null)
+            _branding = _branding with { ReportSignatories = null };
+
+        return null;
+    }
 }

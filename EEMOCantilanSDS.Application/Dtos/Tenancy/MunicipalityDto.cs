@@ -28,4 +28,6 @@ public record MunicipalityBrandingDto(
     string Status,
     bool IsActive,
     string? OfficeAcronym = null,
-    string? Address = null);
+    string? Address = null,
+    /// <summary>Signatory lines for this LGU's official sheets, as JSON; null = the office's default trio.</summary>
+    string? ReportSignatories = null);

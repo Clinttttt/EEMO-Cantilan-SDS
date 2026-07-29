@@ -61,6 +61,14 @@ public class Municipality : AuditableEntity
     /// </summary>
     public string? MobileBindToken { get; private set; }
 
+    /// <summary>
+    /// The signatory lines this LGU prints at the foot of its official sheets, as JSON:
+    /// <c>[{"caption":"Prepared by","name":"Administrative Staff"}, …]</c>. Null means "use the office's
+    /// default trio", so an LGU that never touches this keeps exactly the sheets it has today. Presentation
+    /// only — no report figure depends on it.
+    /// </summary>
+    public string? ReportSignatories { get; private set; }
+
     private Municipality() { }
 
     public static Municipality Create(
@@ -123,6 +131,17 @@ public class Municipality : AuditableEntity
     {
         Status = MunicipalityStatus.Upcoming;
         IsActive = false;
+    }
+
+    /// <summary>
+    /// Replaces the signatory lines printed on this LGU's official sheets. Null or empty restores the
+    /// office's default trio — the office must always be able to get its standard sheet back.
+    /// </summary>
+    public void SetReportSignatories(string? json, string updatedBy = "System")
+    {
+        ReportSignatories = string.IsNullOrWhiteSpace(json) ? null : json.Trim();
+        UpdatedAt = DateTime.UtcNow;
+        UpdatedBy = updatedBy;
     }
 
     /// <summary>Stores this LGU's own PayMongo credentials (secret + webhook already encrypted; public key plain).</summary>

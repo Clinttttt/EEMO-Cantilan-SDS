@@ -221,8 +221,6 @@
                             if (secRows.Count == 0) continue;
                             <div class="sh-section-label">
                                 @SectionDisplay(section.SectionName)
-                                @* The office can correct a section's name from the sheet itself; never printed. *@
-                                <SectionLabelPencil Facility="fc" SectionKey="@section.SectionName" OnRenamed="Load" />
                                 <span>@secRows.Count stall@(secRows.Count != 1 ? "s" : "")</span>
                             </div>
                             @HolderTable(fc, secRows)
@@ -236,9 +234,7 @@
             }
 
             <div class="sh-rpt-foot no-print">
-                <div><span>Prepared by</span><strong>Administrative Staff</strong></div>
-                <div><span>Reviewed by</span><strong>Head, @Branding.OfficeAcronym Office</strong></div>
-                <div><span>Date Prepared</span><strong>@PhilippineTime.Now.ToString("MMM d, yyyy")</strong></div>
+                <SignatureStrip ShowDatePrepared="true" />
             </div>
         </section>
     }

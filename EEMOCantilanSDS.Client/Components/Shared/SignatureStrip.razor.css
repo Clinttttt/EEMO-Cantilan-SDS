@@ -1,0 +1,237 @@
+/* ══════════════════════════════════════════════════════════════════════
+   SignatureStrip — the signatory lines at the foot of an official sheet.
+   One look on every document; the editing affordances never print.
+   ══════════════════════════════════════════════════════════════════════ */
+.sig-strip {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+}
+
+.sig-slot {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+}
+
+.sig-caption {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.sig-name {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+/* Quiet pencil: visible enough to find, faint enough not to decorate the sheet. */
+.sig-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: .5;
+    transition: opacity .15s, color .15s, background .15s;
+}
+
+    .sig-edit:hover {
+        opacity: 1;
+        color: var(--navy);
+        background: rgba(15, 35, 55, .06);
+    }
+
+    .sig-edit svg {
+        width: 12px;
+        height: 12px;
+    }
+
+.sig-slot-add {
+    flex: 0 0 auto;
+    align-self: center;
+}
+
+.sig-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 650;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+    .sig-add:hover {
+        color: var(--navy);
+        border-color: var(--navy);
+    }
+
+    .sig-add svg {
+        width: 12px;
+        height: 12px;
+    }
+
+/* ── Editor ─────────────────────────────────────────────────────────── */
+.sig-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(10, 22, 35, .45);
+}
+
+.sig-dialog {
+    position: fixed;
+    z-index: 1201;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 20px;
+    text-align: left;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 18px 44px rgba(15, 35, 55, .22);
+}
+
+.sig-dialog-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--navy);
+}
+
+.sig-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+    .sig-field span {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .sig-field input {
+        height: 36px;
+        padding: 0 11px;
+        font: inherit;
+        font-size: 13px;
+        color: var(--navy);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        outline: none;
+    }
+
+        .sig-field input:focus {
+            border-color: var(--gold);
+        }
+
+.sig-dialog-error {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--red);
+}
+
+.sig-dialog-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sig-dialog-spacer {
+    flex: 1;
+}
+
+.sig-cancel,
+.sig-save,
+.sig-remove {
+    height: 32px;
+    padding: 0 13px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 650;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.sig-cancel {
+    color: var(--navy);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+.sig-save {
+    color: #fff;
+    background: var(--navy);
+    border: 1px solid var(--navy);
+}
+
+.sig-remove {
+    color: var(--red);
+    background: var(--bg-card);
+    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+}
+
+.sig-reset {
+    padding: 0;
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+    .sig-reset:hover {
+        color: var(--navy);
+    }
+
+.sig-cancel:disabled,
+.sig-save:disabled,
+.sig-remove:disabled,
+.sig-reset:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+@media print {
+    /* Paper carries the lines only. */
+    .sig-edit,
+    .sig-slot-add,
+    .sig-dialog,
+    .sig-dialog-backdrop {
+        display: none !important;
+    }
+}

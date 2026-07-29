@@ -22,4 +22,11 @@ public interface ISettingsApiClient
 
     /// <summary>Update the caller Head's office/LGU branding (office label, acronym, address, seal/logo).</summary>
     Task<Result<bool>> UpdateOfficeProfileAsync(string officeName, string? officeAcronym, string? address, string? sealPath);
+
+    /// <summary>
+    /// Replace the signatory lines this LGU prints at the foot of its official sheets. An empty list restores
+    /// the office's default trio.
+    /// </summary>
+    Task<Result<bool>> SaveReportSignatoriesAsync(
+        IReadOnlyList<Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories);
 }

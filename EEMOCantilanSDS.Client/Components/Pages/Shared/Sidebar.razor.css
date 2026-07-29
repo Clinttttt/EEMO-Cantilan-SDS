@@ -339,10 +339,11 @@
 }
 
 
-/* The Dashboard mark is four separate panels; at 16px the sidebar's default 1.8 stroke thickened them until
-   they read as one grid. A thinner stroke keeps the page's geometry intact and the panels distinct. */
+/* The Dashboard mark is the page hero's own drawing, so it must also carry the hero's ink: stroke-width 2 with
+   round joins. The rail's default 1.8 (and an earlier 1.5) drew thinner, sharper panels — which is why it kept
+   reading as a different icon even though the geometry already matched. */
 :global(.nav-item .nav-icon-dashboard) {
-    stroke-width: 1.5;
-    stroke-linejoin: miter;
-    stroke-linecap: butt;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
 }

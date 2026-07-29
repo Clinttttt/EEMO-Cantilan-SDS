@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials;
+using EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories;
 using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
 using EEMOCantilanSDS.Application.Queries.Municipalities.GetOfficeProfile;
@@ -35,6 +36,17 @@ public class MunicipalityProfileController : ApiBaseController
 
     [HttpPut]
     public async Task<ActionResult<bool>> UpdateAsync([FromBody] UpdateOfficeProfileCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Replaces the signatory lines this LGU prints at the foot of its official sheets. An empty list restores
+    /// the office's default trio.
+    /// </summary>
+    [HttpPut("signatories")]
+    public async Task<ActionResult<bool>> SetSignatoriesAsync([FromBody] SetReportSignatoriesCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

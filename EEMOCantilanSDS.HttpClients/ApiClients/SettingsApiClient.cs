@@ -32,4 +32,11 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
             "api/municipality-profile",
             new EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile.UpdateOfficeProfileCommand(
                 officeName, address, sealPath, officeAcronym));
+
+    /// <summary>Replaces this LGU's signatory lines; an empty list restores the office's default trio.</summary>
+    public async Task<Result<bool>> SaveReportSignatoriesAsync(
+        IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories) =>
+        await PutAsync<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.SetReportSignatoriesCommand, bool>(
+            "api/municipality-profile/signatories",
+            new EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.SetReportSignatoriesCommand(signatories));
 }
