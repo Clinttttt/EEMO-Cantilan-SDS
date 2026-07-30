@@ -19,4 +19,11 @@ public record CreateStallCommand(
     string? NameOnContract,
     DateTime? ContractDate,
     int ContractYears,
-    string? CustomSectionName = null) : IRequest<Result<StallDto>>;
+    string? CustomSectionName = null,
+    /// <summary>
+    /// True when the office has confirmed that this number's existing stall — vacated by closure or by a lapsed
+    /// contract — should take the new occupant. The stall is then reused: its number, its section and its whole
+    /// payment and contract history stay as they are, and a new contract term begins on it. A stall that is
+    /// still occupied is never reused, whatever this flag says.
+    /// </summary>
+    bool ReuseVacatedStall = false) : IRequest<Result<StallDto>>;

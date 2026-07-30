@@ -259,34 +259,13 @@
                                 <input class="avm-input" type="number" min="0" placeholder="e.g. 900"
                                        @bind="Form.MonthlyRate" @bind:event="oninput" />
                                 <div class="avm-hint-muted">Whole Year: ₱@Form.WholeYearRental.ToString("N0")</div>
-                                @if (Form.FacilityCode == "NPM")
-                                {
-                                    <div class="avm-hint-muted">Daily-equivalent ≈ ₱@NpmMonthlyEquivalent.ToString("N0")/mo (₱@NpmDailyRate.ToString("0")/day × @NpmDaysInMonth days). NPM bills per day — this is a reference only.</div>
-                                }
                             </div>
                             <div class="avm-group" style="visibility:hidden;"></div>
                         </div>
                     }
 
-                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Vegetable")
-                    {
-                        <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Vegetable vendors)</div>
-                        </div>
-                    }
-                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Fish")
-                    {
-                        <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Fish vendors)</div>
-                            <div><strong>Fish Fee:</strong> ₱@NpmFishRate.ToString("0.##")/kg (per kilo sold)</div>
-                        </div>
-                    }
-                    @if (Form.FacilityCode == "NPM" && Form.SelectedSection == "Meat")
-                    {
-                        <div class="avm-fee-highlight">
-                            <div><strong>Daily Collection:</strong> ₱@NpmDailyRate.ToString("0")/day (Meat vendors)</div>
-                        </div>
-                    }
+                    @* The applicable-charges block below already states every fee this stall carries, with the
+                       tenant's own rates, so these standalone reminders only repeated it. *@
                     @if (Form.FacilityCode == "NPM"
                         && (Form.SelectedSection == "__custom__"
                             || (Form.SelectedSection != null && Form.SelectedSection.StartsWith("existing:", StringComparison.Ordinal))))
@@ -444,23 +423,17 @@
                                            checked="@Form.FeeTypes.Contains("Water")" readonly />
                                 </div>
 
-                                <!-- Fish fee — Fish Area only -->
-                                @if (Form.SelectedSection == "Fish")
+                                <!-- Section fee — only when this LGU actually charges one for the section.
+                                     An office that set no per-kilo fish fee at onboarding sees nothing here. -->
+                                @if (Form.SelectedSection == "Fish" && NpmFishRate > 0m)
                                 {
                                     <div class="avm-util-divider"></div>
-                                    <div class="avm-sublabel">Section-Specific Fees</div>
+                                    <div class="avm-sublabel">Section Fee</div>
                                     <div class="avm-fish-fee">
-                                        <div class="avm-fish-icon">
-                                            <svg viewBox="0 0 24 24">
-                                                <path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z" />
-                                                <circle cx="9" cy="12" r="1.5" />
-                                            </svg>
-                                        </div>
                                         <div class="avm-fish-text">
-                                            <div class="avm-fish-title">Fish Fee</div>
-                                            <div class="avm-fish-sub">₱@NpmFishRate.ToString("0.00") per kilo of fish sold — Fish Area only</div>
+                                            <div class="avm-fish-title">@SectionFeeLabel</div>
+                                            <div class="avm-fish-sub">₱@NpmFishRate.ToString("0.00") per kilo sold, billed with the daily collection</div>
                                         </div>
-                                        <span class="avm-fish-badge">✓ Always included</span>
                                     </div>
                                 }
                             }
@@ -479,6 +452,20 @@
                     <div class="avm-error">
                         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                         @FormError
+                    </div>
+                }
+
+                @* A stall number already in use is not necessarily a dead end: if that stall was closed, or its
+                   contract has lapsed, the office can hand the same physical space to the new lessee instead of
+                   inventing a second number for it. The server is the authority — a stall that is still occupied
+                   is refused — so this only ever offers what is actually allowed. *@
+                @if (!string.IsNullOrWhiteSpace(ReuseOfferMessage))
+                {
+                    <div class="avm-reuse">
+                        <div class="avm-reuse-text">@ReuseOfferMessage</div>
+                        <button type="button" class="avm-reuse-btn" @onclick="OnReuseConfirm">
+                            Assign to the existing stall
+                        </button>
                     </div>
                 }
 
@@ -519,19 +506,27 @@
     /// ₱40 LGU never shows ₱30. Display only — nothing here is stored.
     [Parameter] public decimal NpmDailyRate { get; set; } = 30m;
 
-    /// The tenant's resolved NPM fish fee per kilo (defaults to the ₱1 ordinance). Display only.
-    [Parameter] public decimal NpmFishRate { get; set; } = 1m;
+    /// <summary>
+    /// The tenant's resolved per-kilo fee for the fish section. Zero (the default) means this office does not
+    /// charge one, and the fee is then not shown at all — a municipality that set no such fee at onboarding must
+    /// not see another's rate. Display only; the amount is charged from the tenant's configured rate.
+    /// </summary>
+    [Parameter] public decimal NpmFishRate { get; set; }
 
-    // Days in the contract's month (falls back to the current month). Used ONLY for the NPM
-    // daily-equivalent reference hint, mirroring how NPM is billed (daily × collectable days).
-    private int NpmDaysInMonth
-    {
-        get { var d = Form.ContractDate ?? PhilippineTime.Now.Date; return DateTime.DaysInMonth(d.Year, d.Month); }
-    }
+    /// <summary>
+    /// What this office calls the fee, built from its own section label (e.g. "Gulayan fee"). Falls back to a
+    /// neutral wording rather than assuming any LGU's vocabulary.
+    /// </summary>
+    [Parameter] public string SectionFeeLabel { get; set; } = "Per-kilo fee";
 
-    // Reference figure shown beside the (manual) Monthly Rental field for NPM — the field itself is
-    // never auto-filled, so Cantilan admins keep entering their own value.
-    private decimal NpmMonthlyEquivalent => NpmDailyRate * NpmDaysInMonth;
+    /// <summary>
+    /// Shown when the entered stall number already belongs to a stall that may be handed over (closed, or its
+    /// contract lapsed). Empty = no offer.
+    /// </summary>
+    [Parameter] public string? ReuseOfferMessage { get; set; }
+
+    /// <summary>Raised when the office confirms the handover; the host resubmits with the reuse flag set.</summary>
+    [Parameter] public EventCallback OnReuseConfirm { get; set; }
 
     /// Validation error shown at the bottom of the form
     [Parameter] public string FormError { get; set; } = string.Empty;

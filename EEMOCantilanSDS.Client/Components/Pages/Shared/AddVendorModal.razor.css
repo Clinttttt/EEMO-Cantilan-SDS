@@ -489,26 +489,12 @@
     margin-bottom: 8px;
 }
 
-.avm-fish-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: #e6f4f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+/* The section fee is a stated fact, not a highlight: a plain row on the form's own surface. The icon tile and
+   the green "always included" pill were decoration on a government form. */
+.avm-fish-icon,
+.avm-fish-badge {
+    display: none;
 }
-
-    .avm-fish-icon svg {
-        width: 16px;
-        height: 16px;
-        stroke: #0d7b5e;
-        fill: none;
-        stroke-width: 1.8;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
 
 .avm-fish-text {
     flex: 1;
@@ -527,14 +513,7 @@
 }
 
 .avm-fish-badge {
-    font-size: 11px;
-    font-weight: 600;
-    color: #0a6b47;
-    background: #dff4eb;
-    padding: 3px 10px;
-    border-radius: 20px;
-    border: 0.5px solid #a3dac0;
-    white-space: nowrap;
+    display: none;
 }
 
 /* ── Helper note (no section selected) ─────────────────────── */
@@ -777,3 +756,45 @@
         gap: 10px;
     }
 }
+
+/* ── Take over a vacated stall ─────────────────────────────────────────────────────────────────────────
+   Offered when the number entered belongs to a stall the office has vacated. Stated plainly: it is a choice
+   about an official record, not a warning. */
+.avm-reuse {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.avm-reuse-text {
+    flex: 1 1 240px;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.avm-reuse-btn {
+    flex-shrink: 0;
+    height: 34px;
+    padding: 0 14px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 650;
+    color: #fff;
+    background: var(--navy);
+    border: 1px solid var(--navy);
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+    .avm-reuse-btn:hover {
+        background: var(--navy-2, #112d47);
+    }

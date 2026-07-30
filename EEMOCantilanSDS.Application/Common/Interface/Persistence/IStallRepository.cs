@@ -48,4 +48,10 @@ public interface IStallRepository
     Task AddContractAsync(Contract contract, CancellationToken ct);
     Task UpdateAsync(Stall stall, CancellationToken ct);
     Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo, CancellationToken ct);
+
+    /// <summary>
+    /// The stall already carrying this number in the same facility (and, for NPM, the same section), with its
+    /// contracts so the caller can tell whether it is occupied. Null when the number is free.
+    /// </summary>
+    Task<Stall?> FindStallByNumberAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo, CancellationToken ct);
 }

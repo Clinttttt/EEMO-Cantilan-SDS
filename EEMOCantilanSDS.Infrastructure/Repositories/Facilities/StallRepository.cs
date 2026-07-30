@@ -849,6 +849,30 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
 
     public async Task<bool> IsStallNoUniqueAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo, CancellationToken ct)
     {
+        return !await MatchingStalls(facilityCode, section, customSectionName, stallNo).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// The stall that already carries this number in the same place (facility, and for NPM the same canonical or
+    /// custom section), with its contracts, so a caller can tell whether it is currently occupied. Returns null
+    /// when the number is free. Used to let a new occupant take over a stall that has been vacated instead of
+    /// forcing a second, fictitious stall number for the same physical space.
+    /// </summary>
+    public async Task<Stall?> FindStallByNumberAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo, CancellationToken ct)
+    {
+        return await MatchingStalls(facilityCode, section, customSectionName, stallNo)
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Stalls occupying one number in one place. Mirrors the database's unique index exactly: per facility, and
+    /// for NPM per canonical section or per custom section name — so the same number may legitimately exist in a
+    /// different section.
+    /// </summary>
+    private IQueryable<Stall> MatchingStalls(FacilityCode facilityCode, MarketSection? section, string? customSectionName, string stallNo)
+    {
         var query = context.Stalls.Where(s =>
             s.Facility!.Code == facilityCode &&
             s.StallNo == stallNo);
@@ -870,6 +894,6 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             query = query.Where(s => s.Section == null);
         }
 
-        return !await query.AnyAsync(ct);
+        return query;
     }
 }

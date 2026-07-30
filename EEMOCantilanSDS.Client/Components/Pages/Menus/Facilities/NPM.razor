@@ -300,6 +300,9 @@
                 ExistingStallNos="NpmSectionStallNos"
                 NpmDailyRate="_npmDailyRate"
                 NpmFishRate="_npmFishRate"
+                SectionFeeLabel="@($"{FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)} fee")"
+                ReuseOfferMessage="@_vendorReuseOffer"
+                OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SubmitVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -1002,6 +1005,8 @@
     private void CloseAddVendorModal()
     {
         ShowAddVendorModal = false;
+        _takeOverVacatedStall = false;
+        _vendorReuseOffer = null;
         IsEditingVendor = false;
         EditingStallId = 0;
         VendorForm = new();
@@ -1082,12 +1087,15 @@
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
             VendorForm.ContractYears,
-            customSectionName);
+            customSectionName,
+            // Set only after the office confirms the takeover in the prompt below.
+            ReuseVacatedStall: _takeOverVacatedStall);
 
         var result = await StallsApi.CreateStallAsync(command);
 
         if (result.IsSuccess)
         {
+            _takeOverVacatedStall = false;
             // Reload from API so section mapping/GUIDs reflect backend truth
             await LoadStallsFromApi();
             await LoadCustomSectionsAsync();   // a new custom section is now registered → refresh tabs + options
@@ -1106,10 +1114,47 @@
             {
                 VendorErrorMessage = result.Error ?? "Failed to create stall.";
             }
+            _takeOverVacatedStall = false;   // one confirmation per attempt
+            OfferStallTakeOverIfDuplicate();
             StateHasChanged();
         }
     }
 
+    // ── Taking over a vacated stall ───────────────────────────────────────────────────────────────────
+    // A market has a fixed number of physical stalls. When a lessee leaves, the space stays — so the office must
+    // be able to put the next lessee in Stall 1 rather than being pushed into inventing "Stall 24". The stall
+    // record, its number, its section and its whole contract and payment history are kept; only a new contract
+    // term begins on it. Set when the office confirms; the server refuses if the stall is in fact still occupied.
+    private bool _takeOverVacatedStall;
+    private string? _vendorReuseOffer;
+
+    /// <summary>The duplicate-number message the API's validator returns, matched to offer the handover.</summary>
+    private const string DuplicateStallMessage = "Stall number already exists in this facility";
+
+    private async Task ConfirmStallTakeOverAsync()
+    {
+        _takeOverVacatedStall = true;
+        _vendorReuseOffer = null;
+        VendorFieldErrors.Remove("StallNo");
+        VendorErrorMessage = string.Empty;
+        await SubmitAddVendor();
+    }
+
+    /// <summary>
+    /// Turns the validator's flat "already exists" into an offer the office can act on. Worded conditionally,
+    /// because only the server knows whether that stall is closed, lapsed, or genuinely occupied.
+    /// </summary>
+    private void OfferStallTakeOverIfDuplicate()
+    {
+        var duplicate = VendorFieldErrors.TryGetValue("StallNo", out var message)
+            && message.Contains("already exists", StringComparison.OrdinalIgnoreCase);
+
+        _vendorReuseOffer = duplicate
+            ? $"Stall {VendorForm.StallNo.Trim()} already exists here. If that stall was closed or its contract has "
+              + $"lapsed, you can assign {(string.IsNullOrWhiteSpace(VendorForm.ActualOccupant) ? "the new lessee" : VendorForm.ActualOccupant.Trim())} "
+              + "to it — the stall keeps its number and its full history, and a new contract term begins."
+            : null;
+    }
     private async Task SubmitVendor()
     {
         if (IsEditingVendor)

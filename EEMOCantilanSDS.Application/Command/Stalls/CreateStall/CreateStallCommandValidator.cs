@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
 
@@ -48,8 +49,22 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
             .When(x => x.FacilityCode == FacilityCode.NPM);
     }
 
+    /// <summary>
+    /// The number must be free in this facility/section — unless the office has confirmed it is taking over the
+    /// stall that already carries it AND that stall is genuinely vacant (closed, or its contract has lapsed).
+    /// A stall with a live contract is never reusable: that would be two occupants in one space.
+    /// </summary>
     private async Task<bool> BeUniqueStallNo(CreateStallCommand command, string stallNo, CancellationToken cancellationToken)
     {
-        return await _stallRepo.IsStallNoUniqueAsync(command.FacilityCode, command.Section, command.CustomSectionName, stallNo, cancellationToken);
+        if (await _stallRepo.IsStallNoUniqueAsync(command.FacilityCode, command.Section, command.CustomSectionName, stallNo, cancellationToken))
+            return true;
+
+        if (!command.ReuseVacatedStall)
+            return false;
+
+        var existing = await _stallRepo.FindStallByNumberAsync(
+            command.FacilityCode, command.Section, command.CustomSectionName, stallNo, cancellationToken);
+
+        return existing is not null && existing.IsVacant(PhilippineTime.Today);
     }
 }

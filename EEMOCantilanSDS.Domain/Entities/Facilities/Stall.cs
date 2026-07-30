@@ -177,6 +177,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             return active.Count > 0 && active.All(c => c.IsExpired);
         }
 
+        /// <summary>
+        /// True when the physical space is free to take a new occupant: it was closed by the office, or it has
+        /// no live contract (none at all, or every remaining term has lapsed). This is the one rule that decides
+        /// whether a vacated stall may be handed to a new lessee, so the register, the roster and the add-vendor
+        /// path can never disagree about what "vacant" means. Requires <c>Contracts</c> to be loaded.
+        /// </summary>
+        public bool IsVacant(DateOnly asOf)
+        {
+            if (Status == StallStatus.Closed) return true;
+
+            var live = Contracts.Where(c => c.IsActive).ToList();
+            return live.Count == 0 || live.All(c => c.ExpiryDate < asOf);
+        }
+
         public void SetType(StallType type, string updatedBy = "System")
         {
             Type = type;

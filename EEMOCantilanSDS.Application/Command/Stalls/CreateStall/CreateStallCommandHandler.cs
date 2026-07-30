@@ -12,6 +12,7 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
 public class CreateStallCommandHandler(
     IStallRepository stallRepo,
     IFacilityRepository facilityRepo,
+    IPayorRepository payorRepository,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext) : IRequestHandler<CreateStallCommand, Result<StallDto>>
@@ -21,6 +22,24 @@ public class CreateStallCommandHandler(
         var facility = await facilityRepo.GetByCodeAsync(request.FacilityCode, cancellationToken);
         if (facility is null)
             return Result<StallDto>.NotFound();
+
+        // Taking over a stall the office has vacated. The physical space keeps its number, its section and its
+        // whole history: the previous terms stay as history, the money already collected against it is untouched,
+        // and a new contract simply begins. This is why a market with 23 stalls never grows a "Stall 24" just
+        // because a lessee left — the number belongs to the space, not to whoever occupies it.
+        if (request.ReuseVacatedStall)
+        {
+            var existing = await stallRepo.FindStallByNumberAsync(
+                request.FacilityCode, request.Section, request.CustomSectionName, request.StallNo, cancellationToken);
+
+            if (existing is not null)
+            {
+                if (!existing.IsVacant(PhilippineTime.Today))
+                    return Result<StallDto>.Failure("That stall is still occupied, so it cannot be reassigned.", 409);
+
+                return await ReassignAsync(existing, request, cancellationToken);
+            }
+        }
 
         var stall = Stall.Create(
             facility.Id,
@@ -78,5 +97,65 @@ public class CreateStallCommandHandler(
             );
 
         return Result<StallDto>.Success(dto);
+    }
+
+    /// <summary>
+    /// Hands a vacated stall to a new lessee: end any lingering term (kept as history), reopen the space if it
+    /// had been closed, apply the new rates/fees/area from the form, and start the new contract. Nothing is
+    /// deleted or renumbered, so every past contract, collection and receipt stays attached to this stall.
+    /// </summary>
+    private async Task<Result<StallDto>> ReassignAsync(Stall stall, CreateStallCommand request, CancellationToken ct)
+    {
+        const string actor = "Admin";
+
+        foreach (var lingering in stall.Contracts.Where(c => c.IsActive).ToList())
+            lingering.Terminate(actor);
+
+        if (!stall.IsActive())
+            stall.Reopen(actor);
+
+        stall.UpdateRates(request.MonthlyRate, request.DailyRate, actor);
+        stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, null, actor);
+        stall.AddUtilityFees(
+            request.Fees.HasFlag(ApplicableFees.Electricity),
+            request.Fees.HasFlag(ApplicableFees.Water),
+            actor);
+
+        var contract = Contract.Create(
+            stall.Id,
+            request.ActualOccupant,
+            request.NameOnContract,
+            DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now),
+            request.ContractYears,
+            request.MonthlyRate,
+            null,
+            null,
+            actor);
+
+        await stallRepo.AddContractAsync(contract, ct);
+
+        // The space changed hands: any payor account still linked to it belonged to the previous lessee and must
+        // not see or pay the new lessee's dues. The incoming lessee links again with a fresh activation code.
+        await payorRepository.RemoveStallLinksAsync(stall.Id, ct);
+
+        await uow.SaveChangesAsync(ct);
+        await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
+
+        return Result<StallDto>.Success(new StallDto(
+            stall.Id,
+            stall.StallNo,
+            stall.Status,
+            request.ActualOccupant,
+            request.NameOnContract,
+            stall.AreaSqm,
+            request.ContractDate,
+            stall.MonthlyRate,
+            stall.DailyRate,
+            null,
+            stall.Section,
+            stall.AreaLocation,
+            stall.AreaNote,
+            null,
+            CustomSectionName: stall.CustomSectionName));
     }
 }
