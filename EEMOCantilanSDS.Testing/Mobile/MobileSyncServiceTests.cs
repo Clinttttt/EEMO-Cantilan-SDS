@@ -305,4 +305,89 @@ public class MobileSyncServiceTests
         Assert.Single(store.Snapshot);
         api.Verify(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()), Times.Never);
     }
+
+    // ── Retry backoff ─────────────────────────────────────────────────────────────────────────────────
+    // A row the server keeps refusing must not make every later capture re-send the whole queue over a field
+    // connection — but the collector pressing "Sync now" must still be obeyed immediately.
+
+    private static Mock<IMobileApiClient> ApiUnavailable(List<SyncOfflineCollectionsCommand>? captured = null)
+    {
+        var api = new Mock<IMobileApiClient>();
+        api.Setup(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()))
+            .ReturnsAsync((SyncOfflineCollectionsCommand cmd) =>
+            {
+                captured?.Add(cmd);
+                return Result<SyncOfflineCollectionsResultDto>.Failure("Server unavailable.", 503);
+            });
+        return api;
+    }
+
+    [Fact]
+    public async Task A_failed_attempt_records_the_attempt_so_it_can_be_backed_off()
+    {
+        var store = new FakePendingOperationStore(NpmOp("OR-1"));
+        var api = ApiUnavailable();
+        var sut = Sut(store, api.Object, online: true);
+
+        await sut.SyncNowAsync();
+
+        var row = Assert.Single(store.Snapshot);
+        Assert.Equal(PendingLocalStatus.Failed, row.LocalStatus);
+        Assert.Equal(1, row.AttemptCount);
+        Assert.NotNull(row.LastAttemptUtc);
+    }
+
+    [Fact]
+    public async Task An_automatic_attempt_waits_out_the_backoff_of_a_just_failed_row()
+    {
+        var op = NpmOp("OR-1");
+        op.LocalStatus = PendingLocalStatus.Failed;
+        op.AttemptCount = 1;
+        op.LastAttemptUtc = DateTime.UtcNow;            // just tried
+
+        var store = new FakePendingOperationStore(op);
+        var api = new Mock<IMobileApiClient>(MockBehavior.Strict);   // must not be called
+        var sut = Sut(store, api.Object, online: true);
+
+        var summary = await sut.SyncNowAsync(force: false);
+
+        Assert.Equal(0, summary.Total);
+        api.Verify(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task An_automatic_attempt_resumes_once_the_backoff_has_elapsed()
+    {
+        var op = NpmOp("OR-1");
+        op.LocalStatus = PendingLocalStatus.Failed;
+        op.AttemptCount = 1;
+        op.LastAttemptUtc = DateTime.UtcNow.AddMinutes(-5);   // well past the 15s wait
+
+        var store = new FakePendingOperationStore(op);
+        var api = ApiAllSynced();
+        var sut = Sut(store, api.Object, online: true);
+
+        var summary = await sut.SyncNowAsync(force: false);
+
+        Assert.Equal(1, summary.Synced);
+        Assert.Empty(store.Snapshot);
+    }
+
+    [Fact]
+    public async Task The_collector_pressing_sync_now_is_obeyed_despite_the_backoff()
+    {
+        var op = NpmOp("OR-1");
+        op.LocalStatus = PendingLocalStatus.Failed;
+        op.AttemptCount = 4;
+        op.LastAttemptUtc = DateTime.UtcNow;            // still inside the longest wait
+
+        var store = new FakePendingOperationStore(op);
+        var api = ApiAllSynced();
+        var sut = Sut(store, api.Object, online: true);
+
+        var summary = await sut.SyncNowAsync();          // default is force
+
+        Assert.Equal(1, summary.Synced);
+        Assert.Empty(store.Snapshot);
+    }
 }

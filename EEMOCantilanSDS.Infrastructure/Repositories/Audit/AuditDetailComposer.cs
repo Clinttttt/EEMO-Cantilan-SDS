@@ -397,9 +397,33 @@ public static class AuditDetailComposer
         return root.TryGetProperty(field, out value) && value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined);
     }
 
+    /// <summary>
+    /// Enum-valued columns, translated by field name. A snapshot stores an enum as its NUMBER, so without this
+    /// the trail would read "Status 1 → 3" — worse than useless on a government record. Values mirror the
+    /// domain enums; an unmapped number falls back to the number itself rather than inventing a name.
+    /// </summary>
+    private static readonly Dictionary<string, Dictionary<int, string>> EnumLabels = new(StringComparer.Ordinal)
+    {
+        ["Status"] = new() { [1] = "Unpaid", [2] = "Partial", [3] = "Paid" },              // PaymentStatus
+        ["Role"] = new() { [1] = "Head", [2] = "Administrator" },                          // AdminRole
+        ["AnimalType"] = new() { [1] = "Hog", [2] = "Carabao", [3] = "Cow", [99] = "Other" },
+        ["Section"] = new() { [1] = "Vegetable Area", [2] = "Fish Area", [3] = "Meat Area" }, // MarketSection
+        ["StallStatus"] = new() { [1] = "Active", [2] = "Closed" },
+    };
+
     private static string Text(JsonElement? snapshot, string field)
     {
         if (!TryGet(snapshot, field, out var value)) return string.Empty;
+
+        // An enum column reads as its name, not its number.
+        if (value.ValueKind == JsonValueKind.Number
+            && EnumLabels.TryGetValue(field, out var labels)
+            && value.TryGetInt32(out var number)
+            && labels.TryGetValue(number, out var label))
+        {
+            return label;
+        }
+
         return value.ValueKind switch
         {
             JsonValueKind.String => value.GetString() ?? string.Empty,

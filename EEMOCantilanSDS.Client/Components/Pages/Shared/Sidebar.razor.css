@@ -348,6 +348,9 @@
 :global(.nav-item .nav-icon-dashboard) {
     width: 20px;
     height: 20px;
+    /* Negative margins keep the occupied box at the rail's 16px, so every nav label still starts on the same
+       vertical line — the mark is drawn larger without shifting the list. */
+    margin: -2px;
     stroke-width: 1.8;
     stroke-linejoin: round;
     stroke-linecap: round;

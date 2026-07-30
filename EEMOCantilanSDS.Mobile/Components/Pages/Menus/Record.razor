@@ -287,6 +287,15 @@
                                 {
                                     <div class="pending-item-msg">@op.ResultMessage</div>
                                 }
+                                else if (op.LocalStatus == PendingLocalStatus.Failed)
+                                {
+                                    @* Say what has been tried, so a row that keeps failing does not look ignored.
+                                       It is still safe on the device and will be sent again automatically. *@
+                                    <div class="pending-item-msg">
+                                        @(op.AttemptCount <= 1 ? "Couldn't send yet" : $"Tried {op.AttemptCount} times")
+                                        — it stays saved here and will be sent again automatically.
+                                    </div>
+                                }
                             </div>
                             <div class="pending-item-right">
                                 <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>

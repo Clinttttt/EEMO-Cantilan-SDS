@@ -152,6 +152,39 @@ public class AuditTrailScopeTests
     }
 
     [Fact]
+    public void EnumColumns_ReadAsNamesNotNumbers()
+    {
+        // A snapshot stores an enum as its number, so "Status 1 → 3" was what an auditor would have read.
+        var changes = AuditDetailComposer.Changes(
+            "{\"Status\":1,\"Role\":2}",
+            "{\"Status\":3,\"Role\":1}");
+
+        Assert.Contains(changes, c => c == "Status Unpaid → Paid");
+        Assert.Contains(changes, c => c == "Role Administrator → Head");
+    }
+
+    [Fact]
+    public void ASlaughterCollection_NamesTheAnimalNotItsEnumNumber()
+    {
+        var lookup = new AuditDetailComposer.Lookup(
+            new Dictionary<Guid, AuditDetailComposer.StallRef>(),
+            new Dictionary<Guid, string>(),
+            new Dictionary<Guid, string>());
+
+        var details = AuditDetailComposer.Describe(
+            "Created", "SlaughterTransaction", Guid.NewGuid(),
+            "{\"OwnerName\":\"Ana Reyes\",\"AnimalType\":1,\"NumberOfHeads\":2," +
+            "\"TransactionDate\":\"2026-07-28\",\"SlaughterFee\":500.00,\"ORNumber\":\"98123\"}",
+            null, lookup);
+
+        Assert.Contains("Ana Reyes", details);
+        Assert.Contains("Hog ×2", details);
+        Assert.Contains("Jul 28, 2026", details);
+        Assert.Contains("₱500.00", details);
+        Assert.Contains("OR 98123", details);
+    }
+
+    [Fact]
     public void AnUnknownEntity_StillReadsAsEnglish()
     {
         var lookup = new AuditDetailComposer.Lookup(

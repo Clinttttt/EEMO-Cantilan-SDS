@@ -54,7 +54,9 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         var foreignActors = currentMunicipality == Guid.Empty
             ? new List<string>()
             : staff.Where(s => s.Value.MunicipalityId != Guid.Empty && s.Value.MunicipalityId != currentMunicipality)
-                   .Select(s => s.Key)
+                   // Lower-cased on both sides: usernames are matched case-insensitively everywhere else in the
+                   // system, and a differently-cased actor name must not slip past this exclusion.
+                   .Select(s => s.Key.ToLower())
                    .ToList();
 
         // Base scope = every filter EXCEPT action, so the summary cards always show the full
@@ -62,7 +64,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         var baseQuery = context.AuditLogs.AsNoTracking();
 
         if (foreignActors.Count > 0)
-            baseQuery = baseQuery.Where(a => !foreignActors.Contains(a.ActorName));
+            baseQuery = baseQuery.Where(a => !foreignActors.Contains(a.ActorName.ToLower()));
 
         // Incoming bounds carry the correct UTC instant but may bind with Kind=Unspecified over the
         // query string; Npgsql requires Kind=Utc for the 'timestamp with time zone' column.

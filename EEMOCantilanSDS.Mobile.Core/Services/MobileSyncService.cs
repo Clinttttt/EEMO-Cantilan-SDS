@@ -25,6 +25,24 @@ public sealed class MobileSyncService
     /// <summary>Server caps a sync batch at 200 operations (see SyncOfflineCollectionsCommandValidator).</summary>
     private const int MaxBatchSize = 200;
 
+    /// <summary>
+    /// How long a row waits after an unsuccessful attempt before it is sent again, by attempt number. Without
+    /// this, one row the server keeps refusing made every later capture (and every reconnect) re-send the whole
+    /// queue over a field connection. A collector who presses "Sync now" bypasses the wait entirely.
+    /// The last value repeats, so a row that keeps failing settles into a five-minute retry rather than stopping.
+    /// </summary>
+    private static readonly TimeSpan[] RetryBackoff =
+    {
+        TimeSpan.Zero,
+        TimeSpan.FromSeconds(15),
+        TimeSpan.FromSeconds(45),
+        TimeSpan.FromMinutes(2),
+        TimeSpan.FromMinutes(5)
+    };
+
+    /// <summary>How often the device retries by itself while rows are still waiting and it is online.</summary>
+    private static readonly TimeSpan AutoRetryInterval = TimeSpan.FromMinutes(1);
+
     private readonly IPendingOperationStore _store;
     private readonly IMobileApiClient _api;
     private readonly IConnectivityMonitor _connectivity;
@@ -76,6 +94,10 @@ public sealed class MobileSyncService
     {
         await RefreshCountAsync();
         NotifyChanged();
+
+        // Anything still waiting is retried by the device itself from here on, so a queue does not sit until the
+        // collector happens to reopen a screen or the network happens to flap.
+        EnsureAutoRetry();
     }
 
     /// <summary>Returns the current collector's queued rows (newest first) for the review sheet. Includes
@@ -100,7 +122,8 @@ public sealed class MobileSyncService
         NotifyChanged();
 
         // Fire-and-forget: if there is signal, push it immediately; otherwise it waits in the queue.
-        _ = Task.Run(TrySyncInBackgroundAsync);
+        _ = Task.Run(() => TrySyncInBackgroundAsync(force: true));
+        EnsureAutoRetry();
     }
 
     /// <summary>Drops a queued row (e.g. a Rejected item the collector chooses to discard).</summary>
@@ -116,7 +139,11 @@ public sealed class MobileSyncService
     /// applies the outcome: Synced → removed, Rejected → kept + message (no auto-retry), Failed → kept for
     /// the next attempt. No-op when offline, already syncing, or the queue has nothing retryable.
     /// </summary>
-    public async Task<SyncSummary> SyncNowAsync()
+    /// <param name="force">
+    /// True for an action the collector took themselves ("Sync now", a fresh capture): every retryable row is
+    /// sent regardless of its backoff. False for automatic attempts, which respect the per-row wait.
+    /// </param>
+    public async Task<SyncSummary> SyncNowAsync(bool force = true)
     {
         if (IsSyncing || !IsOnline)
             return SyncSummary.Empty;
@@ -127,7 +154,7 @@ public sealed class MobileSyncService
         {
             // Nothing retryable for THIS collector → return WITHOUT flipping state or notifying.
             var initial = await _store.GetAllAsync().ConfigureAwait(false);
-            if (!initial.Any(o => IsOwnedByCurrent(o) && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed) || !IsOnline)
+            if (!initial.Any(o => IsRetryable(o, force)) || !IsOnline)
                 return SyncSummary.Empty;
 
             started = true;
@@ -140,7 +167,7 @@ public sealed class MobileSyncService
             {
                 var all = await _store.GetAllAsync().ConfigureAwait(false);
                 var batch = all
-                    .Where(o => IsOwnedByCurrent(o) && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
+                    .Where(o => IsRetryable(o, force))
                     .OrderBy(o => o.CreatedAt)
                     .Take(MaxBatchSize)
                     .ToList();
@@ -239,7 +266,32 @@ public sealed class MobileSyncService
     {
         op.LocalStatus = PendingLocalStatus.Failed;
         op.ResultMessage = message;
+        op.AttemptCount++;
+        op.LastAttemptUtc = DateTime.UtcNow;
         await _store.UpdateAsync(op);
+    }
+
+    /// <summary>
+    /// A row is retryable when it belongs to the signed-in collector, is not settled, and — for an automatic
+    /// attempt — its backoff has elapsed. A collector-initiated sync ignores the backoff: they asked for it now.
+    /// </summary>
+    private bool IsRetryable(PendingOperation op, bool force)
+    {
+        if (!IsOwnedByCurrent(op)) return false;
+        if (op.LocalStatus is not (PendingLocalStatus.Pending or PendingLocalStatus.Failed)) return false;
+        if (force) return true;
+
+        return NextAttemptDueUtc(op) <= DateTime.UtcNow;
+    }
+
+    /// <summary>When this row may next be sent automatically. Never attempted → now.</summary>
+    private static DateTime NextAttemptDueUtc(PendingOperation op)
+    {
+        if (op.LastAttemptUtc is not { } last || op.AttemptCount <= 0)
+            return DateTime.MinValue;
+
+        var index = Math.Min(op.AttemptCount, RetryBackoff.Length - 1);
+        return last + RetryBackoff[index];
     }
 
     private async Task RefreshCountAsync()
@@ -248,15 +300,61 @@ public sealed class MobileSyncService
         PendingCount = all.Count(o => IsVisibleToCurrent(o) && o.LocalStatus != PendingLocalStatus.Synced);
     }
 
-    private async Task TrySyncInBackgroundAsync()
+    private async Task TrySyncInBackgroundAsync(bool force = false)
     {
         try
         {
-            await SyncNowAsync().ConfigureAwait(false);
+            await SyncNowAsync(force).ConfigureAwait(false);
         }
         catch
         {
             // Best-effort: a background sync must never surface to the capture path.
+        }
+    }
+
+    // ── Automatic retry while rows are waiting ────────────────────────────────────────────────────────
+    // Connectivity events cover a network that comes back, but not a server that was briefly unavailable while
+    // the device stayed online — nothing would then retry until the collector captured again or reopened the
+    // Records screen. This loop closes that gap and stops itself as soon as the queue is settled, so it costs
+    // nothing on an idle device.
+
+    private readonly object _loopLock = new();
+    private Task? _retryLoop;
+
+    private void EnsureAutoRetry()
+    {
+        lock (_loopLock)
+        {
+            if (_retryLoop is { IsCompleted: false })
+                return;
+
+            _retryLoop = Task.Run(AutoRetryLoopAsync);
+        }
+    }
+
+    private async Task AutoRetryLoopAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(AutoRetryInterval).ConfigureAwait(false);
+
+                var all = await _store.GetAllAsync().ConfigureAwait(false);
+                var waiting = all.Any(o => IsOwnedByCurrent(o)
+                    && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
+
+                // Nothing left to send: stop. A later capture (or app start) starts the loop again.
+                if (!waiting)
+                    return;
+
+                if (IsOnline)
+                    await TrySyncInBackgroundAsync().ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // The loop is a convenience; if it ever falls over, manual sync and connectivity events remain.
         }
     }
 
@@ -273,7 +371,7 @@ public sealed class MobileSyncService
             _lastConnectivityTriggerUtc = now;
         }
 
-        _ = Task.Run(TrySyncInBackgroundAsync);
+        _ = Task.Run(() => TrySyncInBackgroundAsync(force: true));
     }
 
     private void NotifyChanged() => Changed?.Invoke();

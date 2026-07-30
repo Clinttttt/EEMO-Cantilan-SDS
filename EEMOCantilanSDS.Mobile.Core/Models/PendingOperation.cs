@@ -88,6 +88,17 @@ public sealed class PendingOperation
     public string? ResultMessage { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// How many times this row has been sent and come back unsuccessful. Drives the retry backoff, so a row the
+    /// server keeps refusing does not make every later capture re-send the whole queue, and lets the review
+    /// sheet tell the collector how many attempts have been made.
+    /// </summary>
+    public int AttemptCount { get; set; }
+
+    /// <summary>When the last attempt was made (UTC). With <see cref="AttemptCount"/> this decides when the row
+    /// becomes due again. Null = never attempted, so it is due immediately.</summary>
+    public DateTime? LastAttemptUtc { get; set; }
+
     // ── Display fields (for the pending-review sheet only) ──────────────────
     public string FacilityLabel { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;

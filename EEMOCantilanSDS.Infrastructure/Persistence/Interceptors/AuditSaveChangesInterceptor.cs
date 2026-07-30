@@ -40,10 +40,14 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     ];
 
     // Auth-housekeeping columns. A user Modified entry whose changed columns are ALL within this set
-    // (login, token refresh, failed-attempt/lockout bookkeeping) is skipped — not an auditable action.
+    // (login, token refresh, failed-attempt/lockout bookkeeping, the two-factor sign-in challenge, and the
+    // one-time reminder marker) is skipped — not an auditable action. Turning two-factor ON or OFF changes
+    // MfaEnabled/MfaSecretCipher, which are NOT in this set, so that decision is still recorded.
     private static readonly HashSet<string> AuthHousekeepingFields = new(StringComparer.Ordinal)
     {
-        "LastLoginAt", "RefreshToken", "RefreshTokenExpiryTime", "FailedAttempts", "LockedUntil"
+        "LastLoginAt", "RefreshToken", "RefreshTokenExpiryTime", "FailedAttempts", "LockedUntil",
+        "MfaChallengeTokenHash", "MfaChallengeTokenExpiry", "MfaLastUsedStep", "MfaReminderShownAt",
+        "UpdatedAt", "UpdatedBy"
     };
 
     // Secrets/credentials that must NEVER be written into the audit snapshot (old or new values).
