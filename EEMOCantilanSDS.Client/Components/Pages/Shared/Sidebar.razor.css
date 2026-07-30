@@ -339,11 +339,16 @@
 }
 
 
-/* The Dashboard mark is the page hero's own drawing, so it must also carry the hero's ink: stroke-width 2 with
-   round joins. The rail's default 1.8 (and an earlier 1.5) drew thinner, sharper panels — which is why it kept
-   reading as a different icon even though the geometry already matched. */
+/* The Dashboard mark is the page hero's own drawing, and matching it is a question of pixels, not geometry.
+   The hero draws it at 26px, where the 4-unit gap between panels is ~4 device px and the panels read as four
+   separate squares. At the rail's 16px that same gap is ~1.3px once the strokes eat into it, so it anti-aliases
+   into one solid grid — which is why the icon kept looking like a different drawing however the stroke was
+   tuned. Drawn at 18px with a 1.8 stroke the gap survives (~1.7px) and the mark reads exactly as it does on
+   the Dashboard page. Verified by rendering both at 1x and inspecting the actual pixels. */
 :global(.nav-item .nav-icon-dashboard) {
-    stroke-width: 2;
+    width: 18px;
+    height: 18px;
+    stroke-width: 1.8;
     stroke-linejoin: round;
     stroke-linecap: round;
 }

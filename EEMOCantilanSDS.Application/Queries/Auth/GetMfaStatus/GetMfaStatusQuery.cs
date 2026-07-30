@@ -31,7 +31,9 @@ namespace EEMOCantilanSDS.Application.Queries.Auth.GetMfaStatus
                 Enabled: user.MfaEnabled,
                 PendingEnrollment: user.HasPendingMfaEnrollment,
                 EnrolledAt: user.MfaEnrolledAt,
-                RecoveryCodesRemaining: user.MfaRecoveryCodesRemaining));
+                RecoveryCodesRemaining: user.MfaRecoveryCodesRemaining,
+                // Offered once: only while two-factor is off and the account has not been shown the reminder.
+                ReminderPending: !user.MfaEnabled && user.MfaReminderShownAt is null));
         }
     }
 }

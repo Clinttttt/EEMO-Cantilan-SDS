@@ -26,6 +26,9 @@ public class MfaApiClient(HttpClient http) : HandleResponse(http), IMfaApiClient
     public async Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command) =>
         await PostAsync<RegenerateRecoveryCodesCommand, MfaRecoveryCodesDto>("api/AdminAuth/mfa/recovery-codes", command);
 
+    public async Task<Result<bool>> AcknowledgeMfaReminderAsync() =>
+        await PostAsync<object, bool>("api/AdminAuth/mfa/reminder-seen", new { });
+
     public async Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync() =>
         await GetAsync<IReadOnlyList<MfaEnrolledAccountDto>>("api/AdminAuth/mfa/enrolled-accounts");
 

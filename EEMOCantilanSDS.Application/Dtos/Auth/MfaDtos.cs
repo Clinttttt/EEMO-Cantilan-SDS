@@ -5,7 +5,12 @@ namespace EEMOCantilanSDS.Application.Dtos.Auth
         bool Enabled,
         bool PendingEnrollment,
         DateTime? EnrolledAt,
-        int RecoveryCodesRemaining);
+        int RecoveryCodesRemaining,
+        /// <summary>
+        /// True when this account has never been shown the two-factor reminder and has it switched off — the
+        /// portal offers it once, then leaves the choice alone.
+        /// </summary>
+        bool ReminderPending = false);
 
     /// <summary>
     /// What the user needs to add the account to an authenticator app. Returned ONCE, when enrollment starts;

@@ -48,19 +48,6 @@
             <strong class="sig-name">@PhilippineTime.Now.ToString("MMM d, yyyy")</strong>
         </div>
     }
-
-    @if (_isHead && Slots.Count < MaxSlots)
-    {
-        <div class="sig-slot sig-slot-add no-print">
-            <button type="button" class="sig-add" @onclick="OpenNew">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-                Add signatory
-            </button>
-        </div>
-    }
 </div>
 
 @if (_editing is not null)
@@ -96,12 +83,17 @@
             <button type="button" class="sig-save" @onclick="Save" disabled="@_busy">@(_busy ? "Saving…" : "Save")</button>
         </div>
 
-        @if (_isHead)
-        {
-            <button type="button" class="sig-reset" @onclick="ResetToDefault" disabled="@_busy">
+        @* Adding and restoring live in here rather than on the sheet: the strip itself stays a document, and a
+           line removed by accident is put back from the same place it was removed. *@
+        <div class="sig-dialog-more">
+            @if (_editing < Slots.Count && Slots.Count < MaxSlots)
+            {
+                <button type="button" class="sig-link" @onclick="OpenNew" disabled="@_busy">Add another signatory</button>
+            }
+            <button type="button" class="sig-link" @onclick="ResetToDefault" disabled="@_busy">
                 Restore the office's default signatories
             </button>
-        }
+        </div>
     </div>
 }
 

@@ -152,6 +152,15 @@ public class AdminAuthController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<MfaEnrollmentDto>> BeginMfaEnrollmentAsync([FromBody] BeginMfaEnrollmentCommand command)
         => HandleResponse(await Sender.Send(command));
 
+    /// <summary>
+    /// Records that this account has seen the two-factor reminder, so the portal offers it once and then leaves
+    /// the choice to the account owner.
+    /// </summary>
+    [HttpPost("mfa/reminder-seen")]
+    [Authorize]
+    public async Task<ActionResult<bool>> AcknowledgeMfaReminderAsync()
+        => HandleResponse(await Sender.Send(new AcknowledgeMfaReminderCommand()));
+
     [HttpPost("mfa/confirm")]
     [Authorize]
     [EnableRateLimiting("auth")]

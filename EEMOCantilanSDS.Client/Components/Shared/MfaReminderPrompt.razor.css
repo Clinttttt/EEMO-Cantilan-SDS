@@ -1,0 +1,119 @@
+/* ══════════════════════════════════════════════════════════════════════
+   MfaReminderPrompt — the one-time offer of two-factor for a Head.
+   Deliberately a calm notice, not an alarm: two-factor is recommended here,
+   never demanded, so the copy and the buttons carry no warning colour.
+   ══════════════════════════════════════════════════════════════════════ */
+.mfa-remind-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(10, 22, 35, .5);
+}
+
+.mfa-remind {
+    position: fixed;
+    z-index: 2001;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(430px, calc(100vw - 32px));
+    padding: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 22px 50px rgba(15, 35, 55, .24);
+}
+
+.mfa-remind-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+    border-radius: 11px;
+    background: rgba(200, 168, 75, .16);
+    color: var(--gold, #c8a84b);
+}
+
+    .mfa-remind-mark svg {
+        width: 21px;
+        height: 21px;
+    }
+
+.mfa-remind-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 8px;
+}
+
+.mfa-remind-text {
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+.mfa-remind-note {
+    margin: 0 0 18px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-subtle);
+}
+
+    .mfa-remind-note strong {
+        color: var(--navy);
+        font-weight: 700;
+    }
+
+.mfa-remind-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.mfa-remind-later,
+.mfa-remind-go {
+    height: 36px;
+    padding: 0 15px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    border-radius: 9px;
+    cursor: pointer;
+}
+
+.mfa-remind-later {
+    color: var(--navy);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+    .mfa-remind-later:hover {
+        border-color: var(--navy);
+    }
+
+.mfa-remind-go {
+    color: #fff;
+    background: var(--navy);
+    border: 1px solid var(--navy);
+}
+
+    .mfa-remind-go:hover {
+        background: var(--navy-2, #112d47);
+    }
+
+.mfa-remind-later:disabled,
+.mfa-remind-go:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+@media print {
+    .mfa-remind,
+    .mfa-remind-backdrop {
+        display: none !important;
+    }
+}

@@ -14,9 +14,9 @@
             @Body
         </main>
     </div>
-    @* Heads must have two-factor enabled; this keeps them on the setup page until they do. Renders nothing,
-       fails open, and only applies to signed-in SuperAdmins. *@
-    <EEMOCantilanSDS.Client.Components.Shared.MfaEnforcementGate />
+    @* Two-factor is offered once to a Head who has it switched off, then left to their judgement — it is no
+       longer compulsory, so nobody is held on the setup page. Fails quiet and never blocks work. *@
+    <EEMOCantilanSDS.Client.Components.Shared.MfaReminderPrompt />
     <EEMOCantilanSDS.Client.Components.Shared.SessionGuard LoginPath="/login" LogoutEndpoint="/api/authproxy/logout" />
 }
 else

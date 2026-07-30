@@ -2,25 +2,27 @@
    SignatureStrip — the signatory lines at the foot of an official sheet.
    One look on every document; the editing affordances never print.
    ══════════════════════════════════════════════════════════════════════ */
+/* The strip does not impose a layout of its own: `display: contents` hands its slots to whatever footer hosts
+   it, so the roster's flex row and the status report's three-column grid each lay the lines out as they always
+   did. That is why the status-report footer no longer squeezes three lines into one column. */
 .sig-strip {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    width: 100%;
+    display: contents;
 }
 
 .sig-slot {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 130px;
+    min-width: 110px;
     text-align: center;
 }
 
+/* A caption is two or three words and must never stack into a column — which is what the narrower status-report
+   footer did to it. */
 .sig-caption {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
+    white-space: nowrap;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .4px;
@@ -33,9 +35,11 @@
     font-size: 12.5px;
     font-weight: 700;
     color: var(--navy);
+    overflow-wrap: break-word;
 }
 
-/* Quiet pencil: visible enough to find, faint enough not to decorate the sheet. */
+/* Quiet pencil: visible enough to find, faint enough not to decorate the sheet. It is also the way back —
+   adding a line and restoring the office's defaults live inside the dialog it opens. */
 .sig-edit {
     display: inline-flex;
     align-items: center;
@@ -63,38 +67,7 @@
         height: 12px;
     }
 
-.sig-slot-add {
-    flex: 0 0 auto;
-    align-self: center;
-}
-
-.sig-add {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    font: inherit;
-    font-size: 11.5px;
-    font-weight: 650;
-    color: var(--text-muted);
-    background: transparent;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-    .sig-add:hover {
-        color: var(--navy);
-        border-color: var(--navy);
-    }
-
-    .sig-add svg {
-        width: 12px;
-        height: 12px;
-    }
-
-/* ── Editor ─────────────────────────────────────────────────────────── */
+/* ── Editor ─────────────────────────────────────────────────────────────────────────────────────────── */
 .sig-dialog-backdrop {
     position: fixed;
     inset: 0;
@@ -202,7 +175,17 @@
     border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
 }
 
-.sig-reset {
+/* Secondary paths: add a line back, or restore the office's standard trio. */
+.sig-dialog-more {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.sig-link {
     padding: 0;
     font: inherit;
     font-size: 11.5px;
@@ -214,14 +197,14 @@
     text-decoration: underline;
 }
 
-    .sig-reset:hover {
+    .sig-link:hover {
         color: var(--navy);
     }
 
 .sig-cancel:disabled,
 .sig-save:disabled,
 .sig-remove:disabled,
-.sig-reset:disabled {
+.sig-link:disabled {
     opacity: .6;
     cursor: default;
 }
@@ -229,7 +212,6 @@
 @media print {
     /* Paper carries the lines only. */
     .sig-edit,
-    .sig-slot-add,
     .sig-dialog,
     .sig-dialog-backdrop {
         display: none !important;

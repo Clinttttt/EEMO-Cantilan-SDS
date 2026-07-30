@@ -71,6 +71,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
         public DateTime? MfaEnrolledAt { get; protected set; }
 
         /// <summary>
+        /// When this account was last shown the "add an authenticator" reminder. Two-factor is offered, not
+        /// forced: the reminder appears the first time the account signs in and is not repeated once seen, so
+        /// a Head who chooses to sign in with a password alone is not nagged at every login.
+        /// </summary>
+        public DateTime? MfaReminderShownAt { get; protected set; }
+
+        /// <summary>Records that the account has seen the two-factor reminder (idempotent).</summary>
+        public void MarkMfaReminderShown()
+        {
+            MfaReminderShownAt ??= DateTime.UtcNow;
+            UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
         /// The highest TOTP time-step already accepted for this account. Codes from that step or earlier are
         /// refused, so an observed code cannot be replayed inside its own 30-second validity window.
         /// </summary>

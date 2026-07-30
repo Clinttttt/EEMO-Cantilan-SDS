@@ -1,0 +1,110 @@
+@using System.Security.Claims
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IMfaApiClient MfaApi
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@*
+    One-time two-factor reminder for a Head.
+
+    Two-factor is offered, not compulsory. This replaces the gate that kept a Head on /security-setup until
+    they enrolled: an office Head who prefers to sign in with a password alone can now do so, and is reminded
+    once — the first time the account signs in — rather than at every login.
+
+    Design rules:
+      • Shown only when the API positively reports two-factor OFF and this account has never been reminded.
+      • Dismissal is recorded server-side, so it holds across devices and browsers.
+      • FAILS QUIET: any error and nothing is shown. A reminder must never block a Head from working.
+      • Never on the sign-in, setup or logout routes, where it would interrupt a flow already in progress.
+*@
+
+@if (_show)
+{
+    <div class="mfa-remind-backdrop" @onclick="DismissAsync"></div>
+    <div class="mfa-remind" role="dialog" aria-modal="true" aria-labelledby="mfa-remind-title">
+        <div class="mfa-remind-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <path d="M12 15v3" />
+            </svg>
+        </div>
+
+        <div id="mfa-remind-title" class="mfa-remind-title">Add an authenticator to this account</div>
+        <p class="mfa-remind-text">
+            Your account can create and reset staff accounts and read every financial record for this office.
+            An authenticator app adds a second step at sign-in, so a stolen password alone is not enough.
+        </p>
+        <p class="mfa-remind-note">
+            It is optional — you can sign in with your password alone. You can turn it on (or off) at any time
+            in <strong>Settings → Two-factor authentication</strong>.
+        </p>
+
+        <div class="mfa-remind-actions">
+            <button type="button" class="mfa-remind-later" disabled="@_busy" @onclick="DismissAsync">
+                Not now
+            </button>
+            <button type="button" class="mfa-remind-go" disabled="@_busy" @onclick="SetUpAsync">
+                Set it up now
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _show;
+    private bool _busy;
+
+    /// <summary>Routes where a reminder would interrupt a flow that is already under way.</summary>
+    private static readonly string[] Quiet = { "/login", "/logout", "/security-setup", "/setup", "/account-setup" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            if (!IsHead(state.User)) return;
+
+            var path = new Uri(Navigation.Uri).AbsolutePath;
+            if (Quiet.Any(q => path.StartsWith(q, StringComparison.OrdinalIgnoreCase))) return;
+
+            var status = await MfaApi.GetMfaStatusAsync();
+            if (!status.IsSuccess || status.Value is null) return;
+
+            _show = !status.Value.Enabled && status.Value.ReminderPending;
+        }
+        catch
+        {
+            // Fail quiet by design.
+        }
+    }
+
+    /// <summary>Records the reminder as seen, so it is not shown again on any device.</summary>
+    private async Task DismissAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+
+        try { await MfaApi.AcknowledgeMfaReminderAsync(); }
+        catch { /* the reminder simply appears once more next time */ }
+
+        _busy = false;
+        _show = false;
+    }
+
+    private async Task SetUpAsync()
+    {
+        await DismissAsync();
+        Navigation.NavigateTo("/security-setup");
+    }
+
+    // The cookie principal is built from the raw JWT, so the role can land under "role", ClaimTypes.Role,
+    // or a schema URI. Matches AccountChip's approach.
+    private static bool IsHead(ClaimsPrincipal user) =>
+        user.IsInRole("SuperAdmin")
+        || user.Claims.Any(c =>
+            string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
+            && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
+}

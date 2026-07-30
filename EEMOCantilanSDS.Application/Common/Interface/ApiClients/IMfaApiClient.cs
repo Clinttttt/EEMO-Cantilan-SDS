@@ -22,6 +22,9 @@ public interface IMfaApiClient
     Task<Result<bool>> DisableMfaAsync(DisableMfaCommand command);
     Task<Result<MfaRecoveryCodesDto>> RegenerateRecoveryCodesAsync(RegenerateRecoveryCodesCommand command);
 
+    /// <summary>Records that this account has seen the two-factor reminder, so it is offered only once.</summary>
+    Task<Result<bool>> AcknowledgeMfaReminderAsync();
+
     // ── Platform-operator recovery ──
     Task<Result<IReadOnlyList<MfaEnrolledAccountDto>>> GetMfaEnrolledAccountsAsync();
     Task<Result<bool>> ResetUserMfaAsync(ResetUserMfaCommand command);

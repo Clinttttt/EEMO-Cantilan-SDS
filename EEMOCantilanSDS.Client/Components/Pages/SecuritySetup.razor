@@ -4,10 +4,10 @@
 @inject NavigationManager Navigation
 @attribute [Authorize(Roles = "SuperAdmin")]
 
-<PageTitle>@Branding.OfficeAcronym Admin — Required Security Setup</PageTitle>
+<PageTitle>@Branding.OfficeAcronym Admin — Security Setup</PageTitle>
 
 @*
-    Mandatory two-factor enrolment for Heads, presented as a modal over the portal.
+    Optional two-factor enrolment for Heads, presented as a modal over the portal.
 
     Enforced AFTER sign-in, never before: the Head is already authenticated when they arrive, so a mandatory
     requirement can never lock anyone out. Once two-factor is active the dialog steps aside.
@@ -71,10 +71,11 @@
                 </svg>
             </div>
             <div class="secsetup-head-text">
-                <div class="secsetup-eyebrow">Required for @Branding.OfficeAcronym Heads</div>
+                <div class="secsetup-eyebrow">Recommended for @Branding.OfficeAcronym Heads</div>
                 <h1 class="secsetup-title" id="secsetup-title">Secure your Head account</h1>
                 <p class="secsetup-sub">
-                    Two-factor authentication is required before you continue.
+                    Two-factor authentication adds a second step at sign-in. It is optional — you can leave it
+                    off and continue with your password alone.
                 </p>
             </div>
         </div>
@@ -101,7 +102,7 @@
                 @* Two rows: why it is required, then what it involves. Splitting the wall of prose into
                    labelled rows lets a Head who is mid-task grasp the requirement at a glance. Shared with
                    the Settings dialog so both read identically. *@
-                <TwoFactorIntro Reason="@($"Your account can create and reset staff accounts and read every financial record for {Branding.Municipality}, so an added sign-in step is required.")" />
+                <TwoFactorIntro Reason="@($"Your account can create and reset staff accounts and read every financial record for {Branding.Municipality}, so a second sign-in step is strongly recommended.")" />
 
                 @* ShowIntro="false": the rows above already say what the panel's opening sentence says, and
                    repeating it inside the same dialog reads as padding. *@
@@ -120,13 +121,11 @@
             }
             else
             {
-                <span class="secsetup-foot-mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3.5" y="10.5" width="17" height="10.5" rx="2" />
-                        <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
-                    </svg>
-                </span>
-                <span class="secsetup-foot-note">You are signed in — completing this step unlocks the portal.</span>
+                @* No longer a gate: a Head may leave two-factor off and go straight to work. *@
+                <button class="secsetup-btn" type="button" @onclick="Continue">
+                    Not now — continue to dashboard
+                </button>
+                <span class="secsetup-foot-note">You can turn this on later in Settings.</span>
             }
         </div>
 
