@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -31,8 +32,21 @@ public class AuditTrailScopeTests
     private static void Stamp(AppDbContext ctx, object entity, Guid municipalityId) =>
         ctx.Entry(entity).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = municipalityId;
 
-    private static void SeedAdmin(AppDbContext ctx, Guid municipalityId, string username, string fullName)
+    /// <summary>An empty lookup: nothing related is resolvable, so only the snapshot's own facts appear.</summary>
+    private static AuditDetailComposer.Lookup NoLookup() => new(
+        new Dictionary<Guid, AuditDetailComposer.StallRef>(),
+        new Dictionary<Guid, string>(),
+        new Dictionary<string, string>());
+
+    /// <summary>A municipality with a known id, so a snapshot can reference it.</summary>
+    private static void SeedMunicipality(AppDbContext ctx, Guid id, string code, string name)
     {
+        var lgu = Municipality.Create(code, name, "Surigao del Sur", MunicipalityStatus.Active);
+        ctx.Municipalities.Add(lgu);
+        ctx.Entry(lgu).Property(nameof(Municipality.Id)).CurrentValue = id;
+    }
+
+    private static void SeedAdmin(AppDbContext ctx, Guid municipalityId, string username, string fullName)    {
         var admin = AdminUser.Create(fullName, username, $"{username}@lgu.gov", "Secret123!", AdminRole.SuperAdmin);
         ctx.AdminUsers.Add(admin);
         Stamp(ctx, admin, municipalityId);
@@ -166,10 +180,7 @@ public class AuditTrailScopeTests
     [Fact]
     public void ASlaughterCollection_NamesTheAnimalNotItsEnumNumber()
     {
-        var lookup = new AuditDetailComposer.Lookup(
-            new Dictionary<Guid, AuditDetailComposer.StallRef>(),
-            new Dictionary<Guid, string>(),
-            new Dictionary<Guid, string>());
+        var lookup = NoLookup();
 
         var details = AuditDetailComposer.Describe(
             "Created", "SlaughterTransaction", Guid.NewGuid(),
@@ -185,12 +196,87 @@ public class AuditTrailScopeTests
     }
 
     [Fact]
-    public void AnUnknownEntity_StillReadsAsEnglish()
+    public async Task AnEventAboutAnotherMunicipalitysAccount_NeverAppearsHere_EvenWhenTheActorIsSystem()
     {
+        // The leak that survived actor scoping: the actor was "system" (unattributable, therefore kept) while the
+        // SUBJECT was another LGU's Head. Every snapshot carries the record's own MunicipalityId, so a row naming
+        // a different municipality is excluded regardless of how it was stamped or who wrote it.
+        var options = Options();
+        var cantilan = Guid.NewGuid();
+        var carrascal = Guid.NewGuid();
+
+        using (var seed = new AppDbContext(options, new FixedMunicipality(cantilan)))
+        {
+            SeedMunicipality(seed, cantilan, "CANTILAN", "Cantilan");
+            SeedMunicipality(seed, carrascal, "CARRASCAL", "Carrascal");
+
+            var ours = AuditLog.Create("id", "system", "system", "Updated", "AdminUser", Guid.NewGuid(),
+                null, $"{{\"FullName\":\"Juan Dela Cruz\",\"Username\":\"head\",\"Role\":1,\"MunicipalityId\":\"{cantilan}\"}}");
+            var theirs = AuditLog.Create("id", "system", "system", "Updated", "AdminUser", Guid.NewGuid(),
+                null, $"{{\"FullName\":\"Personal Unos\",\"Username\":\"carrascal.head\",\"Role\":1,\"MunicipalityId\":\"{carrascal}\"}}");
+
+            seed.AuditLogs.AddRange(ours, theirs);
+            Stamp(seed, ours, cantilan);
+            Stamp(seed, theirs, cantilan);   // mis-stamped, exactly as in production
+            await seed.SaveChangesAsync();
+        }
+
+        using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
+        var trail = await new AuditRepository(ctx, new FixedMunicipality(cantilan))
+            .GetAuditTrailAsync(null, null, null, null, null, null, 1, 25, true, CancellationToken.None);
+
+        var row = Assert.Single(trail.Items);
+        Assert.Contains("Juan Dela Cruz", row.Details);
+        Assert.DoesNotContain(trail.Items, i => i.Details.Contains("carrascal.head"));
+        Assert.Equal(1, trail.TotalEvents);
+    }
+
+    [Fact]
+    public void AnAccountEvent_ReadsAsASentence_NotADatabaseRow()
+    {
+        // It used to read "Updated the staff account of Juan Dela Cruz · head · Head".
+        var lookup = NoLookup();
+
+        var admin = AuditDetailComposer.Describe("Updated", "AdminUser", Guid.NewGuid(),
+            "{\"FullName\":\"Juan Dela Cruz\",\"Username\":\"head\",\"Role\":1}", null, lookup);
+        Assert.Equal("Updated the staff account of Juan Dela Cruz (Head)", admin);
+
+        var collector = AuditDetailComposer.Describe("Created", "CollectorUser", Guid.NewGuid(),
+            "{\"FullName\":\"Ana Reyes\",\"Username\":\"ana\"}", null, lookup);
+        Assert.Equal("Created the collector account of Ana Reyes", collector);
+
+        // No name recorded → the username stands in, rather than an empty sentence.
+        var unnamed = AuditDetailComposer.Describe("Updated", "AdminUser", Guid.NewGuid(),
+            "{\"Username\":\"madrid.head\"}", null, lookup);
+        Assert.Equal("Updated the staff account of madrid.head", unnamed);
+    }
+
+    [Fact]
+    public void FacilityAndSectionWording_ComesFromTheLguNotFromCantilan()
+    {
+        // Nothing in the trail's text may assume Cantilan's naming: another municipality's market or terminal is
+        // called something else, and an office that renamed its sections must read its own labels.
         var lookup = new AuditDetailComposer.Lookup(
             new Dictionary<Guid, AuditDetailComposer.StallRef>(),
             new Dictionary<Guid, string>(),
-            new Dictionary<Guid, string>());
+            new Dictionary<string, string> { ["TRM"] = "Madrid Integrated Terminal" },
+            new Dictionary<int, string> { [1] = "Gulayan", [3] = "Karne" });
+
+        var trip = AuditDetailComposer.Describe("Created", "TrmTrip", Guid.NewGuid(),
+            "{\"DriverName\":\"Dante Amas\",\"TripNumber\":2,\"Route\":\"Surigao-Cortes\",\"Fee\":30.00}",
+            null, lookup);
+
+        Assert.StartsWith("Recorded a trip for Madrid Integrated Terminal", trip);
+        Assert.DoesNotContain("Tabo-an", trip);
+
+        var changes = AuditDetailComposer.Changes("{\"Section\":1}", "{\"Section\":3}", lookup);
+        Assert.Contains(changes, c => c == "Section Gulayan → Karne");
+    }
+
+    [Fact]
+    public void AnUnknownEntity_StillReadsAsEnglish()
+    {
+        var lookup = NoLookup();
 
         var details = AuditDetailComposer.Describe("Created", "TenantBackup", Guid.NewGuid(), null, null, lookup);
 

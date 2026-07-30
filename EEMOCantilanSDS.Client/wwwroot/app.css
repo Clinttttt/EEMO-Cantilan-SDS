@@ -2033,3 +2033,43 @@ a.topbar-admin.account-chip {
 .or-modal-note { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px; }
 .or-modal-note strong { color: var(--navy); }
 .or-modal-err { margin-top: 10px; color: var(--red); font-size: 12.5px; font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   SCROLLBARS — the platform's defaults are a heavy grey trough that reads
+   as chrome next to the portal's own surfaces. Drawn thin and in the
+   office's ink instead. Purely visual: scrolling behaviour is untouched,
+   and the bars stay wide enough to grab with a mouse.
+   ══════════════════════════════════════════════════════════════════════ */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--navy) 26%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--navy) 22%, transparent);
+    border-radius: 999px;
+}
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: color-mix(in srgb, var(--navy) 38%, transparent);
+    }
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+@media print {
+    /* Nothing scrolls on paper. */
+    ::-webkit-scrollbar {
+        display: none;
+    }
+}

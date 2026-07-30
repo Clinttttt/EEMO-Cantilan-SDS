@@ -20,10 +20,21 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.Audit;
 public static class AuditDetailComposer
 {
     /// <summary>Context the repository resolves once per page so the composer can name related records.</summary>
+    /// <param name="Stalls">Stalls referenced by the page, already named with this LGU's own labels.</param>
+    /// <param name="People">Payors and vendors referenced by the page.</param>
+    /// <param name="Facilities">
+    /// This LGU's own facility names, keyed by facility code. Never hardcode a facility's name here: one
+    /// municipality's "Tabo-an Public Market" is another's something else entirely.
+    /// </param>
+    /// <param name="SectionLabels">
+    /// This LGU's own market-section labels, keyed by the section's stored number — so a change reads
+    /// "Section Gulayan → Karne" for an office that renamed its sections, not the canonical wording.
+    /// </param>
     public sealed record Lookup(
         IReadOnlyDictionary<Guid, StallRef> Stalls,
         IReadOnlyDictionary<Guid, string> People,
-        IReadOnlyDictionary<Guid, string> Facilities);
+        IReadOnlyDictionary<string, string> Facilities,
+        IReadOnlyDictionary<int, string>? SectionLabels = null);
 
     /// <summary>A stall as an auditor refers to it: its number, its facility, and its section when it has one.</summary>
     public sealed record StallRef(string StallNo, string FacilityName, string? Section, string? Occupant);
@@ -48,9 +59,10 @@ public static class AuditDetailComposer
 
     /// <summary>
     /// The named field changes behind an update: "Monthly rate ₱900.00 → ₱1,200.00". Housekeeping and secret
-    /// columns are excluded, and the list is capped so one row cannot flood the page.
+    /// columns are excluded, and the list is capped so one row cannot flood the page. <paramref name="lookup"/>
+    /// supplies this LGU's own section labels, so a renamed section reads by its own name.
     /// </summary>
-    public static IReadOnlyList<string> Changes(string? oldValuesJson, string? newValuesJson)
+    public static IReadOnlyList<string> Changes(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null)
     {
         var before = Parse(oldValuesJson);
         var after = Parse(newValuesJson);
@@ -60,8 +72,8 @@ public static class AuditDetailComposer
 
         foreach (var (field, label) in TrackedFields)
         {
-            var oldText = Text(before, field);
-            var newText = Text(after, field);
+            var oldText = Text(before, field, lookup);
+            var newText = Text(after, field, lookup);
             if (oldText == newText) continue;
 
             var from = string.IsNullOrWhiteSpace(oldText) ? "—" : oldText;
@@ -113,6 +125,7 @@ public static class AuditDetailComposer
         ("IsPaid", "Paid"),
         ("IsAbsent", "Absent"),
         ("StallNo", "Stall no."),
+        ("Section", "Section"),
         ("Occupant", "Occupant"),
         ("ActualOccupant", "Occupant"),
         ("FullName", "Name"),
@@ -146,13 +159,13 @@ public static class AuditDetailComposer
         ("Updated", "DailyCollection") => "Updated the daily collection of",
         ("Deleted", "DailyCollection") => "Removed the daily collection of",
 
-        ("Created", "SlaughterTransaction") => "Recorded a slaughterhouse collection for",
-        ("Updated", "SlaughterTransaction") => "Updated the slaughterhouse collection of",
-        ("Deleted", "SlaughterTransaction") => "Removed the slaughterhouse collection of",
+        ("Created", "SlaughterTransaction") => "Recorded a collection for",
+        ("Updated", "SlaughterTransaction") => "Updated the collection of",
+        ("Deleted", "SlaughterTransaction") => "Removed the collection of",
 
-        ("Created", "TrmTrip") => "Recorded a terminal trip for",
-        ("Updated", "TrmTrip") => "Updated the terminal trip of",
-        ("Deleted", "TrmTrip") => "Removed the terminal trip of",
+        ("Created", "TrmTrip") => "Recorded a trip for",
+        ("Updated", "TrmTrip") => "Updated the trip of",
+        ("Deleted", "TrmTrip") => "Removed the trip of",
 
         ("Created", "TpmAttendance") => "Recorded a market-day collection for",
         ("Updated", "TpmAttendance") => "Updated the market-day collection of",
@@ -223,6 +236,7 @@ public static class AuditDetailComposer
             }
             case "SlaughterTransaction":
             {
+                parts.AddIfPresent(FacilityPhrase("SLH", lookup));
                 parts.AddIfPresent(TextPhrase(snapshot, "OwnerName"));
                 parts.AddIfPresent(AnimalPhrase(snapshot));
                 parts.AddIfPresent(DatePhrase(snapshot, "TransactionDate"));
@@ -232,6 +246,7 @@ public static class AuditDetailComposer
             }
             case "TrmTrip":
             {
+                parts.AddIfPresent(FacilityPhrase("TRM", lookup));
                 parts.AddIfPresent(TextPhrase(snapshot, "DriverName"));
                 parts.AddIfPresent(TripPhrase(snapshot));
                 parts.AddIfPresent(TextPhrase(snapshot, "Route"));
@@ -241,6 +256,7 @@ public static class AuditDetailComposer
             }
             case "TpmAttendance":
             {
+                parts.AddIfPresent(FacilityPhrase("TPM", lookup));
                 parts.AddIfPresent(PersonPhrase(snapshot, "VendorId", lookup));
                 parts.AddIfPresent(DatePhrase(snapshot, "MarketDate"));
                 parts.AddIfPresent(MoneyPhrase(snapshot, "Fee", "₱{0}"));
@@ -268,12 +284,18 @@ public static class AuditDetailComposer
                 break;
             }
             case "AdminUser":
+            {
+                // "Juan Dela Cruz (Head)" — the person, then the role that distinguishes a Head from an
+                // Administrator. The username is deliberately left out: "Juan Dela Cruz · head · Head" read as
+                // a database row, not a sentence.
+                parts.AddIfPresent(AccountPhrase(snapshot, withRole: true));
+                break;
+            }
             case "CollectorUser":
             case "PayorUser":
             {
-                parts.AddIfPresent(TextPhrase(snapshot, "FullName"));
-                parts.AddIfPresent(TextPhrase(snapshot, "Username"));
-                parts.AddIfPresent(TextPhrase(snapshot, "Role"));
+                // The verb already says which kind of account it is, so the role would only repeat it.
+                parts.AddIfPresent(AccountPhrase(snapshot, withRole: false));
                 break;
             }
             case "PayorActivationCode":
@@ -322,6 +344,11 @@ public static class AuditDetailComposer
     private static string? PersonPhrase(JsonElement? snapshot, string field, Lookup lookup) =>
         Guid(snapshot, field) is { } id && lookup.People.TryGetValue(id, out var name) ? name : null;
 
+    /// <summary>This LGU's own name for a facility. Absent from the lookup → the phrase is simply left out,
+    /// never replaced by another municipality's wording.</summary>
+    private static string? FacilityPhrase(string code, Lookup lookup) =>
+        lookup.Facilities.TryGetValue(code, out var name) && !string.IsNullOrWhiteSpace(name) ? name : null;
+
     private static string? PeriodPhrase(JsonElement? snapshot)
     {
         var year = Int(snapshot, "BillingYear");
@@ -368,6 +395,24 @@ public static class AuditDetailComposer
         return trip is > 0 ? $"Trip #{trip}" : null;
     }
 
+    /// <summary>
+    /// An account named as a person: their full name, falling back to the username when a name was never set,
+    /// with the role in brackets where it tells the reader something.
+    /// </summary>
+    private static string? AccountPhrase(JsonElement? snapshot, bool withRole)
+    {
+        var name = Text(snapshot, "FullName");
+        if (string.IsNullOrWhiteSpace(name)) name = Text(snapshot, "Username");
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        if (!withRole) return name;
+
+        var role = Text(snapshot, "Role");
+        return string.IsNullOrWhiteSpace(role) || string.Equals(role, name, StringComparison.OrdinalIgnoreCase)
+            ? name
+            : $"{name} ({role})";
+    }
+
     private static string? TextPhrase(JsonElement? snapshot, string field)
     {
         var value = Text(snapshot, field);
@@ -401,19 +446,30 @@ public static class AuditDetailComposer
     /// Enum-valued columns, translated by field name. A snapshot stores an enum as its NUMBER, so without this
     /// the trail would read "Status 1 → 3" — worse than useless on a government record. Values mirror the
     /// domain enums; an unmapped number falls back to the number itself rather than inventing a name.
+    /// Market sections are deliberately NOT listed here: their wording belongs to the LGU and comes from the
+    /// lookup, so an office that renamed its sections sees its own names.
     /// </summary>
     private static readonly Dictionary<string, Dictionary<int, string>> EnumLabels = new(StringComparer.Ordinal)
     {
         ["Status"] = new() { [1] = "Unpaid", [2] = "Partial", [3] = "Paid" },              // PaymentStatus
         ["Role"] = new() { [1] = "Head", [2] = "Administrator" },                          // AdminRole
         ["AnimalType"] = new() { [1] = "Hog", [2] = "Carabao", [3] = "Cow", [99] = "Other" },
-        ["Section"] = new() { [1] = "Vegetable Area", [2] = "Fish Area", [3] = "Meat Area" }, // MarketSection
         ["StallStatus"] = new() { [1] = "Active", [2] = "Closed" },
     };
 
-    private static string Text(JsonElement? snapshot, string field)
+    private static string Text(JsonElement? snapshot, string field, Lookup? lookup = null)
     {
         if (!TryGet(snapshot, field, out var value)) return string.Empty;
+
+        // A market section reads by the LGU's own label for it.
+        if (field == "Section"
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var section)
+            && lookup?.SectionLabels is { } sections
+            && sections.TryGetValue(section, out var sectionLabel))
+        {
+            return sectionLabel;
+        }
 
         // An enum column reads as its name, not its number.
         if (value.ValueKind == JsonValueKind.Number

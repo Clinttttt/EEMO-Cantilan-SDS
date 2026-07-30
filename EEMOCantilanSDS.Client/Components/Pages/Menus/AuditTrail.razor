@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin")]
 @inject IAuditApiClient AuditApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @implements IDisposable
 <PageTitle>@Branding.OfficeAcronym Admin — Audit Trail</PageTitle>
 
@@ -287,6 +288,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // The facility catalogue supplies this LGU's own facility names for the entity labels.
+        await FacilityCatalog.EnsureLoadedAsync();
+
         if (TryApplyCachedAuditTrail())
             return;
 
@@ -554,25 +558,49 @@
     // Stored audit timestamps are UTC; the UI shows Philippine time (UTC+8, no DST).
     private static DateTime ToPh(DateTime utc) => utc.AddHours(8);
 
-    // Brief, professional labels for the audited entity types (the filter value stays the class name).
+    // Brief labels for the audited entity types (the filter value stays the class name). Facility-bound types
+    // are NOT named here: their wording comes from the LGU's own facility names below, because one municipality's
+    // "Tabo-an Public Market" or "Transport Terminal" is another's something else.
     private static readonly Dictionary<string, string> EntityLabels = new()
     {
         ["PaymentRecord"] = "Payment Record",
         ["DailyCollection"] = "Daily Collection",
         ["OnlinePaymentTransaction"] = "Online Payment",
-        ["SlaughterTransaction"] = "Slaughter",
-        ["TpmAttendance"] = "Tabo-an Attendance",
-        ["TrmTrip"] = "Terminal Trip",
         ["AdminUser"] = "Admin Account",
         ["CollectorUser"] = "Collector Account",
         ["PayorUser"] = "Payor Account",
         ["PayorActivationCode"] = "Payor Activation",
         ["PayorStallLink"] = "Payor Link",
         ["Stall"] = "Stall",
+        // Types whose class name reads badly when humanised ("Npm Market Closure", "Stall Monthly Exception").
+        ["NpmMarketClosure"] = "Market Closure",
+        ["StallMonthlyException"] = "Billing Exception",
+        ["Municipality"] = "Office Profile",
+        ["Facility"] = "Facility",
+        ["Contract"] = "Contract",
     };
 
-    private static string EntityLabel(string entityType) =>
-        EntityLabels.TryGetValue(entityType, out var label) ? label : Humanize(entityType);
+    // Entity types that belong to a facility. The label is built from the LGU's own short name for it, so an
+    // office reading its trail sees the facility it actually operates.
+    private static readonly Dictionary<string, (FacilityCode Code, string Noun)> FacilityEntities = new()
+    {
+        ["SlaughterTransaction"] = (FacilityCode.SLH, "Collection"),
+        ["TpmAttendance"] = (FacilityCode.TPM, "Attendance"),
+        ["TpmVendor"] = (FacilityCode.TPM, "Vendor"),
+        ["TrmTrip"] = (FacilityCode.TRM, "Trip"),
+        ["TrmTransporter"] = (FacilityCode.TRM, "Operator"),
+    };
+
+    private string EntityLabel(string entityType)
+    {
+        if (EntityLabels.TryGetValue(entityType, out var label))
+            return label;
+
+        if (FacilityEntities.TryGetValue(entityType, out var bound))
+            return $"{FacilityCatalog.ShortNameOf(bound.Code)} {bound.Noun}";
+
+        return Humanize(entityType);
+    }
 
     // "PaymentRecord" → "Payment Record"
     private static string Humanize(string pascal)
@@ -586,7 +614,7 @@
     // The API composes the description from the entry's own snapshot — who, which stall, which facility and
     // section, how much, against which receipt. The old client-side fallback ("Updated Admin Account") told an
     // auditor nothing, so it is only used if a very old row somehow carries neither.
-    private static string DetailsText(AuditLogDto log) =>
+    private string DetailsText(AuditLogDto log) =>
         !string.IsNullOrWhiteSpace(log.Details) ? log.Details
         : !string.IsNullOrWhiteSpace(log.Notes) ? log.Notes!
         : $"{log.Action} {EntityLabel(log.EntityType)}";

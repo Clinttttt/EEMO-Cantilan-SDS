@@ -66,6 +66,27 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         if (foreignActors.Count > 0)
             baseQuery = baseQuery.Where(a => !foreignActors.Contains(a.ActorName.ToLower()));
 
+        // Rows already written before audit entries were filed under the record's own municipality can still
+        // carry this office's stamp while describing ANOTHER LGU's record — e.g. "Updated the staff account of
+        // carrascal.head" sitting in Cantilan's trail. Every snapshot contains the record's own MunicipalityId,
+        // so a row that names a different municipality is excluded here. One clause per other municipality (a
+        // handful at most), and nothing is excluded when the tenant is unresolved.
+        if (currentMunicipality != Guid.Empty)
+        {
+            var foreignMunicipalities = await context.Municipalities.AsNoTracking().IgnoreQueryFilters()
+                .Where(m => m.Id != currentMunicipality)
+                .Select(m => m.Id)
+                .ToListAsync(ct);
+
+            foreach (var id in foreignMunicipalities)
+            {
+                var needle = id.ToString().ToLower();
+                baseQuery = baseQuery.Where(a =>
+                    (a.NewValues == null || !a.NewValues.ToLower().Contains(needle))
+                    && (a.OldValues == null || !a.OldValues.ToLower().Contains(needle)));
+            }
+        }
+
         // Incoming bounds carry the correct UTC instant but may bind with Kind=Unspecified over the
         // query string; Npgsql requires Kind=Utc for the 'timestamp with time zone' column.
         if (fromUtc.HasValue)
@@ -167,7 +188,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 string.IsNullOrWhiteSpace(a.Notes)
                     ? AuditDetailComposer.Describe(a.Action, a.EntityType, a.EntityId, a.NewValues, a.OldValues, lookup)
                     : a.Notes!,
-                AuditDetailComposer.Changes(a.OldValues, a.NewValues)))
+                AuditDetailComposer.Changes(a.OldValues, a.NewValues, lookup)))
             .ToList();
 
         // Filter-dropdown options only need (re)building on first load / filter change — not on
@@ -221,6 +242,24 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
     {
         var stalls = new Dictionary<Guid, AuditDetailComposer.StallRef>();
         var people = new Dictionary<Guid, string>();
+
+        // This LGU's own facility names and section labels. Nothing in the trail's wording may assume
+        // Cantilan's naming: another municipality's market, terminal or slaughterhouse is called something else.
+        var configured = await context.Facilities.AsNoTracking()
+            .Select(f => new { f.Code, f.Name, f.VegetableSectionLabel, f.FishSectionLabel, f.MeatSectionLabel })
+            .ToListAsync(ct);
+
+        var facilities = configured
+            .GroupBy(f => f.Code.ToString())
+            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+
+        var npm = configured.FirstOrDefault(f => f.Code == FacilityCode.NPM);
+        var sectionLabels = new Dictionary<int, string>
+        {
+            [(int)MarketSection.VegetableArea] = npm?.VegetableSectionLabel ?? GetSectionName(MarketSection.VegetableArea)!,
+            [(int)MarketSection.FishSection] = npm?.FishSectionLabel ?? GetSectionName(MarketSection.FishSection)!,
+            [(int)MarketSection.MeatSection] = npm?.MeatSectionLabel ?? GetSectionName(MarketSection.MeatSection)!,
+        };
 
         if (stallIds.Count > 0)
         {
@@ -277,7 +316,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                     people[v.Id] = v.VendorName!;
         }
 
-        return new AuditDetailComposer.Lookup(stalls, people, new Dictionary<Guid, string>());
+        return new AuditDetailComposer.Lookup(stalls, people, facilities, sectionLabels);
     }
 
     private static string? GetSectionName(MarketSection? section) => section switch

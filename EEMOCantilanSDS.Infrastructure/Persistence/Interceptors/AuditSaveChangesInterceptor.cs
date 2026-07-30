@@ -120,7 +120,15 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
                 action,
                 entityType.Name,
                 (entry.Entity as BaseEntity)?.Id,
-                oldValues, newValues));
+                oldValues, newValues,
+                // File the entry under the municipality that OWNS the record, when the record says so. The
+                // request's tenant is the wrong answer whenever the two differ — an operator maintaining another
+                // LGU's account, or an auth step that ran before a tenant was resolved — and that is how another
+                // municipality's staff ended up in this office's trail. Left empty for a brand-new row whose id
+                // is not stamped yet; the municipality-stamp interceptor then fills in the request's tenant.
+                municipalityId: (entry.Entity as IMunicipalityOwned)?.MunicipalityId is { } owner && owner != Guid.Empty
+                    ? owner
+                    : null));
         }
     }
 

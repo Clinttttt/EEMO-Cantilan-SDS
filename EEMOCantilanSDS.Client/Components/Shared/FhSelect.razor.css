@@ -36,3 +36,80 @@
 .fh-dd-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); font-weight: 500; white-space: nowrap; }
 .fh-dd-item.active .fh-dd-name { font-weight: 700; color: var(--navy); }
 .fh-dd-check { width: 14px; height: 14px; stroke: var(--navy); flex-shrink: 0; }
+
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────────────────────────────────
+   The platform's default scrollbars are far heavier than this menu: a wide grey trough down the side and a
+   horizontal one along the bottom, both of which read as chrome rather than a list. The menu never needs to
+   scroll sideways (long labels wrap), and the vertical bar is drawn thin and in the portal's own ink. */
+.fh-dd-menu {
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--navy) 28%, transparent) transparent;
+}
+
+    .fh-dd-menu::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .fh-dd-menu::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .fh-dd-menu::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--navy) 24%, transparent);
+        border-radius: 999px;
+    }
+
+        .fh-dd-menu::-webkit-scrollbar-thumb:hover {
+            background: color-mix(in srgb, var(--navy) 40%, transparent);
+        }
+
+/* A long option ("Npm Market Closure", a facility's full name) wraps instead of forcing the menu to scroll
+   sideways. */
+.fh-dd-item {
+    white-space: normal;
+}
+
+.fh-dd-name {
+    overflow-wrap: break-word;
+}
+
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────────────────────────────────
+   The platform's default scrollbars are far heavier than this menu: a wide grey trough down the side and a
+   horizontal one along the bottom, both of which read as chrome rather than a list. The menu never needs to
+   scroll sideways (long labels wrap now), and the vertical bar is drawn thin, in the portal's own ink. */
+.fh-dd-menu {
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--navy) 28%, transparent) transparent;
+}
+
+    .fh-dd-menu::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .fh-dd-menu::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .fh-dd-menu::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--navy) 24%, transparent);
+        border-radius: 999px;
+    }
+
+        .fh-dd-menu::-webkit-scrollbar-thumb:hover {
+            background: color-mix(in srgb, var(--navy) 40%, transparent);
+        }
+
+/* A long option ("Npm Market Closure", a facility's full name) wraps rather than forcing the menu sideways. */
+.fh-dd-item {
+    white-space: normal;
+}
+
+.fh-dd-name {
+    overflow-wrap: break-word;
+}
