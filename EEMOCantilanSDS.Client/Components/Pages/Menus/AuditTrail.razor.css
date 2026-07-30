@@ -2,88 +2,101 @@
    Audit Trail — professional admin layout (scoped)
 ══════════════════════════════════════════════════════════════ */
 
-/* This page has no hero banner, so pull the content up under the sticky topbar. */
+/* The page opens with the shell's hero banner, like the Dashboard and Settings, so the audit record reads as
+   part of the portal rather than a loose grid of coloured tiles. */
 .content-area {
     padding-top: 14px;
 }
 
-/* ── Stat cards ── */
-.audit-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    margin-bottom: 1rem;
-}
-
-.audit-stat {
+/* ── Hero banner (same treatment as the other menu pages) ── */
+.vs-hero {
+    position: relative;
+    background: var(--navy);
+    border-radius: 14px;
+    padding: 24px 28px 18px;
+    margin-bottom: 18px;
     display: flex;
     align-items: center;
-    gap: 0.9rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.05rem 1.15rem;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    gap: 28px;
+    overflow: hidden;
+    flex-wrap: wrap;
 }
 
-.audit-stat:hover {
-    border-color: var(--gold);
-    box-shadow: 0 6px 18px rgba(13, 33, 55, 0.07);
+.vs-hero::before {
+    content: "";
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%);
+    pointer-events: none;
 }
 
-.audit-stat.is-active {
-    border-color: var(--navy);
-    box-shadow: 0 0 0 1px var(--navy) inset;
-}
+.vs-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 240px; }
+.vs-hero-stats { flex: 1; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
 
-.audit-stat-icon {
-    width: 46px;
-    height: 46px;
+.vs-hero-icon {
+    width: 54px;
+    height: 54px;
     border-radius: 12px;
-    display: grid;
-    place-items: center;
+    background: rgba(200, 168, 75, .18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
 }
 
-.audit-stat-icon svg {
-    width: 22px;
-    height: 22px;
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    .vs-hero-icon svg {
+        width: 26px;
+        height: 26px;
+        stroke: var(--gold);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
+.vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; max-width: 340px; }
+.vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
+.vs-hero-key { font-size: 10px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
+.vs-hero-sub2 { font-size: 10px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
+.vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
+
+/* Each count is also the action filter. It is a button, so it is styled as one — quietly: an underline and a
+   brighter label when active, no colour coding. */
+.audit-hero-stat {
+    padding: 4px 18px;
+    text-align: center;
+    flex: 1;
+    min-width: 132px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font: inherit;
+    cursor: pointer;
 }
 
-.stat-total { background: #eef2f6; }
-.stat-total svg { stroke: var(--navy-3); }
-.stat-created { background: var(--green-bg); }
-.stat-created svg { stroke: var(--green); }
-.stat-updated { background: #fbf2d9; }
-.stat-updated svg { stroke: #9a7b1f; }
-.stat-deleted { background: var(--red-bg); }
-.stat-deleted svg { stroke: var(--red); }
+    .audit-hero-stat:first-child { padding-left: 0; }
 
-.audit-stat-val {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--navy);
-    line-height: 1;
+    .audit-hero-stat:hover .vs-hero-key { color: rgba(255, 255, 255, .75); }
+
+    .audit-hero-stat.is-active {
+        border-bottom-color: var(--gold);
+    }
+
+        .audit-hero-stat.is-active .vs-hero-key { color: var(--gold); }
+
+@media (max-width: 1100px) {
+    .vs-hero-title { font-size: 18px; }
+    .vs-hero-val { font-size: 18px; }
+    .audit-hero-stat { padding: 4px 14px; }
 }
 
-.audit-stat-key {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--text);
-    margin-top: 0.25rem;
-}
-
-.audit-stat-sub {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    margin-top: 0.1rem;
-}
+@media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
+@media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
 
 /* ── Filter bar ── */
 .audit-filters {
@@ -165,7 +178,15 @@
     box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.08);
 }
 
-.af-period { min-width: 132px; }
+/* A field whose control is the portal's own dropdown rather than a native select. */
+.af-dd {
+    min-width: 150px;
+}
+
+    .af-dd ::deep .fh-dd-trigger {
+        height: 40px;
+        width: 100%;
+    }
 
 /* Native date pickers (only shown for a Custom range) — keep them on-brand. */
 .af-input[type="date"] {
@@ -309,23 +330,56 @@ select.af-input::-ms-expand { display: none; }
 .ac-actor-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
 .ac-actor-role { font-size: 0.72rem; color: var(--text-muted); }
 
+/* The action is stated, not colour-coded: on a government record the reader wants the fact, and three tinted
+   pills per screen made the trail look like a status board. Deleted keeps a restrained red because it is the one
+   action an auditor scans for. */
 .ac-badge {
     display: inline-block;
-    padding: 0.22rem 0.6rem;
-    border-radius: 999px;
-    font-size: 0.68rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--navy);
+    font-size: 0.66rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
 }
 
-.ac-badge-created { background: var(--green-bg); color: var(--green); }
-.ac-badge-updated { background: #fbf2d9; color: #9a7b1f; }
-.ac-badge-deleted { background: var(--red-bg); color: var(--red); }
+.ac-badge-deleted {
+    border-color: color-mix(in srgb, var(--red) 30%, transparent);
+    color: var(--red);
+}
 
 .ac-entity-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
 .ac-entity-code { font-size: 0.72rem; color: var(--text-muted); font-family: 'DM Sans', monospace; }
 
-.ac-details { font-size: 0.84rem; color: var(--text-subtle); }
+/* Details carry the substance of the row, so they read at the same size as the actor's name — and wrap rather
+   than truncate, because an auditor must see the whole sentence. */
+.ac-details { min-width: 0; }
+
+.ac-details-main {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--text);
+    overflow-wrap: break-word;
+}
+
+.ac-details-changes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin-top: 4px;
+}
+
+.ac-change {
+    font-size: 0.68rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+}
 
 /* ── Skeleton / empty / error ── */
 .audit-skeleton .ac-actor { gap: 0.65rem; }
@@ -424,12 +478,11 @@ select.af-input::-ms-expand { display: none; }
 }
 
 @media (max-width: 1100px) {
-    .audit-stats { grid-template-columns: repeat(2, 1fr); }
+    .af-dd { min-width: 140px; }
 }
 
 @media (max-width: 760px) {
     .audit-row { grid-template-columns: 1fr 1fr; row-gap: 0.5rem; }
     .audit-row-head { display: none; }
     .ac-details { grid-column: 1 / -1; }
-    .audit-stats { grid-template-columns: 1fr; }
 }

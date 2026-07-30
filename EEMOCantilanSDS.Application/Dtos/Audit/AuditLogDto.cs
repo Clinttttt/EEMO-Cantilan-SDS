@@ -13,4 +13,12 @@ public record AuditLogDto(
     string Action,            // "Created" | "Updated" | "Deleted"
     string EntityType,        // entity class name, e.g. "PaymentRecord"
     Guid? EntityId,
-    string? Notes);
+    string? Notes,
+    /// <summary>
+    /// What actually happened, in words, composed from the entry's own snapshot: the payor or account
+    /// concerned, the facility and section, the amount, the receipt number. An audit reader must never have to
+    /// infer the event from "Updated PaymentRecord".
+    /// </summary>
+    string Details = "",
+    /// <summary>Named fields that changed, for an update — e.g. "Monthly rate ₱900.00 → ₱1,200.00".</summary>
+    IReadOnlyList<string>? Changes = null);

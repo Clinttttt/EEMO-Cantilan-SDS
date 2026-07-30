@@ -28,51 +28,54 @@
 
 <div class="content-area">
 
-    <!-- ── Stat cards ── -->
-    <div class="audit-stats">
-        <button type="button" class="audit-stat @(_action is null ? "is-active" : "")" @onclick="() => SetAction(null)">
-            <div class="audit-stat-icon stat-total">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+    @* ── Hero: the page's own header, in the shell's house style. The four counts double as the action filter,
+       so the office reads the scope and narrows it in the same place. Deliberately monochrome: an audit page
+       states facts, and colour-coding created/updated/deleted made a government record look like a dashboard. *@
+    <div class="vs-hero audit-hero">
+        <div class="vs-hero-left">
+            <div class="vs-hero-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
             </div>
-            <div class="audit-stat-body">
-                <div class="audit-stat-val">@(_data?.TotalEvents ?? 0)</div>
-                <div class="audit-stat-key">Total Events</div>
-                <div class="audit-stat-sub">All recorded activity</div>
+            <div>
+                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · System Record</div>
+                <div class="vs-hero-title">Audit Trail</div>
+                <div class="vs-hero-sub">Every create, update and deletion, attributed to the person who made it</div>
             </div>
-        </button>
-
-        <button type="button" class="audit-stat @(_action == "Created" ? "is-active" : "")" @onclick='() => SetAction("Created")'>
-            <div class="audit-stat-icon stat-created">
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            </div>
-            <div class="audit-stat-body">
-                <div class="audit-stat-val">@(_data?.CreatedCount ?? 0)</div>
-                <div class="audit-stat-key">Created</div>
-                <div class="audit-stat-sub">New records created</div>
-            </div>
-        </button>
-
-        <button type="button" class="audit-stat @(_action == "Updated" ? "is-active" : "")" @onclick='() => SetAction("Updated")'>
-            <div class="audit-stat-icon stat-updated">
-                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-            </div>
-            <div class="audit-stat-body">
-                <div class="audit-stat-val">@(_data?.UpdatedCount ?? 0)</div>
-                <div class="audit-stat-key">Updated</div>
-                <div class="audit-stat-sub">Records modified</div>
-            </div>
-        </button>
-
-        <button type="button" class="audit-stat @(_action == "Deleted" ? "is-active" : "")" @onclick='() => SetAction("Deleted")'>
-            <div class="audit-stat-icon stat-deleted">
-                <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>
-            </div>
-            <div class="audit-stat-body">
-                <div class="audit-stat-val">@(_data?.DeletedCount ?? 0)</div>
-                <div class="audit-stat-key">Deleted</div>
-                <div class="audit-stat-sub">Records removed</div>
-            </div>
-        </button>
+        </div>
+        <div class="vs-hero-stats">
+            <button type="button" class="vs-hero-stat audit-hero-stat @(_action is null ? "is-active" : "")"
+                    @onclick="() => SetAction(null)">
+                <div class="vs-hero-val">@(_data?.TotalEvents ?? 0)</div>
+                <div class="vs-hero-key">Total Events</div>
+                <div class="vs-hero-sub2">All recorded activity</div>
+            </button>
+            <div class="vs-hero-divider"></div>
+            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Created" ? "is-active" : "")"
+                    @onclick='() => SetAction("Created")'>
+                <div class="vs-hero-val">@(_data?.CreatedCount ?? 0)</div>
+                <div class="vs-hero-key">Created</div>
+                <div class="vs-hero-sub2">New records</div>
+            </button>
+            <div class="vs-hero-divider"></div>
+            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Updated" ? "is-active" : "")"
+                    @onclick='() => SetAction("Updated")'>
+                <div class="vs-hero-val">@(_data?.UpdatedCount ?? 0)</div>
+                <div class="vs-hero-key">Updated</div>
+                <div class="vs-hero-sub2">Records modified</div>
+            </button>
+            <div class="vs-hero-divider"></div>
+            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Deleted" ? "is-active" : "")"
+                    @onclick='() => SetAction("Deleted")'>
+                <div class="vs-hero-val">@(_data?.DeletedCount ?? 0)</div>
+                <div class="vs-hero-key">Deleted</div>
+                <div class="vs-hero-sub2">Records removed</div>
+            </button>
+        </div>
     </div>
 
     <!-- ── Filter bar ── -->
@@ -86,16 +89,11 @@
             </div>
         </div>
 
-        <div class="af-field">
+        @* The portal's own dropdown rather than a native <select>: the browser's option list could not be
+           styled, so the filters looked like raw form controls on an otherwise finished page. *@
+        <div class="af-field af-dd">
             <label>Period</label>
-            <select class="af-input af-period" value="@_rangePreset" @onchange="OnRangeChanged">
-                <option value="all">All time</option>
-                <option value="today">Today</option>
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="month">This month</option>
-                <option value="custom">Custom range…</option>
-            </select>
+            <FhSelect Block="true" Options="@PeriodOptions" Value="@_rangePreset" ValueChanged="OnRangePicked" />
         </div>
 
         @if (_rangePreset == "custom")
@@ -110,26 +108,14 @@
             </div>
         }
 
-        <div class="af-field">
+        <div class="af-field af-dd">
             <label>Actor</label>
-            <select class="af-input" value="@_actor" @onchange="OnActorChanged">
-                <option value="">All Actors</option>
-                @foreach (var a in _actorOptions)
-                {
-                    <option value="@a.Value">@a.Label</option>
-                }
-            </select>
+            <FhSelect Block="true" Options="@ActorSelectOptions" Value="@_actor" ValueChanged="OnActorPicked" />
         </div>
 
-        <div class="af-field">
+        <div class="af-field af-dd">
             <label>Entity</label>
-            <select class="af-input" value="@_entity" @onchange="OnEntityChanged">
-                <option value="">All Entities</option>
-                @foreach (var e in _entityTypes)
-                {
-                    <option value="@e">@EntityLabel(e)</option>
-                }
-            </select>
+            <FhSelect Block="true" Options="@EntitySelectOptions" Value="@_entity" ValueChanged="OnEntityPicked" />
         </div>
 
         <div class="af-actions">
@@ -221,7 +207,20 @@
                             <div class="ac-entity-name">@EntityLabel(log.EntityType)</div>
                             <div class="ac-entity-code">@ShortId(log.EntityId)</div>
                         </div>
-                        <div class="ac-details">@DetailsText(log)</div>
+                        <div class="ac-details">
+                            <div class="ac-details-main">@DetailsText(log)</div>
+                            @if (log.Changes is { Count: > 0 })
+                            {
+                                @* The named field changes behind an update, so a reader does not have to guess
+                                   what "updated" meant. *@
+                                <div class="ac-details-changes">
+                                    @foreach (var change in log.Changes)
+                                    {
+                                        <span class="ac-change">@change</span>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
                 }
             }
@@ -398,23 +397,47 @@
         await ReloadAsync();
     }
 
-    private async Task OnActorChanged(ChangeEventArgs e)
+    // ── Filter dropdown options and handlers ──────────────────────────────────────────────────────────
+    // The portal's own dropdown takes (value, label) pairs and reports the picked value, so these mirror the
+    // previous <select> options exactly — same values, same behaviour, same reload.
+
+    private static readonly (string Value, string Label)[] PeriodOptions =
     {
-        _actor = e.Value?.ToString() ?? string.Empty;
+        ("all", "All time"),
+        ("today", "Today"),
+        ("7d", "Last 7 days"),
+        ("30d", "Last 30 days"),
+        ("month", "This month"),
+        ("custom", "Custom range…"),
+    };
+
+    private IReadOnlyList<(string Value, string Label)> ActorSelectOptions =>
+        new[] { (string.Empty, "All Actors") }
+            .Concat(_actorOptions.Select(a => (a.Value, a.Label)))
+            .ToList();
+
+    private IReadOnlyList<(string Value, string Label)> EntitySelectOptions =>
+        new[] { (string.Empty, "All Entities") }
+            .Concat(_entityTypes.Select(e => (e, EntityLabel(e))))
+            .ToList();
+
+    private async Task OnActorPicked(string value)
+    {
+        _actor = value;
         _page = 1;
         await ReloadAsync();
     }
 
-    private async Task OnEntityChanged(ChangeEventArgs e)
+    private async Task OnEntityPicked(string value)
     {
-        _entity = e.Value?.ToString() ?? string.Empty;
+        _entity = value;
         _page = 1;
         await ReloadAsync();
     }
 
-    private async Task OnRangeChanged(ChangeEventArgs e)
+    private async Task OnRangePicked(string value)
     {
-        _rangePreset = e.Value?.ToString() ?? "all";
+        _rangePreset = string.IsNullOrWhiteSpace(value) ? "all" : value;
         var today = PhilippineTime.Today;
         switch (_rangePreset)
         {
@@ -560,9 +583,13 @@
 
     private static string ShortId(Guid? id) => id is null ? "—" : $"#{id.Value.ToString("N")[..8]}";
 
-    // No human description is stored; surface the note if present, else a generated summary.
+    // The API composes the description from the entry's own snapshot — who, which stall, which facility and
+    // section, how much, against which receipt. The old client-side fallback ("Updated Admin Account") told an
+    // auditor nothing, so it is only used if a very old row somehow carries neither.
     private static string DetailsText(AuditLogDto log) =>
-        !string.IsNullOrWhiteSpace(log.Notes) ? log.Notes! : $"{log.Action} {EntityLabel(log.EntityType)}";
+        !string.IsNullOrWhiteSpace(log.Details) ? log.Details
+        : !string.IsNullOrWhiteSpace(log.Notes) ? log.Notes!
+        : $"{log.Action} {EntityLabel(log.EntityType)}";
 
     public sealed record AuditTrailPageState(
         string Search,
