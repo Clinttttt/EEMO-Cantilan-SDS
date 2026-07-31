@@ -577,9 +577,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
         var today = PhilippineTime.Today;
 
-        var occupancy = contractId is { } id && id != Guid.Empty
-            ? stall.OccupancyOf(id, today)
-            : stall.ResolveOccupancy(null, today);
+        var occupancy = stall.ResolveOccupancy(contractId, today);
 
         if (occupancy is null)
             return Array.Empty<PaymentHistoryDto>();

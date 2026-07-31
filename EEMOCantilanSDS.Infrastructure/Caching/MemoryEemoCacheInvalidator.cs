@@ -49,7 +49,9 @@ public sealed class MemoryEemoCacheInvalidator : IEemoCacheInvalidator
                 EemoCacheRegions.Period(tenantCode, year, month),
                 EemoCacheRegions.Dashboard(tenantCode, year, month),
                 EemoCacheRegions.Reports(tenantCode, year, month),
-                EemoCacheRegions.ActivityFeed(tenantCode)
+                EemoCacheRegions.ActivityFeed(tenantCode),
+                // Cumulative "what is still owed" views span every year, so any period's money can clear them.
+                EemoCacheRegions.OutstandingAccounts(tenantCode)
             },
             cancellationToken);
 
@@ -66,7 +68,8 @@ public sealed class MemoryEemoCacheInvalidator : IEemoCacheInvalidator
                 EemoCacheRegions.Dashboard(tenantCode, year, month),
                 EemoCacheRegions.Reports(tenantCode, year, month),
                 EemoCacheRegions.FacilityPeriod(tenantCode, facilityCode, year, month),
-                EemoCacheRegions.ActivityFeed(tenantCode)
+                EemoCacheRegions.ActivityFeed(tenantCode),
+                EemoCacheRegions.OutstandingAccounts(tenantCode)
             },
             cancellationToken);
 
@@ -81,7 +84,14 @@ public sealed class MemoryEemoCacheInvalidator : IEemoCacheInvalidator
             : InvalidatePeriodAsync(tenantCode, year, month, cancellationToken);
 
     public Task InvalidateReferenceDataAsync(string tenantCode, CancellationToken cancellationToken = default)
-        => InvalidateRegionAsync(EemoCacheRegions.ReferenceData(tenantCode), cancellationToken);
+        => InvalidateRegionsAsync(
+            new[]
+            {
+                EemoCacheRegions.ReferenceData(tenantCode),
+                // Contracts, closures and handovers change who owes what, so the cumulative views go too.
+                EemoCacheRegions.OutstandingAccounts(tenantCode)
+            },
+            cancellationToken);
 
     private async Task InvalidateRegionsAsync(IEnumerable<string> regionNames, CancellationToken cancellationToken)
     {

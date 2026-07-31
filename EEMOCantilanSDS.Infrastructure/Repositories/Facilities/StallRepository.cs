@@ -708,6 +708,11 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         var exceptions = await context.StallMonthlyExceptions.AsNoTracking()
             .Where(e => stallIds.Contains(e.StallId))
             .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth }).ToListAsync(ct);
+        // Days the market itself was shut. Nothing is owed for them, so charging them here would state a debt the
+        // office cannot collect — and the Record-payment dialog, which has always excluded them, would then offer a
+        // smaller total than this register. One closure list serves every stall: a closure is facility-wide.
+        var closureDates = (await context.NpmMarketClosures.AsNoTracking()
+            .Select(c => c.ClosureDate).ToListAsync(ct)).ToHashSet();
 
         var paidByStall = paidDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.ToList());
         var absentByStall = absentDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
@@ -750,12 +755,13 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             decimal uncollected = 0m;
             if (isNpm)
             {
-                // ₱30 for each day of THIS occupancy that was neither excused nor collected.
+                // ₱30 for each day of THIS occupancy that was neither excused nor collected, at the rate that was in
+                // force on that day — a rate rise must not restate what a lessee owed years ago.
                 var paidDates = stallPaid.Select(d => d.CollectionDate).ToHashSet();
                 for (var d = startDate; d <= billableEnd; d = d.AddDays(1))
                 {
-                    if (stallAbsent.Contains(d) || paidDates.Contains(d)) continue;
-                    uncollected += npmDailyRate;
+                    if (stallAbsent.Contains(d) || paidDates.Contains(d) || closureDates.Contains(d)) continue;
+                    uncollected += stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, d));
                 }
             }
             else

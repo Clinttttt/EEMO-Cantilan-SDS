@@ -22,6 +22,19 @@ public static class EemoCacheRegions
     public static string ActivityFeed(string tenantCode)
         => $"{EemoCacheKeys.NormalizeTenant(tenantCode)}:activity-feed";
 
+    /// <summary>
+    /// Cumulative, period-independent views: what is still owed across every year. Such a view cannot be tagged
+    /// with a single period's region, because the money that clears it is nearly always recorded against a
+    /// DIFFERENT period — settling a 2023 arrear would otherwise leave the "Whole time" list showing a balance
+    /// that has just been paid. Cleared by any payment-affecting change.
+    /// </summary>
+    public static string OutstandingAccounts(string tenantCode)
+        => $"{EemoCacheKeys.NormalizeTenant(tenantCode)}:outstanding-accounts";
+
+    /// <summary>Regions for the cumulative "Whole time" follow-up view.</summary>
+    public static IReadOnlyCollection<string> FollowUpAllTimeRegions(string tenantCode)
+        => new[] { OutstandingAccounts(tenantCode), ReferenceData(tenantCode) };
+
     public static IReadOnlyCollection<string> DashboardOverviewRegions(string tenantCode, int year, int month)
         => new[]
         {

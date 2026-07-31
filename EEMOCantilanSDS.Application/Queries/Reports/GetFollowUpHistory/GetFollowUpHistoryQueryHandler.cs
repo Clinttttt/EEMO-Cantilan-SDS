@@ -46,7 +46,9 @@ public class GetFollowUpHistoryQueryHandler(
             // would collide with (and serve) the selected year's snapshot.
             ? EemoCacheKeys.FollowUpHistoryAllTime(tenantContext.TenantCode)
             : EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
-        var regions = EemoCacheRegions.FollowUpHistoryRegions(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
+        var regions = request.AllTime
+            ? EemoCacheRegions.FollowUpAllTimeRegions(tenantContext.TenantCode)
+            : EemoCacheRegions.FollowUpHistoryRegions(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
         var history = await cache.GetOrCreateAsync(
             key,
             regions,

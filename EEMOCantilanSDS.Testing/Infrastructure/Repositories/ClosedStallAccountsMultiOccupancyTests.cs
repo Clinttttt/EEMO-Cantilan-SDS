@@ -173,4 +173,27 @@ public class ClosedStallAccountsMultiOccupancyTests : RepositoryTestBase
 
         Assert.Empty(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
     }
+
+    [Fact]
+    public async Task AMarketClosureDay_IsNotChargedAsArrears()
+    {
+        // The market was shut, so nobody owes anything for that day. The Record-payment dialog has always skipped
+        // closures; charging them here made this register state a larger debt than the dialog could collect — two
+        // screens disagreeing about one account.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "4", 900m, ApplicableFees.BaseRental, section: MarketSection.VegetableArea);
+
+        var term = Term(stall.Id, "Dennis S. Doloriel", new DateOnly(2026, 1, 1), 1);
+        term.Terminate("Head", new DateOnly(2026, 1, 10));      // a ten-day occupancy: 1–10 January
+
+        context.AddRange(facility, stall, term);
+        context.Add(NpmMarketClosure.Create(new DateOnly(2026, 1, 5), remarks: "Fiesta"));
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        // Nine chargeable days, not ten.
+        Assert.Equal(9 * FeeRates.NpmDailyFee, row.Uncollected);
+    }
 }
