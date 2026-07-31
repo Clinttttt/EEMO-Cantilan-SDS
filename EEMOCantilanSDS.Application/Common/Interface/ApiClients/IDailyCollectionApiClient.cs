@@ -16,5 +16,9 @@ public interface IDailyCollectionApiClient
     Task<Result<bool>> SaveOrForDaysAsync(SaveDailyCollectionOrForDaysCommand command);
     Task<Result<bool>> SettleNpmMonthAsync(SettleNpmMonthCommand command);
     Task<Result<bool>> SettleNpmDaysAsync(SettleNpmDaysCommand command);
-    Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month);
+    /// <summary>
+    /// A month's still-settleable days. <paramref name="contractId"/> names whose days on a stall that has been
+    /// re-let; omitted for the current occupancy.
+    /// </summary>
+    Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month, Guid? contractId = null);
 }

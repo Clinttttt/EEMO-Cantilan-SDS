@@ -298,7 +298,10 @@ public static class FollowUpComposer
                     $"{account.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}",
                     "No longer the occupant",
                     "Review account", ProfileLink(account.FacilityCode, account.StallNo),
-                    StallId: account.StallId));
+                    StallId: account.StallId,
+                    // The term this balance belongs to. Without it, a payment recorded from this row would apply to
+                    // whoever holds the stall now — settling the sitting lessee's days under a former lessee's name.
+                    ContractId: account.ContractId == Guid.Empty ? null : account.ContractId));
             }
         }
 

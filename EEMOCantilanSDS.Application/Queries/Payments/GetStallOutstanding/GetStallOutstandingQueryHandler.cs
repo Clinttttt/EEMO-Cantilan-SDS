@@ -10,5 +10,5 @@ public class GetStallOutstandingQueryHandler(IPaymentRepository paymentRepositor
 {
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> Handle(GetStallOutstandingQuery request, CancellationToken ct)
         => Result<IReadOnlyList<PaymentHistoryDto>>.Success(
-            await paymentRepository.GetOutstandingMonthsAsync(request.StallId, ct));
+            await paymentRepository.GetOutstandingMonthsAsync(request.StallId, request.ContractId, ct));
 }

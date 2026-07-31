@@ -134,3 +134,15 @@
     .pb-control-or { flex: 1 1 100%; }
     .pb-txn-sub { display: none; }
 }
+
+
+/* A former occupancy's account. Stated as a plain sentence — a fact about what is being collected, not a warning. */
+.pb-past-note {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--navy);
+    background: var(--surface-2, #f4f6f9);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-strong, #0b2239);
+}

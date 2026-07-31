@@ -31,6 +31,15 @@
             </div>
 
             <div class="pb-body">
+                @if (ContractId is not null)
+                {
+                    @* Collecting on a term that has ended. Stating it plainly is what keeps a clerk from reading the
+                       figures as the stall's current account — the stall may well have somebody else in it now. *@
+                    <p class="pb-past-note">
+                        This is a former occupancy's account. Only the months of that occupancy are listed, and
+                        settling them does not affect whoever holds the stall now.
+                    </p>
+                }
                 @if (_loading)
                 {
                     <div class="pb-loading">Loading outstanding balance…</div>
@@ -228,6 +237,13 @@
     [Parameter] public FacilityCode Facility { get; set; }
     [Parameter] public string StallNo { get; set; } = string.Empty;
     [Parameter] public string Occupant { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The term being collected on, when it is not the stall's current one — an inactive-account balance left by a
+    /// lessee who has since been replaced. Everything the dialog reads and writes is then bounded to that lessee's
+    /// own period, so their arrears are stated in full and no day of the sitting lessee's is touched.
+    /// </summary>
+    [Parameter] public Guid? ContractId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
 
@@ -320,11 +336,16 @@
         return _scope == "all" || !string.IsNullOrEmpty(_selectedPeriod);
     }
 
+    private Guid? _loadedContract;
+
     protected override async Task OnParametersSetAsync()
     {
-        if (Show && _loadedStall != StallId)
+        // Reload when the term changes too, not only the stall: two rows of the same re-let stall are two different
+        // accounts, and showing the first one's figures for the second would restate somebody else's debt.
+        if (Show && (_loadedStall != StallId || _loadedContract != ContractId))
         {
             _loadedStall = StallId;
+            _loadedContract = ContractId;
             await LoadOutstanding();
         }
     }
@@ -341,7 +362,7 @@
         _days = new();
         _daySelected = new();
 
-        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId);
+        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId, ContractId);
         _unpaid = (result.IsSuccess && result.Value is not null)
             ? result.Value
                 .Where(h => !h.IsExcused && h.Status != PaymentStatus.Paid && h.BalanceDue > 0m && !string.IsNullOrWhiteSpace(h.Period))
@@ -392,7 +413,7 @@
         if (!TryParsePeriod(_selectedPeriod, out var year, out var month))
             return;
         _daysLoading = true;
-        var res = await DailyApi.GetSettleableNpmDaysAsync(StallId, year, month);
+        var res = await DailyApi.GetSettleableNpmDaysAsync(StallId, year, month, ContractId);
         _days = (res.IsSuccess && res.Value is not null) ? res.Value.ToList() : new();
         _daysLoading = false;
     }
@@ -431,7 +452,7 @@
             {
                 if (!TryParsePeriod(_selectedPeriod, out var year, out var month))
                 { _error = "Select a month to settle."; _submitting = false; return; }
-                var r = await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, year, month, or));
+                var r = await DailyApi.SettleNpmMonthAsync(new SettleNpmMonthCommand(StallId, year, month, or, ContractId));
                 if (!r.IsSuccess) { _error = r.Error ?? "Could not record the payment. Please try again."; _submitting = false; return; }
             }
         }

@@ -23,8 +23,12 @@ public class PaymentRepositoryNpmDailyStatusTests : RepositoryTestBase
         var today = PhilippineTime.Today;
         var monthStart = new DateOnly(today.Year, today.Month, 1);
 
-        // Three paid days this month, including today.
-        var days = new[] { monthStart, monthStart.AddDays(1), today }.Distinct().ToArray();
+        // Up to three paid days of THIS month ending today. Built backwards from today and clamped to the month's
+        // first day so the set never contains a future day — on the 1st or 2nd of a month there are simply fewer.
+        var days = new[] { today.AddDays(-2), today.AddDays(-1), today }
+            .Where(d => d >= monthStart)
+            .Distinct()
+            .ToArray();
         var collections = days.Select(d =>
         {
             var dc = DailyCollection.Create(stall.Id, d);

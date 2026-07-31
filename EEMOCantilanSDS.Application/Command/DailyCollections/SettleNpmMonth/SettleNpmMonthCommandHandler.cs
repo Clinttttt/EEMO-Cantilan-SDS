@@ -50,7 +50,10 @@ public class SettleNpmMonthCommandHandler(
         var monthStart = new DateOnly(request.Year, request.Month, 1);
         var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         var today = PhilippineTime.Today;
-        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
+        // Whose month this is. On a stall handed over mid-month the month belongs to two lessees, so settling "the
+        // month" under one lessee's receipt must stop at their own last day — otherwise one OR silently pays for
+        // days the other occupant owes.
+        var occupancy = stall.ResolveOccupancy(request.ContractId, today);
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct))
             .ToDictionary(dc => dc.CollectionDate);
@@ -64,8 +67,8 @@ public class SettleNpmMonthCommandHandler(
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
-            if (contract is null || !(contract.EffectivityDate <= day && day <= contract.ExpiryDate))
-                continue;                                               // not under an effective contract
+            if (occupancy is null || day < occupancy.Start || day > occupancy.BillableEnd)
+                continue;                                               // not this lessee's day to answer for
             if (closedDates.Contains(day))
                 continue;                                               // facility-wide closure — nothing owed
 

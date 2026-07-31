@@ -494,6 +494,7 @@
               Facility="@(_payItem?.Facility ?? FacilityCode.NPM)"
               StallNo="@PayStallNo"
               Occupant="@(_payItem?.Person ?? string.Empty)"
+              ContractId="@(_payItem?.ContractId)"
               OnClose="ClosePayBill"
               OnChanged="OnPaid" />
 
@@ -871,9 +872,12 @@
             ? ys.OrderByDescending(y => y).ToList()
             : new List<int> { _now.Year };
 
-        // Default view: the most recent year, whole-year (year-end snapshot) selected.
+        // Default view: Whole time — the question the page is opened for is "who still owes, and how much in
+        // total", and answering it a year at a time was what forced the office to add figures up by hand. A year
+        // is one click away for a period snapshot.
         _selYear = Years[0];
         _selMonth = 0;
+        _allTime = true;
 
         if (TryApplyCachedFollowUpHistory())
             return;
@@ -967,7 +971,8 @@
                         _selYear,
                         _selMonth,
                         month,
-                        _data);
+                        _data,
+                        allTime);
                 }
 
                 break;
@@ -982,9 +987,10 @@
     private bool TryApplyCachedFollowUpHistory()
     {
         if (CachedFollowUpHistory is not { } state
+            || state.AllTime != _allTime
             || state.SelectedYear != _selYear
             || state.SelectedMonth != _selMonth
-            || state.EffectiveMonth != EffectiveMonth())
+            || (!_allTime && state.EffectiveMonth != EffectiveMonth()))
         {
             return false;
         }
@@ -1038,5 +1044,8 @@
         int SelectedYear,
         int SelectedMonth,
         int EffectiveMonth,
-        FollowUpQueueDto Data);
+        FollowUpQueueDto Data,
+        // Whether the cached snapshot is the cumulative view. Without this, returning to the page could paint a
+        // period's figures under the "Whole time" heading, since the year and month would still match.
+        bool AllTime = false);
 }

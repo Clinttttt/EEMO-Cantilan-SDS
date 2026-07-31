@@ -22,11 +22,15 @@ public class GetSettleableNpmDaysQueryHandler(
         if (stall.Facility?.Code != FacilityCode.NPM)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>());
 
-        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
-        if (contract is null)
+        var today = PhilippineTime.Today;
+
+        // Which lessee's days these are. Naming the term is what lets an ended occupancy's arrears be collected at
+        // all; without it the stall's current contract answered, so a past lessee's month came back empty.
+        var occupancy = stall.ResolveOccupancy(request.ContractId, today);
+
+        if (occupancy is null)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>());
 
-        var today = PhilippineTime.Today;
         var monthStart = new DateOnly(request.Year, request.Month, 1);
         var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
 
@@ -42,8 +46,8 @@ public class GetSettleableNpmDaysQueryHandler(
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                              // never bill future days
-            if (!(contract.EffectivityDate <= day && day <= contract.ExpiryDate))
-                continue;                                                        // outside the contract term
+            if (day < occupancy.Start || day > occupancy.BillableEnd)
+                continue;                                                        // not this lessee's to answer for
             if (closedDates.Contains(day))
                 continue;                                                        // facility-wide closure — nothing owed
             existing.TryGetValue(day, out var dc);

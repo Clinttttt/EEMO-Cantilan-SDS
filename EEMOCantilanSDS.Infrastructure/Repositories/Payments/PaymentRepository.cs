@@ -553,30 +553,50 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         return new StallLedgerSummaryDto(monthsPaid, monthsUnpaid, totalCollected, totalOutstanding);
     }
 
-    public async Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, CancellationToken ct)
+    /// <summary>
+    /// The unpaid billing months of ONE occupancy. A stall outlives its lessees, so "the stall's arrears" is not a
+    /// well-formed question on a stall that has been re-let: the sitting lessee and a previous one each have their
+    /// own months, at their own rates. <paramref name="contractId"/> names whose; omitting it means the sitting
+    /// lessee, which is what every collection screen asks for.
+    ///
+    /// <para>Every figure is bounded to that occupancy's own window, so no lessee is ever billed for a day another
+    /// held the stall, and the total agrees with the figure the inactive-account register states.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(
+        Guid stallId, Guid? contractId, CancellationToken ct)
     {
         var stall = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
+            // Every term, not only the live one: an ended occupancy's arrears are still collectable, and its
+            // window can only be worked out in the context of the terms around it.
+            .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == stallId, ct);
         if (stall is null)
             return Array.Empty<PaymentHistoryDto>();
 
-        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
-        if (contract is null)
-            return Array.Empty<PaymentHistoryDto>();
-
         var today = PhilippineTime.Today;
-        var startMonth = new DateOnly(contract.EffectivityDate.Year, contract.EffectivityDate.Month, 1);
-        // Bill up to the earlier of today or the contract's expiry — never future days.
-        var lastRef = contract.ExpiryDate < today ? contract.ExpiryDate : today;
-        var endMonth = new DateOnly(lastRef.Year, lastRef.Month, 1);
-        if (endMonth < startMonth)
+
+        var occupancy = contractId is { } id && id != Guid.Empty
+            ? stall.OccupancyOf(id, today)
+            : stall.ResolveOccupancy(null, today);
+
+        if (occupancy is null)
+            return Array.Empty<PaymentHistoryDto>();
+        var contract = occupancy.Contract;
+
+        // The window this lessee answers for: charges stop at their term's end even if they stayed on, and at the
+        // day before the next lessee started.
+        var windowStart = occupancy.Start;
+        var windowEnd = occupancy.BillableEnd < today ? occupancy.BillableEnd : today;
+        if (windowEnd < windowStart)
             return Array.Empty<PaymentHistoryDto>();
 
-        var rangeStart = startMonth;
-        var rangeEnd = new DateOnly(endMonth.Year, endMonth.Month, DateTime.DaysInMonth(endMonth.Year, endMonth.Month));
+        var startMonth = new DateOnly(windowStart.Year, windowStart.Month, 1);
+        var endMonth = new DateOnly(windowEnd.Year, windowEnd.Month, 1);
+
+        var rangeStart = windowStart;
+        var rangeEnd = windowEnd;
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var result = new List<PaymentHistoryDto>();
 
@@ -597,13 +617,21 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))
             {
                 var mEndFull = new DateOnly(m.Year, m.Month, DateTime.DaysInMonth(m.Year, m.Month));
-                var mEnd = mEndFull < today ? mEndFull : today;      // never count future days
-                var collectableDays = CountCollectableDays(stall, m, mEnd);
-                var excusedDays = excused.Count(d => d >= m && d <= mEnd);
+                // Clamped to the occupancy at both ends, so a handover month charges each lessee only their days.
+                var from = m < windowStart ? windowStart : m;
+                var to = mEndFull < windowEnd ? mEndFull : windowEnd;
+                if (to < from) continue;
+
+                // Every day of the window is chargeable to this lessee by construction — the window already stops
+                // at their term's end, at the next lessee's start and at any closure — so the days need counting,
+                // not re-testing against the stall's CURRENT contract (which is how an ended occupancy used to
+                // come back as owing nothing).
+                var collectableDays = to.DayNumber - from.DayNumber + 1;
+                var excusedDays = excused.Count(d => d >= from && d <= to);
                 var billableDays = Math.Max(0, collectableDays - excusedDays);
                 if (billableDays == 0) continue;
                 var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
-                var paid = dailies.Where(d => d.CollectionDate >= m && d.CollectionDate <= mEndFull).Sum(d => d.DailyFee);
+                var paid = dailies.Where(d => d.CollectionDate >= from && d.CollectionDate <= to).Sum(d => d.DailyFee);
                 var balance = Math.Max(0m, bill - paid);
                 if (balance <= 0m) continue;
                 result.Add(new PaymentHistoryDto(
@@ -622,12 +650,16 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 .Select(e => new { e.BillingYear, e.BillingMonth }).ToListAsync(ct))
                 .Select(e => (e.BillingYear, e.BillingMonth)).ToHashSet();
 
+            // The rent this lessee agreed to. The stall's own rate may since have been set for somebody else, so
+            // billing a past occupancy from it would restate history at today's figure.
+            var monthlyRate = contract.MonthlyRentalRate > 0 ? contract.MonthlyRentalRate : stall.MonthlyRate;
+
             for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))
             {
                 if (excusedMonths.Contains((m.Year, m.Month))) continue;
                 var rec = payments.FirstOrDefault(p => p.BillingYear == m.Year && p.BillingMonth == m.Month);
                 if (rec is not null && rec.Status == PaymentStatus.Paid) continue;
-                var bill = rec?.TotalBill ?? stall.MonthlyRate;
+                var bill = rec?.TotalBill ?? monthlyRate;
                 var paid = rec is not null && rec.Status == PaymentStatus.Partial ? rec.PartialAmount : 0m;
                 var balance = Math.Max(0m, bill - paid);
                 if (balance <= 0m) continue;

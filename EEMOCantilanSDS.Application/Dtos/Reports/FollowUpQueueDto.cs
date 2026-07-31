@@ -45,5 +45,13 @@ public record FollowUpItemDto(
     /// Both default to false because they are meaningless on non-utility rows.
     /// </summary>
     bool StallHasElectricity = false,
-    bool StallHasWater = false
+    bool StallHasWater = false,
+
+    /// <summary>
+    /// The term this row is about, when it is about one lessee's own account rather than the stall's current state.
+    /// A stall that has been re-let holds several terms, and a payment recorded against the wrong one would settle
+    /// the sitting lessee's days under a former lessee's name. Null means "the stall's current occupancy", which is
+    /// what every live-queue row means.
+    /// </summary>
+    Guid? ContractId = null
 );

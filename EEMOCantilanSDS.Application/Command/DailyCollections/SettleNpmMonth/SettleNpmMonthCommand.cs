@@ -14,5 +14,10 @@ public record SettleNpmMonthCommand(
     Guid StallId,
     int Year,
     int Month,
-    string? ORNumber = null
+    string? ORNumber = null,
+    /// <summary>
+    /// Whose month. A stall handed over mid-month is owed for by two lessees, so the settlement stops at the named
+    /// lessee's own last day. Omitted for the current occupancy, which is what field collection always means.
+    /// </summary>
+    Guid? ContractId = null
 ) : IRequest<Result<bool>>;

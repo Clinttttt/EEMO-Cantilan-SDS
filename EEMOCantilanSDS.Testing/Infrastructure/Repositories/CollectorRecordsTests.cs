@@ -117,6 +117,8 @@ public class CollectorRecordsTests : RepositoryTestBase
     {
         await using var ctx = NewContext();
         var collectorId = Guid.NewGuid();
+        // NPM monthly records are recognised by their BILLING month, while their collection event is "now", so this
+        // day must stay inside the current month for the record to be in range.
         var reportDay = new DateOnly(Today.Year, Today.Month, 1);
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
@@ -178,8 +180,13 @@ public class CollectorRecordsTests : RepositoryTestBase
         Assert.Equal(110m, report.Totals.CollectedAmount); // monthly partial ₱80 + one daily ₱30
         Assert.Equal(2, report.Totals.TransactionCount);
 
+        // The daily stall's own row, asserted directly rather than through the day's bucket: when the report is run
+        // on the 1st of a month the monthly record's collection date falls on that same day, so the bucket legitimately
+        // holds both figures and a "the day collected ₱30" assertion would depend on the date the tests are run.
+        var dailyRow = Assert.Single(report.Payees, p => p.StallNo == dailyStall.StallNo);
+        Assert.Equal(30m, dailyRow.AmountPaid);
+
         var period = Assert.Single(report.Periods, p => p.PeriodDate == reportDay);
-        Assert.Equal(30m, period.CollectedAmount);
         Assert.Equal(1, period.OpenItemCount);
     }
 

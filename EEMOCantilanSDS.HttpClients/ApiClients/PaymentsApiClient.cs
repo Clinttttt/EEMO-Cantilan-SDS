@@ -25,8 +25,14 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId) =>
         await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/payment-history");
 
-    public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(Guid stallId) =>
-        await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/outstanding-months");
+    public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(Guid stallId, Guid? contractId = null)
+    {
+        var query = $"api/Stalls/{stallId}/outstanding-months";
+        if (contractId is { } id && id != Guid.Empty)
+            query += $"?contractId={id}";
+
+        return await GetAsync<IReadOnlyList<PaymentHistoryDto>>(query);
+    }
 
     public async Task<Result<StallLedgerSummaryDto>> GetStallLedgerSummaryAsync(Guid stallId) =>
         await GetAsync<StallLedgerSummaryDto>($"api/Stalls/{stallId}/ledger-summary");

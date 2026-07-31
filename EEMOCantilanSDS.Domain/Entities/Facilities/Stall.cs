@@ -250,6 +250,38 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 .Where(o => o.Start <= periodEnd && periodStart <= o.End)
                 .ToList();
 
+        /// <summary>
+        /// The occupancy a given day is CHARGEABLE to, or null when nobody owes anything for it — the stall was
+        /// empty, closed, or the lessee's term had already lapsed (they may have stayed on, but owe nothing).
+        ///
+        /// <para>This is what makes arrears of an ended occupancy collectable: the money owed for a day in 2023
+        /// belongs to whoever held the stall in 2023, not to whoever holds it today.</para>
+        /// </summary>
+        public StallOccupancy? OccupancyChargeableOn(DateOnly day, DateOnly? asOf = null) =>
+            Occupancies(asOf ?? day).FirstOrDefault(o => o.Start <= day && day <= o.BillableEnd);
+
+        /// <summary>
+        /// The window of one particular term, so a caller holding a term's id — an inactive-account row, say — can
+        /// ask what that lessee's own period was without having to guess from the stall's current state.
+        /// </summary>
+        public StallOccupancy? OccupancyOf(Guid contractId, DateOnly asOf) =>
+            Occupancies(asOf).FirstOrDefault(o => o.Contract.Id == contractId);
+
+        /// <summary>
+        /// Which occupancy a collection screen is working on: the term it names, or — when it names none — the most
+        /// recent one, which is the sitting lessee on an occupied stall and the lessee whose term lapsed on a stall
+        /// nobody has taken since. That fallback is what every collection screen has always meant by "this stall".
+        /// </summary>
+        public StallOccupancy? ResolveOccupancy(Guid? contractId, DateOnly asOf)
+        {
+            var windows = Occupancies(asOf);
+
+            if (contractId is { } id && id != Guid.Empty)
+                return windows.FirstOrDefault(o => o.Contract.Id == id);
+
+            return windows.Count > 0 ? windows[^1] : null;
+        }
+
         public void SetType(StallType type, string updatedBy = "System")
         {
             Type = type;

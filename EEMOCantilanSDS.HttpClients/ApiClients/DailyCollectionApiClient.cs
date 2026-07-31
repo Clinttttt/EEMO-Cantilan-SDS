@@ -29,6 +29,13 @@ public class DailyCollectionApiClient(HttpClient http) : HandleResponse(http), I
     public async Task<Result<bool>> SettleNpmDaysAsync(SettleNpmDaysCommand command) =>
         await PostAsync<SettleNpmDaysCommand, bool>("api/DailyCollections/settle-days", command);
 
-    public async Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month) =>
-        await GetAsync<IReadOnlyList<SettleableNpmDayDto>>($"api/DailyCollections/stall/{stallId}/settleable-days?year={year}&month={month}");
+    public async Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(
+        Guid stallId, int year, int month, Guid? contractId = null)
+    {
+        var query = $"api/DailyCollections/stall/{stallId}/settleable-days?year={year}&month={month}";
+        if (contractId is { } id && id != Guid.Empty)
+            query += $"&contractId={id}";
+
+        return await GetAsync<IReadOnlyList<SettleableNpmDayDto>>(query);
+    }
 }

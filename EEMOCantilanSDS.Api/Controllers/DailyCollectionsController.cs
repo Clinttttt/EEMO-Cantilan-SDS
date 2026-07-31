@@ -62,9 +62,9 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
     [HttpGet("stall/{stallId}/settleable-days")]
     [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.DailyCollections.SettleableNpmDayDto>>> GetSettleableDays(
-        Guid stallId, [FromQuery] int year, [FromQuery] int month)
+        Guid stallId, [FromQuery] int year, [FromQuery] int month, [FromQuery] Guid? contractId = null)
     {
-        var result = await Sender.Send(new Application.Queries.DailyCollections.GetSettleableNpmDays.GetSettleableNpmDaysQuery(stallId, year, month));
+        var result = await Sender.Send(new Application.Queries.DailyCollections.GetSettleableNpmDays.GetSettleableNpmDaysQuery(stallId, year, month, contractId));
         return HandleResponse(result);
     }
 

@@ -61,11 +61,24 @@ public class RecordPaymentCommandHandler(
         
         if (existingPaymentDto == null)
         {
+            // The rent that billing month was owed at — the rate of whichever term answered for it. A stall's own
+            // rate may since have been set for a different lessee, so billing a past month from it would restate
+            // history at today's figure. Falls back to the stall's rate when no term covers the month.
+            var billingMonthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
+            var answerable = stall.OccupanciesOverlapping(
+                    new DateOnly(request.Year, request.Month, 1), billingMonthEnd, PhilippineTime.Today)
+                .OrderByDescending(o => o.Start)
+                .FirstOrDefault();
+
+            var monthlyRate = answerable?.Contract.MonthlyRentalRate is { } rate && rate > 0
+                ? rate
+                : stall.MonthlyRate;
+
             var newPayment = PaymentRecord.Create(
                 request.StallId,
                 request.Year,
                 request.Month,
-                stall.MonthlyRate,
+                monthlyRate,
                 recordedBy
             );
 

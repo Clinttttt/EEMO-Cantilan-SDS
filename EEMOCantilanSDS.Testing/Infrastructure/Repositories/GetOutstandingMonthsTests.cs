@@ -28,7 +28,7 @@ public class GetOutstandingMonthsTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new PaymentRepository(context);
-        var months = await repo.GetOutstandingMonthsAsync(stall.Id, CancellationToken.None);
+        var months = await repo.GetOutstandingMonthsAsync(stall.Id, null, CancellationToken.None);
 
         Assert.NotEmpty(months);                                    // was: empty → "fully paid" bug
         Assert.All(months, m => Assert.True(m.BalanceDue > 0m));
@@ -52,7 +52,7 @@ public class GetOutstandingMonthsTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new PaymentRepository(context);
-        var months = await repo.GetOutstandingMonthsAsync(stall.Id, CancellationToken.None);
+        var months = await repo.GetOutstandingMonthsAsync(stall.Id, null, CancellationToken.None);
 
         Assert.NotEmpty(months);
         Assert.All(months, m => Assert.Equal(1000m, m.BalanceDue));

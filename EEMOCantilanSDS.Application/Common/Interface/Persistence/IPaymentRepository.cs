@@ -36,7 +36,12 @@ public interface IPaymentRepository
     /// Pay-bill form. NPM synthesises each month's ₱/day obligation (billable days × rate − collected);
     /// monthly facilities use the rent obligation less any partial. Only balance &gt; 0 months are returned.
     /// </summary>
-    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, CancellationToken ct);
+    /// <summary>
+    /// The unpaid billing months of one occupancy, with its own balances. <paramref name="contractId"/> names whose
+    /// arrears — required on a stall that has been re-let, where each lessee has their own months and rate; omit it
+    /// for the sitting lessee.
+    /// </summary>
+    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, Guid? contractId, CancellationToken ct);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     /// <summary>
     /// OR availability for an NPM daily-collection receipt: available when unused anywhere in the LGU OR

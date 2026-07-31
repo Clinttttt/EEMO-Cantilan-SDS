@@ -51,7 +51,9 @@ public class SettleNpmDaysCommandHandler(
         var recordedBy = currentUser.Username ?? "Admin";
         var orNumber = request.ORNumber?.Trim();
         var today = PhilippineTime.Today;
-        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
+        // The occupancy windows, computed once. A day is settleable when SOME term answers for it — not only the
+        // stall's current one, or arrears left behind by a lessee who has gone could never be collected.
+        var occupancies = stall.Occupancies(today);
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
         // Load existing collections + facility closures for every month the selected dates span.
@@ -70,8 +72,8 @@ public class SettleNpmDaysCommandHandler(
         foreach (var day in dates)
         {
             if (day > today) continue;                                  // never settle future days
-            if (contract is null || !(contract.EffectivityDate <= day && day <= contract.ExpiryDate))
-                continue;                                               // not under an effective contract
+            if (!occupancies.Any(o => o.Start <= day && day <= o.BillableEnd))
+                continue;                                              // nobody owes anything for that day
             if (closedDates.Contains(day))
                 continue;                                               // facility-wide closure — nothing owed
 
@@ -94,7 +96,7 @@ public class SettleNpmDaysCommandHandler(
         }
 
         if (settled.Count == 0)
-            return Result<bool>.Failure("None of the selected days could be settled (already paid, closed, or outside the contract).", 400);
+            return Result<bool>.Failure("None of the selected days could be settled (already paid, excused, market closed, or no term owes anything for them).", 400);
 
         // One physical receipt (OR) covers all the selected days — stall-aware uniqueness (same rule as
         // the slaughterhouse's one-receipt-per-visit), so the same OR may repeat across this stall's days.
