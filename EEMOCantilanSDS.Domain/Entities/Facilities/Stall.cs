@@ -191,6 +191,65 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             return live.Count == 0 || live.All(c => c.ExpiryDate < asOf);
         }
 
+        /// <summary>
+        /// This stall's occupancy timeline: who held the space, and between which dates. One physical stall may be
+        /// let many times over its life, so every historical view — the inactive-account register, a past month's
+        /// compliance, a year's report — must read the occupancy that covers the period it is reporting, not
+        /// merely the current one. Deriving the windows in one place is what keeps those views from disagreeing.
+        ///
+        /// <para>An occupancy runs from its effectivity to the EARLIEST of: the day it was terminated, the day
+        /// before the next occupancy began, the day the stall was closed, and its own term end. The middle two
+        /// cover history recorded before terminations were dated.</para>
+        ///
+        /// <para>Requires <c>Contracts</c> to be loaded. Ordered oldest first.</para>
+        /// </summary>
+        public IReadOnlyList<StallOccupancy> Occupancies(DateOnly asOf)
+        {
+            var ordered = Contracts
+                .OrderBy(c => c.EffectivityDate)
+                .ThenBy(c => c.CreatedAt)
+                .ToList();
+
+            var windows = new List<StallOccupancy>(ordered.Count);
+
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var contract = ordered[i];
+
+                // When the occupancy actually ended. A dated termination is the fact of record; otherwise it ran
+                // to its term end. Either way it cannot outlast the next lessee's start or the stall's closure.
+                var end = contract.EndedOn ?? contract.ExpiryDate;
+
+                if (i + 1 < ordered.Count)
+                {
+                    var dayBeforeNext = ordered[i + 1].EffectivityDate.AddDays(-1);
+                    if (dayBeforeNext < end) end = dayBeforeNext;
+                }
+
+                if (Status == StallStatus.Closed && ClosedAt is { } closed && closed < end)
+                    end = closed;
+
+                // A window can never end before it starts (bad data, or a same-day handover).
+                if (end < contract.EffectivityDate) end = contract.EffectivityDate;
+
+                // Chargeable only within the term: a lessee who stayed on after their term lapsed owes nothing
+                // for those days, though any money they did pay in that time is still theirs.
+                var billableEnd = end < contract.ExpiryDate ? end : contract.ExpiryDate;
+                if (billableEnd < contract.EffectivityDate) billableEnd = contract.EffectivityDate;
+
+                var isCurrent = contract.IsActive && end >= asOf;
+                windows.Add(new StallOccupancy(contract, contract.EffectivityDate, end, billableEnd, isCurrent));
+            }
+
+            return windows;
+        }
+
+        /// <summary>The occupancy that held this stall across (any part of) the given period, newest first.</summary>
+        public IReadOnlyList<StallOccupancy> OccupanciesOverlapping(DateOnly periodStart, DateOnly periodEnd, DateOnly asOf) =>
+            Occupancies(asOf)
+                .Where(o => o.Start <= periodEnd && periodStart <= o.End)
+                .ToList();
+
         public void SetType(StallType type, string updatedBy = "System")
         {
             Type = type;

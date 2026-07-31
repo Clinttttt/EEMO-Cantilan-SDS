@@ -109,9 +109,23 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedBy = updatedBy;
         }
 
-        public void Terminate(string updatedBy)
+        /// <summary>
+        /// The day this occupancy actually ended, when it ended EARLY — the office terminated it before the term
+        /// ran out (a handover, a transfer, a closure). Null when it simply ran its course, in which case the term
+        /// end (<see cref="ExpiryDate"/>) is the end of the occupancy. Recorded because money and arrears must be
+        /// attributed to the lessee who actually held the stall on the day concerned, and without this an early
+        /// handover would credit or bill the outgoing lessee for the incoming one's months.
+        /// </summary>
+        public DateOnly? EndedOn { get; private set; }
+
+        /// <summary>
+        /// Ends this occupancy, keeping it as history. <paramref name="endedOn"/> is the last day the lessee held
+        /// the stall; when omitted, today is used (an early termination always ends on the day it is done).
+        /// </summary>
+        public void Terminate(string updatedBy, DateOnly? endedOn = null)
         {
             IsActive = false;
+            EndedOn = endedOn ?? PhilippineTime.Today;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

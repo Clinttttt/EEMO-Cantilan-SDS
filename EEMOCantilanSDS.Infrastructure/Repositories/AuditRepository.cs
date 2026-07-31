@@ -319,8 +319,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         return new AuditDetailComposer.Lookup(stalls, people, facilities, sectionLabels);
     }
 
-    private static string? GetSectionName(MarketSection? section) => section switch
-    {
+    private static string? GetSectionName(MarketSection? section) => section switch    {
         MarketSection.VegetableArea => "Vegetable Area",
         MarketSection.FishSection => "Fish Area",
         MarketSection.MeatSection => "Meat Area",

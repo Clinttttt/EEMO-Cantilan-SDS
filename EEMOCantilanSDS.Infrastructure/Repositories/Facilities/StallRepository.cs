@@ -671,25 +671,30 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, today);
         var npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, today);
 
-        // Candidates: closed stalls, or active stalls whose active contract has lapsed. A stall with no
-        // active contract is "vacant" (not an inactive ACCOUNT), so the active-contract filter excludes it.
-        // Expiry (= effectivity + duration years) is a domain-computed value that Npgsql cannot translate
-        // in a predicate, so occupied stalls are loaded then the expired ones are filtered in memory.
-        var occupied = await context.Stalls
+        // Candidates: every stall that has EVER been let. The register is a record of ended OCCUPANCIES, not of
+        // currently-vacant stalls: a stall re-let to a new lessee must still show the previous lessee's closed or
+        // expired account, with that lessee's own money — otherwise re-letting a stall erases its history from the
+        // office's records. Expiry (= effectivity + duration years) is domain-computed and cannot be translated
+        // into SQL, so the stalls are loaded and their occupancies derived in memory. ALL contracts are included,
+        // terminated ones too, because a terminated occupancy is exactly what this register is for.
+        var everLet = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
-            .Where(s => s.Contracts.Any(c => c.IsActive))
+            .Include(s => s.Contracts)
+            .Where(s => s.Contracts.Any())
             .ToListAsync(ct);
 
-        var candidates = occupied
-            .Where(s => s.Status == StallStatus.Closed || s.IsContractExpired())
+        // One entry per ended occupancy: terminated, superseded by a new lessee, lapsed, or frozen by closure.
+        // The occupancy in force is not an inactive account.
+        var accounts = everLet
+            .SelectMany(s => s.Occupancies(today).Select(o => (Stall: s, Occupancy: o)))
+            .Where(x => !x.Occupancy.IsCurrent || x.Stall.Status == StallStatus.Closed)
             .ToList();
 
-        if (candidates.Count == 0)
+        if (accounts.Count == 0)
             return new List<ClosedStallAccountDto>();
 
-        var stallIds = candidates.Select(s => s.Id).ToList();
+        var stallIds = accounts.Select(x => x.Stall.Id).Distinct().ToList();
 
         // Batch-load the financial inputs once (no N+1).
         var payments = await context.PaymentRecords.AsNoTracking()
@@ -709,20 +714,32 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         var paymentsByStall = payments.GroupBy(p => p.StallId).ToDictionary(g => g.Key, g => g.ToList());
         var excusedByStall = exceptions.GroupBy(e => e.StallId).ToDictionary(g => g.Key, g => g.Select(x => (x.BillingYear, x.BillingMonth)).ToHashSet());
 
-        var result = new List<ClosedStallAccountDto>(candidates.Count);
-        foreach (var stall in candidates)
+        var result = new List<ClosedStallAccountDto>(accounts.Count);
+        foreach (var (stall, occupancy) in accounts)
         {
-            var contract = stall.Contracts.Where(c => c.IsActive).OrderBy(c => c.EffectivityDate).First();
+            var contract = occupancy.Contract;
             var isNpm = stall.Facility?.Code == FacilityCode.NPM;
             var isClosed = stall.Status == StallStatus.Closed;
 
-            var contractExpiry = contract.EffectivityDate.AddYears(contract.DurationYears);
-            // End point: close date (closed) or contract expiry (expired). Never past the contract term.
-            var endDate = isClosed && stall.ClosedAt is { } ca && ca < contractExpiry ? ca : contractExpiry;
+            var contractExpiry = contract.ExpiryDate;
+            // End point of THIS occupancy: the day the lessee actually stopped holding the stall — terminated,
+            // superseded by the next lessee, frozen by closure, or the term's end. Bounding every figure below to
+            // [occupancy start, end] is what keeps one lessee's money out of another's account on a re-let stall.
+            var startDate = occupancy.Start;
+            var endDate = occupancy.End;
+            // Charges stop at the term's end even if the lessee stayed on afterwards.
+            var billableEnd = occupancy.BillableEnd;
 
-            var stallPaid = paidByStall.GetValueOrDefault(stall.Id) ?? new();
+            var stallPaid = (paidByStall.GetValueOrDefault(stall.Id) ?? new())
+                // Daily collections carry the business date they were collected FOR, so they attribute exactly.
+                .Where(d => d.CollectionDate >= startDate && d.CollectionDate <= endDate)
+                .ToList();
             var stallAbsent = absentByStall.GetValueOrDefault(stall.Id) ?? new();
-            var stallPayments = paymentsByStall.GetValueOrDefault(stall.Id) ?? new();
+            var stallPayments = (paymentsByStall.GetValueOrDefault(stall.Id) ?? new())
+                // Attributed by the BILLING period, never by the day the money arrived: an arrear settled months
+                // after a handover still belongs to the lessee who incurred it.
+                .Where(p => WithinMonths(p.BillingYear, p.BillingMonth, startDate, endDate))
+                .ToList();
             var stallExcused = excusedByStall.GetValueOrDefault(stall.Id) ?? new();
 
             // Lifetime collected = every peso actually received (status-independent).
@@ -733,9 +750,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             decimal uncollected = 0m;
             if (isNpm)
             {
-                // ₱30 for each contract-effective, non-absent day in [effectivity, endDate] with no paid collection.
+                // ₱30 for each day of THIS occupancy that was neither excused nor collected.
                 var paidDates = stallPaid.Select(d => d.CollectionDate).ToHashSet();
-                for (var d = contract.EffectivityDate; d <= endDate && d <= contractExpiry; d = d.AddDays(1))
+                for (var d = startDate; d <= billableEnd; d = d.AddDays(1))
                 {
                     if (stallAbsent.Contains(d) || paidDates.Contains(d)) continue;
                     uncollected += npmDailyRate;
@@ -743,16 +760,15 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             }
             else
             {
-                // Per calendar month overlapping [effectivity, endDate]: a non-Unpaid record's balance,
-                // else the full monthly rent. Excused months owe nothing.
-                var cursor = new DateOnly(contract.EffectivityDate.Year, contract.EffectivityDate.Month, 1);
-                var endMonth = new DateOnly(endDate.Year, endDate.Month, 1);
+                // Per calendar month this occupancy answered for: a non-Unpaid record's balance, else the full
+                // monthly rent. Excused months owe nothing. A month's charge is one indivisible obligation in this
+                // system (one payment record per stall per month), so it is answered for by the occupancy that
+                // covered any part of it — never split between two lessees, which the data cannot represent.
+                var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
+                var endMonth = new DateOnly(billableEnd.Year, billableEnd.Month, 1);
                 while (cursor <= endMonth)
                 {
-                    var mStart = cursor;
-                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-                    var inContract = contract.EffectivityDate <= mEnd && contractExpiry >= mStart;
-                    if (inContract && !stallExcused.Contains((cursor.Year, cursor.Month)))
+                    if (!stallExcused.Contains((cursor.Year, cursor.Month)))
                     {
                         var rec = stallPayments.FirstOrDefault(p => p.BillingYear == cursor.Year && p.BillingMonth == cursor.Month);
                         uncollected += rec is not null && rec.Status != PaymentStatus.Unpaid
@@ -763,9 +779,14 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 }
             }
 
+            // A closed stall's occupancies are all closed accounts; on an open stall an ended occupancy either
+            // lapsed (its term ran out) or was handed over to the next lessee — both read as "expired" on the
+            // register, which is what the office calls an account that is no longer current.
+            var state = isClosed ? InactiveAccountState.Closed : InactiveAccountState.Expired;
+
             result.Add(new ClosedStallAccountDto(
                 stall.Id,
-                isClosed ? InactiveAccountState.Closed : InactiveAccountState.Expired,
+                state,
                 stall.Facility!.Code,
                 stall.Facility!.Name,
                 stall.StallNo,
@@ -787,7 +808,14 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 // the register can be filtered and printed section by section like the roster.
                 stall.Section is { } closedSec
                     ? (stall.Facility!.SectionLabel(closedSec) ?? GetSectionName(closedSec))
-                    : (stall.CustomSectionName ?? string.Empty)));
+                    : (stall.CustomSectionName ?? string.Empty),
+                // The day this lessee actually stopped holding the stall. Differs from the term's expiry when the
+                // occupancy ended early — handed to the next lessee, or frozen by closure — and it is the date the
+                // register must show, otherwise a handover looks like a contract still running.
+                endDate,
+                // Somebody else holds this stall now, so this row is history only: the register must not offer to
+                // renew or reopen it, which would act on the sitting lessee's occupancy.
+                stall.Occupancies(today).Any(o => o.IsCurrent)));
         }
 
         return result
@@ -796,9 +824,22 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             .ToList();
     }
 
-    public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
+    /// <summary>
+    /// True when a billing month (year + month) falls inside an occupancy's window. A monthly charge is answered
+    /// for by the lessee who held the stall during that month, regardless of when the money was received — which
+    /// is why arrears settled after a handover still land on the outgoing lessee's account.
+    /// </summary>
+    private static bool WithinMonths(int billingYear, int billingMonth, DateOnly start, DateOnly end)
     {
-        return await context.Stalls
+        if (billingMonth is < 1 or > 12) return false;
+
+        var monthStart = new DateOnly(billingYear, billingMonth, 1);
+        var monthEnd = new DateOnly(billingYear, billingMonth, DateTime.DaysInMonth(billingYear, billingMonth));
+        return monthStart <= end && start <= monthEnd;
+    }
+
+    public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
+    {        return await context.Stalls
             .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }

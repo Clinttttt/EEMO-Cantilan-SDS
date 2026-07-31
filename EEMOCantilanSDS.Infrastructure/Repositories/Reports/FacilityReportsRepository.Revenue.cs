@@ -42,21 +42,41 @@ public partial class FacilityReportsRepository
         _ => 0m
     };
 
-    private static bool IsContractCollectableOn(Contract contract, DateOnly date)
-        => contract.IsActive
-            && contract.EffectivityDate <= date
-            && date <= contract.ExpiryDate;
+    /// <summary>
+    /// Was this contract in force on the given date? Deliberately NOT a question about <c>IsActive</c>: being
+    /// inactive today says nothing about whether the contract covered a date in the past, and reading it that way
+    /// is what made a handed-over stall vanish from (or be mis-attributed in) historical reports.
+    ///
+    /// <para><paramref name="occupancyEnd"/> is the day the occupancy actually ended, from the stall's occupancy
+    /// timeline. It matters for a term that was cut short — and for older history recorded before terminations
+    /// carried a date, where the successor's start is what bounds it.</para>
+    /// </summary>
+    private static bool IsContractCollectableOn(Contract contract, DateOnly date, DateOnly? occupancyEnd = null)
+        => contract.EffectivityDate <= date
+            && date <= contract.ExpiryDate
+            && (occupancyEnd is null || date <= occupancyEnd.Value)
+            && (contract.IsActive || occupancyEnd is not null);
 
     private static bool IsStallCollectableOn(Stall stall, DateOnly date)
         => stall.Status == StallStatus.Active
-            && stall.Contracts.Any(c => IsContractCollectableOn(c, date));
+            && OccupancyWindows(stall).Any(o => o.Start <= date && date <= o.BillableEnd);
 
     // Revenue recognition (money ACTUALLY received) is independent of the stall's CURRENT status — it
     // only requires the stall to have been under an effective contract on that date. A closure is a
     // current-state flag and must never erase already-collected daily fees. Forward-looking
     // obligation/expected math keeps using the status-aware IsStallCollectableOn above.
     private static bool IsUnderContractOn(Stall stall, DateOnly date)
-        => stall.Contracts.Any(c => IsContractCollectableOn(c, date));
+        => OccupancyWindows(stall).Any(o => o.Start <= date && date <= o.BillableEnd);
+
+    /// <summary>
+    /// The stall's occupancy timeline, cached for the life of this request. A stall may have been let several
+    /// times, and the per-date predicates above run across whole months, so the windows are derived once per
+    /// stall rather than per day. Keyed by the stall instance, since each request loads its own graph.
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Stall, IReadOnlyList<StallOccupancy>> _occupancyWindows = new();
+
+    private static IReadOnlyList<StallOccupancy> OccupancyWindows(Stall stall) =>
+        _occupancyWindows.GetValue(stall, s => s.Occupancies(PhilippineTime.Today));
 
     private static int CountNpmCollectableDays(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
     {

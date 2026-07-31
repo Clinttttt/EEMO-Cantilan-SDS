@@ -26,5 +26,15 @@ public sealed record ClosedStallAccountDto(
     string? ClosedBy,
     /// <summary>Market section (NPM) or area location, using the tenant's own label; empty for facilities
     /// that have no sections. Lets the register be filtered and printed one section at a time.</summary>
-    string Section = ""
+    string Section = "",
+    /// <summary>
+    /// The day this lessee actually stopped holding the stall. Equals the contract's expiry when the term simply
+    /// ran out; earlier when the occupancy was ended — handed to the next lessee, or frozen by closure.
+    /// </summary>
+    DateOnly? OccupancyEndedOn = null,
+    /// <summary>
+    /// True when the stall is now held by SOMEBODY ELSE. Such a row is history: it must be readable and printable,
+    /// but never actionable — renewing or reopening it would act on the stall the incoming lessee occupies.
+    /// </summary>
+    bool StallReLet = false
 );

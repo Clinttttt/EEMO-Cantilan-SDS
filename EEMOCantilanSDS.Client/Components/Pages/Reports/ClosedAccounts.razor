@@ -199,7 +199,9 @@
                 var facGroups = yr.GroupBy(r => r.FacilityName, StringComparer.OrdinalIgnoreCase)
                                   .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
                 var singleFacility = facGroups.Count == 1;
-                var expiredInGroup = yr.Where(r => r.State == InactiveAccountState.Expired).ToList();
+                // Bulk renew covers accounts whose stall is actually free. A past occupancy on a stall that has
+                // since been re-let is history — renewing it would displace the sitting lessee.
+                var expiredInGroup = yr.Where(r => r.State == InactiveAccountState.Expired && !r.StallReLet).ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
                         <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
@@ -274,7 +276,14 @@
                                             </td>
                                             <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ClosedBy) ? "—" : r.ClosedBy)</td>
                                             <td class="ca-act no-print">
-                                                @if (r.State == InactiveAccountState.Closed)
+                                                @if (r.StallReLet)
+                                                {
+                                                    @* Somebody else holds this stall now, so this row is a record
+                                                       of a past occupancy. Renewing or reopening it would act on
+                                                       the sitting lessee's stall, so no action is offered. *@
+                                                    <span class="ca-muted">Past occupancy</span>
+                                                }
+                                                else if (r.State == InactiveAccountState.Closed)
                                                 {
                                                     <button class="ca-row-btn ca-row-reopen" type="button" @onclick="() => OpenReopen(r)">Reopen</button>
                                                 }
@@ -282,9 +291,12 @@
                                                 {
                                                     <button class="ca-row-btn ca-row-renew" type="button" @onclick="() => OpenRenew(r)">Renew</button>
                                                 }
-                                                <AuthorizeView Roles="SuperAdmin" Context="authCtx">
-                                                    <button class="ca-row-btn ca-row-remove" type="button" @onclick="() => OpenRemove(r)" title="Remove this inactive account (frees the stall number)">Remove</button>
-                                                </AuthorizeView>
+                                                @if (!r.StallReLet)
+                                                {
+                                                    <AuthorizeView Roles="SuperAdmin" Context="authCtx">
+                                                        <button class="ca-row-btn ca-row-remove" type="button" @onclick="() => OpenRemove(r)" title="Remove this inactive account (frees the stall number)">Remove</button>
+                                                    </AuthorizeView>
+                                                }
                                             </td>
                                         </tr>
                                         n++;
@@ -568,7 +580,9 @@
     }
 
     // The lifecycle end point used for grouping/sorting: close date (closed) or expiry (expired).
-    private static DateOnly EndOf(ClosedStallAccountDto r) => r.ClosedOn ?? r.ExpiryDate;
+    // The day the account actually ended: the closure date, else the day this lessee stopped holding the stall
+    // (a handover ends an occupancy before its term would have run out), else the term's expiry.
+    private static DateOnly EndOf(ClosedStallAccountDto r) => r.ClosedOn ?? r.OccupancyEndedOn ?? r.ExpiryDate;
 
     private IReadOnlyList<ClosedStallAccountDto> Filtered()
     {

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Integration tests that read an ISOLATED RESTORED SNAPSHOT of production. They never touch the live database:
+    the target must be a local host whose database name looks like a snapshot, and every query is read-only.
+    Without STALLTRACK_SNAPSHOT_DB set they no-op, so CI and a fresh clone stay green.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EEMOCantilanSDS.Application\EEMOCantilanSDS.Application.csproj" />
+    <ProjectReference Include="..\EEMOCantilanSDS.Domain\EEMOCantilanSDS.Domain.csproj" />
+    <ProjectReference Include="..\EEMOCantilanSDS.Infrastructure\EEMOCantilanSDS.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

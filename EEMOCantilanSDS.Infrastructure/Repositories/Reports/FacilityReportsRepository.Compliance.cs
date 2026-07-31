@@ -31,10 +31,11 @@ public partial class FacilityReportsRepository
     {
         var stalls = (await _context.Stalls
             .AsNoTracking()
-            .Include(s => s.Contracts.Where(c => c.IsActive))
+            // ALL contracts, not only the live one: a period in the past was held by whoever held it then, and a
+            // stall since handed to a new lessee must still report that period under the lessee who was there.
+            .Include(s => s.Contracts)
             .Where(s => s.FacilityId == facilityId
-               
-                && s.Contracts.Any(c => c.IsActive))
+                && s.Contracts.Any())
             .ToListAsync(ct))
             // Only stalls whose contract was actually effective during the selected period.
             // Without this, a stall whose contract starts after the period (or expired before it)
@@ -140,7 +141,15 @@ public partial class FacilityReportsRepository
 
         foreach (var s in stalls)
         {
-            var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
+            // The lessee ANSWERABLE for this period, not merely the one sitting there now. On a stall that has
+            // changed hands, the later occupancy answers for the period it covered — so a past month reports the
+            // person who actually held the stall then, with their own rate. Monthly charges are one indivisible
+            // obligation per stall-month in this system, so the occupancy that covered the period's end answers
+            // for it; a mid-period handover on a daily-billed stall splits naturally by collection date.
+            var occupancy = s.OccupanciesOverlapping(startDate, endDate, PhilippineTime.Today)
+                .OrderByDescending(o => o.Start)
+                .FirstOrDefault();
+            var contract = occupancy?.Contract ?? s.Contracts.FirstOrDefault(c => c.IsActive);
             // NPM absent set = this stall's own absent days ∪ facility-wide market closures.
             IReadOnlySet<DateOnly>? absentSet = null;
             if (includeFish)

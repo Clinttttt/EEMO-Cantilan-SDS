@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
   <Project Path="EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj" />
   <Project Path="EEMOCantilanSDS.Application/EEMOCantilanSDS.Application.csproj" />
   <Project Path="EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj" />
@@ -7,6 +7,7 @@
   <Project Path="EEMOCantilanSDS.HttpClients/EEMOCantilanSDS.HttpClients.csproj" />
   <Project Path="EEMOCantilanSDS.Infrastructure/EEMOCantilanSDS.Infrastructure.csproj" />
   <Project Path="EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj" Id="89e1c717-bf1f-418a-aa0f-fd170d412434" />
+  <Project Path="EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj" />
   <Project Path="EEMOCantilanSDS.Mobile.Core/EEMOCantilanSDS.Mobile.Core.csproj" />
   <Project Path="EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj" />
 </Solution>

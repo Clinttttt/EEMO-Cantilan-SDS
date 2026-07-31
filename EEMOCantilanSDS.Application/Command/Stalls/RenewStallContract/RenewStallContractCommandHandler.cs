@@ -32,9 +32,11 @@ public class RenewStallContractCommandHandler(
         // Capture the outgoing occupant BEFORE terminating, to detect a change of hands below.
         var previousOccupant = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant;
 
-        // End the current term(s); keep them as history (IsActive = false).
+        // End the current term(s); keep them as history (IsActive = false). The day before the new term starts is
+        // the day the outgoing occupancy ended — recording it is what lets every historical view attribute money
+        // and arrears to the lessee who actually held the stall then.
         foreach (var active in stall.Contracts.Where(c => c.IsActive).ToList())
-            active.Terminate(actor);
+            active.Terminate(actor, request.EffectivityDate.AddDays(-1));
 
         // Start the new term. The stall keeps its current rate.
         var renewed = Contract.Create(

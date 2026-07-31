@@ -108,8 +108,12 @@ public class CreateStallCommandHandler(
     {
         const string actor = "Admin";
 
+        var newStart = DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now);
+
+        // The outgoing occupancy ended the day before the incoming one begins. Dating it is what keeps each
+        // lessee's collections and arrears on their own account once the stall has changed hands.
         foreach (var lingering in stall.Contracts.Where(c => c.IsActive).ToList())
-            lingering.Terminate(actor);
+            lingering.Terminate(actor, newStart.AddDays(-1));
 
         if (!stall.IsActive())
             stall.Reopen(actor);
@@ -125,7 +129,7 @@ public class CreateStallCommandHandler(
             stall.Id,
             request.ActualOccupant,
             request.NameOnContract,
-            DateOnly.FromDateTime(request.ContractDate ?? PhilippineTime.Now),
+            newStart,
             request.ContractYears,
             request.MonthlyRate,
             null,
