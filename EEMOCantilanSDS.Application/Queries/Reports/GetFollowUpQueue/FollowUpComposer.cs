@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
@@ -53,7 +54,11 @@ public static class FollowUpComposer
         IReadOnlyList<UtilityBill> utilityBills,
         // Total outstanding balance per EXPIRED stall (Key(facility, stallNo) → amount), from the Closed
         // Accounts register. Lets an expired row show its full balance and be payable. Null = none.
-        IReadOnlyDictionary<string, decimal>? expiredBalances = null)
+        IReadOnlyDictionary<string, decimal>? expiredBalances = null,
+        // Ended occupancies from the register (closed, lapsed, or handed to another lessee). A lessee whose
+        // occupancy ended is no longer the stall's contract holder, so nothing else in this queue can surface
+        // their balance — see section 5b. Null = none.
+        IReadOnlyList<ClosedStallAccountDto>? endedOccupancies = null)
     {
         var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         var items = new List<FollowUpItemDto>();
@@ -259,6 +264,38 @@ public static class FollowUpComposer
                 c.IsExpired ? "Active occupant" : "Expiring soon",
                 "Review contract", ProfileLink(c.FacilityCode, c.StallNo),
                 StallId: c.StallId));
+        }
+
+        // ── 5b) Ended occupancies that still owe money ──
+        // A lessee whose occupancy has ENDED — the stall handed to someone else, so their contract is no longer
+        // the stall's contract — appears nowhere above, yet the register shows their balance in full. Without this
+        // the same debt read ₱31,980 on the register and only the current period's ₱210 here: a disagreement the
+        // office cannot act on. One row per outstanding account that nothing above already covers.
+        if (endedOccupancies is not null)
+        {
+            var alreadyListed = items
+                .Select(i => Key(i.Facility, i.Identifier.Replace("Stall ", string.Empty)))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var account in endedOccupancies.Where(a => a.Uncollected > 0m))
+            {
+                if (alreadyListed.Contains(Key(account.FacilityCode, account.StallNo)))
+                    continue;
+
+                var ended = account.OccupancyEndedOn ?? account.ClosedOn ?? account.ExpiryDate;
+
+                items.Add(new FollowUpItemDto(
+                    SecImmediate,
+                    "High",
+                    account.State == InactiveAccountState.Closed ? "Closed account balance" : "Past occupancy balance",
+                    "contract",
+                    account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), $"Stall {account.StallNo}",
+                    account.Uncollected, false,
+                    $"{account.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}",
+                    "No longer the occupant",
+                    "Review account", ProfileLink(account.FacilityCode, account.StallNo),
+                    StallId: account.StallId));
+            }
         }
 
         // Stable order: by section, then priority, then amount (largest first).

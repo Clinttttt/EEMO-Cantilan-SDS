@@ -89,7 +89,8 @@ public class GetFollowUpHistoryQueryHandler(
             year, month, asOf,
             delinquency, facilityReports, awaitingOr,
             slaughter, trips, attendance, unreceipted, contracts, utilityBills,
-            expiredBalances);
+            expiredBalances,
+            closedAccounts);
 
         return dto;
     }
