@@ -52,9 +52,10 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<FollowUpQueueDto>> GetFollowUpHistory(
         [FromQuery] int year,
         [FromQuery] int month,
-        [FromQuery] bool wholeYear = false)
+        [FromQuery] bool wholeYear = false,
+        [FromQuery] bool allTime = false)
     {
-        var result = await Sender.Send(new GetFollowUpHistoryQuery(year, month, wholeYear));
+        var result = await Sender.Send(new GetFollowUpHistoryQuery(year, month, wholeYear, allTime));
         return HandleResponse(result);
     }
 

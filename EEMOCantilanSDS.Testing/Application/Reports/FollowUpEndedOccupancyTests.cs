@@ -81,4 +81,28 @@ public class FollowUpEndedOccupancyTests
         var row = Assert.Single(Compose(Account(5_000m, InactiveAccountState.Closed)).Items);
         Assert.Equal("Closed account balance", row.Reason);
     }
+
+    [Fact]
+    public void TheWholeTimeView_IsLabelledByItsScope_NotByAMonth()
+    {
+        // The confusion this view removes: a lifetime figure (Jun 2023 → Jun 2026) shown under a single-year
+        // heading. Its label must say what the figures are, so nobody reads them as one month's amount.
+        var queue = FollowUpComposer.Compose(
+            2026, 6, new DateOnly(2026, 6, 30),
+            delinquency: Array.Empty<DelinquentStallDto>(),
+            facilityReports: new Dictionary<FacilityCode, FacilityReportsDto>(),
+            awaitingOr: Array.Empty<OnlinePaymentAwaitingOrDto>(),
+            slaughter: Array.Empty<SlaughterTransactionDto>(),
+            trips: Array.Empty<TrmTripDto>(),
+            attendance: Array.Empty<TpmVendorAttendanceDto>(),
+            unreceipted: Array.Empty<UnreceiptedPaymentDto>(),
+            contracts: Array.Empty<ContractAttentionDto>(),
+            utilityBills: Array.Empty<UtilityBill>(),
+            expiredBalances: null,
+            endedOccupancies: new[] { Account(31_980m) },
+            periodLabelOverride: "Whole time");
+
+        Assert.Equal("Whole time", queue.PeriodLabel);
+        Assert.Equal(31_980m, Assert.Single(queue.Items).Amount);
+    }
 }

@@ -59,10 +59,15 @@
     @{
         var allItems = AllItems;
         var shown = Filtered(allItems).ToList();
-        var periodLabel = _selMonth == 0
-            ? $"{_selYear} · Whole year"
-            : new DateTime(_selYear, _selMonth, 1).ToString("MMMM yyyy");
-        var asOfLabel = _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
+        var periodLabel = _allTime
+            ? "Whole time · outstanding accounts"
+            : _selMonth == 0
+                ? $"{_selYear} · Whole year"
+                : new DateTime(_selYear, _selMonth, 1).ToString("MMMM yyyy");
+        var asOfLabel = _allTime
+            // Cumulative figures: an "as of a month end" suffix is exactly the confusion this view removes.
+            ? $"{periodLabel} · balances in full"
+            : _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
     }
 
     <!-- Hero + section-count summary (same as the live queue) -->
@@ -127,7 +132,7 @@
                     <button type="button" class="fh-dd-trigger @(_yearOpen ? "open" : "")" @onclick="ToggleYear" aria-haspopup="listbox" aria-expanded="@_yearOpen">
                         <span class="fh-dd-body">
                             <span class="fh-dd-cap">Year</span>
-                            <span class="fh-dd-val">@_selYear</span>
+                            <span class="fh-dd-val">@(_allTime ? "Whole time" : _selYear.ToString())</span>
                         </span>
                         <svg class="fh-dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                     </button>
@@ -136,6 +141,11 @@
                         <div class="fh-dd-backdrop" @onclick="CloseAll"></div>
                         <div class="fh-dd-menu" role="listbox" aria-label="Year">
                             <div class="fh-dd-header">Year</div>
+                            @* Whole time answers "what is still owed, in total" — the question that otherwise means
+                               opening every year and adding the balances up by hand. *@
+                            <div class="fh-dd-item @(_allTime ? "active" : "")" role="option" aria-selected="@_allTime" @onclick="SelectAllTime">
+                                <span class="fh-dd-name">Whole time</span>
+                            </div>
                             @foreach (var y in Years)
                             {
                                 <div class="fh-dd-item @(_selYear == y ? "active" : "")" role="option" aria-selected="@(_selYear == y)" @onclick="() => SelectYear(y)">
@@ -150,7 +160,9 @@
                     }
                 </div>
 
-                <!-- Month (incl. Whole year) -->
+                <!-- Month (incl. Whole year). Not applicable to Whole time, whose figures belong to no month. -->
+                @if (!_allTime)
+                {
                 <div class="fh-dd @(_monthOpen ? "open" : "")">
                     <button type="button" class="fh-dd-trigger @(_monthOpen ? "open" : "")" @onclick="ToggleMonth" aria-haspopup="listbox" aria-expanded="@_monthOpen">
                         <span class="fh-dd-body">
@@ -184,6 +196,7 @@
                         </div>
                     }
                 </div>
+                }
             </div>
             <div class="fh-search">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -793,6 +806,9 @@
     private bool _yearOpen;
     private bool _monthOpen;
 
+    /// <summary>True for the cumulative view: outstanding accounts with their whole balances, no period scope.</summary>
+    private bool _allTime;
+
     private static readonly (string Key, string Label)[] ReasonFilters =
     {
         ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"), ("missingor", "Missing OR"),
@@ -898,6 +914,7 @@
 
     private async Task SelectYear(int year)
     {
+        _allTime = false;
         _selYear = year;
         // Whole-year stays selected across years; otherwise keep a valid month for the year.
         if (_selMonth != 0)
@@ -905,6 +922,18 @@
             var months = MonthsFor(_selYear);
             if (months.Count > 0 && !months.Contains(_selMonth)) _selMonth = months[0];
         }
+        _yearOpen = false;
+        await Load();
+    }
+
+    /// <summary>
+    /// "Whole time": every account that still owes something, each with its whole balance. The office was
+    /// otherwise opening one year at a time and adding the figures up by hand to learn what a payor owes in
+    /// total — and a lifetime figure shown under a single-year filter read as a contradiction.
+    /// </summary>
+    private async Task SelectAllTime()
+    {
+        _allTime = true;
         _yearOpen = false;
         await Load();
     }
@@ -922,12 +951,13 @@
         var year = _selYear;
         var month = EffectiveMonth();
         var wholeYear = _selMonth == 0;
+        var allTime = _allTime;
         await PaintLoadingStateAsync();
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = await ReportsApi.GetFollowUpHistoryAsync(year, month, wholeYear);
+            var result = await ReportsApi.GetFollowUpHistoryAsync(year, month, wholeYear, allTime);
             if (result.IsSuccess)
             {
                 _data = result.Value;

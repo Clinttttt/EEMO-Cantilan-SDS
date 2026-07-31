@@ -46,6 +46,13 @@ public static class EemoCacheKeys
             ? $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:whole-year"
             : $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:{year:0000}:{month:00}";
 
+    /// <summary>
+    /// The cumulative "Whole time" view: outstanding accounts with their whole balances. It belongs to no year or
+    /// month, so it is keyed on its own rather than sharing a period's entry.
+    /// </summary>
+    public static string FollowUpHistoryAllTime(string tenantCode)
+        => $"{NormalizeTenant(tenantCode)}:reports:follow-up-history:all-time";
+
     public static string StallHolderList(
         string tenantCode,
         FacilityCode facilityCode,

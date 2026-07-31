@@ -58,9 +58,13 @@ public static class FollowUpComposer
         // Ended occupancies from the register (closed, lapsed, or handed to another lessee). A lessee whose
         // occupancy ended is no longer the stall's contract holder, so nothing else in this queue can surface
         // their balance — see section 5b. Null = none.
-        IReadOnlyList<ClosedStallAccountDto>? endedOccupancies = null)
+        IReadOnlyList<ClosedStallAccountDto>? endedOccupancies = null,
+        // Overrides the period heading. Used by the "Whole time" view, whose figures are cumulative totals rather
+        // than one month's snapshot — labelling it with a month would be the very confusion it exists to remove.
+        string? periodLabelOverride = null)
     {
-        var periodLabel = new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        var periodLabel = periodLabelOverride
+            ?? new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         var items = new List<FollowUpItemDto>();
 
         // Stalls whose contract has already lapsed are surfaced under "Contract expired" (section 5).

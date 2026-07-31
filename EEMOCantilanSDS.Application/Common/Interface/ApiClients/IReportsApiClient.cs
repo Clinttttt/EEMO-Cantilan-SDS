@@ -15,7 +15,10 @@ public interface IReportsApiClient
 
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
 
-    Task<Result<FollowUpQueueDto>> GetFollowUpHistoryAsync(int year, int month, bool wholeYear = false);
+    /// <param name="allTime">
+    /// True for the cumulative view: outstanding accounts with their whole balances, independent of any period.
+    /// </param>
+    Task<Result<FollowUpQueueDto>> GetFollowUpHistoryAsync(int year, int month, bool wholeYear = false, bool allTime = false);
     /// <summary>Years that have data, newest first — populates the Follow-up History year dropdown.</summary>
     Task<Result<IReadOnlyList<int>>> GetFollowUpHistoryYearsAsync();
 

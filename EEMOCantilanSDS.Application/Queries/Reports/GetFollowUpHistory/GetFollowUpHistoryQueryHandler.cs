@@ -2,10 +2,15 @@ using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Reports;
+using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
+using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
+using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -36,7 +41,11 @@ public class GetFollowUpHistoryQueryHandler(
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpHistoryQuery request, CancellationToken ct)
     {
-        var key = EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
+        var key = request.AllTime
+            // A cumulative view: it does not belong to a year or a month, so it gets its own key. Otherwise it
+            // would collide with (and serve) the selected year's snapshot.
+            ? EemoCacheKeys.FollowUpHistoryAllTime(tenantContext.TenantCode)
+            : EemoCacheKeys.FollowUpHistory(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
         var regions = EemoCacheRegions.FollowUpHistoryRegions(tenantContext.TenantCode, request.Year, request.Month, request.WholeYear);
         var history = await cache.GetOrCreateAsync(
             key,
@@ -53,6 +62,41 @@ public class GetFollowUpHistoryQueryHandler(
         var year = request.Year;
         var month = request.Month;
         var asOf = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        // ── Whole time ────────────────────────────────────────────────────────────────────────────────────
+        // "What is still owed, by whom, in total" — the question the office cannot answer by paging through one
+        // year at a time. Only the sources that are inherently cumulative are used: the inactive-account register
+        // (each ended occupancy's whole balance) and contracts that have lapsed (their register total). The
+        // period-only categories — a month's unpaid, that month's missing receipts, the rolling delinquency
+        // window, a month's utility bills — are deliberately absent: they have no meaning across all time, and
+        // showing a single month's figure under a "whole time" heading is exactly the contradiction this fixes.
+        if (request.AllTime)
+        {
+            var allAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+            var allBalances = allAccounts
+                .Where(a => a.Uncollected > 0m)
+                .GroupBy(a => $"{a.FacilityCode}|{a.StallNo}")
+                .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
+
+            var lapsed = (await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))
+                .Where(c => c.IsExpired)
+                .ToList();
+
+            return FollowUpComposer.Compose(
+                year, month, PhilippineTime.Today,
+                Array.Empty<DelinquentStallDto>(),
+                new Dictionary<FacilityCode, FacilityReportsDto>(),
+                Array.Empty<OnlinePaymentAwaitingOrDto>(),
+                Array.Empty<SlaughterTransactionDto>(),
+                Array.Empty<TrmTripDto>(),
+                Array.Empty<TpmVendorAttendanceDto>(),
+                Array.Empty<UnreceiptedPaymentDto>(),
+                lapsed,
+                Array.Empty<UtilityBill>(),
+                allBalances,
+                allAccounts,
+                periodLabelOverride: "Whole time");
+        }
 
         var facilityReports = new Dictionary<FacilityCode, FacilityReportsDto>();
         foreach (var code in FollowUpComposer.StallFacilities)
