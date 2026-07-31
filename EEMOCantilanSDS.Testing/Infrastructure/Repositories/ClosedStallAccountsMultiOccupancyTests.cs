@@ -44,6 +44,10 @@ public class ClosedStallAccountsMultiOccupancyTests : RepositoryTestBase
 
         // And it is history only: renewing or reopening it would act on the stall Teofila now holds.
         Assert.True(row.StallReLet);
+
+        // The row names the term it is the record of — Wilma's. Anything acting on this lessee, such as placing her
+        // in a stall of her own when she returns, reads that term; the stall's latest term is Teofila's.
+        Assert.Equal(outgoing.Id, row.ContractId);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall;
 using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall;
 using EEMOCantilanSDS.Application.Command.Stalls.UpdateStallDetails;
@@ -53,6 +54,19 @@ public class StallsApiClient(HttpClient http) : HandleResponse(http), IStallsApi
 
     public async Task<Result<StallDto>> CreateStallAsync(CreateStallCommand command) =>
         await PostAsync<CreateStallCommand, StallDto>("api/Stalls", command);
+
+    public async Task<Result<StallReassignmentPreviewDto>> GetStallReassignmentPreviewAsync(
+        Guid previousStallId, Guid? contractId = null)
+    {
+        var query = $"api/Stalls/{previousStallId}/reassignment-preview";
+        if (contractId is { } id && id != Guid.Empty)
+            query += $"?contractId={id}";
+
+        return await GetAsync<StallReassignmentPreviewDto>(query);
+    }
+
+    public async Task<Result<StallDto>> AssignPastOccupantStallAsync(AssignPastOccupantStallCommand command) =>
+        await PostAsync<AssignPastOccupantStallCommand, StallDto>("api/Stalls/assign-past-occupant", command);
 
     public async Task<Result<NpmRatesDto>> GetNpmRatesAsync() =>
         await GetAsync<NpmRatesDto>("api/Stalls/npm-rates");

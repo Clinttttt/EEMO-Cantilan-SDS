@@ -815,7 +815,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 endDate,
                 // Somebody else holds this stall now, so this row is history only: the register must not offer to
                 // renew or reopen it, which would act on the sitting lessee's occupancy.
-                stall.Occupancies(today).Any(o => o.IsCurrent)));
+                stall.Occupancies(today).Any(o => o.IsCurrent),
+                // The term this row is the record of, so an action on THIS lessee cannot pick up the sitting one's.
+                contract.Id));
         }
 
         return result

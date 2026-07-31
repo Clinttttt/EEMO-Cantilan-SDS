@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Requests.Stalls
+@using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall
 @inject IStallsApiClient StallsApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -279,9 +280,14 @@
                                                 @if (r.StallReLet)
                                                 {
                                                     @* Somebody else holds this stall now, so this row is a record
-                                                       of a past occupancy. Renewing or reopening it would act on
-                                                       the sitting lessee's stall, so no action is offered. *@
-                                                    <span class="ca-muted">Past occupancy</span>
+                                                       of a past occupancy: it cannot be renewed in place. If the
+                                                       payor returns, they are placed in a stall of their own —
+                                                       this account and its balance stay exactly as they are. *@
+                                                    <button class="ca-row-btn ca-row-renew" type="button"
+                                                            @onclick="() => OpenAssignNewStall(r)"
+                                                            title="This stall is taken. Place this payor in a new stall; this account and its balance are untouched.">
+                                                        Assign new stall
+                                                    </button>
                                                 }
                                                 else if (r.State == InactiveAccountState.Closed)
                                                 {
@@ -351,6 +357,64 @@
 }
 
 @* ── Renew modal (Proceed / Edit) ── *@
+@if (_assignTarget is not null)
+{
+    @* Placing a returning payor in a stall of their own. The account behind this dialog is NOT touched: its
+       balance, its receipts and its dates stay exactly where they are, and remain collectable under "Whole time".
+       The number offered is only a suggestion — the API decides, so two clerks cannot both take it. *@
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">Assign @_assignTarget.Occupant a new stall</div>
+            </div>
+            <div class="eemo-modal-body">
+                @if (_assignLoadingPreview)
+                {
+                    <p class="confirm-text">Preparing the new stall…</p>
+                }
+                else if (_assignPreview is not null)
+                {
+                    <p class="confirm-text">
+                        Stall @_assignTarget.StallNo is held by another lessee, so a new stall is registered for
+                        <strong>@_assignPreview.Occupant</strong> in <strong>@_assignPreview.FacilityName</strong>@(string.IsNullOrWhiteSpace(_assignPreview.SectionLabel) ? "" : $" ({_assignPreview.SectionLabel})").
+                        Their closed account and its <strong>@Money(_assignTarget.Uncollected)</strong> balance are
+                        left as they are, and stay collectable.
+                    </p>
+
+                    <div class="ca-form">
+                        <label>Stall / space no.
+                            <input type="text" maxlength="20" @bind="_assignStallNo" />
+                        </label>
+                        <label>Start date
+                            <input type="date" @bind="_assignEffectivity" />
+                        </label>
+                        <label>Duration (years)
+                            <input type="number" min="1" max="10" @bind="_assignDuration" />
+                        </label>
+                        <label>@(_assignPreview.IsDailyBilled ? "Monthly equivalent (₱)" : "Monthly rental (₱)")
+                            <input type="number" min="0" step="0.01" @bind="_assignMonthlyRate" />
+                        </label>
+                        <label>Name on contract
+                            <input type="text" @bind="_assignContractName" />
+                        </label>
+                    </div>
+                }
+
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmAssignNewStall" disabled="@(_busy || _assignPreview is null)">
+                    @(_busy ? "Working…" : "Register stall")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @if (_renewTarget is not null)
 {
     <div class="eemo-modal-overlay" @onclick="CloseModals">
@@ -602,6 +666,88 @@
         return q.OrderByDescending(r => EndOf(r)).ToList();
     }
 
+    // ── Assign a returning payor a stall of their own ─────────────────────────────────────────────────
+    // A past occupancy cannot be renewed in place: the space belongs to somebody else now. The payor is instead
+    // registered on a NEW stall, and the old account is left completely alone — its balance was incurred under
+    // that contract, its receipts reference it, and the register is the record of it. Nothing is transferred.
+    //
+    // The server prepares the move (it knows the old stall's facility, section, fee shape and daily rate, and
+    // which number is next), so this page never has to infer any of it from a facility name.
+
+    private ClosedStallAccountDto? _assignTarget;
+    private StallReassignmentPreviewDto? _assignPreview;
+    private string _assignStallNo = string.Empty;
+    private DateOnly _assignEffectivity;
+    private int _assignDuration = 3;
+    private decimal _assignMonthlyRate;
+    private string? _assignContractName;
+    private bool _assignLoadingPreview;
+
+    private async Task OpenAssignNewStall(ClosedStallAccountDto row)
+    {
+        _assignTarget = row;
+        _assignPreview = null;
+        _actionError = null;
+        _assignLoadingPreview = true;
+        _assignEffectivity = PhilippineTime.Today;
+        _assignDuration = Math.Clamp(row.DurationYears, 1, 10);
+        _assignMonthlyRate = row.MonthlyRate;
+        _assignContractName = row.ContractName ?? row.Occupant;
+        _assignStallNo = string.Empty;
+
+        var preview = await StallsApi.GetStallReassignmentPreviewAsync(row.StallId, row.ContractId);
+        _assignLoadingPreview = false;
+
+        if (!preview.IsSuccess || preview.Value is null)
+        {
+            _actionError = preview.Error ?? "Couldn't prepare the new stall. Close this and try again.";
+            return;
+        }
+
+        _assignPreview = preview.Value;
+        _assignStallNo = preview.Value.SuggestedStallNo;
+        _assignMonthlyRate = preview.Value.MonthlyRate;
+        _assignDuration = preview.Value.SuggestedDurationYears;
+        _assignContractName = preview.Value.NameOnContract ?? preview.Value.Occupant;
+    }
+
+    private async Task ConfirmAssignNewStall()
+    {
+        if (_assignTarget is null || _busy) return;
+
+        if (string.IsNullOrWhiteSpace(_assignStallNo))
+        {
+            _actionError = "Give the new stall a number.";
+            return;
+        }
+
+        _busy = true;
+        _actionError = null;
+
+        var result = await StallsApi.AssignPastOccupantStallAsync(new AssignPastOccupantStallCommand(
+            _assignTarget.StallId,
+            _assignStallNo.Trim(),
+            _assignEffectivity.ToDateTime(TimeOnly.MinValue),
+            _assignDuration,
+            _assignMonthlyRate,
+            string.IsNullOrWhiteSpace(_assignContractName) ? null : _assignContractName!.Trim(),
+            // The term this row is the record of — on a re-let stall the latest term is the sitting lessee's.
+            _assignTarget.ContractId));
+
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _actionError = result.ValidationErrors?.Values.FirstOrDefault()?.FirstOrDefault()
+                ?? result.Error
+                ?? "Couldn't register the new stall.";
+            return;
+        }
+
+        CloseModals();
+        await Load();   // the old account stays on the register; the new stall now appears in its facility
+    }
+
     // ── Reopen ──
     private void OpenReopen(ClosedStallAccountDto r) { _reopenTarget = r; _actionError = null; }
 
@@ -698,6 +844,9 @@
         _reopenTarget = null;
         _renewTarget = null;
         _removeTarget = null;
+        _assignTarget = null;
+        _assignPreview = null;
+        _assignLoadingPreview = false;
         _renewEditing = false;
         _renewAllOpen = false;
         _renewAllProgress = null;

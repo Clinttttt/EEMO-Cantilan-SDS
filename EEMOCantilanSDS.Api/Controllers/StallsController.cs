@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Stalls.CreateStall;
+using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall;
 using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 using EEMOCantilanSDS.Application.Command.Stalls.RenewStallContract;
 using EEMOCantilanSDS.Application.Command.Stalls.SoftDeleteStall;
@@ -13,6 +14,7 @@ using EEMOCantilanSDS.Application.Queries.Payments.GetStallLedgerSummary;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetClosedStallAccounts;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetNpmRates;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallHoldersList;
+using EEMOCantilanSDS.Application.Queries.Stalls.GetStallReassignmentPreview;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetStallsByFacilityPaginated;
 using EEMOCantilanSDS.Application.Requests.Stalls;
 using EEMOCantilanSDS.Domain.Common;
@@ -142,6 +144,30 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<IReadOnlyList<Application.Dtos.Stalls.ClosedStallAccountDto>>> GetClosedAccounts()
     {
         var result = await Sender.Send(new GetClosedStallAccountsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// What placing a returning payor in a stall of their own would look like: same facility and section, the rate
+    /// and term they were on, and the next free number in that section (a suggestion — uniqueness is decided when
+    /// the stall is actually registered). Reads only.
+    /// </summary>
+    [HttpGet("{stallId}/reassignment-preview")]
+    public async Task<ActionResult<StallReassignmentPreviewDto>> GetReassignmentPreview(
+        Guid stallId, [FromQuery] Guid? contractId = null)
+    {
+        var result = await Sender.Send(new GetStallReassignmentPreviewQuery(stallId, contractId));
+        return HandleResponse(result);
+    }
+
+    /// <summary>
+    /// Registers a new stall for a payor whose occupancy ended on a stall since let to somebody else. The previous
+    /// stall and its outstanding balance are left untouched.
+    /// </summary>
+    [HttpPost("assign-past-occupant")]
+    public async Task<ActionResult<StallDto>> AssignPastOccupantStall([FromBody] AssignPastOccupantStallCommand command)
+    {
+        var result = await Sender.Send(command);
         return HandleResponse(result);
     }
 

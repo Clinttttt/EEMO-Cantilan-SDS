@@ -36,5 +36,11 @@ public sealed record ClosedStallAccountDto(
     /// True when the stall is now held by SOMEBODY ELSE. Such a row is history: it must be readable and printable,
     /// but never actionable — renewing or reopening it would act on the stall the incoming lessee occupies.
     /// </summary>
-    bool StallReLet = false
+    bool StallReLet = false,
+    /// <summary>
+    /// The term this row is the record of. A re-let stall carries several, so anything acting on THIS lessee — such
+    /// as placing them in a stall of their own when they return — must name the term rather than the stall, or it
+    /// would read the sitting lessee's details instead.
+    /// </summary>
+    Guid ContractId = default
 );
