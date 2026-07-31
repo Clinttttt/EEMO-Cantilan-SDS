@@ -556,14 +556,17 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
     /// <summary>
     /// The unpaid billing months of ONE occupancy. A stall outlives its lessees, so "the stall's arrears" is not a
     /// well-formed question on a stall that has been re-let: the sitting lessee and a previous one each have their
-    /// own months, at their own rates. <paramref name="contractId"/> names whose; omitting it means the sitting
-    /// lessee, which is what every collection screen asks for.
+    /// own months, at their own rates.
+    ///
+    /// <para>Whose is decided in this order: the term named by <paramref name="contractId"/>; failing that, the term
+    /// that held the stall during <paramref name="forPeriod"/> — which is what a screen showing a past period must
+    /// be answered by; failing that, the most recent term, which is what every current collection screen means.</para>
     ///
     /// <para>Every figure is bounded to that occupancy's own window, so no lessee is ever billed for a day another
     /// held the stall, and the total agrees with the figure the inactive-account register states.</para>
     /// </summary>
     public async Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(
-        Guid stallId, Guid? contractId, CancellationToken ct)
+        Guid stallId, Guid? contractId, DateOnly? forPeriod, CancellationToken ct)
     {
         var stall = await context.Stalls
             .AsNoTracking()
@@ -577,7 +580,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
         var today = PhilippineTime.Today;
 
-        var occupancy = stall.ResolveOccupancy(contractId, today);
+        var occupancy = ResolveOccupancy(stall, contractId, forPeriod, today);
 
         if (occupancy is null)
             return Array.Empty<PaymentHistoryDto>();
@@ -669,6 +672,31 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Which lessee a collection screen is talking about: the term it names, the term that held the stall during the
+    /// period it is showing, or — when it says neither — the most recent term.
+    /// </summary>
+    private static StallOccupancy? ResolveOccupancy(Stall stall, Guid? contractId, DateOnly? forPeriod, DateOnly today)
+    {
+        if (contractId is { } id && id != Guid.Empty)
+            return stall.ResolveOccupancy(id, today);
+
+        if (forPeriod is { } period)
+        {
+            var periodEnd = new DateOnly(period.Year, period.Month, DateTime.DaysInMonth(period.Year, period.Month));
+            var answerable = stall
+                .OccupanciesOverlapping(new DateOnly(period.Year, period.Month, 1), periodEnd, today)
+                .OrderByDescending(o => o.Start)
+                .FirstOrDefault();
+
+            // A period nobody held the stall in falls back to the current reading rather than reporting nothing.
+            if (answerable is not null)
+                return answerable;
+        }
+
+        return stall.ResolveOccupancy(null, today);
     }
 
     public async Task<CursorPagedResult<StallCollectionHistoryRowDto>> GetStallCollectionHistoryAsync(

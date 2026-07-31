@@ -37,11 +37,12 @@ public interface IPaymentRepository
     /// monthly facilities use the rent obligation less any partial. Only balance &gt; 0 months are returned.
     /// </summary>
     /// <summary>
-    /// The unpaid billing months of one occupancy, with its own balances. <paramref name="contractId"/> names whose
-    /// arrears — required on a stall that has been re-let, where each lessee has their own months and rate; omit it
-    /// for the sitting lessee.
+    /// The unpaid billing months of one occupancy, with its own balances. Whose is decided by
+    /// <paramref name="contractId"/>, else by the term that held the stall during <paramref name="forPeriod"/> (so a
+    /// screen showing a past period is answered by the lessee of that period), else by the most recent term.
     /// </summary>
-    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(Guid stallId, Guid? contractId, CancellationToken ct);
+    Task<IReadOnlyList<PaymentHistoryDto>> GetOutstandingMonthsAsync(
+        Guid stallId, Guid? contractId, DateOnly? forPeriod, CancellationToken ct);
     Task<bool> IsORNumberUniqueAsync(string orNumber, CancellationToken ct);
     /// <summary>
     /// OR availability for an NPM daily-collection receipt: available when unused anywhere in the LGU OR

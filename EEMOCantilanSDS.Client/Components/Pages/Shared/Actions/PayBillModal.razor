@@ -244,6 +244,16 @@
     /// own period, so their arrears are stated in full and no day of the sitting lessee's is touched.
     /// </summary>
     [Parameter] public Guid? ContractId { get; set; }
+
+    /// <summary>
+    /// The billing period the caller is looking at, when it is not the current one. A screen showing a past period
+    /// must be answered by the lessee who held the stall then: without this, opening a December 2025 row listed the
+    /// current occupant's 2026 months — somebody else's account entirely. The period is also preselected.
+    /// </summary>
+    [Parameter] public int? PeriodYear { get; set; }
+
+    /// <summary>See <see cref="PeriodYear"/>.</summary>
+    [Parameter] public int? PeriodMonth { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
 
@@ -337,15 +347,19 @@
     }
 
     private Guid? _loadedContract;
+    private (int? Year, int? Month) _loadedPeriod;
 
     protected override async Task OnParametersSetAsync()
     {
-        // Reload when the term changes too, not only the stall: two rows of the same re-let stall are two different
-        // accounts, and showing the first one's figures for the second would restate somebody else's debt.
-        if (Show && (_loadedStall != StallId || _loadedContract != ContractId))
+        // Reload when the term or the period changes too, not only the stall: two rows of the same re-let stall are
+        // two different accounts, and two periods can belong to two different lessees.
+        if (Show && (_loadedStall != StallId
+                     || _loadedContract != ContractId
+                     || _loadedPeriod != (PeriodYear, PeriodMonth)))
         {
             _loadedStall = StallId;
             _loadedContract = ContractId;
+            _loadedPeriod = (PeriodYear, PeriodMonth);
             await LoadOutstanding();
         }
     }
@@ -362,7 +376,7 @@
         _days = new();
         _daySelected = new();
 
-        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId, ContractId);
+        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId, ContractId, PeriodYear, PeriodMonth);
         _unpaid = (result.IsSuccess && result.Value is not null)
             ? result.Value
                 .Where(h => !h.IsExcused && h.Status != PaymentStatus.Paid && h.BalanceDue > 0m && !string.IsNullOrWhiteSpace(h.Period))
@@ -370,7 +384,13 @@
                 .ToList()
             : new();
         _totalOutstanding = _unpaid.Sum(h => h.BalanceDue);
-        _selectedPeriod = _unpaid.FirstOrDefault()?.Period ?? string.Empty;
+
+        // Start on the period the caller was looking at, when it is one of the unpaid months — the clerk opened a
+        // particular row and that row's month is the one they mean to settle. Otherwise start at the oldest debt.
+        var askedFor = PeriodYear is { } py && PeriodMonth is { } pm ? $"{py:0000}-{pm:00}" : null;
+        _selectedPeriod = (askedFor is not null && _unpaid.Any(h => h.Period == askedFor)
+            ? askedFor
+            : _unpaid.FirstOrDefault()?.Period) ?? string.Empty;
         _rangeLabel = _unpaid.Count == 0
             ? string.Empty
             : _unpaid.Count == 1

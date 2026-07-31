@@ -25,11 +25,14 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
     public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId) =>
         await GetAsync<IReadOnlyList<PaymentHistoryDto>>($"api/Stalls/{stallId}/payment-history");
 
-    public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(Guid stallId, Guid? contractId = null)
+    public async Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(
+        Guid stallId, Guid? contractId = null, int? year = null, int? month = null)
     {
         var query = $"api/Stalls/{stallId}/outstanding-months";
-        if (contractId is { } id && id != Guid.Empty)
-            query += $"?contractId={id}";
+        var parts = new List<string>();
+        if (contractId is { } id && id != Guid.Empty) parts.Add($"contractId={id}");
+        if (year is { } y && month is { } m) { parts.Add($"year={y}"); parts.Add($"month={m}"); }
+        if (parts.Count > 0) query += "?" + string.Join("&", parts);
 
         return await GetAsync<IReadOnlyList<PaymentHistoryDto>>(query);
     }

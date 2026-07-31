@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -26,13 +27,27 @@ public class GetSettleableNpmDaysQueryHandler(
 
         // Which lessee's days these are. Naming the term is what lets an ended occupancy's arrears be collected at
         // all; without it the stall's current contract answered, so a past lessee's month came back empty.
-        var occupancy = stall.ResolveOccupancy(request.ContractId, today);
+        // Whose days these are. A named term wins; otherwise the term that held the stall during the month being
+        // viewed, because a past month belongs to the lessee of that month and not to whoever is in the stall today;
+        // and failing both, the most recent term — what a current collection screen means by "this stall".
+        var monthStart = new DateOnly(request.Year, request.Month, 1);
+        var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
+
+        StallOccupancy? occupancy;
+        if (request.ContractId is { } namedTerm && namedTerm != Guid.Empty)
+        {
+            occupancy = stall.ResolveOccupancy(namedTerm, today);
+        }
+        else
+        {
+            occupancy = stall.OccupanciesOverlapping(monthStart, monthEnd, today)
+                    .OrderByDescending(o => o.Start)
+                    .FirstOrDefault()
+                ?? stall.ResolveOccupancy(null, today);
+        }
 
         if (occupancy is null)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>());
-
-        var monthStart = new DateOnly(request.Year, request.Month, 1);
-        var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct))
             .ToDictionary(dc => dc.CollectionDate);

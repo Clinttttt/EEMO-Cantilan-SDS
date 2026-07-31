@@ -495,6 +495,8 @@
               StallNo="@PayStallNo"
               Occupant="@(_payItem?.Person ?? string.Empty)"
               ContractId="@(_payItem?.ContractId)"
+              PeriodYear="@_payPeriod?.Year"
+              PeriodMonth="@_payPeriod?.Month"
               OnClose="ClosePayBill"
               OnChanged="OnPaid" />
 
@@ -578,6 +580,9 @@
     // ── Record payment (reuses the shared PayBillModal → existing collection calendars) ──
     private FollowUpItemDto? _payItem;
 
+    /// <summary>The billing period of the row the payment dialog was opened from.</summary>
+    private (int Year, int Month)? _payPeriod;
+
     // Any stall-scoped account behind on payments (or an expired contract with a balance) is payable
     // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
     private static bool CanPay(FollowUpItemDto r) =>
@@ -590,8 +595,25 @@
             ? _payItem.Identifier["Stall ".Length..].Trim()
             : _payItem.Identifier);
 
-    private void OpenPayBill(FollowUpItemDto item) => _payItem = item;
-    private void ClosePayBill() => _payItem = null;
+    private void OpenPayBill(FollowUpItemDto item)
+    {
+        _payItem = item;
+
+        // The row's OWN billing period, so the dialog answers for the lessee of that period and opens on that month.
+        // Without it a December 2025 row opened the current occupant's 2026 months — a different account entirely.
+        _payPeriod = null;
+        if (!string.IsNullOrWhiteSpace(item.Period)
+            && DateTime.TryParseExact(item.Period.Trim(), "MMMM yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+        {
+            _payPeriod = (dt.Year, dt.Month);
+        }
+    }
+
+    private void ClosePayBill()
+    {
+        _payItem = null;
+        _payPeriod = null;
+    }
     private async Task OnPaid() => await Load();
 
     private static OrModel ModelFor(FacilityCode f) => f switch

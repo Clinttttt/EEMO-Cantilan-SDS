@@ -18,9 +18,11 @@ public interface IPaymentsApiClient
     Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetPaymentHistoryAsync(Guid stallId);
     /// <summary>
     /// A stall's unpaid months. <paramref name="contractId"/> names whose arrears on a stall that has been re-let;
-    /// omitted for the current occupancy.
+    /// <paramref name="year"/> and <paramref name="month"/> name the period being viewed, so a past period is
+    /// answered by the lessee who held the stall then. Both omitted means the current occupancy.
     /// </summary>
-    Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(Guid stallId, Guid? contractId = null);
+    Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(
+        Guid stallId, Guid? contractId = null, int? year = null, int? month = null);
     Task<Result<StallLedgerSummaryDto>> GetStallLedgerSummaryAsync(Guid stallId);
     Task<Result<bool>> RecordPaymentAsync(RecordPaymentCommand command);
     Task<Result<bool>> SaveOrNumberAsync(SaveOrNumberCommand command);

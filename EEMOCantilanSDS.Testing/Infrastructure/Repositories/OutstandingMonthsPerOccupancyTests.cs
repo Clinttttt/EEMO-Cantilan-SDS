@@ -50,8 +50,8 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         var (stall, outgoing, incoming) = await ReLetStallAsync(context);
         var repo = new PaymentRepository(context);
 
-        var theirs = await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, CancellationToken.None);
-        var sitting = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, CancellationToken.None);
+        var theirs = await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, null, CancellationToken.None);
+        var sitting = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, null, CancellationToken.None);
 
         Assert.NotEmpty(theirs);
         Assert.NotEmpty(sitting);
@@ -72,8 +72,8 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         var (stall, _, incoming) = await ReLetStallAsync(context);
         var repo = new PaymentRepository(context);
 
-        var byDefault = await repo.GetOutstandingMonthsAsync(stall.Id, null, CancellationToken.None);
-        var named = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, CancellationToken.None);
+        var byDefault = await repo.GetOutstandingMonthsAsync(stall.Id, null, null, CancellationToken.None);
+        var named = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, null, CancellationToken.None);
 
         Assert.Equal(named.Select(m => m.Period), byDefault.Select(m => m.Period));
     }
@@ -91,7 +91,7 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         context.AddRange(facility, stall, lapsed);
         await context.SaveChangesAsync();
 
-        var months = await new PaymentRepository(context).GetOutstandingMonthsAsync(stall.Id, null, CancellationToken.None);
+        var months = await new PaymentRepository(context).GetOutstandingMonthsAsync(stall.Id, null, null, CancellationToken.None);
 
         Assert.NotEmpty(months);
         // Charges stop when the term lapsed — the lessee owes nothing for the year that followed.
@@ -117,8 +117,8 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new PaymentRepository(context);
-        var theirs = await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, CancellationToken.None);
-        var sitting = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, CancellationToken.None);
+        var theirs = await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, null, CancellationToken.None);
+        var sitting = await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, null, CancellationToken.None);
 
         var period = $"{lastMonth.Year:0000}-{lastMonth.Month:00}";
         var theirShare = theirs.Single(m => m.Period == period);
@@ -128,6 +128,40 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         // month exactly once — the old reading charged the whole month to whoever the stall's contract pointed at.
         Assert.Equal(7 * Daily, theirShare.BalanceDue);
         Assert.Equal((DateTime.DaysInMonth(lastMonth.Year, lastMonth.Month) - 7) * Daily, sittingShare.BalanceDue);
+    }
+
+    [Fact]
+    public async Task ThePeriodBeingViewed_DecidesWhoseArrearsAreStated()
+    {
+        // Reported from the 2025 history: a December 2025 row showed ₱930, and the payment dialog offered July and
+        // August 2026 totalling ₱90 — the months of the lessee sitting there NOW. Naming the period being looked at
+        // makes the answer the lessee who actually held the stall then.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "1", 2_500m, ApplicableFees.BaseRental);
+
+        var handover = new DateOnly(2026, 6, 8);
+        var outgoing = Term(stall.Id, "Merlita A. Abuso", new DateOnly(2023, 6, 1), 3, 1_000m);
+        outgoing.Terminate("Head", handover.AddDays(-1));
+        var incoming = Term(stall.Id, "New Occupant", handover, 3, 2_500m);
+
+        context.AddRange(facility, stall, outgoing, incoming);
+        await context.SaveChangesAsync();
+
+        var repo = new PaymentRepository(context);
+
+        var forDecember2025 = await repo.GetOutstandingMonthsAsync(
+            stall.Id, null, new DateOnly(2025, 12, 1), CancellationToken.None);
+
+        // December 2025 is in the list, at the departed lessee's own rate, and none of the sitting lessee's months are.
+        var december = Assert.Single(forDecember2025, m => m.Period == "2025-12");
+        Assert.Equal(1_000m, december.BalanceDue);
+        Assert.DoesNotContain(forDecember2025, m => string.Compare(m.Period, "2026-06", StringComparison.Ordinal) > 0);
+
+        // Asking about a current period still answers with the sitting lessee.
+        var forToday = await repo.GetOutstandingMonthsAsync(
+            stall.Id, null, new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1), CancellationToken.None);
+        Assert.All(forToday, m => Assert.True(string.Compare(m.Period, "2026-06", StringComparison.Ordinal) >= 0));
     }
 
     [Fact]
@@ -159,9 +193,9 @@ public class OutstandingMonthsPerOccupancyTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var period = $"{lastMonth.Year:0000}-{lastMonth.Month:00}";
 
-        var theirShare = (await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, CancellationToken.None))
+        var theirShare = (await repo.GetOutstandingMonthsAsync(stall.Id, outgoing.Id, null, CancellationToken.None))
             .Single(m => m.Period == period);
-        var sittingShare = (await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, CancellationToken.None))
+        var sittingShare = (await repo.GetOutstandingMonthsAsync(stall.Id, incoming.Id, null, CancellationToken.None))
             .Single(m => m.Period == period);
 
         // Their two paid days reduce THEIR balance and leave the sitting lessee's untouched.
