@@ -54,36 +54,37 @@ from a date, in the `FacilityRates` table.
   stored `DailyRate`; every canonical stall uses the tenant's resolved rate. This one rule keeps billing,
   settlement and the rosters in agreement.
 
-### The daily-billed month convention
+### The monthly obligation ledger (daily-billed facilities)
 
-A daily-collected facility has no monthly contract rate. Where a document must state one (the stallholder
-roster, the closed-accounts register), it is the monthly **equivalent**: resolved daily rate ×
-`DomainRules.DailyBilledMonthDays` (a flat 30). Cantilan: ₱30 × 30 = ₱900 → ₱10,800 a year. The stored
-`Stall.MonthlyRate` is a hand-entered figure and must NOT be used for a daily-billed facility's reports.
+A daily-collected facility is let for a **monthly rent**, and the daily fee is the **installment** that rent is
+collected in — never the measure of what is owed. The office's own List of Stallholders states it: ₱900 a month,
+₱10,800 a year for a ₱30 stall. Every figure comes from one monthly ledger
+(`DomainRules.DailyBilledMonthObligation`, `…MonthCredit`, `…MonthOutstanding`):
 
-**That monthly rent is also the ceiling on what a month can owe.** Collection is day by day, but the space is
-let for a monthly rent, so a month's obligation is its collectable days at the day's rate **capped at the
-month's base rent** (`DomainRules.DailyBilledMonthCharge`):
+| Term | Meaning |
+|------|---------|
+| **Expected** (obligation) | The month's rent when the space was held for the whole month — ₱900 whether the calendar gave 28 days or 31. A month held only in part (a mid-month start, a lapsed term, a handover) owes the days held, one installment each, and never more than the rent. |
+| **Collected** | The installments actually received, plus any month-end adjustment collected with one of them. |
+| **Credits** | Days nothing is owed for — excused/absent days and facility-wide closures — at one installment each. A month the payor never traded is credited in full and owes nothing. |
+| **Outstanding** | `Expected − Collected − Credits`, floored at nil. |
 
-- a 31-day month owes ₱900, not ₱930 — the office's paper says ₱900 and reconciles against ₱10,800 a year;
-- once the base rent is collected the month is **paid**, and its balance is nil, never negative;
-- a 31st day actually traded may still be collected — that is real revenue recorded against the day, income
-  beyond the rent, and never an arrear;
-- the rule **caps and never tops up**: February's 28 days owe ₱840, a mid-month start owes only the days held,
-  and excused/absent days and market closures still reduce the month. A full year of daily obligation is
-  therefore ₱10,740, while the roster and register continue to STATE the ₱900 / ₱10,800 paper equivalent.
+Consequences the whole system holds to:
 
-The cap applies wherever an obligation, balance or status is computed (facility reports and their delinquency
-table, the payor ledger and balances, the payment-history modal, the inactive-account register, and the
-collector app's own report). It is applied per calendar month, so a yearly view caps each month on its own.
-
-**Settling "the month" collects the month's rent, and no more.** One act that pays a whole month — the office's
-Whole-month option and the payor's online month checkout — is quoted and settled up to the rent, so a 31-day
-month is charged ₱900 and thirty days are marked; the thirty-first stays open. Collecting day by day is
-untouched: the collector marking that day at the stall, the office picking Specific days, and the fish
-section's per-day self-declare all charge the day's own fee, which is revenue beyond the rent. Every daily rate
-in any of these paths is resolved through `Stall.ResolveDailyFee`, so a custom section charges its own rate and
-a canonical stall the tenant's, never a stale figure stored on the row.
+- Twelve complete months owe exactly ₱10,800; February owes the same ₱900 as August. `Stall.MonthlyRate` is still
+  never used for a daily-billed facility — the obligation is the resolved daily fee ×
+  `DomainRules.DailyBilledMonthDays`.
+- **The month-end balance adjustment.** February's 28 installments reach only ₱840, so the ₱60 difference is
+  collected with the month's last installment (`DailyCollection.AddMonthEndAdjustment`, kept in its own column so a
+  receipt or an audit can say what the extra was for). The month's ledger then reaches its rent exactly, and no
+  shortfall is left that no day could ever clear.
+- **Nothing falls due before its due date.** The adjustment only becomes collectible once the month has closed: it
+  is not quoted, not settled and never read as arrears while the month is still running, and the delinquency window
+  continues to start at the month before this one.
+- A collection beyond the obligation is **revenue, not a negative debt**: a 31st installment taken at the stall
+  brings the month to nil and no further. Settling "the month" as one act — the office's Whole-month option, the
+  payor's online month checkout — asks for exactly what the month owes.
+- Marking days is untouched: the collector at the stall, the office's Specific-days dialog and the fish section's
+  per-day declare all record the day's own installment, resolved through `Stall.ResolveDailyFee`.
 
 ---
 

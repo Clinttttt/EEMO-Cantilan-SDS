@@ -59,31 +59,65 @@ namespace EEMOCantilanSDS.Domain.Constants
         public const int MaxFailedLoginAttempts = 5;
         public const int LockoutMinutes = 15;
 
-        // A daily-collected facility has no monthly contract rate, but the official LGU roster and the
-        // ledger still state one: the monthly EQUIVALENT of the daily fee over a flat 30-day month
-        // (₱30/day → ₱900/month → ₱10,800/year). Calendar length is deliberately ignored — this is the
-        // paper convention the offices reconcile against, not a proration.
+        // A daily-collected facility is let for a MONTHLY rent, stated on the office's own List of Stallholders:
+        // ₱900 a month and ₱10,800 a year for a ₱30 stall. The daily fee is how that rent is collected — an
+        // installment — not what is owed. Calendar length is therefore irrelevant to the obligation: February owes
+        // the same ₱900 as August, and twelve complete months owe 12 × ₱900 exactly.
         public const int DailyBilledMonthDays = 30;
 
         /// <summary>
-        /// What a daily-collected space OWES for one calendar month: its collectable days at the day's fee, but
-        /// never more than the month's base rent (<paramref name="dailyFee"/> × <see cref="DailyBilledMonthDays"/>).
+        /// What a daily-collected space OWES for one calendar month — its canonical contractual obligation.
         ///
-        /// <para>The office's own paper states ₱900 a month and ₱10,800 a year for a ₱30 stall, so a 31-day month
-        /// must not raise a debt of ₱930 against a payor whose rent is ₱900: once the base rent is in, the month is
-        /// paid. Collection stays day by day — a 31st day actually traded may still be collected and is real
-        /// revenue — but it is income beyond the rent, never an arrear. A month the space held for fewer days than
-        /// the base (a mid-month start, excused days) owes only those days, which is why this caps and never
-        /// tops up.</para>
+        /// <para>A month the space was held in FULL owes the monthly rent (<paramref name="dailyFee"/> ×
+        /// <see cref="DailyBilledMonthDays"/>), whatever the calendar says: this is the figure the office's paper
+        /// states and reconciles against, so a complete year is exactly twelve of them. A month held only in part —
+        /// a mid-month start, a term that lapsed, a space taken over — owes the days it was held, one installment
+        /// each, and never more than the rent.</para>
+        ///
+        /// <para><paramref name="daysHeld"/> counts every day of the month the space was under this occupancy,
+        /// including days already collected; <paramref name="daysInMonth"/> is the calendar length.</para>
         /// </summary>
-        public static decimal DailyBilledMonthCharge(decimal dailyFee, int billableDays)
+        public static decimal DailyBilledMonthObligation(decimal dailyFee, int daysInMonth, int daysHeld)
         {
-            if (dailyFee <= 0m || billableDays <= 0)
+            if (dailyFee <= 0m || daysHeld <= 0 || daysInMonth <= 0)
                 return 0m;
 
-            var byDays = dailyFee * billableDays;
-            var monthlyBase = dailyFee * DailyBilledMonthDays;
-            return byDays < monthlyBase ? byDays : monthlyBase;
+            // Held for the whole month → the month's rent, regardless of whether the calendar gave 28 days or 31.
+            if (daysHeld >= daysInMonth)
+                return dailyFee * DailyBilledMonthDays;
+
+            var byInstallments = dailyFee * daysHeld;
+            var monthlyRent = dailyFee * DailyBilledMonthDays;
+            return byInstallments < monthlyRent ? byInstallments : monthlyRent;
+        }
+
+        /// <summary>
+        /// What is forgiven of a month's obligation: the days the payor owes nothing for — excused/absent days and
+        /// facility-wide closures — at one installment each. When every day the space was held is forgiven, the
+        /// whole obligation is: a month a payor never traded owes nothing at all, not the rent less its days.
+        /// </summary>
+        public static decimal DailyBilledMonthCredit(decimal dailyFee, decimal obligation, int daysHeld, int daysForgiven)
+        {
+            if (dailyFee <= 0m || daysForgiven <= 0 || obligation <= 0m)
+                return 0m;
+
+            if (daysForgiven >= daysHeld)
+                return obligation;
+
+            var byInstallments = dailyFee * daysForgiven;
+            return byInstallments < obligation ? byInstallments : obligation;
+        }
+
+        /// <summary>
+        /// What is still owed for a month: obligation less what was collected and less what was forgiven. A
+        /// collection beyond the obligation is revenue — an over-collection, never a negative debt — so this floors
+        /// at nil. Every view that states Expected, Collected, Credits and Outstanding reads these four together,
+        /// which is what keeps Expected − Collected − Credits = Outstanding true of the same ledger.
+        /// </summary>
+        public static decimal DailyBilledMonthOutstanding(decimal obligation, decimal collected, decimal credits)
+        {
+            var outstanding = obligation - collected - credits;
+            return outstanding > 0m ? outstanding : 0m;
         }
 
         // An occupancy held without a signed contract (a barbecue stand, an ice-plant space, a commercial-centre

@@ -819,33 +819,36 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             decimal uncollected = 0m;
             if (isNpm)
             {
-                // Per calendar month: what that month owed — its collectable days at the month's rate, never more
-                // than the month's base rent (₱30 × 30) — less what was actually collected for it. A 31-day month
-                // therefore raises an arrear of ₱900, not ₱930: the extra day may be collected, and is revenue, but
-                // it is not a debt. Absent days and facility closures owe nothing, so they never count.
+                // Per calendar month, from the monthly obligation ledger: the month's contractual rent (₱900 for a
+                // month held in full, whatever the calendar gave it), less the days nothing is owed for, less what
+                // was actually collected. The ₱30 fee is the installment, not the measure — so a lapsed account's
+                // arrears read as months of rent and a complete year as twelve of them.
                 var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
                 var lastMonth = new DateOnly(billableEnd.Year, billableEnd.Month, 1);
                 while (cursor <= lastMonth)
                 {
                     var mStart = cursor > startDate ? cursor : startDate;
-                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                    var daysInMonth = DateTime.DaysInMonth(cursor.Year, cursor.Month);
+                    var mEnd = new DateOnly(cursor.Year, cursor.Month, daysInMonth);
                     if (mEnd > billableEnd) mEnd = billableEnd;
 
-                    var billableDays = 0;
+                    var daysHeld = mEnd.DayNumber - mStart.DayNumber + 1;
+                    var daysForgiven = 0;
                     for (var d = mStart; d <= mEnd; d = d.AddDays(1))
                     {
-                        if (stallAbsent.Contains(d) || closureDates.Contains(d)) continue;
-                        billableDays++;
+                        if (stallAbsent.Contains(d) || closureDates.Contains(d)) daysForgiven++;
                     }
 
-                    // The rate in force at the month's end — the base rent it is measured against is that month's.
+                    // The rate in force at the end of the counted span — the rent it is measured against is that
+                    // month's.
                     var monthFee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd));
-                    var owed = DomainRules.DailyBilledMonthCharge(monthFee, billableDays);
+                    var obligation = DomainRules.DailyBilledMonthObligation(monthFee, daysInMonth, daysHeld);
+                    var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
                     var collected = stallPaid
                         .Where(p => p.CollectionDate >= mStart && p.CollectionDate <= mEnd)
                         .Sum(p => p.DailyFee);
 
-                    uncollected += Math.Max(0m, owed - collected);
+                    uncollected += DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
                     cursor = cursor.AddMonths(1);
                 }
             }

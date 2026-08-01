@@ -409,16 +409,15 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             var monthStart = new DateOnly(year, month, 1);
             var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
 
-            // NPM money is ALWAYS daily-truth: a flat monthly PaymentRecord (e.g. an admin-entered
-            // partial) must never override the day-by-day reality, because NPM is a ₱30/day facility.
-            // Obligation = collectable days that month × ₱30 (contract-aware, same basis as reports);
-            // collected = the sum of paid daily collections for the month. The monthly record's flat
-            // ₱900 base / raw partial is intentionally ignored here.
-            var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
-            var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
-            var billableDays = Math.Max(0, collectableDays - absentDays);
-            var bill = DomainRules.DailyBilledMonthCharge(
-                stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd)), billableDays);
+            // NPM is let for a MONTHLY rent and collected in ₱30 installments, so the month's obligation is that
+            // rent — ₱900 for a month held in full, whatever the calendar gave it — less the days nothing is owed
+            // for. A flat monthly PaymentRecord never overrides the ledger; collected is the installments actually
+            // received (plus any month-end adjustment recorded on the month's last one).
+            var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
+            var daysForgiven = absentDates.Count(d => d >= monthStart && d <= monthEnd);
+            var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+            var obligation = DomainRules.DailyBilledMonthObligation(fee, monthEnd.Day, daysHeld);
+            var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysForgiven);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -431,7 +430,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // Exception: a month that was under contract but fully excused (every collectable day
                 // absent) is emitted as a distinct ₱0 "Absent" row — it is not owed, so it must not
                 // fall through to the modal's Unpaid default.
-                if (collectableDays > 0 && billableDays == 0 && absentDays > 0)
+                if (daysHeld > 0 && daysForgiven >= daysHeld)
                 {
                     result.Add(new PaymentHistoryDto(
                         period, PaymentStatus.Paid, 0m, 0m, 0m, null, null, null, IsExcused: true));                }
@@ -568,13 +567,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
 
             if (isNpm)
             {
-                // NPM money is always daily-truth (₱30/day × contract-prorated days) — a flat monthly
-                // record never overrides it. Excused/absent/market-closed days are not owed, so they
-                // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
+                // The month's contractual rent, less the days nothing is owed for. Excused/absent/market-closed days
+                // are credits against the obligation; a month entirely credited is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
-                var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
-                var bill = DomainRules.DailyBilledMonthCharge(
-                    stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd)), billableDays);
+                var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
+                var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+                var obligation = DomainRules.DailyBilledMonthObligation(fee, monthEnd.Day, daysHeld);
+                var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, npmExcused);
                 if (bill <= 0m)
                     continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
@@ -684,12 +683,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // at their term's end, at the next lessee's start and at any closure — so the days need counting,
                 // not re-testing against the stall's CURRENT contract (which is how an ended occupancy used to
                 // come back as owing nothing).
-                var collectableDays = to.DayNumber - from.DayNumber + 1;
+                var daysHeld = to.DayNumber - from.DayNumber + 1;
                 var excusedDays = excused.Count(d => d >= from && d <= to);
-                var billableDays = Math.Max(0, collectableDays - excusedDays);
-                if (billableDays == 0) continue;
-                var bill = DomainRules.DailyBilledMonthCharge(
-                    stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull)), billableDays);
+                if (daysHeld - excusedDays <= 0) continue;
+                var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
+                var obligation = DomainRules.DailyBilledMonthObligation(fee, mEndFull.Day, daysHeld);
+                var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, excusedDays);
+                if (bill <= 0m) continue;
                 var paid = dailies.Where(d => d.CollectionDate >= from && d.CollectionDate <= to).Sum(d => d.DailyFee);
                 var balance = Math.Max(0m, bill - paid);
                 if (balance <= 0m) continue;

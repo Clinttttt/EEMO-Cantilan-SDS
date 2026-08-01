@@ -33,14 +33,12 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         // CURRENT behavior: for the in-progress current month, the report's NPM obligation counts EVERY
         // collectable day through MONTH-END (incl. days that haven't elapsed), because the compliance
         // window's endDate is the last day of the month and is not clamped to today.
-        // → ExpectedBill = (full days in month) × ₱30, capped at the month's base rent (₱30 × 30 = ₱900),
-        // so a 31-day month owes the rent and not an extra day of it. A short month (February) owes only
-        // its own days: the rule caps and never tops up.
-        // When the obligation window is later clamped to today, THIS is the number that should change
-        // (to `today.Day × ₱30`, minus any excused).
+        // → ExpectedBill = the month's contractual rent (₱30 × 30 = ₱900), whatever the calendar gave the month:
+        // the daily fee is the installment the rent is collected in, not the measure of the obligation.
+        // When the obligation window is later clamped to today, THIS is the number that should change.
         var today = PhilippineTime.Today;
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        var monthCharge = DomainRules.DailyBilledMonthCharge(FeeRates.NpmDailyFee, daysInMonth);
+        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, daysInMonth, daysInMonth);
 
         var context = NewContext();
         var (facility, stall, contract) = NewNpmStall(new DateOnly(today.Year, today.Month, 1));

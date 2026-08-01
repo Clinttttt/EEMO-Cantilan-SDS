@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
@@ -123,6 +124,85 @@ public class NpmMonthSettlementServiceTests
 
         Assert.Equal(0, payable.Days);
         Assert.Equal(0m, payable.Amount);
+    }
+
+    [Fact]
+    public async Task ComputePayable_ForAClosedShortMonth_IncludesTheMonthEndAdjustment()
+    {
+        // February's twenty-eight installments come to ₱840 and its rent is ₱900, so once the month has closed the
+        // ₱60 difference is a collectible month-end adjustment: the office and the payor are asked the month's rent.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+
+        var payable = await svc.ComputePayableAsync(stall, 2026, 2, CancellationToken.None);
+
+        Assert.Equal(28, payable.Days);
+        Assert.Equal(60m, payable.Adjustment);
+        Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, payable.Amount);   // ₱900
+    }
+
+    [Fact]
+    public async Task SettleUnpaidDays_ForAClosedShortMonth_ReachesTheRent_WithTheAdjustmentOnTheLastInstallment()
+    {
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        daily.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+
+        var settled = await svc.SettleUnpaidDaysAsync(
+            stall, 2026, 2, collectorId: null, recordedBy: "Admin", CancellationToken.None);
+
+        Assert.Equal(28, settled.Count);
+        // The month's ledger reaches its rent exactly: twenty-seven ordinary installments and a last one carrying
+        // the month-end adjustment, so nothing is left that no day could ever clear.
+        Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, settled.Sum(dc => dc.DailyFee));
+        Assert.Equal(60m, settled[^1].MonthEndAdjustment);
+        Assert.Equal(FeeRates.NpmDailyFee + 60m, settled[^1].DailyFee);
+        Assert.All(settled.Take(27), dc => Assert.Null(dc.MonthEndAdjustment));
+    }
+
+    [Fact]
+    public async Task ComputePayable_DoesNotAskForAnAdjustment_BeforeTheMonthsDueDate()
+    {
+        // The month in progress has not fallen due, so its shortfall is not yet owed: only the elapsed installments
+        // are quoted, and no adjustment is added until the month closes.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+
+        var today = PhilippineTime.Today;
+        var payable = await svc.ComputePayableAsync(stall, today.Year, today.Month, CancellationToken.None);
+
+        Assert.Equal(0m, payable.Adjustment);
+        Assert.Equal(FeeRates.NpmDailyFee * payable.Days, payable.Amount);   // installments only
     }
 
     [Fact]

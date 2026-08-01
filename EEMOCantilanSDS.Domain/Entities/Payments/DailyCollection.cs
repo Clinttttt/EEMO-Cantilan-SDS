@@ -16,6 +16,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public Guid? CollectorId { get; private set; }
         public DateOnly CollectionDate { get; private set; }
         public decimal DailyFee { get; private set; } = FeeRates.NpmDailyFee;
+
+        /// <summary>
+        /// The month-end balance adjustment collected with this installment, when there is one: the part of the
+        /// month's rent its calendar could not reach in ₱30 installments (see <see cref="AddMonthEndAdjustment"/>).
+        /// Null for an ordinary day. Included in <see cref="DailyFee"/>, and kept separately so a receipt, a report
+        /// or an audit can say what the extra was for.
+        /// </summary>
+        public decimal? MonthEndAdjustment { get; private set; }
+
         public bool IsPaid { get; private set; }
 
         // Excused/absent day: the payor was legitimately not operating (e.g. sick). It is NOT owed —
@@ -99,6 +108,29 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
         public void SetClientOperationId(Guid clientOperationId) => ClientOperationId = clientOperationId;
+
+        /// <summary>
+        /// Adds the month-end balance adjustment to this PAID installment.
+        ///
+        /// <para>A market space is let for a monthly rent and collected in daily installments, so a month whose
+        /// calendar cannot reach the rent in installments — February's twenty-eight days at ₱30 fall ₱60 short of
+        /// ₱900 — is short by the difference. Once the month has closed, that difference is collected with its last
+        /// installment: the day's row carries it, so the month's ledger reaches the rent exactly and the shortfall
+        /// is money received rather than an arrear that no day could ever clear.</para>
+        ///
+        /// <para>Kept as part of the installment (rather than a separate monthly record) because NPM money is
+        /// day-by-day truth: every read sums these rows, so the adjustment is collected, receipted and audited
+        /// exactly like the day it rides on. Only a paid day can carry one.</para>
+        /// </summary>
+        public void AddMonthEndAdjustment(decimal amount, string updatedBy = "System")
+        {
+            if (!IsPaid || amount <= 0m) return;
+
+            MonthEndAdjustment = (MonthEndAdjustment ?? 0m) + amount;
+            DailyFee += amount;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
 
         /// <summary>
         /// Stamps the OR (receipt) number on an already-PAID day — for when a collector recorded the

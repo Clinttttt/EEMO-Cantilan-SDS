@@ -307,14 +307,13 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var repo = new FacilityReportsRepository(context);
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
 
-        // Every month is charged at most its base rent (₱30 × 30 = ₱900), so a 31-day month owes ₱900 rather than
-        // ₱930; February's 28 collectable days owe ₱840, because the rule caps and never tops up. Eleven capped
-        // months plus February = ₱10,740 a year for a stall that paid nothing.
-        Assert.Equal(40960m, report.PendingPaymentAmount);
-        Assert.Equal(10240m, report.StallCompliance.Single(s => s.StallNo == "1").Balance);
-        Assert.Equal(10140m, report.StallCompliance.Single(s => s.StallNo == "2").Balance);
-        Assert.Equal(10740m, report.StallCompliance.Single(s => s.StallNo == "3").Balance);
-        Assert.Equal(9840m, report.StallCompliance.Single(s => s.StallNo == "4").Balance);
+        // Twelve months' rent apiece — ₱10,800 each, ₱43,200 across the four — less the ₱2,000 collected. The
+        // calendar plays no part: the daily fee is the installment, not the obligation.
+        Assert.Equal(41200m, report.PendingPaymentAmount);
+        Assert.Equal(10300m, report.StallCompliance.Single(s => s.StallNo == "1").Balance);
+        Assert.Equal(10200m, report.StallCompliance.Single(s => s.StallNo == "2").Balance);
+        Assert.Equal(10800m, report.StallCompliance.Single(s => s.StallNo == "3").Balance);
+        Assert.Equal(9900m, report.StallCompliance.Single(s => s.StallNo == "4").Balance);
     }
 
     [Fact]

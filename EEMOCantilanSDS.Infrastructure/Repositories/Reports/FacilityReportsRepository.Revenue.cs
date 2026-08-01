@@ -95,14 +95,17 @@ public partial class FacilityReportsRepository
         return days;
     }
 
+    /// <summary>
+    /// What a daily-billed stall owes across a span, from the monthly obligation ledger: each calendar month's
+    /// contractual rent (₱900 for a month held in full, whatever the calendar gave it), less the credits for days
+    /// nothing is owed for. The ₱30 fee is the installment the rent is collected in, never the measure of it — so a
+    /// complete year is twelve months' rent (₱10,800) and not 365 installments.
+    /// </summary>
     private decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
     {
         if (endDate < startDate)
             return 0m;
 
-        // Month by month, because the cap is a MONTH's rent: a 31-day month owes the base rent, not thirty-one
-        // days of it, and a period spanning several months caps each of them on its own. Summing the whole range
-        // first and capping once would have let a long month's extra day hide inside a year's total.
         var fee = stall.ResolveDailyFee(_npmDailyRate);
         var total = 0m;
 
@@ -111,10 +114,18 @@ public partial class FacilityReportsRepository
         while (cursor <= last)
         {
             var monthStart = cursor > startDate ? cursor : startDate;
-            var monthEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+            var daysInMonth = DateTime.DaysInMonth(cursor.Year, cursor.Month);
+            var monthEnd = new DateOnly(cursor.Year, cursor.Month, daysInMonth);
             if (monthEnd > endDate) monthEnd = endDate;
 
-            total += DomainRules.DailyBilledMonthCharge(fee, CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates));
+            // Days the space was held (before any forgiveness), and of those, the days nothing is owed for.
+            var daysHeld = CountNpmCollectableDays(stall, monthStart, monthEnd);
+            var daysCharged = CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates);
+
+            var obligation = DomainRules.DailyBilledMonthObligation(fee, daysInMonth, daysHeld);
+            var credit = DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysHeld - daysCharged);
+
+            total += obligation - credit;
             cursor = cursor.AddMonths(1);
         }
 

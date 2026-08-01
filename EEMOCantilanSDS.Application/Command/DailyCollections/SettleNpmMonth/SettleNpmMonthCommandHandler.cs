@@ -75,32 +75,52 @@ public class SettleNpmMonthCommandHandler(
 
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
-        // What this month owes and what is already in, so one act of "settle the month" collects the month's rent
-        // and no more: a 31-day month settles ₱900, not ₱930. Absent days and closures owe nothing, so they never
-        // count. A further day the payor actually traded is still collectable from the daily calendar — that is the
-        // day-to-day path, and its fee is revenue beyond the rent rather than an arrear.
-        var chargeableDays = 0;
+        // The month's own ledger: its contractual rent (₱900 for a month held in full, whatever the calendar gave
+        // it), the days nothing is owed for, and what is already in. One act of "settle the month" collects what the
+        // month owes and no more — a 31-day month settles ₱900, and a closed February settles ₱900 as twenty-eight
+        // installments plus its ₱60 month-end adjustment. A further day the payor traded is still collectable from
+        // the daily calendar, where its fee is revenue beyond the rent rather than an arrear.
+        var daysHeld = 0;
+        var daysForgiven = 0;
         var alreadyCollected = 0m;
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;
             if (day < occupancy.Start || day > occupancy.BillableEnd) continue;
-            if (closedDates.Contains(day)) continue;
+
+            daysHeld++;
+
+            if (closedDates.Contains(day)) { daysForgiven++; continue; }
 
             existing.TryGetValue(day, out var known);
-            if (known is not null && known.IsAbsent) continue;
-
-            chargeableDays++;
+            if (known is not null && known.IsAbsent) { daysForgiven++; continue; }
             if (known is not null && known.IsPaid) alreadyCollected += known.DailyFee;
         }
 
         var monthCeilingDay = today < monthEnd ? today : monthEnd;
-        var monthCeiling = DomainRules.DailyBilledMonthCharge(
-            stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay)), chargeableDays);
-        var collectable = monthCeiling - alreadyCollected;
+        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay));
+        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthEnd.Day, daysHeld);
+        var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
+        var collectable = DomainRules.DailyBilledMonthOutstanding(obligation, alreadyCollected, credit);
 
         var settled = new List<DailyCollection>();
         var accumulated = 0m;
+        // The installments this settlement may collect: the month's outstanding balance less any month-end
+        // adjustment, which rides on the last installment once the month has closed.
+        var monthClosed = today > monthEnd;
+        var installmentsOwed = 0m;
+        for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
+        {
+            if (day > today) break;
+            if (day < occupancy.Start || day > occupancy.BillableEnd) continue;
+            if (closedDates.Contains(day)) continue;
+            existing.TryGetValue(day, out var known);
+            if (known is not null && (known.IsPaid || known.IsAbsent)) continue;
+            installmentsOwed += stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+        }
+        var adjustment = monthClosed && collectable > installmentsOwed ? collectable - installmentsOwed : 0m;
+        var installmentCap = collectable - adjustment;
+
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
@@ -114,7 +134,7 @@ public class SettleNpmMonthCommandHandler(
                 continue;                                               // already collected or excused
 
             var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
-            if (accumulated + fee > collectable)
+            if (accumulated + fee > installmentCap)
                 break;                                                  // the month's rent is settled
             accumulated += fee;
 
@@ -130,6 +150,11 @@ public class SettleNpmMonthCommandHandler(
             }
             settled.Add(dc);
         }
+
+        // A closed month short of its rent settles the difference with its last installment, so its obligation is
+        // met in full and nothing is left behind to read as arrears.
+        if (adjustment > 0m && settled.Count > 0)
+            settled[^1].AddMonthEndAdjustment(adjustment, recordedBy);
 
         // Stamp the receipt (OR) on EVERY settled day — one physical receipt covers the whole month
         // (allowed for a single stall since the daily-collection OR check is stall-aware, mirroring the

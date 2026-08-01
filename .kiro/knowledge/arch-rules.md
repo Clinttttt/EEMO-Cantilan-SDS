@@ -80,14 +80,14 @@ tenant. Consequences you must respect:
 
 - Resolve rates through `IFeeRateResolver` **as of a date**; `FeeRates` constants are the fallback only.
 - A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
-- A daily-billed facility's "monthly" figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays`.
-  Never the stored `Stall.MonthlyRate`.
-- **A daily-billed month never owes more than that monthly figure.** Compute a month's obligation through
-  `DomainRules.DailyBilledMonthCharge(dailyFee, billableDays)` — days at the day's rate, capped at the month's
-  base rent — per calendar month, never over a whole range at once. It caps and never tops up, so short months,
-  mid-month starts and excused days still owe only their days. Collecting a 31st day stays allowed: that is
-  revenue recorded against the day, not an arrear — but ONE act that settles a whole month (the Whole-month
-  option, the online month checkout) is quoted and settled up to the rent only.
+- A daily-billed facility's monthly obligation is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays` for a
+  month held in full — the daily fee is the **installment**, not the measure. Never the stored `Stall.MonthlyRate`.
+- **Read every daily-billed figure from the monthly obligation ledger** (`DomainRules.DailyBilledMonthObligation`,
+  `…MonthCredit`, `…MonthOutstanding`), per calendar month: Expected − Collected − Credits = Outstanding, floored at
+  nil. Twelve complete months are exactly 12 × the rent; February owes the same as August. A month whose
+  installments cannot reach the rent carries a month-end adjustment on its last installment
+  (`DailyCollection.AddMonthEndAdjustment`), collectible only once the month has closed — nothing may be read as
+  arrears before its due date. Collecting beyond the obligation is revenue, never a negative balance.
 - **A stall outlives its lessees.** Attribute money to the occupancy that answers for the period it was raised
   FOR (`Stall.Occupancies`), never to the stall's current contract. A month is answered for by exactly one
   occupancy — `StallOccupancy.AnsweringForMonth` is the rule — so nothing may charge or credit a handover

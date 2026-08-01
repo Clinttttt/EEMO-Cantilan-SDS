@@ -29,6 +29,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                    .HasPrecision(18, 2)
                    .HasDefaultValue(30.00m);
 
+            // The month-end balance adjustment collected with this installment, when there is one. Nullable and
+            // additive: an ordinary day carries none, and every row written before this existed reads as null.
+            builder.Property(x => x.MonthEndAdjustment)
+                   .HasPrecision(18, 2);
+
             builder.Property(s=> s.IsPaid)
                 .IsRequired()
                 .HasDefaultValue(false);
