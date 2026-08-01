@@ -29,16 +29,27 @@ public sealed record StallOccupancy(Contract Contract, DateOnly Start, DateOnly 
     public bool Overlaps(DateOnly periodStart, DateOnly periodEnd) => Start <= periodEnd && periodStart <= End;
 
     /// <summary>
-    /// True when this occupancy is the one answerable for a monthly billing period. A month's charge is a single,
-    /// indivisible obligation in this system (one payment record per stall per month), so it belongs to the
-    /// occupancy that held the stall at the END of that month — or, if the stall was already vacated, to the last
-    /// occupancy that covered any part of it.
+    /// The one occupancy answerable for a monthly billing period. A month's charge is a single, indivisible
+    /// obligation here — one payment record per stall per month — so a stall handed over mid-month is answered for
+    /// by the lessee whose occupancy began latest within it. This is the rule of record: the register, the reports
+    /// and the collection dialog all read it, which is what stops a handover month being billed to, or credited
+    /// against, two lessees at once. Null when no occupancy covered the month.
     /// </summary>
-    public bool AnswersForMonth(int year, int month)
+    public static StallOccupancy? AnsweringForMonth(IEnumerable<StallOccupancy> windows, int year, int month)
     {
-        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        if (month is < 1 or > 12) return null;
+
         var monthStart = new DateOnly(year, month, 1);
-        return Start <= monthEnd && monthStart <= End;
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+        StallOccupancy? answering = null;
+        foreach (var window in windows)
+        {
+            if (window.Start > monthEnd || monthStart > window.End) continue;
+            if (answering is null || window.Start > answering.Start) answering = window;
+        }
+
+        return answering;
     }
 
     /// <summary>The days of the given period that fall inside this occupancy (for daily-billed facilities).</summary>

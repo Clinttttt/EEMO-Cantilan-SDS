@@ -64,7 +64,6 @@ public class GetFollowUpHistoryQueryHandler(
         var year = request.Year;
         var month = request.Month;
         var asOf = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
-
         // ── Whole time ────────────────────────────────────────────────────────────────────────────────────
         // "What is still owed, by whom, in total" — the question the office cannot answer by paging through one
         // year at a time. Only the sources that are inherently cumulative are used: the inactive-account register
@@ -140,9 +139,15 @@ public class GetFollowUpHistoryQueryHandler(
             : await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
 
-        // Full outstanding balance per expired/closed account (register total), so an expired follow-up
-        // row shows its whole balance and (for monthly facilities) becomes payable via the shared modal.
-        var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+        // The window this snapshot is scoped to. A whole-year view runs from January; a single month is its own
+        // window. The end never runs past the snapshot date, so a still-running occupancy is never stated into
+        // the future. Every figure and every span on the rows below is bounded to it.
+        var periodStart = request.WholeYear ? new DateOnly(year, 1, 1) : new DateOnly(year, month, 1);
+        var periodEnd = asOf;
+
+        // What each ended occupancy owed and paid FOR this period. The lifetime register answers "what is owed in
+        // total" and belongs to "Whole time"; stating it here put a lifetime balance under a period heading.
+        var closedAccounts = await stallRepository.GetClosedStallAccountsForPeriodAsync(periodStart, periodEnd, ct);
 
         var dto = FollowUpComposer.Compose(
             year, month, asOf,
@@ -156,7 +161,9 @@ public class GetFollowUpHistoryQueryHandler(
             // last month — the figure beside them is the year's, not that month's.
             periodLabelOverride: request.WholeYear
                 ? $"January – December {year}"
-                : null);
+                : null,
+            periodStart: periodStart,
+            periodEnd: periodEnd);
 
         return dto;
     }

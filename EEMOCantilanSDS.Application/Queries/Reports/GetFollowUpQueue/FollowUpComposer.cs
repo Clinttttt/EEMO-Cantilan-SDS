@@ -61,10 +61,18 @@ public static class FollowUpComposer
         IReadOnlyList<ClosedStallAccountDto>? endedOccupancies = null,
         // Overrides the period heading. Used by the "Whole time" view, whose figures are cumulative totals rather
         // than one month's snapshot — labelling it with a month would be the very confusion it exists to remove.
-        string? periodLabelOverride = null)
+        string? periodLabelOverride = null,
+        // The window this view is scoped to. Supplied by a year or a month view, whose figures are that period's:
+        // a term or an occupancy is then stated as the PART of it that falls inside the window, so the span beside
+        // the amount cannot say "Jun 2023 → Jun 7, 2026" under a 2026 heading. Null (both) = the cumulative view,
+        // whose figures are lifetime totals and whose spans are therefore whole.
+        DateOnly? periodStart = null,
+        DateOnly? periodEnd = null)
     {
         var periodLabel = periodLabelOverride
             ?? new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        // The cumulative view is the one with no window: its figures are lifetime totals, so its spans are whole.
+        var cumulative = periodStart is null || periodEnd is null;
         var items = new List<FollowUpItemDto>();
 
         // Stalls whose contract has already lapsed are surfaced under "Contract expired" (section 5).
@@ -274,6 +282,19 @@ public static class FollowUpComposer
                     : periodBalances.TryGetValue(key, out var forPeriod) && forPeriod > 0m
                         ? forPeriod
                         : (decimal?)null;
+
+            var expiredOn = c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+            // The period a lapsed row states: the part of the term that falls inside the view's window. Under a
+            // 2026 filter a term of Jun 2023 → Jun 7, 2026 reads "Jan 1, 2026 → Jun 7, 2026" — the months the
+            // amount beside it was assessed for. The whole term belongs to the cumulative view, whose figure is
+            // the lifetime balance; stating it under a single year's heading said the opposite of the amount.
+            var expiredPeriod = SpanLabel(c.EffectivityDate, c.ExpiryDate, periodStart, periodEnd);
+
+            // The day the term lapsed is why the row is here, so a period-scoped row keeps it in the status line
+            // even when the span was clipped before it. The cumulative row already ends its span on that day.
+            var expiredStatus = cumulative ? "Active occupant" : $"Expired {expiredOn} · active occupant";
+
             items.Add(new FollowUpItemDto(
                 c.IsExpired ? SecImmediate : SecThisPeriod,
                 c.IsExpired ? "High" : "Normal",
@@ -281,10 +302,8 @@ public static class FollowUpComposer
                 "contract",
                 c.FacilityCode, Model(c.FacilityCode), Named(c.Occupant), $"Stall {c.StallNo}",
                 contractBalance, false,
-                c.IsExpired
-                    ? $"{c.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}"
-                    : c.ExpiryDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
-                c.IsExpired ? "Active occupant" : "Expiring soon",
+                c.IsExpired ? expiredPeriod : expiredOn,
+                c.IsExpired ? expiredStatus : "Expiring soon",
                 "Review contract", ProfileLink(c.FacilityCode, c.StallNo),
                 StallId: c.StallId));
         }
@@ -314,8 +333,12 @@ public static class FollowUpComposer
                     "contract",
                     account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), $"Stall {account.StallNo}",
                     account.Uncollected, false,
-                    $"{account.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}",
-                    "No longer the occupant",
+                    // The part of this occupancy that falls inside the view's window, beside the figure that window
+                    // assessed. The cumulative view states the whole occupancy against the whole balance.
+                    SpanLabel(account.EffectivityDate, ended, periodStart, periodEnd),
+                    // On the cumulative view the figure is the account's whole balance and the row says so; a
+                    // period view's figure is that period's, so the qualifier would be untrue there.
+                    cumulative ? "No longer the occupant · balance in full" : "No longer the occupant",
                     "Review account", ProfileLink(account.FacilityCode, account.StallNo),
                     StallId: account.StallId,
                     // The term this balance belongs to. Without it, a payment recorded from this row would apply to
@@ -340,6 +363,32 @@ public static class FollowUpComposer
 
     private static string MonthLabel(int year, int month) =>
         new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A term or an occupancy stated for the view that is showing it. With a window (a year, a month) it is the
+    /// PART that falls inside that window, because the amount beside it is that window's; without one — the
+    /// cumulative view — it is the whole span. A span that lies entirely outside the window is left whole: a term
+    /// that lapsed before the period is a fact about the past, and clipping it to nothing would say less than
+    /// nothing. The span's own beginning is written as a month, the way a term is written; a beginning clipped by
+    /// the filter is written with its day, so it cannot be read as the day the occupancy began.
+    /// </summary>
+    private static string SpanLabel(DateOnly start, DateOnly end, DateOnly? windowStart, DateOnly? windowEnd)
+    {
+        var from = start;
+        var to = end < start ? start : end;
+
+        if (windowStart is { } ws && windowEnd is { } we && ws <= to && from <= we)
+        {
+            if (ws > from) from = ws;
+            if (we < to) to = we;
+        }
+
+        var fromText = from == start
+            ? from.ToString("MMM yyyy", CultureInfo.InvariantCulture)
+            : from.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+
+        return $"{fromText} → {to.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+    }
 
     private static string ProfileLink(FacilityCode code, string stallNo) =>
         $"/profile/{code.ToString().ToLowerInvariant()}/{stallNo}";

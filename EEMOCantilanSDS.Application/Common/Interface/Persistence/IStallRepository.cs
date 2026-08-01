@@ -34,6 +34,13 @@ public interface IStallRepository
     /// excused/absent-aware.
     /// </summary>
     Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
+    /// <summary>
+    /// The same register bounded to a period: each figure is what that ended occupancy owed and paid FOR
+    /// [<paramref name="from"/>, <paramref name="to"/>], and an occupancy that did not exist in the period is
+    /// omitted. A period view must state its own period's money; the lifetime reading above is the cumulative
+    /// answer to "what is owed in total".
+    /// </summary>
+    Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsForPeriodAsync(DateOnly from, DateOnly to, CancellationToken ct);
     Task<Stall?> GetByIdAsync(Guid id, CancellationToken ct);
     /// <summary>The facility code that a stall belongs to, or null if the stall is not found. Used to route
     /// online-payment notifications to that facility's assigned collectors.</summary>

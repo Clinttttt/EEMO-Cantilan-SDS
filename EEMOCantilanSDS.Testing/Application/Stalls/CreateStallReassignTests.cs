@@ -124,6 +124,27 @@ public class CreateStallReassignTests
     }
 
     [Fact]
+    public async Task AClosedStallWhoseLesseeIsStillInTerm_IsRefused()
+    {
+        // Closing a stall is a temporary freeze — the frozen span is excused when it reopens — so the sitting
+        // lessee's term survives it. Treating "closed" as "vacant" would have ended an occupancy the office only
+        // meant to pause, and revoked that lessee's payor links with it.
+        var frozen = Stall.Create(Guid.NewGuid(), "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
+        frozen.Contracts.Add(Contract.Create(frozen.Id, "Current Lessee", null, PhilippineTime.Today.AddYears(-1), 5, 900m));
+        frozen.Close(PhilippineTime.Today, "Head");
+
+        var (handler, stalls, payors, _) = Build(frozen);
+
+        var result = await handler.Handle(Command(reuse: true), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+        Assert.True(frozen.Contracts.Single().IsActive);          // the sitting lessee's term is untouched
+        stalls.Verify(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()), Times.Never);
+        payors.Verify(p => p.RemoveStallLinksAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task WithoutTheOfficesConfirmation_AStallIsNeverReused()
     {
         // The default path is unchanged: a create is a create. Only an explicit confirmation reassigns.

@@ -82,6 +82,12 @@ tenant. Consequences you must respect:
 - A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
 - A daily-billed facility's "monthly" figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays`.
   Never the stored `Stall.MonthlyRate`.
+- **A stall outlives its lessees.** Attribute money to the occupancy that answers for the period it was raised
+  FOR (`Stall.Occupancies`), never to the stall's current contract. A month is answered for by exactly one
+  occupancy — `StallOccupancy.AnsweringForMonth` is the rule — so nothing may charge or credit a handover
+  month twice. A past occupancy's rent is its own `Contract.MonthlyRentalRate`, not the stall's current rate.
+- **A period-scoped view states that period's figures**; lifetime totals belong to the cumulative ("Whole
+  time") view, and a span shown beside an amount is scoped the same way as the amount.
 - Writes that a field device may retry carry a **client operation id** so a duplicate is discarded.
 - Financial mutations must pass through the audit interceptor. Do not bypass `SaveChangesAsync`.
 - `decimal` for money, `numeric(18,2)` in Postgres. Never `double`.

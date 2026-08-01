@@ -80,6 +80,18 @@ public class GetFollowUpHistoryQueryHandlerTests
                     new DateOnly(2025, 11, 30), 0m, 5_000m, null)
             });
 
+        // A period-scoped snapshot reads the register bounded to that period: the same accounts, with the figures
+        // that period assessed. Here it returns the same row so the composition rules can be compared directly.
+        stalls.Setup(s => s.GetClosedStallAccountsForPeriodAsync(
+                It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
+                    Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
+                    new DateOnly(2025, 11, 30), 0m, 1_200m, null)
+            });
+
         var online = new Mock<IOnlinePaymentRepository>();
         online.Setup(o => o.GetAwaitingOrByPeriodAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<OnlinePaymentAwaitingOrDto>
@@ -146,6 +158,48 @@ public class GetFollowUpHistoryQueryHandlerTests
         // The inactive-account balance is stated in full here — one row for the account, its own lifetime figure.
         var row = Assert.Single(allTime.Value.Items, i => i.Amount == 5_000m);
         Assert.Equal("Stall 02", row.Identifier);
+        // …and the term's WHOLE span is the period beside that lifetime figure. This is the one view where it is
+        // the right reading; a year or a month states its own period instead.
+        Assert.Equal("Nov 2022 → Nov 30, 2025", row.Period);
+    }
+
+    [Fact]
+    public async Task APeriodSnapshot_ReadsTheRegisterBoundedToThatPeriod_NotTheLifetimeOne()
+    {
+        var (handler, stalls, _, _, _) = Build();
+
+        var result = await handler.Handle(new GetFollowUpHistoryQuery(2026, 7, WholeYear: true), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        // A whole-year window runs from January to the snapshot date — never into the future — and the figures come
+        // from the register bounded to it. Reading the lifetime register here is what put a lifetime balance under a
+        // single year's heading.
+        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+            new DateOnly(2026, 1, 1), new DateOnly(2026, 7, 31), It.IsAny<CancellationToken>()), Times.Once);
+        stalls.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AMonthSnapshot_BoundsTheRegisterToThatMonth()
+    {
+        var (handler, stalls, _, _, _) = Build();
+
+        await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None);
+
+        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+            new DateOnly(2025, 12, 1), new DateOnly(2025, 12, 31), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TheWholeTimeView_ReadsTheLifetimeRegister()
+    {
+        var (handler, stalls, _, _, _) = Build();
+
+        await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
+
+        stalls.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Once);
+        stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -176,6 +230,11 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.True(excused.Excused);
         var contract = Assert.Single(items, i => i.ReasonKind == "contract");
         Assert.Equal("/profile/ice/02", contract.Link);
+        // A period-scoped snapshot states its own period, with the lapse date in the status line. This term ran out
+        // in November, before the December window, so its span is stated as the term it was — clipping a term that
+        // lies wholly outside the period would leave one meaningless day.
+        Assert.Equal("Nov 2022 → Nov 30, 2025", contract.Period);
+        Assert.Equal("Expired Nov 30, 2025 · active occupant", contract.Status);
         // A view scoped to a period states that period's figure. This stall has no assessed balance for December,
         // so the row carries none — the register's lifetime ₱5,000 belongs to "Whole time", the view that exists to
         // answer what is owed in total, and showing it here read as a lifetime total under a single month's heading.

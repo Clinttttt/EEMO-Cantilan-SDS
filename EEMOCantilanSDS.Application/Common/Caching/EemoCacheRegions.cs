@@ -114,16 +114,20 @@ public static class EemoCacheRegions
 
     public static IReadOnlyCollection<string> FollowUpHistoryRegions(string tenantCode, int year, int month, bool wholeYear)
     {
+        // A period snapshot also carries the inactive-account register — a departed lessee's whole balance, which
+        // any period's money can change — so it must drop with the cumulative views too. Without this, money
+        // recorded in one month left every other month's snapshot stating a balance that had already been settled.
         if (!wholeYear)
             return new[]
             {
                 Period(tenantCode, year, month),
                 Reports(tenantCode, year, month),
+                OutstandingAccounts(tenantCode),
                 ReferenceData(tenantCode)
             };
 
         // Whole-year missing-OR aggregates every month → invalidate the snapshot when ANY month changes.
-        var regions = new List<string> { ReferenceData(tenantCode) };
+        var regions = new List<string> { ReferenceData(tenantCode), OutstandingAccounts(tenantCode) };
         for (var m = 1; m <= 12; m++)
         {
             regions.Add(Period(tenantCode, year, m));

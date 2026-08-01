@@ -178,16 +178,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         }
 
         /// <summary>
-        /// True when the physical space is free to take a new occupant: it was closed by the office, or it has
-        /// no live contract (none at all, or every remaining term has lapsed). This is the one rule that decides
-        /// whether a vacated stall may be handed to a new lessee, so the register, the roster and the add-vendor
-        /// path can never disagree about what "vacant" means. Requires <c>Contracts</c> to be loaded.
+        /// True when the physical space is free to take a new occupant: no live contract at all, or every
+        /// remaining term has lapsed. This is the one rule that decides whether a vacated stall may be handed to a
+        /// new lessee, so the register, the roster and the add-vendor path can never disagree about what "vacant"
+        /// means. A closed stall whose lessee's term is still running is NOT vacant — closure is a freeze, not an
+        /// end of occupancy. Requires <c>Contracts</c> to be loaded.
         /// </summary>
         public bool IsVacant(DateOnly asOf)
         {
-            if (Status == StallStatus.Closed) return true;
-
             var live = Contracts.Where(c => c.IsActive).ToList();
+
+            // Nobody holds the space: no term at all, or every remaining term has lapsed. Closure alone does not
+            // free it — closing a stall is a temporary freeze (the frozen span is excused when it reopens) and the
+            // sitting lessee's term survives it, so handing the space away would end an occupancy the office only
+            // meant to pause.
             return live.Count == 0 || live.All(c => c.ExpiryDate < asOf);
         }
 
@@ -249,6 +253,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             Occupancies(asOf)
                 .Where(o => o.Start <= periodEnd && periodStart <= o.End)
                 .ToList();
+
+        /// <summary>
+        /// The single occupancy answerable for a monthly billing period — see
+        /// <see cref="StallOccupancy.AnsweringForMonth"/>, which is the rule. Null when no occupancy covered it.
+        /// </summary>
+        public StallOccupancy? OccupancyAnsweringForMonth(int year, int month, DateOnly asOf)
+            => StallOccupancy.AnsweringForMonth(Occupancies(asOf), year, month);
 
         /// <summary>
         /// Which occupancy a collection screen is working on: the term it names, or — when it names none — the most

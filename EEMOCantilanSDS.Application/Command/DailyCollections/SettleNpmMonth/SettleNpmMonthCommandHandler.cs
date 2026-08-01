@@ -50,10 +50,21 @@ public class SettleNpmMonthCommandHandler(
         var monthStart = new DateOnly(request.Year, request.Month, 1);
         var monthEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         var today = PhilippineTime.Today;
-        // Whose month this is. On a stall handed over mid-month the month belongs to two lessees, so settling "the
-        // month" under one lessee's receipt must stop at their own last day — otherwise one OR silently pays for
-        // days the other occupant owes.
-        var occupancy = stall.ResolveOccupancy(request.ContractId, today);
+        // Whose month this is. A row that names its term settles that term. When none is named, the term that
+        // answers for THIS MONTH is what "the month" means — on a stall since re-let the most recent occupancy is
+        // a different account, so settling a past month against it collected nothing while reporting success.
+        // On a handover month the later occupancy is taken, which is what the current occupant's row means; the
+        // earlier lessee's days are settled from their own row, which names their term.
+        var occupancy = request.ContractId is { } namedTerm && namedTerm != Guid.Empty
+            ? stall.ResolveOccupancy(namedTerm, today)
+            : stall.OccupanciesOverlapping(monthStart, monthEnd, today).LastOrDefault()
+                ?? stall.ResolveOccupancy(null, today);
+
+        // A month no occupancy of this stall answers for can never be settled here. Reporting that as success is
+        // what left the office believing money had been recorded when nothing had.
+        if (occupancy is null || occupancy.BillableEnd < monthStart || monthEnd < occupancy.Start)
+            return Result<bool>.Failure(
+                "No occupancy of this stall answers for that month — open that period's own account to settle it.", 400);
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(request.StallId, request.Year, request.Month, ct))
             .ToDictionary(dc => dc.CollectionDate);
@@ -67,7 +78,7 @@ public class SettleNpmMonthCommandHandler(
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
-            if (occupancy is null || day < occupancy.Start || day > occupancy.BillableEnd)
+            if (day < occupancy.Start || day > occupancy.BillableEnd)
                 continue;                                               // not this lessee's day to answer for
             if (closedDates.Contains(day))
                 continue;                                               // facility-wide closure — nothing owed

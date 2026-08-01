@@ -63,6 +63,10 @@ public class EemoCacheKeyTests
         Assert.Equal("tenant:reports:follow-up-history:2025:12", key);
         Assert.Contains(EemoCacheRegions.Period("tenant", 2025, 12), regions);
         Assert.Contains(EemoCacheRegions.Reports("tenant", 2025, 12), regions);
+        // The snapshot embeds the inactive-account register, so money recorded in ANY period clears it.
+        Assert.Contains(EemoCacheRegions.OutstandingAccounts("tenant"), regions);
+        Assert.Contains(EemoCacheRegions.OutstandingAccounts("tenant"),
+            EemoCacheRegions.FollowUpHistoryRegions("tenant", 2025, 12, wholeYear: true));
     }
 
     [Fact]

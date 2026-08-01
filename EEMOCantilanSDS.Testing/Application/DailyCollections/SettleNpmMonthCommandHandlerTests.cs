@@ -89,4 +89,124 @@ public class SettleNpmMonthCommandHandlerTests
         var result = await handler.Handle(new SettleNpmMonthCommand(stall.Id, 2026, 6, null), CancellationToken.None);
         Assert.Equal(400, result.StatusCode);
     }
+
+    // ── A past month on a stall that has since been re-let ────────────────────────────────────────────
+    // The month belongs to the lessee who held the stall then. Resolving "this stall's occupancy" as the most
+    // recent one settled none of that month's days and still reported success, so the office was told a payment
+    // had been recorded when nothing had.
+
+    private static (Stall Stall, Contract Past, Contract Current) ReLetNpmStall(DateOnly pastMonthStart)
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+
+        // The departed lessee held the stall through the target month and was handed over the month after it.
+        var handover = pastMonthStart.AddMonths(1);
+        var past = Contract.Create(stall.Id, "Departed Lessee", "Departed Lessee", pastMonthStart.AddMonths(-6), 3, 900m);
+        past.Terminate("Admin", handover.AddDays(-1));
+        var current = Contract.Create(stall.Id, "Sitting Lessee", "Sitting Lessee", handover, 3, 900m);
+        stall.Contracts.Add(past);
+        stall.Contracts.Add(current);
+        return (stall, past, current);
+    }
+
+    private static (SettleNpmMonthCommandHandler Handler, List<DailyCollection> Captured, Mock<IUnitOfWork> Uow) BuildHandler(Stall stall)
+    {
+        var dailyRepo = new Mock<IDailyCollectionRepository>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        var stallRepo = new Mock<IStallRepository>();
+        var currentUser = new Mock<ICurrentUserService>();
+        var closureRepo = new Mock<INpmMarketClosureRepository>();
+        var uow = new Mock<IUnitOfWork>();
+
+        stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        dailyRepo.Setup(r => r.GetByStallAndMonthAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        closureRepo.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+        paymentRepo.Setup(r => r.IsDailyCollectionOrAvailableForStallAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        currentUser.SetupGet(c => c.Username).Returns("admin");
+        uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var captured = new List<DailyCollection>();
+        dailyRepo.Setup(r => r.AddAsync(It.IsAny<DailyCollection>(), It.IsAny<CancellationToken>()))
+            .Callback<DailyCollection, CancellationToken>((dc, _) => captured.Add(dc))
+            .Returns(Task.CompletedTask);
+
+        var handler = new SettleNpmMonthCommandHandler(
+            dailyRepo.Object, paymentRepo.Object, stallRepo.Object, new Mock<ICollectorRepository>().Object,
+            currentUser.Object, closureRepo.Object, uow.Object,
+            CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+
+        return (handler, captured, uow);
+    }
+
+    [Fact]
+    public async Task Settle_PastMonthOnAReLetStall_SettlesTheMonthsOwnOccupancy_WithoutNamingIt()
+    {
+        var today = PhilippineTime.Today;
+        var target = new DateOnly(today.Year, today.Month, 1).AddMonths(-6);
+        var daysInMonth = DateTime.DaysInMonth(target.Year, target.Month);
+        var (stall, _, _) = ReLetNpmStall(target);
+        var (handler, captured, uow) = BuildHandler(stall);
+
+        // No ContractId — the follow-up rows for a period carry none.
+        var result = await handler.Handle(
+            new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-1001"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(daysInMonth, captured.Count);        // the departed lessee's whole month, not zero days
+        Assert.All(captured, dc => Assert.True(dc.IsPaid));
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Settle_AMonthNoOccupancyAnswersFor_IsReportedAsAFailure_NotASilentSuccess()
+    {
+        var today = PhilippineTime.Today;
+        var target = new DateOnly(today.Year, today.Month, 1).AddMonths(-6);
+        var (stall, _, _) = ReLetNpmStall(target);
+        var (handler, captured, uow) = BuildHandler(stall);
+
+        // A month before the stall was ever let: nothing owes anything for it.
+        var before = target.AddMonths(-24);
+
+        var result = await handler.Handle(
+            new SettleNpmMonthCommand(stall.Id, before.Year, before.Month, "OR-1002"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+        Assert.Empty(captured);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Settle_ANamedTerm_StillBoundsTheMonthToThatLesseesOwnDays()
+    {
+        // A handover month settled from the departed lessee's own row stops at their last day — the sitting
+        // lessee's days are not paid by that receipt.
+        var today = PhilippineTime.Today;
+        var target = new DateOnly(today.Year, today.Month, 1).AddMonths(-6);
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        typeof(Stall).GetProperty(nameof(Stall.Facility))!
+            .SetValue(stall, Facility.Create(FacilityCode.NPM, "New Public Market", "NPM"));
+
+        var handoverDay = target.AddDays(9);                       // the 10th of the target month
+        var past = Contract.Create(stall.Id, "Departed Lessee", "Departed Lessee", target.AddMonths(-6), 3, 900m);
+        past.Terminate("Admin", handoverDay.AddDays(-1));
+        var current = Contract.Create(stall.Id, "Sitting Lessee", "Sitting Lessee", handoverDay, 3, 900m);
+        stall.Contracts.Add(past);
+        stall.Contracts.Add(current);
+
+        var (handler, captured, _) = BuildHandler(stall);
+
+        var result = await handler.Handle(
+            new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-1003", ContractId: past.Id),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(9, captured.Count);                            // the 1st to the 9th only
+        Assert.All(captured, dc => Assert.True(dc.CollectionDate < handoverDay));
+    }
 }

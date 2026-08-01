@@ -666,6 +666,20 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
     /// gated (the stall WAS operating then) and bounded to the end point so nothing is back/over-billed.
     /// </summary>
     public async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct)
+        => await GetClosedStallAccountsCoreAsync(null, null, ct);
+
+    /// <summary>
+    /// The same register, bounded to a period: every figure states what each ended occupancy owed and paid FOR
+    /// <paramref name="from"/>–<paramref name="to"/>, and an occupancy that did not exist in that period is not
+    /// listed at all. This is what a year or a month view of the follow-up history must state beside a period
+    /// heading; the lifetime reading above answers "what is owed in total" and belongs to the cumulative view.
+    /// </summary>
+    public async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsForPeriodAsync(
+        DateOnly from, DateOnly to, CancellationToken ct)
+        => await GetClosedStallAccountsCoreAsync(from, to, ct);
+
+    private async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsCoreAsync(
+        DateOnly? windowStart, DateOnly? windowEnd, CancellationToken ct)
     {
         var today = PhilippineTime.Today;
 
@@ -690,9 +704,15 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
 
         // One entry per ended occupancy: terminated, superseded by a new lessee, lapsed, or frozen by closure.
         // The occupancy in force is not an inactive account.
+        var occupanciesByStall = everLet.ToDictionary(s => s.Id, s => s.Occupancies(today));
+
         var accounts = everLet
-            .SelectMany(s => s.Occupancies(today).Select(o => (Stall: s, Occupancy: o)))
+            .SelectMany(s => occupanciesByStall[s.Id].Select(o => (Stall: s, Occupancy: o)))
             .Where(x => !x.Occupancy.IsCurrent || x.Stall.Status == StallStatus.Closed)
+            // A period-scoped read lists only the occupancies that existed in that period: a 2023 view showing an
+            // account that began in 2026 states a debt nobody could have owed then.
+            .Where(x => windowStart is not { } ws || windowEnd is not { } we
+                || (x.Occupancy.Start <= we && ws <= x.Occupancy.End))
             .ToList();
 
         if (accounts.Count == 0)
@@ -739,6 +759,37 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             // Charges stop at the term's end even if the lessee stayed on afterwards.
             var billableEnd = occupancy.BillableEnd;
 
+            // A period-scoped read narrows all three to the requested window, so every figure on the row is what
+            // this occupancy owed and paid FOR that period — never its lifetime total under a period heading.
+            if (windowStart is { } wStart && windowEnd is { } wEnd)
+            {
+                if (startDate < wStart) startDate = wStart;
+                if (endDate > wEnd) endDate = wEnd;
+                if (billableEnd > wEnd) billableEnd = wEnd;
+            }
+
+            var windows = occupanciesByStall[stall.Id];
+
+            // A month's charge is one indivisible obligation, so exactly one occupancy answers for it (the lessee
+            // who began latest within it). Without this a mid-month handover billed that month in full to BOTH
+            // lessees and credited its payment to both — the register's totals then overstated by a month's rent
+            // per handover.
+            bool AnswersFor(int billingYear, int billingMonth)
+            {
+                if (billingMonth is < 1 or > 12) return false;
+
+                var monthStart = new DateOnly(billingYear, billingMonth, 1);
+                var monthEnd = new DateOnly(billingYear, billingMonth, DateTime.DaysInMonth(billingYear, billingMonth));
+
+                // Inside the read's own window (a period-scoped read states only that period's months) …
+                if (windowStart is { } ws && windowEnd is { } we && (monthEnd < ws || we < monthStart))
+                    return false;
+
+                // … and answered for by THIS occupancy, judged on the true occupancy windows rather than the
+                // clamped ones, so narrowing the view never moves a month to a different lessee.
+                return StallOccupancy.AnsweringForMonth(windows, billingYear, billingMonth)?.Contract.Id == contract.Id;
+            }
+
             var stallPaid = (paidByStall.GetValueOrDefault(stall.Id) ?? new())
                 // Daily collections carry the business date they were collected FOR, so they attribute exactly.
                 .Where(d => d.CollectionDate >= startDate && d.CollectionDate <= endDate)
@@ -747,14 +798,20 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             var stallPayments = (paymentsByStall.GetValueOrDefault(stall.Id) ?? new())
                 // Attributed by the BILLING period, never by the day the money arrived: an arrear settled months
                 // after a handover still belongs to the lessee who incurred it.
-                .Where(p => WithinMonths(p.BillingYear, p.BillingMonth, startDate, endDate))
+                .Where(p => AnswersFor(p.BillingYear, p.BillingMonth))
                 .ToList();
             var stallExcused = excusedByStall.GetValueOrDefault(stall.Id) ?? new();
 
-            // Lifetime collected = every peso actually received (status-independent).
+            // Lifetime collected = every peso actually received (status-independent). A period-scoped read states
+            // what was received FOR that period.
             var lifetimeCollected = isNpm
                 ? stallPaid.Sum(d => d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFishRate : 0m))
                 : stallPayments.Sum(p => p.AmountPaid);
+
+            // The rent this occupancy was let at. The stall's own MonthlyRate is the CURRENT figure and is rewritten
+            // when the space is re-let or its rate revised, so reading it here would restate a departed lessee's
+            // arrears at a rate they never agreed to. Legacy terms that carry no rate fall back to the stall's.
+            var occupancyMonthlyRate = contract.MonthlyRentalRate > 0m ? contract.MonthlyRentalRate : stall.MonthlyRate;
 
             decimal uncollected = 0m;
             if (isNpm)
@@ -771,19 +828,17 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             else
             {
                 // Per calendar month this occupancy answered for: a non-Unpaid record's balance, else the full
-                // monthly rent. Excused months owe nothing. A month's charge is one indivisible obligation in this
-                // system (one payment record per stall per month), so it is answered for by the occupancy that
-                // covered any part of it — never split between two lessees, which the data cannot represent.
+                // monthly rent. Excused months owe nothing.
                 var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
                 var endMonth = new DateOnly(billableEnd.Year, billableEnd.Month, 1);
                 while (cursor <= endMonth)
                 {
-                    if (!stallExcused.Contains((cursor.Year, cursor.Month)))
+                    if (!stallExcused.Contains((cursor.Year, cursor.Month)) && AnswersFor(cursor.Year, cursor.Month))
                     {
                         var rec = stallPayments.FirstOrDefault(p => p.BillingYear == cursor.Year && p.BillingMonth == cursor.Month);
                         uncollected += rec is not null && rec.Status != PaymentStatus.Unpaid
                             ? rec.BalanceDue
-                            : stall.MonthlyRate;
+                            : occupancyMonthlyRate;
                     }
                     cursor = cursor.AddMonths(1);
                 }
@@ -807,8 +862,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 // A daily-collected stall has no monthly contract rate: state the monthly equivalent of the
                 // rate it was actually billed at (the same ResolveDailyFee rule the ledger and the
                 // stallholder roster use), not the hand-entered figure stored on the stall — that only
-                // matches the ordinance for a ₱30 municipality.
-                isNpm ? stall.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays : stall.MonthlyRate,
+                // matches the ordinance for a ₱30 municipality. A monthly facility states the rent THIS
+                // occupancy was let at, which is also the figure the collection dialog offers.
+                isNpm ? stall.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays : occupancyMonthlyRate,
                 isClosed ? stall.ClosedAt : null,
                 contractExpiry,
                 lifetimeCollected,
@@ -821,8 +877,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     : (stall.CustomSectionName ?? string.Empty),
                 // The day this lessee actually stopped holding the stall. Differs from the term's expiry when the
                 // occupancy ended early — handed to the next lessee, or frozen by closure — and it is the date the
-                // register must show, otherwise a handover looks like a contract still running.
-                endDate,
+                // register must show, otherwise a handover looks like a contract still running. Stated as the fact
+                // it is, even on a period-scoped read whose FIGURES stop at the end of the period.
+                occupancy.End,
                 // Somebody else holds this stall now, so this row is history only: the register must not offer to
                 // renew or reopen it, which would act on the sitting lessee's occupancy.
                 stall.Occupancies(today).Any(o => o.IsCurrent),
@@ -837,19 +894,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
     }
 
     /// <summary>
-    /// True when a billing month (year + month) falls inside an occupancy's window. A monthly charge is answered
-    /// for by the lessee who held the stall during that month, regardless of when the money was received — which
-    /// is why arrears settled after a handover still land on the outgoing lessee's account.
+    /// A billing month's placement inside an occupancy is decided by <see cref="Stall.OccupancyAnsweringForMonth"/>
+    /// (one occupancy answers for a month), so this register does not test overlap for money any more.
     /// </summary>
-    private static bool WithinMonths(int billingYear, int billingMonth, DateOnly start, DateOnly end)
-    {
-        if (billingMonth is < 1 or > 12) return false;
-
-        var monthStart = new DateOnly(billingYear, billingMonth, 1);
-        var monthEnd = new DateOnly(billingYear, billingMonth, DateTime.DaysInMonth(billingYear, billingMonth));
-        return monthStart <= end && start <= monthEnd;
-    }
-
     public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
     {        return await context.Stalls
             .Include(s => s.Contracts)

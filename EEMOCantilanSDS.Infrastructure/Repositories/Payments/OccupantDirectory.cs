@@ -49,22 +49,16 @@ internal sealed class OccupantDirectory
     }
 
     /// <summary>
-    /// The occupant answerable for a billing month. A month handed over mid-way is answered for by the lessee whose
-    /// occupancy started latest within it — the same rule the registers and reports use, so the two agree.
+    /// The occupant answerable for a billing month — <see cref="StallOccupancy.AnsweringForMonth"/> is the rule, so
+    /// this names exactly the lessee the register and the reports charge that month to. Falls back to the stall's
+    /// most recent occupant when no term covered the month, so a row is never left nameless.
     /// </summary>
     public string? InMonth(Guid stallId, int year, int month)
     {
         if (!_byStall.TryGetValue(stallId, out var windows) || windows.Count == 0)
             return null;
 
-        var start = new DateOnly(year, month, 1);
-        var end = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
-
-        var holder = windows
-            .Where(o => o.Start <= end && start <= o.End)
-            .OrderByDescending(o => o.Start)
-            .FirstOrDefault();
-
+        var holder = StallOccupancy.AnsweringForMonth(windows, year, month);
         return (holder ?? windows[^1]).Contract.ActualOccupant;
     }
 }
