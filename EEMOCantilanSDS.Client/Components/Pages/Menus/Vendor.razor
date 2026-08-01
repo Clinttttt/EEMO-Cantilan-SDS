@@ -704,6 +704,8 @@
                 FacilityOptions="FacilityTabsAsOptions()"
                 FacilityLocked="false"
                 ExistingStallNos="VendorStallNos"
+                ReuseOfferMessage="@_vendorReuseOffer"
+                OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SaveVendor"
                 OnCancel="CloseModal"
                 OnFacilityChanged="OnFacilityChanged"
@@ -1225,6 +1227,7 @@
                 NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
                 ContractDate: Form.ContractDate,
                 ContractYears: Form.ContractYears,
+                ReuseVacatedStall: _takeOverVacatedStall,
                 Arrangement: Form.Arrangement
             );
 
@@ -1232,7 +1235,14 @@
             
             if (!result.IsSuccess)
             {
-                FormError = result.Error ?? "Failed to create stall";
+                FormError = result.Error
+                    ?? result.ValidationErrors?.Values.FirstOrDefault()?.FirstOrDefault()
+                    ?? "Failed to create stall";
+
+                // The number is taken. Only the server knows whether that space is closed, lapsed or genuinely
+                // occupied, so the office is offered the handover and the server decides when they accept.
+                _takeOverVacatedStall = false;   // one confirmation per attempt
+                OfferStallTakeOverIfDuplicate(result.ValidationErrors);
                 return;
             }
             
@@ -1242,7 +1252,36 @@
         CloseModal();
     }
 
-    void CloseModal() { ShowModal = false; FormError = string.Empty; }
+    void CloseModal() { ShowModal = false; FormError = string.Empty; _vendorReuseOffer = null; _takeOverVacatedStall = false; }
+
+    // ── Taking over a vacated space ───────────────────────────────────────────────────────────────────
+    // A facility has a fixed number of physical spaces, so when an occupant leaves the next one takes the same space
+    // rather than the registry growing a number the building does not have. The record keeps its number and its whole
+    // history; only a new occupancy begins. The server refuses a space that is genuinely still occupied.
+    private bool _takeOverVacatedStall;
+    private string? _vendorReuseOffer;
+
+    private async Task ConfirmStallTakeOverAsync()
+    {
+        _takeOverVacatedStall = true;
+        _vendorReuseOffer = null;
+        FormError = string.Empty;
+        await SaveVendor();
+    }
+
+    private void OfferStallTakeOverIfDuplicate(IDictionary<string, string[]>? validationErrors)
+    {
+        var duplicate = (FormError?.Contains("already exists", StringComparison.OrdinalIgnoreCase) ?? false)
+            || (validationErrors?.Values
+                .SelectMany(v => v)
+                .Any(v => v.Contains("already exists", StringComparison.OrdinalIgnoreCase)) ?? false);
+
+        _vendorReuseOffer = duplicate
+            ? $"Space {Form.StallNo.Trim()} already exists in this facility. If it was closed or its occupancy has "
+              + $"ended, you can assign {(string.IsNullOrWhiteSpace(Form.ActualOccupant) ? "the new occupant" : Form.ActualOccupant.Trim())} "
+              + "to it — it keeps its number and its full history, and a new occupancy begins."
+            : null;
+    }
 
     // -- Toggle Active ---------------------------------------------------------
     bool ShowConfirm = false;

@@ -145,6 +145,8 @@
                 FacilityOptions="FacilityOptions"
                 FacilityLocked="true"
                 ExistingStallNos="FacilityStallNos"
+                ReuseOfferMessage="@_vendorReuseOffer"
+                OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SubmitAddVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -532,6 +534,7 @@
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
             VendorForm.ContractYears,
+            ReuseVacatedStall: _takeOverVacatedStall,
             Arrangement: VendorForm.Arrangement);
 
         var result = await StallsApi.CreateStallAsync(command);
@@ -554,8 +557,53 @@
             {
                 VendorErrorMessage = result.Error ?? "Failed to create stall. Please check all required fields.";
             }
+            _takeOverVacatedStall = false;   // one confirmation per attempt
+            OfferStallTakeOverIfDuplicate();
             StateHasChanged();
         }
     }
 
+    // ── Taking over a vacated space ───────────────────────────────────────────────────────────────────
+    // A facility has a fixed number of physical spaces. When an occupant leaves, the space stays — so the office must
+    // be able to put the next occupant in Space 1 rather than being pushed into inventing a number beyond the
+    // building. The record, its number and its whole history are kept; only a new occupancy begins on it. The server
+    // refuses if that space is in fact still occupied, so this only ever offers what is actually possible.
+    private bool _takeOverVacatedStall;
+    private string? _vendorReuseOffer;
+
+    private async Task ConfirmStallTakeOverAsync()
+    {
+        _takeOverVacatedStall = true;
+        _vendorReuseOffer = null;
+        VendorFieldErrors.Remove("StallNo");
+        VendorErrorMessage = string.Empty;
+        await SubmitAddVendor();
+    }
+
+    /// <summary>
+    /// Turns the validator's flat "already exists" into an offer the office can act on. Worded conditionally, because
+    /// only the server knows whether that space is closed, lapsed, or genuinely occupied.
+    /// </summary>
+    private void OfferStallTakeOverIfDuplicate()
+    {
+        var duplicate = VendorFieldErrors.TryGetValue("StallNo", out var message)
+            && message.Contains("already exists", StringComparison.OrdinalIgnoreCase);
+
+        var label = SpaceWord;
+        _vendorReuseOffer = duplicate
+            ? $"{label} {VendorForm.StallNo.Trim()} already exists here. If it was closed or its occupancy has ended, "
+              + $"you can assign {(string.IsNullOrWhiteSpace(VendorForm.ActualOccupant) ? "the new occupant" : VendorForm.ActualOccupant.Trim())} "
+              + $"to it — the {label.ToLowerInvariant()} keeps its number and its full history, and a new occupancy begins."
+            : null;
+    }
+
+    /// <summary>
+    /// What this facility calls its units. A commercial centre lets spaces, a market lets stalls; the offer should
+    /// read in the office's own words rather than calling everything a stall.
+    /// </summary>
+    private string SpaceWord => FacilityCodeEnum switch
+    {
+        FacilityCode.NPM => "Stall",
+        _ => "Space",
+    };
 }

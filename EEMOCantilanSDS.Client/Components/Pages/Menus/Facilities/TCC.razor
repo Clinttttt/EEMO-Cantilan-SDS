@@ -137,6 +137,8 @@
                 FacilityOptions="TccFacilityOptions"
                 FacilityLocked="true"
                 ExistingStallNos="TccStallNos"
+                ReuseOfferMessage="@_vendorReuseOffer"
+                OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SubmitAddVendor"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
@@ -493,6 +495,7 @@
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
             VendorForm.ContractYears,
+            ReuseVacatedStall: _takeOverVacatedStall,
             Arrangement: VendorForm.Arrangement);
 
         var result = await StallsApi.CreateStallAsync(command);
@@ -517,6 +520,39 @@
             {
                 VendorErrorMessage = result.Error ?? "Failed to create stall.";
             }
+
+            _takeOverVacatedStall = false;   // one confirmation per attempt
+            OfferStallTakeOverIfDuplicate();
+            StateHasChanged();
         }
+    }
+
+    // ── Taking over a vacated space ───────────────────────────────────────────────────────────────────
+    // The commercial centre has a fixed number of spaces. When an occupant leaves, the space stays, so the office
+    // must be able to place the next occupant in it rather than inventing a number beyond the building. The record,
+    // its number and its whole history are kept; only a new occupancy begins. The server refuses if the space is in
+    // fact still occupied, so this only offers what is actually possible.
+    private bool _takeOverVacatedStall;
+    private string? _vendorReuseOffer;
+
+    private async Task ConfirmStallTakeOverAsync()
+    {
+        _takeOverVacatedStall = true;
+        _vendorReuseOffer = null;
+        VendorFieldErrors.Remove("StallNo");
+        VendorErrorMessage = string.Empty;
+        await SubmitAddVendor();
+    }
+
+    private void OfferStallTakeOverIfDuplicate()
+    {
+        var duplicate = VendorFieldErrors.TryGetValue("StallNo", out var message)
+            && message.Contains("already exists", StringComparison.OrdinalIgnoreCase);
+
+        _vendorReuseOffer = duplicate
+            ? $"Space {VendorForm.StallNo.Trim()} already exists here. If it was closed or its occupancy has ended, "
+              + $"you can assign {(string.IsNullOrWhiteSpace(VendorForm.ActualOccupant) ? "the new occupant" : VendorForm.ActualOccupant.Trim())} "
+              + "to it — the space keeps its number and its full history, and a new occupancy begins."
+            : null;
     }
 }
