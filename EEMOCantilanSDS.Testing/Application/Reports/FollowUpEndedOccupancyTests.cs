@@ -83,6 +83,35 @@ public class FollowUpEndedOccupancyTests
     }
 
     [Fact]
+    public void AWholeYearView_LabelsItsRowsWithTheYear_NotTheYearsLastMonth()
+    {
+        // Reported by the office: with the month filter on "Whole year" every row still read "December 2025", while
+        // the figure beside it was the year's. The heading and the figure have to agree.
+        var queue = FollowUpComposer.Compose(
+            2025, 12, new DateOnly(2025, 12, 31),
+            delinquency: new[]
+            {
+                new DelinquentStallDto(FacilityCode.NPM, "1", "Merlita A. Abuso", 12, 10_950m, Guid.NewGuid())
+            },
+            facilityReports: new Dictionary<FacilityCode, FacilityReportsDto>(),
+            awaitingOr: Array.Empty<OnlinePaymentAwaitingOrDto>(),
+            slaughter: Array.Empty<SlaughterTransactionDto>(),
+            trips: Array.Empty<TrmTripDto>(),
+            attendance: Array.Empty<TpmVendorAttendanceDto>(),
+            unreceipted: Array.Empty<UnreceiptedPaymentDto>(),
+            contracts: Array.Empty<ContractAttentionDto>(),
+            utilityBills: Array.Empty<UtilityBill>(),
+            expiredBalances: null,
+            endedOccupancies: null,
+            periodLabelOverride: "January – December 2025");
+
+        var row = Assert.Single(queue.Items);
+        Assert.Equal("January – December 2025", row.Period);
+        Assert.Equal(10_950m, row.Amount);
+        Assert.Equal("January – December 2025", queue.PeriodLabel);
+    }
+
+    [Fact]
     public void TheWholeTimeView_IsLabelledByItsScope_NotByAMonth()
     {
         // The confusion this view removes: a lifetime figure (Jun 2023 → Jun 2026) shown under a single-year

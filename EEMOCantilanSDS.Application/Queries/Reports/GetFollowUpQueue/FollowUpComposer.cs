@@ -157,8 +157,13 @@ public static class FollowUpComposer
         // presentation deliberately separates electricity from water so admin work is clear.
         foreach (var bill in utilityBills)
         {
-            AddUtilityBalance(items, bill, "Electricity", bill.ElecStatus, bill.ElecBalanceDue, bill.ElecConsumption, "kWh", periodLabel);
-            AddUtilityBalance(items, bill, "Water", bill.WaterStatus, bill.WaterBalanceDue, bill.WaterConsumption, "cu.m.", periodLabel);
+            // Each bill states its own month. A whole-year view gathers twelve months of bills, and labelling them
+            // all with the view's heading would hide which month a balance belongs to.
+            var billLabel = new DateTime(bill.BillingYear, bill.BillingMonth, 1)
+                .ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+            AddUtilityBalance(items, bill, "Electricity", bill.ElecStatus, bill.ElecBalanceDue, bill.ElecConsumption, "kWh", billLabel);
+            AddUtilityBalance(items, bill, "Water", bill.WaterStatus, bill.WaterBalanceDue, bill.WaterConsumption, "cu.m.", billLabel);
         }
 
         // ── 3) Missing OR — online payments received but not yet receipted ──

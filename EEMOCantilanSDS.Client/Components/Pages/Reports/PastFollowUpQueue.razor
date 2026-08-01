@@ -601,11 +601,17 @@
 
         // The row's OWN billing period, so the dialog answers for the lessee of that period and opens on that month.
         // Without it a December 2025 row opened the current occupant's 2026 months — a different account entirely.
+        // Rows whose label is not a single month (a whole-year row, say) fall back to the snapshot's reference month,
+        // which still lands inside the year on screen rather than on today.
         _payPeriod = null;
         if (!string.IsNullOrWhiteSpace(item.Period)
             && DateTime.TryParseExact(item.Period.Trim(), "MMMM yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
         {
             _payPeriod = (dt.Year, dt.Month);
+        }
+        else if (!_allTime && _data is { } snapshot)
+        {
+            _payPeriod = (snapshot.AsOf.Year, snapshot.AsOf.Month);
         }
     }
 

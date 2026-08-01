@@ -102,10 +102,28 @@ public class GetFollowUpHistoryQueryHandler(
 
         var facilityReports = new Dictionary<FacilityCode, FacilityReportsDto>();
         foreach (var code in FollowUpComposer.StallFacilities)
-            facilityReports[code] = await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
+        {
+            // "Whole year" must mean January to December, not the year's last month. Asking the reports for the
+            // YEARLY period widens every stall's assessment to the whole year in one pass — one row per account
+            // carrying the year's obligation and the year's balance — instead of showing December's figure under a
+            // whole-year heading. Deriving it month by month would rebuild every facility's report twelve times.
+            facilityReports[code] = request.WholeYear
+                ? await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Yearly, year, month, null, ct)
+                : await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
+        }
 
         var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, ct);
-        var awaitingOr = await onlinePaymentRepository.GetAwaitingOrByPeriodAsync(year, month, ct);
+
+        // Online payments still awaiting a receipt, and utility bills, are recorded per month and have no year-wide
+        // read. Both are small, single-table lookups, so a whole-year view gathers the year's months rather than
+        // showing one month's items under a whole-year heading.
+        var awaitingOr = new List<OnlinePaymentAwaitingOrDto>();
+        var utilityBills = new List<UtilityBill>();
+        foreach (var m in MonthsOf(request, year, month))
+        {
+            awaitingOr.AddRange(await onlinePaymentRepository.GetAwaitingOrByPeriodAsync(year, m, ct));
+            utilityBills.AddRange(await utilityBillRepository.GetForMonthAsync(year, m, ct));
+        }
         var slaughter = request.WholeYear
             ? await slaughterRepository.GetTransactionsByYearAsync(year, ct)
             : await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
@@ -121,7 +139,6 @@ public class GetFollowUpHistoryQueryHandler(
             ? await paymentRepository.GetUnreceiptedCashPaymentsForYearAsync(year, ct)
             : await paymentRepository.GetUnreceiptedCashPaymentsAsync(year, month, ct);
         var contracts = await stallRepository.GetContractAttentionAsOfAsync(year, month, DomainRules.ExpiringSoonMonths, ct);
-        var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
         // Full outstanding balance per expired/closed account (register total), so an expired follow-up
         // row shows its whole balance and (for monthly facilities) becomes payable via the shared modal.
@@ -136,8 +153,26 @@ public class GetFollowUpHistoryQueryHandler(
             delinquency, facilityReports, awaitingOr,
             slaughter, trips, attendance, unreceipted, contracts, utilityBills,
             expiredBalances,
-            closedAccounts);
+            closedAccounts,
+            // A whole-year view assesses January to December, so its rows must say so rather than naming the year's
+            // last month — the figure beside them is the year's, not that month's.
+            periodLabelOverride: request.WholeYear
+                ? $"January – December {year}"
+                : null);
 
         return dto;
+    }
+
+    /// <summary>
+    /// The months a snapshot covers: every month of the year up to the reference month for a whole-year view (a
+    /// future month of the current year holds nothing), or just the one month asked for.
+    /// </summary>
+    private static IEnumerable<int> MonthsOf(GetFollowUpHistoryQuery request, int year, int month)
+    {
+        if (!request.WholeYear)
+            return new[] { month };
+
+        var last = year == PhilippineTime.Today.Year ? PhilippineTime.Today.Month : 12;
+        return Enumerable.Range(1, Math.Max(1, last));
     }
 }
