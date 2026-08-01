@@ -292,6 +292,23 @@
                 </div>
             }
 
+            @if (_takeovers.Count > 0)
+            {
+                @* A number the office has vacated is reused rather than skipped, which means the space changes
+                   hands on import: the previous occupancy is ended and its payor links revoked. The office is
+                   told which spaces before saving, not after. *@
+                <div class="imp-continue-note imp-takeover-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                    <span>
+                        @_takeovers.Count @(_takeovers.Count == 1 ? "row lands" : "rows land") on a space the office
+                        has vacated, so importing hands @(_takeovers.Count == 1 ? "it" : "them") to the lessee on
+                        this sheet — the previous account keeps its records but stops here, and its payor login is
+                        revoked:
+                        <strong>@string.Join(", ", _takeovers.OrderBy(t => t.Key).Select(t => $"#{t.Key} (was {(string.IsNullOrWhiteSpace(t.Value) ? "vacant" : t.Value)})"))</strong>.
+                    </span>
+                </div>
+            }
+
             <div class="imp-table-wrap">
                 <table class="imp-table">
                     <thead>
@@ -403,6 +420,8 @@
     private bool _autoContinued;
     // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
     private readonly HashSet<string> _existingOccupants = new(StringComparer.OrdinalIgnoreCase);
+    // Stall number → the lessee who last held it, for numbers this file would take over from a vacated space.
+    private readonly Dictionary<string, string> _takeovers = new(StringComparer.OrdinalIgnoreCase);
 
     private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
 
@@ -488,6 +507,7 @@
         _autoContinued = false;
         _existingMax = 0;
         _existingOccupants.Clear();
+        _takeovers.Clear();
     }
 
     public record NpmSectionOption(string Name, string Desc, string Css, string Icon);
@@ -542,6 +562,7 @@
         _autoContinued = false;
         _existingMax = 0;
         _existingOccupants.Clear();
+        _takeovers.Clear();
         if (_facility is null || _rows.Count == 0) return;
 
         try
@@ -551,6 +572,8 @@
             if (!res.IsSuccess || res.Value is null) return;
 
             var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // Vacated numbers and who last held them, so the preview can say which spaces this file takes over.
+            var vacated = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var r in res.Value.Sections.SelectMany(s => s.Rows))
             {
                 var sn = (r.StallNo ?? string.Empty).Trim();
@@ -561,7 +584,11 @@
                 // fresh batch reuses the vacated slots instead of jumping past every historical number.
                 var expired = PhilippineTime.Today > r.EffectivityDate.AddYears(r.DurationYears);
                 var reusable = r.IsClosed || expired;
-                if (reusable) continue;
+                if (reusable)
+                {
+                    if (sn.Length > 0) vacated[sn] = r.ActualOccupant ?? string.Empty;
+                    continue;
+                }
 
                 if (sn.Length > 0) existing.Add(sn);
                 _existingMax = Math.Max(_existingMax, ParseStallInt(sn));
@@ -580,15 +607,38 @@
                 if (sn.Length == 0 || existing.Contains(sn) || !seen.Add(sn)) { conflict = true; break; }
             }
 
-            if (!conflict) return;
+            if (!conflict)
+            {
+                NoteTakeovers(vacated);
+                return;
+            }
 
             for (var i = 0; i < _rows.Count; i++)
                 _rows[i]["stallNo"] = (_existingMax + 1 + i).ToString();
             _autoContinued = true;
+            NoteTakeovers(vacated);
         }
         catch
         {
             // If the lookup fails, keep the file's numbers as-is; the server still validates uniqueness.
+        }
+    }
+
+    /// <summary>
+    /// Records which rows land on a number the office has vacated. Importing such a row hands that space to the
+    /// lessee on the sheet — the previous occupancy is ended and its payor links revoked, exactly as the Add Vendor
+    /// takeover does — so the preview says so before anything is saved rather than reporting it afterwards.
+    /// </summary>
+    private void NoteTakeovers(Dictionary<string, string> vacated)
+    {
+        _takeovers.Clear();
+        if (vacated.Count == 0) return;
+
+        foreach (var row in _rows)
+        {
+            var sn = GetCell(row, "stallNo").Trim();
+            if (sn.Length > 0 && vacated.TryGetValue(sn, out var previous))
+                _takeovers[sn] = previous;
         }
     }
 

@@ -114,6 +114,32 @@ public class AssignPastOccupantStallTests
     }
 
     [Fact]
+    public async Task ASpaceHeldWithoutAContract_IsReLetOnTheSameBasis()
+    {
+        // A barbecue or ice-plant space is let without a signed contract. Re-placing that payor must not invent a
+        // term and a leasee name for them: the sheets print "No contract" for such a row, and it never falls due
+        // for renewal.
+        var past = PastStall();
+        past.Contracts.Clear();
+        past.Contracts.Add(Contract.Create(
+            past.Id, "Ramil C. Orjeles", null, new DateOnly(2023, 6, 1), 0, 900m,
+            arrangement: OccupancyArrangement.SpaceOnly));
+
+        var (handler, sender, _) = BuildCommand(past);
+
+        CreateStallCommand? sent = null;
+        sender.Setup(s => s.Send(It.IsAny<CreateStallCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<StallDto>>, CancellationToken>((c, _) => sent = (CreateStallCommand)c)
+            .ReturnsAsync(Result<StallDto>.Success(new StallDto(
+                Guid.NewGuid(), "24", StallStatus.Active, "Ramil C. Orjeles", null,
+                null, null, 900m, 30m, null, MarketSection.MeatSection, null, null, null)));
+
+        await handler.Handle(Command(past.Id), CancellationToken.None);
+
+        Assert.Equal(OccupancyArrangement.SpaceOnly, sent!.Arrangement);
+    }
+
+    [Fact]
     public async Task ThePreviousStall_IsNeverWrittenTo()
     {
         var past = PastStall();

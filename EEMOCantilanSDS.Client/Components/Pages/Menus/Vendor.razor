@@ -255,9 +255,12 @@
                                                 <span>@v.MonthlyRate.ToString("N0")</span>
                                             </td>
                                             <td class="contract-cell">
-                                                @if (v.ContractYears == 0 || !v.ContractDate.HasValue)
+                                                @* A space held without a signed contract has no term to print: the record
+                                                   carries an open-ended length so it never falls due for renewal, and the
+                                                   official sheets read "No contract" for exactly these rows. *@
+                                                @if (!v.HasSignedContract || v.ContractYears == 0 || !v.ContractDate.HasValue)
                                                 {
-                                                    <span class="contract-none">No contract</span>
+                                                    <span class="contract-none">@(v.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
                                                 }
                                                 else
                                                 {
@@ -473,9 +476,9 @@
                             <div class="detail-info-row">
                                 <span class="detail-info-key">Contract Duration</span>
                                 <span class="detail-info-val">
-                                    @if (DetailVendor.ContractYears == 0)
+                                    @if (!DetailVendor.HasSignedContract || DetailVendor.ContractYears == 0)
                                     {
-                                        <span class="no-contract">No contract</span>
+                                        <span class="no-contract">@(DetailVendor.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
                                     }
                                     else
                                     {
@@ -855,6 +858,7 @@
                 AreaSqm = item.AreaSqm ?? 0,
                 ContractDate = item.ContractDate,
                 ContractYears = item.ContractYears,
+                Arrangement = item.Arrangement,
                 MonthlyRate = item.MonthlyRate,
                 ActualMonthlyRental = item.MonthlyRate,
                 AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
@@ -951,6 +955,12 @@
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public int ContractYears { get; set; }
+        /// <summary>
+        /// How the space is held. A space let without a signed contract carries an open-ended term in the record
+        /// (so it never falls due for renewal), which must never be printed as a number of years.
+        /// </summary>
+        public Domain.Enums.OccupancyArrangement Arrangement { get; set; } = Domain.Enums.OccupancyArrangement.SignedContract;
+        public bool HasSignedContract => Arrangement == Domain.Enums.OccupancyArrangement.SignedContract;
         public decimal MonthlyRate { get; set; }
         public decimal ActualMonthlyRental { get; set; }
         public string AreaLocation { get; set; } = string.Empty;
@@ -1124,7 +1134,9 @@
             FacilityCode = v.FacilityCode,
             StallNo = v.StallNo,
             ActualOccupant = v.ActualOccupant,
-            ContractName = v.ContractName,
+            // "No contract" is what the list PRINTS for a space held without one; it is not a name. Seeding the
+            // field with it would save that text into the leasee-per-contract column of the record.
+            ContractName = v.HasSignedContract ? v.ContractName : string.Empty,
             SelectedSection = selectedSection,
             AreaSqm = v.AreaSqm,
             ContractDate = v.ContractDate,
@@ -1176,7 +1188,11 @@
                 // silently change the money.
                 DailyRate: null,
                 ActualOccupant: Form.ActualOccupant.Trim(),
-                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
+                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName)
+                    // "No contract" is the sheet's wording for a space held without one, not a person's name.
+                    || Form.ContractName.Trim().StartsWith("No contract", StringComparison.OrdinalIgnoreCase)
+                        ? null
+                        : Form.ContractName.Trim(),
                 Remarks: null,
                 ContractDate: Form.ContractDate,
                 ContractYears: Form.ContractYears);
@@ -1228,7 +1244,11 @@
                 // never a hardcoded ordinance figure — a ₱40 municipality must not be stamped with ₱30.
                 DailyRate: Form.FacilityCode == "NPM" ? _npmDailyRate : null,
                 ActualOccupant: Form.ActualOccupant.Trim(),
-                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
+                NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName)
+                    // "No contract" is the sheet's wording for a space held without one, not a person's name.
+                    || Form.ContractName.Trim().StartsWith("No contract", StringComparison.OrdinalIgnoreCase)
+                        ? null
+                        : Form.ContractName.Trim(),
                 ContractDate: Form.ContractDate,
                 ContractYears: Form.ContractYears,
                 ReuseVacatedStall: _takeOverVacatedStall,

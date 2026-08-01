@@ -14,6 +14,7 @@ namespace EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders;
 public class BulkImportStallholdersCommandHandler(
     IStallRepository stallRepo,
     IFacilityRepository facilityRepo,
+    IPayorRepository payorRepo,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
@@ -66,13 +67,32 @@ public class BulkImportStallholdersCommandHandler(
         var newStalls = new List<Stall>();
         var newContracts = new List<Contract>();
         var usedStallNos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Stalls this batch handed to a new lessee: their old payor links are revoked with the batch.
+        var reletStallIds = new List<Guid>();
 
         foreach (var row in request.Rows)
         {
             var stallNo = (row.StallNo ?? string.Empty).Trim();
             var occupant = (row.ActualOccupant ?? string.Empty).Trim();
 
-            var error = ValidateRow(stallNo, occupant, row, usedStallNos);
+            // The rate the sheet actually states. On a list of spaces let without a contract the "Monthly Rental
+            // per Contract" column is empty precisely because there is no contract, and the figure lives in
+            // "Actual Mo. Rental" — the office's own barbecue and ice-plant lists are entirely of that shape.
+            // Reading the rate from there is what the sheet says; rejecting the row for a column it never fills
+            // turned those lists away at the door.
+            var monthlyRate = row.MonthlyRate > 0m ? row.MonthlyRate : (row.ActualMonthlyRental ?? 0m);
+
+            // A row that names nobody on a contract and states no term is not a signed contract. Reading it as an
+            // open-ended occupancy is the basis a9883f2 added, and it keeps the space out of renewal and expiry
+            // work instead of failing it for a duration it never had. A row that DOES name a leasee but omits the
+            // term is still an error: that is a missing figure, not a space held without a contract.
+            var arrangement = row.Arrangement == OccupancyArrangement.SignedContract
+                && string.IsNullOrWhiteSpace(row.NameOnContract)
+                && row.ContractYears < 1
+                    ? OccupancyArrangement.SpaceOnly
+                    : row.Arrangement;
+
+            var error = ValidateRow(stallNo, occupant, row, usedStallNos, monthlyRate, arrangement);
             if (error is not null)
             {
                 results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false, error));
@@ -113,13 +133,38 @@ public class BulkImportStallholdersCommandHandler(
                     continue;
                 }
 
+                // Already imported. The office's lists are expired sheets — a three-year term from 2023 has run out
+                // — so nothing above stops the SAME row being taken again on a second upload, and each run added
+                // another term to the stall and another month of arrears with it. A stall whose latest term is this
+                // very occupancy, from this very date, has already been recorded.
+                var latestTerm = existing.Contracts
+                    .OrderByDescending(c => c.EffectivityDate)
+                    .ThenByDescending(c => c.CreatedAt)
+                    .FirstOrDefault();
+
+                if (latestTerm is not null
+                    && latestTerm.EffectivityDate == effectivity
+                    && NormalizeName(latestTerm.ActualOccupant).Equals(NormalizeName(occupant), StringComparison.OrdinalIgnoreCase))
+                {
+                    results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, false,
+                        $"'{occupant}' is already recorded on stall {stallNo} from {effectivity:MMM d, yyyy} — this row was imported before."));
+                    usedStallNos.Add(stallNo);
+                    continue;
+                }
+
                 // Expired or closed → RENEW: end any lapsed term, reopen if closed, refresh rate/area, and
                 // start a fresh contract on the SAME stall (its number is reused, no duplicate row).
+                // The outgoing occupancy ended the day before the incoming one begins — the same rule the
+                // add-vendor path uses — so each lessee's collections and arrears stay on their own account. It
+                // can never be dated before that term started (a backdated sheet row).
                 foreach (var c in existing.Contracts.Where(c => c.IsActive).ToList())
-                    c.Terminate(Actor);
+                {
+                    var endedOn = effectivity > c.EffectivityDate ? effectivity.AddDays(-1) : c.EffectivityDate;
+                    c.Terminate(Actor, endedOn);
+                }
                 if (existing.Status == StallStatus.Closed)
                     existing.Reopen(Actor);
-                existing.UpdateRates(row.MonthlyRate, isNpm ? npmStallDailyRate : existing.DailyRate, Actor);
+                existing.UpdateRates(monthlyRate, isNpm ? npmStallDailyRate : existing.DailyRate, Actor);
                 if (areaSqm.HasValue)
                     existing.UpdateAreaInfo(areaSqm, existing.AreaNote, existing.Remarks, Actor);
                 // Apply the batch's utility choice to the renewed stall too (additive — never strips fees).
@@ -128,7 +173,11 @@ public class BulkImportStallholdersCommandHandler(
 
                 newContracts.Add(Contract.Create(
                     existing.Id, occupant, nameOnContract, effectivity, row.ContractYears,
-                    row.MonthlyRate, row.ActualMonthlyRental, null, Actor, row.Arrangement));
+                    monthlyRate, row.ActualMonthlyRental, null, Actor, arrangement));
+
+                // The space changed hands: a payor account still linked to it belonged to the previous lessee and
+                // must not see or pay the incoming lessee's dues. Collected here, revoked with the batch.
+                reletStallIds.Add(existing.Id);
 
                 usedStallNos.Add(stallNo);
                 results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, true, null));
@@ -137,12 +186,12 @@ public class BulkImportStallholdersCommandHandler(
 
             // Genuinely new stall number → create a new stall + contract.
             var stall = Stall.Create(
-                facility.Id, stallNo, row.MonthlyRate, fees, section, areaLocation, areaSqm, null,
+                facility.Id, stallNo, monthlyRate, fees, section, areaLocation, areaSqm, null,
                 isNpm ? npmStallDailyRate : null, null, StallType.Permanent, Actor, customSectionName: customSectionName);
             newStalls.Add(stall);
             newContracts.Add(Contract.Create(
                 stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,
-                row.MonthlyRate, row.ActualMonthlyRental, null, Actor, row.Arrangement));
+                monthlyRate, row.ActualMonthlyRental, null, Actor, arrangement));
             usedStallNos.Add(stallNo);
             results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, false, null));
         }
@@ -158,6 +207,11 @@ public class BulkImportStallholdersCommandHandler(
                 await stallRepo.AddAsync(stall, ct);
             foreach (var contract in newContracts)
                 await stallRepo.AddContractAsync(contract, ct);
+
+            // A re-let space's previous payor links go with the same save, so no window exists in which the
+            // departed lessee's login can see the incoming lessee's dues.
+            foreach (var stallId in reletStallIds)
+                await payorRepo.RemoveStallLinksAsync(stallId, ct);
 
             await uow.SaveChangesAsync(ct);
             await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
@@ -186,11 +240,15 @@ public class BulkImportStallholdersCommandHandler(
 
     // Mirrors CreateStallCommandValidator's rules, but returns a per-row message instead of failing
     // the whole batch. Lengths match the DB columns (varchar(100)); also enforces in-file uniqueness.
+    // <paramref name="monthlyRate"/> and <paramref name="arrangement"/> are the values the row will actually be
+    // saved with, so the row is judged on what it states rather than on which column it happens to state it in.
     private static string? ValidateRow(
         string stallNo,
         string occupant,
         ImportStallRow row,
-        HashSet<string> usedStallNos)
+        HashSet<string> usedStallNos,
+        decimal monthlyRate,
+        OccupancyArrangement arrangement)
     {
         if (string.IsNullOrWhiteSpace(occupant))
             return "Actual occupant is required.";
@@ -207,9 +265,9 @@ public class BulkImportStallholdersCommandHandler(
         if (stallNo.Length > 20)
             return "Stall number cannot exceed 20 characters.";
 
-        if (row.MonthlyRate <= 0)
-            return "Monthly rate must be greater than ₱0.";
-        if (row.MonthlyRate > MaxAmount)
+        if (monthlyRate <= 0)
+            return "Monthly rate must be greater than ₱0 — fill either the contract rental or the actual monthly rental.";
+        if (monthlyRate > MaxAmount)
             return "Monthly rate is unreasonably large — please check the value.";
 
         if (row.ActualMonthlyRental is < 0m)
@@ -224,7 +282,7 @@ public class BulkImportStallholdersCommandHandler(
 
         // Only a signed contract has a term to check. A row the office marked "No contract" is open-ended, so
         // demanding a number of years would reject exactly the rows a barbecue or ice-plant list is made of.
-        if (row.Arrangement == OccupancyArrangement.SignedContract
+        if (arrangement == OccupancyArrangement.SignedContract
             && (row.ContractYears < 1 || row.ContractYears > 10))
         {
             return "Contract duration must be between 1 and 10 years.";

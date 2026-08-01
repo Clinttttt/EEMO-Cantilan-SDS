@@ -60,6 +60,10 @@ public class AssignPastOccupantStallCommandHandler(
             string.IsNullOrWhiteSpace(request.NameOnContract) ? lastContract.NameOnContract : request.NameOnContract,
             request.ContractDate,
             request.ContractYears,
-            previous.CustomSectionName), ct);
+            previous.CustomSectionName,
+            // A space the register shows was held without a signed contract is re-let on the same basis. Letting
+            // this default to a signed contract invented a term — and a leasee name — for an occupancy that has
+            // neither, which is what the sheets must print as "No contract".
+            Arrangement: lastContract.Arrangement), ct);
     }
 }

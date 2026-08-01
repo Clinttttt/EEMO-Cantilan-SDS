@@ -183,11 +183,11 @@
                                             <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
                                             <td class="c">@s.StallNo</td>
                                             <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
-                                            <td class="c">3 yrs</td>
+                                            <td class="c">@TermLabel(s)</td>
                                             <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
                                             <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
-                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
-                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
+                                            <td class="r">@(s.IsActive ? $"₱{s.ActualMonthlyRental:N2}" : "—")</td>
+                                            <td class="r">@(s.IsActive ? $"₱{s.WholeYearRental:N2}" : "—")</td>
 
                                         </tr>
                                         rowNum++;
@@ -200,8 +200,8 @@
                                             Total
                                         </td>
                                         <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
-                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
-                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
+                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.ActualMonthlyRental).ToString("N2")</td>
+                                        <td class="r tfoot-val">₱@sectionStalls.Where(s => s.IsActive).Sum(s => s.WholeYearRental).ToString("N2")</td>
                                     </tr>
                                 </tfoot>
                             </table></div>
@@ -248,11 +248,11 @@
                                         <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
                                         <td class="c">@s.StallNo</td>
                                         <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
-                                        <td class="c">3 yrs</td>
+                                        <td class="c">@TermLabel(s)</td>
                                         <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
                                         <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
-                                        <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
-                                        <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate * 12:N2}" : "—")</td>
+                                        <td class="r">@(s.IsActive ? $"₱{s.ActualMonthlyRental:N2}" : "—")</td>
+                                        <td class="r">@(s.IsActive ? $"₱{s.WholeYearRental:N2}" : "—")</td>
                                         @if (IsFacility("ncc"))
                                         {
                                             <td class="c">@(string.IsNullOrEmpty(s.AreaLocation) ? "—" : s.AreaLocation)</td>
@@ -267,8 +267,8 @@
                                         Total
                                     </td>
                                     <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
-                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate).ToString("N2")</td>
-                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.MonthlyRate * 12).ToString("N2")</td>
+                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.ActualMonthlyRental).ToString("N2")</td>
+                                    <td class="r tfoot-val">₱@FilteredNonNpmStalls.Where(s => s.IsActive).Sum(s => s.WholeYearRental).ToString("N2")</td>
                                     @if (IsFacility("ncc"))
                                     {
                                         <td></td>
@@ -293,7 +293,7 @@
                                 <div class="lsh-grand-key">Total Monthly Rate</div>
                             </div>
                             <div class="lsh-grand-stat">
-                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.MonthlyRate * 12).ToString("N2")</div>
+                                <div class="lsh-grand-val">₱@AllActiveStalls.Sum(s => s.WholeYearRental).ToString("N2")</div>
                                 <div class="lsh-grand-key">Total Whole Year Rental</div>
                             </div>
                         </div>
@@ -371,11 +371,11 @@
                         Csv(s.ContractName),
                         Csv(s.StallNo),
                         Csv(s.ContractDate?.ToString("M/d/yyyy") ?? ""),
-                        Csv("3"),
+                        Csv(s.HasSignedContract && s.DurationYears > 0 ? s.DurationYears.ToString() : ""),
                         Csv(s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : ""),
                         Csv(s.IsActive ? s.MonthlyRate.ToString("0.00") : ""),
-                        Csv(s.IsActive ? s.MonthlyRate.ToString("0.00") : ""),
-                        Csv(s.IsActive ? (s.MonthlyRate * 12).ToString("0.00") : "")
+                        Csv(s.IsActive ? s.ActualMonthlyRental.ToString("0.00") : ""),
+                        Csv(s.IsActive ? s.WholeYearRental.ToString("0.00") : "")
                     }));
                 }
             }
@@ -389,6 +389,15 @@
             return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
         }
     }
+
+    /// <summary>
+    /// The term column. A space let without a signed contract has no term to print — the office's sheet says so
+    /// instead — and a recorded term is stated as it stands rather than as a fixed three years.
+    /// </summary>
+    static string TermLabel(NpmStall s) =>
+        !s.HasSignedContract ? "No contract"
+        : s.DurationYears > 0 ? $"{s.DurationYears} yr{(s.DurationYears == 1 ? "" : "s")}"
+        : "—";
 
     // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
     static string Csv(string value) =>
@@ -423,9 +432,19 @@
         public string ContractName { get; set; } = string.Empty;
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
+        // The term as recorded, and whether there is a signed contract at all. The sheet used to print "3 yrs"
+        // against every row, which was one facility's usual term stated as fact for all of them — and printed a
+        // term for spaces let without a contract, which have none.
+        public int DurationYears { get; set; }
+        public bool HasSignedContract { get; set; } = true;
         // Always assigned from the API row below. No hardcoded default: a fallback figure here would be
         // one municipality's rate shown to every other one.
         public decimal MonthlyRate { get; set; }
+        // The rent actually charged, and the year's total, as the API derives them. A daily-billed facility has no
+        // monthly contract rate, so both are computed from the resolved daily fee (× DomainRules.DailyBilledMonthDays,
+        // × 12) — multiplying a stored monthly figure here stated a rate no ordinance carries for any LGU but one.
+        public decimal ActualMonthlyRental { get; set; }
+        public decimal WholeYearRental { get; set; }
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
         public decimal PartialAmount { get; set; }
@@ -483,7 +502,11 @@
                         ContractName = row.NameOnContract,
                         AreaSqm = row.AreaSqm ?? 0,
                         ContractDate = row.EffectivityDate == default ? null : row.EffectivityDate.ToDateTime(TimeOnly.MinValue),
+                        DurationYears = row.DurationYears,
+                        HasSignedContract = row.HasSignedContract,
                         MonthlyRate = row.MonthlyRentalRate,
+                        ActualMonthlyRental = row.ActualMonthlyRental,
+                        WholeYearRental = row.WholeYearRental,
                         IsActive = !row.IsClosed,
                         FishKilos = row.FishFeeTotal ?? 0,
                         AreaLocation = row.AreaLocation

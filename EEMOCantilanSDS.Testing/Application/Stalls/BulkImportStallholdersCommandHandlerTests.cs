@@ -13,6 +13,7 @@ public class BulkImportStallholdersCommandHandlerTests
 {
     private readonly Mock<IStallRepository> _stallRepo = new();
     private readonly Mock<IFacilityRepository> _facilityRepo = new();
+    private readonly Mock<IPayorRepository> _payorRepo = new();
     private readonly Mock<IUnitOfWork> _uow = new();
 
     public BulkImportStallholdersCommandHandlerTests()
@@ -38,7 +39,7 @@ public class BulkImportStallholdersCommandHandlerTests
             .ReturnsAsync(stalls);
 
     private BulkImportStallholdersCommandHandler Handler()
-        => new(_stallRepo.Object, _facilityRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
+        => new(_stallRepo.Object, _facilityRepo.Object, _payorRepo.Object, _uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.FeeRateResolver, CacheTestDoubles.Tenant);
 
     private void SetupFacility(FacilityCode code)
         => _facilityRepo.Setup(r => r.GetByCodeAsync(code, It.IsAny<CancellationToken>()))
@@ -432,6 +433,147 @@ public class BulkImportStallholdersCommandHandlerTests
 
         Assert.Equal(2, result.Value!.CreatedCount);
         Assert.Equal(0, result.Value.FailedCount);
+    }
+
+    [Fact]
+    public async Task ReImportingTheSameSheet_DoesNotDuplicateTheTerm()
+    {
+        // The office's lists are expired sheets, so the "already an active stallholder" guard does not catch a second
+        // upload: each run used to add another term to the stall — and another month of arrears with it.
+        SetupFacility(FacilityCode.TCC);
+        var stall = Stall.Create(Guid.NewGuid(), "5", 900m, ApplicableFees.BaseRental);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Juan Dela Cruz", "Juan Dela Cruz", new DateOnly(2023, 6, 7), 3, 900m));
+        SetupExisting(FacilityCode.TCC, null, stall);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "Juan Dela Cruz", "5") }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Equal(0, result.Value.RenewedCount);
+        Assert.Equal(1, result.Value.FailedCount);
+        Assert.Contains("imported before", result.Value.Results.Single().Error);
+        // Nothing was written at all — no second term, and the recorded term is left as it stands.
+        _stallRepo.Verify(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        Assert.True(stall.Contracts.Single().IsActive);
+    }
+
+    [Fact]
+    public async Task ADifferentLesseeOnTheSameVacatedNumber_IsStillARelet()
+    {
+        // The guard is exact: only the same lessee from the same date is a repeat. A genuinely new occupant takes
+        // over the vacated number as before.
+        SetupFacility(FacilityCode.TCC);
+        var stall = Stall.Create(Guid.NewGuid(), "5", 900m, ApplicableFees.BaseRental);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Old Tenant", "Old Tenant", new DateOnly(2019, 1, 1), 3, 900m));
+        SetupExisting(FacilityCode.TCC, null, stall);
+        _stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "New Tenant", "5") }),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.RenewedCount);
+        Assert.Equal(0, result.Value.FailedCount);
+    }
+
+    // ── A list of spaces let without a contract: the office's barbecue and ice-plant lists ──
+    // Such a sheet names an occupant and an "Actual Mo. Rental" and nothing else: no leasee per contract, no
+    // term, no contract rental. Every row of it was being turned away — for a ₱0 rate and for a missing
+    // duration — which is the whole file.
+
+    private static ImportStallRow SpaceOnlyRow(int n, string occupant, string stallNo, decimal actualMonthly) =>
+        new(n, occupant, null, stallNo, null, 0, null, 0m, actualMonthly, null);
+
+    [Fact]
+    public async Task ASpaceLetWithoutAContract_ImportsAtItsActualMonthlyRental()
+    {
+        SetupFacility(FacilityCode.BBQ);
+        SetupUnique(true);
+        Stall? stall = null;
+        Contract? contract = null;
+        _stallRepo.Setup(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()))
+            .Callback<Stall, CancellationToken>((s, _) => stall = s).Returns(Task.CompletedTask);
+        _stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>()))
+            .Callback<Contract, CancellationToken>((c, _) => contract = c).Returns(Task.CompletedTask);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.BBQ, null, new List<ImportStallRow>
+            {
+                SpaceOnlyRow(1, "Joy Ruaza", "1", 1_600m),
+                SpaceOnlyRow(2, "Mary May Benablo", "2", 3_200m),
+            }),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.CreatedCount);
+        Assert.Equal(0, result.Value.FailedCount);
+
+        // The rate is the figure the sheet states, on both the space and its occupancy.
+        Assert.Equal(3_200m, stall!.MonthlyRate);
+        Assert.Equal(3_200m, contract!.MonthlyRentalRate);
+        Assert.Equal(3_200m, contract.ActualMonthlyRental);
+        // Held without a signed contract: no name on one, and an open-ended term that never falls due for renewal.
+        Assert.Equal(OccupancyArrangement.SpaceOnly, contract.Arrangement);
+        Assert.Null(contract.NameOnContract);
+        Assert.Equal(DomainRules.OpenEndedTermYears, contract.DurationYears);
+    }
+
+    [Fact]
+    public async Task ARowNamingALeaseeButNoTerm_IsStillReported()
+    {
+        // The inference is narrow on purpose: a row that DOES name a leasee per contract but omits the number of
+        // years is a missing figure, not a space held without a contract, and must still be reported.
+        SetupFacility(FacilityCode.TCC);
+        SetupUnique(true);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow>
+            {
+                new(1, "Bernadette Miranda", "Bernadette Miranda", "4", new DateTime(2023, 6, 7), 0, null, 0m, 1_500m, null),
+            }),
+            CancellationToken.None);
+
+        Assert.Equal(0, result.Value!.CreatedCount);
+        Assert.Contains("duration", result.Value.Results.Single().Error);
+    }
+
+    [Fact]
+    public async Task AnImportedRelet_EndsTheOutgoingTermTheDayBefore_AndRevokesItsPayorLinks()
+    {
+        // An imported row landing on a vacated number hands the space over, exactly as the add-vendor path does:
+        // the outgoing occupancy is dated to the day before the incoming term, and any payor account still linked
+        // to the space is revoked — otherwise the previous lessee's login sees and can pay the new lessee's dues.
+        SetupFacility(FacilityCode.TCC);
+        var existing = ExistingStall("5", "Old Tenant", active: false);
+        SetupExisting(FacilityCode.TCC, null, existing);
+        _stallRepo.Setup(r => r.AddContractAsync(It.IsAny<Contract>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var result = await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "New Tenant", "5") }),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.Value!.RenewedCount);
+        var outgoing = existing.Contracts.Single();
+        Assert.False(outgoing.IsActive);
+        Assert.Equal(new DateOnly(2023, 6, 6), outgoing.EndedOn);   // the day before the imported effectivity
+        _payorRepo.Verify(p => p.RemoveStallLinksAsync(existing.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ANewStall_DoesNotTouchPayorLinks()
+    {
+        // Only a hand-over revokes links. A brand-new space has none, and nothing else may be removed.
+        SetupFacility(FacilityCode.TCC);
+        SetupUnique(true);
+
+        await Handler().Handle(
+            new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow> { Row(1, "Juan Dela Cruz", "1") }),
+            CancellationToken.None);
+
+        _payorRepo.Verify(p => p.RemoveStallLinksAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]

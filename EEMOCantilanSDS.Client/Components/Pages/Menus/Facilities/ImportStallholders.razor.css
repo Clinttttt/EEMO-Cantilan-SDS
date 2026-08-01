@@ -377,3 +377,16 @@
 .imp-cols-note strong {
     font-weight: 700;
 }
+
+
+/* Spaces this file takes over from a vacated occupancy. Same shape as the renumbering note, in the warning
+   colour: it states a consequence the office should see before saving, not merely something that happened. */
+.imp-takeover-note {
+    border-left-color: var(--amber-600, #b45309);
+    background: var(--amber-50, #fffbeb);
+    color: var(--amber-900, #78350f);
+}
+
+.imp-takeover-note svg {
+    stroke: var(--amber-600, #b45309);
+}

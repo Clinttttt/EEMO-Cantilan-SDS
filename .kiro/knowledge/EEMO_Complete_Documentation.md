@@ -68,6 +68,26 @@ roster, the closed-accounts register), it is the monthly **equivalent**: resolve
 - **Delinquency:** 3+ unpaid months inside a rolling 12-month window = delinquent; 1–2 = arrears.
 - **Contract expiry:** flagged when within 3 months; an expired contract drops off the current-holder roster
   (it stays in history) and can be renewed, which starts a fresh term at the stall's current rate.
+- **A space outlives its lessees.** A stall keeps its number, its section and its whole history when it is
+  re-let, so history is a sequence of **occupancies** (`Stall.Occupancies`): one per term, each running from
+  its effectivity to the earliest of the day it was terminated, the day before the next lessee began, the day
+  the stall was closed, and its own term end. Charges additionally stop at the term end (`BillableEnd`): a
+  lessee who stayed on after their term lapsed owes nothing for those days, though money they paid is theirs.
+- **Money is named after the lessee who owed it.** A collection is attributed by the period it was raised
+  FOR, never by the day it arrived, so an arrear settled after a handover still belongs to the lessee who
+  incurred it. A daily collection carries its own business date; a monthly charge belongs to a month.
+- **A month belongs to exactly one occupancy.** A month's rent is one indivisible obligation (one payment
+  record per stall per month), so a stall handed over mid-month is answered for by the lessee whose occupancy
+  began latest within it — `StallOccupancy.AnsweringForMonth` is that rule, and the register, the reports, the
+  payor lists and the collection dialog all read it. Nothing may charge or credit the same month twice.
+- **A past occupancy is charged the rent it was let at** (`Contract.MonthlyRentalRate`), never the rate the
+  space carries now: the stored `Stall.MonthlyRate` is rewritten when the space is re-let or revised, and
+  reading it would restate a departed lessee's arrears at a rate they never agreed to.
+- **Occupancy without a signed contract.** A barbecue or ice-plant space is let with no contract at all, and
+  some commercial-centre spaces run on an extension of a lapsed one (`OccupancyArrangement`). Rent is
+  assessed identically; what is absent is the leasee name, the term and the contract rate. Such an occupancy
+  is open-ended (`DomainRules.OpenEndedTermYears`) so it never falls due for renewal, and the official sheets
+  print "No contract (space only)" / "No contract (extension)" across the contract columns.
 - **Payment status:** Paid / Partial / Unpaid per stall per period. A **partial counts as unpaid** for the
   paid-vs-unpaid invariant (Paid + Unpaid == Billable) and is additionally surfaced as a partial count.
 - **OR numbers** are entered by hand from the physical receipt book, never generated. Adding an OR number
@@ -137,6 +157,29 @@ Rules that matter:
   checkout is reused rather than duplicated — the double-payment guard. NPM pays a whole month of daily fees,
   fish days and utilities through their own paths.
 
+### Bulk import of a stallholder list
+
+The office keeps its records on the official "List of Stallholders" sheets, so a facility can be populated by
+uploading one (CSV / XLSX). The rules that make an as-written sheet import correctly:
+
+- Columns are read by position, tolerating printable-report layouts (title banners, header and TOTAL rows are
+  skipped; for NPM, section banners select the rows of the chosen section).
+- The **rate** is the contract rental when the sheet states one, otherwise the actual monthly rental — a list
+  of spaces let without a contract fills only the latter.
+- A row that names nobody on a contract and states no term is recorded as held **without a signed contract**
+  (open-ended), not rejected for a missing duration. A row that DOES name a leasee but omits the term is a
+  missing figure and is reported.
+- Placeholder occupants ("Closed", "Vacant", "N/A", …) are rejected server-side: importing them as active
+  stallholders would inflate the active count and raise arrears against nobody.
+- A number belonging to an **active** contract is refused. A number belonging to a **vacated** space (closed,
+  or its term lapsed) is reused — the space changes hands, the previous occupancy is ended the day before the
+  new term begins, and its payor links are revoked, exactly as the Add Vendor takeover does. The preview says
+  which numbers those are before anything is saved.
+- **Re-importing the same sheet changes nothing.** A row whose stall already carries that same occupant from
+  that same effectivity date is reported as already imported, so a second upload cannot add a second term (and
+  with it another month of arrears).
+- Valid rows are saved in one transaction; invalid rows are reported per row and never block the rest.
+
 ---
 
 ## 7. Reporting
@@ -151,9 +194,24 @@ Reporting invariants:
 - Rosters list **current holders only** — closed and expired accounts appear in history, not on the roster.
 - Monetary totals count **active** stalls only, consistent with the active-stall count.
 - A daily-billed facility's monthly figures are derived (see §2), never read from the stored monthly rate.
+  This applies to every roster and register that prints one, including the per-facility "List of
+  Stallholders" and its CSV export.
+- **A period states its own period's money; only the cumulative view states lifetime totals.** The follow-up
+  history is filtered by a year, a month, or "Whole time":
+  - a year or month view reads the assessment for that window, and the inactive-account register bounded to
+    it (`GetClosedStallAccountsForPeriodAsync`), so an occupancy that did not exist in the window is not
+    listed at all;
+  - a term or occupancy is stated as the PART of it inside the window — under a 2026 filter a term of
+    Jun 2023 → Jun 7, 2026 reads "Jan 1, 2026 → Jun 7, 2026" — because the amount beside it is that
+    window's. A span that lies wholly outside the window is stated whole (a term that lapsed earlier is a
+    fact about the past, and clipping it would say nothing);
+  - the window never runs past the snapshot date, so a running occupancy is never stated into the future;
+  - "Whole time" states whole spans against whole balances, and is the view that answers "what is owed in
+    total".
 - Total rows state a per-head or per-unit rate only when every line shares one; otherwise they show a dash,
   because no single figure would be true.
 - The stallholder roster carries base rental only — no fish, electricity or water folded in.
+- A cached period snapshot is invalidated by money recorded in ANY period, because it embeds the register.
 
 ---
 
