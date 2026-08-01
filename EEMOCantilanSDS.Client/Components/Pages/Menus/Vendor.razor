@@ -1224,7 +1224,8 @@
                 ActualOccupant: Form.ActualOccupant.Trim(),
                 NameOnContract: string.IsNullOrWhiteSpace(Form.ContractName) ? null : Form.ContractName.Trim(),
                 ContractDate: Form.ContractDate,
-                ContractYears: Form.ContractYears
+                ContractYears: Form.ContractYears,
+                Arrangement: Form.Arrangement
             );
 
             var result = await StallsApi.CreateStallAsync(command);

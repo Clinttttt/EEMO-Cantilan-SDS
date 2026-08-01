@@ -395,7 +395,9 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         ActualMonthlyRental = MonthlyOf(s),
                         WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,   // List of Stallholders is base rental only — no fish/elec/water
-                        IsClosed = s.Status == StallStatus.Closed
+                        IsClosed = s.Status == StallStatus.Closed,
+                        // Space-only and extension rows print "No contract" with the contract columns left blank.
+                        Arrangement = contract?.Arrangement ?? OccupancyArrangement.SignedContract
                     };
                 }).ToList(),
                 SectionMonthlyTotal = g.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
@@ -433,7 +435,8 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         ActualMonthlyRental = MonthlyOf(s),
                         WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,
-                        IsClosed = s.Status == StallStatus.Closed
+                        IsClosed = s.Status == StallStatus.Closed,
+                        Arrangement = contract?.Arrangement ?? OccupancyArrangement.SignedContract
                     };
                 }).ToList(),
                 SectionMonthlyTotal = groupStalls.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),
@@ -469,7 +472,8 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                         WholeYearRental = MonthlyOf(s) * 12,
                         FishFeeTotal = null,
                         IsClosed = s.Status == StallStatus.Closed,
-                        AreaLocation = s.AreaLocation?.ToString()
+                        AreaLocation = s.AreaLocation?.ToString(),
+                        Arrangement = contract?.Arrangement ?? OccupancyArrangement.SignedContract
                     };
                 }).ToList(),
                 SectionMonthlyTotal = stallsWithoutSection.Where(s => s.Status == StallStatus.Active).Sum(MonthlyOf),

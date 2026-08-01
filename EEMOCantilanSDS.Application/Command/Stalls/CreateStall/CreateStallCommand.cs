@@ -26,4 +26,11 @@ public record CreateStallCommand(
     /// payment and contract history stay as they are, and a new contract term begins on it. A stall that is
     /// still occupied is never reused, whatever this flag says.
     /// </summary>
-    bool ReuseVacatedStall = false) : IRequest<Result<StallDto>>;
+    bool ReuseVacatedStall = false,
+    /// <summary>
+    /// How the space is held. A barbecue stand or an ice-plant space is let without a signed contract at all, and
+    /// some commercial-centre spaces are occupied on an extension of a lapsed one. Rent is assessed exactly the
+    /// same; what is absent is the leasee name, the term and the contract rate, and the official sheets print
+    /// "No contract" for those rows.
+    /// </summary>
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract) : IRequest<Result<StallDto>>;

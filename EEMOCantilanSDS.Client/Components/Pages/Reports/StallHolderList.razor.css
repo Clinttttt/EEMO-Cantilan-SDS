@@ -408,3 +408,11 @@
 
 /* With the section named above, the band inside the table would only repeat it - on screen and on paper. */
 .sh-sheet-section .sh-section-label { display: none; }
+
+/* A space held without a signed contract: the office's form states this once across the contract columns and leaves
+   them blank. Centred and in the document's own italic-free type, so it reads as a statement of fact on the sheet. */
+.sh-nc {
+    text-align: center;
+    color: var(--text-muted, #5b6b7c);
+    letter-spacing: .01em;
+}

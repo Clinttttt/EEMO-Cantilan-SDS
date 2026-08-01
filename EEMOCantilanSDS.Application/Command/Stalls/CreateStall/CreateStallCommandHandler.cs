@@ -72,7 +72,8 @@ public class CreateStallCommandHandler(
             request.MonthlyRate,
             null,
             null,
-            "Admin");
+            "Admin",
+            request.Arrangement);
 
         await stallRepo.AddContractAsync(contract, cancellationToken);
         await uow.SaveChangesAsync(cancellationToken);
@@ -134,7 +135,8 @@ public class CreateStallCommandHandler(
             request.MonthlyRate,
             null,
             null,
-            actor);
+            actor,
+            request.Arrangement);
 
         await stallRepo.AddContractAsync(contract, ct);
 

@@ -82,6 +82,27 @@
                 <!-- §1 Leasee Information -->
                 <div class="avm-section">
                     <div class="avm-section-label">Leasee Information</div>
+
+                    @* How the space is held. The office's registers record three kinds, and the two without a signed
+                       contract have no leasee name, term or contract rate to state — asking for them would invite a
+                       clerk to invent particulars the office does not hold. *@
+                    <div class="avm-group">
+                        <label class="avm-label">Basis of Occupancy <span class="avm-req">*</span></label>
+                        <div class="avm-choice" role="radiogroup" aria-label="Basis of occupancy">
+                            @foreach (var option in ArrangementOptions)
+                            {
+                                <button type="button"
+                                        class="avm-choice-item @(Form.Arrangement == option.Value ? "is-selected" : "")"
+                                        role="radio"
+                                        aria-checked="@(Form.Arrangement == option.Value)"
+                                        @onclick="() => SelectArrangement(option.Value)">
+                                    <span class="avm-choice-title">@option.Title</span>
+                                    <span class="avm-choice-note">@option.Note</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
                     <div class="avm-row-2">
                         <div class="avm-group">
                             <label class="avm-label">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
@@ -92,15 +113,26 @@
                                 <span class="form-error">@GetFieldError("ActualOccupant")</span>
                             }
                         </div>
-                        <div class="avm-group">
-                            <label class="avm-label">Name on Contract (Per Signed Contract)</label>
-                            <input class="avm-input @(GetFieldError("NameOnContract") != string.Empty ? "form-input-error" : "")" type="text" placeholder="Leave blank if no contract"
-                                   @bind="Form.ContractName" @bind:event="oninput" />
-                            @if (GetFieldError("NameOnContract") != string.Empty)
-                            {
-                                <span class="form-error">@GetFieldError("NameOnContract")</span>
-                            }
-                        </div>
+                        @if (Form.HasSignedContract)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Name on Contract (Per Signed Contract)</label>
+                                <input class="avm-input @(GetFieldError("NameOnContract") != string.Empty ? "form-input-error" : "")" type="text" placeholder="As written on the signed contract"
+                                       @bind="Form.ContractName" @bind:event="oninput" />
+                                @if (GetFieldError("NameOnContract") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("NameOnContract")</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Name on Contract (Per Signed Contract)</label>
+                                <div class="avm-input avm-input-locked">@NoContractText</div>
+                                <span class="avm-hint">Printed in this column on the official list.</span>
+                            </div>
+                        }
                     </div>
                 </div>
 
@@ -177,7 +209,13 @@
 
                     <div class="avm-row-2">
                         <div class="avm-group">
-                            <label class="avm-label">Contract Effectivity Date</label>
+                            @* Billing needs a start date whether or not a contract exists — it is the first month the
+                               office may charge for. Only the wording differs: a space-only occupancy has no contract
+                               to take effect, so the sheet leaves that column blank and this asks when they moved in. *@
+                            <label class="avm-label">
+                                @(Form.HasSignedContract ? "Contract Effectivity Date" : "Occupying Since")
+                                <span class="avm-req">*</span>
+                            </label>
                             @if (IsEditing)
                             {
                                 <div class="avm-input avm-input-locked">@(Form.ContractDate?.ToString("MMMM d, yyyy") ?? "—")</div>
@@ -186,25 +224,40 @@
                             {
                                 <input class="avm-input" type="date" @bind="Form.ContractDate" />
                             }
-                        </div>
-                        <div class="avm-group">
-                            <label class="avm-label">Contract Duration (No. of Years)</label>
-                            @if (IsEditing)
+                            @if (!Form.HasSignedContract)
                             {
-                                <div class="avm-input avm-input-locked">@(Form.ContractYears > 0 ? $"{Form.ContractYears} year{(Form.ContractYears > 1 ? "s" : "")}" : "No contract")</div>
+                                <span class="avm-hint">From this date rent is assessed. It is not printed as a contract effectivity.</span>
                             }
-                            else
-                            {
-                                <FhSelect Block="true" Caption="" Value="@(_customYears ? "custom" : Form.ContractYears.ToString())"
-                                          Options="ContractYearOptions" ValueChanged="OnContractYearsSelected" />
-                                @if (_customYears)
+                        </div>
+                        @if (Form.HasSignedContract)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Contract Duration (No. of Years)</label>
+                                @if (IsEditing)
                                 {
-                                    <input class="avm-input" style="margin-top:8px;" type="number" min="1" max="10" step="1"
-                                           placeholder="Enter years (1–10)" @bind="Form.ContractYears" @bind:event="oninput" />
-                                    <span class="avm-hint-muted">Custom contract term — 1 to 10 years.</span>
+                                    <div class="avm-input avm-input-locked">@(Form.ContractYears > 0 ? $"{Form.ContractYears} year{(Form.ContractYears > 1 ? "s" : "")}" : "No contract")</div>
                                 }
-                            }
-                        </div>
+                                else
+                                {
+                                    <FhSelect Block="true" Caption="" Value="@(_customYears ? "custom" : Form.ContractYears.ToString())"
+                                              Options="ContractYearOptions" ValueChanged="OnContractYearsSelected" />
+                                    @if (_customYears)
+                                    {
+                                        <input class="avm-input" style="margin-top:8px;" type="number" min="1" max="10" step="1"
+                                               placeholder="Enter years (1–10)" @bind="Form.ContractYears" @bind:event="oninput" />
+                                        <span class="avm-hint-muted">Custom contract term — 1 to 10 years.</span>
+                                    }
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Contract Duration (No. of Years)</label>
+                                <div class="avm-input avm-input-locked">Open-ended</div>
+                                <span class="avm-hint">No term to expire, so this occupancy never falls due for renewal.</span>
+                            </div>
+                        }
                     </div>
                     @if (IsEditing)
                     {
@@ -494,7 +547,6 @@
 
     /// Controls modal visibility
     [Parameter] public bool Show { get; set; }
-
     /// true = Edit mode   false = Add mode
     [Parameter] public bool IsEditing { get; set; }
 
@@ -698,6 +750,37 @@
         ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
     };
 
+    /// <summary>
+    /// The three bases of occupancy the office's registers record. The wording is the office's own, so a clerk
+    /// choosing here is choosing exactly what will be printed on the official list.
+    /// </summary>
+    private static readonly IReadOnlyList<(OccupancyArrangement Value, string Title, string Note)> ArrangementOptions =
+        new List<(OccupancyArrangement, string, string)>
+        {
+            (OccupancyArrangement.SignedContract, "Signed lease contract", "With effectivity date, term and area"),
+            (OccupancyArrangement.SpaceOnly, "No contract — space only", "Rent charged, no contract on file"),
+            (OccupancyArrangement.Extension, "No contract — extension", "Occupying past a lapsed contract"),
+        };
+
+    /// <summary>What the official list prints where a signed contract would be named.</summary>
+    private string NoContractText => Form.Arrangement == OccupancyArrangement.Extension
+        ? $"No contract (Extension {(string.IsNullOrWhiteSpace(Form.FacilityCode) ? "TCC" : Form.FacilityCode)})"
+        : "No contract (space only)";
+
+    private void SelectArrangement(OccupancyArrangement arrangement)
+    {
+        Form.Arrangement = arrangement;
+
+        if (arrangement == OccupancyArrangement.SignedContract)
+            return;
+
+        // Nothing on a signed contract applies: no name on one, and no term. Clearing them here means the record
+        // cannot carry particulars the office does not hold, whatever was typed before the basis was changed.
+        Form.ContractName = string.Empty;
+        Form.ContractYears = 0;
+        _customYears = false;
+    }
+
     private async Task OnSectionSelected(string value)
     {
         Form.SelectedSection = value;
@@ -749,6 +832,16 @@
         public string StallNo { get; set; } = string.Empty;
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// How the space is held. Barbecue and ice-plant spaces are let without a signed contract at all, and some
+        /// commercial-centre spaces are occupied on an extension of a lapsed one. Rent is recorded exactly the same
+        /// way; what is absent is the name on a contract, the term and the contract rate.
+        /// </summary>
+        public OccupancyArrangement Arrangement { get; set; } = OccupancyArrangement.SignedContract;
+
+        /// <summary>True when a signed contract stands behind the occupancy, so its particulars are asked for.</summary>
+        public bool HasSignedContract => Arrangement == OccupancyArrangement.SignedContract;
         public string SelectedSection { get; set; } = string.Empty;
         // NPM only: the free-text name when SelectedSection is the "＋ Custom section…" sentinel.
         public string CustomSectionName { get; set; } = string.Empty;

@@ -798,3 +798,60 @@
     .avm-reuse-btn:hover {
         background: var(--navy-2, #112d47);
     }
+
+
+/* ── Basis of occupancy ────────────────────────────────────────────────────────────────────────────────
+   A government form states its options plainly and shows which one is in force. Three bordered choices,
+   navy when selected, no colour beyond the document's own. */
+.avm-choice {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.avm-choice-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--border, #d6dde5);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.avm-choice-item:hover {
+    border-color: var(--navy, #0b2239);
+}
+
+.avm-choice-item.is-selected {
+    background: color-mix(in srgb, var(--navy, #0b2239) 6%, #fff);
+    border-color: var(--navy, #0b2239);
+    box-shadow: inset 0 0 0 1px var(--navy, #0b2239);
+}
+
+.avm-choice-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-strong, #0b2239);
+    line-height: 1.3;
+}
+
+.avm-choice-note {
+    font-size: 11px;
+    color: var(--text-muted, #5b6b7c);
+    line-height: 1.35;
+}
+
+/* A statement about what the record will say, not advice — the same muted voice as the rest of the form. */
+.avm-hint {
+    font-size: 11px;
+    color: var(--text-muted, #5b6b7c);
+    line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+    .avm-choice { grid-template-columns: 1fr; }
+}

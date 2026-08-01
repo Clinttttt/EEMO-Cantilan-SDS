@@ -531,7 +531,8 @@
             VendorForm.ActualOccupant.Trim(),
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
-            VendorForm.ContractYears);
+            VendorForm.ContractYears,
+            Arrangement: VendorForm.Arrangement);
 
         var result = await StallsApi.CreateStallAsync(command);
 

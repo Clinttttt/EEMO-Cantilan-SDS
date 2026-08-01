@@ -60,6 +60,25 @@ namespace EEMOCantilanSDS.Domain.Enums
         FishSection = 2,
         MeatSection = 3,
     }
+
+    /// <summary>
+    /// How an occupant holds their space. The office's own registers record three kinds, and the official sheets
+    /// print the last two as "No contract" with every contract-derived column left blank — a barbecue stand or an
+    /// ice-plant space is let without a signed contract at all, and some commercial-centre spaces are occupied on an
+    /// extension of a lapsed one. Rent is assessed and collected in every case; only the contract particulars are
+    /// absent, and such an occupancy is open-ended, so it never falls due for renewal.
+    /// </summary>
+    public enum OccupancyArrangement
+    {
+        /// <summary>A signed lease contract: a named leasee, an effectivity date, a term and an area.</summary>
+        SignedContract = 1,
+
+        /// <summary>Space only — the occupant pays rent with no signed contract behind it.</summary>
+        SpaceOnly = 2,
+
+        /// <summary>Occupying past a lapsed contract with the office's leave.</summary>
+        Extension = 3,
+    }
     public enum NccAreaLocation
     {
         Extension = 1,

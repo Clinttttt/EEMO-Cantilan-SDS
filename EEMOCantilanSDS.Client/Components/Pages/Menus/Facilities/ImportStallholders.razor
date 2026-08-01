@@ -947,17 +947,43 @@
         var contractName = GetCell(row, "contractName");
         var areaLoc = GetCell(row, "areaLoc");
 
+        // The office's own lists write the basis of occupancy in the contract-name column itself — "No contract
+        // (space only)" or "No contract (Extension TCC)" — so it is read from there rather than asking them to add
+        // a column. Such a row keeps no name on a contract, and its term is open-ended.
+        var arrangement = ArrangementFromContractCell(contractName);
+        var signed = arrangement == OccupancyArrangement.SignedContract;
+
         return new ImportStallRow(
             rowNumber,
             GetCell(row, "occupant"),
-            string.IsNullOrWhiteSpace(contractName) ? null : contractName,
+            signed && !string.IsNullOrWhiteSpace(contractName) ? contractName : null,
             GetCell(row, "stallNo"),
             effectivity,
-            years,
+            signed ? years : 0,
             area,
             monthly,
             actualMonthly,
-            string.IsNullOrWhiteSpace(areaLoc) ? null : areaLoc);
+            string.IsNullOrWhiteSpace(areaLoc) ? null : areaLoc,
+            arrangement);
+    }
+
+    /// <summary>
+    /// Reads the basis of occupancy out of the "name of leasee per signed contract" cell, which is where the office
+    /// records it. Anything that does not say "no contract" is taken as a signed contract, so an ordinary list
+    /// imports exactly as it did before.
+    /// </summary>
+    private static OccupancyArrangement ArrangementFromContractCell(string? contractCell)
+    {
+        if (string.IsNullOrWhiteSpace(contractCell))
+            return OccupancyArrangement.SignedContract;
+
+        var text = contractCell.Trim();
+        if (!text.Contains("no contract", StringComparison.OrdinalIgnoreCase))
+            return OccupancyArrangement.SignedContract;
+
+        return text.Contains("extension", StringComparison.OrdinalIgnoreCase)
+            ? OccupancyArrangement.Extension
+            : OccupancyArrangement.SpaceOnly;
     }
 
     private static MarketSection? MapSection(string? section) => section switch

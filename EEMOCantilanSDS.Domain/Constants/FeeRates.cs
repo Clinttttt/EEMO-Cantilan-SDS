@@ -65,6 +65,12 @@ namespace EEMOCantilanSDS.Domain.Constants
         // paper convention the offices reconcile against, not a proration.
         public const int DailyBilledMonthDays = 30;
 
+        // An occupancy held without a signed contract (a barbecue stand, an ice-plant space, a commercial-centre
+        // space on extension) has no term: it runs until the office ends it. Its record carries this length so that
+        // nothing treats it as due for renewal or as expired, while the sheets — which ask whether a signed contract
+        // exists, never how long this is — print no term for it at all.
+        public const int OpenEndedTermYears = 99;
+
         // Authentication token lifetimes (single source — also used by TokenService).
         public const int AccessTokenMinutes = 15;
         public const int RefreshTokenDays = 7;

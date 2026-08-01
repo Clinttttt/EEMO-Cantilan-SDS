@@ -400,12 +400,14 @@
                             Csv(FacilityCatalog.NameOf(code)),
                             Csv(SectionDisplay(section.SectionName)),
                             Csv(r.ActualOccupant),
-                            Csv(r.NameOnContract ?? string.Empty),
-                            Csv(r.StallNo),
-                            Csv(r.EffectivityDate == default ? "" : r.EffectivityDate.ToString("M/d/yyyy")),
-                            Csv(r.DurationYears.ToString()),
-                            Csv(r.AreaSqm is > 0 ? r.AreaSqm!.Value.ToString("0.##") : ""),
-                            Csv(r.MonthlyRentalRate.ToString("0.00")),
+                            // A row without a signed contract carries the office's own wording and no contract
+                            // particulars, so the export reconciles line for line with the printed sheet.
+                            Csv(r.HasSignedContract ? r.NameOnContract ?? string.Empty : NoContractLabel(r)),
+                            Csv(r.HasSignedContract ? r.StallNo : string.Empty),
+                            Csv(r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate.ToString("M/d/yyyy") : ""),
+                            Csv(r.HasSignedContract ? r.DurationYears.ToString() : string.Empty),
+                            Csv(r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value.ToString("0.##") : ""),
+                            Csv(r.HasSignedContract ? r.MonthlyRentalRate.ToString("0.00") : string.Empty),
                             Csv(r.ActualMonthlyRental.ToString("0.00")),
                             Csv(r.WholeYearRental.ToString("0.00"))
                         }));
@@ -424,6 +426,18 @@
             : value;
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
+
+    /// <summary>
+    /// What the office writes where a signed contract would be named. An extension names the facility it extends, in
+    /// that LGU's own short name, so the sheet reads exactly as the office's own form does.
+    /// </summary>
+    private string NoContractLabel(StallHolderRowDto row) => row.Arrangement switch
+    {
+        OccupancyArrangement.Extension when _facility is { } facility
+            => $"No contract (Extension {FacilityCatalog.ShortNameOf(facility)})",
+        OccupancyArrangement.Extension => "No contract (extension)",
+        _ => "No contract (space only)",
+    };
 
     // Market-section headers show the tenant's label (e.g. "Gulayan") — the enum-name string stays the
     // key from the server; only the DISPLAY is resolved. Sections exist only for NPM.
@@ -486,15 +500,26 @@
                 @{ var n = 1; }
                 @foreach (var r in rows)
                 {
+                    @* A space held without a signed contract has no leasee name, effectivity, term, area or contract
+                       rate to state, so the office's sheet says so once across those columns and leaves the rest
+                       blank. Only the rent actually charged appears. *@
+                    var noContract = !r.HasSignedContract;
                     <tr class="@(r.IsClosed ? "sh-row-closed" : "")">
                         <td class="sh-c">@n</td>
                         <td>@r.ActualOccupant</td>
-                        <td>@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
-                        <td class="sh-c">@r.StallNo</td>
-                        <td class="sh-c">@(r.EffectivityDate == default ? "—" : r.EffectivityDate.ToString("M/d/yyyy"))</td>
-                        <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
-                        <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
-                        <td class="sh-r">@(r.IsClosed ? "—" : Money(r.MonthlyRentalRate))</td>
+                        @if (noContract)
+                        {
+                            <td class="sh-nc" colspan="5">@NoContractLabel(r)</td>
+                        }
+                        else
+                        {
+                            <td>@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
+                            <td class="sh-c">@r.StallNo</td>
+                            <td class="sh-c">@(r.EffectivityDate == default ? "—" : r.EffectivityDate.ToString("M/d/yyyy"))</td>
+                            <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
+                            <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>
+                        }
+                        <td class="sh-r">@(r.IsClosed || noContract ? "—" : Money(r.MonthlyRentalRate))</td>
                         <td class="sh-r">@(r.IsClosed ? "—" : Money(r.ActualMonthlyRental))</td>
                         <td class="sh-r">@(r.IsClosed ? "—" : Money(r.WholeYearRental))</td>
                         @if (isNcc)

@@ -30,7 +30,14 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
 
         RuleFor(x => x.ContractYears)
             .GreaterThan(0).WithMessage("Contract duration must be at least 1 year")
-            .LessThanOrEqualTo(10).WithMessage("Contract duration cannot exceed 10 years");
+            .LessThanOrEqualTo(10).WithMessage("Contract duration cannot exceed 10 years")
+            // Only a signed contract has a term. A space-only or extension occupancy runs until the office ends it,
+            // so asking for a number of years would be asking for something the office does not have.
+            .When(x => x.Arrangement == OccupancyArrangement.SignedContract);
+
+        RuleFor(x => x.NameOnContract)
+            .Empty().WithMessage("There is no signed contract, so there is no leasee name on one to record.")
+            .When(x => x.Arrangement != OccupancyArrangement.SignedContract);
 
         // An NPM stall belongs to EITHER a canonical market section OR a per-LGU custom section — exactly
         // one. (Custom sections bill flat-daily like Vegetable/Meat.)

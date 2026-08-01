@@ -1089,7 +1089,8 @@
             VendorForm.ContractYears,
             customSectionName,
             // Set only after the office confirms the takeover in the prompt below.
-            ReuseVacatedStall: _takeOverVacatedStall);
+            ReuseVacatedStall: _takeOverVacatedStall,
+            Arrangement: VendorForm.Arrangement);
 
         var result = await StallsApi.CreateStallAsync(command);
 

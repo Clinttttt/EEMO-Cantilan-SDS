@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Dtos.Stalls;
 
@@ -14,7 +15,12 @@ public record ImportStallRow(
     double? AreaSqm,
     decimal MonthlyRate,
     decimal? ActualMonthlyRental,
-    string? AreaLocation);
+    string? AreaLocation,
+    /// <summary>
+    /// How the space is held. Left at a signed contract unless the imported list says otherwise — the office's own
+    /// lists write "No contract (space only)" against such rows, and a barbecue or ice-plant list is entirely so.
+    /// </summary>
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract);
 
 /// <summary>
 /// Outcome for a single imported row. Exactly one of <see cref="Created"/> (new stall) or

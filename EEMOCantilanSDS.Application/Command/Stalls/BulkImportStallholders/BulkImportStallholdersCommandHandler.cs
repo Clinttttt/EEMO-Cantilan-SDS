@@ -128,7 +128,7 @@ public class BulkImportStallholdersCommandHandler(
 
                 newContracts.Add(Contract.Create(
                     existing.Id, occupant, nameOnContract, effectivity, row.ContractYears,
-                    row.MonthlyRate, row.ActualMonthlyRental, null, Actor));
+                    row.MonthlyRate, row.ActualMonthlyRental, null, Actor, row.Arrangement));
 
                 usedStallNos.Add(stallNo);
                 results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, true, null));
@@ -142,7 +142,7 @@ public class BulkImportStallholdersCommandHandler(
             newStalls.Add(stall);
             newContracts.Add(Contract.Create(
                 stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,
-                row.MonthlyRate, row.ActualMonthlyRental, null, Actor));
+                row.MonthlyRate, row.ActualMonthlyRental, null, Actor, row.Arrangement));
             usedStallNos.Add(stallNo);
             results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, false, null));
         }
@@ -222,8 +222,13 @@ public class BulkImportStallholdersCommandHandler(
         if (row.AreaSqm > MaxArea)
             return "Area (sqm) is unreasonably large — please check the value.";
 
-        if (row.ContractYears < 1 || row.ContractYears > 10)
+        // Only a signed contract has a term to check. A row the office marked "No contract" is open-ended, so
+        // demanding a number of years would reject exactly the rows a barbecue or ice-plant list is made of.
+        if (row.Arrangement == OccupancyArrangement.SignedContract
+            && (row.ContractYears < 1 || row.ContractYears > 10))
+        {
             return "Contract duration must be between 1 and 10 years.";
+        }
 
         if (usedStallNos.Contains(stallNo))
             return "Duplicate stall number in this file.";

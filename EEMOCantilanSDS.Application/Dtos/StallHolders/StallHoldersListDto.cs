@@ -1,5 +1,7 @@
 namespace EEMOCantilanSDS.Application.Dtos.StallHolders;
 
+using EEMOCantilanSDS.Domain.Enums;
+
 public class StallHoldersListDto
 {
     public int TotalStalls { get; set; }
@@ -38,4 +40,15 @@ public class StallHolderRowDto
     public decimal? FishFeeTotal { get; set; }
     public bool IsClosed { get; set; }
     public string? AreaLocation { get; set; }   // NCC: "Corner" / "Extension" / "Standard"
+
+    /// <summary>
+    /// How the space is held. The office's sheets print a row without a signed contract as "No contract (space only)"
+    /// — or "No contract (Extension …)" — and leave the contract-derived columns blank, because a barbecue stand or
+    /// an ice-plant space has no leasee name, effectivity, term, area or contract rate to state. Only the rent
+    /// actually charged appears.
+    /// </summary>
+    public OccupancyArrangement Arrangement { get; set; } = OccupancyArrangement.SignedContract;
+
+    /// <summary>True when a signed contract stands behind the row, so its contract columns have something to say.</summary>
+    public bool HasSignedContract => Arrangement == OccupancyArrangement.SignedContract;
 }

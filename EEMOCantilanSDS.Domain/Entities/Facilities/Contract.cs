@@ -1,4 +1,6 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,6 +22,16 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public decimal MonthlyRentalRate { get; private set; }
         public decimal? ActualMonthlyRental { get; private set; }
         public bool IsActive { get; private set; } = true;
+
+        /// <summary>
+        /// How this occupancy is held. Space-only and extension occupancies have no signed contract behind them, so
+        /// the official sheets print "No contract" and leave the contract columns blank, and nothing about them ever
+        /// falls due for renewal. Rent is assessed exactly as for a contract.
+        /// </summary>
+        public OccupancyArrangement Arrangement { get; private set; } = OccupancyArrangement.SignedContract;
+
+        /// <summary>True when a signed contract stands behind this occupancy — the only case with real terms.</summary>
+        public bool HasSignedContract => Arrangement == OccupancyArrangement.SignedContract;
         public string? Remarks { get; private set; }
         public Stall? Stall { get; private set; }
         private Contract() { }
@@ -61,19 +73,27 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             decimal monthlyRate,
             decimal? actualMonthlyRental = null,
             string? remarks = null,
-            string createdBy = "System")
+            string createdBy = "System",
+            OccupancyArrangement arrangement = OccupancyArrangement.SignedContract)
         {
+            var signed = arrangement == OccupancyArrangement.SignedContract;
+
             return new Contract
             {
                 Id = Guid.NewGuid(),
                 StallId = stallId,
                 ActualOccupant = actualOccupant,
-                NameOnContract = nameOnContract,
+                // There is no signed contract, so there is no name on one. Keeping a name here would put it in the
+                // "Name of Leasee per signed contract" column of a sheet that must read "No contract".
+                NameOnContract = signed ? nameOnContract : null,
                 EffectivityDate = effectivityDate,
-                DurationYears = durationYears,
+                // An occupancy without a contract has no term: it runs until the office ends it. The open-ended
+                // length keeps it out of renewal and expiry work, and the sheets print no term for it.
+                DurationYears = signed ? durationYears : DomainRules.OpenEndedTermYears,
                 MonthlyRentalRate = monthlyRate,
                 ActualMonthlyRental = actualMonthlyRental,
                 Remarks = remarks,
+                Arrangement = arrangement,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = createdBy
