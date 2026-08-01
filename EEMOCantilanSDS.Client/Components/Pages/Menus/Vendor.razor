@@ -858,7 +858,7 @@
                 MonthlyRate = item.MonthlyRate,
                 ActualMonthlyRental = item.MonthlyRate,
                 AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
-                FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay),
+                FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay, item.HasElectricity, item.HasWater),
                 IsActive = item.Status == Domain.Enums.StallStatus.Active,
                 IsPaidThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
                 IsPartialThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Partial,
@@ -880,18 +880,22 @@
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
     void CloseFacDropdown() => FacDropdownOpen = false;
 
-    static List<string> BuildFeeTypes(string facilityCode, string? sectionDisplay)
+    static List<string> BuildFeeTypes(string facilityCode, string? sectionDisplay, bool hasElectricity, bool hasWater)
     {
         var fees = new List<string>();
-        // Electricity & Water are NPM utilities only. Other facilities (TCC/NCC/BBQ/ICE)
-        // are flat monthly rentals with no separate utility billing here.
+
+        // Only the utilities this space is actually billed for. Listing both for every market stall was wrong twice
+        // over: it told the office a payor had meters they do not have, and saving the form would have stamped those
+        // charges onto the record. Electricity and water are NPM utilities; other facilities bill a flat rental with
+        // no separate utility billing here.
         if (facilityCode == "NPM")
         {
-            fees.Add("Electricity");
-            fees.Add("Water");
+            if (hasElectricity) fees.Add("Electricity");
+            if (hasWater) fees.Add("Water");
             if (sectionDisplay == "FishSection")
                 fees.Add("Fish ₱1/kg");
         }
+
         return fees;
     }
 

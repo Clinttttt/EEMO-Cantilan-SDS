@@ -807,6 +807,8 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+    /* Clear of the fields below: the choices are their own question, not a heading for the next one. */
+    margin-bottom: 18px;
 }
 
 .avm-choice-item {
@@ -854,4 +856,34 @@
 
 @media (max-width: 720px) {
     .avm-choice { grid-template-columns: 1fr; }
+}
+
+/* A space with no meters. Stated plainly, with a way to record one if a meter is later installed. */
+.avm-util-none {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 12px;
+    background: var(--surface-2, #f4f6f9);
+    border: 1px solid var(--border, #d6dde5);
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--text-muted, #5b6b7c);
+}
+
+.avm-util-add {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--navy, #0b2239);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.avm-util-add:hover {
+    opacity: .8;
 }

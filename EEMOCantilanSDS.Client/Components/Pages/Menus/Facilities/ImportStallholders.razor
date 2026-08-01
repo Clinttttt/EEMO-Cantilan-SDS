@@ -246,6 +246,15 @@
                             <span class="imp-chip">@c.Label</span>
                         }
                     </div>
+                    @* The office's own lists record spaces let without a contract in the leasee column itself, so the
+                       import reads the basis from there. Saying so here means a barbecue or ice-plant list can be
+                       uploaded exactly as it is written, with no column to add and no term to invent. *@
+                    <div class="imp-cols-note">
+                        Where a space is let without a signed contract, write
+                        <strong>No contract (space only)</strong> — or <strong>No contract (Extension TCC)</strong> —
+                        in the <strong>Name on Contract</strong> column. Those rows are recorded as open-ended, need no
+                        effectivity or term, and print that wording on the official list.
+                    </div>
                 </div>
             </div>
         }

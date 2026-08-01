@@ -143,16 +143,14 @@ public class GetFollowUpHistoryQueryHandler(
         // Full outstanding balance per expired/closed account (register total), so an expired follow-up
         // row shows its whole balance and (for monthly facilities) becomes payable via the shared modal.
         var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
-        var expiredBalances = closedAccounts
-            .Where(a => a.Uncollected > 0m)
-            .GroupBy(a => $"{a.FacilityCode}|{a.StallNo}")
-            .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
 
         var dto = FollowUpComposer.Compose(
             year, month, asOf,
             delinquency, facilityReports, awaitingOr,
             slaughter, trips, attendance, unreceipted, contracts, utilityBills,
-            expiredBalances,
+            // A view scoped to a period states that period's figures. Lifetime balances belong to "Whole time",
+            // which is the view that exists to answer "what is owed in total".
+            expiredBalances: null,
             closedAccounts,
             // A whole-year view assesses January to December, so its rows must say so rather than naming the year's
             // last month — the figure beside them is the year's, not that month's.

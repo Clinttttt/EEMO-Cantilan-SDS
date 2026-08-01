@@ -103,7 +103,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             IsDaily: false,
             StallId: p.StallId,
             Year: year,
-            Month: month));
+            Month: month))
+            .ToList();
 
         // ── NPM daily: paid daily collections with a blank OR, grouped per stall for the period ──
         var dailyRaw = await context.DailyCollections
@@ -135,9 +136,48 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 IsDaily: true,
                 StallId: g.First().StallId,
                 Year: year,
-                Month: month));
+                Month: month))
+            .ToList();
 
-        return monthly.Concat(daily).ToList();
+        // Name every row after the lessee answerable for that billing month. The projections above read the stall's
+        // CURRENT contract, which on a stall since re-let is somebody else: a former lessee's receipt would then be
+        // listed, and chased, under the sitting lessee's name.
+        var rows = monthly.Concat(daily).ToList();
+        return await WithAnswerableOccupantsAsync(rows, ct);
+    }
+
+    /// <summary>
+    /// Re-labels receipt rows with the occupant answerable for each row's own billing month. Rows whose stall or term
+    /// cannot be resolved keep whatever name they came with, so a row is never left blank.
+    /// </summary>
+    private async Task<IReadOnlyList<UnreceiptedPaymentDto>> WithAnswerableOccupantsAsync(
+        List<UnreceiptedPaymentDto> rows, CancellationToken ct)
+    {
+        if (rows.Count == 0)
+            return rows;
+
+        var stallIds = rows.Where(r => r.StallId != Guid.Empty).Select(r => r.StallId).Distinct().ToList();
+        if (stallIds.Count == 0)
+            return rows;
+
+        var stalls = await context.Stalls
+            .AsNoTracking()
+            .Include(s => s.Contracts)
+            .Where(s => stallIds.Contains(s.Id))
+            .ToListAsync(ct);
+
+        var directory = OccupantDirectory.From(stalls, PhilippineTime.Today);
+
+        return rows
+            .Select(r =>
+            {
+                if (r.StallId == Guid.Empty || r.Year <= 0 || r.Month is < 1 or > 12)
+                    return r;
+
+                var answerable = directory.InMonth(r.StallId, r.Year, r.Month);
+                return string.IsNullOrWhiteSpace(answerable) ? r : r with { Occupant = answerable! };
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -220,7 +260,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 Year: year,
                 Month: g.Key.Month));
 
-        return monthly.Concat(daily).ToList();
+        // Each row is named after the lessee answerable for its own billing month, not the stall's current one.
+        return await WithAnswerableOccupantsAsync(monthly.Concat(daily).ToList(), ct);
     }
 
     public async Task<IReadOnlyList<NpmStallDailyStatusDto>> GetNpmDailyStatusAsync(FacilityCode facilityCode, int year, int month, CancellationToken ct)
@@ -431,10 +472,18 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         var stall = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
+            // Every term, so the summary can be bounded to ONE occupancy. A stall handed over mid-month otherwise
+            // credits the sitting lessee with days the previous occupant paid for.
+            .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == stallId, ct);
 
         if (stall is null)
+            return new StallLedgerSummaryDto(0, 0, 0m, 0m);
+
+        // This panel is the account of whoever holds the stall now (or last held it) — the same reading every
+        // collection screen means by "this stall".
+        var occupancy = stall.ResolveOccupancy(null, PhilippineTime.Today);
+        if (occupancy is null)
             return new StallLedgerSummaryDto(0, 0, 0m, 0m);
 
         var payments = await context.PaymentRecords
@@ -503,6 +552,12 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             int year = m.Year, month = m.Month;
             var monthStart = new DateOnly(year, month, 1);
             var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+
+            // Clamped to this occupancy: on a handover month only their own days count, in either direction.
+            if (monthStart < occupancy.Start) monthStart = occupancy.Start;
+            if (monthEnd > occupancy.BillableEnd) monthEnd = occupancy.BillableEnd;
+            if (monthEnd < monthStart)
+                continue;
 
             // Skip months the stall was not active / under an effective contract (not yet due).
             if (CountCollectableDays(stall, monthStart, monthEnd) == 0)
@@ -678,8 +733,7 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
     /// Which lessee a collection screen is talking about: the term it names, the term that held the stall during the
     /// period it is showing, or — when it says neither — the most recent term.
     /// </summary>
-    private static StallOccupancy? ResolveOccupancy(Stall stall, Guid? contractId, DateOnly? forPeriod, DateOnly today)
-    {
+    private static StallOccupancy? ResolveOccupancy(Stall stall, Guid? contractId, DateOnly? forPeriod, DateOnly today)    {
         if (contractId is { } id && id != Guid.Empty)
             return stall.ResolveOccupancy(id, today);
 
@@ -707,12 +761,15 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         var stall = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
+            // Every term: a stall's history spans its lessees, and each row must be named after whoever was
+            // answerable on that row's own date — not after whoever holds the stall today.
+            .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == stallId, ct);
         if (stall is null)
             return new CursorPagedResult<StallCollectionHistoryRowDto>();
 
-        var payorName = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant ?? "—";
+        var occupants = OccupantDirectory.From(new[] { stall }, PhilippineTime.Today);
+        var payorName = stall.ResolveOccupancy(null, PhilippineTime.Today)?.Contract.ActualOccupant ?? "—";
 
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
@@ -739,7 +796,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             {
                 Items = paged.Items.Select(d => new StallCollectionHistoryRowDto(
                     d.CollectionDate.ToDateTime(TimeOnly.MinValue),
-                    payorName,
+                    // The lessee answerable for that business day — a day inside a former occupancy belongs to them.
+                    occupants.OnDate(stallId, d.CollectionDate) ?? payorName,
                     d.IsPaid ? "Paid" : "Absent",
                     d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) : 0m,
                     d.ORNumber,
@@ -770,7 +828,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
         {
             Items = mPaged.Items.Select(p => new StallCollectionHistoryRowDto(
                 new DateTime(p.BillingYear, p.BillingMonth, 1),
-                payorName,
+                // Attributed by the billing month, so an arrear settled after a handover stays with the lessee who
+                // incurred it instead of appearing under the new occupant's name.
+                occupants.InMonth(stallId, p.BillingYear, p.BillingMonth) ?? payorName,
                 p.Status.ToString(),
                 p.AmountPaid,
                 p.ORNumber,

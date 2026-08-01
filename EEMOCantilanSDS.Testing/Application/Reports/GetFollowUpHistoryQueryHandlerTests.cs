@@ -64,6 +64,13 @@ public class GetFollowUpHistoryQueryHandlerTests
                 new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
+        // The cumulative "Whole time" view reads contract attention as of today rather than as of a period.
+        stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ContractAttentionDto>
+            {
+                new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
+            });
+
         stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
@@ -125,6 +132,23 @@ public class GetFollowUpHistoryQueryHandlerTests
     }
 
     [Fact]
+    public async Task TheWholeTimeView_StatesTheLifetimeBalance_WhereAPeriodViewStatesThePeriods()
+    {
+        // The two views answer different questions and must not borrow each other's figures: "what is owed in total"
+        // is the whole-time reading, and a year or month states only its own.
+        var (handler, _, _, _, _) = Build();
+
+        var allTime = await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
+
+        Assert.True(allTime.IsSuccess);
+        Assert.Equal("Whole time", allTime.Value!.PeriodLabel);
+
+        // The inactive-account balance is stated in full here — one row for the account, its own lifetime figure.
+        var row = Assert.Single(allTime.Value.Items, i => i.Amount == 5_000m);
+        Assert.Equal("Stall 02", row.Identifier);
+    }
+
+    [Fact]
     public async Task Composes_PastPeriodSnapshot_UsingPeriodScopedSources()
     {
         var (handler, stalls, online, _, _) = Build();
@@ -152,8 +176,10 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.True(excused.Excused);
         var contract = Assert.Single(items, i => i.ReasonKind == "contract");
         Assert.Equal("/profile/ice/02", contract.Link);
-        // Expired row surfaces its full outstanding balance (from the Closed Accounts register).
-        Assert.Equal(5_000m, contract.Amount);
+        // A view scoped to a period states that period's figure. This stall has no assessed balance for December,
+        // so the row carries none — the register's lifetime ₱5,000 belongs to "Whole time", the view that exists to
+        // answer what is owed in total, and showing it here read as a lifetime total under a single month's heading.
+        Assert.Null(contract.Amount);
         var missingOr = Assert.Single(items, i => i.ReasonKind == "missingor");
         Assert.Equal("Encode OR", missingOr.Action);
         Assert.Equal(3_240m, missingOr.Amount);

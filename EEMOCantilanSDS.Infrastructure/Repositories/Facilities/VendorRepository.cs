@@ -110,7 +110,12 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 activeContract?.EffectivityDate.ToDateTime(TimeOnly.MinValue),
                 activeContract?.DurationYears ?? 0,
                 s.AreaSqm,
-                s.AreaNote
+                s.AreaNote,
+                // The utilities this space is actually billed for, and the basis it is held on — both read from the
+                // record rather than assumed from the facility.
+                s.Fees.HasFlag(ApplicableFees.Electricity),
+                s.Fees.HasFlag(ApplicableFees.Water),
+                activeContract?.Arrangement ?? OccupancyArrangement.SignedContract
             );
         }).ToList();
 

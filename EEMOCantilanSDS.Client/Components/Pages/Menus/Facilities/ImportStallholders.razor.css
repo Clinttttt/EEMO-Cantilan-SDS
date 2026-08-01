@@ -362,3 +362,18 @@
 .imp-cell-dup {
     color: var(--red, #8b3a3a) !important;
 }
+
+/* How to record a space let without a contract. A note about the office's own paperwork, in the document's voice. */
+.imp-cols-note {
+    margin-top: 12px;
+    padding: 11px 13px;
+    border-left: 3px solid var(--navy, #0b2239);
+    background: var(--surface-2, #f4f6f9);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-strong, #0b2239);
+}
+
+.imp-cols-note strong {
+    font-weight: 700;
+}

@@ -252,14 +252,28 @@ public static class FollowUpComposer
         }
 
         // ── 5) Contract attention — expired / expiring-soon contracts with an active occupant ──
+
+        // What an expired row owes. A cumulative view is given the register's lifetime balances and states those; a
+        // view scoped to a period must state THAT period's figure instead, which the facility assessments already
+        // hold — a lifetime total shown under a single year's heading is the confusion the office reported.
+        var periodBalances = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (code, report) in facilityReports)
+        {
+            foreach (var s in report.StallCompliance.Where(s => s.Balance > 0m))
+                periodBalances[Key(code, s.StallNo)] = s.Balance;
+        }
+
         foreach (var c in contracts)
         {
-            // Expired rows show their full outstanding balance (from the Closed Accounts register) and,
-            // for monthly facilities, become payable via the shared payment modal.
-            var contractBalance = c.IsExpired && expiredBalances is not null
-                && expiredBalances.TryGetValue(Key(c.FacilityCode, c.StallNo), out var bal) && bal > 0m
-                    ? bal
-                    : (decimal?)null;
+            var key = Key(c.FacilityCode, c.StallNo);
+
+            var contractBalance = !c.IsExpired
+                ? null
+                : expiredBalances is not null && expiredBalances.TryGetValue(key, out var lifetime) && lifetime > 0m
+                    ? lifetime
+                    : periodBalances.TryGetValue(key, out var forPeriod) && forPeriod > 0m
+                        ? forPeriod
+                        : (decimal?)null;
             items.Add(new FollowUpItemDto(
                 c.IsExpired ? SecImmediate : SecThisPeriod,
                 c.IsExpired ? "High" : "Normal",

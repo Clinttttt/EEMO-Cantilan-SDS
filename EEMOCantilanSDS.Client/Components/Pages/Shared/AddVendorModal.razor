@@ -444,6 +444,18 @@
                                 <div class="avm-util-divider"></div>
                                 <div class="avm-sublabel">Utility Charges</div>
 
+                                @* A space with no meters has no utility charges to show. Stating that — rather than
+                                   presenting two empty boxes — keeps the form an account of what this payor is billed
+                                   for, while still allowing the office to add a charge when a meter is installed. *@
+                                @if (IsEditing && !_showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
+                                {
+                                    <div class="avm-util-none">
+                                        <span>No utility charges on this space.</span>
+                                        <button type="button" class="avm-util-add" @onclick="() => _showUtilityCharges = true">Add a utility charge</button>
+                                    </div>
+                                }
+                                else
+                                {
                                 <!-- Electricity -->
                                 <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
                                      @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
@@ -475,6 +487,7 @@
                                     <input type="checkbox" class="avm-fee-checkbox" tabindex="-1"
                                            checked="@Form.FeeTypes.Contains("Water")" readonly />
                                 </div>
+                                }
 
                                 <!-- Section fee — only when this LGU actually charges one for the section.
                                      An office that set no per-kilo fish fee at onboarding sees nothing here. -->
@@ -745,6 +758,12 @@
             return opts;
         }
     }
+    /// <summary>
+    /// Reveals the utility toggles on a space that currently has none, so a meter installed later can be recorded
+    /// without the form implying every space has one.
+    /// </summary>
+    private bool _showUtilityCharges;
+
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
         ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
@@ -758,8 +777,8 @@
         new List<(OccupancyArrangement, string, string)>
         {
             (OccupancyArrangement.SignedContract, "Signed lease contract", "With effectivity date, term and area"),
-            (OccupancyArrangement.SpaceOnly, "No contract — space only", "Rent charged, no contract on file"),
-            (OccupancyArrangement.Extension, "No contract — extension", "Occupying past a lapsed contract"),
+            (OccupancyArrangement.SpaceOnly, "No contract (space only)", "Rent charged, no contract on file"),
+            (OccupancyArrangement.Extension, "No contract (extension)", "Occupying past a lapsed contract"),
         };
 
     /// <summary>What the official list prints where a signed contract would be named.</summary>
