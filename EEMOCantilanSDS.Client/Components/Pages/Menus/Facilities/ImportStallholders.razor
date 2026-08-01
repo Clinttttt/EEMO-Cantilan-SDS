@@ -251,9 +251,13 @@
                        uploaded exactly as it is written, with no column to add and no term to invent. *@
                     <div class="imp-cols-note">
                         Where a space is let without a signed contract, write
-                        <strong>No contract (space only)</strong> — or <strong>No contract (Extension TCC)</strong> —
-                        in the <strong>Name on Contract</strong> column. Those rows are recorded as open-ended, need no
+                        <strong>No contract (space only)</strong> — or
+                        <strong>No contract (Extension @_facility.ShortCode)</strong> — in the
+                        <strong>Name on Contract</strong> column. Those rows are recorded as open-ended, need no
                         effectivity or term, and print that wording on the official list.
+                        A row that leaves both that column <em>and</em> the term empty is taken the same way, so a
+                        list written without them uploads as it stands; the rent may be stated in either
+                        <strong>Monthly Rental / Contract</strong> or <strong>Actual Mo. Rental</strong>.
                     </div>
                 </div>
             </div>
@@ -1075,7 +1079,16 @@
         {
             if (_facility is null) return "#";
             var header = string.Join(",", _facility.Columns.Select(c => c.Label));
-            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(header + "\n");
+
+            // A guidance line showing WHERE the office writes the basis for a space let without a signed contract,
+            // in its own wording. It names no occupant, so it is skipped on upload (a data row must name one) and
+            // can never be imported as a stallholder — it is there to be read and typed over.
+            var basis = _facility.Code is FacilityCode.BBQ or FacilityCode.ICE
+                ? "No contract (space only)"
+                : $"No contract (Extension {_facility.ShortCode})";
+            var guidance = string.Join(",", _facility.Columns.Select(c => c.Key == "contractName" ? basis : string.Empty));
+
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(header + "\n" + guidance + "\n");
         }
     }
 
@@ -1154,8 +1167,11 @@
                 Row(("occupant","Joseph O. Quiñones"),("contractName","Joseph O. Quiñones"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
                 Row(("occupant","Marlex Dumagay"),("contractName","Marlex Dumagay"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
                 Row(("occupant","Jonaida P. Sultan"),("contractName","Jonaida P. Sultan"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
-                Row(("occupant","Bernadette Miranda"),("actualMonthly","1500"),("wholeYear","18000")),
-                Row(("occupant","Jessie Estrada"),("actualMonthly","900"),("wholeYear","10800")),
+                // The office's own sheet carries spaces held without a signed contract among the contracted ones,
+                // and writes the basis where the leasee's name would go — an extension of a lapsed Tampak contract,
+                // or a space only. Such a row states no term, no area and no contract rental: only the rent charged.
+                Row(("occupant","Bernadette Miranda"),("contractName","No contract (Extension TCC)"),("actualMonthly","1500"),("wholeYear","18000")),
+                Row(("occupant","Jessie Estrada"),("contractName","No contract (space only)"),("actualMonthly","900"),("wholeYear","10800")),
             }
         };
 
@@ -1188,11 +1204,14 @@
             Columns = Core(),
             Sample = new()
             {
-                Row(("occupant","Joy Ruaza"),("actualMonthly","1600"),("wholeYear","19200")),
-                Row(("occupant","Mary May Benablo"),("actualMonthly","3200"),("wholeYear","38400")),
-                Row(("occupant","Loida Arreo"),("actualMonthly","1600"),("wholeYear","19200")),
-                Row(("occupant","Irene Plaza"),("actualMonthly","1600"),("wholeYear","19200")),
-                Row(("occupant","Claudine Mendaña"),("actualMonthly","1600"),("wholeYear","19200")),
+                // The Barbecue Stand list is entirely spaces let without a contract: the official sheet writes
+                // "No contract(space only)" where the leasee per signed contract would be named, and leaves the
+                // term, area and contract-rental columns empty. Only the rent actually charged appears.
+                Row(("occupant","Joy Ruaza"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Mary May Benablo"),("contractName","No contract (space only)"),("actualMonthly","3200"),("wholeYear","38400")),
+                Row(("occupant","Loida Arreo"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Irene Plaza"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Claudine Mendaña"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
             }
         };
 
@@ -1204,10 +1223,11 @@
             Columns = Core(),
             Sample = new()
             {
-                Row(("occupant","Recto Mendaña"),("actualMonthly","2000"),("wholeYear","24000")),
-                Row(("occupant","Rebecca S. Orpina"),("actualMonthly","1000"),("wholeYear","12000")),
-                Row(("occupant","Martin Dumaran"),("actualMonthly","1000"),("wholeYear","12000")),
-                Row(("occupant","Roel Mendaña"),("actualMonthly","2000"),("wholeYear","24000")),
+                // The Iceplant list is the same shape as the Barbecue Stand's: space only, no term, no contract rate.
+                Row(("occupant","Recto Mendaña"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
+                Row(("occupant","Rebecca S. Orpina"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Martin Dumaran"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Roel Mendaña"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
             }
         };
 

@@ -417,7 +417,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             var collectableDays = CountCollectableDays(stall, monthStart, monthEnd);
             var absentDays = absentDates.Count(d => d >= monthStart && d <= monthEnd);
             var billableDays = Math.Max(0, collectableDays - absentDays);
-            var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+            var bill = DomainRules.DailyBilledMonthCharge(
+                stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd)), billableDays);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
 
@@ -572,7 +573,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // reduce the bill; a month entirely excused is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var billableDays = Math.Max(0, CountCollectableDays(stall, monthStart, monthEnd) - npmExcused);
-                var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
+                var bill = DomainRules.DailyBilledMonthCharge(
+                    stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd)), billableDays);
                 if (bill <= 0m)
                     continue;
                 var paid = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).Sum(d => d.DailyFee);
@@ -686,7 +688,8 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 var excusedDays = excused.Count(d => d >= from && d <= to);
                 var billableDays = Math.Max(0, collectableDays - excusedDays);
                 if (billableDays == 0) continue;
-                var bill = billableDays * stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
+                var bill = DomainRules.DailyBilledMonthCharge(
+                    stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull)), billableDays);
                 var paid = dailies.Where(d => d.CollectionDate >= from && d.CollectionDate <= to).Sum(d => d.DailyFee);
                 var balance = Math.Max(0m, bill - paid);
                 if (balance <= 0m) continue;

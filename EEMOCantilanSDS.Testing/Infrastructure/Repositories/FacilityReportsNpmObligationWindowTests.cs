@@ -33,11 +33,14 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         // CURRENT behavior: for the in-progress current month, the report's NPM obligation counts EVERY
         // collectable day through MONTH-END (incl. days that haven't elapsed), because the compliance
         // window's endDate is the last day of the month and is not clamped to today.
-        // → ExpectedBill = (full days in month) × ₱30, even though only `today.Day` days have elapsed.
+        // → ExpectedBill = (full days in month) × ₱30, capped at the month's base rent (₱30 × 30 = ₱900),
+        // so a 31-day month owes the rent and not an extra day of it. A short month (February) owes only
+        // its own days: the rule caps and never tops up.
         // When the obligation window is later clamped to today, THIS is the number that should change
         // (to `today.Day × ₱30`, minus any excused).
         var today = PhilippineTime.Today;
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        var monthCharge = DomainRules.DailyBilledMonthCharge(FeeRates.NpmDailyFee, daysInMonth);
 
         var context = NewContext();
         var (facility, stall, contract) = NewNpmStall(new DateOnly(today.Year, today.Month, 1));
@@ -48,9 +51,10 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, today.Year, today.Month, null, CancellationToken.None);
 
         var c = Assert.Single(report.StallCompliance);
-        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee, c.ExpectedBill);   // full month, incl. future days
+        Assert.Equal(monthCharge, c.ExpectedBill);                          // full month, never beyond its rent
+        Assert.True(c.ExpectedBill <= FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays);
         Assert.Equal(0m, c.AmountPaid);
-        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee, c.Balance);
+        Assert.Equal(monthCharge, c.Balance);
     }
 
     [Fact]

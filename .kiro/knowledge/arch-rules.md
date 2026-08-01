@@ -82,6 +82,11 @@ tenant. Consequences you must respect:
 - A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
 - A daily-billed facility's "monthly" figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays`.
   Never the stored `Stall.MonthlyRate`.
+- **A daily-billed month never owes more than that monthly figure.** Compute a month's obligation through
+  `DomainRules.DailyBilledMonthCharge(dailyFee, billableDays)` — days at the day's rate, capped at the month's
+  base rent — per calendar month, never over a whole range at once. It caps and never tops up, so short months,
+  mid-month starts and excused days still owe only their days. Collecting a 31st day stays allowed: that is
+  revenue recorded against the day, not an arrear.
 - **A stall outlives its lessees.** Attribute money to the occupancy that answers for the period it was raised
   FOR (`Stall.Occupancies`), never to the stall's current contract. A month is answered for by exactly one
   occupancy — `StallOccupancy.AnsweringForMonth` is the rule — so nothing may charge or credit a handover

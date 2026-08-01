@@ -307,11 +307,14 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var repo = new FacilityReportsRepository(context);
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
 
-        Assert.Equal(41800m, report.PendingPaymentAmount);
-        Assert.Equal(10450m, report.StallCompliance.Single(s => s.StallNo == "1").Balance);
-        Assert.Equal(10350m, report.StallCompliance.Single(s => s.StallNo == "2").Balance);
-        Assert.Equal(10950m, report.StallCompliance.Single(s => s.StallNo == "3").Balance);
-        Assert.Equal(10050m, report.StallCompliance.Single(s => s.StallNo == "4").Balance);
+        // Every month is charged at most its base rent (₱30 × 30 = ₱900), so a 31-day month owes ₱900 rather than
+        // ₱930; February's 28 collectable days owe ₱840, because the rule caps and never tops up. Eleven capped
+        // months plus February = ₱10,740 a year for a stall that paid nothing.
+        Assert.Equal(40960m, report.PendingPaymentAmount);
+        Assert.Equal(10240m, report.StallCompliance.Single(s => s.StallNo == "1").Balance);
+        Assert.Equal(10140m, report.StallCompliance.Single(s => s.StallNo == "2").Balance);
+        Assert.Equal(10740m, report.StallCompliance.Single(s => s.StallNo == "3").Balance);
+        Assert.Equal(9840m, report.StallCompliance.Single(s => s.StallNo == "4").Balance);
     }
 
     [Fact]

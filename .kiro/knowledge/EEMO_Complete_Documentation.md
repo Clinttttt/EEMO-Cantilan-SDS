@@ -61,6 +61,22 @@ roster, the closed-accounts register), it is the monthly **equivalent**: resolve
 `DomainRules.DailyBilledMonthDays` (a flat 30). Cantilan: ₱30 × 30 = ₱900 → ₱10,800 a year. The stored
 `Stall.MonthlyRate` is a hand-entered figure and must NOT be used for a daily-billed facility's reports.
 
+**That monthly rent is also the ceiling on what a month can owe.** Collection is day by day, but the space is
+let for a monthly rent, so a month's obligation is its collectable days at the day's rate **capped at the
+month's base rent** (`DomainRules.DailyBilledMonthCharge`):
+
+- a 31-day month owes ₱900, not ₱930 — the office's paper says ₱900 and reconciles against ₱10,800 a year;
+- once the base rent is collected the month is **paid**, and its balance is nil, never negative;
+- a 31st day actually traded may still be collected — that is real revenue recorded against the day, income
+  beyond the rent, and never an arrear;
+- the rule **caps and never tops up**: February's 28 days owe ₱840, a mid-month start owes only the days held,
+  and excused/absent days and market closures still reduce the month. A full year of daily obligation is
+  therefore ₱10,740, while the roster and register continue to STATE the ₱900 / ₱10,800 paper equivalent.
+
+The cap applies wherever an obligation, balance or status is computed (facility reports and their delinquency
+table, the payor ledger and balances, the payment-history modal, the inactive-account register). It is applied
+per calendar month, so a yearly view caps each month on its own. Marking and settling days is untouched.
+
 ---
 
 ## 3. Core business rules

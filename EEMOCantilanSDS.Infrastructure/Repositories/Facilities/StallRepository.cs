@@ -816,13 +816,34 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             decimal uncollected = 0m;
             if (isNpm)
             {
-                // ₱30 for each day of THIS occupancy that was neither excused nor collected, at the rate that was in
-                // force on that day — a rate rise must not restate what a lessee owed years ago.
-                var paidDates = stallPaid.Select(d => d.CollectionDate).ToHashSet();
-                for (var d = startDate; d <= billableEnd; d = d.AddDays(1))
+                // Per calendar month: what that month owed — its collectable days at the month's rate, never more
+                // than the month's base rent (₱30 × 30) — less what was actually collected for it. A 31-day month
+                // therefore raises an arrear of ₱900, not ₱930: the extra day may be collected, and is revenue, but
+                // it is not a debt. Absent days and facility closures owe nothing, so they never count.
+                var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
+                var lastMonth = new DateOnly(billableEnd.Year, billableEnd.Month, 1);
+                while (cursor <= lastMonth)
                 {
-                    if (stallAbsent.Contains(d) || paidDates.Contains(d) || closureDates.Contains(d)) continue;
-                    uncollected += stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, d));
+                    var mStart = cursor > startDate ? cursor : startDate;
+                    var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+                    if (mEnd > billableEnd) mEnd = billableEnd;
+
+                    var billableDays = 0;
+                    for (var d = mStart; d <= mEnd; d = d.AddDays(1))
+                    {
+                        if (stallAbsent.Contains(d) || closureDates.Contains(d)) continue;
+                        billableDays++;
+                    }
+
+                    // The rate in force at the month's end — the base rent it is measured against is that month's.
+                    var monthFee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd));
+                    var owed = DomainRules.DailyBilledMonthCharge(monthFee, billableDays);
+                    var collected = stallPaid
+                        .Where(p => p.CollectionDate >= mStart && p.CollectionDate <= mEnd)
+                        .Sum(p => p.DailyFee);
+
+                    uncollected += Math.Max(0m, owed - collected);
+                    cursor = cursor.AddMonths(1);
                 }
             }
             else

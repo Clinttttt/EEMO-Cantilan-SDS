@@ -96,7 +96,30 @@ public partial class FacilityReportsRepository
     }
 
     private decimal CalculateNpmDailyObligation(Stall stall, DateOnly startDate, DateOnly endDate, IReadOnlySet<DateOnly>? absentDates = null)
-        => CountNpmCollectableDays(stall, startDate, endDate, absentDates) * stall.ResolveDailyFee(_npmDailyRate);
+    {
+        if (endDate < startDate)
+            return 0m;
+
+        // Month by month, because the cap is a MONTH's rent: a 31-day month owes the base rent, not thirty-one
+        // days of it, and a period spanning several months caps each of them on its own. Summing the whole range
+        // first and capping once would have let a long month's extra day hide inside a year's total.
+        var fee = stall.ResolveDailyFee(_npmDailyRate);
+        var total = 0m;
+
+        var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
+        var last = new DateOnly(endDate.Year, endDate.Month, 1);
+        while (cursor <= last)
+        {
+            var monthStart = cursor > startDate ? cursor : startDate;
+            var monthEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
+            if (monthEnd > endDate) monthEnd = endDate;
+
+            total += DomainRules.DailyBilledMonthCharge(fee, CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates));
+            cursor = cursor.AddMonths(1);
+        }
+
+        return total;
+    }
 
     private async Task<List<Stall>> LoadNpmCollectableStallsAsync(Guid facilityId, CancellationToken ct)
     {

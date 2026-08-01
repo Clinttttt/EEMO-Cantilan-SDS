@@ -486,7 +486,10 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 var collectableDays = CountNpmCollectableDays(s, fromDate, collectionEnd);
                 var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, fromDate, collectionEnd, s));
                 var rentalPaid = monthlyRentalPaid + paidCollections.Count * dailyRate;
-                var assessed = collectableDays * dailyRate;
+                // Never more than the month's base rent, the same rule the web reports and the ledger apply — a
+                // 31-day month assesses ₱900, not ₱930. Without this the collector's own report and the office's
+                // screen disagreed by a day's fee in every long month, which is what this figure exists to match.
+                var assessed = DomainRules.DailyBilledMonthCharge(dailyRate, collectableDays);
                 var balance = Math.Max(0m, assessed - rentalPaid);
                 var status = balance <= 0m && collectableDays > 0
                     ? PaymentStatus.Paid

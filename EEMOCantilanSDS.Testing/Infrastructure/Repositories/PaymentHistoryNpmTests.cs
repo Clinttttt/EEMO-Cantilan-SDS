@@ -157,9 +157,10 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
         var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        var monthCharge = DomainRules.DailyBilledMonthCharge(FeeRates.NpmDailyFee, daysInMonth);
         Assert.Equal(2 * FeeRates.NpmDailyFee, row.AmountPaid);                  // ₱60 daily-truth, NOT ₱500
-        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee, row.TotalBill);         // full-month ₱30/day obligation
-        Assert.Equal(daysInMonth * FeeRates.NpmDailyFee - 60m, row.BalanceDue);  // NOT 900 − 500 = 400
+        Assert.Equal(monthCharge, row.TotalBill);                                // the month's days, never beyond its rent
+        Assert.Equal(monthCharge - 60m, row.BalanceDue);                         // NOT 900 − 500 = 400
         Assert.Equal(PaymentStatus.Partial, row.Status);
         Assert.NotEqual("MONTHLY-OR-500", row.ORNumber);                         // OR comes from the daily collection
     }

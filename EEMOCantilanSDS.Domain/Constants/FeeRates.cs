@@ -65,6 +65,27 @@ namespace EEMOCantilanSDS.Domain.Constants
         // paper convention the offices reconcile against, not a proration.
         public const int DailyBilledMonthDays = 30;
 
+        /// <summary>
+        /// What a daily-collected space OWES for one calendar month: its collectable days at the day's fee, but
+        /// never more than the month's base rent (<paramref name="dailyFee"/> × <see cref="DailyBilledMonthDays"/>).
+        ///
+        /// <para>The office's own paper states ₱900 a month and ₱10,800 a year for a ₱30 stall, so a 31-day month
+        /// must not raise a debt of ₱930 against a payor whose rent is ₱900: once the base rent is in, the month is
+        /// paid. Collection stays day by day — a 31st day actually traded may still be collected and is real
+        /// revenue — but it is income beyond the rent, never an arrear. A month the space held for fewer days than
+        /// the base (a mid-month start, excused days) owes only those days, which is why this caps and never
+        /// tops up.</para>
+        /// </summary>
+        public static decimal DailyBilledMonthCharge(decimal dailyFee, int billableDays)
+        {
+            if (dailyFee <= 0m || billableDays <= 0)
+                return 0m;
+
+            var byDays = dailyFee * billableDays;
+            var monthlyBase = dailyFee * DailyBilledMonthDays;
+            return byDays < monthlyBase ? byDays : monthlyBase;
+        }
+
         // An occupancy held without a signed contract (a barbecue stand, an ice-plant space, a commercial-centre
         // space on extension) has no term: it runs until the office ends it. Its record carries this length so that
         // nothing treats it as due for renewal or as expired, while the sheets — which ask whether a signed contract

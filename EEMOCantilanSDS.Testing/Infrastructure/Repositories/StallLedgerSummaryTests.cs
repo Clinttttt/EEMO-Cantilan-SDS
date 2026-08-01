@@ -215,6 +215,9 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
 
-        Assert.Equal(daysInMonth * 35m, summary.TotalOutstanding);   // current ₱35 (month-end), not ₱45 (month-start)
+        // The month is charged at the current ₱35 rate and never beyond that rate's monthly base rent
+        // (₱35 × 30 = ₱1,050), so a 31-day month owes the rent rather than an extra day of it.
+        Assert.Equal(DomainRules.DailyBilledMonthCharge(35m, daysInMonth), summary.TotalOutstanding);
+        Assert.True(summary.TotalOutstanding <= 35m * DomainRules.DailyBilledMonthDays);
     }
 }
