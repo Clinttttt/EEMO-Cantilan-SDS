@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -74,7 +75,32 @@ public class SettleNpmMonthCommandHandler(
 
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
+        // What this month owes and what is already in, so one act of "settle the month" collects the month's rent
+        // and no more: a 31-day month settles ₱900, not ₱930. Absent days and closures owe nothing, so they never
+        // count. A further day the payor actually traded is still collectable from the daily calendar — that is the
+        // day-to-day path, and its fee is revenue beyond the rent rather than an arrear.
+        var chargeableDays = 0;
+        var alreadyCollected = 0m;
+        for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
+        {
+            if (day > today) break;
+            if (day < occupancy.Start || day > occupancy.BillableEnd) continue;
+            if (closedDates.Contains(day)) continue;
+
+            existing.TryGetValue(day, out var known);
+            if (known is not null && known.IsAbsent) continue;
+
+            chargeableDays++;
+            if (known is not null && known.IsPaid) alreadyCollected += known.DailyFee;
+        }
+
+        var monthCeilingDay = today < monthEnd ? today : monthEnd;
+        var monthCeiling = DomainRules.DailyBilledMonthCharge(
+            stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay)), chargeableDays);
+        var collectable = monthCeiling - alreadyCollected;
+
         var settled = new List<DailyCollection>();
+        var accumulated = 0m;
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
@@ -88,6 +114,10 @@ public class SettleNpmMonthCommandHandler(
                 continue;                                               // already collected or excused
 
             var fee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day));
+            if (accumulated + fee > collectable)
+                break;                                                  // the month's rent is settled
+            accumulated += fee;
+
             if (dc is null)
             {
                 dc = DailyCollection.Create(request.StallId, day, recordedBy, fee);

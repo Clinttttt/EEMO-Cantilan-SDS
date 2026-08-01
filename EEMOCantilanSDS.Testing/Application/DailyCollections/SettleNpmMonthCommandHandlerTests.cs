@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -63,7 +64,11 @@ public class SettleNpmMonthCommandHandlerTests
             new SettleNpmMonthCommand(stall.Id, target.Year, target.Month, "OR-777"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(daysInMonth, captured.Count);                 // every collectable day recorded
+        // Thirty days: the month's rent. A 31-day month is not billed an extra day here — that day stays open for
+        // the daily calendar, where the office collects it as revenue beyond the rent.
+        var expectedDays = Math.Min(daysInMonth, DomainRules.DailyBilledMonthDays);
+        Assert.Equal(expectedDays, captured.Count);
+        Assert.Equal(FeeRates.NpmDailyFee * expectedDays, captured.Sum(dc => dc.DailyFee));
         Assert.All(captured, dc => Assert.True(dc.IsPaid));
         Assert.All(captured, dc => Assert.Equal("OR-777", dc.ORNumber));   // one receipt covers every day
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);

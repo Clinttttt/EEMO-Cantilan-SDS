@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -22,22 +23,43 @@ public sealed class NpmMonthSettlementService(
 {
     public async Task<NpmMonthPayable> ComputePayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
-        var days = await ResolvePayableDaysAsync(stall, year, month, ct);
-        return new NpmMonthPayable(days.Count, days.Sum(d => d.Fee));
+        var (days, remaining) = await ResolveMonthAsync(stall, year, month, ct);
+
+        // Never ask for more than the month still owes. The space is let for a monthly rent, so a 31-day month is
+        // quoted its rent (₱900) and not an extra day of it (₱930): the figure charged is the balance the payor was
+        // shown. The day COUNT is trimmed to what that amount covers, so the quote and the days settlement will mark
+        // can never disagree — the office collects any remaining day at the stall, day by day, as it always has.
+        var quotedDays = 0;
+        var amount = 0m;
+        foreach (var (_, fee) in days)
+        {
+            if (amount + fee > remaining) break;
+            amount += fee;
+            quotedDays++;
+        }
+
+        return new NpmMonthPayable(quotedDays, amount);
     }
 
     public async Task<IReadOnlyList<DateOnly>> GetPayableDaysAsync(Stall stall, int year, int month, CancellationToken ct)
     {
-        var days = await ResolvePayableDaysAsync(stall, year, month, ct);
+        // Every uncollected day, uncapped: the fish section settles day by day (each day's total depends on that
+        // day's kilos), which is the day-to-day path and not a single charge for the month.
+        var (days, _) = await ResolveMonthAsync(stall, year, month, ct);
         return days.Select(d => d.Day).ToList();
     }
 
     public async Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
         Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null)
     {
-        var payable = await ResolvePayableDaysAsync(stall, year, month, ct);
+        var (payable, remaining) = await ResolveMonthAsync(stall, year, month, ct);
         if (payable.Count == 0)
             return Array.Empty<DailyCollection>();
+
+        // Settling "the month" settles what the month owes: at most its rent, and never more than the money
+        // actually captured. The office can still mark a further day in the daily calendar — that is the
+        // day-to-day path, and the day's fee is revenue beyond the rent rather than an arrear.
+        var cap = maxAmount is { } captured && captured < remaining ? captured : remaining;
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(stall.Id, year, month, ct))
             .ToDictionary(dc => dc.CollectionDate);
@@ -46,9 +68,8 @@ public sealed class NpmMonthSettlementService(
         var accumulated = 0m;
         foreach (var (day, fee) in payable)
         {
-            // Never settle more than the captured amount: stop once the next day's fee would exceed it.
-            // (No cap for the staff path, which passes maxAmount = null.)
-            if (maxAmount is { } cap && accumulated + fee > cap)
+            // Stop once the next day's fee would exceed what this settlement may collect.
+            if (accumulated + fee > cap)
                 break;
             accumulated += fee;
 
@@ -119,8 +140,9 @@ public sealed class NpmMonthSettlementService(
         return dc;
     }
 
-    // The day-set + per-day fee. Kept private so both entry points compute it identically.
-    private async Task<List<(DateOnly Day, decimal Fee)>> ResolvePayableDaysAsync(
+    // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
+    // them differently: one walk of the month answers both.
+    private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining)> ResolveMonthAsync(
         Stall stall, int year, int month, CancellationToken ct)
     {
         var monthStart = new DateOnly(year, month, 1);
@@ -136,6 +158,9 @@ public sealed class NpmMonthSettlementService(
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
 
         var days = new List<(DateOnly, decimal)>();
+        var chargeableDays = 0;
+        var collected = 0m;
+
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
@@ -143,12 +168,27 @@ public sealed class NpmMonthSettlementService(
                 continue;                                               // not under an effective contract
             if (closedDates.Contains(day))
                 continue;                                               // facility-wide closure — nothing owed
+
             existing.TryGetValue(day, out var dc);
-            if (dc is not null && (dc.IsPaid || dc.IsAbsent))
-                continue;                                               // already collected or excused
+            if (dc is not null && dc.IsAbsent)
+                continue;                                               // excused — the payor owes nothing for it
+
+            chargeableDays++;                                           // a day this month is charged for
+            if (dc is not null && dc.IsPaid)
+            {
+                collected += dc.DailyFee;                               // already in — reduces what is left to ask
+                continue;
+            }
+
             days.Add((day, stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day))));
         }
-        return days;
+
+        // What the month owes: its chargeable days at the rate in force at the end of the counted span, never more
+        // than that rate's monthly rent — the one rule the reports, the ledger and the register read.
+        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, today < monthEnd ? today : monthEnd));
+        var remaining = DomainRules.DailyBilledMonthCharge(monthFee, chargeableDays) - collected;
+
+        return (days, remaining < 0m ? 0m : remaining);
     }
 }
 

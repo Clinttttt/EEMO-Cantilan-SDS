@@ -69,7 +69,10 @@ public class GetSettleableNpmDaysQueryHandler(
             if (dc is not null && (dc.IsPaid || dc.IsAbsent))
                 continue;                                                        // already collected or excused
 
-            result.Add(new SettleableNpmDayDto(day, snapshot.Resolve(FeeRateKey.NpmDailyStall, day)));
+            // The fee this stall is actually billed at: a custom section charges its own rate, every canonical
+            // stall the tenant's resolved one. Quoting the raw ordinance rate here offered a custom-section payor
+            // a day at the wrong price — Stall.ResolveDailyFee is the one rule billing and settlement use.
+            result.Add(new SettleableNpmDayDto(day, stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, day))));
         }
 
         return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(result);

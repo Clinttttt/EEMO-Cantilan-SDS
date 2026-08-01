@@ -74,8 +74,16 @@ month's base rent** (`DomainRules.DailyBilledMonthCharge`):
   therefore ₱10,740, while the roster and register continue to STATE the ₱900 / ₱10,800 paper equivalent.
 
 The cap applies wherever an obligation, balance or status is computed (facility reports and their delinquency
-table, the payor ledger and balances, the payment-history modal, the inactive-account register). It is applied
-per calendar month, so a yearly view caps each month on its own. Marking and settling days is untouched.
+table, the payor ledger and balances, the payment-history modal, the inactive-account register, and the
+collector app's own report). It is applied per calendar month, so a yearly view caps each month on its own.
+
+**Settling "the month" collects the month's rent, and no more.** One act that pays a whole month — the office's
+Whole-month option and the payor's online month checkout — is quoted and settled up to the rent, so a 31-day
+month is charged ₱900 and thirty days are marked; the thirty-first stays open. Collecting day by day is
+untouched: the collector marking that day at the stall, the office picking Specific days, and the fish
+section's per-day self-declare all charge the day's own fee, which is revenue beyond the rent. Every daily rate
+in any of these paths is resolved through `Stall.ResolveDailyFee`, so a custom section charges its own rate and
+a canonical stall the tenant's, never a stale figure stored on the row.
 
 ---
 

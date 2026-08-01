@@ -134,7 +134,10 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 .FirstOrDefault();
             var collectableToday = contract is not null && contract.IsCollectableOn(collectionDate);
 
-            var dailyRate = s.DailyRate ?? npmDailyRate;
+            // Through Stall.ResolveDailyFee, the same rule billing, settlement and the reports use: a custom
+            // section charges its own rate; a canonical stall charges the tenant's resolved rate even if a legacy
+            // figure is still stored on it.
+            var dailyRate = s.ResolveDailyFee(npmDailyRate);
             var todayCollection = s.DailyCollections.FirstOrDefault(d => d.CollectionDate == collectionDate);
             var paidCollections = s.DailyCollections
                 .Where(d => d.IsPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd)

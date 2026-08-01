@@ -468,7 +468,10 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     .OrderByDescending(c => c.EffectivityDate)
                     .FirstOrDefault();
 
-                var dailyRate = s.DailyRate ?? npmDaily;
+                // The fee this stall is billed at, through the one rule billing and settlement use: a custom section
+                // charges its own rate, a canonical stall the tenant's resolved one. Reading the stored per-stall
+                // value here let a legacy figure on a canonical stall quietly outrank the tenant's own rate.
+                var dailyRate = s.ResolveDailyFee(npmDaily);
                 var stallPayments = periodNpmPaymentRecords
                     .Where(p => p.StallId == s.Id)
                     .ToList();
