@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -155,9 +156,18 @@ public class SettleNpmMonthCommandHandler(
         }
 
         // A closed month short of its rent settles the difference with its last installment, so its obligation is
-        // met in full and nothing is left behind to read as arrears.
-        if (adjustment > 0m && settled.Count > 0)
-            settled[^1].AddMonthEndAdjustment(adjustment, recordedBy);
+        // met in full and nothing is left behind to read as arrears. When every day was already collected at the
+        // stall there is no new installment to carry it, so it lands on the last one taken — otherwise a payor who
+        // paid every day of a short month would owe that difference for ever.
+        if (adjustment > 0m)
+        {
+            var carrier = settled.Count > 0 ? settled[^1] : LastCollectedOf(existing, monthStart, monthEnd, occupancy);
+            if (carrier is not null)
+            {
+                carrier.AddMonthEndAdjustment(adjustment, recordedBy);
+                if (settled.Count == 0) settled.Add(carrier);
+            }
+        }
 
         // Stamp the receipt (OR) on EVERY settled day — one physical receipt covers the whole month
         // (allowed for a single stall since the daily-collection OR check is stall-aware, mirroring the
@@ -178,5 +188,25 @@ public class SettleNpmMonthCommandHandler(
         }
 
         return Result<bool>.Success(true);
+    }
+
+    /// <summary>
+    /// The last installment actually collected for this occupancy in the month — where a month-end adjustment lands
+    /// when no uncollected day is left to carry it.
+    /// </summary>
+    private static DailyCollection? LastCollectedOf(
+        IReadOnlyDictionary<DateOnly, DailyCollection> existing,
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        StallOccupancy occupancy)
+    {
+        DailyCollection? last = null;
+        for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
+        {
+            if (day < occupancy.Start || day > occupancy.BillableEnd) continue;
+            if (existing.TryGetValue(day, out var dc) && dc.IsPaid) last = dc;
+        }
+
+        return last;
     }
 }

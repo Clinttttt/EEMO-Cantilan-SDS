@@ -10,7 +10,10 @@ namespace EEMOCantilanSDS.Domain.Constants
     {
         // NPM — FIXED
         public const decimal NpmDailyFee = 30.00m;   // per day, all sections
-        public const decimal NpmMonthlyFee = 900.00m;  // 30 days reference
+        // The reference month for a ₱30 stall: thirty installments, which is what the office's paper states. Kept as
+        // the documented figure behind DomainRules.DailyBilledMonthDays; nothing bills from it, because a month is
+        // resolved per LGU through Stall.ResolveMonthlyRent.
+        public const decimal NpmMonthlyFee = 900.00m;
         public const decimal NpmFishFeePerKilo = 1.00m;    // Fish Area only
 
         // TCC — RANGE (actual rate from Stall.MonthlyRate)

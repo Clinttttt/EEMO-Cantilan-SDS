@@ -95,6 +95,22 @@
             </div>
         </div>
         <div class="fh-hero-stats">
+            @if (closedScope)
+            {
+                @* A closed account needs nothing "immediately" — it ended. So the register's own two figures stand
+                   here instead of the urgency bands, which describe a period this view does not have. *@
+                <div class="fh-stat">
+                    <div class="fh-stat-val">@summary.Count</div>
+                    <div class="fh-stat-key">Inactive accounts</div>
+                </div>
+                <div class="fh-hero-divider"></div>
+                <div class="fh-stat">
+                    <div class="fh-stat-val">@summary.Count(r => r.Amount > 0m)</div>
+                    <div class="fh-stat-key">With a balance</div>
+                </div>
+            }
+            else
+            {
             <div class="fh-stat">
                 <div class="fh-stat-val fh-stat-critical">@summary.Count(r => r.Section == 1)</div>
                 <div class="fh-stat-key">Immediate</div>
@@ -114,6 +130,7 @@
                 <div class="fh-stat-val">@summary.Count(r => r.Section == 4)</div>
                 <div class="fh-stat-key">Operational</div>
             </div>
+            }
         </div>
     </div>
 
@@ -302,9 +319,13 @@
             @foreach (var grp in visibleSections)
             {
                 @* The Closed chip stands outside the period, so its band says so rather than borrowing the
-                   urgency band's wording. *@
+                   urgency band's wording — and it is only toned as urgent where money is actually left. *@
                 var head = closedScope
-                    ? new SecDef(grp.Section.Id, "Closed & expired accounts", "Whole time · every inactive account and what it left uncollected", "critical")
+                    ? new SecDef(
+                        grp.Section.Id,
+                        "Closed & expired accounts",
+                        "Whole time · every inactive account and what it left uncollected",
+                        grp.Items.Any(r => r.Amount > 0m) ? "high" : "normal")
                     : grp.Section;
                 <section class="fh-section">
                     <div class="fh-sec-head fh-sec-@head.Tone">

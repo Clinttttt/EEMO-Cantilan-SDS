@@ -129,7 +129,9 @@ public class InitiateOnlinePaymentCommandHandler(
         Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
         var payable = await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);
-        if (payable.Days <= 0 || payable.Amount <= 0m)
+        // An amount with no days is legitimate: a closed short month whose every day was collected still owes its
+        // month-end adjustment, and refusing it would leave the payor no way to settle the month online.
+        if (payable.Amount <= 0m)
             return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", 409);
 
         // Resume an unfinished checkout for the same stall+month rather than opening a duplicate.

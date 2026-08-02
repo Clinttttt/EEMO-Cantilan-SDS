@@ -17,8 +17,12 @@ Short versions of the same material live in `.kiro/steering/` (`product.md`, `te
 
 - **Cantilan is the accuracy baseline.** A change made for another municipality must never move a Cantilan figure.
 - **Rates are data.** Resolve through `IFeeRateResolver` as of a date; `FeeRates` constants are a fallback only.
-  A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedRate)`, and a daily-billed facility's monthly
-  figure is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays` — never the stored `MonthlyRate`.
+  A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedRate)`, never the stored `MonthlyRate`.
+- **A market month is a monthly rent, not a sum of days.** A daily-billed space owes
+  `Stall.ResolveMonthlyRent(dailyRate, FeeRateKey.NpmMonthlyStall)` for a month held in full — the LGU's own stated
+  month, or thirty installments when it states none — through the ledger in `DomainRules`
+  (`DailyBilledMonthObligation` / `MonthCredit` / `MonthOutstanding`), per calendar month, so that
+  Expected − Collected − Credits = Outstanding. The ₱30 fee is the installment it is collected in.
 - **Uniqueness is per tenant.** A username, email, stall number or OR number is unique within a municipality,
   not globally, so a cross-tenant lookup must handle multiple matches.
 - **Scoped CSS must stay brace-balanced.** One unbalanced brace in a `.razor.css` corrupts the whole bundle and

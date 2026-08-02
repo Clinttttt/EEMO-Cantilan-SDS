@@ -496,7 +496,9 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 // including days paid in advance.
                 var collectableDays = CountNpmCollectableDays(s, monthStart, collectionEnd);
                 var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, monthStart, collectionEnd, s));
-                var rentalPaid = monthlyRentalPaid + paidCollections.Count * dailyRate;
+                // What was actually received, read from the rows themselves — never recomputed as a count × today's
+                // rate, which would lose a month-end adjustment and restate days stamped at a superseded rate.
+                var rentalPaid = monthlyRentalPaid + paidCollections.Sum(d => d.DailyFee);
                 // The month's contractual rent from the same ledger the office's screen reads — ₱900 for a month
                 // held in full, whatever the calendar gave it — so the collector's report and the office's report
                 // state one figure. The ₱30 fee is the installment this is collected in, not the measure of it.

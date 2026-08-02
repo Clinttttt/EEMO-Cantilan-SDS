@@ -278,6 +278,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// <summary>
         /// The single occupancy answerable for a monthly billing period — see
         /// <see cref="StallOccupancy.AnsweringForMonth"/>, which is the rule. Null when no occupancy covered it.
+        /// Kept as the entity's own door to that rule for callers holding a Stall rather than its windows.
         /// </summary>
         public StallOccupancy? OccupancyAnsweringForMonth(int year, int month, DateOnly asOf)
             => StallOccupancy.AnsweringForMonth(Occupancies(asOf), year, month);

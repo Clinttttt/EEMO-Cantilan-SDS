@@ -583,7 +583,10 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                     stall.ResolveMonthlyRent(
                         rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
                         rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
-                    monthEnd.Day,
+                    // The CALENDAR length of the month, never the clamped end: monthEnd was narrowed to this
+                    // occupancy's own last day above, and passing that would make a seven-day part month look like
+                    // a month held in full — charging its whole rent for seven days.
+                    DateTime.DaysInMonth(year, month),
                     daysHeld);
                 var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, npmExcused);
                 if (bill <= 0m)

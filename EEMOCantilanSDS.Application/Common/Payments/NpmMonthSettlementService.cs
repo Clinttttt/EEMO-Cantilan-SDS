@@ -23,7 +23,7 @@ public sealed class NpmMonthSettlementService(
 {
     public async Task<NpmMonthPayable> ComputePayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
-        var (days, remaining, adjustment) = await ResolveMonthAsync(stall, year, month, ct);
+        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct);
 
         // Never ask for more than the month still owes, and never less: the month is let for a rent, so a 31-day
         // month is quoted ₱900 rather than an extra installment, and a closed February is quoted its full ₱900 —
@@ -46,16 +46,28 @@ public sealed class NpmMonthSettlementService(
     {
         // Every uncollected day, uncapped: the fish section settles day by day (each day's total depends on that
         // day's kilos), which is the day-to-day path and not a single charge for the month.
-        var (days, _, _) = await ResolveMonthAsync(stall, year, month, ct);
+        var (days, _, _, _) = await ResolveMonthAsync(stall, year, month, ct);
         return days.Select(d => d.Day).ToList();
     }
 
     public async Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
         Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null)
     {
-        var (payable, remaining, adjustment) = await ResolveMonthAsync(stall, year, month, ct);
+        var (payable, remaining, adjustment, lastCollected) = await ResolveMonthAsync(stall, year, month, ct);
+
         if (payable.Count == 0)
+        {
+            // Every day of a closed short month already collected, and the month still short of its rent: the
+            // difference rides on the last installment taken. Without this, a payor who paid every day of February
+            // at the stall would read as owing that difference for ever — no day remains to collect it on.
+            if (adjustment > 0m && lastCollected is not null && (maxAmount is null || maxAmount >= adjustment))
+            {
+                lastCollected.AddMonthEndAdjustment(adjustment, recordedBy);
+                return new[] { lastCollected };
+            }
+
             return Array.Empty<DailyCollection>();
+        }
 
         // Settling "the month" settles what the month owes: its rent, and never more than the money actually
         // captured. The office can still mark a further day in the daily calendar — that is the day-to-day path,
@@ -152,14 +164,17 @@ public sealed class NpmMonthSettlementService(
 
     // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
     // them differently: one walk of the month answers both.
-    private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment)> ResolveMonthAsync(
+    private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment, DailyCollection? LastCollected)> ResolveMonthAsync(
         Stall stall, int year, int month, CancellationToken ct)
     {
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, daysInMonth);
         var today = PhilippineTime.Today;
-        var contract = stall.Contracts.FirstOrDefault(c => c.IsActive);
+
+        // The occupancy that answers for this month — the same rule the staff path and every read use — so a month
+        // on a stall since re-let is settled for the lessee who held it then, not for whoever holds it now.
+        var occupancy = StallOccupancy.AnsweringForMonth(stall.Occupancies(today), year, month);
 
         var existing = (await dailyCollectionRepository.GetByStallAndMonthAsync(stall.Id, year, month, ct))
             .ToDictionary(dc => dc.CollectionDate);
@@ -172,12 +187,13 @@ public sealed class NpmMonthSettlementService(
         var daysHeld = 0;
         var daysForgiven = 0;
         var collected = 0m;
+        DailyCollection? lastCollected = null;
 
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
             if (day > today) break;                                     // never settle future days
-            if (contract is null || !(contract.EffectivityDate <= day && day <= contract.ExpiryDate))
-                continue;                                               // not under an effective contract
+            if (occupancy is null || day < occupancy.Start || day > occupancy.BillableEnd)
+                continue;                                               // not this lessee's day to answer for
 
             daysHeld++;
 
@@ -197,6 +213,7 @@ public sealed class NpmMonthSettlementService(
             if (dc is not null && dc.IsPaid)
             {
                 collected += dc.DailyFee;                               // already in — reduces what is left to ask
+                lastCollected = dc;                                     // where a month-end adjustment can land
                 continue;
             }
 
@@ -205,23 +222,23 @@ public sealed class NpmMonthSettlementService(
 
         // The month's own obligation: its contractual rent when held in full, whatever the calendar gave it, less
         // the days nothing is owed for. The installments below settle against it.
-        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, today < monthEnd ? today : monthEnd));
+        var rateDay = today < monthEnd ? today : monthEnd;
+        var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, rateDay));
         var monthRent = stall.ResolveMonthlyRent(
-            snapshot.Resolve(FeeRateKey.NpmDailyStall, today < monthEnd ? today : monthEnd),
-            snapshot.Resolve(FeeRateKey.NpmMonthlyStall, today < monthEnd ? today : monthEnd));
+            snapshot.Resolve(FeeRateKey.NpmDailyStall, rateDay),
+            snapshot.Resolve(FeeRateKey.NpmMonthlyStall, rateDay));
         var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, daysInMonth, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var remaining = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
 
         // A month whose installments cannot reach its rent — February's 28 days at ₱30 fall ₱60 short of ₱900 —
-        // carries the difference as a month-end balance adjustment, collected with the month's last installment.
-        // It becomes collectible only once the month has closed: before its due date it is not yet owed, so it is
-        // never quoted, never settled and never read as arrears.
+        // carries the difference as a month-end balance adjustment. It becomes collectible only once the month has
+        // closed: before its due date it is not yet owed, so it is never quoted, never settled and never arrears.
         var dueDatePassed = today > monthEnd;
         var installments = days.Sum(d => d.Fee);
         var adjustment = dueDatePassed && remaining > installments ? remaining - installments : 0m;
 
-        return (days, remaining, adjustment);
+        return (days, remaining, adjustment, lastCollected);
     }
 }
 

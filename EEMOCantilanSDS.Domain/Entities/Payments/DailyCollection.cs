@@ -87,6 +87,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            ClearMonthEndAdjustment();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }
@@ -102,8 +103,22 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = null;
             CollectorId = null;
             FishKilos = null;
+            ClearMonthEndAdjustment();
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
+        /// Takes back a month-end adjustment when this day stops being a collection. The adjustment is money the
+        /// month was short, carried on this installment; a day that is no longer paid carries nothing, and leaving
+        /// the inflated fee behind would count money the office never received.
+        /// </summary>
+        private void ClearMonthEndAdjustment()
+        {
+            if (MonthEndAdjustment is not { } carried) return;
+
+            DailyFee -= carried;
+            MonthEndAdjustment = null;
         }
 
         /// <summary>Stamps the offline-sync idempotency key (set once when replaying a queued offline record).</summary>
@@ -120,13 +135,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         ///
         /// <para>Kept as part of the installment (rather than a separate monthly record) because NPM money is
         /// day-by-day truth: every read sums these rows, so the adjustment is collected, receipted and audited
-        /// exactly like the day it rides on. Only a paid day can carry one.</para>
+        /// exactly like the day it rides on. Only a paid day can carry one, and only ONE — a retried or repeated
+        /// settlement must never charge the month twice.</para>
         /// </summary>
         public void AddMonthEndAdjustment(decimal amount, string updatedBy = "System")
         {
             if (!IsPaid || amount <= 0m) return;
+            if (MonthEndAdjustment is not null) return;   // set once: the month is short by one difference, not many
 
-            MonthEndAdjustment = (MonthEndAdjustment ?? 0m) + amount;
+            MonthEndAdjustment = amount;
             DailyFee += amount;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;

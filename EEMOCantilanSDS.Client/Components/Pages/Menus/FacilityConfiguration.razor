@@ -176,7 +176,11 @@
                                         <div class="fac-rate">
                                             <span class="fac-rate-label">@r.Label</span>
                                             <span class="fac-rate-dots"></span>
-                                            <span class="fac-rate-amt">₱@r.Amount.ToString("N2")</span>
+                                            @* An unset rate is not a rate of nil: the market's monthly rent falls
+                                               back to thirty daily fees until the office states its own, and the
+                                               metered utilities are entered per bill. Printing ₱0.00 for those said
+                                               the space was free. *@
+                                            <span class="fac-rate-amt">@(r.Amount > 0m ? $"₱{r.Amount:N2}" : "Not set")</span>
                                         </div>
                                     }
                                 }

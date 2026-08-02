@@ -206,6 +206,104 @@ public class NpmMonthSettlementServiceTests
     }
 
     [Fact]
+    public async Task AClosedShortMonth_EveryDayAlreadyCollected_StillTakesItsAdjustment()
+    {
+        // The compliant payor: every day of February collected at the stall, ₱840 in, ₱900 owed. No uncollected day
+        // remains to carry the ₱60, so it lands on the last installment taken — otherwise this payor would read as
+        // ₱60 in arrears for ever, which is precisely the debt the adjustment exists to prevent.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var collected = new List<DailyCollection>();
+        for (var day = 1; day <= 28; day++)
+        {
+            var dc = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, day));
+            dc.MarkPaid(string.Empty, collectorId: null);
+            collected.Add(dc);
+        }
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collected);
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+
+        // The month is still quoted its shortfall, with no installments left to pay …
+        var payable = await svc.ComputePayableAsync(stall, 2026, 2, CancellationToken.None);
+        Assert.Equal(0, payable.Days);
+        Assert.Equal(60m, payable.Adjustment);
+        Assert.Equal(60m, payable.Amount);
+
+        // … and settling puts it on the last day collected, bringing the month to its rent exactly.
+        var settled = await svc.SettleUnpaidDaysAsync(
+            stall, 2026, 2, collectorId: null, recordedBy: "Admin", CancellationToken.None);
+
+        var carrier = Assert.Single(settled);
+        Assert.Equal(new DateOnly(2026, 2, 28), carrier.CollectionDate);
+        Assert.Equal(60m, carrier.MonthEndAdjustment);
+        Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, collected.Sum(dc => dc.DailyFee));
+    }
+
+    [Fact]
+    public async Task TheAdjustmentIsTakenOnce_HoweverOftenSettlementRuns()
+    {
+        // A retried request, or a staff settlement after an online one, must not charge the month twice.
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        stall.Contracts.Add(Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2020, 1, 1), 20, 900m));
+
+        var collected = new List<DailyCollection>();
+        for (var day = 1; day <= 28; day++)
+        {
+            var dc = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, day));
+            dc.MarkPaid(string.Empty, collectorId: null);
+            collected.Add(dc);
+        }
+
+        var daily = new Mock<IDailyCollectionRepository>();
+        daily.Setup(r => r.GetByStallAndMonthAsync(stall.Id, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(collected);
+        var closures = new Mock<INpmMarketClosureRepository>();
+        closures.Setup(r => r.GetByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<NpmMarketClosure>());
+
+        var svc = new NpmMonthSettlementService(daily.Object, closures.Object, CacheTestDoubles.FeeRateResolver);
+
+        await svc.SettleUnpaidDaysAsync(stall, 2026, 2, null, "Admin", CancellationToken.None);
+        await svc.SettleUnpaidDaysAsync(stall, 2026, 2, null, "Admin", CancellationToken.None);
+
+        Assert.Equal(60m, collected[^1].MonthEndAdjustment);
+        Assert.Equal(FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays, collected.Sum(dc => dc.DailyFee));
+    }
+
+    [Fact]
+    public void UnpayingAnAdjustedDay_TakesTheAdjustmentBackWithIt()
+    {
+        // The adjustment is money the month was short, carried on an installment. A day that is no longer a
+        // collection carries nothing — leaving the inflated fee would count money the office never received.
+        var dc = DailyCollection.Create(Guid.NewGuid(), new DateOnly(2026, 2, 28));
+        dc.MarkPaid(string.Empty, collectorId: null);
+        dc.AddMonthEndAdjustment(60m, "Admin");
+        Assert.Equal(FeeRates.NpmDailyFee + 60m, dc.DailyFee);
+
+        dc.MarkUnpaid("Admin");
+
+        Assert.Null(dc.MonthEndAdjustment);
+        Assert.Equal(FeeRates.NpmDailyFee, dc.DailyFee);
+
+        // …and an excused day likewise.
+        dc.MarkPaid(string.Empty, collectorId: null);
+        dc.AddMonthEndAdjustment(60m, "Admin");
+        dc.MarkAbsent("Admin");
+        Assert.Null(dc.MonthEndAdjustment);
+        Assert.Equal(FeeRates.NpmDailyFee, dc.DailyFee);
+    }
+
+    [Fact]
     public async Task QuoteFishDay_PricesBasePlusDeclaredKilos()
     {
         var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");

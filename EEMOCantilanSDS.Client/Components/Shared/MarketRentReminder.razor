@@ -2,6 +2,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
 @inject IStallsApiClient StallsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -29,7 +30,8 @@
 @if (_show)
 {
     <div class="rent-confirm-backdrop" @onclick="Later"></div>
-    <div class="rent-confirm" role="dialog" aria-modal="true" aria-labelledby="rent-confirm-title">
+    <div class="rent-confirm" role="dialog" aria-modal="true" aria-labelledby="rent-confirm-title"
+         tabindex="-1" @ref="_dialog" @onkeydown="OnKeyDown">
         <div class="rent-confirm-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
                  stroke-linecap="round" stroke-linejoin="round">
@@ -73,6 +75,22 @@
     private string? _error;
     private decimal _inUse;
     private decimal _daily;
+    private ElementReference _dialog;
+    private bool _focused;
+
+    /// <summary>Escape closes it, as a dialog must for anyone working from the keyboard.</summary>
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (!_saving && e.Key is "Escape" or "Esc") Later();
+    }
+
+    /// <summary>Moves focus into the dialog once, so the keyboard lands inside what covers the page.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_show || _focused) return;
+        _focused = true;
+        try { await _dialog.FocusAsync(); } catch { /* focus is a courtesy, never a failure */ }
+    }
 
     private static int DaysInMonthConvention => EEMOCantilanSDS.Domain.Constants.DomainRules.DailyBilledMonthDays;
 
