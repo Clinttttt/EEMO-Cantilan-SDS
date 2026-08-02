@@ -53,6 +53,12 @@ namespace EEMOCantilanSDS.Domain.Enums
         TrmPerTrip = 6,       // TRM — ₱ per trip
         ElecPerKwh = 7,       // NPM add-on — default ₱ per kWh (metered; 0 = admin enters per bill)
         WaterPerCubicMeter = 8, // NPM add-on — default ₱ per m³ (metered; 0 = admin enters per bill)
+        // NPM — ₱ per month, the rent a market space is LET for. The daily fee above is the installment it is
+        // collected in; this is what a month owes. 0 (or no row) means the LGU has not stated one, and the month is
+        // taken as the daily fee × DomainRules.DailyBilledMonthDays — which is Cantilan's ₱30 × 30 = ₱900. An LGU
+        // whose ordinance states a month that is not thirty of its days (say ₱35 a day and ₱1,000 a month) sets it
+        // here, and every obligation, balance and roster figure follows.
+        NpmMonthlyStall = 9,
     }
     public enum MarketSection
     {

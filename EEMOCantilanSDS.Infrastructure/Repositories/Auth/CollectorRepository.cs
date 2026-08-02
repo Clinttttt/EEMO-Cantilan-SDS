@@ -23,12 +23,15 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
     // constants so Cantilan is byte-for-byte, refreshed per public method via LoadNpmRatesAsync.
     private decimal _npmDailyRate = FeeRates.NpmDailyFee;
     private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+    // The LGU's stated monthly rent for a market space (0 = it has stated none, so a month is thirty of its days).
+    private decimal _npmMonthlyRent;
 
     private async Task LoadNpmRatesAsync(DateOnly asOf, CancellationToken ct)
     {
         var snapshot = await feeRateResolver.GetSnapshotAsync(ct);
         _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        _npmMonthlyRent = snapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
     }
 
     public async Task<CollectorUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -348,6 +351,7 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
         await LoadNpmRatesAsync(toDate, cancellationToken);
         var npmFish = _npmFishRate;
         var npmDaily = _npmDailyRate;
+        var npmMonthlyRent = _npmMonthlyRent;
 
         if (selectedSet.Contains(FacilityCode.NPM))
         {
@@ -486,14 +490,21 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 // across web and mobile. Fish fees (₱/kg) are NOT part of the rental obligation, so the
                 // per-payee Amount Paid is rental-only (like the web's per-stall column); fish revenue
                 // still appears in the Total Collection.
-                var collectableDays = CountNpmCollectableDays(s, fromDate, collectionEnd);
-                var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, fromDate, collectionEnd, s));
+                // Obligation and open items are assessed over the FULL calendar month — the same window the office's
+                // own report uses — so the collector's figures and the office's cannot differ even when the report is
+                // pulled for part of a month. COLLECTED money still counts every paid collection in the month,
+                // including days paid in advance.
+                var collectableDays = CountNpmCollectableDays(s, monthStart, collectionEnd);
+                var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, monthStart, collectionEnd, s));
                 var rentalPaid = monthlyRentalPaid + paidCollections.Count * dailyRate;
                 // The month's contractual rent from the same ledger the office's screen reads — ₱900 for a month
                 // held in full, whatever the calendar gave it — so the collector's report and the office's report
                 // state one figure. The ₱30 fee is the installment this is collected in, not the measure of it.
                 var assessed = DomainRules.DailyBilledMonthObligation(
-                    dailyRate, DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month), collectableDays);
+                    dailyRate,
+                    s.ResolveMonthlyRent(npmDaily, npmMonthlyRent),
+                    DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month),
+                    collectableDays);
                 var balance = Math.Max(0m, assessed - rentalPaid);
                 var status = balance <= 0m && collectableDays > 0
                     ? PaymentStatus.Paid

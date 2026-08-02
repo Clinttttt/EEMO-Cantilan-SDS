@@ -38,7 +38,7 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         // When the obligation window is later clamped to today, THIS is the number that should change.
         var today = PhilippineTime.Today;
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, daysInMonth, daysInMonth);
+        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
 
         var context = NewContext();
         var (facility, stall, contract) = NewNpmStall(new DateOnly(today.Year, today.Month, 1));

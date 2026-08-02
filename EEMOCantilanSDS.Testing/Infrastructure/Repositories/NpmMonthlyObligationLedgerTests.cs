@@ -30,7 +30,23 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public void TheMonthsObligation_IsTheRentWhenHeldInFull_AndTheDaysHeldOtherwise(
         int daysInMonth, int daysHeld, decimal expected)
     {
-        Assert.Equal(expected, DomainRules.DailyBilledMonthObligation(Fee, daysInMonth, daysHeld));
+        // No stated monthly rent (0): the month is thirty of the LGU's own daily fee.
+        Assert.Equal(expected, DomainRules.DailyBilledMonthObligation(Fee, 0m, daysInMonth, daysHeld));
+    }
+
+    [Fact]
+    public void AnLguThatStatesItsOwnMonthlyRent_IsBilledThatRent()
+    {
+        // The ordinance an LGU actually passed: ₱35 a day and ₱1,000 a month. Thirty installments would be ₱1,050,
+        // which is not what its paper says, so the stated month wins — for every complete month, and for the year.
+        Assert.Equal(1_000m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 31, 31));
+        Assert.Equal(1_000m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 28, 28));
+        Assert.Equal(12_000m, Enumerable.Range(1, 12)
+            .Sum(m => DomainRules.DailyBilledMonthObligation(35m, 1_000m, DateTime.DaysInMonth(2026, m), DateTime.DaysInMonth(2026, m))));
+
+        // A part-month is still the days held, one installment each — and never more than that month's rent.
+        Assert.Equal(350m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 31, 10));
+        Assert.Equal(1_000m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 31, 30));
     }
 
     [Fact]
@@ -40,7 +56,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         for (var month = 1; month <= 12; month++)
         {
             var daysInMonth = DateTime.DaysInMonth(2026, month);
-            year += DomainRules.DailyBilledMonthObligation(Fee, daysInMonth, daysInMonth);
+            year += DomainRules.DailyBilledMonthObligation(Fee, 0m, daysInMonth, daysInMonth);
         }
 
         Assert.Equal(10_800m, year);
@@ -50,8 +66,8 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public void ATenantsOwnRate_SetsItsOwnMonthlyObligation()
     {
         // ₱40/day is a ₱1,200 month and ₱14,400 a year; a custom section on ₱50 is ₱1,500. Nothing is hardcoded.
-        Assert.Equal(1_200m, DomainRules.DailyBilledMonthObligation(40m, 31, 31));
-        Assert.Equal(1_500m, DomainRules.DailyBilledMonthObligation(50m, 28, 28));
+        Assert.Equal(1_200m, DomainRules.DailyBilledMonthObligation(40m, 0m, 31, 31));
+        Assert.Equal(1_500m, DomainRules.DailyBilledMonthObligation(50m, 0m, 28, 28));
     }
 
     [Theory]
@@ -60,7 +76,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     [InlineData(31, 0, 0)]
     public void CreditsForgiveWhatIsNotOwed(int daysHeld, int daysForgiven, decimal expected)
     {
-        var obligation = DomainRules.DailyBilledMonthObligation(Fee, daysHeld, daysHeld);
+        var obligation = DomainRules.DailyBilledMonthObligation(Fee, 0m, daysHeld, daysHeld);
         Assert.Equal(expected, DomainRules.DailyBilledMonthCredit(Fee, obligation, daysHeld, daysForgiven));
     }
 
@@ -314,6 +330,74 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
             .GetDelinquentStallsAsync(FacilityCode.NPM, today.Year, today.Month, CancellationToken.None);
 
         Assert.Empty(delinquents);
+    }
+
+    [Fact]
+    public async Task AnLgusStatedMonthlyRent_DrivesTheReportedObligation()
+    {
+        // An LGU whose ordinance says ₱35 a day and ₱1,000 a month: the month owes the ₱1,000 it passed, not the
+        // ₱1,085 its calendar would make nor the ₱1,050 thirty installments would. Nothing about Cantilan changes —
+        // it states no monthly rent, so its month stays thirty of its ₱30.
+        var context = NewContext();
+        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var daily = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, new DateOnly(2020, 1, 1), Guid.Empty);
+        var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
+
+        context.AddRange(facility, stall, term, daily, monthly);
+        await context.SaveChangesAsync();
+
+        var report = await new FacilityReportsRepository(context)
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+
+        var row = Assert.Single(report.StallCompliance);
+        Assert.Equal(1_000m, row.ExpectedBill);
+        Assert.Equal(1_000m, row.Balance);
+
+        var year = await new FacilityReportsRepository(context)
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
+        Assert.Equal(12_000m, Assert.Single(year.StallCompliance).ExpectedBill);
+    }
+
+    [Fact]
+    public async Task ACustomSectionsOwnRate_DecidesItsOwnMonth_NotTheLgusStatedOne()
+    {
+        // A custom section is priced by its own daily rate, so the market-wide monthly rent an LGU states for its
+        // canonical sections must not be applied to a section it does not price.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "S1", 900m, ApplicableFees.DailyRental,
+            section: null, dailyRate: 50m, customSectionName: "Sari-sari Area");
+        var term = Contract.Create(stall.Id, "Custom Lessee", "Custom Lessee", new DateOnly(2026, 1, 1), 3, 900m);
+        var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
+
+        context.AddRange(facility, stall, term, monthly);
+        await context.SaveChangesAsync();
+
+        var report = await new FacilityReportsRepository(context)
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+
+        var row = Assert.Single(report.StallCompliance);
+        Assert.Equal(1_500m, row.ExpectedBill);   // ₱50 × 30, its own rate — not the stated ₱1,000
+    }
+
+    [Fact]
+    public async Task TheRosterStatesTheLgusOwnMonthlyRent()
+    {
+        // The "Monthly Rentals per Contract" column on the official sheet: the rent the LGU passed, and twelve of
+        // them for the year.
+        var context = NewContext();
+        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var daily = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, new DateOnly(2020, 1, 1), Guid.Empty);
+        var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
+
+        context.AddRange(facility, stall, term, daily, monthly);
+        await context.SaveChangesAsync();
+
+        var roster = await new StallRepository(context).GetStallHoldersListAsync(FacilityCode.NPM, null, null, CancellationToken.None);
+
+        var row = Assert.Single(roster.Sections.SelectMany(s => s.Rows));
+        Assert.Equal(1_000m, row.MonthlyRentalRate);
+        Assert.Equal(12_000m, row.WholeYearRental);
     }
 
     [Fact]

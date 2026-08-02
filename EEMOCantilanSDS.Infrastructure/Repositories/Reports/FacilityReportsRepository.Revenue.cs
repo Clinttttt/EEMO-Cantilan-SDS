@@ -107,6 +107,7 @@ public partial class FacilityReportsRepository
             return 0m;
 
         var fee = stall.ResolveDailyFee(_npmDailyRate);
+        var rent = stall.ResolveMonthlyRent(_npmDailyRate, _npmMonthlyRent);
         var total = 0m;
 
         var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
@@ -122,7 +123,7 @@ public partial class FacilityReportsRepository
             var daysHeld = CountNpmCollectableDays(stall, monthStart, monthEnd);
             var daysCharged = CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates);
 
-            var obligation = DomainRules.DailyBilledMonthObligation(fee, daysInMonth, daysHeld);
+            var obligation = DomainRules.DailyBilledMonthObligation(fee, rent, daysInMonth, daysHeld);
             var credit = DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysHeld - daysCharged);
 
             total += obligation - credit;

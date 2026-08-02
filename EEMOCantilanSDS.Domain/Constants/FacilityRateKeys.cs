@@ -11,7 +11,7 @@ namespace EEMOCantilanSDS.Domain.Constants
     public static class FacilityRateKeys
     {
         private static readonly FeeRateKey[] Npm =
-            { FeeRateKey.NpmDailyStall, FeeRateKey.NpmFishPerKilo, FeeRateKey.ElecPerKwh, FeeRateKey.WaterPerCubicMeter };
+            { FeeRateKey.NpmDailyStall, FeeRateKey.NpmMonthlyStall, FeeRateKey.NpmFishPerKilo, FeeRateKey.ElecPerKwh, FeeRateKey.WaterPerCubicMeter };
         private static readonly FeeRateKey[] Slh = { FeeRateKey.SlhHogPerHead, FeeRateKey.SlhLargePerHead };
         private static readonly FeeRateKey[] Tpm = { FeeRateKey.TpmVendorDay };
         private static readonly FeeRateKey[] Trm = { FeeRateKey.TrmPerTrip };

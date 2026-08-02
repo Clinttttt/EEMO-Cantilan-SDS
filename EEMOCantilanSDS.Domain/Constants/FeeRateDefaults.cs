@@ -24,6 +24,10 @@ namespace EEMOCantilanSDS.Domain.Constants
             // "unset"; an LGU may seed its own default (ElecPerKwh/WaterPerCubicMeter) at activation.
             FeeRateKey.ElecPerKwh => 0m,
             FeeRateKey.WaterPerCubicMeter => 0m,
+            // The market's monthly rent, unset by default: with no row the month is the LGU's own daily fee over
+            // DomainRules.DailyBilledMonthDays, which is exactly Cantilan's ₱900. Stating a figure here overrides
+            // that derivation for the LGU that states it, and for nobody else.
+            FeeRateKey.NpmMonthlyStall => 0m,
             _ => throw new ArgumentOutOfRangeException(nameof(key), key, "No fee-rate default for this key.")
         };
     }

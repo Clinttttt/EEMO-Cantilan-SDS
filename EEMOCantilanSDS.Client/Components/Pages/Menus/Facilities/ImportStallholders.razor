@@ -1148,11 +1148,13 @@
             },
             Sample = new()
             {
-                Row(("occupant","Elpedia Cora E. Trugillo"),("contractName","Nila F. Andoy"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Marilyn C. Bohol"),("contractName","Marilyn C. Bohol"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Elmalyn P. Arnaldo"),("contractName","Elmalyn P. Arnaldo"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Reymart P. Tecson"),("contractName","Nicolas S. Cupina"),("stallNo","4"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Jinky L. Rodriguez"),("contractName","Jinky L. Rodriguez"),("stallNo","5"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                // Placeholder names, not any municipality's own payors: the sample teaches the FORMAT, and every LGU
+                // that presses "Use sample data" sees the same neutral rows rather than another office's stallholders.
+                Row(("occupant","Juan Dela Cruz"),("contractName","Maria Dela Cruz"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Maria Clara Santos"),("contractName","Maria Clara Santos"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Pedro Reyes"),("contractName","Pedro Reyes"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Josefa Mercado"),("contractName","Andres Mercado"),("stallNo","4"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Lorenzo Bautista"),("contractName","Lorenzo Bautista"),("stallNo","5"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
             }
         };
 
@@ -1164,14 +1166,14 @@
             Columns = Core(),
             Sample = new()
             {
-                Row(("occupant","Joseph O. Quiñones"),("contractName","Joseph O. Quiñones"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
-                Row(("occupant","Marlex Dumagay"),("contractName","Marlex Dumagay"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
-                Row(("occupant","Jonaida P. Sultan"),("contractName","Jonaida P. Sultan"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Joseph Villamor"),("contractName","Joseph Villamor"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
+                Row(("occupant","Marlon Aguilar"),("contractName","Marlon Aguilar"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Jonalyn Sultan"),("contractName","Jonalyn Sultan"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
                 // The office's own sheet carries spaces held without a signed contract among the contracted ones,
                 // and writes the basis where the leasee's name would go — an extension of a lapsed Tampak contract,
                 // or a space only. Such a row states no term, no area and no contract rental: only the rent charged.
-                Row(("occupant","Bernadette Miranda"),("contractName","No contract (Extension TCC)"),("actualMonthly","1500"),("wholeYear","18000")),
-                Row(("occupant","Jessie Estrada"),("contractName","No contract (space only)"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Bernadette Lim"),("contractName","No contract (Extension TCC)"),("actualMonthly","1500"),("wholeYear","18000")),
+                Row(("occupant","Jessie Navarro"),("contractName","No contract (space only)"),("actualMonthly","900"),("wholeYear","10800")),
             }
         };
 
@@ -1188,11 +1190,11 @@
             },
             Sample = new()
             {
-                Row(("occupant","Lucrecia R. Bebero"),("contractName","Lucrecia R. Bebero"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
-                Row(("occupant","Ruel R. Bebero"),("contractName","Ruel R. Bebero"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
-                Row(("occupant","Florena R. Lago"),("contractName","Florena R. Lago"),("stallNo","13"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3240"),("actualMonthly","3240"),("wholeYear","38880"),("areaLoc","Corner")),
-                Row(("occupant","Guydon Damalerio"),("contractName","Guydon Damalerio"),("stallNo","16"),("effectivity","2023-06-07"),("years","3"),("area","70"),("monthly","2400"),("actualMonthly","4800"),("wholeYear","57600"),("areaLoc","Corner")),
-                Row(("occupant","Rachelle O. Rosario"),("contractName","Rachelle O. Rosario"),("stallNo","22"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3840"),("actualMonthly","3840"),("wholeYear","46080"),("areaLoc","Corner")),
+                Row(("occupant","Lucia Bebero"),("contractName","Lucia Bebero"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Ruel Bebero"),("contractName","Ruel Bebero"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Florencia Lago"),("contractName","Florencia Lago"),("stallNo","13"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3240"),("actualMonthly","3240"),("wholeYear","38880"),("areaLoc","Corner")),
+                Row(("occupant","Gideon Damalerio"),("contractName","Gideon Damalerio"),("stallNo","16"),("effectivity","2023-06-07"),("years","3"),("area","70"),("monthly","2400"),("actualMonthly","4800"),("wholeYear","57600"),("areaLoc","Corner")),
+                Row(("occupant","Rachel Del Rosario"),("contractName","Rachel Del Rosario"),("stallNo","22"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3840"),("actualMonthly","3840"),("wholeYear","46080"),("areaLoc","Corner")),
             }
         };
 
@@ -1207,11 +1209,11 @@
                 // The Barbecue Stand list is entirely spaces let without a contract: the official sheet writes
                 // "No contract(space only)" where the leasee per signed contract would be named, and leaves the
                 // term, area and contract-rental columns empty. Only the rent actually charged appears.
-                Row(("occupant","Joy Ruaza"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
-                Row(("occupant","Mary May Benablo"),("contractName","No contract (space only)"),("actualMonthly","3200"),("wholeYear","38400")),
-                Row(("occupant","Loida Arreo"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Joy Ramirez"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Mary Anne Benitez"),("contractName","No contract (space only)"),("actualMonthly","3200"),("wholeYear","38400")),
+                Row(("occupant","Lorna Arceo"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
                 Row(("occupant","Irene Plaza"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
-                Row(("occupant","Claudine Mendaña"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
+                Row(("occupant","Claudia Mendoza"),("contractName","No contract (space only)"),("actualMonthly","1600"),("wholeYear","19200")),
             }
         };
 
@@ -1224,10 +1226,10 @@
             Sample = new()
             {
                 // The Iceplant list is the same shape as the Barbecue Stand's: space only, no term, no contract rate.
-                Row(("occupant","Recto Mendaña"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
-                Row(("occupant","Rebecca S. Orpina"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
-                Row(("occupant","Martin Dumaran"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
-                Row(("occupant","Roel Mendaña"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
+                Row(("occupant","Renato Mendoza"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
+                Row(("occupant","Rebecca Ortega"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Martin Duran"),("contractName","No contract (space only)"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Rolando Mendoza"),("contractName","No contract (space only)"),("actualMonthly","2000"),("wholeYear","24000")),
             }
         };
 

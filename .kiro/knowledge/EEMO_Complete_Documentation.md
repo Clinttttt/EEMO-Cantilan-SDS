@@ -53,6 +53,11 @@ from a date, in the `FacilityRates` table.
 - For a stall's daily fee use `Stall.ResolveDailyFee(ordinanceRate)`: a **custom-section** stall uses its own
   stored `DailyRate`; every canonical stall uses the tenant's resolved rate. This one rule keeps billing,
   settlement and the rosters in agreement.
+- For a market space's **monthly rent** use `Stall.ResolveMonthlyRent(dailyRate, monthlyRate)`, where the second
+  argument is `FeeRateKey.NpmMonthlyStall`. An LGU states the month its own ordinance passed; when it states
+  none (0, the default) the month is `dailyRate × DomainRules.DailyBilledMonthDays`, which is Cantilan's
+  ₱30 × 30 = ₱900. A custom section is priced by its own daily rate, so its month is thirty of that and the
+  market-wide monthly rent does not apply to it.
 
 ### The monthly obligation ledger (daily-billed facilities)
 
@@ -63,7 +68,7 @@ collected in — never the measure of what is owed. The office's own List of Sta
 
 | Term | Meaning |
 |------|---------|
-| **Expected** (obligation) | The month's rent when the space was held for the whole month — ₱900 whether the calendar gave 28 days or 31. A month held only in part (a mid-month start, a lapsed term, a handover) owes the days held, one installment each, and never more than the rent. |
+| **Expected** (obligation) | The month's rent when the space was held for the whole month — ₱900 whether the calendar gave 28 days or 31. The rent is the LGU's own stated month (`FeeRateKey.NpmMonthlyStall`) or, when it states none, thirty of its daily fee. A month held only in part (a mid-month start, a lapsed term, a handover) owes the days held, one installment each, and never more than the rent. |
 | **Collected** | The installments actually received, plus any month-end adjustment collected with one of them. |
 | **Credits** | Days nothing is owed for — excused/absent days and facility-wide closures — at one installment each. A month the payor never traded is credited in full and owes nothing. |
 | **Outstanding** | `Expected − Collected − Credits`, floored at nil. |

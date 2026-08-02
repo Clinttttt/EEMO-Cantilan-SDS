@@ -206,7 +206,10 @@ public sealed class NpmMonthSettlementService(
         // The month's own obligation: its contractual rent when held in full, whatever the calendar gave it, less
         // the days nothing is owed for. The installments below settle against it.
         var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, today < monthEnd ? today : monthEnd));
-        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, daysInMonth, daysHeld);
+        var monthRent = stall.ResolveMonthlyRent(
+            snapshot.Resolve(FeeRateKey.NpmDailyStall, today < monthEnd ? today : monthEnd),
+            snapshot.Resolve(FeeRateKey.NpmMonthlyStall, today < monthEnd ? today : monthEnd));
+        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, daysInMonth, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var remaining = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
 

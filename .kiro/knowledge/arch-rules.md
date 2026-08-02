@@ -80,8 +80,10 @@ tenant. Consequences you must respect:
 
 - Resolve rates through `IFeeRateResolver` **as of a date**; `FeeRates` constants are the fallback only.
 - A stall's daily fee comes from `Stall.ResolveDailyFee(resolvedOrdinanceRate)` — nowhere else.
-- A daily-billed facility's monthly obligation is `ResolveDailyFee(...) * DomainRules.DailyBilledMonthDays` for a
-  month held in full — the daily fee is the **installment**, not the measure. Never the stored `Stall.MonthlyRate`.
+- A daily-billed facility's monthly obligation is the rent the space is let for —
+  `Stall.ResolveMonthlyRent(dailyRate, FeeRateKey.NpmMonthlyStall)`: the LGU's own stated month, or thirty
+  installments when it states none. The daily fee is the **installment**, not the measure. Never the stored
+  `Stall.MonthlyRate`.
 - **Read every daily-billed figure from the monthly obligation ledger** (`DomainRules.DailyBilledMonthObligation`,
   `…MonthCredit`, `…MonthOutstanding`), per calendar month: Expected − Collected − Credits = Outstanding, floored at
   nil. Twelve complete months are exactly 12 × the rent; February owes the same as August. A month whose

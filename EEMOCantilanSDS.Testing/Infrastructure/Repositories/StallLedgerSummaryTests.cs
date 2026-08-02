@@ -217,7 +217,7 @@ public class StallLedgerSummaryTests : RepositoryTestBase
 
         // The month is charged the rent this rate makes (₱35 × 30 = ₱1,050), whatever the calendar gave it: the
         // daily fee is the installment, not the measure of the obligation.
-        Assert.Equal(DomainRules.DailyBilledMonthObligation(35m, daysInMonth, daysInMonth), summary.TotalOutstanding);
+        Assert.Equal(DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, daysInMonth), summary.TotalOutstanding);
         Assert.Equal(1_050m, summary.TotalOutstanding);
     }
 }

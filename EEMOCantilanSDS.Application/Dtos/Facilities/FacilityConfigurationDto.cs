@@ -55,6 +55,7 @@ public static class FacilityDisplay
     public static string RateLabel(FeeRateKey key) => key switch
     {
         FeeRateKey.NpmDailyStall => "Daily stall fee",
+        FeeRateKey.NpmMonthlyStall => "Monthly stall rent (blank = 30 × daily)",
         FeeRateKey.NpmFishPerKilo => "Fish fee (per kilo)",
         FeeRateKey.SlhHogPerHead => "Hog (per head)",
         FeeRateKey.SlhLargePerHead => "Large animal (per head)",

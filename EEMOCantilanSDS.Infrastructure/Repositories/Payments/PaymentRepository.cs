@@ -416,7 +416,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
             var daysForgiven = absentDates.Count(d => d >= monthStart && d <= monthEnd);
             var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
-            var obligation = DomainRules.DailyBilledMonthObligation(fee, monthEnd.Day, daysHeld);
+            var obligation = DomainRules.DailyBilledMonthObligation(
+                fee,
+                stall.ResolveMonthlyRent(
+                    rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
+                    rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
+                monthEnd.Day,
+                daysHeld);
             var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysForgiven);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
@@ -572,7 +578,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
                 var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
                 var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
-                var obligation = DomainRules.DailyBilledMonthObligation(fee, monthEnd.Day, daysHeld);
+                var obligation = DomainRules.DailyBilledMonthObligation(
+                    fee,
+                    stall.ResolveMonthlyRent(
+                        rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
+                        rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
+                    monthEnd.Day,
+                    daysHeld);
                 var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, npmExcused);
                 if (bill <= 0m)
                     continue;
@@ -687,7 +699,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 var excusedDays = excused.Count(d => d >= from && d <= to);
                 if (daysHeld - excusedDays <= 0) continue;
                 var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull));
-                var obligation = DomainRules.DailyBilledMonthObligation(fee, mEndFull.Day, daysHeld);
+                var obligation = DomainRules.DailyBilledMonthObligation(
+                    fee,
+                    stall.ResolveMonthlyRent(
+                        rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEndFull),
+                        rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, mEndFull)),
+                    mEndFull.Day,
+                    daysHeld);
                 var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, excusedDays);
                 if (bill <= 0m) continue;
                 var paid = dailies.Where(d => d.CollectionDate >= from && d.CollectionDate <= to).Sum(d => d.DailyFee);

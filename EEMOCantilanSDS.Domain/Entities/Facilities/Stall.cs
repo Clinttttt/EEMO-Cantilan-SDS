@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using System;
@@ -163,6 +164,26 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// </summary>
         public decimal ResolveDailyFee(decimal ordinanceDailyRate)
             => IsCustomSection && DailyRate is { } r && r > 0m ? r : ordinanceDailyRate;
+
+        /// <summary>
+        /// The MONTHLY rent this space is let for — what a month owes, as against the daily fee it is collected in.
+        ///
+        /// <para>A CUSTOM-section stall is let at its own daily rate, so its month is thirty of those; the LGU's
+        /// stated market month does not apply to a section it does not price. Every canonical stall takes the LGU's
+        /// stated monthly rent (<see cref="FeeRateKey.NpmMonthlyStall"/>) when it has stated one, and otherwise
+        /// thirty of the LGU's own daily fee — which is Cantilan's ₱30 × 30 = ₱900, unchanged.</para>
+        /// </summary>
+        /// <param name="ordinanceDailyRate">The tenant's resolved daily rate, as of the date concerned.</param>
+        /// <param name="configuredMonthlyRent">The tenant's stated monthly rent; 0 when it has stated none.</param>
+        public decimal ResolveMonthlyRent(decimal ordinanceDailyRate, decimal configuredMonthlyRent)
+        {
+            if (IsCustomSection && DailyRate is { } own && own > 0m)
+                return own * DomainRules.DailyBilledMonthDays;
+
+            return configuredMonthlyRent > 0m
+                ? configuredMonthlyRent
+                : ordinanceDailyRate * DomainRules.DailyBilledMonthDays;
+        }
 
         /// <summary>
         /// True when this is an EXPIRED account: it has an active contract, but the term of every active

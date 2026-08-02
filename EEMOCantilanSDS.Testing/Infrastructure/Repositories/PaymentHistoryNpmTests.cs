@@ -157,7 +157,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
         var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
-        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, daysInMonth, daysInMonth);
+        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
         Assert.Equal(2 * FeeRates.NpmDailyFee, row.AmountPaid);                  // ₱60 daily-truth, NOT ₱500
         Assert.Equal(monthCharge, row.TotalBill);                                // the month's days, never beyond its rent
         Assert.Equal(monthCharge - 60m, row.BalanceDue);                         // NOT 900 − 500 = 400
@@ -220,7 +220,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
         // The month's rent less three credited installments: the excused days are forgiven against the obligation,
         // not counted out of a day-sum, so a 31-day month reads ₱900 − ₱90 and a 28-day month the same.
-        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, daysInMonth, daysInMonth);
+        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
         Assert.Equal(monthCharge - 3 * FeeRates.NpmDailyFee, row.TotalBill);
         Assert.Equal(810m, row.TotalBill);
         Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);                      // 1 paid day

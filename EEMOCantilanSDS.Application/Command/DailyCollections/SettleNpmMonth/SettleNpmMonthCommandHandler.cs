@@ -99,7 +99,10 @@ public class SettleNpmMonthCommandHandler(
 
         var monthCeilingDay = today < monthEnd ? today : monthEnd;
         var monthFee = stall.ResolveDailyFee(snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay));
-        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthEnd.Day, daysHeld);
+        var monthRent = stall.ResolveMonthlyRent(
+            snapshot.Resolve(FeeRateKey.NpmDailyStall, monthCeilingDay),
+            snapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthCeilingDay));
+        var obligation = DomainRules.DailyBilledMonthObligation(monthFee, monthRent, monthEnd.Day, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var collectable = DomainRules.DailyBilledMonthOutstanding(obligation, alreadyCollected, credit);
 

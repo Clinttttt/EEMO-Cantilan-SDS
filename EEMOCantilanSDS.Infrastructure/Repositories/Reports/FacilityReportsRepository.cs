@@ -26,6 +26,9 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
     // entry point refreshes them for its period via LoadNpmRatesAsync before the helpers run.
     private decimal _npmDailyRate = FeeRates.NpmDailyFee;
     private decimal _npmFishRate = FeeRates.NpmFishFeePerKilo;
+    // The LGU's stated monthly rent for a market space, or 0 when it has stated none — in which case a month is
+    // thirty of its daily fee (Cantilan's ₱900). Never a constant of its own: the paper figure belongs to the LGU.
+    private decimal _npmMonthlyRent;
 
     // Loads this tenant's NPM daily + fish rates as of the report period. With no data rows the snapshot
     // returns the ordinance constants, so Cantilan is unchanged; a second LGU gets its own rates.
@@ -34,6 +37,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
         _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        _npmMonthlyRent = snapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
     }
 
     public async Task<int> GetEarliestActivityYearAsync(CancellationToken ct)

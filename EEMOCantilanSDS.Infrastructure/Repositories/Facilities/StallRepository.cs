@@ -358,13 +358,16 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         // a per-LGU CUSTOM section keeps its own rate and the roster can never disagree with the ledger.
         // Cantilan resolves to ₱30 × 30 = ₱900, exactly what it showed before.
         var isDailyBilled = facilityCode == FacilityCode.NPM;
-        var npmDailyRate = isDailyBilled
-            ? (await feeRateResolver.GetSnapshotAsync(ct))
-                .Resolve(FeeRateKey.NpmDailyStall, DateOnly.FromDateTime(PhilippineTime.Now))
-            : 0m;
+        var rateSnapshot = isDailyBilled ? await feeRateResolver.GetSnapshotAsync(ct) : null;
+        var rateAsOf = DateOnly.FromDateTime(PhilippineTime.Now);
+        var npmDailyRate = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmDailyStall, rateAsOf) : 0m;
+        var npmMonthlyRent = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmMonthlyStall, rateAsOf) : 0m;
 
+        // The monthly rent the space is let for: the LGU's own stated market month when it has stated one, else
+        // thirty of its daily fee — and a custom section's own rate decides its own month. Cantilan resolves to
+        // ₱30 × 30 = ₱900, exactly what it showed before.
         decimal MonthlyOf(Stall s) => isDailyBilled
-            ? s.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays
+            ? s.ResolveMonthlyRent(npmDailyRate, npmMonthlyRent)
             : s.MonthlyRate;
 
         // The tenant's own market-section display labels (e.g. "Gulayan") — resolved once. The MarketSection
@@ -691,6 +694,7 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
         var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
         var npmDailyRate = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, today);
         var npmFishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, today);
+        var npmMonthlyRent = rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, today);
 
         // Candidates: every stall that has EVER been let. The register is a record of ended OCCUPANCIES, not of
         // currently-vacant stalls: a stall re-let to a new lessee must still show the previous lessee's closed or
@@ -842,7 +846,13 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     // The rate in force at the end of the counted span — the rent it is measured against is that
                     // month's.
                     var monthFee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd));
-                    var obligation = DomainRules.DailyBilledMonthObligation(monthFee, daysInMonth, daysHeld);
+                    var obligation = DomainRules.DailyBilledMonthObligation(
+                        monthFee,
+                        stall.ResolveMonthlyRent(
+                            rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, mEnd),
+                            rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, mEnd)),
+                        daysInMonth,
+                        daysHeld);
                     var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
                     var collected = stallPaid
                         .Where(p => p.CollectionDate >= mStart && p.CollectionDate <= mEnd)
@@ -886,12 +896,11 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 contract.NameOnContract,
                 contract.EffectivityDate,
                 contract.DurationYears,
-                // A daily-collected stall has no monthly contract rate: state the monthly equivalent of the
-                // rate it was actually billed at (the same ResolveDailyFee rule the ledger and the
-                // stallholder roster use), not the hand-entered figure stored on the stall — that only
-                // matches the ordinance for a ₱30 municipality. A monthly facility states the rent THIS
-                // occupancy was let at, which is also the figure the collection dialog offers.
-                isNpm ? stall.ResolveDailyFee(npmDailyRate) * DomainRules.DailyBilledMonthDays : occupancyMonthlyRate,
+                // A daily-collected stall has no monthly contract rate: state the rent the space is let for — the
+                // LGU's own stated market month, or thirty of its daily fee, and a custom section's own rate for its
+                // own month — never the hand-entered figure stored on the stall. A monthly facility states the rent
+                // THIS occupancy was let at, which is also the figure the collection dialog offers.
+                isNpm ? stall.ResolveMonthlyRent(npmDailyRate, npmMonthlyRent) : occupancyMonthlyRate,
                 isClosed ? stall.ClosedAt : null,
                 contractExpiry,
                 lifetimeCollected,
