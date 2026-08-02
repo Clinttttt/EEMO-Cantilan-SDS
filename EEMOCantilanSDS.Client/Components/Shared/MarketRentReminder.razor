@@ -9,54 +9,58 @@
 @inject NavigationManager Navigation
 
 @*
-    Setup reminder: the market's MONTHLY rent has not been confirmed.
+    One-time confirmation of the market's MONTHLY rent, for an LGU that has not stated one.
 
     A market space is let for a monthly rent and collected in daily installments. Where an LGU has not stated its
-    ordinance month, the system charges thirty of its daily fee — right for an office whose ordinance follows that
-    convention, and quietly wrong for one whose does not. So the office is told the figure in force and asked to
-    confirm it, once, in its own words.
+    ordinance month, the system charges thirty of its daily fee. That is right for an office whose ordinance follows
+    the same convention and quietly wrong for one whose does not — so the office is shown the figure in force and
+    asked to confirm it, once.
 
     Design rules:
-      • Head only. An Admin cannot edit rates, so a warning they cannot act on would be noise.
-      • Only when this LGU actually runs a market, and only while the figure is unconfirmed.
-      • Either action ends it for good: open Rates to enter the ordinance amount, or confirm the figure in use —
-        which writes it as the LGU's own stated rent through the ordinary rate path.
-      • FAILS QUIET. Any error, or a tenant with no market, and nothing is shown: a reminder must never stand
-        between the office and its work.
-      • Never on the sign-in / setup / logout routes, where it would interrupt a flow already in progress.
+      • The reference tenant is never asked: the constants this platform derives from are its own ordinance, so its
+        ₱30 × 30 = ₱900 is already the figure on its paper. The API decides this, not the page.
+      • Head only. An Admin cannot edit rates, so a question they cannot answer would be noise.
+      • Only for a tenant that runs a market.
+      • A calm notice in the office's own palette, not an alarm: the figure in force is correct until told otherwise,
+        so nothing here is coloured as a fault.
+      • FAILS QUIET. Any error and nothing is shown; a setup question must never stand between the office and its work.
 *@
 
 @if (_show)
 {
-    <div class="rent-remind" role="status">
-        <div class="rent-remind-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
+    <div class="rent-confirm-backdrop" @onclick="Later"></div>
+    <div class="rent-confirm" role="dialog" aria-modal="true" aria-labelledby="rent-confirm-title">
+        <div class="rent-confirm-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 21h18" />
+                <path d="M5 21V8l7-4 7 4v13" />
+                <path d="M9 21v-6h6v6" />
             </svg>
         </div>
 
-        <div class="rent-remind-body">
-            <div class="rent-remind-title">Monthly market rent has not been confirmed</div>
-            <div class="rent-remind-text">
-                The system is charging <strong>@Money(_inUse)</strong> a month for a @FacilityCatalog.ShortNameOf(FacilityCode.NPM)
-                space — @Money(_daily) a day × @EEMOCantilanSDS.Domain.Constants.DomainRules.DailyBilledMonthDays.
-                If your ordinance states a different monthly amount, enter it in
-                <strong>Settings → Facilities &amp; Rates</strong> so every balance, report and official list states
-                the figure your office reconciles against.
-            </div>
-            @if (_error is not null)
-            {
-                <div class="rent-remind-error">@_error</div>
-            }
-        </div>
+        <div id="rent-confirm-title" class="rent-confirm-title">Confirm the monthly market rent</div>
 
-        <div class="rent-remind-actions">
-            <button type="button" class="rent-remind-btn rent-remind-btn-primary" @onclick="OpenRates" disabled="@_saving">
-                Review Rates
-            </button>
-            <button type="button" class="rent-remind-btn" @onclick="ConfirmInUseAsync" disabled="@_saving">
+        <p class="rent-confirm-text">
+            A market space is let for a monthly rent and collected in daily installments. Your office has not yet
+            stated its monthly amount, so the system is using
+            <strong>@Money(_inUse)</strong> a month — @Money(_daily) a day × @DaysInMonthConvention.
+        </p>
+        <p class="rent-confirm-note">
+            If your ordinance states that amount, confirm it. If it states another, set it in
+            <strong>Settings → Facilities &amp; Rates</strong>, and every balance, report and official list will state
+            the figure your office reconciles against.
+        </p>
+
+        @if (_error is not null)
+        {
+            <p class="rent-confirm-error">@_error</p>
+        }
+
+        <div class="rent-confirm-actions">
+            <button type="button" class="rent-confirm-later" @onclick="Later" disabled="@_saving">Not now</button>
+            <button type="button" class="rent-confirm-secondary" @onclick="OpenRates" disabled="@_saving">Review rates</button>
+            <button type="button" class="rent-confirm-go" @onclick="ConfirmInUseAsync" disabled="@_saving">
                 @(_saving ? "Confirming…" : $"Confirm {Money(_inUse)}")
             </button>
         </div>
@@ -69,6 +73,8 @@
     private string? _error;
     private decimal _inUse;
     private decimal _daily;
+
+    private static int DaysInMonthConvention => EEMOCantilanSDS.Domain.Constants.DomainRules.DailyBilledMonthDays;
 
     private static readonly string[] SuppressedRoutes =
     {
@@ -92,7 +98,9 @@
 
             var rates = await StallsApi.GetNpmRatesAsync();
             if (!rates.IsSuccess || rates.Value is null) return;
-            if (rates.Value.IsMonthlyRentConfirmed) return;
+
+            // The API decides whether this LGU should be asked at all — the reference tenant never is.
+            if (!rates.Value.NeedsMonthlyRentConfirmation) return;
 
             _daily = rates.Value.DailyRate;
             _inUse = rates.Value.MonthlyRentInUse;
@@ -100,7 +108,7 @@
         }
         catch
         {
-            // Fails quiet by design: a setup reminder must never break a page.
+            // Fails quiet by design: a setup question must never break a page.
             _show = false;
         }
     }
@@ -111,12 +119,18 @@
         return SuppressedRoutes.Any(r => path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void OpenRates() => Navigation.NavigateTo("/settings/facilities");
+    /// <summary>Closes it for this visit. Nothing is recorded, so the office is asked again until it answers.</summary>
+    private void Later() => _show = false;
+
+    private void OpenRates()
+    {
+        _show = false;
+        Navigation.NavigateTo("/settings/facilities");
+    }
 
     /// <summary>
     /// Confirms the figure already in force as this LGU's own stated rent, through the ordinary rate path — so the
-    /// office can end the reminder without retyping a number it has just been shown, and nothing about its money
-    /// changes in doing so.
+    /// office can answer without retyping a number it has just been shown, and nothing about its money changes.
     /// </summary>
     private async Task ConfirmInUseAsync()
     {
@@ -130,11 +144,11 @@
             if (result.IsSuccess)
                 _show = false;
             else
-                _error = result.Error ?? "That could not be saved. Open Rates and set the monthly rent there.";
+                _error = result.Error ?? "That could not be saved. Set the monthly rent in Settings → Facilities & Rates.";
         }
         catch
         {
-            _error = "That could not be saved. Open Rates and set the monthly rent there.";
+            _error = "That could not be saved. Set the monthly rent in Settings → Facilities & Rates.";
         }
         finally
         {

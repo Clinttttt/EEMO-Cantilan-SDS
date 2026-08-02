@@ -1,100 +1,152 @@
-/* Setup reminder strip: the market's monthly rent is unconfirmed. A notice, not a dialog — the office keeps
-   working, and either action ends it for good. */
-.rent-remind {
+/* ══════════════════════════════════════════════════════════════════════════════
+   MarketRentReminder — the one-time confirmation of an LGU's monthly market rent.
+   Deliberately the same calm dialog as the two-factor offer: the figure in force
+   is correct until the office says otherwise, so nothing here is coloured as a
+   fault. Government paper, not an alarm.
+   ══════════════════════════════════════════════════════════════════════════════ */
+.rent-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(10, 22, 35, .5);
+}
+
+.rent-confirm {
+    position: fixed;
+    z-index: 2001;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(460px, calc(100vw - 32px));
+    padding: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 22px 50px rgba(15, 35, 55, .24);
+}
+
+.rent-confirm-mark {
     display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    margin: 0 0 16px;
-    padding: 14px 16px;
-    border: 1px solid var(--amber-200, #fde68a);
-    border-left: 4px solid var(--amber-600, #b45309);
-    border-radius: 10px;
-    background: var(--amber-50, #fffbeb);
-    color: var(--amber-900, #78350f);
-}
-
-.rent-remind-mark {
-    flex: 0 0 auto;
-    width: 22px;
-    height: 22px;
-    margin-top: 1px;
-}
-
-.rent-remind-mark svg {
-    width: 22px;
-    height: 22px;
-    stroke: var(--amber-600, #b45309);
-}
-
-.rent-remind-body {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.rent-remind-title {
-    font-size: 13.5px;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-}
-
-.rent-remind-text {
-    margin-top: 4px;
-    font-size: 12.5px;
-    line-height: 1.55;
-}
-
-.rent-remind-error {
-    margin-top: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--danger, #b91c1c);
-}
-
-.rent-remind-actions {
-    flex: 0 0 auto;
-    display: flex;
-    gap: 8px;
     align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+    border-radius: 11px;
+    background: rgba(200, 168, 75, .16);
+    color: var(--gold, #c8a84b);
 }
 
-.rent-remind-btn {
-    padding: 8px 13px;
-    border: 1px solid var(--amber-600, #b45309);
-    border-radius: 8px;
-    background: transparent;
-    font-size: 12.5px;
-    font-weight: 700;
-    color: var(--amber-900, #78350f);
+    .rent-confirm-mark svg {
+        width: 21px;
+        height: 21px;
+    }
+
+.rent-confirm-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--navy);
+    margin-bottom: 8px;
+}
+
+.rent-confirm-text {
+    margin: 0 0 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+    .rent-confirm-text strong {
+        color: var(--navy);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+
+.rent-confirm-note {
+    margin: 0 0 18px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-subtle);
+}
+
+    .rent-confirm-note strong {
+        color: var(--navy);
+        font-weight: 700;
+    }
+
+.rent-confirm-error {
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.5;
+    color: var(--danger, #b3261e);
+}
+
+.rent-confirm-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rent-confirm-later,
+.rent-confirm-secondary,
+.rent-confirm-go {
+    height: 36px;
+    padding: 0 15px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    border-radius: 9px;
     cursor: pointer;
-    white-space: nowrap;
 }
 
-.rent-remind-btn:hover:not(:disabled) {
-    background: var(--amber-100, #fef3c7);
+.rent-confirm-later {
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
 }
 
-.rent-remind-btn:disabled {
-    opacity: 0.6;
+    .rent-confirm-later:hover {
+        color: var(--navy);
+    }
+
+.rent-confirm-secondary {
+    color: var(--navy);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+    .rent-confirm-secondary:hover {
+        border-color: var(--navy);
+    }
+
+.rent-confirm-go {
+    color: #fff;
+    background: var(--navy);
+    border: 1px solid var(--navy);
+}
+
+    .rent-confirm-go:hover {
+        background: var(--navy-2, #112d47);
+    }
+
+.rent-confirm-later:disabled,
+.rent-confirm-secondary:disabled,
+.rent-confirm-go:disabled {
+    opacity: .6;
     cursor: default;
 }
 
-.rent-remind-btn-primary {
-    border-color: var(--navy, #0b2239);
-    background: var(--navy, #0b2239);
-    color: #fff;
-}
-
-.rent-remind-btn-primary:hover:not(:disabled) {
-    background: var(--navy-700, #14344f);
-}
-
-@media (max-width: 720px) {
-    .rent-remind {
+@media (max-width: 520px) {
+    .rent-confirm-actions {
         flex-wrap: wrap;
     }
+}
 
-    .rent-remind-actions {
-        width: 100%;
-        justify-content: flex-end;
+@media print {
+    .rent-confirm,
+    .rent-confirm-backdrop {
+        display: none !important;
     }
 }
