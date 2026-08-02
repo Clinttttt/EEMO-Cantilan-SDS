@@ -1,9 +1,11 @@
+using EEMOCantilanSDS.Application.Queries.DailyCollections.GetDailyCollectionMonth;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 
 namespace EEMOCantilanSDS.Testing;
@@ -425,6 +427,44 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // the month after it owes nothing at all, the term having ended.
         Assert.Equal((10 * MonthlyRent) + (7 * Fee), summary.TotalOutstanding);
         Assert.Equal(9_210m, summary.TotalOutstanding);
+    }
+
+    [Fact]
+    public async Task ADaysCollectedAmount_IsTheTenantsOwnMoney_NotTheOrdinanceConstant()
+    {
+        // The Add-OR list writes a receipt against a day, so the amount beside it must be what the office received:
+        // this LGU's own rate, its own fish fee, and any month-end adjustment carried on the installment. Deriving it
+        // from the ordinance constants quoted Cantilan's ₱30 and ₱1/kg to every other municipality.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee,
+            section: MarketSection.FishSection);
+        var term = Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2026, 1, 1), 3, 900m);
+
+        // An LGU on ₱40 a day and ₱2 a kilo.
+        context.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m, new DateOnly(2020, 1, 1), Guid.Empty));
+        context.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmFishPerKilo, 2m, new DateOnly(2020, 1, 1), Guid.Empty));
+
+        // One collected day: ₱40 stamped, three kilos declared, and a ₱60 month-end adjustment riding on it.
+        var day = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, 28), "Admin", 40m);
+        day.MarkPaid(string.Empty, collectorId: null, fishKilos: 3m);
+        day.AddMonthEndAdjustment(60m, "Admin");
+
+        context.AddRange(facility, stall, term, day);
+        await context.SaveChangesAsync();
+
+        var result = await new GetDailyCollectionMonthQueryHandler(
+                new DailyCollectionRepository(context),
+                new StallRepository(context),
+                new FeeRateResolver(context),
+                new NpmMarketClosureRepository(context))
+            .Handle(new GetDailyCollectionMonthQuery(stall.Id, 2026, 2), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var row = result.Value!.Collections["2026-02-28"];
+
+        // ₱40 installment + ₱60 adjustment + 3 kg × ₱2 — nothing of Cantilan's ₱30 or ₱1 in it.
+        Assert.Equal(106m, row.AmountCollected);
     }
 
     [Fact]

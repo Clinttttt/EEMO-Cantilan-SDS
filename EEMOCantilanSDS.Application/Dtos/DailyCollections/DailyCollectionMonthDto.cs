@@ -22,5 +22,11 @@ public sealed record DailyCollectionDayDto(
     decimal? FishKilos,
     bool IsAbsent = false,
     bool IsMarketClosed = false,
-    string? ORNumber = null
+    string? ORNumber = null,
+    /// <summary>
+    /// What was actually recorded against this day — the installment as stamped, including any month-end balance
+    /// adjustment carried on it. Stated so a receipt written against the day shows the money the office received,
+    /// rather than a figure re-derived from today's rate. Zero for a day that was never collected.
+    /// </summary>
+    decimal AmountCollected = 0m
 );

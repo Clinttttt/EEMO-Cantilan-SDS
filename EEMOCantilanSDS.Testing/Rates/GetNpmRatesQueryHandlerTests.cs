@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Queries.Stalls.GetNpmRates;
 using EEMOCantilanSDS.Domain.Constants;
@@ -8,6 +9,7 @@ using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using Xunit;
 
 namespace EEMOCantilanSDS.Testing.Rates
@@ -23,6 +25,20 @@ namespace EEMOCantilanSDS.Testing.Rates
         {
             public Guid MunicipalityId => id;
             public void Set(Guid municipalityId) { }
+        }
+
+        /// <summary>
+        /// A caller with no municipality claim — these tests are about the RATES, and nothing here is exempt from
+        /// the monthly-rent question, which is asked of anything that cannot prove it is the reference tenant.
+        /// </summary>
+        private static ICurrentUserService NoMunicipalityClaim
+        {
+            get
+            {
+                var user = new Mock<ICurrentUserService>();
+                user.SetupGet(u => u.MunicipalityId).Returns((Guid?)null);
+                return user.Object;
+            }
         }
 
         private static DbContextOptions<AppDbContext> Options() =>
@@ -44,7 +60,7 @@ namespace EEMOCantilanSDS.Testing.Rates
             }
 
             using var ctx = new AppDbContext(options, new FixedMunicipality(lgu));
-            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), CacheTestDoubles.Tenant).Handle(new GetNpmRatesQuery(), default);
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx).Handle(new GetNpmRatesQuery(), default);
 
             Assert.True(result.IsSuccess);
             Assert.Equal(40m, result.Value!.DailyRate);
@@ -59,7 +75,7 @@ namespace EEMOCantilanSDS.Testing.Rates
 
             // No FacilityRate rows for this tenant → the resolver falls back to the ordinance constants.
             using var ctx = new AppDbContext(options, new FixedMunicipality(cantilan));
-            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), CacheTestDoubles.Tenant).Handle(new GetNpmRatesQuery(), default);
+            var result = await new GetNpmRatesQueryHandler(new FeeRateResolver(ctx), NoMunicipalityClaim, ctx).Handle(new GetNpmRatesQuery(), default);
 
             Assert.True(result.IsSuccess);
             Assert.Equal(FeeRates.NpmDailyFee, result.Value!.DailyRate);   // ₱30

@@ -728,7 +728,10 @@
                             .Select(d => new OrRow
                             {
                                 Label = d.Date.ToString("MMM d, yyyy"),
-                                Amount = FeeRates.NpmDailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * FeeRates.NpmFishFeePerKilo : 0m),
+                                // What the day was actually collected for, as the record states it — the tenant's own
+                                // rate, its fish fee and any month-end adjustment. Deriving it from the ordinance
+                                // constants here quoted Cantilan's ₱30 and ₱1/kg to every other municipality.
+                                Amount = d.AmountCollected,
                                 Date = d.Date
                             }).ToList();
                     else _orError = r.Error ?? "Couldn't load daily receipts.";

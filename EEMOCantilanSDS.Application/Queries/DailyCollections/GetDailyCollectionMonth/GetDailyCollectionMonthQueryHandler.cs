@@ -58,7 +58,14 @@ public class GetDailyCollectionMonthQueryHandler(
 
         var daysCollected = 0;
         var daysCollectedPast = 0;   // only days up to today, for DaysMissed calculation
-        var daysAbsentPast = 0;      // individually excused/absent days up to today — excluded from DaysMissed
+        // Resolve the municipality's NPM rates as of the END of the report month, before the day loop that states
+        // each day's money: a mid-month rate change (e.g. ₱40→₱30 effective the 10th) then applies to the whole
+        // month consistently with the reports and the profile balance — the same as-of FacilityReportsRepository
+        // uses. Single-rate tenants (Cantilan) are unaffected: any as-of date in range resolves the same amount.
+        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
+        var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
+        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
+        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);        var daysAbsentPast = 0;      // individually excused/absent days up to today — excluded from DaysMissed
         var daysAbsentAll = 0;       // individually excused/absent days in the whole month
         var daysClosedPast = 0;      // market-closed days up to today — excluded from DaysMissed
         var daysClosedAll = 0;       // market-closed days in the whole month
@@ -78,7 +85,13 @@ public class GetDailyCollectionMonthQueryHandler(
                 // A market closure outranks an individual "absent" marker for display.
                 IsAbsent: collection.IsAbsent && !closedToday,
                 IsMarketClosed: closedToday && !collection.IsPaid,
-                ORNumber: collection.ORNumber
+                ORNumber: collection.ORNumber,
+                // The money actually recorded for the day: the installment as stamped — which carries any month-end
+                // adjustment — plus this day's fish fee at the tenant's own resolved rate. A receipt written against
+                // the day must state what the office received, not a figure re-derived from a constant.
+                AmountCollected: collection.IsPaid
+                    ? collection.DailyFee + ((collection.FishKilos ?? 0m) * fishRate)
+                    : 0m
             );
 
             if (collection.IsPaid && day >= contractStartDay)
@@ -121,16 +134,6 @@ public class GetDailyCollectionMonthQueryHandler(
         }
 
         var daysMissed    = Math.Max(0, validDays - daysCollectedPast - daysAbsentPast - daysClosedPast);
-        // Resolve the municipality's NPM rates as of the report month (falls back to the ordinance
-        // constants, so Cantilan totals are unchanged).
-        var rateSnapshot = await feeRateResolver.GetSnapshotAsync(ct);
-        // Resolve the NPM rate as of the END of the report month, so a mid-month rate change (e.g. ₱40→₱30
-        // effective the 10th) applies to the whole month consistently with the reports/profile balance —
-        // and matches how FacilityReportsRepository resolves it (period end). Single-rate tenants (Cantilan)
-        // are unaffected: any as-of date in range resolves the same amount.
-        var asOf = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
-        var npmDaily = rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
-        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
         var totalDailyFee = daysCollected * npmDaily;
         var totalFishFee  = totalFishKilos * fishRate;
         var grandTotal    = totalDailyFee + totalFishFee;
