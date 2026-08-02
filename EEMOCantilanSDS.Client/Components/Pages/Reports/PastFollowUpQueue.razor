@@ -62,15 +62,22 @@
         var allItems = AllItems;
         var shown = Filtered(ActiveItems).ToList();
         var closedScope = _reason == ClosedReason;
+        // The four band counts describe whatever set is on screen, so the hero and the table can never be counting
+        // different things — the Closed chip's register included.
+        var summary = ActiveItems;
         var periodLabel = _allTime
             ? "Whole time · outstanding accounts"
             : _selMonth == 0
                 ? $"{_selYear} · Whole year"
                 : new DateTime(_selYear, _selMonth, 1).ToString("MMMM yyyy");
-        var asOfLabel = _allTime
-            // Cumulative figures: an "as of a month end" suffix is exactly the confusion this view removes.
-            ? $"{periodLabel} · balances in full"
-            : _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
+        var asOfLabel = closedScope
+            // The Closed chip stands outside the period, so the hero says what is on screen rather than the year
+            // still showing in the picker.
+            ? "Closed & expired accounts · whole time · balances in full"
+            : _allTime
+                // Cumulative figures: an "as of a month end" suffix is exactly the confusion this view removes.
+                ? $"{periodLabel} · balances in full"
+                : _data is null ? periodLabel : $"{periodLabel} · as of {_data.AsOf:MMM d, yyyy}";
     }
 
     <!-- Hero + section-count summary (same as the live queue) -->
@@ -89,22 +96,22 @@
         </div>
         <div class="fh-hero-stats">
             <div class="fh-stat">
-                <div class="fh-stat-val fh-stat-critical">@allItems.Count(r => r.Section == 1)</div>
+                <div class="fh-stat-val fh-stat-critical">@summary.Count(r => r.Section == 1)</div>
                 <div class="fh-stat-key">Immediate</div>
             </div>
             <div class="fh-hero-divider"></div>
             <div class="fh-stat">
-                <div class="fh-stat-val">@allItems.Count(r => r.Section == 2)</div>
+                <div class="fh-stat-val">@summary.Count(r => r.Section == 2)</div>
                 <div class="fh-stat-key">This period</div>
             </div>
             <div class="fh-hero-divider"></div>
             <div class="fh-stat">
-                <div class="fh-stat-val">@allItems.Count(r => r.Section == 3)</div>
+                <div class="fh-stat-val">@summary.Count(r => r.Section == 3)</div>
                 <div class="fh-stat-key">Verify</div>
             </div>
             <div class="fh-hero-divider"></div>
             <div class="fh-stat">
-                <div class="fh-stat-val">@allItems.Count(r => r.Section == 4)</div>
+                <div class="fh-stat-val">@summary.Count(r => r.Section == 4)</div>
                 <div class="fh-stat-key">Operational</div>
             </div>
         </div>
@@ -277,7 +284,9 @@
                         No @ReasonLabel(_reason) items@(closedScope ? "" : $" for {periodLabel}").
                     </div>
                     <div class="fh-empty-sub">
-                        This period has @ActiveItems.Count follow-up item@(ActiveItems.Count == 1 ? "" : "s") under other reasons.
+                        @(closedScope
+                            ? $"The register holds {ActiveItems.Count} inactive account{(ActiveItems.Count == 1 ? "" : "s")}, none matching the facility or search on screen."
+                            : $"This period has {ActiveItems.Count} follow-up item{(ActiveItems.Count == 1 ? "" : "s")} under other reasons.")
                         <button type="button" class="fh-empty-link" @onclick="ClearFilters">Show all of them</button>
                     </div>
                 }
