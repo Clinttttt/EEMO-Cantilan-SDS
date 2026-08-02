@@ -359,3 +359,23 @@
 .fq-or-multitotal { font-size: 13px; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; }
 .fq-or-multirow { display: flex; gap: 8px; align-items: center; }
 .fq-or-multirow .fq-or-input { flex: 1 1 auto; width: auto; }
+
+
+/* The empty state's way back when a chip chosen for another period is hiding this period's rows: a plain inline
+   action in the sub-line, so nothing on the page looks broken while the filter is doing its job. */
+.fh-empty-link {
+    margin-left: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    color: var(--navy, #0b2239);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.fh-empty-link:hover {
+    color: var(--gold, #b8860b);
+}

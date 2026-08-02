@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Reports
+@using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
@@ -17,6 +18,7 @@
 @inject ITrmApiClient TrmApi
 @inject ITpmApiClient TpmApi
 @inject ISlaughterApiClient SlhApi
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IStallsApiClient StallsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IJSRuntime JS
 
@@ -58,7 +60,8 @@
 
     @{
         var allItems = AllItems;
-        var shown = Filtered(allItems).ToList();
+        var shown = Filtered(ActiveItems).ToList();
+        var closedScope = _reason == ClosedReason;
         var periodLabel = _allTime
             ? "Whole time · outstanding accounts"
             : _selMonth == 0
@@ -113,9 +116,11 @@
             <div class="fh-filters" role="group" aria-label="Filter by reason">
                 @foreach (var f in ReasonFilters)
                 {
-                    var count = CountFor(allItems, f.Key);
+                    // The Closed chip counts the register, which stands outside the period; every other chip counts
+                    // the snapshot on screen.
+                    var count = f.Key == ClosedReason ? CountFor(_closed, f.Key) : CountFor(allItems, f.Key);
                     <button type="button" class="fh-chip @(_reason == f.Key ? "fh-chip-active" : "")"
-                            disabled="@(count == 0 && f.Key != "all")"
+                            disabled="@(count == 0 && f.Key != "all" && _reason != f.Key)"
                             @onclick="@(() => _reason = f.Key)">
                         @f.Label<span class="fh-chip-count">@count</span>
                     </button>
@@ -259,25 +264,46 @@
 
         if (visibleSections.Count == 0)
         {
+            var narrowed = ActiveItems.Count > 0;   // there ARE items; the filters on screen are hiding them
             <div class="fh-empty">
                 <div class="fh-empty-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                 </div>
-                <div class="fh-empty-title">No follow-up items for @periodLabel.</div>
-                <div class="fh-empty-sub">Nothing matched the selected scope for this period.</div>
+                @if (narrowed)
+                {
+                    @* Saying "no items for 2024" when the period holds 29 of them, all hidden by a chip chosen in
+                       another period, sent the office looking for a data loss that had not happened. *@
+                    <div class="fh-empty-title">
+                        No @ReasonLabel(_reason) items@(closedScope ? "" : $" for {periodLabel}").
+                    </div>
+                    <div class="fh-empty-sub">
+                        This period has @ActiveItems.Count follow-up item@(ActiveItems.Count == 1 ? "" : "s") under other reasons.
+                        <button type="button" class="fh-empty-link" @onclick="ClearFilters">Show all of them</button>
+                    </div>
+                }
+                else
+                {
+                    <div class="fh-empty-title">No follow-up items for @periodLabel.</div>
+                    <div class="fh-empty-sub">Nothing matched the selected scope for this period.</div>
+                }
             </div>
         }
         else
         {
             @foreach (var grp in visibleSections)
             {
+                @* The Closed chip stands outside the period, so its band says so rather than borrowing the
+                   urgency band's wording. *@
+                var head = closedScope
+                    ? new SecDef(grp.Section.Id, "Closed & expired accounts", "Whole time · every inactive account and what it left uncollected", "critical")
+                    : grp.Section;
                 <section class="fh-section">
-                    <div class="fh-sec-head fh-sec-@grp.Section.Tone">
+                    <div class="fh-sec-head fh-sec-@head.Tone">
                         <span class="fh-sec-rail"></span>
                         <span class="fh-sec-count">@grp.Items.Count</span>
                         <div class="fh-sec-info">
-                            <div class="fh-sec-title">@grp.Section.Title</div>
-                            <div class="fh-sec-sub">@grp.Section.Sub</div>
+                            <div class="fh-sec-title">@head.Title</div>
+                            <div class="fh-sec-sub">@head.Sub</div>
                         </div>
                     </div>
                     <div class="fh-table-wrap">
@@ -843,6 +869,10 @@
         ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"), ("missingor", "Missing OR"),
         ("current", "Current-period"), ("contract", "Contract"), ("npm", "NPM Daily"), ("excused", "Excused"),
         ("misc", "Miscellaneous"),
+        // The register of closed and expired accounts, whole time. It answers a question no period can — "which
+        // accounts are inactive, and what did they leave behind" — so it deliberately ignores the year and month
+        // above; each row still states its own span in Period & Status.
+        ("closed", "Closed"),
     };
 
     private static readonly FacilityCode[] AllFacilities = System.Array.Empty<FacilityCode>();
@@ -907,6 +937,10 @@
         _selMonth = 0;
         _allTime = true;
 
+        // The register of inactive accounts is whole-time by nature, so it is read once here rather than with every
+        // period change — the Closed chip shows the same accounts whatever year is picked.
+        await LoadClosedAccountsAsync();
+
         if (TryApplyCachedFollowUpHistory())
             return;
 
@@ -914,6 +948,71 @@
     }
 
     private IReadOnlyList<FollowUpItemDto> AllItems => _data?.Items ?? Array.Empty<FollowUpItemDto>();
+
+    /// <summary>
+    /// The rows the table is showing. The Closed chip reads the register of inactive accounts — whole time, whatever
+    /// the year picker says — because an account that ended is not a fact about a period; every other chip reads the
+    /// period snapshot.
+    /// </summary>
+    private IReadOnlyList<FollowUpItemDto> ActiveItems => _reason == ClosedReason ? _closed : AllItems;
+
+    private const string ClosedReason = "closed";
+
+    /// <summary>Closed and expired accounts as follow-up rows, built once: the register does not change with the period.</summary>
+    private IReadOnlyList<FollowUpItemDto> _closed = Array.Empty<FollowUpItemDto>();
+
+    private async Task LoadClosedAccountsAsync()
+    {
+        var result = await StallsApi.GetClosedStallAccountsAsync();
+        if (!result.IsSuccess || result.Value is null) return;
+
+        _closed = result.Value
+            .Select(ClosedRow)
+            .OrderByDescending(r => r.Amount ?? 0m)
+            .ThenBy(r => r.Person)
+            .ToList();
+    }
+
+    /// <summary>
+    /// One register account as a follow-up row. It carries the account's own span and what it left uncollected, so
+    /// the office can read and act on it beside the period's items without the year filter hiding it.
+    /// </summary>
+    private static FollowUpItemDto ClosedRow(ClosedStallAccountDto a)
+    {
+        var ended = a.OccupancyEndedOn ?? a.ClosedOn ?? a.ExpiryDate;
+        var closed = a.State == InactiveAccountState.Closed;
+
+        return new FollowUpItemDto(
+            Section: 1,
+            Priority: a.Uncollected > 0m ? "High" : "Normal",
+            Reason: closed ? "Closed account" : "Expired account",
+            ReasonKind: ClosedReason,
+            Facility: a.FacilityCode,
+            Model: ModelLabel(a.FacilityCode),
+            Person: string.IsNullOrWhiteSpace(a.Occupant) ? "Unnamed occupant" : a.Occupant,
+            Identifier: $"Stall {a.StallNo}",
+            Amount: a.Uncollected > 0m ? a.Uncollected : null,
+            Excused: false,
+            Period: $"{a.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}",
+            Status: closed
+                ? (a.StallReLet ? "Closed · the space has been re-let" : "Closed account")
+                : (a.StallReLet ? "Term ended · the space has been re-let" : "Term ended · space vacant"),
+            Action: "Review account",
+            Link: $"/profile/{a.FacilityCode.ToString().ToLowerInvariant()}/{a.StallNo}",
+            StallId: a.StallId,
+            ContractId: a.ContractId == Guid.Empty ? null : a.ContractId);
+    }
+
+    // The billing model as the queue words it, so a register row reads like every other row on the page.
+    private static string ModelLabel(FacilityCode code) => code switch
+    {
+        FacilityCode.NPM => "Daily stall",
+        FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE => "Monthly rental",
+        FacilityCode.SLH => "Per-head",
+        FacilityCode.TRM => "Per-trip",
+        FacilityCode.TPM => "Weekly market",
+        _ => "—"
+    };
 
     // Selectable collection months for a year: past years show all 12; the current year shows only its
     // COMPLETED months (the in-progress current month is covered by the live queue, not history).
@@ -1044,6 +1143,18 @@
         (key == "all" || r.ReasonKind == key)
         && (_facility is null || r.Facility == _facility)
         && MatchesSearch(r));
+
+    private static string ReasonLabel(string key) =>
+        ReasonFilters.FirstOrDefault(f => f.Key == key).Label is { Length: > 0 } label ? label : "matching";
+
+    /// <summary>Puts the reason, facility and search back to everything, so a filter chosen for one period cannot
+    /// leave another period looking empty.</summary>
+    private void ClearFilters()
+    {
+        _reason = "all";
+        _facility = null;
+        _search = string.Empty;
+    }
 
     private bool MatchesSearch(FollowUpItemDto r)
     {
