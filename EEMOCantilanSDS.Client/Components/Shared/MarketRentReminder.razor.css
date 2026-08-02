@@ -1,0 +1,100 @@
+/* Setup reminder strip: the market's monthly rent is unconfirmed. A notice, not a dialog — the office keeps
+   working, and either action ends it for good. */
+.rent-remind {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--amber-200, #fde68a);
+    border-left: 4px solid var(--amber-600, #b45309);
+    border-radius: 10px;
+    background: var(--amber-50, #fffbeb);
+    color: var(--amber-900, #78350f);
+}
+
+.rent-remind-mark {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+}
+
+.rent-remind-mark svg {
+    width: 22px;
+    height: 22px;
+    stroke: var(--amber-600, #b45309);
+}
+
+.rent-remind-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.rent-remind-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+}
+
+.rent-remind-text {
+    margin-top: 4px;
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+.rent-remind-error {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--danger, #b91c1c);
+}
+
+.rent-remind-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.rent-remind-btn {
+    padding: 8px 13px;
+    border: 1px solid var(--amber-600, #b45309);
+    border-radius: 8px;
+    background: transparent;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--amber-900, #78350f);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.rent-remind-btn:hover:not(:disabled) {
+    background: var(--amber-100, #fef3c7);
+}
+
+.rent-remind-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.rent-remind-btn-primary {
+    border-color: var(--navy, #0b2239);
+    background: var(--navy, #0b2239);
+    color: #fff;
+}
+
+.rent-remind-btn-primary:hover:not(:disabled) {
+    background: var(--navy-700, #14344f);
+}
+
+@media (max-width: 720px) {
+    .rent-remind {
+        flex-wrap: wrap;
+    }
+
+    .rent-remind-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

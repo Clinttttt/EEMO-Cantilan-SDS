@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
@@ -20,6 +21,13 @@ public class GetNpmRatesQueryHandler(IFeeRateResolver feeRateResolver)
         var asOf = DateOnly.FromDateTime(PhilippineTime.Now);
         var daily = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var fish = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
-        return Result<NpmRatesDto>.Success(new NpmRatesDto(daily, fish));
+
+        // The rent a market space is let for. 0 means the LGU has not stated one, so the system charges thirty of
+        // its daily fee — correct where the ordinance follows that convention, and a figure the office should be
+        // asked to confirm where it does not.
+        var monthly = snapshot.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
+        var monthlyInUse = monthly > 0m ? monthly : daily * DomainRules.DailyBilledMonthDays;
+
+        return Result<NpmRatesDto>.Success(new NpmRatesDto(daily, fish, monthly, monthlyInUse, monthly > 0m));
     }
 }

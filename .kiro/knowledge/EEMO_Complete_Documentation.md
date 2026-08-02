@@ -58,6 +58,11 @@ from a date, in the `FacilityRates` table.
   none (0, the default) the month is `dailyRate × DomainRules.DailyBilledMonthDays`, which is Cantilan's
   ₱30 × 30 = ₱900. A custom section is priced by its own daily rate, so its month is thirty of that and the
   market-wide monthly rent does not apply to it.
+- While an LGU has stated no monthly rent, the portal shows its **Head a setup reminder** on the dashboard naming
+  the figure in force ("charging ₱900 a month — ₱30 a day × 30"), with one action to open Settings → Facilities &
+  Rates and one to confirm the figure in use as the ordinance amount. Either ends the reminder for good; confirming
+  writes that same figure through the ordinary rate path, so no money moves. Head-only (an Admin cannot edit rates),
+  only for a tenant that runs a market, and it fails quiet — a reminder never stands between the office and its work.
 
 ### The monthly obligation ledger (daily-billed facilities)
 

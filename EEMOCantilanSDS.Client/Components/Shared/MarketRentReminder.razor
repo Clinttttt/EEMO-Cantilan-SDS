@@ -1,0 +1,146 @@
+@using System.Security.Claims
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IStallsApiClient StallsApi
+@inject IFacilitiesApiClient FacilitiesApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+@*
+    Setup reminder: the market's MONTHLY rent has not been confirmed.
+
+    A market space is let for a monthly rent and collected in daily installments. Where an LGU has not stated its
+    ordinance month, the system charges thirty of its daily fee — right for an office whose ordinance follows that
+    convention, and quietly wrong for one whose does not. So the office is told the figure in force and asked to
+    confirm it, once, in its own words.
+
+    Design rules:
+      • Head only. An Admin cannot edit rates, so a warning they cannot act on would be noise.
+      • Only when this LGU actually runs a market, and only while the figure is unconfirmed.
+      • Either action ends it for good: open Rates to enter the ordinance amount, or confirm the figure in use —
+        which writes it as the LGU's own stated rent through the ordinary rate path.
+      • FAILS QUIET. Any error, or a tenant with no market, and nothing is shown: a reminder must never stand
+        between the office and its work.
+      • Never on the sign-in / setup / logout routes, where it would interrupt a flow already in progress.
+*@
+
+@if (_show)
+{
+    <div class="rent-remind" role="status">
+        <div class="rent-remind-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+        </div>
+
+        <div class="rent-remind-body">
+            <div class="rent-remind-title">Monthly market rent has not been confirmed</div>
+            <div class="rent-remind-text">
+                The system is charging <strong>@Money(_inUse)</strong> a month for a @FacilityCatalog.ShortNameOf(FacilityCode.NPM)
+                space — @Money(_daily) a day × @EEMOCantilanSDS.Domain.Constants.DomainRules.DailyBilledMonthDays.
+                If your ordinance states a different monthly amount, enter it in
+                <strong>Settings → Facilities &amp; Rates</strong> so every balance, report and official list states
+                the figure your office reconciles against.
+            </div>
+            @if (_error is not null)
+            {
+                <div class="rent-remind-error">@_error</div>
+            }
+        </div>
+
+        <div class="rent-remind-actions">
+            <button type="button" class="rent-remind-btn rent-remind-btn-primary" @onclick="OpenRates" disabled="@_saving">
+                Review Rates
+            </button>
+            <button type="button" class="rent-remind-btn" @onclick="ConfirmInUseAsync" disabled="@_saving">
+                @(_saving ? "Confirming…" : $"Confirm {Money(_inUse)}")
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _show;
+    private bool _saving;
+    private string? _error;
+    private decimal _inUse;
+    private decimal _daily;
+
+    private static readonly string[] SuppressedRoutes =
+    {
+        "/login", "/logout", "/security-setup", "/activate", "/reset-password", "/verify-email", "/onboarding",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (IsSuppressedRoute()) return;
+
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            if (auth.User.Identity?.IsAuthenticated != true) return;
+            // Only a Head may set a rate, so only a Head is asked to confirm one.
+            if (!auth.User.IsInRole("SuperAdmin")) return;
+
+            // A tenant with no market has no market rent to confirm.
+            await FacilityCatalog.EnsureLoadedAsync();
+            if (!FacilityCatalog.All.Contains(FacilityCode.NPM)) return;
+
+            var rates = await StallsApi.GetNpmRatesAsync();
+            if (!rates.IsSuccess || rates.Value is null) return;
+            if (rates.Value.IsMonthlyRentConfirmed) return;
+
+            _daily = rates.Value.DailyRate;
+            _inUse = rates.Value.MonthlyRentInUse;
+            _show = _inUse > 0m;
+        }
+        catch
+        {
+            // Fails quiet by design: a setup reminder must never break a page.
+            _show = false;
+        }
+    }
+
+    private bool IsSuppressedRoute()
+    {
+        var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+        return SuppressedRoutes.Any(r => path.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void OpenRates() => Navigation.NavigateTo("/settings/facilities");
+
+    /// <summary>
+    /// Confirms the figure already in force as this LGU's own stated rent, through the ordinary rate path — so the
+    /// office can end the reminder without retyping a number it has just been shown, and nothing about its money
+    /// changes in doing so.
+    /// </summary>
+    private async Task ConfirmInUseAsync()
+    {
+        if (_saving || _inUse <= 0m) return;
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            var result = await FacilitiesApi.SetFacilityRateAsync(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, _inUse);
+            if (result.IsSuccess)
+                _show = false;
+            else
+                _error = result.Error ?? "That could not be saved. Open Rates and set the monthly rent there.";
+        }
+        catch
+        {
+            _error = "That could not be saved. Open Rates and set the monthly rent there.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string Money(decimal value) => "₱" + value.ToString("N0");
+}
