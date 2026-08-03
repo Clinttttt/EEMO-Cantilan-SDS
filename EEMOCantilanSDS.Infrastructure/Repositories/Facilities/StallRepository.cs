@@ -920,7 +920,10 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 // renew or reopen it, which would act on the sitting lessee's occupancy.
                 stall.Occupancies(today).Any(o => o.IsCurrent),
                 // The term this row is the record of, so an action on THIS lessee cannot pick up the sitting one's.
-                contract.Id));
+                contract.Id,
+                // The space as measured on the stall today — what a renewal is checked against.
+                stall.AreaSqm,
+                stall.AreaNote));
         }
 
         return result

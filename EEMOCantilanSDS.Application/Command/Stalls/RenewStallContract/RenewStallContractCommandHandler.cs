@@ -29,6 +29,20 @@ public class RenewStallContractCommandHandler(
 
         var actor = currentUser.Username ?? "Admin";
 
+        // Corrections the office made on the renewal form, applied before the new term is written so the term
+        // records the rate it is actually let at. Null means "as it stands": the rate, area and note are left
+        // untouched, which is what plain "Proceed" does. The daily rate is carried through deliberately —
+        // UpdateRates would otherwise clear it and a daily-billed space would lose its ordinance rate.
+        if (request.MonthlyRate.HasValue && request.MonthlyRate.Value != stall.MonthlyRate)
+            stall.UpdateRates(request.MonthlyRate.Value, stall.DailyRate, actor);
+
+        if (request.AreaSqm.HasValue || request.AreaNote is not null)
+            stall.UpdateAreaInfo(
+                request.AreaSqm ?? stall.AreaSqm,
+                request.AreaNote ?? stall.AreaNote,
+                stall.Remarks,
+                actor);
+
         // Capture the outgoing occupant BEFORE terminating, to detect a change of hands below.
         var previousOccupant = stall.Contracts.FirstOrDefault(c => c.IsActive)?.ActualOccupant;
 
@@ -38,7 +52,7 @@ public class RenewStallContractCommandHandler(
         foreach (var active in stall.Contracts.Where(c => c.IsActive).ToList())
             active.Terminate(actor, request.EffectivityDate.AddDays(-1));
 
-        // Start the new term. The stall keeps its current rate.
+        // Start the new term. The stall keeps its current rate unless the office corrected it above.
         var renewed = Contract.Create(
             stall.Id,
             request.ActualOccupant,

@@ -195,6 +195,44 @@
 .ca-form input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--navy) 18%, transparent); }
 .ca-form-err { margin-top: 10px; color: var(--red); font-size: 12.5px; font-weight: 600; }
 
+/* ── Renewal: the record as it stands, then what is being changed ──
+   The facts that identify the space are stated, not offered as fields — a renewal re-lets the same space.
+   Group headings keep a longer form readable without turning it into a wall of labels. */
+.ca-renew-facts {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+    .ca-renew-facts > div {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border);
+    }
+    .ca-renew-facts > div:last-child { border-bottom: none; }
+    .ca-renew-facts span { font-size: 12px; color: var(--text-muted); }
+    .ca-renew-facts strong { font-size: 12.5px; font-weight: 650; color: var(--navy); text-align: right; }
+
+.ca-form-heading {
+    margin: 16px 0 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+}
+    .ca-form-heading:first-of-type { margin-top: 0; }
+
+.ca-renew-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    color: var(--text-subtle);
+}
+
 /* ── Contextual loading skeleton (screen only — mirrors summary + register) ── */
 .ca-loading { margin-top: 2px; }
 .ca-loading ::deep .ca-sk-center { margin-left: auto; margin-right: auto; }

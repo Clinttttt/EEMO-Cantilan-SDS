@@ -42,5 +42,9 @@ public sealed record ClosedStallAccountDto(
     /// as placing them in a stall of their own when they return — must name the term rather than the stall, or it
     /// would read the sitting lessee's details instead.
     /// </summary>
-    Guid ContractId = default
+    Guid ContractId = default,
+    /// <summary>The space as currently measured, so a renewal can be checked against the record and corrected.</summary>
+    double? AreaSqm = null,
+    /// <summary>The office's note on the space (e.g. "Corner", "Extension"), shown alongside the area on renewal.</summary>
+    string? AreaNote = null
 );

@@ -177,7 +177,8 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
     public async Task<ActionResult<bool>> RenewContract(Guid stallId, [FromBody] RenewStallContractRequest request)
     {
         var command = new RenewStallContractCommand(
-            stallId, request.EffectivityDate, request.DurationYears, request.ActualOccupant, request.NameOnContract);
+            stallId, request.EffectivityDate, request.DurationYears, request.ActualOccupant, request.NameOnContract,
+            request.MonthlyRate, request.AreaSqm, request.AreaNote);
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }
