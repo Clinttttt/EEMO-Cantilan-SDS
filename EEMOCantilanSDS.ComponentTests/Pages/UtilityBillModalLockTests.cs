@@ -99,15 +99,17 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: true, waterStatus: "Unpaid"), elec: false);
 
-        Assert.Single(cut.FindAll(".ub-status-row-locked"));
-        Assert.Contains("Recorded as unpaid", cut.Markup);
+        // The chip that holds the recorded status carries the lock; the row is out of reach until asked.
+        Assert.Single(cut.FindAll(".ub-status-wrap.locked"));
+        Assert.Single(cut.FindAll(".ub-status.on .ub-ico"));
+        Assert.Single(cut.FindAll(".ub-status-unlock"));
 
-        // The mis-tap: pressing "Paid" while locked changes nothing and asks instead.
+        // The mis-tap: pressing "Paid" while locked changes nothing, and brings the way out into view.
         cut.FindAll(".ub-status")[1].Click();
 
         Assert.Contains("on", cut.FindAll(".ub-status")[0].GetAttribute("class"));   // still Unpaid
         Assert.DoesNotContain("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));
-        Assert.Contains("change it?", cut.Markup);
+        Assert.Single(cut.FindAll(".ub-status-wrap.asked"));
     }
 
     [Fact]
@@ -115,9 +117,10 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: true, waterStatus: "Unpaid"), elec: false);
 
-        cut.Find(".ub-lockbar-btn").Click();
+        cut.Find(".ub-status-unlock").Click();
 
-        Assert.Empty(cut.FindAll(".ub-status-row-locked"));
+        Assert.Empty(cut.FindAll(".ub-status-wrap.locked"));
+        Assert.Empty(cut.FindAll(".ub-status-unlock"));
         cut.FindAll(".ub-status")[1].Click();
         Assert.Contains("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));   // Paid now takes
     }
@@ -127,8 +130,8 @@ public class UtilityBillModalLockTests : TestContext
     {
         var cut = RenderModal(Seed(exists: false), elec: false);
 
-        Assert.Empty(cut.FindAll(".ub-status-row-locked"));
-        Assert.Empty(cut.FindAll(".ub-lockbar"));
+        Assert.Empty(cut.FindAll(".ub-status-wrap.locked"));
+        Assert.Empty(cut.FindAll(".ub-status-unlock"));
 
         cut.FindAll(".ub-status")[1].Click();
 

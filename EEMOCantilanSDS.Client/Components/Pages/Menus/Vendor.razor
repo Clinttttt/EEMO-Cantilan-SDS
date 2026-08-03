@@ -517,7 +517,7 @@
                                                   DetailVendor.Section.Contains("Fish", StringComparison.OrdinalIgnoreCase);
                             bool hasMeatSection = DetailVendor.FacilityCode == "NPM" &&
                                                   DetailVendor.Section.Contains("Meat", StringComparison.OrdinalIgnoreCase);
-                            bool hasFishPerKg = DetailVendor.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"));
+                            bool hasFishPerKg = HasSectionFee(DetailVendor.FeeTypes);
                         }
 
                         @if (DetailVendor.FacilityCode != "NPM")
@@ -893,6 +893,16 @@
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
     void CloseFacDropdown() => FacDropdownOpen = false;
 
+    /// <summary>
+    /// True when this fee list carries the per-kilo section fee. Two lists reach here: the form's, which uses the
+    /// rate-free token, and the register row's, which shows this office's own rate in the label — so the test
+    /// accepts either rather than depending on wording that is allowed to change per LGU.
+    /// </summary>
+    static bool HasSectionFee(IEnumerable<string> feeTypes) =>
+        feeTypes.Any(f =>
+            string.Equals(f, AddVendorModal.SectionFeeType, StringComparison.OrdinalIgnoreCase)
+            || (f.Contains("Fish", StringComparison.OrdinalIgnoreCase) && f.Contains("kg", StringComparison.OrdinalIgnoreCase)));
+
     static List<string> BuildFeeTypes(string facilityCode, string? sectionDisplay, bool hasElectricity, bool hasWater,
                                       string fishFeeLabel)
     {
@@ -1200,7 +1210,7 @@
             var editFees = Domain.Enums.ApplicableFees.BaseRental;
             if (Form.FeeTypes.Contains("Electricity")) editFees |= Domain.Enums.ApplicableFees.Electricity;
             if (Form.FeeTypes.Contains("Water")) editFees |= Domain.Enums.ApplicableFees.Water;
-            if (Form.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"))) editFees |= Domain.Enums.ApplicableFees.FishFee;
+            if (HasSectionFee(Form.FeeTypes)) editFees |= Domain.Enums.ApplicableFees.FishFee;
 
             var updateCommand = new Application.Command.Stalls.UpdateStall.UpdateStallCommand(
                 StallId: v.StallGuid,
@@ -1255,7 +1265,7 @@
             var fees = Domain.Enums.ApplicableFees.BaseRental;
             if (Form.FeeTypes.Contains("Electricity")) fees |= Domain.Enums.ApplicableFees.Electricity;
             if (Form.FeeTypes.Contains("Water")) fees |= Domain.Enums.ApplicableFees.Water;
-            if (Form.FeeTypes.Any(f => f.Contains("Fish") && f.Contains("kg"))) fees |= Domain.Enums.ApplicableFees.FishFee;
+            if (HasSectionFee(Form.FeeTypes)) fees |= Domain.Enums.ApplicableFees.FishFee;
 
             var command = new Application.Command.Stalls.CreateStall.CreateStallCommand(
                 FacilityCode: facilityCode,

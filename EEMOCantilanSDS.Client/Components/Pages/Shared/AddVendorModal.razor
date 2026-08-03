@@ -457,7 +457,9 @@
 
                                 @* A space with no meters has no utility charges to show. Stating that — rather than
                                    presenting two empty boxes — keeps the form an account of what this payor is billed
-                                   for, while still allowing the office to add a charge when a meter is installed. *@
+                                   for, while still allowing the office to add a charge when a meter is installed.
+                                   Choosing to add one opens the two controls; ticking one and saving is what puts the
+                                   charge on the stall, which is then what the meter-reading dialog offers. *@
                                 @if (IsEditing && !_showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
                                 {
                                     <div class="avm-util-none">
@@ -467,6 +469,10 @@
                                 }
                                 else
                                 {
+                                @if (IsEditing && _showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
+                                {
+                                    <div class="avm-section-note">Tick the service this space is metered for, then save. Nothing is charged until you do.</div>
+                                }
                                 <!-- Electricity -->
                                 <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
                                      @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
@@ -705,6 +711,9 @@
         {
             _lastSuggested = string.Empty;
             _customYears = false;
+            // "Add a utility charge" applies to the space that was open. Left set, the next stall opened would
+            // show two empty toggles instead of the plain statement that it carries no utility charges.
+            _showUtilityCharges = false;
             // Closing answers whatever was on the table. A host that forgets to clear its offer therefore
             // cannot put a stale dialog over the next blank form; a NEW offer still asks.
             _answeredReuseOffer = ReuseOfferMessage;

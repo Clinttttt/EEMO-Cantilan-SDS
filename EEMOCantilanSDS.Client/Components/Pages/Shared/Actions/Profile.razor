@@ -295,15 +295,24 @@
                                 <div class="prof-field">
                                     <span class="prof-field-label">Electricity</span>
                                     <span class="prof-util-badge @(Stall.HasElectricity ? "util-yes" : "util-no")">
-                                        @(Stall.HasElectricity ? "Included" : "N/A")
+                                        @(Stall.HasElectricity ? "Billed" : "Not billed")
                                     </span>
                                 </div>
                                 <div class="prof-field">
                                     <span class="prof-field-label">Water</span>
                                     <span class="prof-util-badge @(Stall.HasWater ? "util-yes" : "util-no")">
-                                        @(Stall.HasWater ? "Included" : "N/A")
+                                        @(Stall.HasWater ? "Billed" : "Not billed")
                                     </span>
                                 </div>
+                                @* The per-kilo fee is stated only where this space actually carries one, at the
+                                   office's own rate — a stall in a section with no such fee shows no figure. *@
+                                @if (Stall.FishFee > 0m && _npmFishRate > 0m)
+                                {
+                                    <div class="prof-field">
+                                        <span class="prof-field-label">@Stall.Section fee</span>
+                                        <span class="prof-field-val bold">₱@_npmFishRate.ToString("0.00")/kg</span>
+                                    </div>
+                                }
                             }
                         </div>
 
@@ -314,7 +323,7 @@
                                 <div class="prof-bill-sub">
                                     @if (FacilityId.ToUpper() == "NPM")
                                     {
-                                        @("Rental + Electricity + Water" + (Stall.Section == "Fish Area" ? " + Fish Fee" : ""))
+                                        @BillComposition()
                                     }
                                     else
                                     {
@@ -405,9 +414,9 @@
                             <div class="ph-heat-head">@_heatCollected day@(_heatCollected == 1 ? "" : "s") collected @(_heatYear == EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year ? "in the last year" : $"in {_heatYear}")</div>
                             <div class="ph-heat-scroll">
                                 <div class="ph-heat-months">
-                                    @for (var w = 0; w < _heatWeeks.Count; w++)
+                                    @foreach (var seg in MonthSegments())
                                     {
-                                        <span class="ph-heat-mcol">@MonthLabel(w)</span>
+                                        <span class="ph-heat-mcol" style="width:@(seg.Weeks * 14)px">@seg.Label</span>
                                     }
                                 </div>
                                 <div class="ph-heat-body">
@@ -720,6 +729,10 @@
     // rate, so we show it (not the possibly-stale stored per-stall value) as the stall's rate.
     private decimal _npmDailyRate = 30m;
 
+    // The tenant's own per-kilo section fee. Zero means this office charges none, and the profile then states
+    // no such fee at all rather than quoting another municipality's.
+    private decimal _npmFishRate;
+
     // GitHub-style daily heatmap (NPM only): last ~12 months of per-day collection status.
     private sealed record HeatCell(DateOnly Date, string Kind);
     private List<List<HeatCell>> _heatWeeks = new();   // each inner list = 7 cells (Sun→Sat)
@@ -881,7 +894,10 @@
         {
             var ratesResult = await StallsApi.GetNpmRatesAsync();
             if (ratesResult.IsSuccess && ratesResult.Value is not null)
+            {
                 _npmDailyRate = ratesResult.Value.DailyRate;
+                _npmFishRate = ratesResult.Value.FishRate;
+            }
         }
 
         // Load stalls from API
@@ -1230,6 +1246,50 @@
     }
 
     // Month abbreviation above the week where the month first changes (skips the clipped left edge).
+    /// <summary>
+    /// The month strip above the calendar, as one segment per month sized to the weeks that month covers.
+    /// A label in a fixed 14px cell is wider than the cell, so the names ran into each other and the last one
+    /// spilled out of the card; giving each month its own width keeps them apart and inside.
+    /// </summary>
+    /// <summary>
+    /// What the month's bill is actually made of on THIS space: rent, then only the services it is billed for,
+    /// then the section fee where the office charges one. Naming a charge the stall does not carry told the
+    /// office it was billing for meters and fees that were never on the record.
+    /// </summary>
+    private string BillComposition()
+    {
+        var parts = new List<string> { "Rental" };
+        if (Stall.HasElectricity) parts.Add("Electricity");
+        if (Stall.HasWater) parts.Add("Water");
+        if (Stall.FishFee > 0m) parts.Add($"{Stall.Section} fee");
+        return string.Join(" + ", parts);
+    }
+
+    private IEnumerable<(string Label, int Weeks)> MonthSegments()
+    {
+        if (_heatWeeks.Count == 0) yield break;
+
+        var label = _heatWeeks[0][0].Date;
+        var weeks = 1;
+
+        for (var w = 1; w < _heatWeeks.Count; w++)
+        {
+            var month = _heatWeeks[w][0].Date;
+            if (month.Month == label.Month && month.Year == label.Year)
+            {
+                weeks++;
+                continue;
+            }
+
+            // A month that only just started at the end of the strip has no room for its name.
+            yield return (weeks >= 2 ? label.ToString("MMM") : string.Empty, weeks);
+            label = month;
+            weeks = 1;
+        }
+
+        yield return (weeks >= 2 ? label.ToString("MMM") : string.Empty, weeks);
+    }
+
     private string MonthLabel(int weekIndex)
     {
         if (weekIndex <= 0 || weekIndex >= _heatWeeks.Count) return "";

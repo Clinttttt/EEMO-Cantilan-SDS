@@ -13,6 +13,22 @@
     not have. Applicability comes from the stall's own ApplicableFees flags, passed in by the caller.
 *@
 
+@* Line icons, defined once and drawn from this component's own markup so CSS isolation reaches them.
+   No emoji: this is an official form, and a glyph that renders as a colour picture on one machine and a
+   black square on another has no place on it. *@
+@{
+    RenderFragment lockIcon =
+        @<svg class="ub-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+        </svg>;
+    RenderFragment pencilIcon =
+        @<svg class="ub-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 20h4L19 9l-4-4L4 16v4z" />
+            <path d="M14 6l4 4" />
+        </svg>;
+}
+
 @if (Show)
 {
     <div class="ub-overlay" @onclick="Close">
@@ -44,7 +60,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else if (ElecPrevOpen)
@@ -58,7 +74,7 @@
                                         title="@PrevLockHint(false)"
                                         aria-label="@($"Previous electricity reading {ElecPrev:N2}. {PrevLockHint(false)}")">
                                     <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
-                                    <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
+                                    <span class="ub-locked-mark ub-locked-edit">@pencilIcon</span>
                                 </button>
                             }
                         </label>
@@ -67,7 +83,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@ElecCur.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
@@ -80,7 +96,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@ElecRate.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
@@ -92,20 +108,37 @@
                     <div class="ub-calc">@ElecConsumption.ToString("N0") kWh × ₱@ElecRate.ToString("N2") = <strong>₱@ElecCharge.ToString("N2")</strong></div>
                     @if (ElecReadingsSettled)
                     {
-                        <div class="ub-lock-note">@LockGlyph @PrevLockHint(true)</div>
+                        <div class="ub-lock-note">@lockIcon @PrevLockHint(true)</div>
                     }
-                    <div class="ub-status-row @(ElecStatusLocked ? "ub-status-row-locked" : "")">
-                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => SetElecPay(PaymentStatus.Unpaid)">Unpaid</button>
-                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => SetElecPay(PaymentStatus.Paid)">Paid</button>
-                        <button type="button" class="ub-status @(ElecPay == PaymentStatus.Partial ? "on" : "")" @onclick="() => SetElecPay(PaymentStatus.Partial)">Partial</button>
-                    </div>
-                    @if (ElecStatusLocked)
-                    {
-                        <div class="ub-lockbar">
-                            <span class="ub-lockbar-text">@LockGlyph Recorded as @ElecPay.ToString().ToLowerInvariant()@(_elecStatusAsked ? " — change it?" : "")</span>
-                            <button type="button" class="ub-lockbar-btn" @onclick="() => _elecStatusUnlocked = true">Update status</button>
+                    <div class="ub-status-wrap @(ElecStatusLocked ? "locked" : "") @(_elecStatusAsked ? "asked" : "")">
+                        <div class="ub-status-row">
+                            <button type="button" class="ub-status @(ElecPay == PaymentStatus.Unpaid ? "on" : "")"
+                                    title="@StatusChipHint(ElecStatusLocked, PaymentStatus.Unpaid)"
+                                    @onclick="() => SetElecPay(PaymentStatus.Unpaid)">
+                                <span>Unpaid</span>
+                                @if (ElecStatusLocked && ElecPay == PaymentStatus.Unpaid) { @lockIcon }
+                            </button>
+                            <button type="button" class="ub-status @(ElecPay == PaymentStatus.Paid ? "on" : "")"
+                                    title="@StatusChipHint(ElecStatusLocked, PaymentStatus.Paid)"
+                                    @onclick="() => SetElecPay(PaymentStatus.Paid)">
+                                <span>Paid</span>
+                                @if (ElecStatusLocked && ElecPay == PaymentStatus.Paid) { @lockIcon }
+                            </button>
+                            <button type="button" class="ub-status @(ElecPay == PaymentStatus.Partial ? "on" : "")"
+                                    title="@StatusChipHint(ElecStatusLocked, PaymentStatus.Partial)"
+                                    @onclick="() => SetElecPay(PaymentStatus.Partial)">
+                                <span>Partial</span>
+                                @if (ElecStatusLocked && ElecPay == PaymentStatus.Partial) { @lockIcon }
+                            </button>
                         </div>
-                    }
+                        @if (ElecStatusLocked)
+                        {
+                            <button type="button" class="ub-status-unlock" @onclick="() => _elecStatusUnlocked = true"
+                                    title="This electricity status is on record. Open it to change it.">
+                                @pencilIcon <span>Update status</span>
+                            </button>
+                        }
+                    </div>
                     @if (ElecPay == PaymentStatus.Partial)
                     {
                         <label class="ub-field">Electricity partial amount<input type="number" step="0.01" min="0" @bind="ElecPartial" @bind:event="oninput" /></label>
@@ -127,7 +160,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else if (WaterPrevOpen)
@@ -141,7 +174,7 @@
                                         title="@PrevLockHint(false)"
                                         aria-label="@($"Previous water reading {WaterPrev:N2}. {PrevLockHint(false)}")">
                                     <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
-                                    <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
+                                    <span class="ub-locked-mark ub-locked-edit">@pencilIcon</span>
                                 </button>
                             }
                         </label>
@@ -150,7 +183,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@WaterCur.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
@@ -163,7 +196,7 @@
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
                                     <span class="ub-locked-value">@WaterRate.ToString("N2")</span>
-                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                    <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
@@ -175,20 +208,37 @@
                     <div class="ub-calc">@WaterConsumption.ToString("N0") cu.m × ₱@WaterRate.ToString("N2") = <strong>₱@WaterCharge.ToString("N2")</strong></div>
                     @if (WaterReadingsSettled)
                     {
-                        <div class="ub-lock-note">@LockGlyph @PrevLockHint(true)</div>
+                        <div class="ub-lock-note">@lockIcon @PrevLockHint(true)</div>
                     }
-                    <div class="ub-status-row @(WaterStatusLocked ? "ub-status-row-locked" : "")">
-                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => SetWaterPay(PaymentStatus.Unpaid)">Unpaid</button>
-                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => SetWaterPay(PaymentStatus.Paid)">Paid</button>
-                        <button type="button" class="ub-status @(WaterPay == PaymentStatus.Partial ? "on" : "")" @onclick="() => SetWaterPay(PaymentStatus.Partial)">Partial</button>
-                    </div>
-                    @if (WaterStatusLocked)
-                    {
-                        <div class="ub-lockbar">
-                            <span class="ub-lockbar-text">@LockGlyph Recorded as @WaterPay.ToString().ToLowerInvariant()@(_waterStatusAsked ? " — change it?" : "")</span>
-                            <button type="button" class="ub-lockbar-btn" @onclick="() => _waterStatusUnlocked = true">Update status</button>
+                    <div class="ub-status-wrap @(WaterStatusLocked ? "locked" : "") @(_waterStatusAsked ? "asked" : "")">
+                        <div class="ub-status-row">
+                            <button type="button" class="ub-status @(WaterPay == PaymentStatus.Unpaid ? "on" : "")"
+                                    title="@StatusChipHint(WaterStatusLocked, PaymentStatus.Unpaid)"
+                                    @onclick="() => SetWaterPay(PaymentStatus.Unpaid)">
+                                <span>Unpaid</span>
+                                @if (WaterStatusLocked && WaterPay == PaymentStatus.Unpaid) { @lockIcon }
+                            </button>
+                            <button type="button" class="ub-status @(WaterPay == PaymentStatus.Paid ? "on" : "")"
+                                    title="@StatusChipHint(WaterStatusLocked, PaymentStatus.Paid)"
+                                    @onclick="() => SetWaterPay(PaymentStatus.Paid)">
+                                <span>Paid</span>
+                                @if (WaterStatusLocked && WaterPay == PaymentStatus.Paid) { @lockIcon }
+                            </button>
+                            <button type="button" class="ub-status @(WaterPay == PaymentStatus.Partial ? "on" : "")"
+                                    title="@StatusChipHint(WaterStatusLocked, PaymentStatus.Partial)"
+                                    @onclick="() => SetWaterPay(PaymentStatus.Partial)">
+                                <span>Partial</span>
+                                @if (WaterStatusLocked && WaterPay == PaymentStatus.Partial) { @lockIcon }
+                            </button>
                         </div>
-                    }
+                        @if (WaterStatusLocked)
+                        {
+                            <button type="button" class="ub-status-unlock" @onclick="() => _waterStatusUnlocked = true"
+                                    title="This water status is on record. Open it to change it.">
+                                @pencilIcon <span>Update status</span>
+                            </button>
+                        }
+                    </div>
                     @if (WaterPay == PaymentStatus.Partial)
                     {
                         <label class="ub-field">Water partial amount<input type="number" step="0.01" min="0" @bind="WaterPartial" @bind:event="oninput" /></label>
@@ -301,9 +351,12 @@
     private bool ElecStatusLocked => ExistingBill && !_elecStatusUnlocked;
     private bool WaterStatusLocked => ExistingBill && !_waterStatusUnlocked;
 
-    // A lock glyph and a pencil, drawn in text so they inherit the row's ink and need no icon set.
-    private const string LockGlyph = "\U0001F512";
-    private const string PencilGlyph = "\u270E";
+    // A lock glyph and a pencil are drawn as line icons in the markup above; nothing here emits a character
+    // that a machine might render as a picture.
+    private static string StatusChipHint(bool locked, PaymentStatus status) =>
+        locked
+            ? "This status is on record. Use \u201cUpdate status\u201d to change it."
+            : $"Mark as {status.ToString().ToLowerInvariant()}";
 
     private static string PrevLockHint(bool settled) =>
         settled
