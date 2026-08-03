@@ -98,14 +98,37 @@ public partial class FacilityReportsRepository
                 return (int)Math.Round(RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall) / fee);
             });
 
-        // The collectable stall-days the same period expected, on the same per-stall basis.
+        // The collectable stall-days the same period expected, on the same per-stall basis. A day nobody owes
+        // for is not expected: an absence recorded for the stall, or a facility-wide market closure, excuses it
+        // exactly as it is excused from the obligation the compliance rows carry.
+        var excusedDates = await _context.DailyCollections
+            .AsNoTracking()
+            .Where(dc => npmStallIds.Contains(dc.StallId) && dc.IsAbsent
+                && dc.CollectionDate >= startDate && dc.CollectionDate <= endDate)
+            .Select(dc => new { dc.StallId, dc.CollectionDate })
+            .ToListAsync(ct);
+
+        var excusedByStall = excusedDates
+            .GroupBy(x => x.StallId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
+
+        // A market closure excuses EVERY payor for that date, so it is not a day the period expected either.
+        var closureDates = (await _context.NpmMarketClosures
+                .AsNoTracking()
+                .Where(c => c.ClosureDate >= startDate && c.ClosureDate <= endDate)
+                .Select(c => c.ClosureDate)
+                .ToListAsync(ct))
+            .ToHashSet();
+
         var expectedDayRecords = npmCollectableStalls.Sum(stall =>
         {
             var fee = stall.ResolveDailyFee(_npmDailyRate);
             if (fee <= 0m) return 0;
+            var excused = excusedByStall.GetValueOrDefault(stall.Id);
             var days = 0;
             for (var day = startDate; day <= endDate; day = day.AddDays(1))
-                if (IsUnderContractOn(stall, day)) days++;
+                if (IsUnderContractOn(stall, day) && !closureDates.Contains(day) && excused?.Contains(day) != true)
+                    days++;
             return days;
         });
 
