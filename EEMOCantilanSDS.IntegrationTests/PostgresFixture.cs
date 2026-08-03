@@ -22,30 +22,37 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// </summary>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        // Pinned: a test that only passes on whatever "latest" happens to be is not a test of anything.
-        .WithImage("postgres:16-alpine")
-        .WithDatabase("stalltrack_tests")
-        .WithUsername("stalltrack")
-        .WithPassword("stalltrack")
-        .WithCleanUp(true)
-        .Build();
+    // Built inside InitializeAsync, not here: resolving the Docker endpoint happens during Build(), and a field
+    // initialiser that throws takes the whole collection down as an error — the one outcome this fixture exists
+    // to avoid. Constructed and started under the same guard, a stopped daemon becomes a stated skip.
+    private PostgreSqlContainer? _postgres;
 
     /// <summary>Null when the database came up; otherwise why the tests must skip.</summary>
     public string? UnavailableReason { get; private set; }
 
-    public bool Available => UnavailableReason is null;
+    public bool Available => UnavailableReason is null && _postgres is not null;
 
-    private string ConnectionString => _postgres.GetConnectionString();
+    private string ConnectionString => _postgres?.GetConnectionString()
+        ?? throw new InvalidOperationException(UnavailableReason ?? "The test database was never started.");
 
     public async Task InitializeAsync()
     {
         try
         {
+            _postgres = new PostgreSqlBuilder()
+                // Pinned: a test that only passes on whatever "latest" happens to be is not a test of anything.
+                .WithImage("postgres:16-alpine")
+                .WithDatabase("stalltrack_tests")
+                .WithUsername("stalltrack")
+                .WithPassword("stalltrack")
+                .WithCleanUp(true)
+                .Build();
+
             await _postgres.StartAsync();
         }
         catch (Exception ex)
         {
+            _postgres = null;
             UnavailableReason =
                 "A Docker-compatible runtime is required to start the test database (" +
                 ex.GetType().Name + ": " + FirstLine(ex.Message) + "). " +
@@ -61,6 +68,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        if (_postgres is null) return;
         try { await _postgres.DisposeAsync(); }
         catch { /* the container is throwaway; a failure to remove it must not fail the run */ }
     }

@@ -91,6 +91,13 @@ public class GetSystemSettingsQueryHandler(
     {
         var npmDaily = rates.Resolve(FeeRateKey.NpmDailyStall, asOf);
         var npmFish = rates.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
+        var npmMonthlyStated = rates.Resolve(FeeRateKey.NpmMonthlyStall, asOf);
+        // The rent a market space is let for: the office's own stated month, or thirty of its daily fee until it
+        // states one. The rule the settings page prints has to name it — the daily fee is the installment the
+        // month is collected in, and a page that showed only the installment described half the rule.
+        var npmMonthly = npmMonthlyStated > 0m
+            ? npmMonthlyStated
+            : npmDaily * DomainRules.DailyBilledMonthDays;
         var slhHog = rates.Resolve(FeeRateKey.SlhHogPerHead, asOf);
         var slhLarge = rates.Resolve(FeeRateKey.SlhLargePerHead, asOf);
         var trmTrip = rates.Resolve(FeeRateKey.TrmPerTrip, asOf);
@@ -102,7 +109,9 @@ public class GetSystemSettingsQueryHandler(
         var catalog = new (FacilityCode Code, FacilityRuleDto Dto)[]
         {
             (FacilityCode.NPM, new("NPM", Name(FacilityCode.NPM, "New Public Market"), "Daily stall",
-                $"₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish", "Daily")),
+                npmFish > 0m
+                    ? $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day + ₱{npmFish:0}/kg fish"
+                    : $"₱{npmMonthly:N0}/month, collected at ₱{npmDaily:0}/day", "Daily")),
             (FacilityCode.TCC, new("TCC", Name(FacilityCode.TCC, "Tampak Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.NCC, new("NCC", Name(FacilityCode.NCC, "New Commercial Center"), "Monthly rental", "Per stall contract", "Monthly")),
             (FacilityCode.BBQ, new("BBQ", Name(FacilityCode.BBQ, "Barbecue Stand"), "Monthly rental", "Per stall contract", "Monthly")),

@@ -390,33 +390,35 @@
 }
 
 
-/* ── Total Bill Banner ───────────────────────────────────── */
+/* ── Total Bill line ─────────────────────────────────────────
+   The month's charge as a document states it: ruled off from the fields above, in the page's own ink. */
 .prof-bill-banner {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 14px 18px;
-    background: var(--navy);
+    background: var(--bg);
+    border-top: 1px solid var(--border);
     margin-top: 0;
 }
 
 .prof-bill-label {
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255,255,255,.65);
+    color: var(--text-subtle);
 }
 
 .prof-bill-sub {
     font-size: 11px;
-    color: rgba(255,255,255,.4);
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
 .prof-bill-val {
     font-size: 22px;
     font-weight: 700;
-    color: var(--gold);
-    font-family: monospace;
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
 }
 
 

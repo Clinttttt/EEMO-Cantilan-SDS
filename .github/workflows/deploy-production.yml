@@ -56,6 +56,21 @@ jobs:
           --configuration Release
           --no-restore
 
+      # The same three suites CI runs. A regression only the rendered-component or database-backed tests can
+      # see was previously able to reach production, because this gate ran the unit tests alone.
+      - name: Run component tests
+        run: >-
+          dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
+          --configuration Release
+
+      - name: Check the container runtime is available
+        run: docker version
+
+      - name: Run integration tests
+        run: >-
+          dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj
+          --configuration Release
+
   deploy:
     name: Build and deploy production images
     needs: verify

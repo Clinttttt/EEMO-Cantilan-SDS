@@ -25,5 +25,20 @@ namespace EEMOCantilanSDS.Domain.Constants
             FacilityCode.TRM => Trm,
             _ => None, // TCC / NCC / BBQ / ICE — monthly rental, rates live per stall
         };
+
+        /// <summary>
+        /// The facility whose ordinance a key belongs to. Stated once here so the resolver and the validator
+        /// cannot disagree: a row filed against the wrong facility is not that facility's rate, and must not be
+        /// handed out as one.
+        /// </summary>
+        public static FacilityCode OwnerOf(FeeRateKey key) => key switch
+        {
+            FeeRateKey.NpmDailyStall or FeeRateKey.NpmMonthlyStall or FeeRateKey.NpmFishPerKilo
+                or FeeRateKey.ElecPerKwh or FeeRateKey.WaterPerCubicMeter => FacilityCode.NPM,
+            FeeRateKey.SlhHogPerHead or FeeRateKey.SlhLargePerHead => FacilityCode.SLH,
+            FeeRateKey.TpmVendorDay => FacilityCode.TPM,
+            FeeRateKey.TrmPerTrip => FacilityCode.TRM,
+            _ => FacilityCode.NPM,
+        };
     }
 }

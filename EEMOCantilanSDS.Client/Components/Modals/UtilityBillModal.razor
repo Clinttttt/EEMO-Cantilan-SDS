@@ -13,9 +13,11 @@
     not have. Applicability comes from the stall's own ApplicableFees flags, passed in by the caller.
 *@
 
-@* Line icons, defined once and drawn from this component's own markup so CSS isolation reaches them.
-   No emoji: this is an official form, and a glyph that renders as a colour picture on one machine and a
-   black square on another has no place on it. *@
+@* Line icons, drawn from this component's own markup so CSS isolation reaches them — a hand-built render tree
+   or raw markup content would carry no scope attribute and the glyph would lose its size and ink. No emoji:
+   this is an official form, and a character that renders as a colour picture on one machine and a black square
+   on another has no place on it. The two delegates are rebuilt per render, which is a rounding error next to
+   the render itself and the price of keeping them styled. *@
 @{
     RenderFragment lockIcon =
         @<svg class="ub-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -82,13 +84,14 @@
                             @if (ElecReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@ElecCur.ToString("N2")</span>
+                                    <span class="ub-locked-value">@ElecReadingNow.ToString("N2")</span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" @bind="ElecCur" @bind:event="oninput" />
+                                <input type="number" step="0.01" min="0" placeholder="Meter now"
+                                       @bind="ElecCur" @bind:event="oninput" />
                             }
                         </label>
                         <label>Rate ₱/kWh
@@ -108,7 +111,7 @@
                     <div class="ub-calc">@ElecConsumption.ToString("N0") kWh × ₱@ElecRate.ToString("N2") = <strong>₱@ElecCharge.ToString("N2")</strong></div>
                     @if (ElecReadingsSettled)
                     {
-                        <div class="ub-lock-note">@lockIcon @PrevLockHint(true)</div>
+                        <div class="ub-lock-note" title="@PrevLockHint(true)">@lockIcon<span>@ReadingsLockedNote</span></div>
                     }
                     <div class="ub-status-wrap @(ElecStatusLocked ? "locked" : "") @(_elecStatusAsked ? "asked" : "")">
                         <div class="ub-status-row">
@@ -182,13 +185,14 @@
                             @if (WaterReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@WaterCur.ToString("N2")</span>
+                                    <span class="ub-locked-value">@WaterReadingNow.ToString("N2")</span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" @bind="WaterCur" @bind:event="oninput" />
+                                <input type="number" step="0.01" min="0" placeholder="Meter now"
+                                       @bind="WaterCur" @bind:event="oninput" />
                             }
                         </label>
                         <label>Rate ₱/cu.m
@@ -208,7 +212,7 @@
                     <div class="ub-calc">@WaterConsumption.ToString("N0") cu.m × ₱@WaterRate.ToString("N2") = <strong>₱@WaterCharge.ToString("N2")</strong></div>
                     @if (WaterReadingsSettled)
                     {
-                        <div class="ub-lock-note">@lockIcon @PrevLockHint(true)</div>
+                        <div class="ub-lock-note" title="@PrevLockHint(true)">@lockIcon<span>@ReadingsLockedNote</span></div>
                     }
                     <div class="ub-status-wrap @(WaterStatusLocked ? "locked" : "") @(_waterStatusAsked ? "asked" : "")">
                         <div class="ub-status-row">
@@ -275,6 +279,7 @@
 }
 
 @code {
+
     [Parameter] public bool Show { get; set; }
     [Parameter] public Guid StallId { get; set; }
     [Parameter] public string StallNo { get; set; } = string.Empty;
@@ -304,7 +309,14 @@
     private bool _seedHasElecData;
     private bool _seedHasWaterData;
 
-    private decimal ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, ElecPartial, WaterPartial;
+    private decimal ElecPrev, ElecRate, WaterPrev, WaterRate, ElecPartial, WaterPartial;
+
+    // This month's meter readings, unset until the office states them. A new month has no current reading by
+    // definition: the box used to open pre-filled with last month's figure, which read as though the month had
+    // already been read, and invited a clerk to overwrite it with the month's CONSUMPTION — refused, correctly
+    // but bafflingly, as a reading that had gone backwards. Left unset, the month simply charges nothing until
+    // a reading is entered.
+    private decimal? ElecCur, WaterCur;
     private PaymentStatus ElecPay = PaymentStatus.Unpaid;
     private PaymentStatus WaterPay = PaymentStatus.Unpaid;
     private string ElecOr = string.Empty;
@@ -320,8 +332,12 @@
     private int _seededMonth;
 
     // A utility the stall is not billed for contributes nothing, whatever is left in the fields.
-    private decimal ElecConsumption => ShowElec ? Math.Max(0m, ElecCur - ElecPrev) : 0m;
-    private decimal WaterConsumption => ShowWater ? Math.Max(0m, WaterCur - WaterPrev) : 0m;
+    // A reading that was never stated charges nothing: the meter stands where it did.
+    private decimal ElecReadingNow => ElecCur ?? ElecPrev;
+    private decimal WaterReadingNow => WaterCur ?? WaterPrev;
+
+    private decimal ElecConsumption => ShowElec ? Math.Max(0m, ElecReadingNow - ElecPrev) : 0m;
+    private decimal WaterConsumption => ShowWater ? Math.Max(0m, WaterReadingNow - WaterPrev) : 0m;
     private decimal ElecCharge => ElecConsumption * ElecRate;
     private decimal WaterCharge => WaterConsumption * WaterRate;
     private decimal TotalCharge => ElecCharge + WaterCharge;
@@ -362,6 +378,9 @@
         settled
             ? "A payment is recorded for this utility, so its readings are locked. Reverse the payment to change them."
             : "Carried from the last reading. Click to correct it.";
+
+    /// <summary>The same fact, short enough to sit on one line beside the lock.</summary>
+    private const string ReadingsLockedNote = "Readings locked — a payment is recorded.";
     private void OpenElecPrev()
     {
         // Settled readings never render as this control, so there is nothing to refuse here — the guard only
@@ -413,13 +432,18 @@
             _elecStatusAsked = _waterStatusAsked = false;
             _elecSeedSettled = _waterSeedSettled = false;
             _seedHasElecData = false; _seedHasWaterData = false;
-            ElecPrev = ElecCur = ElecRate = WaterPrev = WaterCur = WaterRate = 0m;
+            ElecPrev = ElecRate = WaterPrev = WaterRate = 0m;
+            ElecCur = WaterCur = null;
 
             var seed = await UtilitiesApi.GetBillForEntryAsync(StallId, Year, Month);
             if (seed.IsSuccess && seed.Value is { } s)
             {
-                ElecPrev = s.ElecPreviousReading; ElecCur = s.ElecCurrentReading; ElecRate = s.ElecRatePerKwh;
-                WaterPrev = s.WaterPreviousReading; WaterCur = s.WaterCurrentReading; WaterRate = s.WaterRatePerCubicMeter;
+                ElecPrev = s.ElecPreviousReading; ElecRate = s.ElecRatePerKwh;
+                WaterPrev = s.WaterPreviousReading; WaterRate = s.WaterRatePerCubicMeter;
+                // Only a month already on record has a current reading. For a new one the server carries the
+                // previous forward and repeats it as the current; the form does not repeat it back at the clerk.
+                ElecCur = s.Exists ? s.ElecCurrentReading : null;
+                WaterCur = s.Exists ? s.WaterCurrentReading : null;
 
                 // Keep a utility visible when this month's bill already carries figures for it, even if the
                 // stall is no longer metered for it — otherwise that balance could not be seen or settled.
@@ -488,9 +512,18 @@
             return;
         }
 
-        if ((ShowElec && ElecCur < ElecPrev) || (ShowWater && WaterCur < WaterPrev))
+        // A meter is cumulative, so this month's reading cannot be below the last one. Said with the figure it
+        // must clear, because "less than the previous reading" on its own reads as a refusal without a reason.
+        if (ShowElec && ElecCur is { } elecNow && elecNow < ElecPrev)
         {
-            Error = "A current reading cannot be less than the previous reading.";
+            Error = $"The electricity reading must be at least {ElecPrev:N2} — a meter does not go backwards. "
+                  + "Enter the figure on the meter now, not the month's consumption.";
+            return;
+        }
+        if (ShowWater && WaterCur is { } waterNow && waterNow < WaterPrev)
+        {
+            Error = $"The water reading must be at least {WaterPrev:N2} — a meter does not go backwards. "
+                  + "Enter the figure on the meter now, not the month's consumption.";
             return;
         }
         if (ShowElec && ElecPay == PaymentStatus.Partial && ElecPartial <= 0m)
@@ -517,7 +550,7 @@
         // server seeded and are sent back unchanged. Deliberately NOT zeroed: if a caller's flag ever
         // disagreed with stored data, zeroing would erase a real reading or a recorded payment.
         var reading = await UtilitiesApi.RecordReadingAsync(new RecordUtilityReadingCommand(
-            StallId, Year, Month, ElecPrev, ElecCur, ElecRate, WaterPrev, WaterCur, WaterRate, null));
+            StallId, Year, Month, ElecPrev, ElecReadingNow, ElecRate, WaterPrev, WaterReadingNow, WaterRate, null));
         if (!reading.IsSuccess || reading.Value is null)
         {
             Error = reading.Error ?? "Unable to save the readings.";

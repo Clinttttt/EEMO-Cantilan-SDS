@@ -85,10 +85,36 @@ public partial class FacilityReportsRepository
         
         var fishComparison = CalculateFishKiloComparison(collectableDailyCollections, totalFishKilos, startDate, endDate);
 
+        // How many collections this period actually holds. Counted, not inferred: one record per daily
+        // collection, plus the stall-days a monthly payment covered — worked out at each stall's OWN daily fee,
+        // because a custom section charges its own rate and a month-end adjustment adds money without adding a
+        // day. Dividing the period's money by one facility-wide rate got both wrong.
+        var paidDayRecords = collectableDailyCollections.Count
+            + periodPaymentRecords.Sum(pr =>
+            {
+                if (!npmStallsById.TryGetValue(pr.StallId, out var stall)) return 0;
+                var fee = stall.ResolveDailyFee(_npmDailyRate);
+                if (fee <= 0m) return 0;
+                return (int)Math.Round(RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall) / fee);
+            });
+
+        // The collectable stall-days the same period expected, on the same per-stall basis.
+        var expectedDayRecords = npmCollectableStalls.Sum(stall =>
+        {
+            var fee = stall.ResolveDailyFee(_npmDailyRate);
+            if (fee <= 0m) return 0;
+            var days = 0;
+            for (var day = startDate; day <= endDate; day = day.AddDays(1))
+                if (IsUnderContractOn(stall, day)) days++;
+            return days;
+        });
+
         return new FeeTypeBreakdownDto(
             DailyFeeAmount: dailyFeeFromCollections + dailyFeeFromMonthly,
             FishFeeAmount: fishFeeFromCollections + fishFeeFromMonthly,
-            FishKiloComparison: fishComparison
+            FishKiloComparison: fishComparison,
+            PaidDayRecords: paidDayRecords,
+            ExpectedDayRecords: expectedDayRecords
         );
     }
 

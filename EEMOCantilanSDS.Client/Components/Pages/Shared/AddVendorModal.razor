@@ -473,37 +473,51 @@
                                 {
                                     <div class="avm-section-note">Tick the service this space is metered for, then save. Nothing is charged until you do.</div>
                                 }
+                                @* Each service is one control, and a control must answer to the keyboard: a button
+                                   with aria-pressed, so Tab reaches it and Space/Enter toggles it. It was a div
+                                   with a click handler and a checkbox held out of the tab order, which left the
+                                   whole "add a utility charge" flow impossible without a mouse. *@
                                 <!-- Electricity -->
-                                <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
-                                     @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
-                                    <div class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24">
+                                <button type="button" class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
+                                        aria-pressed="@(Form.FeeTypes.Contains("Electricity") ? "true" : "false")"
+                                        @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
+                                    <span class="avm-fee-icon">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
                                             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                                         </svg>
-                                    </div>
-                                    <div class="avm-fee-text">
-                                        <div class="avm-fee-title">Electricity</div>
-                                        <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
-                                    </div>
-                                    <input type="checkbox" class="avm-fee-checkbox" tabindex="-1"
-                                           checked="@Form.FeeTypes.Contains("Electricity")" readonly />
-                                </div>
+                                    </span>
+                                    <span class="avm-fee-text">
+                                        <span class="avm-fee-title">Electricity</span>
+                                        <span class="avm-fee-sub">Monthly billing — amount varies per reading</span>
+                                    </span>
+                                    <span class="avm-fee-mark" aria-hidden="true">
+                                        @if (Form.FeeTypes.Contains("Electricity"))
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </span>
+                                </button>
 
                                 <!-- Water -->
-                                <div class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
-                                     @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
-                                    <div class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24">
+                                <button type="button" class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
+                                        aria-pressed="@(Form.FeeTypes.Contains("Water") ? "true" : "false")"
+                                        @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
+                                    <span class="avm-fee-icon">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
                                             <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
                                         </svg>
-                                    </div>
-                                    <div class="avm-fee-text">
-                                        <div class="avm-fee-title">Water</div>
-                                        <div class="avm-fee-sub">Monthly billing — amount varies per reading</div>
-                                    </div>
-                                    <input type="checkbox" class="avm-fee-checkbox" tabindex="-1"
-                                           checked="@Form.FeeTypes.Contains("Water")" readonly />
-                                </div>
+                                    </span>
+                                    <span class="avm-fee-text">
+                                        <span class="avm-fee-title">Water</span>
+                                        <span class="avm-fee-sub">Monthly billing — amount varies per reading</span>
+                                    </span>
+                                    <span class="avm-fee-mark" aria-hidden="true">
+                                        @if (Form.FeeTypes.Contains("Water"))
+                                        {
+                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
+                                        }
+                                    </span>
+                                </button>
                                 }
 
                                 <!-- Section fee — only when this LGU actually charges one for the section.

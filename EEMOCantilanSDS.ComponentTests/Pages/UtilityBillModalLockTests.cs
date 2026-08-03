@@ -137,4 +137,44 @@ public class UtilityBillModalLockTests : TestContext
 
         Assert.Contains("on", cut.FindAll(".ub-status")[1].GetAttribute("class"));
     }
+
+    [Fact]
+    public void ANewMonth_DoesNotRepeatLastMonthsReadingAsThisMonths()
+    {
+        // The reported confusion: the Current box opened holding last month's figure, so the month looked as
+        // though it had already been read — and a clerk who overwrote it with the month's CONSUMPTION was
+        // refused for a reading that had "gone backwards".
+        var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
+
+        // Previous is the figure carried forward, stated rather than typed.
+        Assert.Contains("56.00", cut.Find(".ub-locked .ub-locked-value").TextContent);
+
+        // Current and Rate are the inputs; the current reading waits to be stated.
+        var inputs = cut.FindAll(".ub-grid3 input");
+        Assert.True(string.IsNullOrEmpty(inputs[0].GetAttribute("value")));
+        Assert.Equal("Meter now", inputs[0].GetAttribute("placeholder"));
+        Assert.Contains("0 cu.m", cut.Markup);                               // nothing charged until it is read
+    }
+
+    [Fact]
+    public void AnExistingMonth_StillShowsTheReadingOnRecord()
+    {
+        var cut = RenderModal(Seed(exists: true, waterPrev: 40m, waterCur: 56m), elec: false);
+
+        Assert.Contains("40.00", cut.Find(".ub-locked .ub-locked-value").TextContent);
+        Assert.Equal("56", cut.FindAll(".ub-grid3 input")[0].GetAttribute("value"));
+        Assert.Contains("16 cu.m", cut.Markup);
+    }
+
+    [Fact]
+    public void AReadingBelowTheLastOne_IsRefusedWithTheFigureItMustClear()
+    {
+        var cut = RenderModal(Seed(exists: false, waterPrev: 56m, waterCur: 56m), elec: false);
+
+        cut.FindAll(".ub-grid3 input")[0].Input("44");   // the current reading, bound on input
+        cut.Find(".ub-save").Click();
+
+        Assert.Contains("must be at least 56.00", cut.Markup);
+        Assert.Contains("not the month's consumption", cut.Markup);
+    }
 }

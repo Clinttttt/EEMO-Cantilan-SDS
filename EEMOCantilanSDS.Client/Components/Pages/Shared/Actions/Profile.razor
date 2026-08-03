@@ -1296,14 +1296,6 @@
         yield return (weeks >= 2 ? label.ToString("MMM") : string.Empty, weeks);
     }
 
-    private string MonthLabel(int weekIndex)
-    {
-        if (weekIndex <= 0 || weekIndex >= _heatWeeks.Count) return "";
-        var month = _heatWeeks[weekIndex][0].Date.Month;
-        var prev = _heatWeeks[weekIndex - 1][0].Date.Month;
-        return month != prev ? _heatWeeks[weekIndex][0].Date.ToString("MMM") : "";
-    }
-
     private static string HeatLabel(string kind) => kind switch
     {
         "collected" => "Collected",

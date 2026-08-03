@@ -39,11 +39,17 @@ namespace EEMOCantilanSDS.Application.Common.Fees
         /// <summary>The amount for a fixed rate key as of a date, falling back to the ordinance constant.</summary>
         public decimal Resolve(FeeRateKey key, DateOnly asOf)
         {
+            var owner = FacilityRateKeys.OwnerOf(key);
+
             decimal? match = null;
             DateOnly bestDate = DateOnly.MinValue;
             foreach (var e in _entries)
             {
-                if (e.Key != key || e.EffectiveDate > asOf) continue;
+                // A key belongs to one facility's ordinance. A row filed against another facility is a
+                // mis-filed row, not that key's rate: reading it would hand one facility's figure to another,
+                // which is the same class of error as a hardcoded rate. The write path refuses to create such a
+                // row; this refuses to trust one that already exists.
+                if (e.Facility != owner || e.Key != key || e.EffectiveDate > asOf) continue;
                 if (match is null || e.EffectiveDate >= bestDate)
                 {
                     match = e.Amount;

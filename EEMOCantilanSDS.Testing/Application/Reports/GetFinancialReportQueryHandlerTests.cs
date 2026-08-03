@@ -55,13 +55,15 @@ public class GetFinancialReportQueryHandlerTests
 
         // NPM: collected 80,000 / outstanding 20,000 (rate 80). Three occupied stalls:
         //   one delinquent (3 missed months), one in arrears (1 missed month), one fully paid.
-        //   Fee breakdown: ₱810 daily-fee + ₱346 fish (346 kg @ ₱1/kg).
+        //   Fee breakdown: ₱810 daily-fee + ₱346 fish (346 kg @ ₱1/kg), and the counted records behind them —
+        //   27 collections recorded of 30 collectable stall-days. Counted by the repository at each stall's own
+        //   daily fee rather than inferred here by dividing money by one rate.
         var npm = Report(80_000m, 20_000m, 80m, paid: 6, partial: 2, unpaid: 0, new[]
         {
             Payor("12", "Rosa Magbanua", 0m, 12_000m, 3),   // delinquent
             Payor("07", "Maria Velasco", 500m, 3_000m, 1),  // arrears
             Payor("01", "Pedro Santos", 900m, 0m, 0),       // fully paid (occupied, no balance)
-        }, feeBreakdown: new FeeTypeBreakdownDto(810m, 346m, null));
+        }, feeBreakdown: new FeeTypeBreakdownDto(810m, 346m, null, PaidDayRecords: 27, ExpectedDayRecords: 30));
 
         reports.Setup(r => r.GetFacilityReportsAsync(
                 It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))

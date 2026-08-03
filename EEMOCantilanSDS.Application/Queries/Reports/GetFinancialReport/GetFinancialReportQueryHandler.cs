@@ -115,15 +115,16 @@ public class GetFinancialReportQueryHandler(
             collected += report.TotalRevenue;
             unpaid += report.PendingPaymentAmount;
 
-            // "Paid records" counts actual collection transactions. NPM is collected per day, so each
-            // ₱30 daily collection is one record, and "expected" is the collectable stall-days (the daily
-            // obligation ÷ ₱30, already absent-adjusted via ExpectedBill). Monthly-billed facilities keep
-            // one record per occupied stall (counted when paid or partially paid).
+            // "Paid records" counts actual collection transactions. NPM is collected per day, so the count comes
+            // from the collections themselves — the repository counts them where each stall's own daily fee is
+            // known, rather than dividing the period's money by one rate (which mis-counted a custom section and
+            // any month carrying a month-end adjustment). Monthly-billed facilities keep one record per occupied
+            // stall (counted when paid or partially paid).
             int paid, expected;
             if (code == FacilityCode.NPM)
             {
-                paid = (int)Math.Round((report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m) / npmDaily);
-                expected = (int)Math.Round(report.StallCompliance.Sum(s => s.ExpectedBill) / npmDaily);
+                paid = report.FeeTypeBreakdown?.PaidDayRecords ?? 0;
+                expected = report.FeeTypeBreakdown?.ExpectedDayRecords ?? 0;
             }
             else
             {
