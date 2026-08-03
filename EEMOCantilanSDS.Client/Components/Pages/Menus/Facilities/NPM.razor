@@ -683,21 +683,21 @@
         {
             // Carrot icon — clearly a vegetable
             Icon = """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 0-1 3-1 6s1 5 1 5"/><path d="M12 13s-4-2-7-1c1 4 4 6 7 6s6-2 7-6c-3-1-7 1-7 1z"/><path d="M9 4c-2 1-3 3-3 5"/><path d="M15 4c2 1 3 3 3 5"/></svg>""",
-            Description = "Fresh vegetable stalls — ₱30/day · Water ·  Electricity",
+            Description = "Fresh vegetable stalls — daily collection · Water · Electricity",
            
         },
         ["Fish Area"] = new()
         {
             // Clear fish icon with tail, eye, and fins
             Icon = """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/></svg>""",
-            Description = "Fish stalls — ₱30/day · ₱1/kg · Water · Electricity",
+            Description = "Fish stalls — daily collection · per-kilo fee · Water · Electricity",
          
         },
         ["Meat Area"] = new()
         {
             // Steak / meat cut viewed from above — outer shape + bone
             Icon = """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14c-1-2-.5-5 1.5-7s5-2.5 7.5-1.5 5 1 6 3-.5 4.5-2.5 5.5-4.5 1-7 .5S5 16 4 14z"/><path d="M10 11c-.5-1 0-2.5 1.5-3s3 0 3.5 1.5-1 3-2.5 3-2.5-.5-2.5-1.5z"/></svg>""",
-            Description = "Meat stalls — ₱30/day · Water ·  Electricity",
+            Description = "Meat stalls — daily collection · Water · Electricity",
         },
     };
 
@@ -889,7 +889,7 @@
         
         if (s.HasElectricity) VendorForm.FeeTypes.Add("Electricity");
         if (s.HasWater) VendorForm.FeeTypes.Add("Water");
-        if (s.Section == "Fish Area") VendorForm.FeeTypes.Add("Fish ₱1/kg");
+        if (s.Section == "Fish Area") VendorForm.FeeTypes.Add(AddVendorModal.SectionFeeType);
         
         VendorErrorMessage = string.Empty;
         ShowAddVendorModal = true;
@@ -1070,7 +1070,7 @@
             fees |= ApplicableFees.Electricity;
         if (VendorForm.FeeTypes.Contains("Water"))
             fees |= ApplicableFees.Water;
-        if (VendorForm.FeeTypes.Contains("Fish ₱1/kg"))
+        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType))
             fees |= ApplicableFees.FishFee;
 
         var command = new CreateStallCommand(
@@ -1193,7 +1193,7 @@
             fees |= ApplicableFees.Electricity;
         if (VendorForm.FeeTypes.Contains("Water"))
             fees |= ApplicableFees.Water;
-        if (VendorForm.FeeTypes.Contains("Fish ₱1/kg"))
+        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType))
             fees |= ApplicableFees.FishFee;
 
         if (existingStall.StallGuid != Guid.Empty)

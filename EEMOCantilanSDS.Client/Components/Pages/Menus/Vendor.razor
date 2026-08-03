@@ -769,6 +769,9 @@
     // for the NPM daily-fee labels in the vendor detail + fee breakdown.
     private decimal _npmDailyRate = 30m;
     private decimal _npmFishRate = 1m;
+    // What a market space is let for per month, as the server resolves it: the LGU's own stated rent, or thirty
+    // of its daily fee until it states one. Seeds the form so no municipality is offered another's figure.
+    private decimal _npmMonthlyRentInUse;
 
     private async Task LoadNpmRatesAsync()
     {
@@ -777,8 +780,14 @@
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            _npmMonthlyRentInUse = result.Value.MonthlyRentInUse > 0m
+                ? result.Value.MonthlyRentInUse
+                : result.Value.MonthlyRent;
         }
     }
+
+    /// <summary>The per-kilo section fee as this office charges it — never a figure written into the page.</summary>
+    private string FishFeeLabel => $"Fish ₱{_npmFishRate:0}/kg";
 
     protected override async Task OnInitializedAsync()
     {
@@ -862,7 +871,7 @@
                 MonthlyRate = item.MonthlyRate,
                 ActualMonthlyRental = item.MonthlyRate,
                 AreaLocation = item.AreaNote ?? item.AreaLocationDisplay ?? "",
-                FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay, item.HasElectricity, item.HasWater),
+                FeeTypes = BuildFeeTypes(item.FacilityCode.ToString(), item.SectionDisplay, item.HasElectricity, item.HasWater, FishFeeLabel),
                 IsActive = item.Status == Domain.Enums.StallStatus.Active,
                 IsPaidThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
                 IsPartialThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Partial,
@@ -884,7 +893,8 @@
     void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
     void CloseFacDropdown() => FacDropdownOpen = false;
 
-    static List<string> BuildFeeTypes(string facilityCode, string? sectionDisplay, bool hasElectricity, bool hasWater)
+    static List<string> BuildFeeTypes(string facilityCode, string? sectionDisplay, bool hasElectricity, bool hasWater,
+                                      string fishFeeLabel)
     {
         var fees = new List<string>();
 
@@ -897,7 +907,7 @@
             if (hasElectricity) fees.Add("Electricity");
             if (hasWater) fees.Add("Water");
             if (sectionDisplay == "FishSection")
-                fees.Add("Fish ₱1/kg");
+                fees.Add(fishFeeLabel);   // this office's own per-kilo rate, not a written-in figure
         }
 
         return fees;
@@ -1092,20 +1102,36 @@
             Form.FeeTypes.Add("Electricity");
             Form.FeeTypes.Add("Water");
             if (Form.SelectedSection == "Fish")
-                Form.FeeTypes.Add("Fish ₱1/kg");
+                Form.FeeTypes.Add(AddVendorModal.SectionFeeType);
 
-            // Pre-fill rate if empty
-            if (Form.MonthlyRate <= 0) Form.MonthlyRate = 900;
+            // The rent a market space is let for, as THIS office states it (or thirty of its own daily fee until
+            // it does). Never a written-in ₱900: that is one municipality's ordinance.
+            if (Form.MonthlyRate <= 0) Form.MonthlyRate = _npmMonthlyRentInUse > 0m
+                ? _npmMonthlyRentInUse
+                : SuggestedMonthlyRate("NPM");
         }
-        else if (Form.FacilityCode == "TCC")
+        else
         {
-            if (Form.MonthlyRate <= 0) Form.MonthlyRate = 2400; // default TCC rate (most stalls ?2,400)
-        }
-        else if (Form.FacilityCode == "NCC" || Form.FacilityCode == "BBQ" || Form.FacilityCode == "ICE")
-        {
-            if (Form.MonthlyRate <= 0) Form.MonthlyRate = 900; // adjust as needed
+            // Every other facility bills a flat monthly rental with no platform-wide figure behind it, so the
+            // suggestion comes from what this LGU already charges in that facility. When there is nothing to go
+            // on, the field stays empty and the clerk states the ordinance rate — better than offering another
+            // municipality's.
+            if (Form.MonthlyRate <= 0) Form.MonthlyRate = SuggestedMonthlyRate(Form.FacilityCode);
         }
     }
+
+    /// <summary>
+    /// The rent most of this LGU's spaces in that facility are let at, read from the register the page has
+    /// already loaded. Zero when the facility has no let space yet — nothing is invented.
+    /// </summary>
+    private decimal SuggestedMonthlyRate(string facilityCode) =>
+        Vendors
+            .Where(v => v.FacilityCode == facilityCode && v.MonthlyRate > 0m)
+            .GroupBy(v => v.MonthlyRate)
+            .OrderByDescending(g => g.Count())
+            .ThenByDescending(g => g.Key)
+            .Select(g => g.Key)
+            .FirstOrDefault();
 
   
 

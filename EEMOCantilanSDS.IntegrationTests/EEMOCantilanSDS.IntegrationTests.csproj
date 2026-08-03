@@ -1,9 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Integration tests that read an ISOLATED RESTORED SNAPSHOT of production. They never touch the live database:
-    the target must be a local host whose database name looks like a snapshot, and every query is read-only.
-    Without STALLTRACK_SNAPSHOT_DB set they no-op, so CI and a fresh clone stay green.
+    Integration tests that run against a REAL PostgreSQL, in two flavours:
+
+    · Throwaway database (default). A container is started for the test run, the EF migrations are applied to a
+      blank database, each test seeds only what it needs, and the container is dropped afterwards. Nothing has to
+      be installed or restored by hand; it needs a Docker-compatible runtime, and skips honestly when there is
+      none. This is what proves the SQL our repositories actually emit.
+
+    · Restored snapshot (opt-in, read-only). Set STALLTRACK_SNAPSHOT_DB to check the office's real history for
+      agreement between screens — something a blank database cannot tell us. Those tests never write, the target
+      must be a local host whose database name looks like a snapshot, and they report as skipped when it is unset.
   -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -16,8 +23,10 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.1.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
   </ItemGroup>
 
   <ItemGroup>

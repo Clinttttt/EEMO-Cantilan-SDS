@@ -18,12 +18,14 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// </summary>
 public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
 {
-    /// <summary>False when there is no snapshot to read; the caller then returns without asserting.</summary>
-    private bool SnapshotReady()
+    /// <summary>
+    /// Reports the run honestly: without a snapshot these tests are SKIPPED, not passed. A green result that
+    /// asserted nothing reads as evidence when it is not.
+    /// </summary>
+    private void RequireSnapshot()
     {
-        if (SnapshotDatabase.Available) return true;
-        output.WriteLine("SKIPPED: " + SnapshotDatabase.SkipReason);
-        return false;
+        if (!SnapshotDatabase.Available) output.WriteLine("SKIPPED: " + SnapshotDatabase.SkipReason);
+        Skip.IfNot(SnapshotDatabase.Available, SnapshotDatabase.SkipReason);
     }
 
     private static async Task<List<Guid>> TenantIdsAsync()
@@ -32,11 +34,11 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
         return await context.Municipalities.IgnoreQueryFilters().Select(m => m.Id).ToListAsync();
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task OccupancyWindowsNeverOverlapOnAStall()
     {
         // The invariant every per-lessee figure rests on: at most one lessee holds a stall on any given day.
-        if (!SnapshotReady()) return;
+        RequireSnapshot();
         var today = PhilippineTime.Today;
 
         await using var context = SnapshotDatabase.OpenRead(Guid.Empty);
@@ -63,11 +65,11 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
         Assert.True(overlaps.Count == 0, "Overlapping occupancies found:\n" + string.Join('\n', overlaps));
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task EveryEndedOccupancyReachesTheInactiveRegister()
     {
         // The defect this suite exists for: a stall re-let to a new lessee used to drop its previous lessee entirely.
-        if (!SnapshotReady()) return;
+        RequireSnapshot();
         var today = PhilippineTime.Today;
 
         foreach (var tenant in await TenantIdsAsync())
@@ -87,12 +89,12 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task NoLesseeIsCreditedWithAnotherLesseesCollections()
     {
         // Per stall, what all ended occupancies are credited with may never exceed everything ever collected on it —
         // the check that catches money crossing between lessees on a re-let stall.
-        if (!SnapshotReady()) return;
+        RequireSnapshot();
 
         foreach (var tenant in await TenantIdsAsync())
         {
@@ -114,12 +116,12 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task AReLetStallsPastOccupancyIsReadOnly()
     {
         // A row for a stall somebody else now holds must not offer Renew or Reopen — that would displace the
         // sitting lessee.
-        if (!SnapshotReady()) return;
+        RequireSnapshot();
         var today = PhilippineTime.Today;
 
         var examined = 0;
@@ -149,10 +151,10 @@ public class OccupancyHistorySnapshotTests(ITestOutputHelper output)
             : $"Checked {examined} past occupancies on re-let stalls.");
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task AVacantStallStillReportsItsLastLessee()
     {
-        if (!SnapshotReady()) return;
+        RequireSnapshot();
         var today = PhilippineTime.Today;
 
         var examined = 0;

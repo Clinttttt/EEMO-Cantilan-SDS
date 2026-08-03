@@ -49,6 +49,25 @@ jobs:
           --logger "trx;LogFileName=tests.trx"
           --results-directory TestResults
 
+      # Rendered-component tests (bUnit): they catch contradictions between a component's markup and its own
+      # code-behind, which neither the build nor a handler test can see.
+      - name: Run component tests
+        run: >-
+          dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj
+          --configuration Release
+          --logger "trx;LogFileName=component-tests.trx"
+          --results-directory TestResults
+
+      # Integration tests against a throwaway PostgreSQL started by Testcontainers (the runner provides Docker).
+      # These apply the EF migrations to a blank database, so a broken migration or a wrong SQL predicate fails
+      # here rather than in the office. The snapshot-only tests skip, stating why.
+      - name: Run integration tests
+        run: >-
+          dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj
+          --configuration Release
+          --logger "trx;LogFileName=integration-tests.trx"
+          --results-directory TestResults
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4

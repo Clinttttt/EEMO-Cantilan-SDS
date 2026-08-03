@@ -21,11 +21,14 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// </summary>
 public class RegisterAndFollowUpAgreementTests(ITestOutputHelper output)
 {
-    private bool SnapshotReady()
+    /// <summary>
+    /// Reports the run honestly: without a snapshot these tests are SKIPPED, not passed. A green result that
+    /// asserted nothing is worse than no result at all — it reads as evidence.
+    /// </summary>
+    private void RequireSnapshot()
     {
-        if (SnapshotDatabase.Available) return true;
-        output.WriteLine("SKIPPED: " + SnapshotDatabase.SkipReason);
-        return false;
+        if (!SnapshotDatabase.Available) output.WriteLine("SKIPPED: " + SnapshotDatabase.SkipReason);
+        Skip.IfNot(SnapshotDatabase.Available, SnapshotDatabase.SkipReason);
     }
 
     private static async Task<List<Guid>> TenantIdsAsync()
@@ -34,14 +37,13 @@ public class RegisterAndFollowUpAgreementTests(ITestOutputHelper output)
         return await context.Municipalities.IgnoreQueryFilters().Select(m => m.Id).ToListAsync();
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task EveryRegisterAccountWithABalance_IsCarriedByTheWholeTimeFollowUp()
     {
         // The office reads "who still owes, and how much" from the follow-up's Whole time view and checks it against
         // the register. Every account the register says owes something must be answerable for on that view — either
         // as an expired contract or as a past occupancy — and for the same figure.
-        if (!SnapshotReady()) return;
-
+        RequireSnapshot();
         var checked_ = 0;
 
         foreach (var tenant in await TenantIdsAsync())
@@ -94,14 +96,13 @@ public class RegisterAndFollowUpAgreementTests(ITestOutputHelper output)
         output.WriteLine($"Reconciled {checked_} accounts between the register and the Whole time follow-up.");
     }
 
-    [Fact]
+    [SkippableFact]
     public async Task ARegisterAccountsBalance_IsItsMonthsOfRent_LessWhatWasCollected()
     {
         // The monthly obligation ledger, checked against real history: for a daily-billed account, the balance is the
         // rent of the months it held the space (whole months at the monthly rent, part-months by their days) less the
         // installments received. This is the figure the office's paper is reconciled against.
-        if (!SnapshotReady()) return;
-
+        RequireSnapshot();
         var checked_ = 0;
 
         foreach (var tenant in await TenantIdsAsync())

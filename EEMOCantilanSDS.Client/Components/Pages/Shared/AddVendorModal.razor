@@ -590,6 +590,12 @@
     /// true = Edit mode   false = Add mode
     [Parameter] public bool IsEditing { get; set; }
 
+    /// <summary>
+    /// The form's token for the per-kilo section fee. A token is a key, not a price: the rate lives in the
+    /// tenant's own configuration, so nothing here may quote a figure.
+    /// </summary>
+    public const string SectionFeeType = "Section fee";
+
     /// Bound form data — mutated directly (class = reference type, no need for two-way EventCallback)
     [Parameter] public VendorModalForm Form { get; set; } = new();
 
