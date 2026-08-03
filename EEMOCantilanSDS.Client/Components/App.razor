@@ -11,7 +11,9 @@
     <link rel="stylesheet" href="@Assets["EEMOCantilanSDS.Client.styles.css"]" />
     <link rel="stylesheet" href="/css/print.css" asp-append-version="true" />
     <ImportMap />
-    <link rel="icon" type="image/png" href="favicon.png" />
+    @* The product's own mark in the tab, not the framework's default. *@
+    <link rel="icon" type="image/png" href="/images/stalltrack-final-logo-transparent.png" />
+    <link rel="apple-touch-icon" href="/images/stalltrack-final-logo-transparent.png" />
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
     @* Interactive, like the router: a statically rendered HeadOutlet never updates after the first response,
        so navigating between pages left the previous page's <title> in the tab — and in the printed header. *@

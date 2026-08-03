@@ -8,7 +8,7 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @using EEMOCantilanSDS.Application.Dtos.Utilities
 
-<PageTitle>@Branding.OfficeAcronym Admin — NPM Reports</PageTitle>
+<PageTitle>StallTrack — NPM Reports</PageTitle>
 
 <!-- ══ Page Header ══ -->
 <header class="rpt-topbar">
@@ -820,7 +820,7 @@ else
                 <div class="audit-risk-ledger">
                     @foreach (var group in RiskProfileGroups)
                     {
-                        <div class="audit-risk-row @group.RiskClass" title="@group.Section - paid &#8369;@group.PaidAmount.ToString("N2"), partial balance &#8369;@group.PartialAmount.ToString("N2"), unpaid balance &#8369;@group.UnpaidAmount.ToString("N2")">
+                        <div class="audit-risk-row" title="@group.Section - paid &#8369;@group.PaidAmount.ToString("N2"), partial balance &#8369;@group.PartialAmount.ToString("N2"), unpaid balance &#8369;@group.UnpaidAmount.ToString("N2")">
                             <div class="audit-risk-row-main">
                                 <strong>@group.Section</strong>
                                 <span>@group.OpenItems open item@(group.OpenItems == 1 ? "" : "s")</span>
@@ -1846,8 +1846,7 @@ else
         int PartialItems,
         int PaidPct,
         int PartialPct,
-        int UnpaidPct,
-        string RiskClass)
+        int UnpaidPct)
     {
         public string ShortValue => OpenAmount >= 1000 ? $"{OpenAmount / 1000:N1}k" : OpenAmount.ToString("N0");
     }
@@ -1879,7 +1878,6 @@ else
                 var paidPct = assessedAmount > 0m ? ClampPct(g.PaidAmount / assessedAmount * 100m) : 0;
                 var partialPct = assessedAmount > 0m ? ClampPct(g.PartialAmount / assessedAmount * 100m) : 0;
                 var unpaidPct = Math.Max(0, 100 - paidPct - partialPct);
-                var riskClass = g.UnpaidAmount > 0m ? "unpaid" : g.PartialAmount > 0m ? "partial" : "paid";
                 return new RiskProfileGroup(
                     g.Section,
                     g.PaidAmount,
@@ -1891,8 +1889,7 @@ else
                     g.PartialItems,
                     paidPct,
                     partialPct,
-                    unpaidPct,
-                    riskClass);
+                    unpaidPct);
             });
         }
     }

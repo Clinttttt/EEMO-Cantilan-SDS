@@ -2408,20 +2408,13 @@
     grid-template-columns: minmax(78px, 96px) minmax(0, 1fr) minmax(52px, auto);
     align-items: center;
     gap: 8px;
-    padding: 7px 8px;
+    padding: 8px;
     border-radius: 8px;
-    background: color-mix(in srgb, var(--bg) 70%, white);
-    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
 }
-.audit-risk-row.unpaid {
-    background: color-mix(in srgb, var(--red-bg) 48%, white);
-}
-.audit-risk-row.partial {
-    background: color-mix(in srgb, var(--gold) 7%, white);
-}
-.audit-risk-row.paid {
-    background: color-mix(in srgb, var(--green) 5%, white);
-}
+/* A section is not shaded by how it is doing. Every row is the same white line of a ledger, and the meter
+   beside it carries the mix — a wash of red behind a whole row said "alarm" where the office needs a reading. */
 .audit-risk-row-main {
     min-width: 0;
 }
@@ -2440,11 +2433,10 @@
 }
 .audit-risk-meter {
     width: 100%;
-    height: 12px;
+    height: 8px;
     border-radius: 999px;
     overflow: hidden;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 90%, white), color-mix(in srgb, var(--border) 24%, white));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 42%, transparent);
+    background: var(--bg-icon);
 }
 .audit-risk-meter.stacked {
     display: flex;
@@ -2456,17 +2448,11 @@
     height: 100%;
     min-width: 10px;
     border-radius: inherit;
-    box-shadow:
-        inset 0 1px 0 color-mix(in srgb, white 26%, transparent),
-        0 5px 10px color-mix(in srgb, var(--navy) 5%, transparent);
 }
 .audit-risk-meter.stacked span {
     display: block;
     height: 100%;
     min-width: 3px;
-    box-shadow:
-        inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
-        0 5px 10px color-mix(in srgb, var(--navy) 4%, transparent);
 }
 .audit-risk-meter.stacked span:first-child {
     border-radius: 999px 0 0 999px;
@@ -2477,8 +2463,10 @@
 .audit-risk-meter.stacked span:only-child {
     border-radius: 999px;
 }
+/* The mix is the only thing that carries colour here, and it uses the page's own inks: green for what was
+   collected, the amber this app already uses for a partial settlement, red for what is still open. */
 .audit-risk-meter.stacked .paid { background: var(--green); }
-.audit-risk-meter.stacked .partial { background: var(--gold); }
+.audit-risk-meter.stacked .partial { background: #b87333; }
 .audit-risk-meter.stacked .unpaid { background: var(--red); }
 .audit-risk-row-value {
     justify-self: end;
