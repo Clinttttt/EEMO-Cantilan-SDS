@@ -460,6 +460,9 @@
         VendorForm = new();
         VendorErrorMessage = string.Empty;
         VendorFieldErrors.Clear();
+        // The handover offer belongs to the attempt that raised it — see FacilityPage.
+        _vendorReuseOffer = null;
+        _takeOverVacatedStall = false;
     }
 
     private void ToggleVendorFee(string fee)

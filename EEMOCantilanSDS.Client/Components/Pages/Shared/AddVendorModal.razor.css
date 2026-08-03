@@ -209,12 +209,14 @@
     gap: 12px;
 }
 
+/* The tile is a neutral surface, so the facility's own mark (drawn in navy) reads correctly inside it and the
+   two paths — a facility with artwork, and the plain glyph for one without — share the same ink. */
 .avm-rental-icon {
     width: 38px;
     height: 38px;
     border-radius: 10px;
-    background: #fdf3e0;
-    border: 0.5px solid #f0d090;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -224,9 +226,9 @@
     .avm-rental-icon svg {
         width: 17px;
         height: 17px;
-        stroke: #c07c00;
+        stroke: var(--navy);
         fill: none;
-        stroke-width: 2;
+        stroke-width: 1.8;
         stroke-linecap: round;
         stroke-linejoin: round;
     }

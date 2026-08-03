@@ -89,6 +89,17 @@ public class AddVendorModalReuseOfferTests : TestContext
     }
 
     [Fact]
+    public void Escape_DeclinesTheOffer()
+    {
+        var cut = RenderForm(Offer);
+
+        cut.Find(".avm-nested-dialog").KeyDown(Key.Escape);
+
+        Assert.Empty(cut.FindAll(".avm-nested-dialog"));
+        Assert.Single(cut.FindAll(".eemo-drawer"));      // the form itself is untouched
+    }
+
+    [Fact]
     public void ADifferentOffer_AsksAgain()
     {
         var cut = RenderForm(Offer);

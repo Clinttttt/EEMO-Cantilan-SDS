@@ -95,4 +95,26 @@ public class UtilityBillMonthAndStillOwedTests
         Assert.Equal(0m, kept[0].ElecCharge);
         Assert.Equal(56m, kept[0].BalanceDue);
     }
+
+    /// <summary>
+    /// Over-collection on one utility must not mask the other. The bill's net balance can go negative — a
+    /// zero-charge electricity side marked Partial with an amount is accepted (Normalize only promotes Partial
+    /// to Paid when there is a charge) — and the water still owed would then have vanished from the field.
+    /// </summary>
+    [Fact]
+    public void OneUtilityOverCollected_DoesNotHideTheOtherStillOwed()
+    {
+        var july = Bill(2026, 7, waterCurrent: 56m, waterRate: 1m);   // ₱56 of water owed
+        july.RecordPayment(
+            elecOrNumber: "OR-E", waterOrNumber: null, collectorId: null,
+            elecStatus: PaymentStatus.Partial, elecPartialAmount: 500m,   // against a ₱0 electricity charge
+            waterStatus: PaymentStatus.Unpaid, waterPartialAmount: null);
+
+        Assert.True(july.BalanceDue < 0m);          // the net figure says nothing is owed…
+        Assert.Equal(56m, july.WaterBalanceDue);    // …while water plainly is
+
+        var kept = UtilityBill.MonthAndStillOwed(new[] { july }, 2026, 8);
+
+        Assert.Single(kept);
+    }
 }

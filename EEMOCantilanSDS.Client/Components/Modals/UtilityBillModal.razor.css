@@ -74,6 +74,14 @@
     border: 1px solid var(--border, #dde4ea); border-radius: 8px; padding: 6px 10px; cursor: pointer;
 }
 .ub-lockbar-btn:hover { border-color: var(--navy-3, #1e3a5f); }
+/* Why a settled utility's readings cannot be touched. A statement of record, not a validation failure, so it
+   is not dressed as an error. */
+.ub-lock-note {
+    font-size: 11.5px;
+    color: var(--text-subtle, #6a8aa0);
+}
+/* A locked figure that offers nothing: same box, no pointer, no hover. */
+span.ub-locked { cursor: default; }
 .ub-calc { font-size: 12px; color: var(--text-subtle, #6a8aa0); }
 .ub-calc strong { color: var(--navy, #0d2137); }
 

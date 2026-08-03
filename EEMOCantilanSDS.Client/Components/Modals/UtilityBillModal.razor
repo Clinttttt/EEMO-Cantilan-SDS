@@ -40,32 +40,60 @@
                     <div class="ub-meter-title">Electricity <span>kWh</span></div>
                     <div class="ub-grid3">
                         <label>Previous
-                            @if (ElecPrevOpen)
+                            @if (ElecReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else if (ElecPrevOpen)
                             {
                                 <input type="number" step="0.01" min="0" @bind="ElecPrev" @bind:event="oninput" />
                             }
                             else
                             {
-                                <button type="button" class="ub-locked @(ElecReadingsSettled ? "ub-locked-fixed" : "")"
+                                <button type="button" class="ub-locked"
                                         @onclick="OpenElecPrev"
-                                        title="@PrevLockHint(ElecReadingsSettled)"
-                                        aria-label="@($"Previous electricity reading {ElecPrev:N2}. {PrevLockHint(ElecReadingsSettled)}")">
+                                        title="@PrevLockHint(false)"
+                                        aria-label="@($"Previous electricity reading {ElecPrev:N2}. {PrevLockHint(false)}")">
                                     <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
-                                    @if (ElecReadingsSettled)
-                                    {
-                                        <span class="ub-locked-mark">@LockGlyph</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
-                                    }
+                                    <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
                                 </button>
                             }
                         </label>
-                        <label>Current<input type="number" step="0.01" min="0" @bind="ElecCur" @bind:event="oninput" /></label>
-                        <label>Rate ₱/kWh<input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" /></label>
+                        <label>Current
+                            @if (ElecReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@ElecCur.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else
+                            {
+                                <input type="number" step="0.01" min="0" @bind="ElecCur" @bind:event="oninput" />
+                            }
+                        </label>
+                        <label>Rate ₱/kWh
+                            @if (ElecReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@ElecRate.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else
+                            {
+                                <input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" />
+                            }
+                        </label>
                     </div>
                     <div class="ub-calc">@ElecConsumption.ToString("N0") kWh × ₱@ElecRate.ToString("N2") = <strong>₱@ElecCharge.ToString("N2")</strong></div>
+                    @if (ElecReadingsSettled)
+                    {
+                        <div class="ub-lock-note">@LockGlyph @PrevLockHint(true)</div>
+                    }
                     <div class="ub-status-row @(ElecStatusLocked ? "ub-status-row-locked" : "")">
                         <button type="button" class="ub-status @(ElecPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => SetElecPay(PaymentStatus.Unpaid)">Unpaid</button>
                         <button type="button" class="ub-status @(ElecPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => SetElecPay(PaymentStatus.Paid)">Paid</button>
@@ -95,32 +123,60 @@
                     <div class="ub-meter-title">Water <span>cu.m</span></div>
                     <div class="ub-grid3">
                         <label>Previous
-                            @if (WaterPrevOpen)
+                            @if (WaterReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else if (WaterPrevOpen)
                             {
                                 <input type="number" step="0.01" min="0" @bind="WaterPrev" @bind:event="oninput" />
                             }
                             else
                             {
-                                <button type="button" class="ub-locked @(WaterReadingsSettled ? "ub-locked-fixed" : "")"
+                                <button type="button" class="ub-locked"
                                         @onclick="OpenWaterPrev"
-                                        title="@PrevLockHint(WaterReadingsSettled)"
-                                        aria-label="@($"Previous water reading {WaterPrev:N2}. {PrevLockHint(WaterReadingsSettled)}")">
+                                        title="@PrevLockHint(false)"
+                                        aria-label="@($"Previous water reading {WaterPrev:N2}. {PrevLockHint(false)}")">
                                     <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
-                                    @if (WaterReadingsSettled)
-                                    {
-                                        <span class="ub-locked-mark">@LockGlyph</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
-                                    }
+                                    <span class="ub-locked-mark ub-locked-edit">@PencilGlyph</span>
                                 </button>
                             }
                         </label>
-                        <label>Current<input type="number" step="0.01" min="0" @bind="WaterCur" @bind:event="oninput" /></label>
-                        <label>Rate ₱/cu.m<input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" /></label>
+                        <label>Current
+                            @if (WaterReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@WaterCur.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else
+                            {
+                                <input type="number" step="0.01" min="0" @bind="WaterCur" @bind:event="oninput" />
+                            }
+                        </label>
+                        <label>Rate ₱/cu.m
+                            @if (WaterReadingsSettled)
+                            {
+                                <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
+                                    <span class="ub-locked-value">@WaterRate.ToString("N2")</span>
+                                    <span class="ub-locked-mark">@LockGlyph</span>
+                                </span>
+                            }
+                            else
+                            {
+                                <input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" />
+                            }
+                        </label>
                     </div>
                     <div class="ub-calc">@WaterConsumption.ToString("N0") cu.m × ₱@WaterRate.ToString("N2") = <strong>₱@WaterCharge.ToString("N2")</strong></div>
+                    @if (WaterReadingsSettled)
+                    {
+                        <div class="ub-lock-note">@LockGlyph @PrevLockHint(true)</div>
+                    }
                     <div class="ub-status-row @(WaterStatusLocked ? "ub-status-row-locked" : "")">
                         <button type="button" class="ub-status @(WaterPay == PaymentStatus.Unpaid ? "on" : "")" @onclick="() => SetWaterPay(PaymentStatus.Unpaid)">Unpaid</button>
                         <button type="button" class="ub-status @(WaterPay == PaymentStatus.Paid ? "on" : "")" @onclick="() => SetWaterPay(PaymentStatus.Paid)">Paid</button>
@@ -253,25 +309,16 @@
         settled
             ? "A payment is recorded for this utility, so its readings are locked. Reverse the payment to change them."
             : "Carried from the last reading. Click to correct it.";
-
     private void OpenElecPrev()
     {
-        if (ElecReadingsSettled)
-        {
-            Error = PrevLockHint(true);
-            return;
-        }
-        _elecPrevUnlocked = true;
+        // Settled readings never render as this control, so there is nothing to refuse here — the guard only
+        // keeps the invariant true if the markup ever changes.
+        if (!ElecReadingsSettled) _elecPrevUnlocked = true;
     }
 
     private void OpenWaterPrev()
     {
-        if (WaterReadingsSettled)
-        {
-            Error = PrevLockHint(true);
-            return;
-        }
-        _waterPrevUnlocked = true;
+        if (!WaterReadingsSettled) _waterPrevUnlocked = true;
     }
 
     // A locked chip does not change the status: it asks. The row opens from the prompt, never from the press

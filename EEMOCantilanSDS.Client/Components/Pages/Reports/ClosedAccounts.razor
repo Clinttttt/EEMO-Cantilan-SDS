@@ -474,7 +474,7 @@
                             <input type="text" @bind="_renewAreaNote" placeholder="e.g. Corner, Extension" />
                         </label>
                         <label>Monthly rental (₱)
-                            <input type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
+                            <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
                         </label>
                     </div>
                     <p class="ca-renew-note">Whole year: @Money(_renewMonthlyRate * 12). The lapsed period is not back-billed.</p>
@@ -620,10 +620,11 @@
     private int _renewDuration;
     private string _renewOccupant = "";
     private string? _renewName;
-    // The space and the money for the new term. Seeded from the record, sent only when the office edits them.
-    private decimal _renewMonthlyRate;
-    private double? _renewAreaSqm;
-    private string? _renewAreaNote;
+    // The space and the money for the new term. Seeded from the record, and each kept alongside the figure it
+    // was seeded with so an untouched box is never sent back as a change.
+    private decimal _renewMonthlyRate, _renewSeedMonthlyRate;
+    private double? _renewAreaSqm, _renewSeedAreaSqm;
+    private string? _renewAreaNote, _renewSeedAreaNote;
     private bool _busy;
     private string? _actionError;
 
@@ -807,10 +808,13 @@
         _renewDuration = r.DurationYears > 0 ? r.DurationYears : 1;
         _renewOccupant = r.Occupant;
         _renewName = r.ContractName;
-        // The record as it stands. Editing starts from these, so an untouched field renews on the same terms.
-        _renewMonthlyRate = r.MonthlyRate;
-        _renewAreaSqm = r.AreaSqm;
-        _renewAreaNote = r.AreaNote;
+        // The record as it stands. Editing starts from these, and each is sent only if the clerk actually
+        // changed it — the register states a DERIVED rent (a daily-collected space shows thirty of its daily
+        // fee; a monthly one shows the rate the LAPSED term was let at), so sending an untouched box back
+        // would write that display figure over the stall's own stored rate.
+        _renewMonthlyRate = _renewSeedMonthlyRate = r.MonthlyRate;
+        _renewAreaSqm = _renewSeedAreaSqm = r.AreaSqm;
+        _renewAreaNote = _renewSeedAreaNote = r.AreaNote;
         _actionError = null;
     }
 
@@ -823,12 +827,16 @@
         if (_renewEditing && _renewAreaSqm is < 0) { _actionError = "Area cannot be negative."; return; }
 
         _busy = true; _actionError = null;
-        // Only the Edit path states the figures; a plain Proceed sends nothing for them, so the stall keeps the
-        // rate, area and note it already carries.
-        var req = _renewEditing
-            ? new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName,
-                                            _renewMonthlyRate, _renewAreaSqm, _renewAreaNote)
-            : new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName);
+        // Only what the clerk actually changed is stated. Everything else is sent as null, which the server
+        // reads as "as it stands" — so both Proceed and an Edit that only fixed the occupant leave the stall's
+        // rate, area and note exactly where they were.
+        var rate = _renewEditing && _renewMonthlyRate != _renewSeedMonthlyRate ? (decimal?)_renewMonthlyRate : null;
+        var area = _renewEditing && _renewAreaSqm != _renewSeedAreaSqm ? _renewAreaSqm : null;
+        var note = _renewEditing && !string.Equals(_renewAreaNote ?? "", _renewSeedAreaNote ?? "", StringComparison.Ordinal)
+            ? (_renewAreaNote ?? string.Empty)
+            : null;
+        var req = new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName,
+                                                rate, area, note);
         var result = await StallsApi.RenewStallContractAsync(_renewTarget.StallId, req);
         _busy = false;
         if (result.IsSuccess) { CloseModals(); await Load(); }

@@ -548,7 +548,7 @@ else
                         <span class="legend-label">Daily rent</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot" style="background:#4a9eff"></span>
+                        <span class="legend-dot" style="background:#4a7fa5"></span>
                         <span class="legend-label">Fish fee</span>
                     </div>
                     <div class="legend-item">
@@ -773,7 +773,7 @@ else
             </div>
             <div class="audit-compare-row">
                 <span>Fish kilo fee</span>
-                <div><i style="width:@FishFeeMixPct%; background:#4a9eff"></i></div>
+                <div><i style="width:@FishFeeMixPct%; background:#4a7fa5"></i></div>
                 <strong class="audit-compare-value">
                     <span>&#8369;@FishFeeTotal.ToString("N0")</span>
                     <small>@FishFeeMixPct%</small>
@@ -789,7 +789,7 @@ else
             </div>
             <div class="audit-section-palette audit-risk-key">
                 <span><i style="background:var(--green)"></i>Daily stall fee collected</span>
-                <span><i style="background:#4a9eff"></i>Fish kilo fee collected</span>
+                <span><i style="background:#4a7fa5"></i>Fish kilo fee collected</span>
                 <span class="risk"><i style="background:var(--red)"></i>Open balance for follow-up</span>
             </div>
         </div>
@@ -993,7 +993,7 @@ else
                 </div>
                 <div class="fee-row">
                     <span class="fee-label">Fish kilo fee (₱@(_npmFishRate.ToString("0"))/kg)</span>
-                    <div class="mini-meter"><div class="mini-meter-fill" style="width:@FishFeePct%; background:#4a9eff"></div></div>
+                    <div class="mini-meter"><div class="mini-meter-fill" style="width:@FishFeePct%; background:#4a7fa5"></div></div>
                     <strong class="fee-value">₱@FishFeeTotal.ToString("N0")</strong>
                 </div>
             </div>
@@ -1712,7 +1712,7 @@ else
     static string SectionColor(string n) => NormalizeSectionName(n) switch
     {
         "Vegetable Area" => "#2d7a5f",
-        "Fish Area"   => "#4a9eff",
+        "Fish Area"   => "#4a7fa5",
         "Meat Area"   => "#c8a84b",
         _                => "#2d7a5f"
     };

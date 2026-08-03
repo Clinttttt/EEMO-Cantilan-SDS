@@ -522,12 +522,7 @@ else
     int     UnpaidCount    => R?.CollectionPerformance?.UnpaidCount ?? 0;
     string  RevenueGrowthText    => $"{(R?.RevenueGrowthPercentage ?? 0m):+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
     string  CollectionGrowthText => $"{(R?.CollectionGrowthPercentage ?? 0m):+0.0;-0.0;0}% vs previous {ActivePeriod.ToLower()}";
-    int Total      => PaidCount + PartialCount + UnpaidCount;
-    int PaidPct    => Total > 0 ? (int)Math.Round((double)PaidCount    / Total * 100) : 0;
-    int PartialPct => Total > 0 ? (int)Math.Round((double)PartialCount / Total * 100) : 0;
-    int UnpaidPct  => Total > 0 ? Math.Max(0, 100 - PaidPct - PartialPct) : 0;
-
-    static int ClampPct(decimal v) => (int)Math.Clamp(Math.Round(v), 0m, 100m);
+    // The compliance counts are passed straight to AuditBreakdownRow, which works out its own percentages.
 
     decimal TotalBilled => (R?.StallCompliance ?? new List<StallComplianceDto>()).Sum(s => s.AmountPaid + s.Balance);
     // Rent actually collected for the period, from the same compliance rows as billed/open, so the

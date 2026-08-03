@@ -905,6 +905,9 @@
         // electricity to settle, and marking it would receipt ₱0.
         if (SelectedBill.ElecCharge <= 0m && MiscElecPay != PaymentStatus.Unpaid) { SheetError = "This bill has no electricity charge."; return; }
         if (SelectedBill.WaterCharge <= 0m && MiscWaterPay != PaymentStatus.Unpaid) { SheetError = "This bill has no water charge."; return; }
+        // Nothing left owed means nothing to receipt. Without this, marking an already-settled bill Paid again
+        // would post ₱0 and overwrite the OR number already on the office's record.
+        if (MiscCollectAmount <= 0m) { SheetError = "Nothing left to collect on this bill."; return; }
 
         IsSaving = true;
         SheetError = null;

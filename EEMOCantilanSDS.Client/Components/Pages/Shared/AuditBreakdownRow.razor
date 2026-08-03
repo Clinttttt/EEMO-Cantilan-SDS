@@ -92,7 +92,9 @@
         <div class="audit-number-card">
             <span class="num-label">Collection Rate</span>
             <strong>@CollectionRate%</strong>
-            <small class="num-note">&#8369;@Collected.ToString("N0") of &#8369;@Billed.ToString("N0") collected</small>
+            @* Deliberately no "₱X of ₱Y" caption here. The rate is the server's figure, assessed against rent
+               due, while the money in the card beside this one includes utilities — printing them together read
+               as one reconciliation when the two do not share a base. The reconciliation is the Fee Mix card. *@
         </div>
     </div>
 </div>

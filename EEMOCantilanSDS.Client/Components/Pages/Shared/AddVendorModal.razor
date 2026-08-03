@@ -390,15 +390,21 @@
                             <div class="avm-rental-info">
                                 <div class="avm-rental-icon">
                                     @* The facility's own mark, so the charge is visibly attributed to the
-                                       facility being billed. A Head-added facility has no artwork of its own
-                                       and keeps the neutral building glyph. *@
-                                    @if (RentalFacilityMark is not null)
+                                       facility being billed. An LGU-defined facility has no artwork of its own
+                                       and keeps the neutral building glyph — written here as markup, so this
+                                       component's own styles reach it. *@
+                                    @if (RentalFacilityMark is { } markCode && FacilityMarkArt.Has(markCode))
                                     {
-                                        <FacilityMark Code="@RentalFacilityMark.Value" Size="16" Fallback="@NeutralBuildingMark" />
+                                        <FacilityMark Code="@markCode" Size="17" />
                                     }
                                     else
                                     {
-                                        @NeutralBuildingMark
+                                        <svg viewBox="0 0 24 24">
+                                            <rect x="3" y="9" width="18" height="12" rx="2" />
+                                            <path d="M3 9l9-6 9 6" />
+                                            <line x1="9" y1="21" x2="9" y2="13" />
+                                            <line x1="15" y1="21" x2="15" y2="13" />
+                                        </svg>
                                     }
                                 </div>
                                 <div>
@@ -561,7 +567,8 @@
 {
     <div class="avm-nested-overlay" @onclick="DismissReuseOffer">
         <div class="avm-nested-dialog" role="dialog" aria-modal="true"
-             aria-labelledby="avm-reuse-title" @onclick:stopPropagation="true">
+             aria-labelledby="avm-reuse-title" tabindex="-1" @ref="_reuseDialog"
+             @onkeydown="OnReuseKeyDown" @onclick:stopPropagation="true">
             <div class="avm-nested-head" id="avm-reuse-title">Stall @Form.StallNo is already registered</div>
             <div class="avm-nested-body">
                 <p>@ReuseOfferMessage</p>
@@ -636,21 +643,10 @@
     private bool _customYears;
 
     // ── Facility mark on the Base Rental card ─────────────────────────────────
-    // The form works in facility codes (strings, because a Head-added facility has one that no enum knows).
+    // The form works in facility codes (strings, because an LGU-defined facility has one that no enum knows).
     // Only a code the platform draws artwork for resolves to a mark; anything else keeps the neutral glyph.
     private FacilityCode? RentalFacilityMark =>
         Enum.TryParse<FacilityCode>(Form.FacilityCode, ignoreCase: true, out var code) ? code : null;
-
-    private readonly RenderFragment NeutralBuildingMark = builder =>
-    {
-        builder.AddMarkupContent(0,
-            "<svg viewBox=\"0 0 24 24\">" +
-            "<rect x=\"3\" y=\"9\" width=\"18\" height=\"12\" rx=\"2\" />" +
-            "<path d=\"M3 9l9-6 9 6\" />" +
-            "<line x1=\"9\" y1=\"21\" x2=\"9\" y2=\"13\" />" +
-            "<line x1=\"15\" y1=\"21\" x2=\"15\" y2=\"13\" />" +
-            "</svg>");
-    };
 
     // ── Handover offer ────────────────────────────────────────────────────────
     // The offer is a dialog, so it needs a dismissed state of its own; a new offer (the clerk typed a
@@ -663,6 +659,15 @@
         !string.Equals(ReuseOfferMessage, _answeredReuseOffer, StringComparison.Ordinal);
 
     private void DismissReuseOffer() => _answeredReuseOffer = ReuseOfferMessage;
+
+    /// <summary>Escape declines the offer, as a dialog must for anyone working from the keyboard.</summary>
+    private void OnReuseKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key is "Escape" or "Esc") DismissReuseOffer();
+    }
+
+    private ElementReference _reuseDialog;
+    private string? _focusedReuseOffer;
 
     private async Task ConfirmReuse()
     {
@@ -694,7 +699,9 @@
         {
             _lastSuggested = string.Empty;
             _customYears = false;
-            _answeredReuseOffer = null;
+            // Closing answers whatever was on the table. A host that forgets to clear its offer therefore
+            // cannot put a stale dialog over the next blank form; a NEW offer still asks.
+            _answeredReuseOffer = ReuseOfferMessage;
         }
     }
 
@@ -748,6 +755,18 @@
         if (FieldErrors.Any())
         {
             await JS.InvokeVoidAsync("eval", "document.querySelector('.eemo-modal-body').scrollTo({ top: 0, behavior: 'smooth' })");
+        }
+
+        // Move the keyboard into the handover dialog once per offer, so what covers the form is also what
+        // answers to Escape and Tab. Focus is a courtesy: a failure here must never break the form.
+        if (ShowReuseOffer && _focusedReuseOffer != ReuseOfferMessage)
+        {
+            _focusedReuseOffer = ReuseOfferMessage;
+            try { await _reuseDialog.FocusAsync(); } catch { }
+        }
+        else if (!ShowReuseOffer)
+        {
+            _focusedReuseOffer = null;
         }
     }
 

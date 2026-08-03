@@ -78,17 +78,20 @@ public class UtilityBillModalLockTests : TestContext
     }
 
     [Fact]
-    public void PreviousReading_OfASettledUtility_DoesNotOpen_AndSaysWhy()
+    public void ASettledUtility_LocksEveryReading_AndSaysWhy()
     {
-        // Water is already receipted, so the server locks its readings; the dialog must not invite an edit
-        // that would come back as a rejected save.
+        // Water is already receipted. The server locks previous, current AND rate for that utility
+        // (WouldChangeSettledReadings compares all three), so the dialog must not invite an edit that would
+        // come back as a rejected save.
         var cut = RenderModal(Seed(exists: true, waterStatus: "Paid"), elec: false);
 
-        cut.Find(".ub-locked").Click();
-
-        Assert.Single(cut.FindAll(".ub-locked"));                 // still stated, never an input
-        Assert.Empty(cut.FindAll(".ub-locked-edit"));             // no pencil offered at all
+        Assert.Equal(3, cut.FindAll(".ub-locked").Count);          // previous, current and rate
+        Assert.Empty(cut.FindAll(".ub-grid3 input"));              // nothing typeable
+        Assert.Empty(cut.FindAll(".ub-locked-edit"));              // no pencil offered at all
         Assert.Contains("A payment is recorded for this utility", cut.Markup);
+        // Stated as a fact, not as a validation failure.
+        Assert.Single(cut.FindAll(".ub-lock-note"));
+        Assert.Empty(cut.FindAll(".ub-error"));
     }
 
     [Fact]

@@ -49,8 +49,12 @@ public class AuditBreakdownRowTests : TestContext
         Assert.Equal("width:100%", cut.Find(".fm-billed").GetAttribute("style"));
         Assert.Equal("width:0%", cut.Find(".fm-collected").GetAttribute("style"));
         Assert.Equal("width:100%", cut.Find(".fm-open").GetAttribute("style"));
-        // Headline figures repeat the same money, so the card cannot drift from the ledger above it.
-        Assert.Contains("₱0 of ₱27,001 collected", cut.Markup);
+        // The headline figures state the outstanding money and the rate, and nothing else: the rate is
+        // assessed against rent due while the money above includes utilities, so printing "₱X of ₱Y" beside
+        // the rate read as one reconciliation when the two do not share a base.
+        Assert.DoesNotContain("of ₱27,001 collected", cut.Markup);
+        Assert.Contains("Total Outstanding", cut.Markup);
+        Assert.Contains("Collection Rate", cut.Markup);
     }
 
     [Fact]

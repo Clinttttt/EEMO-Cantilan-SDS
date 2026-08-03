@@ -82,11 +82,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// not stop being collectible because the month turned over — the office's arrears say it is owed, so
         /// the field app must be able to see and settle it. Ordered oldest month first, so the longest-standing
         /// bill is the one settled first.
+        ///
+        /// Owed is tested per utility, not on the bill's net balance: electricity over-collected by a mistaken
+        /// partial would otherwise mask water that is genuinely still owed on the same bill.
         /// </summary>
         public static IReadOnlyList<UtilityBill> MonthAndStillOwed(IEnumerable<UtilityBill> bills, int year, int month) =>
             bills
                 .Where(b => b.IsForMonth(year, month)
-                         || (IsBefore(b, year, month) && b.BalanceDue > 0m))
+                         || (IsBefore(b, year, month) && (b.ElecBalanceDue > 0m || b.WaterBalanceDue > 0m)))
                 .OrderBy(b => b.BillingYear).ThenBy(b => b.BillingMonth)
                 .ToList();
 
