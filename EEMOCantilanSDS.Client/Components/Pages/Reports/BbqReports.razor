@@ -327,110 +327,14 @@ else
             <h2>Audit Breakdown</h2>
         </div>
 
-        <div class="rpt-audit-row">
-            <!-- Fee Mix & Rate Gap — scales to any stall count -->
-            <div class="audit-card">
-                <div class="audit-card-head">
-                    <span>Fee Mix &amp; Rate Gap</span>
-                    <small class="audit-subtitle">Collected rent versus open receivables</small>
-                </div>
-                <div class="bbq-feemix-list">
-                    @{
-                        var billed = TotalBilled;
-                        var collected = RentCollected;
-                        var outstanding = PendingAmount;
-                        int collectedPct = billed > 0 ? (int)Math.Round(collected / billed * 100) : 0;
-                        int outstandingPct = billed > 0 ? (int)Math.Round(outstanding / billed * 100) : 0;
-                    }
-                    <div class="bbq-fm-row">
-                        <span class="bbq-fm-label">Monthly Rental Billed</span>
-                        <div class="bbq-fm-bar-wrap">
-                            <div class="bbq-fm-bar bbq-fm-full"></div>
-                        </div>
-                        <div class="bbq-fm-vals">
-                            <span>&#8369;@billed.ToString("N0")</span>
-                            <span class="bbq-fm-pct">100%</span>
-                        </div>
-                    </div>
-                    <div class="bbq-fm-row">
-                        <span class="bbq-fm-label">Rent Collected</span>
-                        <div class="bbq-fm-bar-wrap">
-                            <div class="bbq-fm-bar bbq-fm-collected" style="width:@collectedPct%"></div>
-                        </div>
-                        <div class="bbq-fm-vals">
-                            <span class="bbq-fm-green">&#8369;@collected.ToString("N0")</span>
-                            <span class="bbq-fm-pct">@collectedPct%</span>
-                        </div>
-                    </div>
-                    <div class="bbq-fm-row">
-                        <span class="bbq-fm-label">Open Balance</span>
-                        <div class="bbq-fm-bar-wrap">
-                            <div class="bbq-fm-bar bbq-fm-open" style="width:@outstandingPct%"></div>
-                        </div>
-                        <div class="bbq-fm-vals">
-                            <span class="bbq-fm-red">&#8369;@outstanding.ToString("N0")</span>
-                            <span class="bbq-fm-pct bbq-fm-pct-red">@outstandingPct%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Payor Compliance -->
-            <div class="audit-card">
-                <div class="audit-card-head">
-                    <span>Payor Compliance</span>
-                    <small class="audit-subtitle">Stall distribution by payment status</small>
-                </div>
-                <div class="bbq-compliance-summary">
-                    <div class="bbq-comp-track-wrap">
-                        @if (Total > 0)
-                        {
-                            <div class="bbq-comp-track">
-                                @if (PaidPct > 0)    { <div class="bbq-comp-seg seg-paid"    style="width:@PaidPct%"    title="Paid @PaidCount"></div> }
-                                @if (PartialPct > 0) { <div class="bbq-comp-seg seg-partial" style="width:@PartialPct%" title="Partial @PartialCount"></div> }
-                                @if (UnpaidPct > 0)  { <div class="bbq-comp-seg seg-unpaid"  style="width:@UnpaidPct%"  title="Unpaid @UnpaidCount"></div> }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="bbq-comp-track"><div class="bbq-comp-seg seg-empty" style="width:100%"></div></div>
-                        }
-                    </div>
-                </div>
-                <div class="bbq-comp-cards">
-                    <div class="bbq-comp-card bbq-comp-card-paid">
-                        <div class="bbq-comp-count">@PaidCount</div>
-                        <div class="bbq-comp-pct">@PaidPct%</div>
-                        <div class="bbq-comp-lbl">Fully Paid</div>
-                    </div>
-                    <div class="bbq-comp-card bbq-comp-card-partial">
-                        <div class="bbq-comp-count">@PartialCount</div>
-                        <div class="bbq-comp-pct">@PartialPct%</div>
-                        <div class="bbq-comp-lbl">Partial</div>
-                    </div>
-                    <div class="bbq-comp-card bbq-comp-card-unpaid">
-                        <div class="bbq-comp-count">@UnpaidCount</div>
-                        <div class="bbq-comp-pct">@UnpaidPct%</div>
-                        <div class="bbq-comp-lbl">Unpaid</div>
-                    </div>
-                </div>
-                <div class="bbq-comp-footer">
-                    <span>Total: @Total stalls · ₱@RentCollected.ToString("N0") collected of ₱@TotalBilled.ToString("N0") billed</span>
-                </div>
-            </div>
-
-            <!-- Outstanding Balance KPI -->
-            <div class="audit-card audit-kpi-stack">
-                <div class="audit-number-card">
-                    <strong>&#8369;@PendingAmount.ToString("N0")</strong>
-                    <span>Outstanding Balance</span>
-                </div>
-                <div class="audit-number-card">
-                    <strong>@CollectionRate%</strong>
-                    <span>Collection Rate</span>
-                </div>
-            </div>
-        </div>
+        <AuditBreakdownRow Billed="@TotalBilled"
+                           Collected="@RentCollected"
+                           Outstanding="@PendingAmount"
+                           PaidCount="@PaidCount"
+                           PartialCount="@PartialCount"
+                           UnpaidCount="@UnpaidCount"
+                           CollectionRate="@CollectionRate"
+                           PeriodLabel="@GetPeriodLabel()" />
 
         <!-- Delinquency Analytics -->
         <div class="rpt-section-heading">

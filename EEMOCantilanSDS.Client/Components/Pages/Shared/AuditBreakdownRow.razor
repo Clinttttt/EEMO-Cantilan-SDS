@@ -1,0 +1,137 @@
+@*
+    Shared Audit Breakdown row for the fixed-monthly-rent facility reports (TCC / NCC / BBQ / ICE and
+    LGU-defined facilities). One component so the three cards read identically on every facility, and
+    so the reconciliation stays honest: billed = collected + open, and the compliance counts and the
+    headline figures are the same numbers the cards above them show.
+
+    Restrained palette on purpose — neutral slate for what was billed, navy for what came in, the one
+    red accent for what is still open. No status-tinted tiles.
+*@
+
+<div class="rpt-audit-row">
+
+    <!-- Billing reconciliation -->
+    <div class="audit-card">
+        <div class="audit-card-head">
+            <span>Fee Mix &amp; Rate Gap</span>
+            <small class="audit-subtitle">Collected rent versus open receivables</small>
+        </div>
+        <div class="fm-list">
+            <div class="fm-row">
+                <span class="fm-label">Monthly Rental Billed</span>
+                <div class="fm-track"><div class="fm-fill fm-billed" style="width:@BilledPct%"></div></div>
+                <div class="fm-vals">
+                    <span class="fm-amount">&#8369;@Billed.ToString("N0")</span>
+                    <span class="fm-pct">@BilledPct%</span>
+                </div>
+            </div>
+            <div class="fm-row">
+                <span class="fm-label">Rent Collected</span>
+                <div class="fm-track"><div class="fm-fill fm-collected" style="width:@CollectedPct%"></div></div>
+                <div class="fm-vals">
+                    <span class="fm-amount">&#8369;@Collected.ToString("N0")</span>
+                    <span class="fm-pct">@CollectedPct%</span>
+                </div>
+            </div>
+            <div class="fm-row">
+                <span class="fm-label">Open Balance</span>
+                <div class="fm-track"><div class="fm-fill fm-open" style="width:@OpenPct%"></div></div>
+                <div class="fm-vals">
+                    <span class="fm-amount">&#8369;@Outstanding.ToString("N0")</span>
+                    <span class="fm-pct">@OpenPct%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance distribution -->
+    <div class="audit-card">
+        <div class="audit-card-head">
+            <span>@ComplianceTitle</span>
+            <small class="audit-subtitle">@EntityPlural by compliance status</small>
+        </div>
+        <div class="cmp-grid">
+            <div class="cmp-cell">
+                <div class="cmp-count">@PaidCount</div>
+                <div class="cmp-label">Fully paid</div>
+                <div class="cmp-pct">@PaidPct%</div>
+            </div>
+            <div class="cmp-cell">
+                <div class="cmp-count">@PartialCount</div>
+                <div class="cmp-label">Partial</div>
+                <div class="cmp-pct">@PartialPct%</div>
+            </div>
+            <div class="cmp-cell">
+                <div class="cmp-count">@UnpaidCount</div>
+                <div class="cmp-label">Unpaid</div>
+                <div class="cmp-pct">@UnpaidPct%</div>
+            </div>
+        </div>
+        <div class="cmp-foot">
+            @if (Total > 0)
+            {
+                <span>Total @EntityPlural.ToLowerInvariant(): @Total</span>
+            }
+            else
+            {
+                <span>No @EntityPlural.ToLowerInvariant() assessed for this period</span>
+            }
+        </div>
+    </div>
+
+    <!-- Headline figures -->
+    <div class="audit-kpi-stack">
+        <div class="audit-number-card">
+            <span class="num-label">Total Outstanding</span>
+            <strong>&#8369;@Outstanding.ToString("N0")</strong>
+            @if (!string.IsNullOrWhiteSpace(PeriodLabel))
+            {
+                <small class="num-note">@PeriodLabel</small>
+            }
+        </div>
+        <div class="audit-number-card">
+            <span class="num-label">Collection Rate</span>
+            <strong>@CollectionRate%</strong>
+            <small class="num-note">&#8369;@Collected.ToString("N0") of &#8369;@Billed.ToString("N0") collected</small>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Rent billed for the period (collected + open, from the same compliance rows).</summary>
+    [Parameter] public decimal Billed { get; set; }
+
+    /// <summary>Rent actually collected for the period.</summary>
+    [Parameter] public decimal Collected { get; set; }
+
+    /// <summary>Open receivable for the period.</summary>
+    [Parameter] public decimal Outstanding { get; set; }
+
+    [Parameter] public int PaidCount { get; set; }
+    [Parameter] public int PartialCount { get; set; }
+    [Parameter] public int UnpaidCount { get; set; }
+
+    /// <summary>Collection rate as reported by the server, so the card matches the header gauge.</summary>
+    [Parameter] public int CollectionRate { get; set; }
+
+    /// <summary>Period the figures cover, e.g. "May 2025". Optional; the caption is dropped when absent.</summary>
+    [Parameter] public string? PeriodLabel { get; set; }
+
+    /// <summary>Card title — facilities that do not collect from payors can name their own subject.</summary>
+    [Parameter] public string ComplianceTitle { get; set; } = "Payor Compliance";
+
+    /// <summary>Plural noun for the counted subject, used in the subtitle and the footer.</summary>
+    [Parameter] public string EntityPlural { get; set; } = "Payors";
+
+    private int BilledPct => Billed > 0 ? 100 : 0;
+    private int CollectedPct => PctOfBilled(Collected);
+    private int OpenPct => PctOfBilled(Outstanding);
+
+    private int PctOfBilled(decimal amount) =>
+        Billed > 0 ? (int)Math.Clamp(Math.Round(amount / Billed * 100m), 0m, 100m) : 0;
+
+    private int Total => PaidCount + PartialCount + UnpaidCount;
+    private int PaidPct => Total > 0 ? (int)Math.Round((double)PaidCount / Total * 100) : 0;
+    private int PartialPct => Total > 0 ? (int)Math.Round((double)PartialCount / Total * 100) : 0;
+    private int UnpaidPct => Total > 0 ? Math.Max(0, 100 - PaidPct - PartialPct) : 0;
+}

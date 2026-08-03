@@ -333,111 +333,14 @@ else
             <h2>Audit Breakdown</h2>
         </div>
 
-        <div class="rpt-audit-row">
-            <!-- Fee Mix & Rate Gap — scales to any stall count -->
-            <div class="audit-card">
-                <div class="audit-card-head">
-                    <span>Fee Mix &amp; Rate Gap</span>
-                    <small class="audit-subtitle">Collected rent versus open receivables</small>
-                </div>
-                <div class="tcc-feemix-list">
-                    @{
-                        var billed = TotalBilled;
-                        var collected = RentCollected;
-                        var outstanding = PendingAmount;
-                        int collectedPct = billed > 0 ? (int)Math.Round(collected / billed * 100) : 0;
-                        int outstandingPct = billed > 0 ? (int)Math.Round(outstanding / billed * 100) : 0;
-                    }
-                    <div class="tcc-fm-row">
-                        <span class="tcc-fm-label">Monthly Rental Billed</span>
-                        <div class="tcc-fm-bar-wrap">
-                            <div class="tcc-fm-bar tcc-fm-full"></div>
-                        </div>
-                        <div class="tcc-fm-vals">
-                            <span>&#8369;@billed.ToString("N0")</span>
-                            <span class="tcc-fm-pct">100%</span>
-                        </div>
-                    </div>
-                    <div class="tcc-fm-row">
-                        <span class="tcc-fm-label">Rent Collected</span>
-                        <div class="tcc-fm-bar-wrap">
-                            <div class="tcc-fm-bar tcc-fm-collected" style="width:@collectedPct%"></div>
-                        </div>
-                        <div class="tcc-fm-vals">
-                            <span class="tcc-fm-green">&#8369;@collected.ToString("N0")</span>
-                            <span class="tcc-fm-pct">@collectedPct%</span>
-                        </div>
-                    </div>
-                    <div class="tcc-fm-row">
-                        <span class="tcc-fm-label">Open Balance</span>
-                        <div class="tcc-fm-bar-wrap">
-                            <div class="tcc-fm-bar tcc-fm-open" style="width:@outstandingPct%"></div>
-                        </div>
-                        <div class="tcc-fm-vals">
-                            <span class="tcc-fm-red">&#8369;@outstanding.ToString("N0")</span>
-                            <span class="tcc-fm-pct tcc-fm-pct-red">@outstandingPct%</span>
-                        </div>
-                    </div>
-                </div>
-             
-            </div>
-
-            <!-- Payor Compliance — upgraded design -->
-            <div class="audit-card">
-                <div class="audit-card-head">
-                    <span>Payor Compliance</span>
-                    <small class="audit-subtitle">Stall distribution by payment status</small>
-                </div>
-                <div class="tcc-compliance-summary">
-                    <div class="tcc-comp-track-wrap">
-                        @if (Total > 0)
-                        {
-                            <div class="tcc-comp-track">
-                                @if (PaidPct > 0)    { <div class="tcc-comp-seg seg-paid"    style="width:@PaidPct%"    title="Paid @PaidCount"></div> }
-                                @if (PartialPct > 0) { <div class="tcc-comp-seg seg-partial" style="width:@PartialPct%" title="Partial @PartialCount"></div> }
-                                @if (UnpaidPct > 0)  { <div class="tcc-comp-seg seg-unpaid"  style="width:@UnpaidPct%"  title="Unpaid @UnpaidCount"></div> }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="tcc-comp-track"><div class="tcc-comp-seg seg-empty" style="width:100%"></div></div>
-                        }
-                    </div>
-                </div>
-                <div class="tcc-comp-cards">
-                    <div class="tcc-comp-card tcc-comp-card-paid">
-                        <div class="tcc-comp-count">@PaidCount</div>
-                        <div class="tcc-comp-pct">@PaidPct%</div>
-                        <div class="tcc-comp-lbl">Fully Paid</div>
-                    </div>
-                    <div class="tcc-comp-card tcc-comp-card-partial">
-                        <div class="tcc-comp-count">@PartialCount</div>
-                        <div class="tcc-comp-pct">@PartialPct%</div>
-                        <div class="tcc-comp-lbl">Partial</div>
-                    </div>
-                    <div class="tcc-comp-card tcc-comp-card-unpaid">
-                        <div class="tcc-comp-count">@UnpaidCount</div>
-                        <div class="tcc-comp-pct">@UnpaidPct%</div>
-                        <div class="tcc-comp-lbl">Unpaid</div>
-                    </div>
-                </div>
-                <div class="tcc-comp-footer">
-                    <span>Total: @Total stalls · ₱@RentCollected.ToString("N0") collected of ₱@TotalBilled.ToString("N0") billed</span>
-                </div>
-            </div>
-
-            <!-- Outstanding Balance KPI -->
-            <div class="audit-card audit-kpi-stack">
-                <div class="audit-number-card">
-                    <strong>&#8369;@PendingAmount.ToString("N0")</strong>
-                    <span>Outstanding Balance</span>
-                </div>
-                <div class="audit-number-card">
-                    <strong>@CollectionRate%</strong>
-                    <span>Collection Rate</span>
-                </div>
-            </div>
-        </div>
+        <AuditBreakdownRow Billed="@TotalBilled"
+                           Collected="@RentCollected"
+                           Outstanding="@PendingAmount"
+                           PaidCount="@PaidCount"
+                           PartialCount="@PartialCount"
+                           UnpaidCount="@UnpaidCount"
+                           CollectionRate="@CollectionRate"
+                           PeriodLabel="@GetPeriodLabel()" />
 
         <!-- Delinquency Analytics -->
         <div class="rpt-section-heading">

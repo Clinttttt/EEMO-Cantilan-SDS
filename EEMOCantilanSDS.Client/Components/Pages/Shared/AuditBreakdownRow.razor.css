@@ -1,0 +1,180 @@
+/* ══════════════════════════════════════════════════════════════════
+   Audit Breakdown row — shared by the fixed-rent facility reports.
+   Neutral document styling: white cards, hairline rules, one red accent.
+   ══════════════════════════════════════════════════════════════════ */
+
+.rpt-audit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 280px;
+    gap: 16px;
+    align-items: start;
+}
+
+.audit-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(13, 33, 55, .06);
+}
+
+.audit-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.audit-card-head > span {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -.01em;
+}
+.audit-subtitle {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* ── Billing reconciliation ── */
+.fm-list { display: flex; flex-direction: column; }
+.fm-row {
+    display: grid;
+    grid-template-columns: 150px 1fr 96px;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+.fm-row:last-child { border-bottom: none; padding-bottom: 2px; }
+.fm-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-subtle);
+}
+.fm-track {
+    height: 6px;
+    background: var(--bg-icon);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.fm-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .4s ease;
+}
+.fm-billed { background: color-mix(in srgb, var(--navy) 40%, var(--border)); }
+.fm-collected { background: var(--navy); }
+.fm-open { background: var(--red); }
+.fm-vals {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+}
+.fm-amount {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    font-variant-numeric: tabular-nums;
+}
+.fm-pct {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Compliance distribution ── */
+.cmp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    margin-top: 18px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.cmp-cell {
+    padding: 16px 10px;
+    text-align: center;
+    border-left: 1px solid var(--border);
+}
+.cmp-cell:first-child { border-left: none; }
+.cmp-count {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.cmp-label {
+    margin-top: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+}
+.cmp-pct {
+    margin-top: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    font-variant-numeric: tabular-nums;
+}
+.cmp-foot {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--text-subtle);
+}
+
+/* ── Headline figures ── */
+.audit-kpi-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.audit-number-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(13, 33, 55, .06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.num-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--text-muted);
+}
+.audit-number-card strong {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.num-note {
+    font-size: 11.5px;
+    color: var(--text-subtle);
+}
+
+@media (max-width: 900px) {
+    .rpt-audit-row { grid-template-columns: 1fr; }
+    .fm-row { grid-template-columns: 130px 1fr 88px; gap: 8px; }
+}
+
+@media print {
+    .audit-card, .audit-number-card { box-shadow: none; }
+    .fm-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
