@@ -28,6 +28,13 @@ public class UpdateStallCommandHandler(
         stall.UpdateRates(request.MonthlyRate, request.DailyRate ?? stall.DailyRate, "Admin");
         stall.UpdateAreaInfo(request.AreaSqm, request.AreaNote, request.Remarks, "Admin");
 
+        // Which charges apply to the space. The command carried this from the start but nothing ever wrote it,
+        // so adding a utility charge on the vendor form appeared to save and changed nothing — the meter-reading
+        // dialog went on saying the stall is not billed for electricity or water. Null still means "not
+        // supplied", so a screen that does not edit the charges cannot strip one off the record.
+        if (request.Fees is { } fees)
+            stall.SetApplicableFees(fees, "Admin");
+
         // Update active contract occupant + terms
         var activeContract = stall.Contracts.FirstOrDefault(c => c.IsActive);
         if (activeContract is not null)

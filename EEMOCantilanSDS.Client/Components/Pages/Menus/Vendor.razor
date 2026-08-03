@@ -768,7 +768,9 @@
     // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), used
     // for the NPM daily-fee labels in the vendor detail + fee breakdown.
     private decimal _npmDailyRate = 30m;
-    private decimal _npmFishRate = 1m;
+    // Unknown until the tenant's rates arrive. Zero on purpose: a label built from a default would put this
+    // platform's reference ordinance on another municipality's screen if the rates call failed.
+    private decimal _npmFishRate;
     // What a market space is let for per month, as the server resolves it: the LGU's own stated rent, or thirty
     // of its daily fee until it states one. Seeds the form so no municipality is offered another's figure.
     private decimal _npmMonthlyRentInUse;
@@ -786,8 +788,8 @@
         }
     }
 
-    /// <summary>The per-kilo section fee as this office charges it — never a figure written into the page.</summary>
-    private string FishFeeLabel => $"Fish ₱{_npmFishRate:0}/kg";
+    /// <summary>The per-kilo section fee as this office charges it, and figure-free until its rate is known.</summary>
+    private string FishFeeLabel => _npmFishRate > 0m ? $"Fish ₱{_npmFishRate:0}/kg" : "Fish (per kilo)";
 
     protected override async Task OnInitializedAsync()
     {

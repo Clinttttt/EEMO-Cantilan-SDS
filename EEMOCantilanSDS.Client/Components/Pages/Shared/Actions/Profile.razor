@@ -304,9 +304,9 @@
                                         @(Stall.HasWater ? "Billed" : "Not billed")
                                     </span>
                                 </div>
-                                @* The per-kilo fee is stated only where this space actually carries one, at the
-                                   office's own rate — a stall in a section with no such fee shows no figure. *@
-                                @if (Stall.FishFee > 0m && _npmFishRate > 0m)
+                                @* The per-kilo fee is stated only where this space actually sits in the section
+                                   that carries one, at the office's own rate — never a written-in figure. *@
+                                @if (Stall.CarriesSectionFee && _npmFishRate > 0m)
                                 {
                                     <div class="prof-field">
                                         <span class="prof-field-label">@Stall.Section fee</span>
@@ -854,7 +854,9 @@
         public decimal WaterReading { get; set; }
         public decimal WaterAmount { get; set; }
         public decimal FishKilos { get; set; }
-        public decimal FishFee => Section == "Fish Area" ? FishKilos : 0;
+        /// <summary>True when this space sits in the section its office charges a per-kilo fee on.</summary>
+        public bool CarriesSectionFee { get; set; }
+        public decimal FishFee => CarriesSectionFee ? FishKilos : 0;
         public decimal TotalBill => MonthlyRate + ElecAmount + WaterAmount + FishFee;
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
@@ -998,8 +1000,11 @@
                     }
                 };
                 
-                var hasElec = FacilityId.ToUpper() == "NPM";
-                var hasWater = FacilityId.ToUpper() == "NPM";
+                // What this space is actually billed for, from its own record — not "it is a market stall, so
+                // assume both". The assumption printed meters a vendor does not have, and (once the update
+                // handler began writing the charges) would have put them on the stall on any profile save.
+                var hasElec = stallDto.HasElectricity;
+                var hasWater = stallDto.HasWater;
                 
                 Stall = new()
                 {
@@ -1023,6 +1028,7 @@
                     WaterReading = 0,
                     WaterAmount = waterAmount,
                     FishKilos = 0,
+                    CarriesSectionFee = stallDto.Section == Domain.Enums.MarketSection.FishSection,
                     IsPaid = isPaid,
                     IsPartial = isPartial,
                     PartialAmount = partialAmount,
@@ -1261,7 +1267,7 @@
         var parts = new List<string> { "Rental" };
         if (Stall.HasElectricity) parts.Add("Electricity");
         if (Stall.HasWater) parts.Add("Water");
-        if (Stall.FishFee > 0m) parts.Add($"{Stall.Section} fee");
+        if (Stall.CarriesSectionFee && _npmFishRate > 0m) parts.Add($"{Stall.Section} fee");
         return string.Join(" + ", parts);
     }
 
@@ -1314,7 +1320,7 @@
         var fees = Domain.Enums.ApplicableFees.BaseRental;
         if (Stall.HasElectricity) fees |= Domain.Enums.ApplicableFees.Electricity;
         if (Stall.HasWater) fees |= Domain.Enums.ApplicableFees.Water;
-        if (Stall.Section == "Fish Area") fees |= Domain.Enums.ApplicableFees.FishFee;
+        if (Stall.CarriesSectionFee) fees |= Domain.Enums.ApplicableFees.FishFee;
         
         var command = new UpdateStallCommand(
             StallGuid,

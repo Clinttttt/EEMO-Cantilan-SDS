@@ -922,12 +922,14 @@
         {
             _npmDailyRate = result.Value.DailyRate;
             _npmFishRate = result.Value.FishRate;
+            SyncSectionRateDescriptions();
         }
-        SyncSectionRateDescriptions();
     }
 
-    // Keep the section descriptions in step with the tenant's resolved daily/fish rates (₱30/₱1 ordinance
-    // fallback keeps Cantilan identical) so a custom-fee LGU sees its own numbers, not hardcoded ₱30/₱1.
+    // States the tenant's own resolved rates on the section cards. Called only when those rates actually
+    // arrived: writing them from the fallback defaults would put this platform's reference ordinance (₱30, ₱1)
+    // on another municipality's screen the moment the rates call failed. Until then the cards say what the
+    // section is billed by — daily collection, a per-kilo fee — and name no figure.
     private void SyncSectionRateDescriptions()
     {
         var daily = _npmDailyRate.ToString("0");
@@ -935,7 +937,9 @@
         if (Sections.TryGetValue("Vegetable Area", out var veg))
             veg.Description = $"Fresh vegetable stalls — ₱{daily}/day · Water · Electricity";
         if (Sections.TryGetValue("Fish Area", out var fishSec))
-            fishSec.Description = $"Fish stalls — ₱{daily}/day · ₱{fish}/kg · Water · Electricity";
+            fishSec.Description = _npmFishRate > 0m
+                ? $"Fish stalls — ₱{daily}/day · ₱{fish}/kg · Water · Electricity"
+                : $"Fish stalls — ₱{daily}/day · Water · Electricity";
         if (Sections.TryGetValue("Meat Area", out var meat))
             meat.Description = $"Meat stalls — ₱{daily}/day · Water · Electricity";
     }
@@ -1070,7 +1074,11 @@
             fees |= ApplicableFees.Electricity;
         if (VendorForm.FeeTypes.Contains("Water"))
             fees |= ApplicableFees.Water;
-        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType))
+        // The per-kilo fee follows the section, not a tick: the form states it as a fact of the section (there
+        // is no control to choose it per stall), so reading it only off the fee list dropped it on every stall
+        // registered from this page.
+        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType)
+            || section == MarketSection.FishSection)
             fees |= ApplicableFees.FishFee;
 
         var command = new CreateStallCommand(
@@ -1193,7 +1201,9 @@
             fees |= ApplicableFees.Electricity;
         if (VendorForm.FeeTypes.Contains("Water"))
             fees |= ApplicableFees.Water;
-        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType))
+        // As on the create path: the section decides the per-kilo fee, so editing a fish stall cannot drop it.
+        if (VendorForm.FeeTypes.Contains(AddVendorModal.SectionFeeType)
+            || existingStall.Section == "Fish Area")
             fees |= ApplicableFees.FishFee;
 
         if (existingStall.StallGuid != Guid.Empty)

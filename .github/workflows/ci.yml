@@ -61,6 +61,9 @@ jobs:
       # Integration tests against a throwaway PostgreSQL started by Testcontainers (the runner provides Docker).
       # These apply the EF migrations to a blank database, so a broken migration or a wrong SQL predicate fails
       # here rather than in the office. The snapshot-only tests skip, stating why.
+      - name: Check the container runtime is available
+        run: docker version
+
       - name: Run integration tests
         run: >-
           dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj

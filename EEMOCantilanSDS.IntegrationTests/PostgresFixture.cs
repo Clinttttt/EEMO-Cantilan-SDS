@@ -43,11 +43,6 @@ public sealed class PostgresFixture : IAsyncLifetime
         try
         {
             await _postgres.StartAsync();
-
-            // The schema comes from the migrations themselves, so these tests fail if a migration is broken —
-            // which is exactly the failure a hand-restored snapshot can never show.
-            await using var context = CreateContext(Guid.Empty);
-            await context.Database.MigrateAsync();
         }
         catch (Exception ex)
         {
@@ -55,7 +50,13 @@ public sealed class PostgresFixture : IAsyncLifetime
                 "A Docker-compatible runtime is required to start the test database (" +
                 ex.GetType().Name + ": " + FirstLine(ex.Message) + "). " +
                 "Start Docker and run the tests again.";
+            return;
         }
+
+        // Outside the guard on purpose: a migration that will not apply is a real failure and must fail the
+        // run, not be reported as "no container runtime" and skipped.
+        await using var context = CreateContext(Guid.Empty);
+        await context.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()

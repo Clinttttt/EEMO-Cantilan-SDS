@@ -121,6 +121,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedBy = updatedBy;
         }
 
+        /// <summary>
+        /// States which charges apply to this space, as the office edited them: this is how a meter installed
+        /// after the space was let gets billed, and how one removed stops being billed. The base rental is not
+        /// optional — a let space always owes rent — so it is kept whatever the caller sends.
+        /// </summary>
+        public void SetApplicableFees(ApplicableFees fees, string updatedBy = "System")
+        {
+            Fees = fees | ApplicableFees.BaseRental;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void UpdateDetails(string actualOccupant, string? nameOnContract, double? areaSqm, string? areaNote, string? remarks, string updatedBy = "System")
         {
             AreaSqm = areaSqm;
