@@ -1020,8 +1020,13 @@
 
     private void OnSectionModalChanged()
     {
-        // Reset fees when section changes - user will select what applies
-        VendorForm.FeeTypes = new();
+        // The meters belong to the space, not to the section it trades in. Emptying the list here used to be
+        // harmless because nothing wrote the charges on update; now that it does, clearing it would strip a
+        // stall's electricity or water off the record the moment a clerk corrected its section. Only the
+        // section's own per-kilo fee follows the section, and that is derived from the section on save.
+        VendorForm.FeeTypes = VendorForm.FeeTypes
+            .Where(f => f is "Electricity" or "Water")
+            .ToList();
         // Pre-fill the custom-section daily-rate input: inherit the section's existing rate (so stalls in the
         // same custom section stay consistent), else fall back to the ordinance rate. Ignored for canonical.
         var effective = EffectiveSelectedSectionName();
