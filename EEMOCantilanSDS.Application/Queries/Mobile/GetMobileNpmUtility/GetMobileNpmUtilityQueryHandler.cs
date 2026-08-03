@@ -31,7 +31,9 @@ public class GetMobileNpmUtilityQueryHandler(
                 return Result<MobileNpmUtilityDto>.Forbidden();
         }
 
-        var bills = await utilityRepository.GetForMonthAsync(request.Year, request.Month, ct);
+        // The month's bills AND anything still owed from earlier months. A utility bill the office raised in
+        // June does not stop being collectible in August, and the collector is the one standing at the stall.
+        var bills = await utilityRepository.GetForMonthWithOutstandingAsync(request.Year, request.Month, ct);
         var stalls = await stallRepository.GetStallsByFacilityAsync(FacilityCode.NPM, null, ct);
         var byStall = stalls.ToDictionary(s => s.Id);
 
@@ -49,15 +51,23 @@ public class GetMobileNpmUtilityQueryHandler(
                     b.Id, s?.StallNo ?? "—", occupant, section,
                     b.ElecCharge, b.ElecStatus.ToString(), b.ElecBalanceDue,
                     b.WaterCharge, b.WaterStatus.ToString(), b.WaterBalanceDue,
-                    b.TotalCharge, b.AmountPaid, b.BalanceDue, b.ElecORNumber, b.WaterORNumber);
+                    b.TotalCharge, b.AmountPaid, b.BalanceDue, b.ElecORNumber, b.WaterORNumber,
+                    b.BillingYear, b.BillingMonth, PeriodLabel(b.BillingYear, b.BillingMonth));
             })
-            // Show the ones that still need collecting first, then the rest, newest stall grouping aside.
+            // What still needs collecting first, oldest owed month first within that, so the field app settles
+            // the longest-standing bill before this month's.
             .OrderByDescending(r => r.BalanceDue > 0)
+            .ThenBy(r => r.BillingYear).ThenBy(r => r.BillingMonth)
             .ThenBy(r => r.StallNo)
             .ToList();
 
         return Result<MobileNpmUtilityDto>.Success(new MobileNpmUtilityDto(request.Year, request.Month, rows));
     }
+
+    private static string PeriodLabel(int year, int month) =>
+        month is >= 1 and <= 12
+            ? new DateTime(year, month, 1).ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : $"{year:0000}-{month:00}";
 
     // Tenant label if configured, else the canonical section name (the MarketSection enum stays the key).
     private static string SectionLabel(Facility? facility, MarketSection? section)

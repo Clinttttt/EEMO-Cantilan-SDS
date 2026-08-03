@@ -16,6 +16,13 @@ public interface IUtilityBillRepository
     /// <summary>All bills for a billing month (read-only, for the register).</summary>
     Task<IReadOnlyList<UtilityBill>> GetForMonthAsync(int year, int month, CancellationToken ct = default);
 
+    /// <summary>
+    /// The month's bills PLUS every earlier bill that still has a balance due (read-only, for field collection).
+    /// An unpaid utility bill does not stop being collectible because the month turned over, so the collector
+    /// must still be able to see and settle it while standing at the stall.
+    /// </summary>
+    Task<IReadOnlyList<UtilityBill>> GetForMonthWithOutstandingAsync(int year, int month, CancellationToken ct = default);
+
     /// <summary>A stall's full utility history, newest month first (read-only).</summary>
     Task<IReadOnlyList<UtilityBill>> GetAllForStallAsync(Guid stallId, CancellationToken ct = default);
 

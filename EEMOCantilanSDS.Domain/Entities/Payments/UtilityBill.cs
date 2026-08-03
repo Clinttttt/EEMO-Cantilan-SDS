@@ -73,6 +73,26 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
         public string PeriodKey => $"{BillingYear:0000}-{BillingMonth:00}";
 
+        /// <summary>True when this bill belongs to the given billing month.</summary>
+        public bool IsForMonth(int year, int month) => BillingYear == year && BillingMonth == month;
+
+        /// <summary>
+        /// The bills a collector must still be able to answer for while standing at the stall in the given
+        /// month: that month's bills, and every earlier bill that is still owed. An unpaid utility bill does
+        /// not stop being collectible because the month turned over — the office's arrears say it is owed, so
+        /// the field app must be able to see and settle it. Ordered oldest month first, so the longest-standing
+        /// bill is the one settled first.
+        /// </summary>
+        public static IReadOnlyList<UtilityBill> MonthAndStillOwed(IEnumerable<UtilityBill> bills, int year, int month) =>
+            bills
+                .Where(b => b.IsForMonth(year, month)
+                         || (IsBefore(b, year, month) && b.BalanceDue > 0m))
+                .OrderBy(b => b.BillingYear).ThenBy(b => b.BillingMonth)
+                .ToList();
+
+        private static bool IsBefore(UtilityBill bill, int year, int month) =>
+            bill.BillingYear < year || (bill.BillingYear == year && bill.BillingMonth < month);
+
         public Stall? Stall { get; private set; }
 
         private UtilityBill() { }

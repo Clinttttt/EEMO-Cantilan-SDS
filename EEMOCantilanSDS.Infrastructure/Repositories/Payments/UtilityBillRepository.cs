@@ -29,6 +29,24 @@ public class UtilityBillRepository(AppDbContext context) : IUtilityBillRepositor
             .Where(b => b.BillingYear == year && b.BillingMonth == month)
             .ToListAsync(ct);
 
+    /// <summary>
+    /// The month's bills plus the earlier ones that are still owed. The balance is computed from readings and
+    /// rates (not a stored column), so the "still owed" test is applied after materialising — the SQL side is
+    /// narrowed to bills up to and including the asked month, which for a market's utility register is a small
+    /// set (one row per metered stall per month).
+    /// </summary>
+    public async Task<IReadOnlyList<UtilityBill>> GetForMonthWithOutstandingAsync(int year, int month, CancellationToken ct = default)
+    {
+        var upToMonth = await context.UtilityBills.AsNoTracking()
+            .Include(b => b.Stall)
+                .ThenInclude(s => s!.Contracts)
+            .Where(b => b.BillingYear < year || (b.BillingYear == year && b.BillingMonth <= month))
+            .ToListAsync(ct);
+
+        // Which of them the collector must still answer for is a domain rule, so it is stated once there.
+        return UtilityBill.MonthAndStillOwed(upToMonth, year, month);
+    }
+
     public async Task<IReadOnlyList<UtilityBill>> GetAllForStallAsync(Guid stallId, CancellationToken ct = default) =>
         await context.UtilityBills.AsNoTracking()
             .Where(b => b.StallId == stallId)

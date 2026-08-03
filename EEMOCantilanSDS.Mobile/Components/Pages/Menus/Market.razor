@@ -256,57 +256,90 @@
             {
                 @if (SelectedBill is null)
                 {
-                    <div class="misc-empty">No electricity or water bill recorded for this stall in @MonthLabel. Utility bills are entered at the office.</div>
+                    @if (UtilityLoadFailed)
+                    {
+                        <div class="misc-empty">The utility bills could not be loaded just now, so this stall's bill cannot be shown. Reload the sheet and try again.</div>
+                    }
+                    else
+                    {
+                        <div class="misc-empty">No electricity or water bill on file for this stall. Utility bills are entered at the office.</div>
+                    }
+                }
+                else if (SelectedBill.TotalCharge <= 0m)
+                {
+                    <div class="misc-empty">@BillPeriodLabel(SelectedBill) has no consumption to charge on this stall.</div>
                 }
                 else
                 {
                     <div class="misc-pay">
-                        <div class="misc-util-head">
-                            <span class="misc-util-name">Electricity</span>
-                            <span class="misc-util-amt">
-                                @FormatPeso(SelectedBill.ElecBalanceDue)
-                                @if (SelectedBill.ElecBalanceDue < SelectedBill.ElecCharge)
-                                {
-                                    <span class="misc-util-of">of @FormatPeso(SelectedBill.ElecCharge)</span>
-                                }
-                            </span>
+                        @* Which month is being settled. Said plainly, because an unpaid bill stays collectible
+                           after the month turns over and the receipt must answer for the right period. *@
+                        <div class="misc-period">
+                            <span class="misc-period-label">@BillPeriodLabel(SelectedBill)</span>
+                            @if (SelectedBillIsArrears)
+                            {
+                                <span class="misc-period-note">unpaid from an earlier month</span>
+                            }
                         </div>
-                        <div class="util-pay-row">
-                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Unpaid">Unpaid</button>
-                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Paid">Paid</button>
-                            <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Partial">Partial</button>
-                        </div>
-                        @if (MiscElecPay == PaymentStatus.Partial)
+                        @if (SelectedOutstandingCount > 1)
                         {
-                            <input class="form-input" type="number" min="0" step="0.01" placeholder="Electricity partial amount" @bind="MiscElecPartial" @bind:event="oninput" />
-                        }
-                        @if (MiscElecPay != PaymentStatus.Unpaid)
-                        {
-                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
+                            <div class="misc-period-more">@SelectedOutstandingCount unpaid bills on this stall — the oldest is settled first.</div>
                         }
 
-                        <div class="misc-util-head misc-util-head-gap">
-                            <span class="misc-util-name">Water</span>
-                            <span class="misc-util-amt">
-                                @FormatPeso(SelectedBill.WaterBalanceDue)
-                                @if (SelectedBill.WaterBalanceDue < SelectedBill.WaterCharge)
-                                {
-                                    <span class="misc-util-of">of @FormatPeso(SelectedBill.WaterCharge)</span>
-                                }
-                            </span>
-                        </div>
-                        <div class="util-pay-row">
-                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Unpaid">Unpaid</button>
-                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Paid">Paid</button>
-                            <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Partial">Partial</button>
-                        </div>
-                        @if (MiscWaterPay == PaymentStatus.Partial)
+                        @* Only the utilities this bill actually charges for. A stall metered for water alone is
+                           not asked about electricity. *@
+                        @if (SelectedBill.ElecCharge > 0m)
                         {
-                            <input class="form-input" type="number" min="0" step="0.01" placeholder="Water partial amount" @bind="MiscWaterPartial" @bind:event="oninput" />
+                            <div class="misc-util-head">
+                                <span class="misc-util-name">Electricity</span>
+                                <span class="misc-util-amt">
+                                    @FormatPeso(SelectedBill.ElecBalanceDue)
+                                    @if (SelectedBill.ElecBalanceDue < SelectedBill.ElecCharge)
+                                    {
+                                        <span class="misc-util-of">of @FormatPeso(SelectedBill.ElecCharge)</span>
+                                    }
+                                </span>
+                            </div>
+                            <div class="util-pay-row">
+                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Unpaid">Unpaid</button>
+                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Paid">Paid</button>
+                                <button class="util-pay-chip @(MiscElecPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscElecPay = PaymentStatus.Partial">Partial</button>
+                            </div>
+                            @if (MiscElecPay == PaymentStatus.Partial)
+                            {
+                                <input class="form-input" type="number" min="0" step="0.01" placeholder="Electricity partial amount" @bind="MiscElecPartial" @bind:event="oninput" />
+                            }
+                            @if (MiscElecPay != PaymentStatus.Unpaid)
+                            {
+                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
+                            }
                         }
-                        @if (MiscWaterPay != PaymentStatus.Unpaid)
+
+                        @if (SelectedBill.WaterCharge > 0m)
                         {
-                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                            <div class="misc-util-head @(SelectedBill.ElecCharge > 0m ? "misc-util-head-gap" : "")">
+                                <span class="misc-util-name">Water</span>
+                                <span class="misc-util-amt">
+                                    @FormatPeso(SelectedBill.WaterBalanceDue)
+                                    @if (SelectedBill.WaterBalanceDue < SelectedBill.WaterCharge)
+                                    {
+                                        <span class="misc-util-of">of @FormatPeso(SelectedBill.WaterCharge)</span>
+                                    }
+                                </span>
+                            </div>
+                            <div class="util-pay-row">
+                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Unpaid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Unpaid">Unpaid</button>
+                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Paid ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Paid">Paid</button>
+                                <button class="util-pay-chip @(MiscWaterPay == PaymentStatus.Partial ? "on" : "")" type="button" @onclick="() => MiscWaterPay = PaymentStatus.Partial">Partial</button>
+                            </div>
+                            @if (MiscWaterPay == PaymentStatus.Partial)
+                            {
+                                <input class="form-input" type="number" min="0" step="0.01" placeholder="Water partial amount" @bind="MiscWaterPartial" @bind:event="oninput" />
+                            }
+                            @if (MiscWaterPay != PaymentStatus.Unpaid)
+                            {
+                                <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50" placeholder="Water OR no." @bind="MiscWaterOr" @bind:event="oninput" />
+                            }
                         }
 
                         <div class="misc-collect"><span>Collecting</span><strong>@FormatPeso(MiscCollectAmount)</strong></div>
@@ -489,8 +522,43 @@
     private string MiscElecOr = string.Empty;
     private string MiscWaterOr = string.Empty;
     private bool _scrollToMisc;
-    // The month's utility bills keyed by stall number, so the sheet can settle a stall's bill inline.
-    private Dictionary<string, MobileUtilityBillDto> UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
+    // Every utility bill a stall still has to answer for, keyed by stall number and oldest first: this month's
+    // bill and any earlier one left owed. The sheet settles them one at a time, starting with the oldest.
+    private Dictionary<string, List<MobileUtilityBillDto>> UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>True when the utility bills could not be read at all (offline, refused, or the call failed).
+    /// Kept apart from "no bills", so the sheet never claims a stall is unbilled when it could not ask.</summary>
+    private bool UtilityLoadFailed;
+
+    // The bills for the stall on the sheet, and how many of them are still owed.
+    private List<MobileUtilityBillDto> SelectedStallBills =>
+        SelectedStall is not null && UtilityByStallNo.TryGetValue(SelectedStall.StallNo, out var bills)
+            ? bills
+            : new List<MobileUtilityBillDto>();
+
+    private int SelectedOutstandingCount => SelectedStallBills.Count(b => b.BalanceDue > 0m);
+
+    /// <summary>True when the bill being settled is from a month before the sheet's — stated on screen so the
+    /// collector knows which period the receipt answers for.</summary>
+    private bool SelectedBillIsArrears =>
+        SelectedBill is not null && SelectedBill.BillingYear > 0 &&
+        (SelectedBill.BillingYear < SelectedYear ||
+         (SelectedBill.BillingYear == SelectedYear && SelectedBill.BillingMonth < SelectedMonth));
+
+    /// <summary>
+    /// The month a bill belongs to. A bill cached by an older build of this app carries no period, so the
+    /// sheet's own month stands in — never a zero date, which would throw.
+    /// </summary>
+    private DateOnly BillPeriod(MobileUtilityBillDto bill) =>
+        bill.BillingYear > 0 && bill.BillingMonth is >= 1 and <= 12
+            ? new DateOnly(bill.BillingYear, bill.BillingMonth, 1)
+            : new DateOnly(SelectedYear, SelectedMonth, 1);
+
+    /// <summary>The bill's month as the office writes it; falls back to the sheet's month for a cached bill.</summary>
+    private string BillPeriodLabel(MobileUtilityBillDto bill) =>
+        !string.IsNullOrWhiteSpace(bill.PeriodLabel)
+            ? bill.PeriodLabel
+            : BillPeriod(bill).ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
     private decimal MiscCollectAmount
     {
@@ -559,7 +627,6 @@
             }
 
             await RefreshQueuedOfflineAsync();
-            await LoadUtilityBillsAsync();
         }
         catch
         {
@@ -568,6 +635,10 @@
         }
         finally
         {
+            // The utility bills are loaded on their own footing, whatever happened above: a failure while
+            // replaying the offline queue must not leave the sheet reporting "no bill on file" for a stall the
+            // office has billed. The load records its own outcome, so the sheet can say which it is.
+            await LoadUtilityBillsAsync();
             IsLoading = false;
             StateHasChanged();
         }
@@ -595,21 +666,30 @@
 
     private bool IsQueuedOffline(MobileNpmStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
 
-    // Loads the month's electricity/water bills so a stall's bill can be settled inline from the sheet.
+    // Loads the month's electricity/water bills — plus anything still owed from earlier months — so a stall's
+    // bill can be settled inline from the sheet. A bill does not stop being collectible when the month turns
+    // over, so the sheet keeps every outstanding bill per stall, oldest first.
     private async Task LoadUtilityBillsAsync()
     {
         try
         {
             var util = await MobileApi.GetNpmUtilityAsync(SelectedYear, SelectedMonth);
-            UtilityByStallNo = util.IsSuccess && util.Value is not null
-                ? util.Value.Bills
+            UtilityLoadFailed = !util.IsSuccess || util.Value is null;
+            UtilityByStallNo = !UtilityLoadFailed
+                ? util.Value!.Bills
                     .GroupBy(b => b.StallNo, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.OrderBy(b => b.BillingYear).ThenBy(b => b.BillingMonth).ToList(),
+                        StringComparer.OrdinalIgnoreCase)
                 : new(StringComparer.OrdinalIgnoreCase);
         }
         catch
         {
-            UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase); // non-fatal; daily collection still works
+            // Non-fatal; daily collection still works. Recorded as a failure, not as "no bills" — the sheet
+            // must not tell the collector a stall has no bill when it simply could not ask.
+            UtilityLoadFailed = true;
+            UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -692,7 +772,11 @@
         FishKilos = stall.FishKilosToday;
         ORNumber = stall.ORNumberToday ?? string.Empty;
         SelectedIsMisc = false;
-        SelectedBill = UtilityByStallNo.TryGetValue(stall.StallNo, out var bill) ? bill : null;
+        // The oldest bill still owed, so arrears are collected before this month's; if nothing is owed, the
+        // month's own bill is shown so the collector can see it was already settled.
+        var bills = UtilityByStallNo.TryGetValue(stall.StallNo, out var stallBills) ? stallBills : null;
+        SelectedBill = bills?.FirstOrDefault(b => b.BalanceDue > 0m)
+                    ?? bills?.LastOrDefault();
         MiscElecPay = MiscWaterPay = PaymentStatus.Unpaid;
         MiscElecPartial = MiscWaterPartial = 0m;
         MiscElecOr = MiscWaterOr = string.Empty;
@@ -805,7 +889,7 @@
     {
         if (SelectedStall is null || SelectedBill is null)
         {
-            SheetError = "No electricity or water bill for this stall this month.";
+            SheetError = "No electricity or water bill on file for this stall.";
             return;
         }
         if (MiscElecPay == PaymentStatus.Unpaid && MiscWaterPay == PaymentStatus.Unpaid)
@@ -817,6 +901,10 @@
         if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial <= 0m) { SheetError = "Enter a water partial amount."; return; }
         if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
         if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
+        // A utility this bill does not charge for cannot be receipted on it: a water-only bill has no
+        // electricity to settle, and marking it would receipt ₱0.
+        if (SelectedBill.ElecCharge <= 0m && MiscElecPay != PaymentStatus.Unpaid) { SheetError = "This bill has no electricity charge."; return; }
+        if (SelectedBill.WaterCharge <= 0m && MiscWaterPay != PaymentStatus.Unpaid) { SheetError = "This bill has no water charge."; return; }
 
         IsSaving = true;
         SheetError = null;
@@ -831,7 +919,9 @@
             await Sync.EnqueueAsync(new PendingOperation
             {
                 Kind = OfflineOperationKind.NpmUtility,
-                BusinessDate = new DateOnly(SelectedYear, SelectedMonth, 1),
+                // The bill's own month, not the sheet's — an arrears bill must replay against the period it
+                // belongs to, or the queued receipt would answer for the wrong month.
+                BusinessDate = BillPeriod(SelectedBill),
                 UtilityBillId = SelectedBill.BillId,
                 ElecStatus = MiscElecPay,
                 ElecPartialAmount = elecPartial,
