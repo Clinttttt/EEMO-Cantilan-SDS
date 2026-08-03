@@ -389,12 +389,17 @@
                         <div class="avm-rental-card">
                             <div class="avm-rental-info">
                                 <div class="avm-rental-icon">
-                                    <svg viewBox="0 0 24 24">
-                                        <rect x="3" y="9" width="18" height="12" rx="2" />
-                                        <path d="M3 9l9-6 9 6" />
-                                        <line x1="9" y1="21" x2="9" y2="13" />
-                                        <line x1="15" y1="21" x2="15" y2="13" />
-                                    </svg>
+                                    @* The facility's own mark, so the charge is visibly attributed to the
+                                       facility being billed. A Head-added facility has no artwork of its own
+                                       and keeps the neutral building glyph. *@
+                                    @if (RentalFacilityMark is not null)
+                                    {
+                                        <FacilityMark Code="@RentalFacilityMark.Value" Size="16" Fallback="@NeutralBuildingMark" />
+                                    }
+                                    else
+                                    {
+                                        @NeutralBuildingMark
+                                    }
                                 </div>
                                 <div>
                                     <div class="avm-rental-title">Monthly Rental</div>
@@ -460,7 +465,7 @@
                                 <div class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
                                      @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
                                     <div class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24" style="stroke:#d4920a;">
+                                        <svg viewBox="0 0 24 24">
                                             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
                                         </svg>
                                     </div>
@@ -476,7 +481,7 @@
                                 <div class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
                                      @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
                                     <div class="avm-fee-icon">
-                                        <svg viewBox="0 0 24 24" style="stroke:#1a7ab5;">
+                                        <svg viewBox="0 0 24 24">
                                             <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
                                         </svg>
                                     </div>
@@ -521,19 +526,8 @@
                     </div>
                 }
 
-                @* A stall number already in use is not necessarily a dead end: if that stall was closed, or its
-                   contract has lapsed, the office can hand the same physical space to the new lessee instead of
-                   inventing a second number for it. The server is the authority — a stall that is still occupied
-                   is refused — so this only ever offers what is actually allowed. *@
-                @if (!string.IsNullOrWhiteSpace(ReuseOfferMessage))
-                {
-                    <div class="avm-reuse">
-                        <div class="avm-reuse-text">@ReuseOfferMessage</div>
-                        <button type="button" class="avm-reuse-btn" @onclick="OnReuseConfirm">
-                            Assign to the existing stall
-                        </button>
-                    </div>
-                }
+                @* The offer to take over a vacated stall is raised as a dialog above this form
+                   (see the end of this file), so the clerk answers it where they are. *@
 
             </div><!-- /eemo-modal-body -->
             <!-- ── Footer ──────────────────────────────────────────────── -->
@@ -553,6 +547,32 @@
             </div>
 
 </div>
+
+@* ── Take over a vacated stall ─────────────────────────────────────────────────────────────────────────
+   A stall number already in use is not necessarily a dead end: if that stall was closed, or its contract has
+   lapsed, the office can hand the same physical space to the new lessee instead of inventing a second number
+   for it. The server is the authority — a stall that is still occupied is refused — so this only ever offers
+   what is actually allowed.
+
+   Asked as a dialog above the form (a sibling of the drawer, so it covers the screen rather than one panel):
+   the clerk is answering a question about the number they just typed and should not have to scroll to the
+   foot of the form to find the offer. *@
+@if (ShowReuseOffer)
+{
+    <div class="avm-nested-overlay" @onclick="DismissReuseOffer">
+        <div class="avm-nested-dialog" role="dialog" aria-modal="true"
+             aria-labelledby="avm-reuse-title" @onclick:stopPropagation="true">
+            <div class="avm-nested-head" id="avm-reuse-title">Stall @Form.StallNo is already registered</div>
+            <div class="avm-nested-body">
+                <p>@ReuseOfferMessage</p>
+            </div>
+            <div class="avm-nested-foot">
+                <button type="button" class="btn-ghost" @onclick="DismissReuseOffer">Use another number</button>
+                <button type="button" class="btn-primary" @onclick="ConfirmReuse">Assign to this stall</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
 
@@ -615,6 +635,41 @@
     // revealing a free numeric input (1–10, the range the backend accepts).
     private bool _customYears;
 
+    // ── Facility mark on the Base Rental card ─────────────────────────────────
+    // The form works in facility codes (strings, because a Head-added facility has one that no enum knows).
+    // Only a code the platform draws artwork for resolves to a mark; anything else keeps the neutral glyph.
+    private FacilityCode? RentalFacilityMark =>
+        Enum.TryParse<FacilityCode>(Form.FacilityCode, ignoreCase: true, out var code) ? code : null;
+
+    private readonly RenderFragment NeutralBuildingMark = builder =>
+    {
+        builder.AddMarkupContent(0,
+            "<svg viewBox=\"0 0 24 24\">" +
+            "<rect x=\"3\" y=\"9\" width=\"18\" height=\"12\" rx=\"2\" />" +
+            "<path d=\"M3 9l9-6 9 6\" />" +
+            "<line x1=\"9\" y1=\"21\" x2=\"9\" y2=\"13\" />" +
+            "<line x1=\"15\" y1=\"21\" x2=\"15\" y2=\"13\" />" +
+            "</svg>");
+    };
+
+    // ── Handover offer ────────────────────────────────────────────────────────
+    // The offer is a dialog, so it needs a dismissed state of its own; a new offer (the clerk typed a
+    // different number, or reopened the form) must ask again rather than stay silently dismissed.
+    private string? _answeredReuseOffer;
+
+    private bool ShowReuseOffer =>
+        Show &&
+        !string.IsNullOrWhiteSpace(ReuseOfferMessage) &&
+        !string.Equals(ReuseOfferMessage, _answeredReuseOffer, StringComparison.Ordinal);
+
+    private void DismissReuseOffer() => _answeredReuseOffer = ReuseOfferMessage;
+
+    private async Task ConfirmReuse()
+    {
+        _answeredReuseOffer = ReuseOfferMessage;
+        await OnReuseConfirm.InvokeAsync();
+    }
+
     protected override void OnParametersSet()
     {
         if (Show && !IsEditing)
@@ -639,6 +694,7 @@
         {
             _lastSuggested = string.Empty;
             _customYears = false;
+            _answeredReuseOffer = null;
         }
     }
 

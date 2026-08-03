@@ -321,7 +321,8 @@
     padding: 9px 14px;
     background: var(--bg);
     border-radius: 8px;
-    border-left: 3px solid var(--gold);
+    /* A hairline all round rather than a coloured spine down one side. */
+    border: 1px solid var(--border);
     margin-bottom: 12px;
 }
 
@@ -397,6 +398,9 @@
     width: 16px;
     height: 16px;
     fill: none;
+    /* One ink for both utilities. The services are told apart by their name, not by an amber bolt and a
+       blue drop — this is a billing form, not a dashboard. */
+    stroke: var(--navy);
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -759,45 +763,55 @@
 
 /* ── Take over a vacated stall ─────────────────────────────────────────────────────────────────────────
    Offered when the number entered belongs to a stall the office has vacated. Stated plainly: it is a choice
-   about an official record, not a warning. */
-.avm-reuse {
+   about an official record, not a warning. It is asked as a dialog over the form — the clerk answers it where
+   they are, instead of scrolling to the foot of the form to find the offer. */
+.avm-nested-overlay {
+    position: fixed;
+    inset: 0;
+    /* Above the drawer (1001), so the question is not hidden behind the form it is about. */
+    z-index: 1100;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-    padding: 12px 14px;
-    background: var(--bg);
+    justify-content: center;
+    padding: 20px;
+    background: rgba(13, 33, 55, 0.35);
+}
+
+.avm-nested-dialog {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 9px;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(13, 33, 55, 0.18);
 }
 
-.avm-reuse-text {
-    flex: 1 1 240px;
-    min-width: 0;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--text-muted);
+.avm-nested-head {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
 }
 
-.avm-reuse-btn {
-    flex-shrink: 0;
-    height: 34px;
-    padding: 0 14px;
-    font: inherit;
-    font-size: 12.5px;
-    font-weight: 650;
-    color: #fff;
-    background: var(--navy);
-    border: 1px solid var(--navy);
-    border-radius: 8px;
-    cursor: pointer;
+.avm-nested-body {
+    padding: 16px 20px;
 }
 
-    .avm-reuse-btn:hover {
-        background: var(--navy-2, #112d47);
+    .avm-nested-body p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--text-subtle);
     }
+
+.avm-nested-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--border);
+}
 
 
 /* ── Basis of occupancy ────────────────────────────────────────────────────────────────────────────────
