@@ -1,4 +1,5 @@
 using System.Linq;
+using EEMOCantilanSDS.Domain.Constants;
 using FluentValidation;
 
 namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
@@ -46,6 +47,14 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             RuleForEach(x => x.Rates).ChildRules(r =>
             {
                 r.RuleFor(x => x.Amount).GreaterThanOrEqualTo(0m).WithMessage("Rate amount cannot be negative.");
+
+                // A rate key belongs to one facility's ordinance, and the resolver only reads a row filed under
+                // that facility. Accepting a mis-paired row here would store a rate the billing paths then
+                // ignore — the LGU would appear configured and be charged the platform's default instead.
+                // Same rule the portal's own rate editor enforces (SetFacilityRateCommandValidator).
+                r.RuleFor(x => x).Must(rate => FacilityRateKeys.For(rate.FacilityCode).Contains(rate.Key))
+                    .WithMessage(rate =>
+                        $"{rate.Key} is not a rate of {rate.FacilityCode}, so it would never be read for that facility.");
             });
 
             // Custom SLH animals are optional; when present each needs a name and a non-negative rate.
