@@ -57,13 +57,16 @@
 /* The unit belongs with the figure, inside the box, so a reading is never read as a bare number. Both kinds of
    box reserve the same right edge, so the units line up whether the figure is typed or stated. */
 .ub-field { display: flex; align-items: center; gap: 6px; min-width: 0;
-    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 20px 9px 10px; background: #fff; }
+    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 16px 9px 10px; background: #fff; }
 .ub-field:focus-within { border-color: var(--navy-3, #1e3a5f); }
 .ub-field input {
     width: 100%; min-width: 0; box-sizing: border-box; border: none; outline: none; padding: 0; background: none;
     font: inherit; font-size: 15px; font-weight: 700; color: var(--navy, #0d2137);
     font-variant-numeric: tabular-nums;
 }
+/* The hint is an instruction, not a figure, so it is set smaller — "Meter now" then fits the box beside its unit
+   instead of running under it. */
+.ub-field input::placeholder { font-size: 11.5px; font-weight: 600; color: var(--text-muted, #8faabf); }
 .ub-amount input {
     width: 100%; min-width: 0; box-sizing: border-box;
     border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 10px;
@@ -81,7 +84,7 @@
     position: relative;
     display: flex; align-items: center; gap: 8px;
     width: 100%; min-width: 0; box-sizing: border-box;
-    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 20px 9px 10px;
+    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 16px 9px 10px;
     font: inherit; font-size: 15px; font-weight: 700; color: var(--navy, #0d2137);
     background: var(--bg-page, #f0f4f8); cursor: pointer; text-align: left;
 }
@@ -92,10 +95,11 @@
     font-variant-numeric: tabular-nums;
 }
 .ub-locked-mark {
-    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    position: absolute; top: 50%; right: 3px; transform: translateY(-50%);
     display: flex; align-items: center;
     color: var(--text-muted, #8faabf);
 }
+.ub-locked-mark .ub-ico { width: 11px; height: 11px; }
 .ub-locked-mark { flex-shrink: 0; }
 /* Revealed by intent: hover, or keyboard focus for anyone not using a pointer. */
 .ub-locked-edit { opacity: 0; transition: opacity .12s ease; }

@@ -281,9 +281,23 @@ public partial class FacilityReportsRepository
         => await GetDelinquentStallsAsync(facility, year, month, includeClosed: false, ct);
 
     /// <summary>
-    /// As above, but when <paramref name="includeClosed"/> is true, CLOSED stalls that still carry unpaid
-    /// past-month records are included (their debt does not vanish when the stall is frozen). Default false
-    /// keeps the dashboard/follow-up sources active-only and unchanged; only the Financial Reports opt in.
+    /// Who is behind, and by how many months.
+    ///
+    /// <para>Counted on the SAME rules as the compliance rows the office reads per stall
+    /// (<see cref="GenerateStallComplianceAsync"/> → <see cref="CountMissedMonths"/>): every fully-elapsed month
+    /// the stall was under contract and owed something, unless it was covered — a fully-paid monthly record, or
+    /// for NPM a month settled by its daily collections. Months outside the contract, admin-excused months, and
+    /// months whose every collectable day was an absence or a market closure are not owed and never counted.</para>
+    ///
+    /// <para>It used to count only months that HAD a PaymentRecord with a status other than Paid. Nothing writes
+    /// such a row until money is recorded, so a payor who simply never paid last month counted as zero months
+    /// behind and appeared on neither the Financial Reports' arrears list nor the dashboard's overdue list — while
+    /// the same stall's compliance row showed the month as missed. One rule now answers both.</para>
+    ///
+    /// <para><paramref name="includeClosed"/> is kept for its callers but no longer changes the outcome: freezing a
+    /// stall ends its obligation (the platform's rule everywhere — see <c>IsStallCollectableOn</c>), so a closed
+    /// stall reports no missed months here or in its own compliance row. What a closed account still owes is
+    /// reported by the Closed / Inactive Accounts register, which states its uncollected balance.</para>
     /// </summary>
     public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
         FacilityCode? facility, int year, int month, bool includeClosed, CancellationToken ct)
@@ -292,68 +306,41 @@ public partial class FacilityReportsRepository
             .AsNoTracking()
             .Select(f => new { f.Id, f.Code })
             .ToListAsync(ct);
-        var codeById = facilities.ToDictionary(f => f.Id, f => f.Code);
 
-        var stallQuery = _context.Stalls
-            .AsNoTracking()
-            .Where(s => (includeClosed || s.Status == StallStatus.Active) && s.Contracts.Any(c => c.IsActive));
+        var targets = facility.HasValue
+            ? facilities.Where(f => f.Code == facility.Value).ToList()
+            : facilities;
 
-        if (facility.HasValue)
-        {
-            var fid = facilities.FirstOrDefault(f => f.Code == facility.Value)?.Id;
-            if (fid is null)
-                return Array.Empty<DelinquentStallDto>();
-            stallQuery = stallQuery.Where(s => s.FacilityId == fid);
-        }
-
-        var stalls = await stallQuery
-            .Select(s => new
-            {
-                s.Id,
-                s.StallNo,
-                s.FacilityId,
-                Occupant = s.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? ""
-            })
-            .ToListAsync(ct);
-
-        if (stalls.Count == 0)
+        if (targets.Count == 0)
             return Array.Empty<DelinquentStallDto>();
 
-        var stallIds = stalls.Select(s => s.Id).ToList();
-        var since = new DateOnly(year, month, 1).AddMonths(-11);
+        // The span the count is about: whole months that have already elapsed, ending the day before the anchor
+        // month begins. A month still underway is never "missed" — a payor is not in arrears for a month they can
+        // still pay. Anchoring January to the previous December keeps last year's debt visible in January.
+        var end = new DateOnly(year, month, 1).AddDays(-1);
+        var start = new DateOnly(end.Year, 1, 1);
 
-        // Unpaid/partial billing months in the rolling window, EXCLUDING the current (in-progress) month.
-        var unpaidWindow = await _context.PaymentRecords
-            .AsNoTracking()
-            .Where(p => stallIds.Contains(p.StallId)
-                && p.Status != PaymentStatus.Paid
-                && (p.BillingYear > since.Year || (p.BillingYear == since.Year && p.BillingMonth >= since.Month))
-                && (p.BillingYear < year || (p.BillingYear == year && p.BillingMonth < month)))
-            .ToListAsync(ct);
-
-        // Exclude admin-excused months so an excused (₱0-owed) month never reads as delinquent.
-        var excusedWindow = (await _context.StallMonthlyExceptions
-                .AsNoTracking()
-                .Where(e => stallIds.Contains(e.StallId)
-                    && (e.BillingYear > since.Year || (e.BillingYear == since.Year && e.BillingMonth >= since.Month))
-                    && (e.BillingYear < year || (e.BillingYear == year && e.BillingMonth < month)))
-                .Select(e => new { e.StallId, e.BillingYear, e.BillingMonth })
+        // Freezing a stall ends its obligation, so a closed stall has no missed months to report either way; the
+        // flag is honoured only in that it never widens the list. Kept explicit so the intent is not mistaken for
+        // an oversight.
+        var closedStallIds = (await _context.Stalls.AsNoTracking()
+                .Where(s => s.Status != StallStatus.Active)
+                .Select(s => s.Id)
                 .ToListAsync(ct))
-            .Select(e => (e.StallId, e.BillingYear, e.BillingMonth))
             .ToHashSet();
 
-        var stallById = stalls.ToDictionary(s => s.Id);
+        var results = new List<DelinquentStallDto>();
+        foreach (var target in targets)
+        {
+            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct);
 
-        return unpaidWindow
-            .Where(p => !excusedWindow.Contains((p.StallId, p.BillingYear, p.BillingMonth)))
-            .GroupBy(p => p.StallId)
-            .Where(g => stallById.ContainsKey(g.Key))
-            .Select(g =>
-            {
-                var s = stallById[g.Key];
-                return new DelinquentStallDto(
-                    codeById[s.FacilityId], s.StallNo, s.Occupant, g.Count(), g.Sum(p => p.BalanceDue), s.Id);
-            })
+            results.AddRange(compliance
+                .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
+                .Select(r => new DelinquentStallDto(
+                    target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId)));
+        }
+
+        return results
             .OrderByDescending(d => d.MonthsUnpaid)
             .ThenByDescending(d => d.OutstandingBalance)
             .ToList();

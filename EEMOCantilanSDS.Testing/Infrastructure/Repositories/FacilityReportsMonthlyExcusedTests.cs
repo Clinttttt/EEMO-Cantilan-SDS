@@ -42,9 +42,12 @@ public class FacilityReportsMonthlyExcusedTests : RepositoryTestBase
         Assert.Equal(0m, c.Balance);
         Assert.Equal(0m, c.ExpectedBill);   // June rent is excused → ₱0 owed
 
-        // Window ending July 2026 includes June; the excused month must be filtered out of delinquency.
+        // Window ending July 2026: the excused month must be left out of the count. The stall is still behind for
+        // January–May, which were under contract with nothing recorded as paid — so what this pins is that June,
+        // and only June, drops out.
         var delinquent = await repo.GetDelinquentStallsAsync(FacilityCode.TCC, 2026, 7, CancellationToken.None);
-        Assert.DoesNotContain(delinquent, d => d.StallNo == "1");
+        var row = Assert.Single(delinquent, d => d.StallNo == "1");
+        Assert.Equal(5, row.MonthsUnpaid);   // Jan–May owed; June excused, so six elapsed months count as five
     }
 
     [Fact]

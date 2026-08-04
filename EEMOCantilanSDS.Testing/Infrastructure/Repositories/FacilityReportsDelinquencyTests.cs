@@ -36,12 +36,18 @@ public class FacilityReportsDelinquencyTests : RepositoryTestBase
 
         var all = await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, CancellationToken.None);
 
+        // The stall was let from 1 January and nothing was ever recorded as paid, so every elapsed month of this
+        // year is owed — not only the two that happen to carry an Unpaid record. Counting records was the old rule
+        // and it under-reported: five of these months have no row at all, because nothing writes one until money
+        // is recorded. This is the same figure the stall's own compliance row shows.
+        var elapsedMonths = today.Month - 1;
+
         var row = Assert.Single(all);
         Assert.Equal(FacilityCode.TCC, row.FacilityCode);
         Assert.Equal("101", row.StallNo);
         Assert.Equal("Behind Tenant", row.Occupant);
-        Assert.Equal(2, row.MonthsUnpaid);             // two past months; the current month is excluded (not 3)
-        Assert.Equal(2_000m, row.OutstandingBalance);  // cumulative balance across the two months
+        Assert.Equal(elapsedMonths, row.MonthsUnpaid);              // the current month is still excluded
+        Assert.Equal(elapsedMonths * 1_000m, row.OutstandingBalance);
 
         // Scoped to a different facility → none.
         var ncc = await repo.GetDelinquentStallsAsync(FacilityCode.NCC, today.Year, today.Month, CancellationToken.None);
@@ -49,7 +55,7 @@ public class FacilityReportsDelinquencyTests : RepositoryTestBase
     }
 
     [Fact]
-    public async Task GetDelinquentStalls_IncludesClosedStalls_OnlyWhenRequested()
+    public async Task GetDelinquentStalls_LeavesOutAClosedStall_WhoseDebtTheClosedRegisterReports()
     {
         var context = NewContext();
         var today = PhilippineTime.Today;
@@ -59,7 +65,7 @@ public class FacilityReportsDelinquencyTests : RepositoryTestBase
         var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
         var stall = Stall.Create(tcc.Id, "202", 1000m, ApplicableFees.BaseRental);
         var contract = Contract.Create(stall.Id, "Closed Tenant", "Closed Tenant", new DateOnly(today.Year, 1, 1), 3, 1000m);
-        stall.Close(m1);   // stall frozen, but two past unpaid months remain owed
+        stall.Close(m1);
         var past1 = PaymentRecord.Create(stall.Id, m1.Year, m1.Month, 1000m);
         var past2 = PaymentRecord.Create(stall.Id, m2.Year, m2.Month, 1000m);
 
@@ -68,15 +74,10 @@ public class FacilityReportsDelinquencyTests : RepositoryTestBase
 
         var repo = new FacilityReportsRepository(context);
 
-        // Default (dashboard/follow-up): closed stalls are excluded — behaviour unchanged.
-        var activeOnly = await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, CancellationToken.None);
-        Assert.Empty(activeOnly);
-
-        // Financial Reports opt-in: the closed stall's outstanding debt is surfaced.
-        var withClosed = await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, includeClosed: true, CancellationToken.None);
-        var row = Assert.Single(withClosed);
-        Assert.Equal("202", row.StallNo);
-        Assert.Equal(2, row.MonthsUnpaid);
-        Assert.Equal(2_000m, row.OutstandingBalance);
+        // Freezing a stall ends its obligation — the platform's rule everywhere, which is why a closed stall's own
+        // compliance row reports no missed months either. What the account still owes is stated by the Closed /
+        // Inactive Accounts register, so this count leaves it out whether or not the caller opts in.
+        Assert.Empty(await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, CancellationToken.None));
+        Assert.Empty(await repo.GetDelinquentStallsAsync(null, today.Year, today.Month, includeClosed: true, CancellationToken.None));
     }
 }
