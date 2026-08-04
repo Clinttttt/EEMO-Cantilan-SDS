@@ -191,4 +191,36 @@ public class UtilityBillModalLockTests : TestContext
         Assert.DoesNotContain("OR number", cut.Markup);
         Assert.Empty(cut.FindAll("input[type=text]"));
     }
+
+    [Fact]
+    public void ABillSettledElsewhere_ShowsNothingStillOwed()
+    {
+        // Paid through the follow-up queue's miscellaneous dialog, or by a collector in the field. Opening the
+        // readings dialog afterwards showed the CHARGE under the label "Amount Due", so a settled bill read as
+        // owing the whole of it again.
+        var cut = RenderModal(Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Paid"), elec: false);
+
+        Assert.Contains("₱0.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.Contains("of ₱10.00 charged", cut.Markup);
+        Assert.Contains("Still owed", cut.Markup);
+    }
+
+    [Fact]
+    public void APartlySettledBill_ShowsWhatIsLeft()
+    {
+        var seed = Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Partial") with { WaterPartialAmount = 4m };
+        var cut = RenderModal(seed, elec: false);
+
+        Assert.Contains("₱6.00", cut.Find(".ub-usage-amount").TextContent);
+    }
+
+    [Fact]
+    public void AnUnpaidBill_ShowsTheWholeChargeAsDue_AndNoPaidLine()
+    {
+        var cut = RenderModal(Seed(exists: true, waterPrev: 0m, waterCur: 10m, waterStatus: "Unpaid"), elec: false);
+
+        Assert.Contains("₱10.00", cut.Find(".ub-usage-amount").TextContent);
+        Assert.DoesNotContain("charged", cut.Markup);
+        Assert.DoesNotContain("Still owed", cut.Markup);
+    }
 }

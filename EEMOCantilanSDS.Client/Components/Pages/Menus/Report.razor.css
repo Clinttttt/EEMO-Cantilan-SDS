@@ -1639,6 +1639,17 @@
 }
 
 /* ── Closed / expired accounts with balance — a distinct, non-delinquency follow-up note ── */
+/* The same pointer when there is nothing outstanding on a closed account: one quiet line, so the two lists above
+   are never mistaken for the whole picture. */
+.rpt-closed-hint {
+    display: block;
+    margin: 4px 22px 18px;
+    font-size: 11.5px;
+    color: var(--text-subtle);
+    text-decoration: none;
+}
+.rpt-closed-hint:hover { color: var(--navy); text-decoration: underline; }
+
 .rpt-closed-note {
     display: flex;
     align-items: center;

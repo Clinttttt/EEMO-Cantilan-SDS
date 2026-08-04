@@ -145,8 +145,14 @@
                         </div>
                         <span class="ub-usage-sep"></span>
                         <div class="ub-usage-cell">
-                            <span class="ub-usage-label">Amount Due</span>
-                            <strong class="ub-usage-amount">₱@ElecCharge.ToString("N2")</strong>
+                            <span class="ub-usage-label">
+                                Amount Due
+                                @if (ElecAmountPaid > 0m)
+                                {
+                                    <span class="ub-usage-of">of ₱@ElecCharge.ToString("N2") charged</span>
+                                }
+                            </span>
+                            <strong class="ub-usage-amount">₱@ElecAmountDue.ToString("N2")</strong>
                         </div>
                     </div>
                     @if (ElecReadingsSettled || ElecStatusLocked)
@@ -267,8 +273,14 @@
                         </div>
                         <span class="ub-usage-sep"></span>
                         <div class="ub-usage-cell">
-                            <span class="ub-usage-label">Amount Due</span>
-                            <strong class="ub-usage-amount">₱@WaterCharge.ToString("N2")</strong>
+                            <span class="ub-usage-label">
+                                Amount Due
+                                @if (WaterAmountPaid > 0m)
+                                {
+                                    <span class="ub-usage-of">of ₱@WaterCharge.ToString("N2") charged</span>
+                                }
+                            </span>
+                            <strong class="ub-usage-amount">₱@WaterAmountDue.ToString("N2")</strong>
                         </div>
                     </div>
                     @if (WaterReadingsSettled || WaterStatusLocked)
@@ -318,7 +330,19 @@
                 </div>
                 }
 
-                <div class="ub-total"><span>Total Utility Charge</span><strong>₱@TotalCharge.ToString("N2")</strong></div>
+                @* The month's charge, and what of it is still owed once anything already collected — here, in the
+                   follow-up queue, or by a collector in the field — is taken off. *@
+                <div class="ub-total">
+                    <span>Total Utility Charge</span>
+                    <strong>₱@TotalCharge.ToString("N2")</strong>
+                </div>
+                @if (TotalCharge > 0m && (ElecAmountPaid + WaterAmountPaid) > 0m)
+                {
+                    <div class="ub-total-due">
+                        <span>Still owed</span>
+                        <strong>₱@((ElecAmountDue + WaterAmountDue).ToString("N2"))</strong>
+                    </div>
+                }
 
                 @if (!string.IsNullOrEmpty(Error))
                 {
@@ -410,6 +434,24 @@
     private decimal ElecCharge => ElecConsumption * ElecRate;
     private decimal WaterCharge => WaterConsumption * WaterRate;
     private decimal TotalCharge => ElecCharge + WaterCharge;
+
+    // What has been credited to each utility, and what is therefore still owed. The dialog showed the CHARGE
+    // under the label "Amount Due", so a bill settled elsewhere — the follow-up queue's miscellaneous dialog, or
+    // the collector in the field — still read as owing the whole of it.
+    private decimal ElecAmountPaid => ElecPay switch
+    {
+        PaymentStatus.Paid => ElecCharge,
+        PaymentStatus.Partial => ElecPartial,
+        _ => 0m
+    };
+    private decimal WaterAmountPaid => WaterPay switch
+    {
+        PaymentStatus.Paid => WaterCharge,
+        PaymentStatus.Partial => WaterPartial,
+        _ => 0m
+    };
+    private decimal ElecAmountDue => Math.Max(0m, ElecCharge - ElecAmountPaid);
+    private decimal WaterAmountDue => Math.Max(0m, WaterCharge - WaterAmountPaid);
 
     // ── Locks ─────────────────────────────────────────────────────────────────
     // Two things in this dialog are a record rather than an entry, and were being typed over by accident:

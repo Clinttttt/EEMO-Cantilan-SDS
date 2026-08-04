@@ -165,7 +165,8 @@ span.ub-locked { cursor: default; }
 }
 .ub-usage-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .ub-usage-sep { width: 1px; align-self: stretch; background: var(--border, #dde4ea); }
-.ub-usage-label { font-size: 11.5px; color: var(--text-subtle, #6a8aa0); }
+.ub-usage-label { font-size: 11.5px; color: var(--text-subtle, #6a8aa0); display: flex; align-items: baseline; gap: 6px; }
+.ub-usage-of { font-size: 10.5px; color: var(--text-muted, #8faabf); }
 /* The unit sits at the right edge of its cell, exactly as it does in the reading boxes above, so the figures
    line up down the form and the eye reads value-then-unit in one place. */
 .ub-usage-value, .ub-usage-amount {
@@ -203,6 +204,13 @@ span.ub-locked { cursor: default; }
     font-size: 13px; font-weight: 700;
 }
 .ub-total strong { font-size: 20px; color: var(--navy, #0d2137); font-variant-numeric: tabular-nums; }
+/* What is left to collect, stated under the charge rather than replacing it — the office reconciles both. */
+.ub-total-due {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: -6px; padding: 0 16px;
+    font-size: 12px; color: var(--text-subtle, #6a8aa0);
+}
+.ub-total-due strong { font-size: 14px; color: var(--navy, #0d2137); font-variant-numeric: tabular-nums; }
 
 .ub-status-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ub-status {
