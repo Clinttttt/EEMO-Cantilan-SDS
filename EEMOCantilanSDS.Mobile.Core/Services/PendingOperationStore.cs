@@ -119,11 +119,35 @@ public sealed class PendingOperationStore : IPendingOperationStore
         }
         catch
         {
-            // Corrupt/unreadable file → start clean rather than break the capture path.
+            // An unreadable queue file is not an empty queue. Keep it — renamed, so a fresh file can be written —
+            // and record that captures may be sitting in it, rather than telling the collector nothing is waiting
+            // to sync when the truth is unknown.
             _cache = new List<PendingOperation>();
+            PreserveUnreadableFile();
         }
 
         return _cache;
+    }
+
+    /// <summary>
+    /// True when a queue file could not be read or written. The collector is told, because "nothing waiting to
+    /// sync" is a statement about their money and must not be guessed.
+    /// </summary>
+    public bool HasStorageFault { get; private set; }
+
+    private void PreserveUnreadableFile()
+    {
+        HasStorageFault = true;
+        try
+        {
+            if (!File.Exists(_filePath)) return;
+            var kept = _filePath + ".unreadable-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            File.Move(_filePath, kept, overwrite: true);
+        }
+        catch
+        {
+            // Nothing more can be done here; the fault is already recorded.
+        }
     }
 
     private async Task SaveUnsafeAsync(List<PendingOperation> items)
@@ -133,10 +157,13 @@ public sealed class PendingOperationStore : IPendingOperationStore
         {
             var json = JsonSerializer.Serialize(items, JsonOptions);
             await JsonOfflineReadCache.WriteDurableAsync(_filePath, json);
+            HasStorageFault = false;
         }
         catch
         {
-            // Persistence is best-effort; the in-memory cache still reflects the latest state for this run.
+            // The capture is in memory for this run, but it is NOT safe on the device — which is what the queue
+            // promises. Recorded so the review sheet can say so instead of showing a clean queue.
+            HasStorageFault = true;
         }
     }
 }

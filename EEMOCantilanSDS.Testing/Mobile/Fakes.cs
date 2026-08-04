@@ -11,6 +11,9 @@ public sealed class FakePendingOperationStore : IPendingOperationStore
 
     public FakePendingOperationStore(params PendingOperation[] seed) => _items.AddRange(seed);
 
+    /// <summary>Settable, so a test can stand in a device whose queue file cannot be read or written.</summary>
+    public bool HasStorageFault { get; set; }
+
     public Task<IReadOnlyList<PendingOperation>> GetAllAsync() =>
         Task.FromResult<IReadOnlyList<PendingOperation>>(
             _items.OrderByDescending(o => o.CreatedAt).ToList());

@@ -48,6 +48,32 @@ public class MobileSyncServiceTests
     }
 
     [Fact]
+    public async Task A_device_whose_queue_cannot_be_read_or_written_reports_the_fault()
+    {
+        // "Nothing waiting to sync" is a statement about the collector's money. When the queue file could not be
+        // read or written, an empty list is not evidence of an empty queue, and the screens that report it must be
+        // able to say so.
+        var store = new FakePendingOperationStore { HasStorageFault = true };
+        var sut = Sut(store, ApiAllSynced().Object, online: true);
+
+        await sut.SyncNowAsync();
+
+        Assert.True(sut.HasStorageFault);
+        Assert.Equal(0, sut.PendingCount);
+    }
+
+    [Fact]
+    public async Task A_healthy_device_reports_no_fault()
+    {
+        var store = new FakePendingOperationStore(NpmOp("OR-1"));
+        var sut = Sut(store, ApiAllSynced().Object, online: true);
+
+        await sut.SyncNowAsync();
+
+        Assert.False(sut.HasStorageFault);
+    }
+
+    [Fact]
     public async Task SyncNow_when_offline_is_a_no_op_and_never_calls_the_api()
     {
         var store = new FakePendingOperationStore(NpmOp());

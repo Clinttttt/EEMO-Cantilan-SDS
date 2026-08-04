@@ -22,7 +22,7 @@
             </button>
             <div class="header-title-block">
                 <div class="header-title">Tabo-an Market</div>
-                <div class="header-sub">TPM - ₱100 per Vendor (Fridays)</div>
+                <div class="header-sub">TPM@(Collection is not null ? $" - ₱{Collection.VendorFee:N0} per Vendor ({MarketLabel})" : " - per Vendor")</div>
             </div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -158,7 +158,7 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Add Vendor</div>
-            <div class="sheet-sub">Register a vendor for @MarketLabel. The ₱100 fee is collected on entry.</div>
+            <div class="sheet-sub">Register a vendor for @MarketLabel. The @(Collection is not null ? $"₱{Collection.VendorFee:N0} " : "")fee is collected on entry.</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Vendor name</div>
@@ -484,7 +484,7 @@
                 FacilityLabel = "TPM",
                 Title = VendorName.Trim(),
                 Detail = Goods.Trim(),
-                Amount = Collection?.VendorFee ?? 100m
+                Amount = Collection?.VendorFee ?? 0m
             });
 
             await RefreshQueuedAsync();

@@ -487,6 +487,8 @@
     private MobileNpmCollectionDto? Collection;
     // Stall ids with a locally-queued (not-yet-synced) offline collection for the shown day.
     private HashSet<Guid> QueuedOfflineStalls = new();
+    // Of those, the ones queued as "absent" — so a reopened sheet restores the answer that was captured.
+    private HashSet<Guid> QueuedOfflineAbsent = new();
     private bool IsLoading = true;
     private bool IsSaving;
     private string? ErrorMessage;
@@ -519,6 +521,13 @@
     private PaymentStatus MiscWaterPay = PaymentStatus.Unpaid;
     private decimal MiscElecPartial;
     private decimal MiscWaterPartial;
+
+    /// <summary>
+    /// What each utility has already been credited with on this bill. The bill stores a TOTAL per utility, so a
+    /// part payment taken in the field is added to this rather than replacing it.
+    /// </summary>
+    private decimal ElecAlreadyPaid => SelectedBill is null ? 0m : SelectedBill.ElecCharge - SelectedBill.ElecBalanceDue;
+    private decimal WaterAlreadyPaid => SelectedBill is null ? 0m : SelectedBill.WaterCharge - SelectedBill.WaterBalanceDue;
     private string MiscElecOr = string.Empty;
     private string MiscWaterOr = string.Empty;
     private bool _scrollToMisc;
@@ -654,14 +663,18 @@
         }
 
         var pending = await Sync.GetAllAsync();
-        QueuedOfflineStalls = pending
+        var queued = pending
             .Where(o => o.Kind == OfflineOperationKind.NpmDaily
                      && o.StallId is not null
                      && string.Equals(o.FacilityLabel, "NPM", StringComparison.OrdinalIgnoreCase)
                      && o.BusinessDate == Collection.CollectionDate
                      && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
-            .Select(o => o.StallId!.Value)
-            .ToHashSet();
+            .ToList();
+
+        QueuedOfflineStalls = queued.Select(o => o.StallId!.Value).ToHashSet();
+        // What each queued capture said, so reopening the sheet shows the collector their own answer instead of
+        // the server's "not collected" — the card already says "Queued", and the two must not disagree.
+        QueuedOfflineAbsent = queued.Where(o => o.IsAbsent == true).Select(o => o.StallId!.Value).ToHashSet();
     }
 
     private bool IsQueuedOffline(MobileNpmStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
@@ -767,8 +780,12 @@
     private void OpenCollectionSheet(MobileNpmStallCollectionDto stall)
     {
         SelectedStall = stall;
-        SelectedIsPaid = stall.IsCollectedToday;
-        SelectedIsAbsent = stall.IsAbsentToday;
+        // A capture waiting to sync is this stall's answer for the day, so the sheet opens on it. Reading the
+        // server's "not collected" instead put the tick on Not Collected for a stall the same screen had just
+        // marked "Queued" — and re-confirming it queued a second operation that could overrule the first.
+        var queuedHere = IsQueuedOffline(stall);
+        SelectedIsAbsent = queuedHere ? QueuedOfflineAbsent.Contains(stall.StallId) : stall.IsAbsentToday;
+        SelectedIsPaid = queuedHere ? !SelectedIsAbsent : stall.IsCollectedToday;
         FishKilos = stall.FishKilosToday;
         ORNumber = stall.ORNumberToday ?? string.Empty;
         SelectedIsMisc = false;
@@ -899,6 +916,18 @@
         }
         if (MiscElecPay == PaymentStatus.Partial && MiscElecPartial <= 0m) { SheetError = "Enter an electricity partial amount."; return; }
         if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial <= 0m) { SheetError = "Enter a water partial amount."; return; }
+        // A part payment is what is being taken now, so it cannot exceed what is still owed. Collecting the
+        // whole of it is "Paid", not a partial that happens to equal the balance.
+        if (MiscElecPay == PaymentStatus.Partial && MiscElecPartial > SelectedBill.ElecBalanceDue)
+        {
+            SheetError = $"Electricity has {FormatPeso(SelectedBill.ElecBalanceDue)} still owed. Enter no more than that, or mark it Paid.";
+            return;
+        }
+        if (MiscWaterPay == PaymentStatus.Partial && MiscWaterPartial > SelectedBill.WaterBalanceDue)
+        {
+            SheetError = $"Water has {FormatPeso(SelectedBill.WaterBalanceDue)} still owed. Enter no more than that, or mark it Paid.";
+            return;
+        }
         if (MiscElecPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscElecOr)) { SheetError = "Electricity OR number is required."; return; }
         if (MiscWaterPay != PaymentStatus.Unpaid && string.IsNullOrWhiteSpace(MiscWaterOr)) { SheetError = "Water OR number is required."; return; }
         // A utility this bill does not charge for cannot be receipted on it: a water-only bill has no
@@ -911,8 +940,15 @@
 
         IsSaving = true;
         SheetError = null;
-        var elecPartial = MiscElecPay == PaymentStatus.Partial ? (decimal?)MiscElecPartial : null;
-        var waterPartial = MiscWaterPay == PaymentStatus.Partial ? (decimal?)MiscWaterPartial : null;
+        // The bill records the TOTAL paid on each utility, not the last instalment. The collector types what is
+        // being handed over now, so it is added to what the bill already holds — sending the instalment on its own
+        // overwrote the total, which turned a ₱100 collection on a ₱300 balance into a ₱400 balance.
+        var elecPartial = MiscElecPay == PaymentStatus.Partial
+            ? (decimal?)(ElecAlreadyPaid + MiscElecPartial)
+            : null;
+        var waterPartial = MiscWaterPay == PaymentStatus.Partial
+            ? (decimal?)(WaterAlreadyPaid + MiscWaterPartial)
+            : null;
         var elecOr = MiscElecPay != PaymentStatus.Unpaid ? MiscElecOr.Trim() : null;
         var waterOr = MiscWaterPay != PaymentStatus.Unpaid ? MiscWaterOr.Trim() : null;
         var orLabel = elecOr ?? waterOr;

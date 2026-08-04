@@ -252,7 +252,15 @@
             <div class="sheet-handle"></div>
             <div class="sheet-title">Pending Sync</div>
             <div class="sheet-sub">
-                @if (PendingOps.Count == 0)
+                @if (Sync.HasStorageFault)
+                {
+                    @* The queue file could not be read or written, so an empty list is not evidence of an empty
+                       queue — and a capture just taken may not be on the device. Said plainly. *@
+                    <text>
+                        This device could not read or write its offline queue@(PendingOps.Count > 0 ? $", and {PendingOps.Count} collection{(PendingOps.Count == 1 ? "" : "s")} are held in memory only" : ""). Sync while you have signal, and report this device.
+                    </text>
+                }
+                else if (PendingOps.Count == 0)
                 {
                     <text>No offline collections are waiting to sync.</text>
                 }

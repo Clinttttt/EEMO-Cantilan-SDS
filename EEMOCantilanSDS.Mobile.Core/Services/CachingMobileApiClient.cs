@@ -49,8 +49,14 @@ public sealed class CachingMobileApiClient(
         ReadThroughAsync($"report|{facility?.ToString() ?? "all"}|{year}|{month}",
             () => inner.GetReportAsync(facility, year, month));
 
+    // A day-scoped read must be cached per day. Keyed by month alone, a payload captured yesterday was served as
+    // today's: yesterday's date as the period, yesterday's per-stall "collected" flags, and a receipt dated
+    // yesterday. Naming the day in the key turns that into a miss — the honest answer offline — instead of a
+    // confident wrong one. The device's own date decides, which is the same clock the capture is stamped with.
+    private static string Today => DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+
     public Task<Result<MobileNpmCollectionDto>> GetNpmCollectionAsync(int year, int month) =>
-        ReadThroughAsync($"npm|{year}|{month}", () => inner.GetNpmCollectionAsync(year, month));
+        ReadThroughAsync($"npm|{year}|{month}|{Today}", () => inner.GetNpmCollectionAsync(year, month));
 
     public Task<Result<MobileNpmUtilityDto>> GetNpmUtilityAsync(int year, int month) =>
         ReadThroughAsync($"utility|{year}|{month}", () => inner.GetNpmUtilityAsync(year, month));
@@ -62,10 +68,10 @@ public sealed class CachingMobileApiClient(
         ReadThroughAsync($"slaughter|{year}|{month}|{day}", () => inner.GetSlaughterCollectionAsync(year, month, day));
 
     public Task<Result<MobileTrmCollectionDto>> GetTrmCollectionAsync() =>
-        ReadThroughAsync("trm", inner.GetTrmCollectionAsync);
+        ReadThroughAsync($"trm|{Today}", inner.GetTrmCollectionAsync);
 
     public Task<Result<MobileTpmCollectionDto>> GetTpmCollectionAsync() =>
-        ReadThroughAsync("tpm", inner.GetTpmCollectionAsync);
+        ReadThroughAsync($"tpm|{Today}", inner.GetTpmCollectionAsync);
 
     // ── Writes / sync: pass through, then invalidate the now-stale collection caches ──
     public Task<Result<bool>> RecordNpmCollectionAsync(RecordMobileNpmCollectionRequest request) =>

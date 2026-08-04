@@ -22,7 +22,7 @@
             </button>
             <div class="header-title-block">
                 <div class="header-title">Transport Terminal</div>
-                <div class="header-sub">TRM - ₱30 per Trip</div>
+                <div class="header-sub">TRM@(Collection is not null ? $" - ₱{Collection.TripFee:N0} per Trip" : " - per Trip")</div>
             </div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -327,7 +327,7 @@
 
             <div class="fee-preview">
                 <span>Trip fee</span>
-                <strong>@FormatCurrency(Collection?.TripFee ?? 30m)</strong>
+                <strong>@FormatCurrency(Collection?.TripFee ?? 0m)</strong>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(QuickTripError))
@@ -656,7 +656,7 @@
                 FacilityLabel = "TRM",
                 Title = QuickDriverName.Trim(),
                 Detail = $"{QuickPlate.Trim()} · {QuickRoute.Trim()}",
-                Amount = Collection?.TripFee ?? 30m
+                Amount = Collection?.TripFee ?? 0m
             });
 
             await RefreshQueuedAsync();

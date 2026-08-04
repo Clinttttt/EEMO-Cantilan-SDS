@@ -83,6 +83,12 @@ public sealed class MobileSyncService
     /// <summary>Number of queued rows still needing attention (Pending + Failed + Rejected).</summary>
     public int PendingCount { get; private set; }
 
+    /// <summary>
+    /// True when the on-device queue could not be read or written, so "nothing waiting to sync" cannot be stated
+    /// as fact. Read straight from the store, so it is current whatever path the caller came through.
+    /// </summary>
+    public bool HasStorageFault => _store.HasStorageFault;
+
     /// <summary>True while a sync round-trip is in flight.</summary>
     public bool IsSyncing { get; private set; }
 
