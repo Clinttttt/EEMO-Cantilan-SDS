@@ -18,20 +18,58 @@
 .ub-x { border: 0; background: none; font-size: 24px; line-height: 1; color: var(--text-muted, #6a8aa0); cursor: pointer; }
 
 .ub-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
-.ub-meter-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--text-muted, #6a8aa0); }
-.ub-meter-title span { color: var(--text-subtle, #8faabf); font-weight: 700; }
-.ub-meter { display: flex; flex-direction: column; gap: 8px; }
-.ub-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.ub-grid3 label, .ub-field {
-    display: flex; flex-direction: column; gap: 5px; min-width: 0;
-    font-size: 11px; font-weight: 700; color: var(--text-muted, #6a8aa0);
+
+/* ── One meter, stated as a section of the bill ──
+   Its own name and unit on the left, the period it bills on the right, then the three readings, then what they
+   come to. The office reads a usage figure and an amount due; the multiplication that produced them is not
+   spelled out on an official form. */
+.ub-meter {
+    display: flex; flex-direction: column; gap: 12px;
+    border: 1px solid var(--border, #dde4ea); border-radius: 12px; padding: 14px 16px;
+    background: var(--bg-card, #fff);
 }
-.ub-grid3 input, .ub-field input {
+.ub-meter-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border, #dde4ea);
+}
+.ub-meter-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ub-meter-badge {
+    width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-icon, #eef2f6); color: var(--navy, #0d2137);
+}
+.ub-meter-name { font-size: 15px; font-weight: 700; color: var(--navy, #0d2137); }
+.ub-meter-unit {
+    padding-left: 10px; border-left: 1px solid var(--border, #dde4ea);
+    font-size: 12px; font-weight: 600; color: var(--text-subtle, #6a8aa0);
+}
+.ub-meter-period {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-subtle, #6a8aa0); white-space: nowrap;
+}
+.ub-meter-period strong { color: var(--navy, #0d2137); font-weight: 700; }
+
+.ub-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ub-grid3 label, .ub-amount {
+    display: flex; flex-direction: column; gap: 6px; min-width: 0;
+    font-size: 12px; font-weight: 700; color: var(--navy, #0d2137);
+}
+/* The unit belongs with the figure, inside the box, so a reading is never read as a bare number. */
+.ub-field { display: flex; align-items: center; gap: 6px; min-width: 0;
+    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 10px; background: #fff; }
+.ub-field:focus-within { border-color: var(--navy-3, #1e3a5f); }
+.ub-field input {
+    width: 100%; min-width: 0; box-sizing: border-box; border: none; outline: none; padding: 0; background: none;
+    font: inherit; font-size: 15px; font-weight: 700; color: var(--navy, #0d2137);
+    font-variant-numeric: tabular-nums;
+}
+.ub-amount input {
     width: 100%; min-width: 0; box-sizing: border-box;
     border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 10px;
     font-size: 14px; font-weight: 700; color: var(--navy, #0d2137); background: #fff;
 }
-.ub-grid3 input:focus, .ub-field input:focus { outline: none; border-color: var(--navy-3, #1e3a5f); }
+.ub-amount input:focus { outline: none; border-color: var(--navy-3, #1e3a5f); }
+.ub-unit { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: var(--text-subtle, #6a8aa0); }
 
 /* ── A figure that is a record, not an entry ──
    The previous reading is carried forward from the last bill, so it is shown as the figure it is, sized and
@@ -73,7 +111,7 @@
 .ub-status .ub-ico { color: var(--text-muted, #8faabf); }
 
 .ub-status-unlock {
-    align-self: flex-end;
+    flex-shrink: 0;
     display: inline-flex; align-items: center; gap: 6px;
     font: inherit; font-size: 11.5px; font-weight: 700;
     color: var(--navy, #0d2137); background: #fff;
@@ -82,8 +120,8 @@
     opacity: 0;
     transition: opacity .12s ease, border-color .12s ease;
 }
-.ub-status-wrap:hover .ub-status-unlock,
-.ub-status-wrap.asked .ub-status-unlock,
+.ub-meter:hover .ub-status-unlock,
+.ub-meter.asked .ub-status-unlock,
 .ub-status-unlock:focus-visible { opacity: 1; }
 .ub-status-unlock:hover { border-color: var(--navy-3, #1e3a5f); }
 /* Why a settled utility's readings cannot be touched. A statement of record, not a validation failure, so it
@@ -98,6 +136,38 @@
 }
 /* A locked figure that offers nothing: same box, no pointer, no hover. */
 span.ub-locked { cursor: default; }
+/* ── What the readings come to ──
+   Usage and amount due, side by side, with the amount ruled under as the figure that will be charged. */
+.ub-usage {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg-page, #f0f4f8); border-radius: 10px; padding: 12px 16px;
+}
+.ub-usage-badge {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-icon, #eef2f6); color: var(--navy, #0d2137);
+}
+.ub-usage-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ub-usage-sep { width: 1px; align-self: stretch; background: var(--border, #dde4ea); }
+.ub-usage-label { font-size: 11.5px; color: var(--text-subtle, #6a8aa0); }
+.ub-usage-value, .ub-usage-amount {
+    font-size: 18px; font-weight: 700; color: var(--navy, #0d2137);
+    display: flex; align-items: baseline; gap: 5px; font-variant-numeric: tabular-nums;
+}
+.ub-usage-amount { border-bottom: 2px solid var(--navy, #0d2137); padding-bottom: 1px; align-self: flex-start; }
+
+/* The record's own statements sit left, the way to change them on the right. */
+.ub-meter-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 26px; }
+.ub-lock-badge {
+    width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-icon, #eef2f6); color: var(--text-subtle, #6a8aa0);
+}
+.ub-ico-lg {
+    width: 17px; height: 17px; flex-shrink: 0;
+    fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+
 .ub-calc { font-size: 12px; color: var(--text-subtle, #6a8aa0); }
 .ub-calc strong { color: var(--navy, #0d2137); }
 

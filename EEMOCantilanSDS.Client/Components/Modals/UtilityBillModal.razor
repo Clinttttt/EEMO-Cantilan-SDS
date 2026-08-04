@@ -29,6 +29,26 @@
             <path d="M4 20h4L19 9l-4-4L4 16v4z" />
             <path d="M14 6l4 4" />
         </svg>;
+    RenderFragment calendarIcon =
+        @<svg class="ub-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>;
+    RenderFragment gaugeIcon =
+        @<svg class="ub-ico-lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 17a8 8 0 1 1 16 0" />
+            <path d="M12 17l4-5" />
+        </svg>;
+    RenderFragment boltIcon =
+        @<svg class="ub-ico-lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" />
+        </svg>;
+    RenderFragment dropIcon =
+        @<svg class="ub-ico-lg" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3.2 17.3 8.5a7.5 7.5 0 1 1-10.6 0z" />
+        </svg>;
+
+    var billingPeriod = new DateTime(Year, Month, 1).ToString("MMMM yyyy");
 }
 
 @if (Show)
@@ -37,7 +57,7 @@
         <div class="ub-modal" @onclick:stopPropagation="true">
             <div class="ub-head">
                 <div>
-                    <div class="ub-title">Utility Bill · @(new DateTime(Year, Month, 1).ToString("MMMM yyyy"))</div>
+                    <div class="ub-title">Utility Bill</div>
                     <div class="ub-sub">Stall @StallNo · @Occupant@(string.IsNullOrWhiteSpace(Section) ? "" : " · " + Section)</div>
                 </div>
                 <button class="ub-x" type="button" @onclick="Close" aria-label="Close">&times;</button>
@@ -54,20 +74,27 @@
                 }
                 @if (ShowElec)
                 {
-                <div class="ub-meter">
-                    <div class="ub-meter-title">Electricity <span>kWh</span></div>
+                <div class="ub-meter @(_elecStatusAsked ? "asked" : "")">
+                    <div class="ub-meter-head">
+                        <div class="ub-meter-id">
+                            <span class="ub-meter-badge">@boltIcon</span>
+                            <span class="ub-meter-name">Electricity</span>
+                            <span class="ub-meter-unit">kWh</span>
+                        </div>
+                        <div class="ub-meter-period">@calendarIcon<span>Billing Period:</span><strong>@billingPeriod</strong></div>
+                    </div>
                     <div class="ub-grid3">
-                        <label>Previous
+                        <label>Previous Reading
                             @if (ElecReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
+                                    <span class="ub-locked-value">@ElecPrev.ToString("N2")<span class="ub-unit">kWh</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else if (ElecPrevOpen)
                             {
-                                <input type="number" step="0.01" min="0" @bind="ElecPrev" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" @bind="ElecPrev" @bind:event="oninput" /><span class="ub-unit">kWh</span></span>
                             }
                             else
                             {
@@ -75,44 +102,68 @@
                                         @onclick="OpenElecPrev"
                                         title="@PrevLockHint(false)"
                                         aria-label="@($"Previous electricity reading {ElecPrev:N2}. {PrevLockHint(false)}")">
-                                    <span class="ub-locked-value">@ElecPrev.ToString("N2")</span>
+                                    <span class="ub-locked-value">@ElecPrev.ToString("N2")<span class="ub-unit">kWh</span></span>
                                     <span class="ub-locked-mark ub-locked-edit">@pencilIcon</span>
                                 </button>
                             }
                         </label>
-                        <label>Current
+                        <label>Current Reading
                             @if (ElecReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@ElecReadingNow.ToString("N2")</span>
+                                    <span class="ub-locked-value">@ElecReadingNow.ToString("N2")<span class="ub-unit">kWh</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" placeholder="Meter now"
-                                       @bind="ElecCur" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" placeholder="Meter now"
+                                       @bind="ElecCur" @bind:event="oninput" /><span class="ub-unit">kWh</span></span>
                             }
                         </label>
-                        <label>Rate ₱/kWh
+                        <label>Rate
                             @if (ElecReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@ElecRate.ToString("N2")</span>
+                                    <span class="ub-locked-value">₱@ElecRate.ToString("N2")<span class="ub-unit">/kWh</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" @bind="ElecRate" @bind:event="oninput" /><span class="ub-unit">/kWh</span></span>
                             }
                         </label>
                     </div>
-                    <div class="ub-calc">@ElecConsumption.ToString("N0") kWh × ₱@ElecRate.ToString("N2") = <strong>₱@ElecCharge.ToString("N2")</strong></div>
-                    @if (ElecReadingsSettled)
-                    {
-                        <div class="ub-lock-note" title="@PrevLockHint(true)">@lockIcon<span>@ReadingsLockedNote</span></div>
-                    }
+                    @* What the readings come to. The office reads a usage figure and an amount due, not the
+                       multiplication that produced them. *@
+                    <div class="ub-usage">
+                        <span class="ub-usage-badge">@gaugeIcon</span>
+                        <div class="ub-usage-cell">
+                            <span class="ub-usage-label">Usage (kWh)</span>
+                            <strong class="ub-usage-value">@ElecConsumption.ToString("N2")<span class="ub-unit">kWh</span></strong>
+                        </div>
+                        <span class="ub-usage-sep"></span>
+                        <div class="ub-usage-cell">
+                            <span class="ub-usage-label">Amount Due</span>
+                            <strong class="ub-usage-amount">₱@ElecCharge.ToString("N2")</strong>
+                        </div>
+                    </div>
+                    <div class="ub-meter-foot">
+                        @if (ElecReadingsSettled)
+                        {
+                            <div class="ub-lock-note" title="@PrevLockHint(true)">
+                                <span class="ub-lock-badge">@lockIcon</span><span>@ReadingsLockedNote</span>
+                            </div>
+                        }
+                        @if (ElecStatusLocked)
+                        {
+                            <button type="button" class="ub-status-unlock" @onclick="() => _elecStatusUnlocked = true"
+                                    title="This electricity status is on record. Open it to change it.">
+                                @pencilIcon <span>Update status</span>
+                            </button>
+                        }
+                    </div>
                     <div class="ub-status-wrap @(ElecStatusLocked ? "locked" : "") @(_elecStatusAsked ? "asked" : "")">
                         <div class="ub-status-row">
                             <button type="button" class="ub-status @(ElecPay == PaymentStatus.Unpaid ? "on" : "")"
@@ -134,41 +185,37 @@
                                 @if (ElecStatusLocked && ElecPay == PaymentStatus.Partial) { @lockIcon }
                             </button>
                         </div>
-                        @if (ElecStatusLocked)
-                        {
-                            <button type="button" class="ub-status-unlock" @onclick="() => _elecStatusUnlocked = true"
-                                    title="This electricity status is on record. Open it to change it.">
-                                @pencilIcon <span>Update status</span>
-                            </button>
-                        }
                     </div>
                     @if (ElecPay == PaymentStatus.Partial)
                     {
-                        <label class="ub-field">Electricity partial amount<input type="number" step="0.01" min="0" @bind="ElecPartial" @bind:event="oninput" /></label>
-                    }
-                    @if (ElecPay != PaymentStatus.Unpaid)
-                    {
-                        <label class="ub-field">Electricity OR number<input type="text" maxlength="50" placeholder="e.g. OR-10231" @bind="ElecOr" @bind:event="oninput" /></label>
+                        <label class="ub-amount">Electricity partial amount<input type="number" step="0.01" min="0" @bind="ElecPartial" @bind:event="oninput" /></label>
                     }
                 </div>
                 }
 
                 @if (ShowWater)
                 {
-                <div class="ub-meter">
-                    <div class="ub-meter-title">Water <span>cu.m</span></div>
+                <div class="ub-meter @(_waterStatusAsked ? "asked" : "")">
+                    <div class="ub-meter-head">
+                        <div class="ub-meter-id">
+                            <span class="ub-meter-badge">@dropIcon</span>
+                            <span class="ub-meter-name">Water</span>
+                            <span class="ub-meter-unit">cu.m</span>
+                        </div>
+                        <div class="ub-meter-period">@calendarIcon<span>Billing Period:</span><strong>@billingPeriod</strong></div>
+                    </div>
                     <div class="ub-grid3">
-                        <label>Previous
+                        <label>Previous Reading
                             @if (WaterReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
+                                    <span class="ub-locked-value">@WaterPrev.ToString("N2")<span class="ub-unit">cu.m</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else if (WaterPrevOpen)
                             {
-                                <input type="number" step="0.01" min="0" @bind="WaterPrev" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" @bind="WaterPrev" @bind:event="oninput" /><span class="ub-unit">cu.m</span></span>
                             }
                             else
                             {
@@ -176,44 +223,66 @@
                                         @onclick="OpenWaterPrev"
                                         title="@PrevLockHint(false)"
                                         aria-label="@($"Previous water reading {WaterPrev:N2}. {PrevLockHint(false)}")">
-                                    <span class="ub-locked-value">@WaterPrev.ToString("N2")</span>
+                                    <span class="ub-locked-value">@WaterPrev.ToString("N2")<span class="ub-unit">cu.m</span></span>
                                     <span class="ub-locked-mark ub-locked-edit">@pencilIcon</span>
                                 </button>
                             }
                         </label>
-                        <label>Current
+                        <label>Current Reading
                             @if (WaterReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@WaterReadingNow.ToString("N2")</span>
+                                    <span class="ub-locked-value">@WaterReadingNow.ToString("N2")<span class="ub-unit">cu.m</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" placeholder="Meter now"
-                                       @bind="WaterCur" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" placeholder="Meter now"
+                                       @bind="WaterCur" @bind:event="oninput" /><span class="ub-unit">cu.m</span></span>
                             }
                         </label>
-                        <label>Rate ₱/cu.m
+                        <label>Rate
                             @if (WaterReadingsSettled)
                             {
                                 <span class="ub-locked ub-locked-fixed" title="@PrevLockHint(true)">
-                                    <span class="ub-locked-value">@WaterRate.ToString("N2")</span>
+                                    <span class="ub-locked-value">₱@WaterRate.ToString("N2")<span class="ub-unit">/cu.m</span></span>
                                     <span class="ub-locked-mark">@lockIcon</span>
                                 </span>
                             }
                             else
                             {
-                                <input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" />
+                                <span class="ub-field"><input type="number" step="0.01" min="0" @bind="WaterRate" @bind:event="oninput" /><span class="ub-unit">/cu.m</span></span>
                             }
                         </label>
                     </div>
-                    <div class="ub-calc">@WaterConsumption.ToString("N0") cu.m × ₱@WaterRate.ToString("N2") = <strong>₱@WaterCharge.ToString("N2")</strong></div>
-                    @if (WaterReadingsSettled)
-                    {
-                        <div class="ub-lock-note" title="@PrevLockHint(true)">@lockIcon<span>@ReadingsLockedNote</span></div>
-                    }
+                    <div class="ub-usage">
+                        <span class="ub-usage-badge">@gaugeIcon</span>
+                        <div class="ub-usage-cell">
+                            <span class="ub-usage-label">Usage (cu.m)</span>
+                            <strong class="ub-usage-value">@WaterConsumption.ToString("N2")<span class="ub-unit">cu.m</span></strong>
+                        </div>
+                        <span class="ub-usage-sep"></span>
+                        <div class="ub-usage-cell">
+                            <span class="ub-usage-label">Amount Due</span>
+                            <strong class="ub-usage-amount">₱@WaterCharge.ToString("N2")</strong>
+                        </div>
+                    </div>
+                    <div class="ub-meter-foot">
+                        @if (WaterReadingsSettled)
+                        {
+                            <div class="ub-lock-note" title="@PrevLockHint(true)">
+                                <span class="ub-lock-badge">@lockIcon</span><span>@ReadingsLockedNote</span>
+                            </div>
+                        }
+                        @if (WaterStatusLocked)
+                        {
+                            <button type="button" class="ub-status-unlock" @onclick="() => _waterStatusUnlocked = true"
+                                    title="This water status is on record. Open it to change it.">
+                                @pencilIcon <span>Update status</span>
+                            </button>
+                        }
+                    </div>
                     <div class="ub-status-wrap @(WaterStatusLocked ? "locked" : "") @(_waterStatusAsked ? "asked" : "")">
                         <div class="ub-status-row">
                             <button type="button" class="ub-status @(WaterPay == PaymentStatus.Unpaid ? "on" : "")"
@@ -235,21 +304,10 @@
                                 @if (WaterStatusLocked && WaterPay == PaymentStatus.Partial) { @lockIcon }
                             </button>
                         </div>
-                        @if (WaterStatusLocked)
-                        {
-                            <button type="button" class="ub-status-unlock" @onclick="() => _waterStatusUnlocked = true"
-                                    title="This water status is on record. Open it to change it.">
-                                @pencilIcon <span>Update status</span>
-                            </button>
-                        }
                     </div>
                     @if (WaterPay == PaymentStatus.Partial)
                     {
-                        <label class="ub-field">Water partial amount<input type="number" step="0.01" min="0" @bind="WaterPartial" @bind:event="oninput" /></label>
-                    }
-                    @if (WaterPay != PaymentStatus.Unpaid)
-                    {
-                        <label class="ub-field">Water OR number<input type="text" maxlength="50" placeholder="e.g. OR-10232" @bind="WaterOr" @bind:event="oninput" /></label>
+                        <label class="ub-amount">Water partial amount<input type="number" step="0.01" min="0" @bind="WaterPartial" @bind:event="oninput" /></label>
                     }
                 </div>
                 }
@@ -265,7 +323,7 @@
                 {
                     <div class="ub-confirm">
                         <strong>Update existing utility bill?</strong>
-                        <span>This month already has saved utility details. Confirming will update the readings, payment status, partial amounts, and OR number currently shown here.</span>
+                        <span>This month already has saved utility details. Confirming will update the readings, payment status and partial amounts currently shown here. The receipt number recorded when the payment was collected is left as it is.</span>
                     </div>
                 }
             </div>
@@ -319,6 +377,11 @@
     private decimal? ElecCur, WaterCur;
     private PaymentStatus ElecPay = PaymentStatus.Unpaid;
     private PaymentStatus WaterPay = PaymentStatus.Unpaid;
+    /// <summary>
+    /// The receipt numbers already on the bill. This dialog records READINGS and a payment status; the receipt
+    /// number is captured where the money is taken (the collection dialog and the collector's app), so it is not
+    /// asked for again here — it is sent back unchanged so re-saving a receipted month keeps its receipt.
+    /// </summary>
     private string ElecOr = string.Empty;
     private string WaterOr = string.Empty;
     private string Error = string.Empty;

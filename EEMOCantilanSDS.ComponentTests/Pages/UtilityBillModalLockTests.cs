@@ -153,7 +153,9 @@ public class UtilityBillModalLockTests : TestContext
         var inputs = cut.FindAll(".ub-grid3 input");
         Assert.True(string.IsNullOrEmpty(inputs[0].GetAttribute("value")));
         Assert.Equal("Meter now", inputs[0].GetAttribute("placeholder"));
-        Assert.Contains("0 cu.m", cut.Markup);                               // nothing charged until it is read
+        // Nothing is charged until it is read: no usage, nothing due.
+        Assert.Contains("0.00", cut.Find(".ub-usage-value").TextContent);
+        Assert.Contains("₱0.00", cut.Find(".ub-usage-amount").TextContent);
     }
 
     [Fact]
@@ -163,7 +165,8 @@ public class UtilityBillModalLockTests : TestContext
 
         Assert.Contains("40.00", cut.Find(".ub-locked .ub-locked-value").TextContent);
         Assert.Equal("56", cut.FindAll(".ub-grid3 input")[0].GetAttribute("value"));
-        Assert.Contains("16 cu.m", cut.Markup);
+        Assert.Contains("16.00", cut.Find(".ub-usage-value").TextContent);
+        Assert.Contains("₱16.00", cut.Find(".ub-usage-amount").TextContent);
     }
 
     [Fact]
@@ -176,5 +179,16 @@ public class UtilityBillModalLockTests : TestContext
 
         Assert.Contains("must be at least 56.00", cut.Markup);
         Assert.Contains("not the month's consumption", cut.Markup);
+    }
+
+    [Fact]
+    public void TheReceiptNumber_IsNotAskedForHere()
+    {
+        // The receipt is captured where the money is taken. This dialog records readings and a status, so it
+        // does not ask for an OR again — re-typing one is how a receipted month acquires a second number.
+        var cut = RenderModal(Seed(exists: true, waterStatus: "Paid"), elec: false);
+
+        Assert.DoesNotContain("OR number", cut.Markup);
+        Assert.Empty(cut.FindAll("input[type=text]"));
     }
 }
