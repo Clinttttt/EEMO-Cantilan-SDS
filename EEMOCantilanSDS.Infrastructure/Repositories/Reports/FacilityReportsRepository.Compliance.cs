@@ -52,9 +52,21 @@ public partial class FacilityReportsRepository
 
         var stallIds = stalls.Select(s => s.Id).ToList();
 
+        // The span this build needs records for: the reporting period, and — when the caller counts a longer
+        // arrears window — back to the first month of that count. Loading every payment record a stall has ever
+        // had was the heaviest query here, and none of it outside this span is read.
+        var countStart = countMissedFrom is { } cf && cf < new DateOnly(endDate.Year, endDate.Month, 1)
+            ? new DateOnly(cf.Year, cf.Month, 1)
+            : new DateOnly(endDate.Year, 1, 1);
+        var recordsFrom = countStart < startDate ? countStart : new DateOnly(startDate.Year, startDate.Month, 1);
+
         var paymentRecords = await _context.PaymentRecords
             .AsNoTracking()
-            .Where(pr => stallIds.Contains(pr.StallId))
+            .Where(pr => stallIds.Contains(pr.StallId)
+                && (pr.BillingYear > recordsFrom.Year
+                    || (pr.BillingYear == recordsFrom.Year && pr.BillingMonth >= recordsFrom.Month))
+                && (pr.BillingYear < endDate.Year
+                    || (pr.BillingYear == endDate.Year && pr.BillingMonth <= endDate.Month)))
             .ToListAsync(ct);
 
         var includeFish = facilityCode == FacilityCode.NPM;
@@ -85,20 +97,24 @@ public partial class FacilityReportsRepository
                 .ToDictionaryAsync(x => x.StallId, x => x.Total, ct)
             : new Dictionary<Guid, decimal>();
 
-        // Months (this year, up to the report month) in which each NPM stall recorded at least one
-        // paid daily collection. NPM is collected daily, so a daily collection — not a monthly
-        // "Paid" PaymentRecord — is the real evidence that a month was paid. Used by CountMissedMonths.
-        var yearStart = new DateOnly(endDate.Year, 1, 1);
-        var dailyPaidMonthsByStall = includeFish
+        // What each NPM stall actually collected in each month of the counted span. NPM is collected daily, so the
+        // evidence a month was settled is money — the daily fees plus any month-end adjustment — measured against
+        // that month's obligation. Counting "any paid day" as settled let a stall that paid ₱30 of a ₱900 month
+        // read as fully covered while ₱870 was still owed.
+        var yearStart = countStart;
+        var dailyCollectedByStallMonth = includeFish
             ? (await _context.DailyCollections
                     .AsNoTracking()
                     .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
                         && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
-                    .Select(dc => new { dc.StallId, dc.CollectionDate })
+                    .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee, dc.MonthEndAdjustment })
                     .ToListAsync(ct))
                 .GroupBy(x => x.StallId)
-                .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate.Month).ToHashSet())
-            : new Dictionary<Guid, HashSet<int>>();
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.GroupBy(x => (x.CollectionDate.Year, x.CollectionDate.Month))
+                          .ToDictionary(m => m.Key, m => m.Sum(x => x.DailyFee + (x.MonthEndAdjustment ?? 0m))))
+            : new Dictionary<Guid, Dictionary<(int Year, int Month), decimal>>();
 
         // Excused/absent dates per stall (this year, up to the report month) — used to drop absent days
         // out of the NPM obligation and to skip fully-absent months in the missed-months count.
@@ -244,7 +260,7 @@ public partial class FacilityReportsRepository
                     : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
             var missedMonths = CountMissedMonths(
-                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet,
+                paymentRecords, s, endDate, includeFish, dailyCollectedByStallMonth.GetValueOrDefault(s.Id), absentSet,
                 excusedMonthsThisYear, countMissedFrom);
 
             rows.Add(new StallComplianceDto(
@@ -374,30 +390,32 @@ public partial class FacilityReportsRepository
             : System.Text.RegularExpressions.Regex.Replace(stallNo, "[0-9]+", m => m.Value.PadLeft(12, '0'));
 
     /// <summary>
-    /// Counts months (this year, up to the report month) in which the stall was under an active
-    /// contract yet recorded no payment at all — the delinquency signal for the report page.
+    /// Counts the months in the span in which the stall owed rent and the month was not settled — the figure
+    /// behind "months behind" on the reports, the arrears/delinquency lists and the dashboard.
     /// <para>
-    /// Two rules keep this honest:
-    /// (1) Months before the contract's effectivity (or after expiry) are never counted — a stall
-    ///     cannot be "behind" on a month it was not yet operating.
-    /// (2) For NPM, which is collected daily, a month counts as paid if it has either a paid daily
-    ///     collection OR a non-Unpaid monthly record. Without this, every NPM stall would read as
-    ///     fully delinquent because daily payors rarely have monthly "Paid" records.
-    /// Other facilities keep the monthly-billing rule: a month is missed unless it has a fully-Paid
-    /// record (Partial still counts as behind, matching the dashboard delinquency definition).
+    /// The rules:
+    /// (1) Months before the contract's effectivity (or after expiry) are never counted — a stall cannot be
+    ///     "behind" on a month it was not yet operating — nor are months whose every collectable day was an
+    ///     absence or a market closure, or an admin-excused month: nothing was owed.
+    /// (2) A month is settled when its OBLIGATION is settled, not when something was paid towards it. For NPM,
+    ///     collected daily, that means the month's daily fees (with any month-end adjustment) reach the month's
+    ///     contractual rent; ₱30 against a ₱900 month leaves the month outstanding and ₱870 owed. A fully-paid
+    ///     monthly record also settles it, for a payor who paid the month in one go.
+    /// (3) Other facilities keep the monthly-billing rule: a month is missed unless it has a fully-Paid record,
+    ///     so a partial payment reduces the balance and leaves the month outstanding.
     /// </para>
     /// </summary>
-    private static int CountMissedMonths(
+    private int CountMissedMonths(
         List<PaymentRecord> paymentRecords,
         Stall stall,
         DateOnly endDate,
         bool isNpm,
-        HashSet<int>? dailyPaidMonths,
+        Dictionary<(int Year, int Month), decimal>? dailyCollectedByMonth,
         IReadOnlySet<DateOnly>? absentDates = null,
         IReadOnlySet<int>? excusedMonths = null,
         DateOnly? countFrom = null)
     {
-        dailyPaidMonths ??= new HashSet<int>();
+        dailyCollectedByMonth ??= new Dictionary<(int Year, int Month), decimal>();
 
         // Where the walk starts. The compliance column counts this year, so it passes nothing and gets January;
         // the arrears/delinquency source hands in a year-crossing span, because a payor who last paid in October
@@ -415,12 +433,6 @@ public partial class FacilityReportsRepository
         // Months with a fully-Paid record (non-NPM "covered" rule).
         var paidMonths = stallPayments
             .Where(pr => pr.Status == PaymentStatus.Paid)
-            .Select(pr => (pr.BillingYear, pr.BillingMonth))
-            .ToHashSet();
-
-        // Months with any non-Unpaid record (NPM "paid something" rule).
-        var settledMonths = stallPayments
-            .Where(pr => pr.Status != PaymentStatus.Unpaid)
             .Select(pr => (pr.BillingYear, pr.BillingMonth))
             .ToHashSet();
 
@@ -447,9 +459,14 @@ public partial class FacilityReportsRepository
             if (!isNpm && excusedMonths is not null && cursor.Year == endDate.Year && excusedMonths.Contains(cursor.Month))
                 continue;
 
+            // A month is settled when its obligation is settled. For NPM that is money against the month's
+            // contractual rent — the daily fees collected, with any month-end adjustment — or a monthly record
+            // paid in full for a payor who settled the month in one go. Anything short of it leaves the month
+            // outstanding, which is what the balance beside it already says.
             var covered = isNpm
-                ? settledMonths.Contains((cursor.Year, cursor.Month))
-                    || (cursor.Year == endDate.Year && dailyPaidMonths.Contains(cursor.Month))
+                ? paidMonths.Contains((cursor.Year, cursor.Month))
+                    || dailyCollectedByMonth.GetValueOrDefault((cursor.Year, cursor.Month))
+                        >= CalculateNpmDailyObligation(stall, monthStart, monthEnd, absentDates)
                 : paidMonths.Contains((cursor.Year, cursor.Month));
 
             if (!covered)

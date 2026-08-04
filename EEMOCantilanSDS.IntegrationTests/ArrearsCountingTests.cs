@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -205,5 +206,62 @@ public class ArrearsCountingTests(PostgresFixture db)
         // no longer resurrects a figure the rest of the system does not recognise.
         Assert.Empty(await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None));
         Assert.Empty(await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, includeClosed: true, CancellationToken.None));
+    }
+
+    [SkippableFact]
+    public async Task AMonthPaidTowardsButNotSettled_StaysOutstanding_WithOnlyTheRestOwed()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        Skip.If(Today.Month == 1, "No month of this year has elapsed yet.");
+        await db.ResetAsync();
+
+        // A market space let for ₱900 a month, collected daily. One day was collected last month — ₱30 of the
+        // ₱900. The month is not settled: it stays outstanding, and what is owed drops to ₱870.
+        var lastMonth = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1);
+        var seeded = await SeedNpmStallAsync("ARR-H", lastMonth);
+
+        await using (var write = db.CreateContext(seeded.MunicipalityId))
+        {
+            var day = DailyCollection.Create(seeded.StallId, lastMonth.AddDays(9));
+            day.MarkPaid("OR-ARR-H", Guid.NewGuid());
+            write.DailyCollections.Add(day);
+            await write.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var arrears = await new FacilityReportsRepository(read)
+            .GetDelinquentStallsAsync(FacilityCode.NPM, Today.Year, Today.Month, CancellationToken.None);
+
+        var row = Assert.Single(arrears);
+        Assert.Equal(1, row.MonthsUnpaid);              // paid towards, not settled
+        Assert.Equal(870m, row.OutstandingBalance);     // ₱900 owed less the ₱30 collected
+    }
+
+    /// <summary>A daily-collected market space at the ordinance ₱30/day, so its month is ₱900.</summary>
+    private async Task<(Guid MunicipalityId, Guid StallId)> SeedNpmStallAsync(string code, DateOnly contractStart)
+    {
+        var municipality = Municipality.Create(code, $"Municipality {code}", "Surigao del Sur",
+            MunicipalityStatus.Active, tenantCode: code.ToLowerInvariant());
+
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Municipalities.Add(municipality);
+            await setup.SaveChangesAsync();
+        }
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM", municipalityId: municipality.Id);
+        var stall = Stall.Create(facility.Id, "3", 900m, ApplicableFees.BaseRental,
+            section: MarketSection.VegetableArea, municipalityId: municipality.Id);
+        var contract = Contract.Create(stall.Id, "Dante Revilla", "Dante Revilla", contractStart, 3, 900m);
+
+        await using (var tenant = db.CreateContext(municipality.Id))
+        {
+            tenant.Facilities.Add(facility);
+            tenant.Stalls.Add(stall);
+            tenant.Contracts.Add(contract);
+            await tenant.SaveChangesAsync();
+        }
+
+        return (municipality.Id, stall.Id);
     }
 }

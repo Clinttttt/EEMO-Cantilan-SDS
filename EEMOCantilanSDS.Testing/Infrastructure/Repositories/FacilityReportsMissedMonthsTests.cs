@@ -80,7 +80,7 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
     }
 
     [Fact]
-    public async Task Npm_PastMonthWithPaidDailyCollection_NotCounted()
+    public async Task Npm_OneCollectedDay_DoesNotSettleTheMonth()
     {
         var today = PhilippineTime.Today;
         var twoMonthsAgo = new DateOnly(today.Year, today.Month, 1).AddMonths(-2);
@@ -90,7 +90,7 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
         var contract = Contract.Create(stall.Id, "Daily Payor", "Daily Payor", twoMonthsAgo, 3, 900m);
-        // Paid a daily collection last month; nothing the month before that.
+        // One collected day last month — ₱30 against the month's ₱900 rent.
         var daily = DailyCollection.Create(stall.Id, lastMonth.AddDays(9));
         daily.MarkPaid("OR-1", Guid.NewGuid());
 
@@ -98,12 +98,35 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new FacilityReportsRepository(context);
-        // Two-months-ago = unpaid (missed); last month = covered by the daily collection; current excluded → 1.
-        Assert.Equal(1, await MissedMonthsFor(repo, FacilityCode.NPM, today.Year, today.Month, "1"));
+        // Both elapsed months are still outstanding: a month is settled when its rent is met, not when something
+        // was paid towards it. The ₱30 shows up as a smaller balance, not as a settled month.
+        Assert.Equal(2, await MissedMonthsFor(repo, FacilityCode.NPM, today.Year, today.Month, "1"));
     }
 
     [Fact]
-    public async Task Npm_PaidEarlyMonthsThenStops_CountsOnlyUnpaidElapsedMonths()
+    public async Task Npm_AMonthPaidInFull_IsSettled()
+    {
+        var today = PhilippineTime.Today;
+        var lastMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var context = NewContext();
+
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Settled Payor", "Settled Payor", lastMonth, 3, 900m);
+
+        // The month settled in one go, as the office records a payor who pays the month rather than the day.
+        var paid = PaymentRecord.Create(stall.Id, lastMonth.Year, lastMonth.Month, 900m);
+        paid.UpdateStatus(PaymentStatus.Paid);
+
+        context.AddRange(facility, stall, contract, paid);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+        Assert.Equal(0, await MissedMonthsFor(repo, FacilityCode.NPM, today.Year, today.Month, "1"));
+    }
+
+    [Fact]
+    public async Task Npm_PartlyCollectedMonths_RemainOutstanding()
     {
         var today = PhilippineTime.Today;
         var context = NewContext();
@@ -112,7 +135,7 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
         var contract = Contract.Create(stall.Id, "Stopped Paying", "Stopped Paying", new DateOnly(today.Year, 1, 1), 3, 900m);
 
-        // Daily collections in Jan, Feb, Mar; nothing afterward.
+        // A single collected day in each of January, February and March; nothing afterward.
         var collections = new[] { 1, 2, 3 }.Select(monthNo =>
         {
             var dc = DailyCollection.Create(stall.Id, new DateOnly(today.Year, monthNo, 10));
@@ -125,8 +148,8 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new FacilityReportsRepository(context);
-        // Jan–Mar covered; Apr..(currentMonth-1) unpaid; current excluded → (currentMonth-1) - 3.
-        Assert.Equal(today.Month - 1 - 3, await MissedMonthsFor(repo, FacilityCode.NPM, today.Year, today.Month, "1"));
+        // Every elapsed month is still owed: three of them were paid towards, none of them settled.
+        Assert.Equal(today.Month - 1, await MissedMonthsFor(repo, FacilityCode.NPM, today.Year, today.Month, "1"));
     }
 
     [Fact]
