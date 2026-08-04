@@ -331,8 +331,13 @@ public class GetFinancialReportQueryHandler(
         const int epochYear = 2020;   // system data epoch — no transactions predate this
         var currentYear = PhilippineTime.Today.Year;
 
+        // Start where the tenant's records actually start. Building every year back to the epoch meant a whole
+        // report per year — each one walking every facility — for years in which the office had no data at all.
+        // Three cheap MIN probes replace them. A tenant that went live this year now builds one year, not seven.
+        var earliest = Math.Max(epochYear, Math.Min(currentYear, await reportsRepository.GetEarliestActivityYearAsync(ct)));
+
         var yearly = new List<(int Year, FinancialReportDto Dto)>();
-        for (var y = epochYear; y <= currentYear; y++)
+        for (var y = earliest; y <= currentYear; y++)
         {
             var dto = await BuildFinancialReportAsync(
                 request with { AllTime = false, Period = ReportPeriod.Yearly, Year = y, Month = null }, ct);

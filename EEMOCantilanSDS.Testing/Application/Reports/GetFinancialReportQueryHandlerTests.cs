@@ -175,6 +175,26 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task AllTime_StartsAtTheTenantsFirstYear_NotTheSystemEpoch()
+    {
+        var (handler, reports) = Build();
+
+        // A tenant whose records begin in 2025. The view used to build a full report for every year back to 2020 —
+        // each one walking every facility — for years the office has no data in. It now starts where they started.
+        reports.Setup(r => r.GetEarliestActivityYearAsync(It.IsAny<CancellationToken>())).ReturnsAsync(2025);
+
+        var single = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null), CancellationToken.None)).Value!;
+        var all = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, null, AllTime: true), CancellationToken.None)).Value!;
+
+        // 2025 and 2026 only, and the money still reconciles.
+        var years = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year - 2025 + 1;
+        Assert.Equal(single.Collected * years, all.Collected);
+        Assert.Equal(all.Collected, all.Facilities.Sum(f => f.Collected));
+    }
+
+    [Fact]
     public async Task ClosedExpiredAccounts_WithBalance_AreSummarized_SeparateFromDelinquency()
     {
         var (handler, _) = Build();
