@@ -156,6 +156,13 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         Assert.Equal(new DateOnly(2025, 1, 1), row.ExpiryDate);
         Assert.Equal(0m, row.LifetimeCollected);
         // Months overlapping [2024-01 .. 2025-01] = 13 months × ₱1000 (same month-overlap rule the reports bill on).
+        //
+        // DELIBERATE, and different from the market's rule: a monthly-billed space is charged by the MONTH, so the
+        // final January — one day of term — is a whole month's rent, as is a first month begun on the 7th. A
+        // daily-collected NPM space is charged by the market day, so the same one-day overlap there is ₱30. That is
+        // why Iceplant's lapsed accounts read ₱33,300 while the market's read ₱32,430 for the identical term. The
+        // difference is the billing basis, not an arithmetic fault; if the office ever wants monthly rent
+        // pro-rated, this assertion is the one to change first.
         Assert.Equal(13_000m, row.Uncollected);
     }
 
