@@ -121,9 +121,13 @@ public class GetFollowUpQueueQueryHandlerTests
         var arrears = Assert.Single(items, i => i.ReasonKind == "arrears");
         Assert.Equal(2, arrears.Section);
 
-        // Current-period unpaid: only the genuine one (stall 12). Stall 09 is deduped (already in arrears).
-        var current = Assert.Single(items, i => i.ReasonKind == "current");
-        Assert.Contains("12", current.Identifier);
+        // Current-period unpaid is stated for BOTH stalls: the arrears figure covers months that have already
+        // elapsed and excludes the month in progress, so a stall can be behind on past months and also owe this
+        // one. Suppressing the row for stall 09 dropped its current-month balance off the queue entirely.
+        var current = items.Where(i => i.ReasonKind == "current").ToList();
+        Assert.Equal(2, current.Count);
+        Assert.Contains(current, i => i.Identifier.Contains("12"));
+        Assert.Contains(current, i => i.Identifier.Contains("09"));
 
         // Excused/absent → review (section 3), ₱0, flagged excused (never a debt).
         var excused = Assert.Single(items, i => i.ReasonKind == "excused");

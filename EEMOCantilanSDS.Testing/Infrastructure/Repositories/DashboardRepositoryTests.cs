@@ -42,13 +42,13 @@ public class DashboardRepositoryTests : RepositoryTestBase
         Assert.Equal("Juan Dela Cruz", tx.PayorName);
         Assert.Equal(900m, tx.Amount);
 
-        // Both stalls are behind for January–May 2026. An NPM month is covered by a daily collection or a
-        // non-Unpaid monthly record, and neither stall has either for those months — the one Paid record is June,
-        // the anchor month, which is excluded as still in progress. The old count saw only the single month that
-        // happened to carry an Unpaid row, which is what left payors off this list until their second month.
+        // Both stalls are behind across the rolling twelve months to the anchor: an NPM month is covered by a daily
+        // collection or a non-Unpaid monthly record, and neither stall has either for June 2025 – May 2026 (the one
+        // Paid record is June 2026, the anchor month, excluded as still in progress). The old count saw only the
+        // single month that happened to carry an Unpaid row, which is what left payors off this list.
         Assert.Equal(2, overview.DelinquentVendors.Count);
         var delinquent = Assert.Single(overview.DelinquentVendors, d => d.Name == "Maria Santos");
-        Assert.Equal(5, delinquent.MonthsUnpaid);
+        Assert.Equal(12, delinquent.MonthsUnpaid);
     }
 
     [Fact]

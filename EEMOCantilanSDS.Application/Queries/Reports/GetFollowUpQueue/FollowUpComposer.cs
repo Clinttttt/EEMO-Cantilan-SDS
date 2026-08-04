@@ -129,11 +129,14 @@ public static class FollowUpComposer
                     continue;
                 }
 
-                // Current-period unpaid / partial — skip stalls already surfaced under delinquency/arrears.
+                // Current-period unpaid / partial. Stated even for a stall that also appears under delinquency or
+                // arrears: those figures cover months that have ALREADY elapsed and deliberately exclude the month
+                // in progress, so the two do not overlap. Suppressing this row hid the current month's balance
+                // altogether — invisible while the delinquency list was near-empty, and money off the screen once
+                // that list started reporting every month a payor actually owed.
                 var isUnpaid = s.Status == "Unpaid";
                 var isPartial = s.Status == "Partial";
                 if ((isUnpaid || isPartial) && s.Balance > 0m
-                    && !delinquentKeys.Contains(Key(code, s.StallNo))
                     && !expiredContractKeys.Contains(Key(code, s.StallNo)))
                 {
                     items.Add(new FollowUpItemDto(

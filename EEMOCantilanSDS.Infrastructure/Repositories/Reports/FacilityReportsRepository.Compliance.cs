@@ -27,7 +27,10 @@ public partial class FacilityReportsRepository
         Guid facilityId,
         DateOnly startDate,
         DateOnly endDate,
-        CancellationToken ct)
+        CancellationToken ct,
+        // Where the missed-month count starts. The report's All Stalls column counts this year (null → January),
+        // while the arrears source counts a rolling twelve months and says so.
+        DateOnly? countMissedFrom = null)
     {
         var stalls = (await _context.Stalls
             .AsNoTracking()
@@ -241,7 +244,8 @@ public partial class FacilityReportsRepository
                     : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
             var missedMonths = CountMissedMonths(
-                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet, excusedMonthsThisYear);
+                paymentRecords, s, endDate, includeFish, dailyPaidMonthsByStall.GetValueOrDefault(s.Id), absentSet,
+                excusedMonthsThisYear, countMissedFrom);
 
             rows.Add(new StallComplianceDto(
                 s.Id,
@@ -316,9 +320,24 @@ public partial class FacilityReportsRepository
 
         // The span the count is about: whole months that have already elapsed, ending the day before the anchor
         // month begins. A month still underway is never "missed" — a payor is not in arrears for a month they can
-        // still pay. Anchoring January to the previous December keeps last year's debt visible in January.
+        // still pay — and neither is a month that has not arrived, so a future anchor (the Yearly view offers
+        // every month) is clamped to the last month that has actually ended. Without the clamp the balance
+        // included the month in progress while the count did not, and the row read "7 months" beside eight
+        // months of money.
+        var today = PhilippineTime.Today;
+        var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddDays(-1);
         var end = new DateOnly(year, month, 1).AddDays(-1);
-        var start = new DateOnly(end.Year, 1, 1);
+        if (end > lastElapsed) end = lastElapsed;
+
+        // Twelve months back, crossing the year boundary. Counting from January of the end year would have said a
+        // payor who last paid in October was one month behind on the first of February.
+        var start = new DateOnly(end.Year, end.Month, 1).AddMonths(-11);
+        if (end < start) return Array.Empty<DelinquentStallDto>();
+
+        // The tenant's own NPM rates. Every other entry point loads them; this one relied on a sibling report
+        // having run first on the same scoped instance, which held only because Cantilan's rates are the
+        // platform's constants.
+        await LoadNpmRatesAsync(end, ct);
 
         // Freezing a stall ends its obligation, so a closed stall has no missed months to report either way; the
         // flag is honoured only in that it never widens the list. Kept explicit so the intent is not mistaken for
@@ -332,7 +351,7 @@ public partial class FacilityReportsRepository
         var results = new List<DelinquentStallDto>();
         foreach (var target in targets)
         {
-            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct);
+            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct, countMissedFrom: start);
 
             results.AddRange(compliance
                 .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
@@ -375,32 +394,42 @@ public partial class FacilityReportsRepository
         bool isNpm,
         HashSet<int>? dailyPaidMonths,
         IReadOnlySet<DateOnly>? absentDates = null,
-        IReadOnlySet<int>? excusedMonths = null)
+        IReadOnlySet<int>? excusedMonths = null,
+        DateOnly? countFrom = null)
     {
         dailyPaidMonths ??= new HashSet<int>();
 
+        // Where the walk starts. The compliance column counts this year, so it passes nothing and gets January;
+        // the arrears/delinquency source hands in a year-crossing span, because a payor who last paid in October
+        // of the previous year is not "one month behind" the moment January turns over.
+        var first = countFrom is { } from && from < new DateOnly(endDate.Year, endDate.Month, 1)
+            ? new DateOnly(from.Year, from.Month, 1)
+            : new DateOnly(endDate.Year, 1, 1);
+
         var stallPayments = paymentRecords
-            .Where(pr => pr.StallId == stall.Id && pr.BillingYear == endDate.Year)
+            .Where(pr => pr.StallId == stall.Id
+                && (pr.BillingYear > first.Year || (pr.BillingYear == first.Year && pr.BillingMonth >= first.Month))
+                && (pr.BillingYear < endDate.Year || (pr.BillingYear == endDate.Year && pr.BillingMonth <= endDate.Month)))
             .ToList();
 
         // Months with a fully-Paid record (non-NPM "covered" rule).
         var paidMonths = stallPayments
             .Where(pr => pr.Status == PaymentStatus.Paid)
-            .Select(pr => pr.BillingMonth)
+            .Select(pr => (pr.BillingYear, pr.BillingMonth))
             .ToHashSet();
 
         // Months with any non-Unpaid record (NPM "paid something" rule).
         var settledMonths = stallPayments
             .Where(pr => pr.Status != PaymentStatus.Unpaid)
-            .Select(pr => pr.BillingMonth)
+            .Select(pr => (pr.BillingYear, pr.BillingMonth))
             .ToHashSet();
 
         var missed = 0;
         var today = PhilippineTime.Today;
-        for (var m = 1; m <= endDate.Month; m++)
+        for (var cursor = first; cursor <= new DateOnly(endDate.Year, endDate.Month, 1); cursor = cursor.AddMonths(1))
         {
-            var monthStart = new DateOnly(endDate.Year, m, 1);
-            var monthEnd = new DateOnly(endDate.Year, m, DateTime.DaysInMonth(endDate.Year, m));
+            var monthStart = cursor;
+            var monthEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
 
             // Count only fully-elapsed PAST months. The current, in-progress month is never "missed"
             // yet (a payor is not in arrears for a month still underway), and future months are not due
@@ -413,13 +442,15 @@ public partial class FacilityReportsRepository
             if (CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates) == 0)
                 continue;
 
-            // Admin-excused monthly months are not owed → never missed.
-            if (!isNpm && excusedMonths is not null && excusedMonths.Contains(m))
+            // Admin-excused monthly months are not owed → never missed. The excused set is this year's, so it
+            // only applies to months of the year the caller asked about.
+            if (!isNpm && excusedMonths is not null && cursor.Year == endDate.Year && excusedMonths.Contains(cursor.Month))
                 continue;
 
             var covered = isNpm
-                ? settledMonths.Contains(m) || dailyPaidMonths.Contains(m)
-                : paidMonths.Contains(m);
+                ? settledMonths.Contains((cursor.Year, cursor.Month))
+                    || (cursor.Year == endDate.Year && dailyPaidMonths.Contains(cursor.Month))
+                : paidMonths.Contains((cursor.Year, cursor.Month));
 
             if (!covered)
                 missed++;

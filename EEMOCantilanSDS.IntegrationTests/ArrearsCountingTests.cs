@@ -22,8 +22,12 @@ public class ArrearsCountingTests(PostgresFixture db)
     // fully elapsed, which is what the count is about.
     private static readonly DateOnly Today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
 
-    private async Task<(Guid MunicipalityId, Guid FacilityId, Guid StallId)> SeedMonthlyStallAsync(
+    private Task<(Guid MunicipalityId, Guid FacilityId, Guid StallId)> SeedMonthlyStallAsync(
         string code, decimal monthlyRate, int contractStartMonth)
+        => SeedMonthlyStallAsync(code, monthlyRate, new DateOnly(Today.Year, contractStartMonth, 1));
+
+    private async Task<(Guid MunicipalityId, Guid FacilityId, Guid StallId)> SeedMonthlyStallAsync(
+        string code, decimal monthlyRate, DateOnly contractStart)
     {
         var municipality = Municipality.Create(code, $"Municipality {code}", "Surigao del Sur",
             MunicipalityStatus.Active, tenantCode: code.ToLowerInvariant());
@@ -40,7 +44,7 @@ public class ArrearsCountingTests(PostgresFixture db)
         var stall = Stall.Create(facility.Id, "7", monthlyRate, ApplicableFees.BaseRental,
             municipalityId: municipality.Id);
         var contract = Contract.Create(stall.Id, "Maria Santos", "Maria Santos",
-            new DateOnly(Today.Year, contractStartMonth, 1), 3, monthlyRate);
+            contractStart, 5, monthlyRate);
 
         await using (var tenant = db.CreateContext(municipality.Id))
         {
@@ -73,6 +77,50 @@ public class ArrearsCountingTests(PostgresFixture db)
         Assert.Equal("Maria Santos", row.Occupant);
         Assert.Equal(Today.Month - 1, row.MonthsUnpaid);          // every elapsed month, none of them recorded
         Assert.True(row.OutstandingBalance > 0m, "the months owed carry a balance");
+    }
+
+    [SkippableFact]
+    public async Task DebtFromLastYear_SurvivesTheYearBoundary()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // A stall let 18 months ago that never paid. Counting from January of the anchor's year would have said it
+        // was one month behind on the first of February — the count now walks a rolling twelve months, so the debt
+        // does not reset when the calendar does.
+        var start = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-18);
+        var seeded = await SeedMonthlyStallAsync("ARR-F", 1_000m, contractStart: start);
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var arrears = await new FacilityReportsRepository(read)
+            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+
+        var row = Assert.Single(arrears);
+        Assert.Equal(12, row.MonthsUnpaid);                       // the whole rolling window is owed
+        Assert.Equal(12_000m, row.OutstandingBalance);
+    }
+
+    [SkippableFact]
+    public async Task AFutureAnchorMonth_CountsOnlyWhatHasElapsed()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        Skip.If(Today.Month == 12, "December has no later month in its own year to anchor on.");
+        await db.ResetAsync();
+
+        // The Yearly view offers every month, including ones still ahead. The count and the money must be about
+        // the same span, or a row reads "7 months" beside eight months of balance.
+        var seeded = await SeedMonthlyStallAsync("ARR-G", 1_000m, contractStartMonth: 1);
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var repo = new FacilityReportsRepository(read);
+
+        var asked = await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, 12, CancellationToken.None);
+        var elapsed = await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+
+        Assert.Equal(
+            Assert.Single(elapsed).MonthsUnpaid,
+            Assert.Single(asked).MonthsUnpaid);
+        Assert.Equal(Assert.Single(elapsed).OutstandingBalance, Assert.Single(asked).OutstandingBalance);
     }
 
     [SkippableFact]

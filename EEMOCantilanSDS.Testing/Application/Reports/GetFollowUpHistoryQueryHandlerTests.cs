@@ -223,8 +223,12 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.Equal(1, delinquent.Section);
         var arrears = Assert.Single(items, i => i.ReasonKind == "arrears");
         Assert.Equal(2, arrears.Section);
-        var current = Assert.Single(items, i => i.ReasonKind == "current");
-        Assert.Contains("12", current.Identifier);          // stall 09 deduped (already arrears)
+        // Both stalls state their period balance: the arrears figure covers elapsed months and excludes the month
+        // in progress, so a stall behind on past months can also owe the current one.
+        var current = items.Where(i => i.ReasonKind == "current").ToList();
+        Assert.Equal(2, current.Count);
+        Assert.Contains(current, i => i.Identifier.Contains("12"));
+        Assert.Contains(current, i => i.Identifier.Contains("09"));
         var excused = Assert.Single(items, i => i.ReasonKind == "excused");
         Assert.Equal(3, excused.Section);
         Assert.True(excused.Excused);
