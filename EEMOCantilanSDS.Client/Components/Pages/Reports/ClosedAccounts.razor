@@ -50,7 +50,8 @@
         <div class="ca-filter" role="group" aria-label="Status">
             <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => _state = null">All Status</button>
             <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Expired ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Expired">Expired</button>
+            <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
+            <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed · still collected</button>
         </div>
 
         <div class="ca-filter" role="group" aria-label="Facility">
@@ -181,8 +182,13 @@
             </header>
 
             <div class="ca-note">
-                Inactive accounts are retained for transparency and audit. They are <strong>excluded from current billing
-                and delinquency</strong>; uncollected amounts shown are historical balances at the time of closure/expiry.
+                This register is retained for transparency and audit, and holds two different kinds of account.
+                A <strong>closed</strong> or <strong>handed over</strong> account is finished: nothing further is
+                billed and its uncollected amount is the historical balance at the time it ended.
+                A <strong>lapsed</strong> account is one whose term ran out while the space was never handed over —
+                the tenant is ordinarily still trading, so the account <strong>remains in current billing,
+                arrears and follow-up</strong> and the office continues to collect against it. Renewing a lapsed
+                account puts it back on a term; it does not write off what is owed.
             </div>
 
             @if (_error is not null)
@@ -202,7 +208,7 @@
                 var singleFacility = facGroups.Count == 1;
                 // Bulk renew covers accounts whose stall is actually free. A past occupancy on a stall that has
                 // since been re-let is history — renewing it would displace the sitting lessee.
-                var expiredInGroup = yr.Where(r => r.State == InactiveAccountState.Expired && !r.StallReLet).ToList();
+                var expiredInGroup = yr.Where(r => r.State != InactiveAccountState.Closed && !r.StallReLet).ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
                         <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
@@ -259,7 +265,7 @@
                                     {
                                         <tr>
                                             <td class="ca-c">@n</td>
-                                            <td class="ca-c ca-status-text">@r.State</td>
+                                            <td class="ca-c ca-status-text">@StateLabel(r.State)</td>
                                             <td class="ca-c">@r.StallNo</td>
                                             <td class="ca-fw">@r.Occupant</td>
                                             <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ContractName) ? "—" : r.ContractName)</td>
@@ -603,7 +609,18 @@
     private void SelectSection(string? section) => _section = section;
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
-    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+
+    /// <summary>
+    /// What the office calls each kind of account. "Lapsed" must read as an account still being collected, not as
+    /// a finished one — the enum name alone ("Expired") is what let the register imply the debt was set aside.
+    /// </summary>
+    private static string StateLabel(InactiveAccountState state) => state switch
+    {
+        InactiveAccountState.Closed => "Closed",
+        InactiveAccountState.Superseded => "Handed over",
+        InactiveAccountState.Lapsed => "Lapsed · collecting",
+        _ => "Expired",
+    };    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
     private IEnumerable<string> Facilities => FacilityCatalog.Rental.Select(c => c.ToString());
@@ -889,7 +906,7 @@
             var targetIds = _renewAllTargets.Select(t => t.StallId).ToHashSet();
             await Load();   // refresh so the successfully-renewed rows drop off the list
             _renewAllTargets = _accounts
-                .Where(r => r.State == InactiveAccountState.Expired && targetIds.Contains(r.StallId))
+                .Where(r => r.State != InactiveAccountState.Closed && targetIds.Contains(r.StallId))
                 .ToList();
             _renewAllProgress = null;
         }

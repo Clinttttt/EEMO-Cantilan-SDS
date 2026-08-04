@@ -289,12 +289,19 @@ public class GetFinancialReportQueryHandler(
             ? StallFacilities.Concat(ServiceFacilities).Count(tenantCodes.Contains)
             : 1;
 
-        // Closed / expired accounts with an outstanding historical balance (Closed Accounts register).
-        // Facility-scoped to match the report; all-time (a closure/expiry balance is not period-bound).
-        // Surfaced for visibility only — kept OUT of the record-based delinquency lists by design.
+        // Accounts that have genuinely ENDED and still carry a balance — closed by an admin, or handed over to the
+        // next lessee. Facility-scoped to match the report; all-time, because such a balance is not period-bound.
+        //
+        // A LAPSED account is deliberately excluded here. Its term ran out but the space was never handed over, so
+        // the tenant is ordinarily still trading and the office keeps collecting: it is already counted in the
+        // arrears and delinquency figures above. Counting it here as well stated the same debt twice — Cantilan
+        // read "84 accounts need follow-up · ₱519,880" beside "closed / expired accounts ₱1,905,300", and 57 of
+        // those 58 accounts were the same live receivables, over a longer span, presented as a separate sum.
         var closedAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
         var closedWithBalance = closedAccounts
-            .Where(a => a.Uncollected > 0m && (request.Facility is null || a.FacilityCode == request.Facility))
+            .Where(a => a.Uncollected > 0m
+                && a.State != InactiveAccountState.Lapsed
+                && (request.Facility is null || a.FacilityCode == request.Facility))
             .ToList();
 
         var dto = new FinancialReportDto(

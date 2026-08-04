@@ -149,7 +149,9 @@ public class ClosedStallAccountsTests : RepositoryTestBase
         var repo = new StallRepository(context);
         var row = Assert.Single(await repo.GetClosedStallAccountsAsync(CancellationToken.None));
 
-        Assert.Equal(InactiveAccountState.Expired, row.State);
+        // Lapsed, not finished: the term ran out but the space was never handed over, so the office keeps
+        // collecting and the account stays in the arrears lists as well as on this register.
+        Assert.Equal(InactiveAccountState.Lapsed, row.State);
         Assert.Null(row.ClosedOn);
         Assert.Equal(new DateOnly(2025, 1, 1), row.ExpiryDate);
         Assert.Equal(0m, row.LifetimeCollected);

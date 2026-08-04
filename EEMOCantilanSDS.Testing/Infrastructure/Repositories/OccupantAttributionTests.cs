@@ -126,14 +126,16 @@ public class OccupantAttributionTests : RepositoryTestBase
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.BaseRental, section: MarketSection.MeatSection, dailyRate: Daily);
 
         var today = PhilippineTime.Today;
-        var thisMonth = new DateOnly(today.Year, today.Month, 1);
+        // A month that has fully elapsed, so the handover is a fact and not a future date: the ledger states what
+        // has been earned and collected, never what is still to come.
+        var thisMonth = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
         var handover = thisMonth.AddDays(9);                     // they took over on the 10th
 
         var outgoing = Term(stall.Id, "Wilma K. Tecson", thisMonth.AddYears(-1), 3, 900m);
         outgoing.Terminate("Head", handover.AddDays(-1));
         var incoming = Term(stall.Id, "Teofila Reyes", handover, 3, 900m);
 
-        // One day paid by each, both inside the current calendar month.
+        // One day paid by each, both inside the same calendar month.
         var hers = DailyCollection.Create(stall.Id, thisMonth, "Head", Daily);
         hers.MarkPaid("OR-A", Guid.NewGuid());
         var his = DailyCollection.Create(stall.Id, handover, "Head", Daily);

@@ -86,16 +86,19 @@ public partial class FacilityReportsRepository
                 .ToHashSet()
             : new HashSet<Guid>();
 
-        var dailyByStall = includeFish
-            ? await _context.DailyCollections
+        var dailyRowsByStall = includeFish
+            ? (await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
                     && !stallsWithNpmPeriodPayments.Contains(dc.StallId)
                     && dc.CollectionDate >= complianceStart && dc.CollectionDate <= complianceEnd)
-                .GroupBy(dc => dc.StallId)
-                .Select(g => new { StallId = g.Key, Total = g.Sum(dc => dc.DailyFee) })
-                .ToDictionaryAsync(x => x.StallId, x => x.Total, ct)
-            : new Dictionary<Guid, decimal>();
+                .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee })
+                .ToListAsync(ct))
+                .GroupBy(x => x.StallId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => (x.CollectionDate, x.DailyFee)).ToList())
+            : new Dictionary<Guid, List<(DateOnly CollectionDate, decimal DailyFee)>>();
 
         // What each NPM stall actually collected in each month of the counted span. NPM is collected daily, so the
         // evidence a month was settled is money — the daily fees plus any month-end adjustment — measured against
@@ -183,6 +186,15 @@ public partial class FacilityReportsRepository
                 ? null
                 : excusedSet.Where(t => t.Year == endDate.Year).Select(t => t.Month).ToHashSet();
 
+            // Where THIS stall's present account begins. A stall that was re-let (or renewed onto a new contract)
+            // carries the earlier occupancy's months in the Closed / Inactive register, which states that account's
+            // own uncollected balance under the lessee who held it. Billing those same months again on the current
+            // row reported the debt twice and put it under the wrong name: stall 23's row read twelve months and
+            // ₱10,050 on a contract that began five weeks earlier, ₱9,210 of it already in the register.
+            // A stall let once — including one whose term has lapsed while the tenant trades on — is unaffected:
+            // its only occupancy starts where it always did, and it stays in the collection lists.
+            var accountStart = CurrentAccountStart(s, complianceStart, complianceEnd);
+
             decimal totalBill;
             decimal rentBill;
             string? orNumber = null;
@@ -195,11 +207,11 @@ public partial class FacilityReportsRepository
                 var npmPayments = periodPayments.GetValueOrDefault(s.Id) ?? new List<PaymentRecord>();
                 // Occupancy-prorated rent: collectable days in the period × ₱30 (counts from the
                 // contract's effectivity date, so a payor who started mid-month owes only their days).
-                rentBill = CalculateNpmDailyObligation(s, complianceStart, complianceEnd, absentSet);
+                rentBill = CalculateNpmDailyObligation(s, accountStart, complianceEnd, absentSet);
                 totalBill = rentBill
-                    + npmPayments.Sum(pr => CalculateNpmAdditionalCharges(pr, complianceStart, complianceEnd));
-                amountPaid = npmPayments.Sum(pr => RecognizedNpmPaymentRevenue(pr, complianceStart, complianceEnd, s))
-                    + dailyByStall.GetValueOrDefault(s.Id);
+                    + npmPayments.Sum(pr => CalculateNpmAdditionalCharges(pr, accountStart, complianceEnd));
+                amountPaid = npmPayments.Sum(pr => RecognizedNpmPaymentRevenue(pr, accountStart, complianceEnd, s))
+                    + DailyCollectedFrom(dailyRowsByStall, s.Id, accountStart);
                 orNumber = npmPayments
                     .Where(pr => !string.IsNullOrWhiteSpace(pr.ORNumber))
                     .OrderByDescending(pr => new DateTime(pr.BillingYear, pr.BillingMonth, 1))
@@ -213,7 +225,7 @@ public partial class FacilityReportsRepository
                 // without a record still count), plus any utilities actually billed on in-period
                 // records. Recorded months are billed at THEIR snapshot rate (history-faithful across
                 // rate changes); only unrecorded due months use the stall's current rate.
-                rentBill = CalculateMonthlyRentObligationDue(s, complianceStart, complianceEnd, payments, excusedSet);
+                rentBill = CalculateMonthlyRentObligationDue(s, accountStart, complianceEnd, payments, excusedSet);
                 totalBill = rentBill
                     + payments.Sum(pr => (pr.ElecAmount ?? 0) + (pr.WaterAmount ?? 0));
                 amountPaid = payments.Sum(pr => pr.Status == PaymentStatus.Paid
@@ -232,10 +244,10 @@ public partial class FacilityReportsRepository
                 // not just one). NPM has no monthly record here either, so its daily collections
                 // (dailyByStall) settle against its own daily obligation.
                 rentBill = includeFish
-                    ? CalculateNpmDailyObligation(s, complianceStart, complianceEnd, absentSet)
-                    : CalculateStallRentObligationDue(s, complianceStart, complianceEnd, excusedSet);
+                    ? CalculateNpmDailyObligation(s, accountStart, complianceEnd, absentSet)
+                    : CalculateStallRentObligationDue(s, accountStart, complianceEnd, excusedSet);
                 totalBill = rentBill;
-                amountPaid = dailyByStall.GetValueOrDefault(s.Id);
+                amountPaid = DailyCollectedFrom(dailyRowsByStall, s.Id, accountStart);
             }
 
             var balance = Math.Max(0m, totalBill - amountPaid);
@@ -261,7 +273,7 @@ public partial class FacilityReportsRepository
 
             var missedMonths = CountMissedMonths(
                 paymentRecords, s, endDate, includeFish, dailyCollectedByStallMonth.GetValueOrDefault(s.Id), absentSet,
-                excusedMonthsThisYear, countMissedFrom);
+                excusedMonthsThisYear, countMissedFrom, NewestOccupancyStart(s, complianceEnd));
 
             rows.Add(new StallComplianceDto(
                 s.Id,
@@ -390,6 +402,48 @@ public partial class FacilityReportsRepository
             : System.Text.RegularExpressions.Regex.Replace(stallNo, "[0-9]+", m => m.Value.PadLeft(12, '0'));
 
     /// <summary>
+    /// The daily fees collected for a stall from <paramref name="from"/> onwards. Money collected before the
+    /// present account began belongs to the previous occupancy, which the Closed / Inactive register credits
+    /// under its own lessee — crediting it here as well would pay the current account's rent twice.
+    /// </summary>
+    private static decimal DailyCollectedFrom(
+        Dictionary<Guid, List<(DateOnly CollectionDate, decimal DailyFee)>> rowsByStall,
+        Guid stallId,
+        DateOnly from)
+        => rowsByStall.TryGetValue(stallId, out var rows)
+            ? rows.Where(r => r.CollectionDate >= from).Sum(r => r.DailyFee)
+            : 0m;
+
+    /// <summary>
+    /// Where a stall's PRESENT account begins, inside the period being reported.
+    /// <para>
+    /// A stall that was re-let or renewed onto a new contract has its earlier occupancy reported by the Closed /
+    /// Inactive register, which states that account's own uncollected balance under the lessee who held it.
+    /// Counting those months again on the stall's current row reports the same debt twice and files it under the
+    /// wrong name. So the current row starts at the newest occupancy's effectivity, or at the period start,
+    /// whichever is later.
+    /// </para>
+    /// <para>
+    /// A stall let only once is unchanged — including one whose term has lapsed while the tenant trades on, whose
+    /// single occupancy starts where it always did. Those accounts stay in the arrears and delinquency lists,
+    /// because the office is still collecting from them.
+    /// </para>
+    /// </summary>
+    private static DateOnly CurrentAccountStart(Stall stall, DateOnly periodStart, DateOnly asOf)
+    {
+        var newest = NewestOccupancyStart(stall, asOf);
+        return newest is { } start && start > periodStart ? start : periodStart;
+    }
+
+    /// <summary>
+    /// The effectivity of the newest occupancy on this stall, irrespective of the period being reported. The
+    /// missed-month count walks a span of its own (this year, or a rolling twelve months), so it must be bounded
+    /// by where the present account began and not by the period start.
+    /// </summary>
+    private static DateOnly? NewestOccupancyStart(Stall stall, DateOnly asOf)
+        => stall.Occupancies(asOf).LastOrDefault()?.Start;
+
+    /// <summary>
     /// Counts the months in the span in which the stall owed rent and the month was not settled — the figure
     /// behind "months behind" on the reports, the arrears/delinquency lists and the dashboard.
     /// <para>
@@ -413,7 +467,8 @@ public partial class FacilityReportsRepository
         Dictionary<(int Year, int Month), decimal>? dailyCollectedByMonth,
         IReadOnlySet<DateOnly>? absentDates = null,
         IReadOnlySet<int>? excusedMonths = null,
-        DateOnly? countFrom = null)
+        DateOnly? countFrom = null,
+        DateOnly? accountStart = null)
     {
         dailyCollectedByMonth ??= new Dictionary<(int Year, int Month), decimal>();
 
@@ -423,6 +478,10 @@ public partial class FacilityReportsRepository
         var first = countFrom is { } from && from < new DateOnly(endDate.Year, endDate.Month, 1)
             ? new DateOnly(from.Year, from.Month, 1)
             : new DateOnly(endDate.Year, 1, 1);
+
+        // Never before the present account began: a superseded occupancy's months are the register's to report.
+        if (accountStart is { } acct && new DateOnly(acct.Year, acct.Month, 1) > first)
+            first = new DateOnly(acct.Year, acct.Month, 1);
 
         var stallPayments = paymentRecords
             .Where(pr => pr.StallId == stall.Id

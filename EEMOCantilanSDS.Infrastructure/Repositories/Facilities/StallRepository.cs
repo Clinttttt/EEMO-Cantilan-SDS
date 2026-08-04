@@ -881,10 +881,19 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 }
             }
 
-            // A closed stall's occupancies are all closed accounts; on an open stall an ended occupancy either
-            // lapsed (its term ran out) or was handed over to the next lessee — both read as "expired" on the
-            // register, which is what the office calls an account that is no longer current.
-            var state = isClosed ? InactiveAccountState.Closed : InactiveAccountState.Expired;
+            // Three kinds of inactive account, because they are not the same thing to a collector:
+            //   Closed    — the stall was frozen by a head/admin. Nothing is owed going forward.
+            //   Superseded — the space was handed to the next lessee (or the contract terminated on a stated date).
+            //                That account is finished; its balance is this register's to state.
+            //   Lapsed    — the term ran out but the space was never handed over and the stall is still open, which
+            //                in practice means the tenant is still trading there. The office keeps collecting from
+            //                them, so the account also remains in the arrears and follow-up lists. Saying it was
+            //                "excluded from current billing and delinquency" was untrue for 57 of Cantilan's 58.
+            var handedOver = occupancy.Contract.EndedOn is not null
+                || occupanciesByStall[stall.Id].Any(o => o.Start > occupancy.Start);
+            var state = isClosed
+                ? InactiveAccountState.Closed
+                : handedOver ? InactiveAccountState.Superseded : InactiveAccountState.Lapsed;
 
             result.Add(new ClosedStallAccountDto(
                 stall.Id,

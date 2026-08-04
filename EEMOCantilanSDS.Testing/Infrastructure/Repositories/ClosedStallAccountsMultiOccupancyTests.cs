@@ -157,7 +157,33 @@ public class ClosedStallAccountsMultiOccupancyTests : RepositoryTestBase
         var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
 
         Assert.Equal("Ana Reyes", row.Occupant);
-        Assert.Equal(InactiveAccountState.Expired, row.State);
+        // A vacant stall whose last term simply lapsed: still collected, so it reads Lapsed rather than finished.
+        Assert.Equal(InactiveAccountState.Lapsed, row.State);
+    }
+
+    [Fact]
+    public async Task AHandedOverOccupancy_ReadsAsSuperseded_NotLapsed()
+    {
+        // The distinction decides money: a superseded account is finished, so the Financial Reports state its
+        // balance under closed accounts and the arrears list leaves its months to the register. A lapsed account is
+        // still being collected, so the reverse holds. Reporting both as "Expired" is what let the same debt be
+        // counted twice — once as ₱1,905,300 of closed balances and once inside the follow-up total.
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "23", 900m, ApplicableFees.BaseRental, section: MarketSection.VegetableArea);
+
+        var handedOverOn = new DateOnly(2026, 6, 30);
+        var outgoing = Contract.Create(stall.Id, "Vincent E. Doloriel", "Vincent E. Doloriel", new DateOnly(2023, 6, 7), 3, 900m);
+        outgoing.Terminate("Head", handedOverOn);
+        var sitting = Contract.Create(stall.Id, "Teofila Reyes", "Teofila Reyes", handedOverOn.AddDays(1), 3, 900m);
+
+        context.AddRange(facility, stall, outgoing, sitting);
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        Assert.Equal("Vincent E. Doloriel", row.Occupant);
+        Assert.Equal(InactiveAccountState.Superseded, row.State);
     }
 
     [Fact]

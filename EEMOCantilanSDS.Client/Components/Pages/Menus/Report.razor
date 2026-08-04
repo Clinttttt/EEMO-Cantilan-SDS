@@ -313,7 +313,7 @@
                 <a href="/reports/closed-accounts" class="rpt-closed-note">
                     <div class="rpt-closed-note-info">
                         <div class="rpt-closed-note-title">Closed / expired accounts with balance</div>
-                        <div class="rpt-closed-note-sub">Not counted in the two lists above — freezing a stall ends its obligation. What these accounts still owe is stated in the Closed / Inactive Accounts register</div>                    </div>
+                        <div class="rpt-closed-note-sub">Accounts that have ended — frozen by the office, or handed to a new lessee. Not counted in the two lists above, because nothing further is billed on them. A lapsed term whose tenant is still trading IS counted above, and is collected as normal</div>                    </div>
                     <div class="rpt-closed-note-amount">
                         <div class="rpt-closed-note-val">@Money(Model.ClosedWithBalanceOutstanding)</div>
                         <div class="rpt-closed-note-count">@Model.ClosedWithBalanceCount account@(Model.ClosedWithBalanceCount == 1 ? "" : "s") · view →</div>
@@ -325,8 +325,9 @@
                 @* Stated even when nothing is outstanding there, so the two lists above are never read as the whole
                    picture: a frozen or lapsed account's debt is reported by the register, not here. *@
                 <a href="/reports/closed-accounts" class="rpt-closed-hint">
-                    A closed stall is not counted above — freezing it ends its obligation. Uncollected balances on
-                    closed and expired accounts are in the Closed / Inactive Accounts register →
+                    An account that has ended is not counted above — a frozen stall owes nothing on, and a space
+                    handed to a new lessee is settled under its own register entry. A lapsed term whose tenant is
+                    still trading is counted above and collected as normal →
                 </a>
             }
         </div>

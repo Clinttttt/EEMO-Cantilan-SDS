@@ -562,6 +562,13 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             // Clamped to this occupancy: on a handover month only their own days count, in either direction.
             if (monthStart < occupancy.Start) monthStart = occupancy.Start;
             if (monthEnd > occupancy.BillableEnd) monthEnd = occupancy.BillableEnd;
+
+            // And, for a daily-collected space, never past today. NPM rent accrues per market day, so on the fourth
+            // of the month only four days have been earned; billing the whole month made the profile read ₱1,740
+            // against a grid that counted 33 elapsed days, and charged the vendor for 27 days that had not
+            // happened. Monthly-billed facilities are untouched — their rent falls due when the month opens.
+            if (isNpm && monthEnd > PhilippineTime.Today) monthEnd = PhilippineTime.Today;
+
             if (monthEnd < monthStart)
                 continue;
 

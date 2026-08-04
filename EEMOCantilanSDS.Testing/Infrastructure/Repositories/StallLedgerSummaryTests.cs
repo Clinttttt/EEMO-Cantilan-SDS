@@ -50,6 +50,35 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         Assert.Equal(0, summary.MonthsPaid);
         Assert.Equal(3, summary.MonthsUnpaid);
         Assert.True(summary.TotalOutstanding > 0m);
+
+        // The month in progress is billed for the days that have been EARNED, not the whole month. NPM rent accrues
+        // per market day, so on the fourth of the month four days are owed, not thirty-one. Billing the month whole
+        // made the profile read ₱1,740 for stall 23 beside a grid counting 33 elapsed days; the truthful figure is
+        // the two whole months behind plus the days so far this month, less the ₱60 collected.
+        var elapsedThisMonth = today.Day;
+        var expected = (2 * 900m) + (elapsedThisMonth * FeeRates.NpmDailyFee) - summary.TotalCollected;
+        Assert.Equal(expected, summary.TotalOutstanding);
+    }
+
+    [Fact]
+    public async Task Summary_Npm_CurrentMonth_IsNotBilledBeyondToday()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        // Let from the first of this month and nothing collected: only the elapsed days are owed.
+        var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(facility.Id, "23", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Vincent Doloriel", "Vincent Doloriel", monthStart, 3, 900m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var summary = await new PaymentRepository(context).GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+
+        Assert.Equal(today.Day * FeeRates.NpmDailyFee, summary.TotalOutstanding);
+        Assert.True(summary.TotalOutstanding <= 900m, "a month in progress cannot owe more than a whole month's rent");
     }
 
     [Fact]
@@ -215,9 +244,11 @@ public class StallLedgerSummaryTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var summary = await repo.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
 
-        // The month is charged the rent this rate makes (₱35 × 30 = ₱1,050), whatever the calendar gave it: the
-        // daily fee is the installment, not the measure of the obligation.
-        Assert.Equal(DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, daysInMonth), summary.TotalOutstanding);
-        Assert.Equal(1_050m, summary.TotalOutstanding);
+        // The days earned so far are charged at the rate this tenant now charges (₱35), not the ₱45 that was
+        // effective on the 1st. The month in progress bills its elapsed days only — a whole month at ₱35 would be
+        // ₱1,050, and that is what will be owed once the month is out.
+        Assert.Equal(DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, today.Day), summary.TotalOutstanding);
+        Assert.Equal(today.Day * 35m, summary.TotalOutstanding);
+        Assert.Equal(1_050m, DomainRules.DailyBilledMonthObligation(35m, 0m, daysInMonth, daysInMonth));
     }
 }

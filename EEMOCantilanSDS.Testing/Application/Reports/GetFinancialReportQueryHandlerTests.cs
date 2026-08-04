@@ -23,8 +23,9 @@ public class GetFinancialReportQueryHandlerTests
         new(Guid.NewGuid(), stallNo, occupant, occupant, "", "", 0m, 0m,
             balance > 0 ? "Partial" : "Paid", paid, balance, null, missedMonths, 0, null, 0, paid + balance);
 
-    private static ClosedStallAccountDto Closed(string stallNo, decimal uncollected) =>
-        new(Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.NPM, "New Public Market", stallNo,
+    private static ClosedStallAccountDto Closed(string stallNo, decimal uncollected,
+        InactiveAccountState state = InactiveAccountState.Superseded) =>
+        new(Guid.NewGuid(), state, FacilityCode.NPM, "New Public Market", stallNo,
             "Former Occupant", "Former Occupant", new DateOnly(2023, 6, 7), 3, 900m, null,
             new DateOnly(2026, 6, 7), 0m, uncollected, null);
 
@@ -47,6 +48,10 @@ public class GetFinancialReportQueryHandlerTests
             FeeTypeBreakdown: feeBreakdown,
             FishKiloTrend: Array.Empty<FishKiloTrendDto>(),
             StallCompliance: compliance);
+
+    /// <summary>The stall-repository stub the last <see cref="Build"/> wired in, so a test can restate its rows.
+    /// xUnit does not run tests of one class in parallel, so a single slot is safe here.</summary>
+    private static Mock<IStallRepository>? _lastStalls;
 
     private static (GetFinancialReportQueryHandler handler, Mock<IFacilityReportsRepository> reports) Build()
     {
@@ -108,10 +113,11 @@ public class GetFinancialReportQueryHandlerTests
         facilities.Setup(f => f.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)Enum.GetValues<FacilityCode>().Where(c => (int)c < 100).ToDictionary(c => c, c => c.ToString()));
 
-        // Two closed/expired NPM accounts, each with a ₱32,910 historical uncollected balance.
+        // Two ended NPM accounts (handed over), each with a ₱32,910 historical uncollected balance.
         var stalls = new Mock<IStallRepository>();
         stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { Closed("91", 32_910m), Closed("92", 32_910m) });
+        _lastStalls = stalls;
 
         var handler = new GetFinancialReportQueryHandler(
             reports.Object,
@@ -202,13 +208,37 @@ public class GetFinancialReportQueryHandlerTests
         var r = (await handler.Handle(
             new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
 
-        // The two closed/expired accounts (₱32,910 each) are summarized for visibility...
+        // The two accounts that genuinely ended (₱32,910 each) are summarized for visibility...
         Assert.Equal(2, r.ClosedWithBalanceCount);
         Assert.Equal(65_820m, r.ClosedWithBalanceOutstanding);
 
         // ...but NOT folded into the record-based current delinquency/arrears lists.
         Assert.DoesNotContain(r.Delinquent, d => d.StallNo is "91" or "92");
         Assert.DoesNotContain(r.Arrears, d => d.StallNo is "91" or "92");
+    }
+
+    [Fact]
+    public async Task LapsedAccounts_AreNotCountedAsClosedBalances_BecauseTheyAreStillCollected()
+    {
+        var (handler, reports) = Build();
+
+        // A lapsed account's term ran out but the space was never handed over, so the tenant is ordinarily still
+        // trading and the arrears figures already carry the debt. Counting it under closed balances as well stated
+        // the same money twice: Cantilan read ₱1,905,300 of "closed / expired" beside a ₱519,880 follow-up total,
+        // and 57 of those 58 accounts were the same live receivables over a longer span.
+        _lastStalls!.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                Closed("91", 32_910m, InactiveAccountState.Superseded),
+                Closed("93", 33_300m, InactiveAccountState.Lapsed),
+                Closed("94", 33_300m, InactiveAccountState.Lapsed),
+            });
+
+        var r = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 3, null), CancellationToken.None)).Value!;
+
+        Assert.Equal(1, r.ClosedWithBalanceCount);
+        Assert.Equal(32_910m, r.ClosedWithBalanceOutstanding);
     }
 
     [Fact]

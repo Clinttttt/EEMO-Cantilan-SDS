@@ -209,6 +209,59 @@ public class ArrearsCountingTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ARenewedStall_CountsOnlyThePresentContract_NotTheSupersededOne()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // Stall 23's shape from the office's own data: let in June 2023 for three years, then renewed onto a new
+        // contract from the first of last month. The superseded occupancy is reported by the Closed / Inactive
+        // register under its own lessee, with its own uncollected balance. Counting its months here as well billed
+        // the same debt twice — the row read twelve months and ₱10,050 on a contract five weeks old.
+        var thisMonth = new DateOnly(Today.Year, Today.Month, 1);
+        var renewedFrom = thisMonth.AddMonths(-1);
+        var seeded = await SeedMonthlyStallAsync("ARR-R", 900m, renewedFrom.AddYears(-3).AddDays(-6));
+
+        await using (var write = db.CreateContext(seeded.MunicipalityId))
+        {
+            var superseded = write.Contracts.First(c => c.StallId == seeded.StallId);
+            superseded.Terminate("test", renewedFrom.AddDays(-1));
+            write.Contracts.Add(Contract.Create(
+                seeded.StallId, "Maria Santos", "Maria Santos", renewedFrom, 3, 900m));
+            await write.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var arrears = await new FacilityReportsRepository(read)
+            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+
+        var row = Assert.Single(arrears);
+        Assert.Equal(1, row.MonthsUnpaid);              // last month, under the contract in force
+        Assert.Equal(900m, row.OutstandingBalance);     // one month's rent, not three years of it
+    }
+
+    [SkippableFact]
+    public async Task ALapsedTermWithTheTenantStillThere_StaysInTheArrearsList()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // Iceplant stall 7's shape: one contract, term run out, tenant still trading, nothing collected. The office
+        // continues to collect from these accounts, so they must stay here — the register is for occupancies that
+        // genuinely ended. Their months are counted to the term's end and no further.
+        var lapsedOn = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-2);
+        var seeded = await SeedMonthlyStallAsync("ARR-L", 900m, lapsedOn.AddYears(-3));
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var arrears = await new FacilityReportsRepository(read)
+            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+
+        var row = Assert.Single(arrears);
+        Assert.True(row.MonthsUnpaid >= 10, $"a lapsed account is still chased; counted {row.MonthsUnpaid}");
+        Assert.True(row.OutstandingBalance > 0m, "and its balance is still stated");
+    }
+
+    [SkippableFact]
     public async Task AMonthPaidTowardsButNotSettled_StaysOutstanding_WithOnlyTheRestOwed()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? "");
