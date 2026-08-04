@@ -57,7 +57,7 @@
 /* The unit belongs with the figure, inside the box, so a reading is never read as a bare number. Both kinds of
    box reserve the same right edge, so the units line up whether the figure is typed or stated. */
 .ub-field { display: flex; align-items: center; gap: 6px; min-width: 0;
-    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 26px 9px 10px; background: #fff; }
+    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 20px 9px 10px; background: #fff; }
 .ub-field:focus-within { border-color: var(--navy-3, #1e3a5f); }
 .ub-field input {
     width: 100%; min-width: 0; box-sizing: border-box; border: none; outline: none; padding: 0; background: none;
@@ -81,7 +81,7 @@
     position: relative;
     display: flex; align-items: center; gap: 8px;
     width: 100%; min-width: 0; box-sizing: border-box;
-    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 26px 9px 10px;
+    border: 1px solid var(--border, #dde4ea); border-radius: 9px; padding: 9px 20px 9px 10px;
     font: inherit; font-size: 15px; font-weight: 700; color: var(--navy, #0d2137);
     background: var(--bg-page, #f0f4f8); cursor: pointer; text-align: left;
 }
@@ -92,7 +92,7 @@
     font-variant-numeric: tabular-nums;
 }
 .ub-locked-mark {
-    position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
     display: flex; align-items: center;
     color: var(--text-muted, #8faabf);
 }
