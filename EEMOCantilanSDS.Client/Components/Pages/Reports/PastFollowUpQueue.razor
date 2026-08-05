@@ -1020,8 +1020,9 @@
         var reason = a.State switch
         {
             InactiveAccountState.Closed => "Closed account",
+            InactiveAccountState.Renewed => "Renewed",
             InactiveAccountState.Superseded => "Handed over · balance",
-            InactiveAccountState.Lapsed => "Lapsed · collecting",
+            InactiveAccountState.Lapsed => "Lapsed",
             _ => "Expired account",
         };
 
@@ -1045,10 +1046,13 @@
                 // reason the account is still being collected. Saying the space was empty told the office it had
                 // no one to collect from.
                 InactiveAccountState.Lapsed => "Term ended · occupant still there · still collected",
+                InactiveAccountState.Renewed => "Prior term · the same lessee holds this stall now",
                 _ => a.StallReLet ? "Term ended · the space has been re-let" : "Term ended",
             },
             Action: "Review account",
-            Link: $"/profile/{a.FacilityCode.ToString().ToLowerInvariant()}/{a.StallNo}",
+            // By identity, not by number: the market has three stalls called "1", so a number link could open a
+            // different payor's profile.
+            Link: $"/profile/{a.FacilityCode.ToString().ToLowerInvariant()}/{(a.StallId == Guid.Empty ? a.StallNo : a.StallId.ToString())}",
             StallId: a.StallId,
             ContractId: a.ContractId == Guid.Empty ? null : a.ContractId);
     }

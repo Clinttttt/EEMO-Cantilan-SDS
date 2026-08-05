@@ -50,9 +50,9 @@
         <div class="ca-filter" role="group" aria-label="Status">
             <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => _state = null">All Status</button>
             <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed · prior term</button>
+            <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed</button>
             <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed · still collected</button>
+            <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed</button>
         </div>
 
         <div class="ca-filter" role="group" aria-label="Facility">
@@ -179,7 +179,7 @@
                 <div class="ca-gov">Republic of the Philippines</div>
                 <div class="ca-org">@Branding.OfficeName</div>
                 <div class="ca-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="ca-doc">Register of Closed &amp; Expired Stall Accounts</div>
+                <div class="ca-doc">Register of Inactive Stall Accounts</div>
                 <div class="ca-doc-scope">@(_year?.ToString() ?? "Whole Time")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
                 @if (_section is not null)
                 {
@@ -672,9 +672,9 @@
     private static string StateLabel(InactiveAccountState state) => state switch
     {
         InactiveAccountState.Closed => "Closed",
-        InactiveAccountState.Renewed => "Renewed · prior term",
+        InactiveAccountState.Renewed => "Renewed",
         InactiveAccountState.Superseded => "Handed over",
-        InactiveAccountState.Lapsed => "Lapsed · collecting",
+        InactiveAccountState.Lapsed => "Lapsed",
         _ => "Expired",
     };    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private async Task Print() => await JS.InvokeVoidAsync("print");
