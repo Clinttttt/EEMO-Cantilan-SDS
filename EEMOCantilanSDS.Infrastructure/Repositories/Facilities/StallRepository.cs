@@ -915,7 +915,10 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 stall.Facility!.Code,
                 stall.Facility!.Name,
                 stall.StallNo,
-                contract.ActualOccupant,
+                // "Closed" is a status, not a person. Three imported contracts carry it as the occupant while the
+                // real lessee's name sits on the contract line, and this register printed the status word where a
+                // name belongs. What is stored is left alone so the import stays auditable.
+                OccupantName.Resolve(contract.ActualOccupant, contract.NameOnContract),
                 contract.NameOnContract,
                 contract.EffectivityDate,
                 contract.DurationYears,
