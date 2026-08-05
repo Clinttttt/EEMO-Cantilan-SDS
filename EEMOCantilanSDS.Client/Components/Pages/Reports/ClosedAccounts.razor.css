@@ -306,3 +306,12 @@
     letter-spacing: .1em;
     text-align: center;
 }
+
+/* The lapsed share of a facility subtotal, stated inline so the printed figure is never read as ended debt. */
+.ca-subtotal-note {
+    display: block;
+    margin-top: 2px;
+    font-size: 9.5px;
+    font-weight: 400;
+    color: var(--text-muted);
+}

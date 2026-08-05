@@ -76,6 +76,27 @@ public class ClosedAccountsRenewTests : TestContext
         return (cut, sent);
     }
 
+    /// <summary>Renders the register with several accounts, for the summary figures rather than the renew dialog.</summary>
+    private IRenderedComponent<ClosedAccounts> Render(params ClosedStallAccountDto[] accounts)
+    {
+        var stalls = new Mock<IStallsApiClient>();
+        stalls.Setup(a => a.GetClosedStallAccountsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<ClosedStallAccountDto>>.Success(accounts));
+
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton(stalls.Object);
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton(Mock.Of<ISettingsApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
+        this.AddTestAuthorization().SetAuthorized("Admin");
+
+        return RenderComponent<ClosedAccounts>();
+    }
+
     [Fact]
     public void Proceed_StatesNoFigures_SoTheStallKeepsItsOwnRate()
     {
@@ -137,5 +158,42 @@ public class ClosedAccountsRenewTests : TestContext
         Assert.Contains("Vegetable Area", cut.Markup);
         Assert.Contains("Jun 1, 2023", cut.Markup);
         Assert.Contains("Whole year: ₱10,800", cut.Markup);
+    }
+
+    [Fact]
+    public void EndedAndLapsedBalances_AreNeverAddedIntoOneTotal()
+    {
+        // Two accounts on the register: one handed over (finished — this register is the only statement of its
+        // balance) and one merely lapsed (the tenant is still there, so the arrears and follow-up lists already
+        // state its balance in full). A single "Total Uncollected" of ₱65,730 let a head add this document to the
+        // follow-up total and double the municipality's receivables.
+        var handedOver = ExpiredAccount() with
+        {
+            StallId = Guid.NewGuid(),
+            StallNo = "23",
+            State = InactiveAccountState.Superseded,
+            Uncollected = 32_430m,
+            StallReLet = true,
+        };
+        var lapsed = ExpiredAccount() with
+        {
+            StallId = Guid.NewGuid(),
+            StallNo = "7",
+            State = InactiveAccountState.Lapsed,
+            Uncollected = 33_300m,
+        };
+
+        var cut = Render(handedOver, lapsed);
+
+        cut.WaitForAssertion(() =>
+        {
+            // Each figure is stated under its own heading, and the mixed sum appears nowhere.
+            Assert.Contains("Ended accounts · uncollected", cut.Markup);
+            Assert.Contains("Lapsed · already in follow-up", cut.Markup);
+            Assert.Contains("32,430", cut.Markup);
+            Assert.Contains("33,300", cut.Markup);
+            Assert.DoesNotContain("65,730", cut.Markup);
+            Assert.DoesNotContain("Total Uncollected", cut.Markup);
+        }, RenderTimeout);
     }
 }
