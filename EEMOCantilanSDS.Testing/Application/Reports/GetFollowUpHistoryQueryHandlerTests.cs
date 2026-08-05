@@ -57,6 +57,16 @@ public class GetFollowUpHistoryQueryHandlerTests
                 new(FacilityCode.NPM, "09", "Ben Cruz", 1, 2_400m),        // arrears (1 mo)
             });
 
+        // The whole-time view asks for each account's WHOLE position rather than a rolling twelve months, so it
+        // states the same figure the register does. Same two payors, their full balances.
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<DelinquentStallDto>
+            {
+                new(FacilityCode.TCC, "04", "Rosa Magbanua", 12, 48_000m),
+                new(FacilityCode.NPM, "09", "Ben Cruz", 2, 4_800m),
+            });
+
         var stalls = new Mock<IStallRepository>();
         // Iceplant stall 02 is ONE stall, so every source names it by the same identity — which is what lets the
         // composer tell it apart from a different stall that happens to share a number. The market numbers spaces
@@ -192,6 +202,24 @@ public class GetFollowUpHistoryQueryHandlerTests
 
         stalls.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2025, 12, 1), new DateOnly(2025, 12, 31), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TheWholeTimeView_ReportsItsDelinquentsInsteadOfShowingNone()
+    {
+        var (handler, _, _, _, _) = Build();
+
+        var dto = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
+
+        // It used to pass no delinquency at all, so the page read "Delinquent 0 · Arrears 0" while listing accounts
+        // that were years behind — a follow-up screen stating there is nobody to follow up. The figures are the whole
+        // account, matching the register beside them.
+        Assert.Contains(dto.Items, i => i.ReasonKind == "delinquent" && i.Amount == 48_000m);
+        Assert.Contains(dto.Items, i => i.ReasonKind == "arrears" && i.Amount == 4_800m);
+
+        // And no stall states its money twice, which is what made this safe to switch on.
+        foreach (var group in dto.Items.Where(i => i.Amount > 0m).GroupBy(i => $"{i.Facility}|{i.Identifier}"))
+            Assert.Single(group);
     }
 
     [Fact]
