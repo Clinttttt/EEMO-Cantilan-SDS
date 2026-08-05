@@ -268,48 +268,8 @@
                         </div>
                     </div>
 
-                    @* Earlier occupancies of this space that still owe money. A renewal keeps the same payor, so a
-                       clerk collecting from Vincent E. Doloriel needs to see the ₱32,430 left by his previous term
-                       as well as the ₱990 of his current one — the profile stated only the current term, and the
-                       older debt existed solely on a register the collector never opens. Where the space changed
-                       hands the row names the former lessee, so a payment is never recorded against the wrong
-                       person. Figures come from the same register the office reconciles against. *@
-                    @if (_priorTerms.Count > 0)
-                    {
-                        <div class="prof-card">
-                            <div class="prof-card-header">
-                                <div class="prof-card-icon">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
-                                </div>
-                                <div class="prof-card-title">Earlier Terms on This Stall</div>
-                            </div>
-                            <div class="prof-field-list">
-                                @foreach (var prior in _priorTerms)
-                                {
-                                    <div class="prof-prior">
-                                        <div class="prof-prior-head">
-                                            <span class="prof-prior-who">@prior.Occupant</span>
-                                            <span class="prof-prior-amt">₱@prior.Uncollected.ToString("N0")</span>
-                                        </div>
-                                        <div class="prof-prior-meta">
-                                            @prior.EffectivityDate.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
-                                            &ndash;
-                                            @((prior.OccupancyEndedOn ?? prior.ExpiryDate).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture))
-                                            &nbsp;·&nbsp; ₱@prior.LifetimeCollected.ToString("N0") collected
-                                            @if (SamePayorAsNow(prior))
-                                            {
-                                                <span class="prof-prior-tag">Same payor as now</span>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                                <div class="prof-prior-note">
-                                    Uncollected above is not part of this term's balance. It belongs to the term that
-                                    incurred it and is stated in the Register of Inactive Stall Accounts.
-                                </div>
-                            </div>
-                        </div>
-                    }
+                    @* Earlier terms live in the right column, immediately above the collection activity, because a
+                       clerk reads down that column while collecting. See PriorTermsCard below. *@
 
                     <!-- Fees & Utilities -->
                     <div class="prof-card">
@@ -382,6 +342,50 @@
 
                 <!-- RIGHT COL -->
                 <div class="prof-col">
+
+                    @* Earlier occupancies of this space that still owe money, stated before the collection activity
+                       because that is the order a clerk reads while collecting. A renewal keeps the same payor, so
+                       whoever collects from Vincent E. Doloriel must see the ₱32,430 left by his previous term as
+                       well as the ₱990 of his current one — the profile stated only the current term, and the older
+                       debt existed solely on a register a collector never opens. Where the space changed hands the
+                       row names the former lessee, so a payment is never recorded against the wrong person. Figures
+                       are read from the same register the office reconciles against, never recomputed here. *@
+                    @if (_priorTerms.Count > 0)
+                    {
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="prof-card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
+                                </div>
+                                <div class="prof-card-title">Earlier Terms on This Stall</div>
+                            </div>
+                            <div class="prof-field-list">
+                                @foreach (var prior in _priorTerms)
+                                {
+                                    <div class="prof-prior">
+                                        <div class="prof-prior-head">
+                                            <span class="prof-prior-who">@prior.Occupant</span>
+                                            <span class="prof-prior-amt">₱@prior.Uncollected.ToString("N0")</span>
+                                        </div>
+                                        <div class="prof-prior-meta">
+                                            @prior.EffectivityDate.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                                            &ndash;
+                                            @((prior.OccupancyEndedOn ?? prior.ExpiryDate).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture))
+                                            &nbsp;·&nbsp; ₱@prior.LifetimeCollected.ToString("N0") collected
+                                            @if (SamePayorAsNow(prior))
+                                            {
+                                                <span class="prof-prior-tag">Same payor as now</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                <div class="prof-prior-note">
+                                    Uncollected above is not part of this term's balance. It belongs to the term that
+                                    incurred it and is stated in the Register of Inactive Stall Accounts.
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     <!-- Collection history -->
                     <div class="prof-card">

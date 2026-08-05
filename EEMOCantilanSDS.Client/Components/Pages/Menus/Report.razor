@@ -250,7 +250,7 @@
                        that has closed, and what those months add up to. This is the same figure the Closed /
                        Inactive register and the whole-time Follow-up History state for the same account. It used to
                        be the last twelve months only, so an account owing ₱33,300 was reported at ₱9,900. *@
-                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @LastClosedMonthLabel — the month in progress is not yet unpaid.</div>
+                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @LastClosedMonthLabel — the month in progress is not yet unpaid. A lapsed term whose occupant remains is counted here, not as an ended account.</div>
                 </div>
             </div>
             <div class="rpt-attention">
@@ -348,7 +348,7 @@
                 <a href="/reports/closed-accounts" class="rpt-closed-note">
                     <div class="rpt-closed-note-info">
                         <div class="rpt-closed-note-title">Ended accounts with balance</div>
-                        <div class="rpt-closed-note-sub">Ended accounts — closed or handed to a new lessee. Reported here only; nothing further is billed on them</div>                    </div>
+                        <div class="rpt-closed-note-sub">Occupancies that have formally ended — closed, terminated, or handed to a new lessee. Nothing further accrues on them. A lapsed term whose occupant remains is not counted here; it is in the lists above</div>                    </div>
                     <div class="rpt-closed-note-amount">
                         <div class="rpt-closed-note-val">@Money(Model.ClosedWithBalanceOutstanding)</div>
                         <div class="rpt-closed-note-count">@Model.ClosedWithBalanceCount account@(Model.ClosedWithBalanceCount == 1 ? "" : "s") · view →</div>
