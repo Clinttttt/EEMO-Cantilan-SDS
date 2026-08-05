@@ -67,7 +67,13 @@ public static class FollowUpComposer
         // the amount cannot say "Jun 2023 → Jun 7, 2026" under a 2026 heading. Null (both) = the cumulative view,
         // whose figures are lifetime totals and whose spans are therefore whole.
         DateOnly? periodStart = null,
-        DateOnly? periodEnd = null)
+        DateOnly? periodEnd = null,
+        // What span the DELINQUENCY figures cover, when it is not the page's own period. A delinquency balance is
+        // never one month's: the live queue is handed a rolling twelve months, the whole-time view each account's
+        // entire position. Labelling those rows with the page's month made a current-period screen state a
+        // multi-month debt as August's — the same scope confusion that put "37 months" under "January – December
+        // 2026". Null keeps the page's period label, which is right only where the two genuinely coincide.
+        string? delinquencySpanLabel = null)
     {
         var periodLabel = periodLabelOverride
             ?? new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
@@ -110,7 +116,7 @@ public static class FollowUpComposer
                 Identifier: $"Stall {d.StallNo}",
                 Amount: d.OutstandingBalance,
                 Excused: false,
-                Period: periodLabel,
+                Period: delinquencySpanLabel ?? periodLabel,
                 Status: $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
                 Action: "View vendor",
                 Link: ProfileLink(d.FacilityCode, d.StallNo),

@@ -58,6 +58,32 @@ public class FollowUpBalanceInvariantTests
             ended);
 
     [Fact]
+    public void ADelinquencyRow_StatesTheSpanItsMoneyCovers_NotThePagesMonth()
+    {
+        // A delinquency balance is never one month's. Labelling these rows with the page's period made a
+        // current-period queue state a 37-month debt as August 2026, and made a year view print
+        // "January – December 2026" beside the same count. The row now says what its money covers.
+        var stall = Guid.NewGuid();
+        var delinquency = new[] { new DelinquentStallDto(FacilityCode.ICE, "7", "Merlita A. Abuso", 37, 33_300m, stall) };
+
+        var queue = FollowUpComposer.Compose(
+            2026, 8, AsOf, delinquency,
+            new Dictionary<FacilityCode, FacilityReportsDto>(),
+            Array.Empty<OnlinePaymentAwaitingOrDto>(), Array.Empty<SlaughterTransactionDto>(),
+            Array.Empty<TrmTripDto>(), Array.Empty<TpmVendorAttendanceDto>(),
+            Array.Empty<UnreceiptedPaymentDto>(), Array.Empty<ContractAttentionDto>(),
+            Array.Empty<UtilityBill>(),
+            delinquencySpanLabel: "12 months to July 2026");
+
+        var row = Assert.Single(queue.Items, i => i.ReasonKind == "delinquent");
+        Assert.Equal("12 months to July 2026", row.Period);
+        Assert.DoesNotContain("August 2026", row.Period);
+
+        // And the account is still on the queue with its balance, because the collector must see who is behind.
+        Assert.Equal(33_300m, row.Amount);
+    }
+
+    [Fact]
     public void ALapsedDelinquentOccupancy_ContributesItsBalanceOnce()
     {
         // Both of Nora's stalls: delinquent, and on a term that lapsed on 7 June 2026 with her still trading.

@@ -104,7 +104,10 @@ public class GetFollowUpHistoryQueryHandler(
                 Array.Empty<UtilityBill>(),
                 allBalances,
                 allAccounts,
-                periodLabelOverride: "Whole time");
+                periodLabelOverride: "Whole time",
+                // These figures are each account's entire position, so the rows say so rather than borrowing the
+                // page's heading.
+                delinquencySpanLabel: "Whole account");
         }
 
         var facilityReports = new Dictionary<FacilityCode, FacilityReportsDto>();
@@ -171,7 +174,10 @@ public class GetFollowUpHistoryQueryHandler(
                 ? $"January – December {year}"
                 : null,
             periodStart: periodStart,
-            periodEnd: periodEnd);
+            periodEnd: periodEnd,
+            // A year or month view's delinquency figures are a rolling twelve months to the last closed month, not
+            // that heading's span — Nora's row read "January – December 2026" beside a count of 37 months.
+            delinquencySpanLabel: RollingYearLabel(year, month));
 
         return dto;
     }
@@ -187,5 +193,16 @@ public class GetFollowUpHistoryQueryHandler(
 
         var last = year == PhilippineTime.Today.Year ? PhilippineTime.Today.Month : 12;
         return Enumerable.Range(1, Math.Max(1, last));
+    }
+
+    /// <summary>"12 months to July 2026" — the span a rolling delinquency figure covers, ending with the last month
+    /// that closed. Stated on the row so a year heading is never read as the span of the money beside it.</summary>
+    private static string RollingYearLabel(int year, int month)
+    {
+        var anchor = new DateOnly(year, month, 1);
+        var today = PhilippineTime.Today;
+        var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var end = anchor.AddMonths(-1) < lastElapsed ? anchor.AddMonths(-1) : lastElapsed;
+        return $"12 months to {end.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";
     }
 }
