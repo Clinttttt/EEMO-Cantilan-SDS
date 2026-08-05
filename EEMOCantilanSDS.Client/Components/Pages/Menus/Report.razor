@@ -245,7 +245,17 @@
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
-                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) outstanding</div>
+                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) owed over the last twelve months</div>
+                    @* The count and the money are both bounded to the twelve months ending with the last month that
+                       has closed. An account let years ago and never collected on therefore reads its last twelve
+                       months here, not its whole term: Iceplant stall 7 shows ₱9,900 while the Closed / Inactive
+                       register and the whole-time Follow-up History state its full ₱33,300. Saying "outstanding"
+                       without the span invited the smaller figure onto a demand letter. *@
+                    <div class="section-sub rpt-attention-span">
+                        Whole-term balances are in the
+                        <a href="/reports/follow-up/history">Follow-up History</a> (whole time) and the
+                        <a href="/reports/closed-accounts">Closed / Inactive register</a>.
+                    </div>
                 </div>
             </div>
             <div class="rpt-attention">

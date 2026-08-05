@@ -1013,12 +1013,22 @@
     private static FollowUpItemDto ClosedRow(ClosedStallAccountDto a)
     {
         var ended = a.OccupancyEndedOn ?? a.ClosedOn ?? a.ExpiryDate;
-        var closed = a.State == InactiveAccountState.Closed;
+
+        // The same three words the register uses. "Expired account" read as though the debt had been set aside,
+        // which for a lapsed term is untrue: the tenant is ordinarily still trading and the office is still
+        // collecting, and that account also appears in the arrears lists for its last twelve months.
+        var reason = a.State switch
+        {
+            InactiveAccountState.Closed => "Closed account",
+            InactiveAccountState.Superseded => "Handed over · balance",
+            InactiveAccountState.Lapsed => "Lapsed · collecting",
+            _ => "Expired account",
+        };
 
         return new FollowUpItemDto(
             Section: 1,
             Priority: a.Uncollected > 0m ? "High" : "Normal",
-            Reason: closed ? "Closed account" : "Expired account",
+            Reason: reason,
             ReasonKind: ClosedReason,
             Facility: a.FacilityCode,
             Model: ModelLabel(a.FacilityCode),
@@ -1027,9 +1037,16 @@
             Amount: a.Uncollected > 0m ? a.Uncollected : null,
             Excused: false,
             Period: $"{a.EffectivityDate.ToString("MMM yyyy", CultureInfo.InvariantCulture)} → {ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}",
-            Status: closed
-                ? (a.StallReLet ? "Closed · the space has been re-let" : "Closed account")
-                : (a.StallReLet ? "Term ended · the space has been re-let" : "Term ended · space vacant"),
+            Status: a.State switch
+            {
+                InactiveAccountState.Closed => a.StallReLet ? "Closed · the space has been re-let" : "Closed account",
+                InactiveAccountState.Superseded => "Term ended · the space has been re-let",
+                // Never "space vacant": nothing was handed over and the stall is still open, which is the whole
+                // reason the account is still being collected. Saying the space was empty told the office it had
+                // no one to collect from.
+                InactiveAccountState.Lapsed => "Term ended · occupant still there · still collected",
+                _ => a.StallReLet ? "Term ended · the space has been re-let" : "Term ended",
+            },
             Action: "Review account",
             Link: $"/profile/{a.FacilityCode.ToString().ToLowerInvariant()}/{a.StallNo}",
             StallId: a.StallId,
