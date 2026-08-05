@@ -79,7 +79,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
-                    iceStall02, InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    iceStall02, InactiveAccountState.Lapsed, FacilityCode.ICE, "Iceplant", "02",
                     "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
                     new DateOnly(2025, 11, 30), 0m, 5_000m, null)
             });
@@ -91,7 +91,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
-                    iceStall02, InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    iceStall02, InactiveAccountState.Lapsed, FacilityCode.ICE, "Iceplant", "02",
                     "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
                     new DateOnly(2025, 11, 30), 0m, 1_200m, null)
             });

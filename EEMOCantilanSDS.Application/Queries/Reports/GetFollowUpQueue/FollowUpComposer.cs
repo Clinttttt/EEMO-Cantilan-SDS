@@ -83,12 +83,21 @@ public static class FollowUpComposer
             .Select(c => Key(c.FacilityCode, c.StallNo))
             .ToHashSet();
 
-        // ── 1) Delinquency (rolling 12-mo, excludes current month): 3+ = delinquent, 1–2 = arrears ──
+        // ── 1) Delinquency (3+ = delinquent, 1–2 = arrears). The span is the caller's: a period screen asks for a
+        // rolling twelve months, the Financial Reports for each account's whole position. ──
+        //
+        // These rows are the authoritative statement of a stall's outstanding balance in this list. Later sections
+        // may add a row about the same stall for a different reason — a lapsed term needing renewal, say — but they
+        // must not state the money a second time, or one debt is counted twice in the page total. Keyed on the
+        // stall's identity, because the market numbers spaces per section and has three stalls called "1"; a
+        // facility-and-number key made them one.
         var delinquentKeys = new HashSet<string>();
+        var moneyStatedForStall = new HashSet<Guid>();
         foreach (var d in delinquency)
         {
             if (d.MonthsUnpaid < 1) continue;
             delinquentKeys.Add(Key(d.FacilityCode, d.StallNo));
+            if (d.StallId is { } stallWithMoney) moneyStatedForStall.Add(stallWithMoney);
             var isDelinquent = d.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths;
             items.Add(new FollowUpItemDto(
                 Section: isDelinquent ? SecImmediate : SecThisPeriod,
@@ -278,7 +287,14 @@ public static class FollowUpComposer
         {
             var key = Key(c.FacilityCode, c.StallNo);
 
-            var contractBalance = !c.IsExpired
+            // A lapsed term needs renewing, which is why this row exists — but if a delinquency or arrears row above
+            // already states this stall's outstanding balance, this row must state none. Nora M. Doloriel's stall 20
+            // read ₱33,300 as Delinquent AND ₱5,400 as Contract expired: one debt, two money rows, ₱38,700
+            // contributed to the header for a ₱33,300 account. The row keeps its status, its period and its action;
+            // only the amount belongs to the row that owns it.
+            var moneyAlreadyStated = moneyStatedForStall.Contains(c.StallId);
+
+            var contractBalance = !c.IsExpired || moneyAlreadyStated
                 ? null
                 : expiredBalances is not null && expiredBalances.TryGetValue(key, out var lifetime) && lifetime > 0m
                     ? lifetime
@@ -333,8 +349,16 @@ public static class FollowUpComposer
 
             foreach (var account in endedOccupancies.Where(a => a.Uncollected > 0m))
             {
-                if (listedStallIds.Contains(account.StallId)
-                    || listedByNumber.Contains(Key(account.FacilityCode, account.StallNo)))
+                // A LAPSED account is the occupancy still in force, so a delinquency row above already states its
+                // balance — listing it again would count one debt twice. A Renewed, Handed-over or Closed account is
+                // a DIFFERENT occupancy of the same stall: its debt is its own, owed for a different span and
+                // possibly by a different person, so it keeps its row even when the current term also owes. Stall 23
+                // is both — Vincent's ₱840 for July under his new term, and ₱32,430 left by the term before it.
+                var sameOccupancyAsLive = account.State == InactiveAccountState.Lapsed;
+
+                if (sameOccupancyAsLive
+                    && (listedStallIds.Contains(account.StallId)
+                        || listedByNumber.Contains(Key(account.FacilityCode, account.StallNo))))
                     continue;
 
                 var ended = account.OccupancyEndedOn ?? account.ClosedOn ?? account.ExpiryDate;
