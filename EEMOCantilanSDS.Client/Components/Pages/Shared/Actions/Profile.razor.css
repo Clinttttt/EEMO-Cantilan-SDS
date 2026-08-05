@@ -1326,7 +1326,9 @@
 
 /* Earlier terms on this stall: facts and figures, no colour of their own. */
 .prof-prior {
-    padding: 10px 0;
+    /* Same 18px gutter as .prof-field, so these rows line up with every other field in the column
+       instead of running into both edges of the card. */
+    padding: 10px 18px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -1368,7 +1370,7 @@
 }
 
 .prof-prior-note {
-    margin-top: 8px;
+    padding: 10px 18px 4px;
     font-size: 11px;
     line-height: 1.5;
     color: var(--text-muted);
