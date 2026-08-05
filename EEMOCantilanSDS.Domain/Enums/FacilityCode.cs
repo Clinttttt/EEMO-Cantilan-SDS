@@ -98,7 +98,9 @@ namespace EEMOCantilanSDS.Domain.Enums
     }
     // Category of an INACTIVE stall account on the register. Derived, not stored:
     //   Closed     = explicitly frozen by a head/admin (Status == Closed) — reversible via Reopen. Owes nothing on.
-    //   Superseded = handed to the next lessee, or terminated on a stated date. The account is finished.
+    //   Superseded = handed to a DIFFERENT lessee, or terminated on a stated date. The account is finished.
+    //   Renewed    = the SAME lessee took a fresh term; this is their earlier one. They are still in the stall, the
+    //                balance is still theirs, and the space is not free to offer to anyone else.
     //   Lapsed     = the term ran out, the space was never handed over and the stall is still open — the tenant is
     //                still there. Reversible via Renew, and STILL COLLECTED: it stays in arrears and follow-up.
     public enum InactiveAccountState
@@ -107,6 +109,7 @@ namespace EEMOCantilanSDS.Domain.Enums
         Expired = 2,
         Superseded = 3,
         Lapsed = 4,
+        Renewed = 5,
     }
     public enum StallType
     {

@@ -50,6 +50,7 @@
         <div class="ca-filter" role="group" aria-label="Status">
             <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => _state = null">All Status</button>
             <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
+            <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed · prior term</button>
             <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
             <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed · still collected</button>
         </div>
@@ -147,18 +148,20 @@
                 <div class="ca-sum-val">@rows.Count</div>
                 <div class="ca-sum-lbl">Inactive Accounts</div>
             </div>
-            @*  The two kinds of money must never be added into one figure. An ENDED account's balance is this
-                register's alone — nothing else in the system reports it. A LAPSED account's balance is a live
-                receivable the arrears and follow-up lists already state in full, so presenting one mixed total
-                let the same ₱1,872,870 be read twice and a head adding the two documents would double the
-                municipality's receivables.  *@
+            @*  The two kinds of money must never be added into one figure, and each must carry its own count or
+                "₱32,430" beside "58 accounts" reads as though it covered all of them. Money on an account that has
+                ENDED or on a current lessee's PRIOR term is stated by this register alone. Money on a LAPSED term
+                is a live receivable the arrears and follow-up lists already state in full, so adding the two would
+                double the municipality's receivables.  *@
             <div class="ca-sum-card ca-sum-warn">
                 <div class="ca-sum-val">@Money(EndedUncollected(rows))</div>
-                <div class="ca-sum-lbl">Ended accounts · uncollected</div>
+                <div class="ca-sum-lbl">Stated here only</div>
+                <div class="ca-sum-sub">@CountLabel(EndedRows(rows).Count) · ended or a prior term</div>
             </div>
             <div class="ca-sum-card">
                 <div class="ca-sum-val">@Money(LapsedUncollected(rows))</div>
                 <div class="ca-sum-lbl">Lapsed · already in follow-up</div>
+                <div class="ca-sum-sub">@CountLabel(LapsedRows(rows).Count) · still collected</div>
             </div>
             <div class="ca-sum-card">
                 <div class="ca-sum-val">@Money(rows.Sum(r => r.LifetimeCollected))</div>
@@ -187,11 +190,11 @@
             </header>
 
             <div class="ca-note">
-                Retained for transparency and audit. <strong>Ended</strong> accounts — closed by the office or
-                handed to a new lessee — are finished, and their uncollected balance is stated here only.
-                <strong>Lapsed</strong> accounts are terms that ran out with the tenant still in place: the office
-                keeps collecting, so their balance is also in the arrears and follow-up lists and the two figures
-                above are deliberately kept apart. Renewing puts a lapsed account back on a term; it writes nothing off.
+                Retained for transparency and audit. A balance here is <strong>stated by this register alone</strong>
+                when the account has ended — closed, handed to another lessee, or the earlier term of a lessee who
+                renewed. A <strong>lapsed</strong> term is different: the tenant is still in place and the office
+                keeps collecting, so that balance also appears in the arrears and follow-up lists, and the two
+                figures above are deliberately never added. Renewing writes nothing off.
             </div>
 
             @if (_error is not null)
@@ -218,8 +221,8 @@
                         <div class="ca-year-right">
                             <span class="ca-year-stats">
                                 <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
-                                <strong>@Money(EndedUncollected(yr))</strong> ended ·
-                                <strong>@Money(LapsedUncollected(yr))</strong> lapsed, in follow-up
+                                <strong>@Money(EndedUncollected(yr))</strong> on @CountLabel(EndedRows(yr).Count) stated here only ·
+                                <strong>@Money(LapsedUncollected(yr))</strong> on @CountLabel(LapsedRows(yr).Count) also in follow-up
                             </span>
                             @if (expiredInGroup.Count > 0)
                             {
@@ -243,8 +246,8 @@
                                     <span class="ca-fac-title">@facGrp.Key</span>
                                     <span class="ca-fac-stats">
                                         <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
-                                        <strong>@Money(EndedUncollected(facRows))</strong> ended ·
-                                        <strong>@Money(LapsedUncollected(facRows))</strong> lapsed, in follow-up
+                                        <strong>@Money(EndedUncollected(facRows))</strong> on @CountLabel(EndedRows(facRows).Count) stated here only ·
+                                        <strong>@Money(LapsedUncollected(facRows))</strong> on @CountLabel(LapsedRows(facRows).Count) also in follow-up
                                     </span>
                                 </div>
                             }
@@ -288,7 +291,18 @@
                                             </td>
                                             <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ClosedBy) ? "—" : r.ClosedBy)</td>
                                             <td class="ca-act no-print">
-                                                @if (r.StallReLet)
+                                                @if (r.State == InactiveAccountState.Renewed)
+                                                {
+                                                    @* The same lessee is still in this stall on a fresh term. There
+                                                       is nothing to renew and nothing to assign — the row is the
+                                                       record of their earlier term, and its balance is still theirs. *@
+                                                    <a class="ca-row-btn ca-row-view"
+                                                       href="/profile/@r.FacilityCode.ToString().ToLowerInvariant()/@r.StallNo"
+                                                       title="The same lessee holds this stall on a new term. Open their account to collect this balance.">
+                                                        View account
+                                                    </a>
+                                                }
+                                                else if (r.StallReLet)
                                                 {
                                                     @* Somebody else holds this stall now, so this row is a record
                                                        of a past occupancy: it cannot be renewed in place. If the
@@ -329,12 +343,12 @@
                                             @if (EndedUncollected(facRows) > 0m)
                                             {
                                                 <strong>@Money(EndedUncollected(facRows))</strong>
-                                                <span class="ca-subtotal-note">ended</span>
+                                                <span class="ca-subtotal-note">stated here only</span>
                                             }
                                             @if (LapsedUncollected(facRows) > 0m)
                                             {
                                                 <strong>@Money(LapsedUncollected(facRows))</strong>
-                                                <span class="ca-subtotal-note">lapsed · in follow-up</span>
+                                                <span class="ca-subtotal-note">also in follow-up</span>
                                             }
                                             @if (EndedUncollected(facRows) <= 0m && LapsedUncollected(facRows) <= 0m)
                                             {
@@ -633,19 +647,23 @@
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
     /// <summary>
-    /// Uncollected on accounts that have genuinely ENDED — frozen by the office, or handed to the next lessee.
-    /// This money is reported nowhere else, so this register is the only statement of it.
+    /// Accounts whose balance this register alone states: closed, handed to a different lessee, or the prior term of
+    /// a lessee who renewed. Nothing else in the system reports this money.
     /// </summary>
-    private static decimal EndedUncollected(IEnumerable<ClosedStallAccountDto> rows)
-        => rows.Where(r => r.State != InactiveAccountState.Lapsed).Sum(r => r.Uncollected);
+    private static List<ClosedStallAccountDto> EndedRows(IEnumerable<ClosedStallAccountDto> rows)
+        => rows.Where(r => r.State != InactiveAccountState.Lapsed).ToList();
 
-    /// <summary>
-    /// Uncollected on accounts whose term merely LAPSED. The tenant is ordinarily still there and the office is
-    /// still collecting, so the arrears and follow-up lists already state this same money in full. It is shown
-    /// here for the renewal work, and kept out of the ended total so the two are never added together.
-    /// </summary>
+    /// <summary>Accounts whose term merely lapsed — a live receivable the arrears and follow-up lists carry in full.</summary>
+    private static List<ClosedStallAccountDto> LapsedRows(IEnumerable<ClosedStallAccountDto> rows)
+        => rows.Where(r => r.State == InactiveAccountState.Lapsed).ToList();
+
+    private static string CountLabel(int count) => $"{count} account{(count == 1 ? "" : "s")}";
+
+    private static decimal EndedUncollected(IEnumerable<ClosedStallAccountDto> rows)
+        => EndedRows(rows).Sum(r => r.Uncollected);
+
     private static decimal LapsedUncollected(IEnumerable<ClosedStallAccountDto> rows)
-        => rows.Where(r => r.State == InactiveAccountState.Lapsed).Sum(r => r.Uncollected);
+        => LapsedRows(rows).Sum(r => r.Uncollected);
 
     /// <summary>
     /// What the office calls each kind of account. "Lapsed" must read as an account still being collected, not as
@@ -654,6 +672,7 @@
     private static string StateLabel(InactiveAccountState state) => state switch
     {
         InactiveAccountState.Closed => "Closed",
+        InactiveAccountState.Renewed => "Renewed · prior term",
         InactiveAccountState.Superseded => "Handed over",
         InactiveAccountState.Lapsed => "Lapsed · collecting",
         _ => "Expired",

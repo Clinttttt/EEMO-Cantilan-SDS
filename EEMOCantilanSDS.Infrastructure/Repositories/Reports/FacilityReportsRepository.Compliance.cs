@@ -409,7 +409,11 @@ public partial class FacilityReportsRepository
                 .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
                 .Select(r => new DelinquentStallDto(
                     target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId,
-                    TermLapsed: lapsedStallIds.Contains(r.StallId))));
+                    TermLapsed: lapsedStallIds.Contains(r.StallId),
+                    // The market numbers its spaces per section, so "Stall 1" exists in the Vegetable Area, the
+                    // Fish Section and the Meat Section at once — three different payors. Without the section the
+                    // office cannot tell which space a row is about.
+                    Section: r.Section)));
         }
 
         return results

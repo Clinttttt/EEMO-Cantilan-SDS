@@ -187,8 +187,8 @@ public class ClosedAccountsRenewTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            // Each figure is stated under its own heading, and the mixed sum appears nowhere.
-            Assert.Contains("Ended accounts · uncollected", cut.Markup);
+            // Each figure is stated under its own heading with its own count, and the mixed sum appears nowhere.
+            Assert.Contains("Stated here only", cut.Markup);
             Assert.Contains("Lapsed · already in follow-up", cut.Markup);
             Assert.Contains("32,430", cut.Markup);
             Assert.Contains("33,300", cut.Markup);

@@ -58,24 +58,28 @@ public class GetFollowUpHistoryQueryHandlerTests
             });
 
         var stalls = new Mock<IStallRepository>();
+        // Iceplant stall 02 is ONE stall, so every source names it by the same identity — which is what lets the
+        // composer tell it apart from a different stall that happens to share a number. The market numbers spaces
+        // per section, so NPM really does have three stalls called "1".
+        var iceStall02 = Guid.NewGuid();
         stalls.Setup(s => s.GetContractAttentionAsOfAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
-                new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
+                new(iceStall02, FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
         // The cumulative "Whole time" view reads contract attention as of today rather than as of a period.
         stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
-                new(Guid.NewGuid(), FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
+                new(iceStall02, FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
         stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
-                    Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    iceStall02, InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
                     "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
                     new DateOnly(2025, 11, 30), 0m, 5_000m, null)
             });
@@ -87,7 +91,7 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
-                    Guid.NewGuid(), InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
+                    iceStall02, InactiveAccountState.Expired, FacilityCode.ICE, "Iceplant", "02",
                     "Luz Mendoza", "Luz Mendoza", new DateOnly(2022, 11, 30), 3, 1_200m, null,
                     new DateOnly(2025, 11, 30), 0m, 1_200m, null)
             });

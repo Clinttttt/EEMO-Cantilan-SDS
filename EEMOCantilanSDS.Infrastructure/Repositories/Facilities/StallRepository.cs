@@ -889,11 +889,25 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             //                in practice means the tenant is still trading there. The office keeps collecting from
             //                them, so the account also remains in the arrears and follow-up lists. Saying it was
             //                "excluded from current billing and delinquency" was untrue for 57 of Cantilan's 58.
-            var handedOver = occupancy.Contract.EndedOn is not null
-                || occupanciesByStall[stall.Id].Any(o => o.Start > occupancy.Start);
+            //
+            // A fourth case: the SAME lessee took a fresh term. Stall 23 was Vincent E. Doloriel renewing his own
+            // space, and reading "Handed over" beside a stall he is still trading in — with an "Assign new stall"
+            // button — told the office both that he had gone and that the space was free to offer.
+            var later = occupanciesByStall[stall.Id]
+                .Where(o => o.Start > occupancy.Start)
+                .OrderBy(o => o.Start)
+                .FirstOrDefault();
+            var sameLessee = later is not null
+                && string.Equals(
+                    (later.Contract.ActualOccupant ?? string.Empty).Trim(),
+                    (contract.ActualOccupant ?? string.Empty).Trim(),
+                    StringComparison.OrdinalIgnoreCase);
+
             var state = isClosed
                 ? InactiveAccountState.Closed
-                : handedOver ? InactiveAccountState.Superseded : InactiveAccountState.Lapsed;
+                : sameLessee ? InactiveAccountState.Renewed
+                : later is not null || occupancy.Contract.EndedOn is not null ? InactiveAccountState.Superseded
+                : InactiveAccountState.Lapsed;
 
             result.Add(new ClosedStallAccountDto(
                 stall.Id,

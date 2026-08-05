@@ -315,3 +315,12 @@
     font-weight: 400;
     color: var(--text-muted);
 }
+
+/* The account count under a summary figure, so a peso amount never stands without saying how many it covers. */
+.ca-sum-sub {
+    margin-top: 3px;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+}
+

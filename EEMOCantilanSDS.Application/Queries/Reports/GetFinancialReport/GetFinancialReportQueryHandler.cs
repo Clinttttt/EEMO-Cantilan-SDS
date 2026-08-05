@@ -429,7 +429,10 @@ public class GetFinancialReportQueryHandler(
         Name: string.IsNullOrWhiteSpace(d.Occupant) ? "Unoccupied / unnamed" : d.Occupant,
         FacilityCode: d.FacilityCode,
         StallNo: d.StallNo,
-        Location: $"{d.FacilityCode} · Stall {d.StallNo}",
+        Location: string.IsNullOrWhiteSpace(d.Section)
+            ? $"{d.FacilityCode} · Stall {d.StallNo}"
+            // The market numbers per section, so three different payors would all read "NPM · Stall 1".
+            : $"{d.FacilityCode} · {d.Section} · Stall {d.StallNo}",
         Balance: d.OutstandingBalance,
         UnpaidMonths: d.MonthsUnpaid,
         TermLapsed: d.TermLapsed);

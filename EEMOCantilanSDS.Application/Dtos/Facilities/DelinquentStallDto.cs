@@ -22,5 +22,6 @@ public record DelinquentStallDto(
     int MonthsUnpaid,
     decimal OutstandingBalance,
     Guid? StallId = null,
-    bool TermLapsed = false
+    bool TermLapsed = false,
+    string Section = ""
 );

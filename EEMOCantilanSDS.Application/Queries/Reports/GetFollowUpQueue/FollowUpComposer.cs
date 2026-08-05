@@ -318,13 +318,23 @@ public static class FollowUpComposer
         // office cannot act on. One row per outstanding account that nothing above already covers.
         if (endedOccupancies is not null)
         {
-            var alreadyListed = items
+            // Keyed on the stall's identity where it is known. The market numbers spaces per section, so NPM has
+            // three stalls called "1"; a facility-and-number key made them collide, and an ended occupancy on one
+            // of them was silently dropped because a different stall sharing the number was already listed. The
+            // number key is kept as a fallback for rows that carry no identity.
+            var listedStallIds = items
+                .Where(i => i.StallId is not null)
+                .Select(i => i.StallId!.Value)
+                .ToHashSet();
+            var listedByNumber = items
+                .Where(i => i.StallId is null)
                 .Select(i => Key(i.Facility, i.Identifier.Replace("Stall ", string.Empty)))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             foreach (var account in endedOccupancies.Where(a => a.Uncollected > 0m))
             {
-                if (alreadyListed.Contains(Key(account.FacilityCode, account.StallNo)))
+                if (listedStallIds.Contains(account.StallId)
+                    || listedByNumber.Contains(Key(account.FacilityCode, account.StallNo)))
                     continue;
 
                 var ended = account.OccupancyEndedOn ?? account.ClosedOn ?? account.ExpiryDate;

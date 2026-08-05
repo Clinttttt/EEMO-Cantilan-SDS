@@ -31,11 +31,19 @@
     int monthsExcused = PaymentHistory.Count(p => p.IsExcused);
     int monthsPaid = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Paid && !p.IsExcused);
     int monthsPartial = PaymentHistory.Count(p => p.Status == Domain.Enums.PaymentStatus.Partial);
-    int monthsUnpaid = experiencedMonths.Count - monthsPaid - monthsPartial - monthsExcused;
     decimal collected = PaymentHistory
         .Where(p => !p.IsExcused && (p.Status == Domain.Enums.PaymentStatus.Paid || p.Status == Domain.Enums.PaymentStatus.Partial))
         .Sum(p => p.AmountPaid);
-    decimal balance = experiencedMonths.Sum(m =>
+
+    // Prefer the server's ledger for the two headline figures. Its rules are the ones every other money screen
+    // uses; the fallback below is only for a caller that supplies no ledger.
+    var ledger = Ledger(Stall);
+
+    int monthsUnpaid = ledger?.MonthsUnpaid
+        // A part-paid month is still outstanding: ₱120 against a ₱900 month leaves the month owed. Counting only
+        // the months with no record at all reported a part payor as fully up to date.
+        ?? (experiencedMonths.Count - monthsPaid - monthsExcused);
+    decimal balance = ledger?.TotalOutstanding ?? experiencedMonths.Sum(m =>
     {
         var rec = PaymentHistory.FirstOrDefault(p => p.Period == m.ToString("yyyy-MM"));
         return rec is null ? rate
@@ -345,7 +353,10 @@
                     {
                         <div class="ph-balance-alert">
                             <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                            Outstanding: ₱@balance.ToString("N0") · @monthsUnpaid month@(monthsUnpaid != 1 ? "s" : "") unpaid
+                            @* "unpaid" clashed with the arrears list, which counts only months that have CLOSED.
+                               This dialog shows the month in progress as a row and includes its earned days in the
+                               balance, so it counts months carrying a balance. *@
+                            Outstanding: ₱@balance.ToString("N0") · @monthsUnpaid month@(monthsUnpaid != 1 ? "s" : "") with a balance
                         </div>
                     }
                     <button class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
@@ -406,6 +417,16 @@
     private decimal GetPartialAmount(TStall s) => GetProp<decimal?>(s, "PartialAmount") ?? 0m;
     private bool GetIsPartial(TStall s) => GetProp<bool?>(s, "IsPartial") ?? false;
     private DateTime? GetContractDate(TStall s) => GetProp<DateTime?>(s, "ContractDate");
+
+    /// <summary>
+    /// The server's own ledger for this stall, when the caller supplies it. Its figures are the ones the arrears
+    /// lists, the profile card and the register all use: a month is outstanding until its obligation is met, and a
+    /// daily-collected month in progress is billed for the days it has earned, not the whole month. Recomputing
+    /// that here from monthly rows made this dialog say ₱1,800 and "1 month unpaid" beside a card reading ₱1,050
+    /// and an arrears list reading 2 months, for the same stall on the same screen.
+    /// </summary>
+    private EEMOCantilanSDS.Application.Dtos.Payments.StallLedgerSummaryDto? Ledger(TStall? s)
+        => s is null ? null : GetProp<EEMOCantilanSDS.Application.Dtos.Payments.StallLedgerSummaryDto?>(s, "LedgerSummary");
 
     private Dictionary<string, bool> GetPaymentHistory(TStall s)
     {
