@@ -268,6 +268,49 @@
                         </div>
                     </div>
 
+                    @* Earlier occupancies of this space that still owe money. A renewal keeps the same payor, so a
+                       clerk collecting from Vincent E. Doloriel needs to see the ₱32,430 left by his previous term
+                       as well as the ₱990 of his current one — the profile stated only the current term, and the
+                       older debt existed solely on a register the collector never opens. Where the space changed
+                       hands the row names the former lessee, so a payment is never recorded against the wrong
+                       person. Figures come from the same register the office reconciles against. *@
+                    @if (_priorTerms.Count > 0)
+                    {
+                        <div class="prof-card">
+                            <div class="prof-card-header">
+                                <div class="prof-card-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
+                                </div>
+                                <div class="prof-card-title">Earlier Terms on This Stall</div>
+                            </div>
+                            <div class="prof-field-list">
+                                @foreach (var prior in _priorTerms)
+                                {
+                                    <div class="prof-prior">
+                                        <div class="prof-prior-head">
+                                            <span class="prof-prior-who">@prior.Occupant</span>
+                                            <span class="prof-prior-amt">₱@prior.Uncollected.ToString("N0")</span>
+                                        </div>
+                                        <div class="prof-prior-meta">
+                                            @prior.EffectivityDate.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+                                            &ndash;
+                                            @((prior.OccupancyEndedOn ?? prior.ExpiryDate).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture))
+                                            &nbsp;·&nbsp; ₱@prior.LifetimeCollected.ToString("N0") collected
+                                            @if (SamePayorAsNow(prior))
+                                            {
+                                                <span class="prof-prior-tag">Same payor as now</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                <div class="prof-prior-note">
+                                    Uncollected above is not part of this term's balance. It belongs to the term that
+                                    incurred it and is stated in the Register of Inactive Stall Accounts.
+                                </div>
+                            </div>
+                        </div>
+                    }
+
                     <!-- Fees & Utilities -->
                     <div class="prof-card">
                         <div class="prof-card-header">
@@ -721,6 +764,36 @@
     bool IsSavingEdit = false;
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
+
+    /// <summary>
+    /// Terms on THIS stall that have ended and still owe money — the current term is never listed. Read from the
+    /// same register the office reconciles against, so the two documents cannot disagree.
+    /// </summary>
+    private List<ClosedStallAccountDto> _priorTerms = new();
+
+    private async Task LoadPriorTermsAsync()
+    {
+        if (StallGuid == Guid.Empty) return;
+
+        var result = await StallsApi.GetClosedStallAccountsAsync();
+        if (!result.IsSuccess || result.Value is null) return;
+
+        _priorTerms = result.Value
+            .Where(a => a.StallId == StallGuid && a.Uncollected > 0m)
+            .OrderByDescending(a => a.OccupancyEndedOn ?? a.ExpiryDate)
+            .ToList();
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Whether an earlier term was held by the person who holds the stall now — a renewal rather than a handover.
+    /// It decides whether the clerk in front of this payor can collect the older balance from them.
+    /// </summary>
+    private bool SamePayorAsNow(ClosedStallAccountDto prior)
+        => Stall is not null
+        && !string.IsNullOrWhiteSpace(Stall.ActualOccupant)
+        && string.Equals(prior.Occupant?.Trim(), Stall.ActualOccupant.Trim(), StringComparison.OrdinalIgnoreCase);
     string DisplayStallNo = string.Empty;
 
     private bool IsNpm => FacilityId.ToUpper() == "NPM";
@@ -1049,6 +1122,10 @@
         }
         
         IsLoading = false;
+
+        // Earlier terms on this stall load off the critical path, like the collection history below: the profile
+        // paints on its current term and the prior-term card appears when the register answers.
+        _ = LoadPriorTermsAsync();
 
         // Collection history loads off the first-paint critical path: paint the profile now
         // (StateHasChanged), then fetch page 1 while the card shows its own loading state, so a

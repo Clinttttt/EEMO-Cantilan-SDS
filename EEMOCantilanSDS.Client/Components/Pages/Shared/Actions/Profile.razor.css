@@ -1323,3 +1323,54 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Earlier terms on this stall: facts and figures, no colour of their own. */
+.prof-prior {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.prof-prior:last-of-type {
+    border-bottom: none;
+}
+
+.prof-prior-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.prof-prior-who {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.prof-prior-amt {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.prof-prior-meta {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.prof-prior-tag {
+    margin-left: 6px;
+    padding: 1px 5px;
+    font-size: 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+}
+
+.prof-prior-note {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
