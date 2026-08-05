@@ -83,6 +83,12 @@ public class GetFollowUpHistoryQueryHandler(
                 .Where(c => c.IsExpired)
                 .ToList();
 
+            // NOTE: the whole-time view deliberately passes no delinquency yet, which is why its Delinquent and
+            // Arrears chips read 0 while these accounts sit under "Contract expired". Passing the real list is a
+            // one-line change but not a safe one: the contract loop below does not skip stalls already counted as
+            // delinquent, so a lapsed account would produce BOTH a Delinquent row and a Contract expired row, each
+            // stating a balance, and the page total would count the same debt twice. Fixing it properly means
+            // deciding that a contract row is about renewal and carries no money once a delinquency row states it.
             return FollowUpComposer.Compose(
                 year, month, PhilippineTime.Today,
                 Array.Empty<DelinquentStallDto>(),
