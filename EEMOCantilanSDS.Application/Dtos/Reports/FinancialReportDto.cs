@@ -62,7 +62,8 @@ public record AttentionAccountDto(
     string Location,
     decimal Balance,
     int UnpaidMonths,
-    bool TermLapsed = false
+    bool TermLapsed = false,
+    Guid? StallId = null
 );
 
 public record ReportTrendPointDto(

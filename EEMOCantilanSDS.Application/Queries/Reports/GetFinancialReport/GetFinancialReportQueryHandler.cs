@@ -435,7 +435,10 @@ public class GetFinancialReportQueryHandler(
             : $"{d.FacilityCode} · {d.Section} · Stall {d.StallNo}",
         Balance: d.OutstandingBalance,
         UnpaidMonths: d.MonthsUnpaid,
-        TermLapsed: d.TermLapsed);
+        TermLapsed: d.TermLapsed,
+        // Carried so the row can link to the stall itself. A facility-and-number link opened whichever of the
+        // market's three "Stall 1" spaces the lookup happened to find first.
+        StallId: d.StallId);
 
     /// <summary>
     /// The trend window, matching the repo's RevenueTrend: Monthly = last 6 months (label "MMM yyyy"),

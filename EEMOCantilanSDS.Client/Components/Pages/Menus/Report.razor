@@ -276,7 +276,7 @@
                         }
                         @foreach (var d in delinquentRows)
                         {
-                            <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
+                            <a href="@ProfileUrl(d)" class="delinq-item-link">
                                 <div class="delinq-item">
                                     <div class="delinq-avatar">@Initials(d.Name)</div>
                                     <div class="delinq-info">
@@ -320,7 +320,7 @@
                         }
                         @foreach (var d in arrearsRows)
                         {
-                            <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
+                            <a href="@ProfileUrl(d)" class="delinq-item-link">
                                 <div class="delinq-item">
                                     <div class="delinq-avatar">@Initials(d.Name)</div>
                                     <div class="delinq-info">
@@ -859,6 +859,16 @@
 
     private static string ProfileUrl(FacilityCode code, string stallNo) =>
         $"/profile/{code.ToString().ToLower()}/{stallNo}";
+
+    /// <summary>
+    /// Links an attention row to the stall itself. The market numbers spaces per section, so "Stall 1" exists three
+    /// times over in New Public Market and a facility-and-number link opened whichever one the lookup found first —
+    /// Ana Reyes's row could open Pantom Dant's profile. The route accepts a stall id, so use it when we have one.
+    /// </summary>
+    private static string ProfileUrl(AttentionAccountDto row) =>
+        row.StallId is { } id && id != Guid.Empty
+            ? $"/profile/{row.FacilityCode.ToString().ToLower()}/{id}"
+            : ProfileUrl(row.FacilityCode, row.StallNo);
 
     public sealed record FinancialReportPageState(
         string ActiveTab,
