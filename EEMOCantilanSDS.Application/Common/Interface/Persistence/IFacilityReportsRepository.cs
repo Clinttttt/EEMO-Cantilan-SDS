@@ -60,6 +60,20 @@ public interface IFacilityReportsRepository
     );
 
     /// <summary>
+    /// As above, but <paramref name="wholeAccount"/> counts from where each account itself began rather than over a
+    /// rolling twelve months. The Financial Reports want the whole figure, so it agrees with the register; a
+    /// period-scoped screen must not, or a row headed with one year states a count of thirty-seven months.
+    /// </summary>
+    Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility,
+        int year,
+        int month,
+        bool includeClosed,
+        bool wholeAccount,
+        CancellationToken ct
+    );
+
+    /// <summary>
     /// Per-stall recognized fish kilos for NPM in the given billing month — the volume behind the
     /// ₱1/kg fish fee. Mirrors the fee-type breakdown rule (a stall's whole-month paid monthly record
     /// FishKilos, otherwise its collectable paid daily-collection kilos). Key = StallId; stalls with

@@ -340,6 +340,16 @@ public partial class FacilityReportsRepository
     /// </summary>
     public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
         FacilityCode? facility, int year, int month, bool includeClosed, CancellationToken ct)
+        => await GetDelinquentStallsAsync(facility, year, month, includeClosed, wholeAccount: false, ct);
+
+    /// <summary>
+    /// <paramref name="wholeAccount"/> chooses the span. False counts a rolling twelve months to the anchor, which
+    /// is what a period-scoped screen must state: a row headed "January – December 2026" cannot carry a count of
+    /// thirty-seven months. True counts from where each account itself began, which is what the Financial Reports
+    /// state so their figures agree with the register and the whole-time history.
+    /// </summary>
+    public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
+        FacilityCode? facility, int year, int month, bool includeClosed, bool wholeAccount, CancellationToken ct)
     {
         var facilities = await _context.Facilities
             .AsNoTracking()
@@ -368,7 +378,11 @@ public partial class FacilityReportsRepository
         var end = new DateOnly(year, month, 1).AddDays(-1);
         if (end > lastElapsed) end = lastElapsed;
 
-        var start = new DateOnly(await GetEarliestActivityYearAsync(ct), 1, 1);
+        var start = wholeAccount
+            ? new DateOnly(await GetEarliestActivityYearAsync(ct), 1, 1)
+            // A rolling twelve months, crossing the year boundary. Counting from January of the end year would say a
+            // payor who last paid in October was one month behind on the first of February.
+            : new DateOnly(end.Year, end.Month, 1).AddMonths(-11);
         if (end < start) return Array.Empty<DelinquentStallDto>();
 
         // The tenant's own NPM rates. Every other entry point loads them; this one relied on a sibling report

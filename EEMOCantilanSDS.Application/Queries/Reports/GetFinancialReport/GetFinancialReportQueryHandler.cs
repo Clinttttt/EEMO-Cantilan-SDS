@@ -259,7 +259,7 @@ public class GetFinancialReportQueryHandler(
         // Attention & follow-up: shared rolling-window delinquency (cumulative balance, excludes the
         // current month), classified by unpaid months — identical source to the dashboard.
         var anchorMonth = request.Month ?? PhilippineTime.Today.Month;
-        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, request.Year, anchorMonth, includeClosed: true, ct);
+        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, request.Year, anchorMonth, includeClosed: true, wholeAccount: true, ct);
 
         var delinquent = delinquency
             .Where(d => d.MonthsUnpaid >= 3)

@@ -95,7 +95,7 @@ public class ArrearsCountingTests(PostgresFixture db)
 
         await using var read = db.CreateContext(seeded.MunicipalityId);
         var arrears = await new FacilityReportsRepository(read)
-            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, includeClosed: false, wholeAccount: true, CancellationToken.None);
 
         var row = Assert.Single(arrears);
         Assert.Equal(18, row.MonthsUnpaid);                       // every closed month of the account
@@ -115,7 +115,10 @@ public class ArrearsCountingTests(PostgresFixture db)
 
         await using var read = db.CreateContext(seeded.MunicipalityId);
         var repo = new FacilityReportsRepository(read);
-        var arrears = await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+        // The whole-account span, which is what the Financial Reports state. A period screen asks the same source
+        // for a rolling twelve months instead, and says so.
+        var arrears = await repo.GetDelinquentStallsAsync(
+            FacilityCode.TCC, Today.Year, Today.Month, includeClosed: false, wholeAccount: true, CancellationToken.None);
 
         var row = Assert.Single(arrears);
         // Every month from June 2023 to the term's end, June 2026, at ₱900 — the same 37 months and ₱33,300 the

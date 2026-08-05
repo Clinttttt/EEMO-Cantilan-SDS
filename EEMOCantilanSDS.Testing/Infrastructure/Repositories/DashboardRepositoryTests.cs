@@ -42,15 +42,14 @@ public class DashboardRepositoryTests : RepositoryTestBase
         Assert.Equal("Juan Dela Cruz", tx.PayorName);
         Assert.Equal(900m, tx.Amount);
 
-        // Both stalls are behind for every month of their account that has closed: the contracts run from January
-        // 2025 and the anchor is June 2026, so January 2025 – May 2026 is seventeen months. An NPM month is settled
-        // when its rent is met, and neither stall has a daily collection or a fully-paid record for any of them
-        // (the one Paid record is June 2026, the anchor month, excluded as still in progress). This is the figure
-        // the register and the Follow-up History state for the same account — the count used to stop at twelve
-        // months, which quietly reported ₱9,900 where ₱33,300 was owed.
+        // The dashboard is a period screen, so it counts a rolling twelve months to the anchor — June 2025 to May
+        // 2026 here. An NPM month is settled when its rent is met, and neither stall has a daily collection or a
+        // fully-paid record for any of them (the one Paid record is June 2026, the anchor month, excluded as still
+        // in progress). The Financial Reports ask the same source for each account's WHOLE position instead, which
+        // is why a long-standing account reads 37 months there and twelve here; each screen says which it means.
         Assert.Equal(2, overview.DelinquentVendors.Count);
         var delinquent = Assert.Single(overview.DelinquentVendors, d => d.Name == "Maria Santos");
-        Assert.Equal(17, delinquent.MonthsUnpaid);
+        Assert.Equal(12, delinquent.MonthsUnpaid);
     }
 
     [Fact]
