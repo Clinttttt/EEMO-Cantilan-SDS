@@ -52,14 +52,17 @@ public record FinancialReportDto(
     decimal ClosedWithBalanceOutstanding = 0m
 );
 
-/// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing.</summary>
+/// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing, and
+/// <see cref="TermLapsed"/> marks an account whose term has run out while the space was never handed over — still
+/// collected, but the office needs to see that it also wants renewing.</summary>
 public record AttentionAccountDto(
     string Name,
     FacilityCode FacilityCode,
     string StallNo,
     string Location,
     decimal Balance,
-    int UnpaidMonths
+    int UnpaidMonths,
+    bool TermLapsed = false
 );
 
 public record ReportTrendPointDto(

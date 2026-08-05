@@ -431,7 +431,8 @@ public class GetFinancialReportQueryHandler(
         StallNo: d.StallNo,
         Location: $"{d.FacilityCode} · Stall {d.StallNo}",
         Balance: d.OutstandingBalance,
-        UnpaidMonths: d.MonthsUnpaid);
+        UnpaidMonths: d.MonthsUnpaid,
+        TermLapsed: d.TermLapsed);
 
     /// <summary>
     /// The trend window, matching the repo's RevenueTrend: Monthly = last 6 months (label "MMM yyyy"),

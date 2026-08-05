@@ -218,8 +218,15 @@ public partial class FacilityReportsRepository
                     .Select(pr => pr.ORNumber)
                     .FirstOrDefault();
             }
-            else if (periodPayments.TryGetValue(s.Id, out var payments) && payments.Count > 0)
+            else if (periodPayments.TryGetValue(s.Id, out var allPayments) && allPayments.Count > 0)
             {
+                // Only records from the present account onwards: a previous occupancy's payments are credited to
+                // that occupancy by the register, and crediting them here as well would settle the sitting
+                // lessee's rent with money someone else paid.
+                var payments = allPayments
+                    .Where(pr => pr.BillingYear > accountStart.Year
+                        || (pr.BillingYear == accountStart.Year && pr.BillingMonth >= accountStart.Month))
+                    .ToList();
                 // Monthly-billed facilities (TCC/NCC/BBQ/ICE): the bill is the FULL rent obligation
                 // due across every month the contract is effective in the period (so unpaid months
                 // without a record still count), plus any utilities actually billed on in-period
@@ -346,20 +353,22 @@ public partial class FacilityReportsRepository
         if (targets.Count == 0)
             return Array.Empty<DelinquentStallDto>();
 
-        // The span the count is about: whole months that have already elapsed, ending the day before the anchor
-        // month begins. A month still underway is never "missed" — a payor is not in arrears for a month they can
-        // still pay — and neither is a month that has not arrived, so a future anchor (the Yearly view offers
-        // every month) is clamped to the last month that has actually ended. Without the clamp the balance
-        // included the month in progress while the count did not, and the row read "7 months" beside eight
-        // months of money.
+        // The span the count is about: every month of each account that has already closed. A month still underway
+        // is never "missed" — a payor is not in arrears for a month they can still pay — and neither is a month that
+        // has not arrived, so a future anchor (the Yearly view offers every month) is clamped to the last month that
+        // has actually ended.
+        //
+        // It used to be a rolling twelve months, which made the Financial Reports state ₱9,900 for an account the
+        // register and the whole-time Follow-up History both stated at ₱33,300: the same debt, silently truncated,
+        // and the smaller figure is the one that reaches a demand letter. The walk now begins at the tenant's first
+        // year of activity and each stall's own account start does the rest of the clamping, so a row states its
+        // whole outstanding — 37 months where 37 months are owed. There is no year boundary left to fall over.
         var today = PhilippineTime.Today;
         var lastElapsed = new DateOnly(today.Year, today.Month, 1).AddDays(-1);
         var end = new DateOnly(year, month, 1).AddDays(-1);
         if (end > lastElapsed) end = lastElapsed;
 
-        // Twelve months back, crossing the year boundary. Counting from January of the end year would have said a
-        // payor who last paid in October was one month behind on the first of February.
-        var start = new DateOnly(end.Year, end.Month, 1).AddMonths(-11);
+        var start = new DateOnly(await GetEarliestActivityYearAsync(ct), 1, 1);
         if (end < start) return Array.Empty<DelinquentStallDto>();
 
         // The tenant's own NPM rates. Every other entry point loads them; this one relied on a sibling report
@@ -376,6 +385,21 @@ public partial class FacilityReportsRepository
                 .ToListAsync(ct))
             .ToHashSet();
 
+        // Accounts whose term has run out while the space was never handed over. The office is still collecting
+        // from them — that is why they are on this list — but the row should say so, or a lapsed tenancy is
+        // indistinguishable from a live one and the office cannot tell whether to renew or to chase. One query for
+        // the tenant, not one per facility.
+        var lapsedStallIds = (await _context.Stalls
+                .AsNoTracking()
+                .Include(s => s.Contracts)
+                .Where(s => s.Status == StallStatus.Active && s.Contracts.Any())
+                .ToListAsync(ct))
+            .Where(s => s.Occupancies(today).LastOrDefault() is { } newest
+                && !newest.IsCurrent
+                && newest.Contract.EndedOn is null)
+            .Select(s => s.Id)
+            .ToHashSet();
+
         var results = new List<DelinquentStallDto>();
         foreach (var target in targets)
         {
@@ -384,7 +408,8 @@ public partial class FacilityReportsRepository
             results.AddRange(compliance
                 .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
                 .Select(r => new DelinquentStallDto(
-                    target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId)));
+                    target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId,
+                    TermLapsed: lapsedStallIds.Contains(r.StallId))));
         }
 
         return results

@@ -28,7 +28,7 @@ public class ArrearsCountingTests(PostgresFixture db)
         => SeedMonthlyStallAsync(code, monthlyRate, new DateOnly(Today.Year, contractStartMonth, 1));
 
     private async Task<(Guid MunicipalityId, Guid FacilityId, Guid StallId)> SeedMonthlyStallAsync(
-        string code, decimal monthlyRate, DateOnly contractStart)
+        string code, decimal monthlyRate, DateOnly contractStart, int years = 5)
     {
         var municipality = Municipality.Create(code, $"Municipality {code}", "Surigao del Sur",
             MunicipalityStatus.Active, tenantCode: code.ToLowerInvariant());
@@ -45,7 +45,7 @@ public class ArrearsCountingTests(PostgresFixture db)
         var stall = Stall.Create(facility.Id, "7", monthlyRate, ApplicableFees.BaseRental,
             municipalityId: municipality.Id);
         var contract = Contract.Create(stall.Id, "Maria Santos", "Maria Santos",
-            contractStart, 5, monthlyRate);
+            contractStart, years, monthlyRate);
 
         await using (var tenant = db.CreateContext(municipality.Id))
         {
@@ -87,8 +87,9 @@ public class ArrearsCountingTests(PostgresFixture db)
         await db.ResetAsync();
 
         // A stall let 18 months ago that never paid. Counting from January of the anchor's year would have said it
-        // was one month behind on the first of February — the count now walks a rolling twelve months, so the debt
-        // does not reset when the calendar does.
+        // was one month behind on the first of February; a rolling twelve months would have stopped at twelve. The
+        // count runs from where the account began, so every closed month of it is owed and no calendar boundary
+        // changes the answer.
         var start = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-18);
         var seeded = await SeedMonthlyStallAsync("ARR-F", 1_000m, contractStart: start);
 
@@ -97,8 +98,31 @@ public class ArrearsCountingTests(PostgresFixture db)
             .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
 
         var row = Assert.Single(arrears);
-        Assert.Equal(12, row.MonthsUnpaid);                       // the whole rolling window is owed
-        Assert.Equal(12_000m, row.OutstandingBalance);
+        Assert.Equal(18, row.MonthsUnpaid);                       // every closed month of the account
+        Assert.Equal(18_000m, row.OutstandingBalance);
+    }
+
+    [SkippableFact]
+    public async Task AnAccountBehindForYears_StatesItsWholeOutstanding_MatchingTheRegister()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // Iceplant stall 7's shape: let June 2023 for three years at ₱900, never collected on, term now lapsed.
+        // The register states ₱33,300 for it; the Financial Reports used to state ₱9,900, being the last twelve
+        // months only, and it is the smaller figure that reaches a demand letter. Both now say the same thing.
+        var seeded = await SeedMonthlyStallAsync("ARR-W", 900m, new DateOnly(2023, 6, 7), years: 3);
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var repo = new FacilityReportsRepository(read);
+        var arrears = await repo.GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, CancellationToken.None);
+
+        var row = Assert.Single(arrears);
+        // Every month from June 2023 to the term's end, June 2026, at ₱900 — the same 37 months and ₱33,300 the
+        // register states. Nothing is owed after the term lapsed, which is a separate question from this one.
+        Assert.Equal(37, row.MonthsUnpaid);
+        Assert.Equal(33_300m, row.OutstandingBalance);
+        Assert.True(row.TermLapsed, "the term ran out and nothing was handed over, so the row says so");
     }
 
     [SkippableFact]

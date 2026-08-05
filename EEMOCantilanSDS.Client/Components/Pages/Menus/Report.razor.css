@@ -621,9 +621,45 @@
    ══════════════════════════════════════════════════════════════ */
 .delinq-list {
     padding: 0;
-    /* Show ~10 rows (each ≈48px), then scroll — keeps a long follow-up list compact. */
-    max-height: 480px;
+    /* Five rows (each ≈53px with its border), then scroll. The section carries two of these side by side, so a
+       fifty-account list would otherwise push the rest of the report off the page. */
+    max-height: 265px;
     overflow-y: auto;
+}
+
+/* Per-column search: quiet, aligned to the rows below it, no colour of its own. */
+.attn-search {
+    padding: 0 22px 10px;
+}
+
+    .attn-search input {
+        width: 100%;
+        padding: 7px 10px;
+        font: inherit;
+        font-size: 12px;
+        color: var(--text-primary);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+
+    .attn-search input:focus {
+        outline: none;
+        border-color: var(--text-muted);
+    }
+
+/* States the account's term has run out while the tenant is still there — it is collected, and it wants renewing. */
+.attn-lapsed {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 3px;
 }
 
 .delinq-item {

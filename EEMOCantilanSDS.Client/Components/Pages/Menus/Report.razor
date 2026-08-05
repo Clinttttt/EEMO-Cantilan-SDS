@@ -245,17 +245,12 @@
             <div class="section-header">
                 <div>
                     <div class="section-title">Attention &amp; Follow-up</div>
-                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) owed over the last twelve months</div>
-                    @* The count and the money are both bounded to the twelve months ending with the last month that
-                       has closed. An account let years ago and never collected on therefore reads its last twelve
-                       months here, not its whole term: Iceplant stall 7 shows ₱9,900 while the Closed / Inactive
-                       register and the whole-time Follow-up History state its full ₱33,300. Saying "outstanding"
-                       without the span invited the smaller figure onto a demand letter. *@
-                    <div class="section-sub rpt-attention-span">
-                        Whole-term balances are in the
-                        <a href="/reports/follow-up/history">Follow-up History</a> (whole time) and the
-                        <a href="/reports/closed-accounts">Closed / Inactive register</a>.
-                    </div>
+                    <div class="section-sub">@(Model.Delinquent.Count + Model.Arrears.Count) accounts need follow-up · @Money(Model.Delinquent.Sum(d => d.Balance) + Model.Arrears.Sum(a => a.Balance)) outstanding in full</div>
+                    @* Each row states its account's whole unsettled position — every month since the occupancy began
+                       that has closed, and what those months add up to. This is the same figure the Closed /
+                       Inactive register and the whole-time Follow-up History state for the same account. It used to
+                       be the last twelve months only, so an account owing ₱33,300 was reported at ₱9,900. *@
+                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @LastClosedMonthLabel — the month in progress is not yet unpaid.</div>
                 </div>
             </div>
             <div class="rpt-attention">
@@ -265,19 +260,34 @@
                         <span class="attn-count attn-count-red">@Model.Delinquent.Count</span>
                     </div>
                     <div class="attn-col-note">3 or more unpaid months</div>
+                    <div class="attn-search">
+                        <input type="search" value="@_delinquentSearch" @oninput="e => _delinquentSearch = e.Value?.ToString() ?? string.Empty"
+                               placeholder="Search name or stall no.…" aria-label="Search delinquent accounts" />
+                    </div>
                     <div class="delinq-list">
+                        @{ var delinquentRows = Filtered(Model.Delinquent, _delinquentSearch); }
                         @if (Model.Delinquent.Count == 0)
                         {
                             <div class="rpt-empty">No delinquent accounts for @PeriodLabel.</div>
                         }
-                        @foreach (var d in Model.Delinquent)
+                        else if (delinquentRows.Count == 0)
+                        {
+                            <div class="rpt-empty">No delinquent account matches “@_delinquentSearch”.</div>
+                        }
+                        @foreach (var d in delinquentRows)
                         {
                             <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
                                 <div class="delinq-item">
                                     <div class="delinq-avatar">@Initials(d.Name)</div>
                                     <div class="delinq-info">
                                         <div class="delinq-name">@d.Name</div>
-                                        <div class="delinq-loc">@d.Location</div>
+                                        <div class="delinq-loc">
+                                            @d.Location
+                                            @if (d.TermLapsed)
+                                            {
+                                                <span class="attn-lapsed" title="The contract term has run out and the space was not handed over. Still collected; needs renewing.">Lapsed</span>
+                                            }
+                                        </div>
                                     </div>
                                     <div class="delinq-amount">
                                         <div class="delinq-amt-val">@Money(d.Balance)</div>
@@ -294,19 +304,34 @@
                         <span class="attn-count attn-count-amber">@Model.Arrears.Count</span>
                     </div>
                     <div class="attn-col-note">1–2 unpaid months</div>
+                    <div class="attn-search">
+                        <input type="search" value="@_arrearsSearch" @oninput="e => _arrearsSearch = e.Value?.ToString() ?? string.Empty"
+                               placeholder="Search name or stall no.…" aria-label="Search accounts in arrears" />
+                    </div>
                     <div class="delinq-list">
+                        @{ var arrearsRows = Filtered(Model.Arrears, _arrearsSearch); }
                         @if (Model.Arrears.Count == 0)
                         {
                             <div class="rpt-empty">No accounts in arrears for @PeriodLabel.</div>
                         }
-                        @foreach (var d in Model.Arrears)
+                        else if (arrearsRows.Count == 0)
+                        {
+                            <div class="rpt-empty">No account in arrears matches “@_arrearsSearch”.</div>
+                        }
+                        @foreach (var d in arrearsRows)
                         {
                             <a href="@ProfileUrl(d.FacilityCode, d.StallNo)" class="delinq-item-link">
                                 <div class="delinq-item">
                                     <div class="delinq-avatar">@Initials(d.Name)</div>
                                     <div class="delinq-info">
                                         <div class="delinq-name">@d.Name</div>
-                                        <div class="delinq-loc">@d.Location</div>
+                                        <div class="delinq-loc">
+                                            @d.Location
+                                            @if (d.TermLapsed)
+                                            {
+                                                <span class="attn-lapsed" title="The contract term has run out and the space was not handed over. Still collected; needs renewing.">Lapsed</span>
+                                            }
+                                        </div>
                                     </div>
                                     <div class="delinq-amount">
                                         <div class="delinq-amt-val amber">@Money(d.Balance)</div>
@@ -791,7 +816,30 @@
 
     private static string Money(decimal v) => "₱" + v.ToString("N0");
 
+    // The last month that has actually closed — what the attention figures are counted up to.
+    private static string LastClosedMonthLabel =>
+        new DateOnly(EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year,
+                     EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month, 1)
+            .AddMonths(-1)
+            .ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
     private static string MonthsLabel(int months) => $"{months} unpaid month{(months == 1 ? "" : "s")}";
+
+    // Per-column search over the two attention lists. Both are already loaded, so filtering happens here rather
+    // than as another request: the office types a name to find one account among dozens without leaving the page.
+    private string _delinquentSearch = "";
+    private string _arrearsSearch = "";
+
+    private static IReadOnlyList<AttentionAccountDto> Filtered(IReadOnlyList<AttentionAccountDto> rows, string search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return rows;
+        var term = search.Trim();
+        return rows
+            .Where(r => r.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || r.StallNo.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || r.Location.Contains(term, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
 
     private static string Initials(string name)
     {

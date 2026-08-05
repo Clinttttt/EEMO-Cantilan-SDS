@@ -40,7 +40,8 @@ public class ReportPageTests : TestContext
         PreviousPeriodLabel: "February 2026",
         Delinquent: new List<AttentionAccountDto>
         {
-            new("Rosa Magbanua", FacilityCode.TCC, "04", "TCC · Stall 04", 4_800m, 3)
+            new("Rosa Magbanua", FacilityCode.TCC, "04", "TCC · Stall 04", 4_800m, 3),
+            new("Merlita A. Abuso", FacilityCode.ICE, "7", "ICE · Stall 7", 33_300m, 37, TermLapsed: true)
         },
         Arrears: new List<AttentionAccountDto>
         {
@@ -149,5 +150,47 @@ public class ReportPageTests : TestContext
         Assert.Contains("Fish", cut.Markup);      // fish split line
         Assert.Contains("Electricity", cut.Markup); // electricity & water utility breakdown
         Assert.Contains("₱320", cut.Markup);        // electricity collected
+    }
+
+    [Fact]
+    public void AttentionList_MarksALapsedTerm_AndStatesTheWholeOutstanding()
+    {
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() =>
+        {
+            // The whole unsettled position, not a twelve-month slice: 37 months and ₱33,300, which is what the
+            // Closed / Inactive register states for the same account.
+            Assert.Contains("37 unpaid months", cut.Markup);
+            Assert.Contains("33,300", cut.Markup);
+
+            // And the row says the term has run out, so the office can tell a lapsed tenancy from a live one
+            // without opening the register.
+            var lapsed = cut.FindAll(".attn-lapsed");
+            Assert.Single(lapsed);
+            Assert.Equal("Lapsed", lapsed[0].TextContent.Trim());
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void AttentionList_SearchFiltersEachColumnIndependently()
+    {
+        var cut = RenderReport(SampleReport());
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".attn-search input").Count), RenderTimeout);
+
+        // Typing in the delinquent column's box narrows that column and leaves the arrears column alone.
+        cut.FindAll(".attn-search input")[0].Input("merlita");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Merlita A. Abuso", cut.Markup);
+            Assert.DoesNotContain("Rosa Magbanua", cut.Markup);
+            Assert.Contains("Jose Dalumpines", cut.Markup);
+        }, RenderTimeout);
+
+        // A term with no match says so rather than showing an empty panel.
+        cut.FindAll(".attn-search input")[0].Input("zzzz");
+        cut.WaitForAssertion(() => Assert.Contains("No delinquent account matches", cut.Markup), RenderTimeout);
     }
 }
