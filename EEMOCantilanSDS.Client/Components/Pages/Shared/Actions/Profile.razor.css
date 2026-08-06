@@ -583,7 +583,10 @@
 
 .prof-hist-summary {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* One row, however many figures there are: a fifth (an earlier term's balance) must not wrap onto a line of
+       its own, which reads as a separate section rather than one set of totals. */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 0 18px 14px;
 }
@@ -596,9 +599,11 @@
     text-align: center;
 }
 
+    /* No wash and no coloured border. A figure that is owed is stated, not alarmed about; the amount itself
+       already carries the emphasis. */
     .prof-hist-stat.stat-warn {
-        background: var(--red-bg);
-        border-color: #d9b0b0;
+        background: var(--bg-subtle);
+        border-color: var(--border);
     }
 
 .prof-hist-stat-val {
