@@ -374,16 +374,24 @@
                                             &nbsp;·&nbsp; ₱@prior.LifetimeCollected.ToString("N0") collected
                                             @if (OccupantNameMatchesCurrentTerm(prior))
                                             {
-                                                <span class="prof-prior-tag" title="The name on this earlier term is the same as the name on the current term. Confirm identity before collecting against it — the system holds occupant names as text, not as a payor record.">Occupant name matches current term</span>
+                                                <span class="prof-prior-tag" title="The lessee named on this earlier term is recorded under the same name as the current term. Verify identity before recording a collection against it.">Lessee of record on the current term</span>
                                             }
                                         </div>
+                                        @if (prior.Uncollected > 0m && OccupantNameMatchesCurrentTerm(prior) && prior.ContractId != Guid.Empty)
+                                        {
+                                            @* The balance is the sitting lessee's, so it is collectable at the counter. The payment is
+                                               posted against the term that incurred it — never the current one — which is what the
+                                               contract reference on this row is for. *@
+                                            <button type="button" class="prof-prior-pay" @onclick="() => OpenPriorTermPayment(prior)">
+                                                Record payment on this term
+                                            </button>
+                                        }
                                     </div>
                                 }
                                 <div class="prof-prior-note">
                                     Uncollected above is not part of this term's balance. It belongs to the term that
                                     incurred it and is stated in the Register of Inactive Stall Accounts.
-                                </div>
-                            </div>
+                                </div>                            </div>
                         </div>
                     }
 
@@ -750,6 +758,16 @@
      (/reports/collections). The hero "Manage Collection" button links there.
 ---------------------------------------------- -->
 
+@* Collecting an earlier term's balance. The payment is posted against that term's own contract, so the money is
+   never credited to the term in force — the two are separate accounts of the same space. *@
+<PayBillModal Show="@(_priorTermPayment is not null)"
+              StallId="@(_priorTermPayment?.StallId ?? Guid.Empty)"
+              Facility="@(_priorTermPayment?.FacilityCode ?? FacilityCode.NPM)"
+              StallNo="@(_priorTermPayment?.StallNo ?? string.Empty)"
+              Occupant="@(_priorTermPayment?.Occupant ?? string.Empty)"
+              ContractId="@(_priorTermPayment?.ContractId)"
+              OnClose="ClosePriorTermPayment"
+              OnChanged="OnPriorTermPaid" />
 
 @code {
 
@@ -800,6 +818,20 @@
         => Stall is not null
         && !string.IsNullOrWhiteSpace(Stall.ActualOccupant)
         && string.Equals(prior.Occupant?.Trim(), Stall.ActualOccupant.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The earlier term a collection is being recorded against, or null when the dialog is closed.</summary>
+    private ClosedStallAccountDto? _priorTermPayment;
+
+    private void OpenPriorTermPayment(ClosedStallAccountDto prior) => _priorTermPayment = prior;
+
+    private void ClosePriorTermPayment() => _priorTermPayment = null;
+
+    private async Task OnPriorTermPaid()
+    {
+        _priorTermPayment = null;
+        await LoadStallData();
+        await LoadPriorTermsAsync();
+    }
     string DisplayStallNo = string.Empty;
 
     private bool IsNpm => FacilityId.ToUpper() == "NPM";
