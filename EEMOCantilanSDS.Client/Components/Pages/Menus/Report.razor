@@ -250,7 +250,7 @@
                        that has closed, and what those months add up to. This is the same figure the Closed /
                        Inactive register and the whole-time Follow-up History state for the same account. It used to
                        be the last twelve months only, so an account owing ₱33,300 was reported at ₱9,900. *@
-                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @LastClosedMonthLabel — the month in progress is not yet unpaid. A lapsed term whose occupant remains is counted here, not as an ended account.</div>
+                    <div class="section-sub rpt-attention-span">Counted from each account's own start to @(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel) — the month in progress is not yet unpaid. A lapsed term whose occupant remains is counted here, not as an ended account.</div>
                 </div>
             </div>
             <div class="rpt-attention">

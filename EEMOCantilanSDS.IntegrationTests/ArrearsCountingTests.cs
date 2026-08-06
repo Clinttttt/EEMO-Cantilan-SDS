@@ -103,6 +103,38 @@ public class ArrearsCountingTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task AnExcusedMonthFromLastYear_IsForgivenByTheCountAsWellAsTheBalance()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+
+        // A monthly-billed stall let 18 months ago, never paid, with one month of LAST year formally excused by the
+        // office. The balance forgave it; the count did not, because the count only looked at excused months of the
+        // anchor year. So the row stated more months behind than its own money — and an account could be pushed from
+        // arrears into delinquency on the strength of a month the office had already written off.
+        var start = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-18);
+        var seeded = await SeedMonthlyStallAsync("ARR-X", 1_000m, contractStart: start);
+
+        var excused = start.AddMonths(2);            // comfortably inside last year
+        await using (var write = db.CreateContext(seeded.MunicipalityId))
+        {
+            write.StallMonthlyExceptions.Add(
+                StallMonthlyException.Create(
+                    seeded.StallId, excused.Year, excused.Month,
+                    MonthlyExceptionReason.TemporaryClosure, "Market wing closed for repair", "Head"));
+            await write.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(seeded.MunicipalityId);
+        var row = Assert.Single(await new FacilityReportsRepository(read)
+            .GetDelinquentStallsAsync(FacilityCode.TCC, Today.Year, Today.Month, includeClosed: false, wholeAccount: true, CancellationToken.None));
+
+        // Seventeen months owed of the eighteen that have closed, and ₱17,000 — the count and the money agree.
+        Assert.Equal(17, row.MonthsUnpaid);
+        Assert.Equal(17_000m, row.OutstandingBalance);
+    }
+
+    [SkippableFact]
     public async Task AnAccountBehindForYears_StatesItsWholeOutstanding_MatchingTheRegister()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? "");

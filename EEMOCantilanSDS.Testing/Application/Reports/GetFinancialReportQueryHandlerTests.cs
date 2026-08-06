@@ -201,6 +201,52 @@ public class GetFinancialReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task AYearlyReport_CoversThatWholeYear_NotUpToTodaysMonth()
+    {
+        var (handler, reports) = Build();
+
+        (int Year, int Month)? asked = null;
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Callback<FacilityCode?, int, int, bool, bool, CancellationToken>((_, y, m, _, _, _) => asked = (y, m))
+            .ReturnsAsync(new List<DelinquentStallDto>());
+
+        var dto = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, 2024, null, null), CancellationToken.None)).Value!;
+
+        // The anchor is the month the figures stop BEFORE, so a 2024 report is anchored at January 2025 and therefore
+        // covers December 2024. It used to borrow today's month — a 2024 report ended on 31 July 2024 and silently
+        // dropped August to December from a printed government report.
+        Assert.Equal((2025, 1), asked);
+
+        // And the page states the span it was given, not the month it happens to be read in.
+        Assert.Equal("December 2024", dto.AttentionSpanLabel);
+    }
+
+    [Fact]
+    public async Task AReportForTheCurrentYear_StaysYearToDate()
+    {
+        var (handler, reports) = Build();
+
+        (int Year, int Month)? asked = null;
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Callback<FacilityCode?, int, int, bool, bool, CancellationToken>((_, y, m, _, _, _) => asked = (y, m))
+            .ReturnsAsync(new List<DelinquentStallDto>());
+
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var dto = (await handler.Handle(
+            new GetFinancialReportQuery(ReportPeriod.Yearly, today.Year, null, null), CancellationToken.None)).Value!;
+
+        // The anchor is still January of next year — the repository clamps it to the last closed month, so the current
+        // year is year-to-date rather than a projected January-to-December receivable.
+        Assert.Equal((today.Year + 1, 1), asked);
+
+        var lastClosed = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        Assert.Equal(lastClosed.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture), dto.AttentionSpanLabel);
+    }
+
+    [Fact]
     public async Task ClosedExpiredAccounts_WithBalance_AreSummarized_SeparateFromDelinquency()
     {
         var (handler, _) = Build();

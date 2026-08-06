@@ -49,7 +49,13 @@ public record FinancialReportDto(
     // delinquency by design: these are INACTIVE accounts (frozen or contract lapsed), not current
     // delinquents. Surfaced here only for visibility/follow-up.
     int ClosedWithBalanceCount = 0,
-    decimal ClosedWithBalanceOutstanding = 0m
+    decimal ClosedWithBalanceOutstanding = 0m,
+    /// <summary>
+    /// The month the attention figures are counted UP TO — the last month of the report's own period that has
+    /// closed. Carried on the DTO because the page cannot derive it: it was naming the month from today's date, so a
+    /// 2024 report read "counted to July 2026". Empty when there is nothing to attend to.
+    /// </summary>
+    string AttentionSpanLabel = ""
 );
 
 /// <summary>A payor needing follow-up. <see cref="UnpaidMonths"/> drives delinquent vs arrears bucketing, and

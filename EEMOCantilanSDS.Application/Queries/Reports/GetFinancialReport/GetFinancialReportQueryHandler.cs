@@ -256,10 +256,18 @@ public class GetFinancialReportQueryHandler(
             ? trend[selectedIdx - 1].Collected
             : null;
 
-        // Attention & follow-up: shared rolling-window delinquency (cumulative balance, excludes the
-        // current month), classified by unpaid months — identical source to the dashboard.
-        var anchorMonth = request.Month ?? PhilippineTime.Today.Month;
-        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, request.Year, anchorMonth, includeClosed: true, wholeAccount: true, ct);
+        // Attention & follow-up: the same delinquency source the dashboard and the queue read, stating each account's
+        // whole position, classified by unpaid months.
+        //
+        // The anchor is the month the figures stop BEFORE, and it must come from the report's own period, not from
+        // today. A Yearly report is anchored at January of the following year so it covers that whole year — asking
+        // for 2024 used to borrow today's month and end on 31 July 2024, silently dropping August to December from a
+        // printed report. The repository still clamps the anchor to the last month that has closed, so the current
+        // year remains year-to-date rather than a projection.
+        var (anchorYear, anchorMonth) = request.Month is { } m
+            ? (request.Year, m)
+            : (request.Year + 1, 1);
+        var delinquency = await reportsRepository.GetDelinquentStallsAsync(request.Facility, anchorYear, anchorMonth, includeClosed: true, wholeAccount: true, ct);
 
         var delinquent = delinquency
             .Where(d => d.MonthsUnpaid >= 3)
@@ -324,7 +332,10 @@ public class GetFinancialReportQueryHandler(
             Facilities: orderedRows,
             RecentRecords: recent,
             ClosedWithBalanceCount: closedWithBalance.Count,
-            ClosedWithBalanceOutstanding: closedWithBalance.Sum(a => a.Uncollected));
+            ClosedWithBalanceOutstanding: closedWithBalance.Sum(a => a.Uncollected),
+            // The last month of THIS report's period that has closed — the same boundary the delinquency source used,
+            // so the page states the span it was actually given rather than naming today's month.
+            AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth));
 
         return dto;
     }
@@ -424,6 +435,19 @@ public class GetFinancialReportQueryHandler(
         => request.Period == ReportPeriod.Monthly && request.Month is null
             ? request with { Month = PhilippineTime.Today.Month }
             : request;
+
+    /// <summary>
+    /// The month the attention figures are counted up to: the month before the anchor, or the last month that has
+    /// closed if the anchor is still ahead of it. Mirrors the clamp the delinquency source applies, so the page and
+    /// the figures cannot describe different spans.
+    /// </summary>
+    private static string AttentionSpanLabel(int anchorYear, int anchorMonth)
+    {
+        var end = new DateOnly(anchorYear, anchorMonth, 1).AddMonths(-1);
+        var lastClosed = new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1).AddMonths(-1);
+        if (end > lastClosed) end = lastClosed;
+        return end.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    }
 
     private static AttentionAccountDto ToAttention(DelinquentStallDto d) => new(
         Name: string.IsNullOrWhiteSpace(d.Occupant) ? "Unoccupied / unnamed" : d.Occupant,

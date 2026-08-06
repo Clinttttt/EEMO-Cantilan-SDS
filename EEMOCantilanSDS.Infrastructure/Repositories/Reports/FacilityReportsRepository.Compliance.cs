@@ -182,9 +182,11 @@ public partial class FacilityReportsRepository
                 absentSet = union;
             }
             var excusedSet = includeFish ? null : excusedByStall.GetValueOrDefault(s.Id);
-            IReadOnlySet<int>? excusedMonthsThisYear = excusedSet is null
-                ? null
-                : excusedSet.Where(t => t.Year == endDate.Year).Select(t => t.Month).ToHashSet();
+            // Every excused (year, month), not just the anchor year's. The count used to filter these to the end
+            // year while the BALANCE beside it forgave the whole set, so across a year boundary a stall read more
+            // months behind than its money — and could be promoted from arrears to delinquent on the strength of a
+            // month the office had already excused.
+            IReadOnlySet<(int Year, int Month)>? excusedMonths = excusedSet;
 
             // Where THIS stall's present account begins. A stall that was re-let (or renewed onto a new contract)
             // carries the earlier occupancy's months in the Closed / Inactive register, which states that account's
@@ -280,7 +282,7 @@ public partial class FacilityReportsRepository
 
             var missedMonths = CountMissedMonths(
                 paymentRecords, s, endDate, includeFish, dailyCollectedByStallMonth.GetValueOrDefault(s.Id), absentSet,
-                excusedMonthsThisYear, countMissedFrom, NewestOccupancyStart(s, complianceEnd));
+                excusedMonths, countMissedFrom, NewestOccupancyStart(s, complianceEnd));
 
             rows.Add(new StallComplianceDto(
                 s.Id,
@@ -509,7 +511,7 @@ public partial class FacilityReportsRepository
         bool isNpm,
         Dictionary<(int Year, int Month), decimal>? dailyCollectedByMonth,
         IReadOnlySet<DateOnly>? absentDates = null,
-        IReadOnlySet<int>? excusedMonths = null,
+        IReadOnlySet<(int Year, int Month)>? excusedMonths = null,
         DateOnly? countFrom = null,
         DateOnly? accountStart = null)
     {
@@ -558,7 +560,9 @@ public partial class FacilityReportsRepository
 
             // Admin-excused monthly months are not owed → never missed. The excused set is this year's, so it
             // only applies to months of the year the caller asked about.
-            if (!isNpm && excusedMonths is not null && cursor.Year == endDate.Year && excusedMonths.Contains(cursor.Month))
+            // An admin-excused month owes nothing, in whatever year it falls. Restricting this to the anchor year
+            // made the count disagree with the balance beside it across a year boundary.
+            if (!isNpm && excusedMonths is not null && excusedMonths.Contains((cursor.Year, cursor.Month)))
                 continue;
 
             // A month is settled when its obligation is settled. For NPM that is money against the month's
