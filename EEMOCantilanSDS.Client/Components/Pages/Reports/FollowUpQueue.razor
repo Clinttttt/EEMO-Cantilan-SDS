@@ -1,4 +1,4 @@
-@* Hosted by CollectionFollowUp as the "Current Queue" scope; it owns the route. *@
+@page "/reports/follow-up"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
@@ -130,7 +130,7 @@
             </div>
             <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Resolved & dismissed items from previous periods">
                 <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
-                Past follow-up
+                Whole-time History
             </a>
         </div>
     </div>

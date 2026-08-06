@@ -1,4 +1,4 @@
-@* Hosted by CollectionFollowUp as the "Whole-time History" scope; it owns the route. *@
+@page "/reports/follow-up/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using System.Globalization
 @using EEMOCantilanSDS.Domain.Common
@@ -31,7 +31,7 @@
     reflects the accumulated state across the year.
 *@
 
-<PageTitle>StallTrack — Follow-up History</PageTitle>
+<PageTitle>StallTrack — Whole-time History</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left flex gap-2">
@@ -39,11 +39,11 @@
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
-            <div class="topbar-title">Follow-up History</div>
+            <div class="topbar-title">Whole-time History</div>
             <div class="topbar-breadcrumb">
                 <a href="/reports/follow-up" class="breadcrumb-link">Follow-up Queue</a>
                 <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">History</span>
+                <span class="breadcrumb-active">Whole-time History</span>
             </div>
         </div>
     </div>
@@ -90,7 +90,7 @@
             </div>
             <div>
                 <div class="fh-hero-eyebrow">Follow-up · History</div>
-                <div class="fh-hero-title">Past follow-up</div>
+                <div class="fh-hero-title">Whole-time History</div>
                 <div class="fh-hero-sub">@asOfLabel</div>
             </div>
         </div>
