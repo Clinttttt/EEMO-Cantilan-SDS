@@ -203,7 +203,8 @@
                                 <span class="prof-field-val">
                                     @if (IsNpm)
                                     {
-                                        <text>₱@_npmDailyRate.ToString("0")/day</text>
+                                        @* Nothing until the tenant's own rate answers — never a borrowed figure. *@
+                                        <text>@(_npmDailyRate > 0m ? $"₱{_npmDailyRate:0}/day" : "—")</text>
                                     }
                                     else
                                     {
@@ -285,7 +286,8 @@
                                 <span class="prof-field-val bold gold">
                                     @if (IsNpm)
                                     {
-                                        <text>₱@_npmDailyRate.ToString("0")/day</text>
+                                        @* Nothing until the tenant's own rate answers — never a borrowed figure. *@
+                                        <text>@(_npmDailyRate > 0m ? $"₱{_npmDailyRate:0}/day" : "—")</text>
                                     }
                                     else
                                     {
@@ -897,9 +899,10 @@
 
     private bool IsNpm => FacilityId.ToUpper() == "NPM";
 
-    // The tenant's resolved NPM daily rate (₱30 ordinance fallback). NPM bills per day from this snapshot
-    // rate, so we show it (not the possibly-stale stored per-stall value) as the stall's rate.
-    private decimal _npmDailyRate = 30m;
+    // The tenant's own resolved NPM daily rate. Zero until the office's rates answer, so this page never quotes
+    // another municipality's ordinance: a ₱30 seed here showed Cantilan's fee on a profile whose tenant charges
+    // something else, or whose rates call failed. The rate line states nothing rather than a wrong figure.
+    private decimal _npmDailyRate;
 
     // The tenant's own per-kilo section fee. Zero means this office charges none, and the profile then states
     // no such fee at all rather than quoting another municipality's.

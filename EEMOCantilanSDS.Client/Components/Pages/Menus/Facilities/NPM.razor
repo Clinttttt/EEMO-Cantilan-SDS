@@ -534,6 +534,10 @@
                     StallGuid = dto.Id,
                     StallNo = dto.StallNo,
                     Section = section,
+                    // Read from the section ENUM, never from the label above it. The label is Cantilan's wording,
+                    // so comparing against "Fish Area" on the edit path meant another municipality — whose fish
+                    // section is named its own way — silently lost the per-kilo fee the moment a stall was edited.
+                    CarriesSectionFee = dto.Section == MarketSection.FishSection,
                     ActualOccupant = dto.ActualOccupant ?? "N/A",
                     ContractName = dto.NameOnContract ?? "N/A",
                     AreaSqm = dto.AreaSqm ?? 0,
@@ -721,6 +725,8 @@
         public decimal MonthlyExpected { get; set; }
         public bool HasElectricity { get; set; }
         public bool HasWater { get; set; }
+        /// <summary>Whether this space sits in the section that carries the per-kilo fee, from the section enum.</summary>
+        public bool CarriesSectionFee { get; set; }
         public bool IsPaid { get; set; }
         public bool IsPartial { get; set; }
         // Whole-period excused: every collectable day was absent (compliance status "Absent").
@@ -889,7 +895,7 @@
         
         if (s.HasElectricity) VendorForm.FeeTypes.Add("Electricity");
         if (s.HasWater) VendorForm.FeeTypes.Add("Water");
-        if (s.Section == "Fish Area") VendorForm.FeeTypes.Add(AddVendorModal.SectionFeeType);
+        if (s.CarriesSectionFee) VendorForm.FeeTypes.Add(AddVendorModal.SectionFeeType);
         
         VendorErrorMessage = string.Empty;
         ShowAddVendorModal = true;
