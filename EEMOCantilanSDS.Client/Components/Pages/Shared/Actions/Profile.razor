@@ -357,7 +357,7 @@
                                 <div class="prof-card-icon">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>
                                 </div>
-                                <div class="prof-card-title">Earlier Terms on This Stall</div>
+                                <div class="prof-card-title">@(_priorTerms.Any(p => p.State == InactiveAccountState.Lapsed) ? "Term Status & Earlier Terms" : "Earlier Terms on This Stall")</div>
                             </div>
                             <div class="prof-field-list">
                                 @foreach (var prior in _priorTerms)
@@ -372,12 +372,16 @@
                                             &ndash;
                                             @((prior.OccupancyEndedOn ?? prior.ExpiryDate).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture))
                                             &nbsp;·&nbsp; ₱@prior.LifetimeCollected.ToString("N0") collected
-                                            @if (OccupantNameMatchesCurrentTerm(prior))
+                                            @if (prior.State == InactiveAccountState.Lapsed)
+                                            {
+                                                <span class="prof-prior-tag" title="This term's period has run out while the lessee remains in the stall. The account stays under collection and needs renewing.">Term expired · lessee in place</span>
+                                            }
+                                            else if (OccupantNameMatchesCurrentTerm(prior))
                                             {
                                                 <span class="prof-prior-tag" title="The lessee named on this earlier term is recorded under the same name as the current term. Verify identity before recording a collection against it.">Lessee of record on the current term</span>
                                             }
                                         </div>
-                                        @if (prior.Uncollected > 0m && OccupantNameMatchesCurrentTerm(prior) && prior.ContractId != Guid.Empty)
+                                        @if (prior.Uncollected > 0m && (prior.State == InactiveAccountState.Lapsed || OccupantNameMatchesCurrentTerm(prior)) && prior.ContractId != Guid.Empty)
                                         {
                                             @* The balance is the sitting lessee's, so it is collectable at the counter. The payment is
                                                posted against the term that incurred it — never the current one — which is what the
@@ -389,8 +393,21 @@
                                     </div>
                                 }
                                 <div class="prof-prior-note">
-                                    Uncollected above is not part of this term's balance. It belongs to the term that
-                                    incurred it and is stated in the Register of Inactive Stall Accounts.
+                                    @if (_priorTerms.Any(p => p.State == InactiveAccountState.Lapsed))
+                                    {
+                                        <text>
+                                            This term's period has run out while the lessee remains in the stall, so it is
+                                            still collected and still needs renewing. The balance shown is the term's own,
+                                            as stated in the Register of Inactive Stall Accounts.
+                                        </text>
+                                    }
+                                    else
+                                    {
+                                        <text>
+                                            Uncollected above is not part of this term's balance. It belongs to the term
+                                            that incurred it and is stated in the Register of Inactive Stall Accounts.
+                                        </text>
+                                    }
                                 </div>                            </div>
                         </div>
                     }
@@ -586,7 +603,10 @@
                             </div>
                             <div class="prof-hist-stat @(balanceDue > 0 ? "stat-warn" : "")">
                                 <div class="prof-hist-stat-val red">₱@balanceDue.ToString("N0")</div>
-                                <div class="prof-hist-stat-key">Balance Due</div>
+                                @* "Balance Due" alone did not say WHICH balance. This card is the term in force, and
+                                   an earlier term of the same space can owe its own money — stall 23 carries ₱1,020
+                                   here and ₱32,430 on the term before it. Naming the scope keeps the two apart. *@
+                                <div class="prof-hist-stat-key">Current Term Balance</div>
                             </div>
                         </div>
                     </div>
@@ -800,13 +820,38 @@
         var result = await StallsApi.GetClosedStallAccountsAsync();
         if (!result.IsSuccess || result.Value is null) return;
 
+        // Terms of THIS stall that still owe money and are not the one in force. A lapsed term is the exception: it
+        // IS the term in force, but its span has run out, so the office needs it stated here too — those 57 accounts
+        // otherwise showed nothing on the very screen the clerk collects from, with no prompt to renew.
         _priorTerms = result.Value
             .Where(a => a.StallId == StallGuid && a.Uncollected > 0m)
             .OrderByDescending(a => a.OccupancyEndedOn ?? a.ExpiryDate)
             .ToList();
 
+        // Every earlier occupancy of this space, balance or not, as a span. The activity grid needs it: a day is
+        // chargeable if it fell inside ANY term of this stall, not only the one in force. Judging it by the current
+        // contract's start alone painted the whole of 2025 as "no obligation" for a stall that was let throughout
+        // 2025 and collected nothing — the grid was hiding uncollected days, not merely looking empty.
+        _occupiedSpans = result.Value
+            .Where(a => a.StallId == StallGuid)
+            .Select(a => (Start: a.EffectivityDate, End: a.OccupancyEndedOn ?? a.ExpiryDate))
+            .ToList();
+
         StateHasChanged();
+
+        // The grid was painted before these spans arrived, so redraw it now that the earlier terms are known.
+        // Without this the first paint still shows a lapsed account's past years as "no obligation".
+        if (IsNpm && _occupiedSpans.Count > 0)
+            await LoadNpmDailyHeatmap(StallGuid);
     }
+
+    /// <summary>Earlier occupancy spans of this stall, used to decide whether a past day was chargeable.</summary>
+    private List<(DateOnly Start, DateOnly End)> _occupiedSpans = new();
+
+    /// <summary>Whether the stall was under some term on this day — the current one, or any earlier one.</summary>
+    private bool WasUnderContract(DateOnly day, DateOnly? currentStart)
+        => (currentStart.HasValue && day >= currentStart.Value)
+        || _occupiedSpans.Any(s => day >= s.Start && day <= s.End);
 
     /// <summary>
     /// Whether the name on an earlier term reads the same as the name on the term in force. It is deliberately NOT
@@ -1241,7 +1286,7 @@
             {
                 string kind;
                 if (d > today) kind = "future";                                   // only the tail of the final week
-                else if (contractStart.HasValue && d < contractStart.Value) kind = "none";
+                else if (!WasUnderContract(d, contractStart)) kind = "none";
                 else if (status.TryGetValue(d, out var st)) kind = st;
                 else kind = "missed";
                 if (kind == "collected") collected++;
