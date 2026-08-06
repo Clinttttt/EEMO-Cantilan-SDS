@@ -271,7 +271,7 @@
                                                         }
                                                         else if (CanRecordMonthlyPayment(it))
                                                         {
-                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenMonthlyPayment(it)">Record payment<span class="fq-action-arrow">→</span></button>
+                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenPayBill(it)">Record payment<span class="fq-action-arrow">→</span></button>
                                                         }
                                                         else if (it.Action == "Pay Bill" && it.StallId.HasValue)
                                                         {
@@ -577,6 +577,19 @@
         </div>
     </div>
 }
+
+@* The same payment dialog the Past follow-up page uses. The queue had its own, which listed only months that
+   ALREADY had a payment record — so an account 37 months behind with nothing ever recorded offered no month to
+   pay and dead-ended on "No open monthly payment record was found". A record is written when money is taken, not
+   before it, so the dialog must be able to open a month that has none. One payment path now, not two. *@
+<PayBillModal Show="@(_payItem is not null)"
+              StallId="@(_payItem?.StallId ?? Guid.Empty)"
+              Facility="@(_payItem?.Facility ?? FacilityCode.NPM)"
+              StallNo="@PayStallNo"
+              Occupant="@(_payItem?.Person ?? string.Empty)"
+              ContractId="@(_payItem?.ContractId)"
+              OnClose="ClosePayBill"
+              OnChanged="OnPaidFromQueue" />
 
 @code {
     private FollowUpQueueDto? _data;
@@ -1030,9 +1043,31 @@
         && item.Amount.GetValueOrDefault() > 0m
         && item.ReasonKind is "delinquent" or "arrears" or "contract";
 
-    private async Task OpenMonthlyPayment(FollowUpItemDto item)
+    // ── Record payment, via the shared PayBillModal ───────────────────────────────
+    private FollowUpItemDto? _payItem;
+
+    private string PayStallNo => _payItem is null
+        ? string.Empty
+        : (_payItem.Identifier.StartsWith("Stall ", StringComparison.OrdinalIgnoreCase)
+            ? _payItem.Identifier.Substring(6).Trim()
+            : _payItem.Identifier);
+
+    private void OpenPayBill(FollowUpItemDto item)
     {
-        if (!CanRecordMonthlyPayment(item) || item.StallId is null)
+        if (item.StallId is null) return;
+        _payItem = item;
+    }
+
+    private void ClosePayBill() => _payItem = null;
+
+    private async Task OnPaidFromQueue()
+    {
+        _payItem = null;
+        await Load();
+    }
+
+    private async Task OpenMonthlyPayment(FollowUpItemDto item)
+    {        if (!CanRecordMonthlyPayment(item) || item.StallId is null)
             return;
 
         _monthlyPaymentItem = item;
