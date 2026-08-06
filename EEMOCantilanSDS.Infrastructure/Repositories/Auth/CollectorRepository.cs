@@ -502,11 +502,17 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 // The month's contractual rent from the same ledger the office's screen reads — ₱900 for a month
                 // held in full, whatever the calendar gave it — so the collector's report and the office's report
                 // state one figure. The ₱30 fee is the installment this is collected in, not the measure of it.
+                // Only the days EARNED as of today are assessed: a market space is charged per market day, so a
+                // report run mid-month must not assess days the vendor has not yet occupied. This is the same rule
+                // the office's report and the stall profile apply (DomainRules.EarnedThrough), which is what keeps
+                // the collector's own figure and the office's figure identical.
+                var assessedDays = CountNpmCollectableDays(
+                    s, monthStart, DomainRules.EarnedThrough(collectionEnd, PhilippineTime.Today));
                 var assessed = DomainRules.DailyBilledMonthObligation(
                     dailyRate,
                     s.ResolveMonthlyRent(npmDaily, npmMonthlyRent),
                     DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month),
-                    collectableDays);
+                    assessedDays);
                 var balance = Math.Max(0m, assessed - rentalPaid);
                 var status = balance <= 0m && collectableDays > 0
                     ? PaymentStatus.Paid

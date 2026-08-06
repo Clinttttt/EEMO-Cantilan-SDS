@@ -44,7 +44,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         Assert.Equal(1_000m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 31, 31));
         Assert.Equal(1_000m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 28, 28));
         Assert.Equal(12_000m, Enumerable.Range(1, 12)
-            .Sum(m => DomainRules.DailyBilledMonthObligation(35m, 1_000m, DateTime.DaysInMonth(2026, m), DateTime.DaysInMonth(2026, m))));
+            .Sum(m => DomainRules.DailyBilledMonthObligation(35m, 1_000m, DateTime.DaysInMonth(2025, m), DateTime.DaysInMonth(2025, m))));
 
         // A part-month is still the days held, one installment each — and never more than that month's rent.
         Assert.Equal(350m, DomainRules.DailyBilledMonthObligation(35m, 1_000m, 31, 10));
@@ -57,7 +57,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         var year = 0m;
         for (var month = 1; month <= 12; month++)
         {
-            var daysInMonth = DateTime.DaysInMonth(2026, month);
+            var daysInMonth = DateTime.DaysInMonth(2025, month);
             year += DomainRules.DailyBilledMonthObligation(Fee, 0m, daysInMonth, daysInMonth);
         }
 
@@ -107,12 +107,12 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public async Task EveryMonthsReportedObligation_IsTheRent(int month)
     {
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, month, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, month, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(MonthlyRent, row.ExpectedBill);
@@ -121,15 +121,68 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task EveryPathStatesTheSameEarnedObligation_ForTheMonthInProgress()
+    {
+        // The whole point of the rule: one stall, one figure, whichever screen the office opens. Six paths compute a
+        // daily-billed obligation and they used to disagree about the month in progress — the profile said the days
+        // earned, the reports and the collector said the whole month — so a vendor's balance depended on where you
+        // looked. Here the ledger card, the 12-month grid, the payment dialog's own months, the office report and the
+        // collector's report are all asked about the same stall on the same day.
+        var today = PhilippineTime.Today;
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+        var earned = FeeRates.NpmDailyFee * today.Day;      // the days of this month that have happened
+
+        var context = NewContext();
+        var (facility, stall, term) = NpmStall(monthStart);
+        var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2025-001", "juan", "juan@x.com", "0917", "pw");
+        collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
+        // One day collected, so the month appears on the grid at all — a month with nothing recorded is omitted there.
+        var day1 = DailyCollection.Create(stall.Id, monthStart);
+        day1.MarkPaid("OR-AGREE", collector.Id);
+        context.AddRange(facility, stall, term, collector, day1);
+        await context.SaveChangesAsync();
+
+        var payments = new PaymentRepository(context);
+        var reports = new FacilityReportsRepository(context);
+
+        // 1) The stall profile's ledger card — what is still owed, so the collected day comes off.
+        var ledger = await payments.GetStallLedgerSummaryAsync(stall.Id, CancellationToken.None);
+        Assert.Equal(earned - Fee, ledger.TotalOutstanding);
+
+        // 2) The 12-month grid behind it.
+        var grid = await payments.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
+        var thisMonth = grid.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        Assert.Equal(earned, thisMonth.TotalBill);
+
+        // 3) The payment dialog's billable months — what a clerk can actually take money for.
+        var billable = await payments.GetOutstandingMonthsAsync(stall.Id, null, null, CancellationToken.None);
+        Assert.Equal(earned, billable.Where(m => m.Period == $"{today.Year:0000}-{today.Month:00}").Sum(m => m.TotalBill));
+
+        // 4) The office's report, which also drives the arrears and delinquency lists and the follow-up queue.
+        var office = await reports.GetFacilityReportsAsync(
+            FacilityCode.NPM, ReportPeriod.Monthly, today.Year, today.Month, null, CancellationToken.None);
+        Assert.Equal(earned, Assert.Single(office.StallCompliance).ExpectedBill);
+
+        // 5) The collector's own report, which the field app reconciles against the office's.
+        var collectorReport = await new CollectorRepository(context).GetCollectorReportAsync(
+            collector.Id, new[] { FacilityCode.NPM }, monthStart, today, CancellationToken.None);
+        Assert.Equal(earned, Assert.Single(collectorReport.Payees).AssessedAmount);
+
+        // And nothing beyond today is owed anywhere: a month still ahead contributes zero.
+        Assert.True(earned < FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays
+            || today.Day >= DomainRules.DailyBilledMonthDays);
+    }
+
+    [Fact]
     public async Task AWholeYear_Owes10800()
     {
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2025, null, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(10_800m, row.ExpectedBill);
@@ -142,18 +195,18 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // The identity, on one month's ledger: ₱900 expected, ten days collected (₱300), five days credited (₱150),
         // and the ₱450 that remains.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
 
         for (var day = 1; day <= 10; day++)
         {
-            var paid = DailyCollection.Create(stall.Id, new DateOnly(2026, 8, day));
+            var paid = DailyCollection.Create(stall.Id, new DateOnly(2025, 8, day));
             paid.MarkPaid(string.Empty, collectorId: null);
             context.Add(paid);
         }
         for (var day = 11; day <= 15; day++)
         {
-            var absent = DailyCollection.Create(stall.Id, new DateOnly(2026, 8, day));
+            var absent = DailyCollection.Create(stall.Id, new DateOnly(2025, 8, day));
             absent.MarkAbsent("Head");
             context.Add(absent);
         }
@@ -161,7 +214,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         const decimal collected = 10 * Fee;
@@ -178,12 +231,12 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public async Task AMonthNeverTraded_OwesNothing()
     {
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
 
         for (var day = 1; day <= 30; day++)
         {
-            var absent = DailyCollection.Create(stall.Id, new DateOnly(2026, 4, day));
+            var absent = DailyCollection.Create(stall.Id, new DateOnly(2025, 4, day));
             absent.MarkAbsent("Head");
             context.Add(absent);
         }
@@ -191,7 +244,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 4, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 4, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(0m, row.ExpectedBill);
@@ -203,12 +256,12 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public async Task OnceTheRentIsIn_TheMonthIsSettled_AndAnyFurtherDayIsRevenue()
     {
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
 
         for (var day = 1; day <= 31; day++)
         {
-            var paid = DailyCollection.Create(stall.Id, new DateOnly(2026, 8, day));
+            var paid = DailyCollection.Create(stall.Id, new DateOnly(2025, 8, day));
             paid.MarkPaid(string.Empty, collectorId: null);
             context.Add(paid);
         }
@@ -216,7 +269,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(MonthlyRent, row.ExpectedBill);
@@ -229,12 +282,12 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     public async Task AMidMonthStart_OwesOnlyTheDaysHeld()
     {
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 8, 20));   // twelve days of August
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 8, 20));   // twelve days of August
         context.AddRange(facility, stall, term);
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(12 * Fee, row.ExpectedBill);
@@ -248,14 +301,14 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         var context = NewContext();
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
-        var lapsed = Contract.Create(stall.Id, "Ramil C. Orjeles", "Ramil C. Orjeles", new DateOnly(2026, 1, 1), 1, 900m);
-        lapsed.Terminate("Head", new DateOnly(2026, 12, 31));
+        var lapsed = Contract.Create(stall.Id, "Ramil C. Orjeles", "Ramil C. Orjeles", new DateOnly(2025, 1, 1), 1, 900m);
+        lapsed.Terminate("Head", new DateOnly(2025, 12, 31));
 
         context.AddRange(facility, stall, lapsed);
         await context.SaveChangesAsync();
 
         var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsForPeriodAsync(
-            new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None));
+            new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31), CancellationToken.None));
 
         Assert.Equal(10_800m, row.Uncollected);
     }
@@ -266,13 +319,13 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // February's twenty-eight installments (₱840) plus its ₱60 month-end adjustment meet the ₱900 rent, so the
         // month is settled — the ledger balances and nothing is left that no day could ever clear.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
 
         DailyCollection? last = null;
         for (var day = 1; day <= 28; day++)
         {
-            last = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, day));
+            last = DailyCollection.Create(stall.Id, new DateOnly(2025, 2, day));
             last.MarkPaid(string.Empty, collectorId: null);
             context.Add(last);
         }
@@ -281,7 +334,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 2, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 2, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(MonthlyRent, row.ExpectedBill);
@@ -296,12 +349,12 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // Every day of February collected but no adjustment taken: the ₱60 remains outstanding, and — the month
         // having closed — it is properly collectible arrears rather than a figure nobody can act on.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         context.AddRange(facility, stall, term);
 
         for (var day = 1; day <= 28; day++)
         {
-            var paid = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, day));
+            var paid = DailyCollection.Create(stall.Id, new DateOnly(2025, 2, day));
             paid.MarkPaid(string.Empty, collectorId: null);
             context.Add(paid);
         }
@@ -309,7 +362,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 2, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 2, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(28 * Fee, row.AmountPaid);
@@ -341,7 +394,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // ₱1,085 its calendar would make nor the ₱1,050 thirty installments would. Nothing about Cantilan changes —
         // it states no monthly rent, so its month stays thirty of its ₱30.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         var daily = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, new DateOnly(2020, 1, 1), Guid.Empty);
         var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
 
@@ -349,14 +402,14 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(1_000m, row.ExpectedBill);
         Assert.Equal(1_000m, row.Balance);
 
         var year = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2025, null, null, CancellationToken.None);
         Assert.Equal(12_000m, Assert.Single(year.StallCompliance).ExpectedBill);
     }
 
@@ -369,14 +422,14 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "S1", 900m, ApplicableFees.DailyRental,
             section: null, dailyRate: 50m, customSectionName: "Sari-sari Area");
-        var term = Contract.Create(stall.Id, "Custom Lessee", "Custom Lessee", new DateOnly(2026, 1, 1), 3, 900m);
+        var term = Contract.Create(stall.Id, "Custom Lessee", "Custom Lessee", new DateOnly(2025, 1, 1), 3, 900m);
         var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
 
         context.AddRange(facility, stall, term, monthly);
         await context.SaveChangesAsync();
 
         var report = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
 
         var row = Assert.Single(report.StallCompliance);
         Assert.Equal(1_500m, row.ExpectedBill);   // ₱50 × 30, its own rate — not the stated ₱1,000
@@ -388,7 +441,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // The "Monthly Rentals per Contract" column on the official sheet: the rent the LGU passed, and twelve of
         // them for the year.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         var daily = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m, new DateOnly(2020, 1, 1), Guid.Empty);
         var monthly = FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMonthlyStall, 1_000m, new DateOnly(2020, 1, 1), Guid.Empty);
 
@@ -439,14 +492,14 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental | ApplicableFees.FishFee,
             section: MarketSection.FishSection);
-        var term = Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2026, 1, 1), 3, 900m);
+        var term = Contract.Create(stall.Id, "Ramil", "Ramil", new DateOnly(2025, 1, 1), 3, 900m);
 
         // An LGU on ₱40 a day and ₱2 a kilo.
         context.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 40m, new DateOnly(2020, 1, 1), Guid.Empty));
         context.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmFishPerKilo, 2m, new DateOnly(2020, 1, 1), Guid.Empty));
 
         // One collected day: ₱40 stamped, three kilos declared, and a ₱60 month-end adjustment riding on it.
-        var day = DailyCollection.Create(stall.Id, new DateOnly(2026, 2, 28), "Admin", 40m);
+        var day = DailyCollection.Create(stall.Id, new DateOnly(2025, 2, 28), "Admin", 40m);
         day.MarkPaid(string.Empty, collectorId: null, fishKilos: 3m);
         day.AddMonthEndAdjustment(60m, "Admin");
 
@@ -458,10 +511,10 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
                 new StallRepository(context),
                 new FeeRateResolver(context),
                 new NpmMarketClosureRepository(context))
-            .Handle(new GetDailyCollectionMonthQuery(stall.Id, 2026, 2), CancellationToken.None);
+            .Handle(new GetDailyCollectionMonthQuery(stall.Id, 2025, 2), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var row = result.Value!.Collections["2026-02-28"];
+        var row = result.Value!.Collections["2025-02-28"];
 
         // ₱40 installment + ₱60 adjustment + 3 kg × ₱2 — nothing of Cantilan's ₱30 or ₱1 in it.
         Assert.Equal(106m, row.AmountCollected);
@@ -472,7 +525,7 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
     {
         // The mobile report exists to reconcile with the web's figures, so both read the monthly obligation.
         var context = NewContext();
-        var (facility, stall, term) = NpmStall(new DateOnly(2026, 1, 1));
+        var (facility, stall, term) = NpmStall(new DateOnly(2025, 1, 1));
         var collector = CollectorUser.Create("Juan Dela Cruz", "EEMO-2026-001", "juan", "juan@x.com", "0917", "pw");
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
 
@@ -482,15 +535,15 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         var report = await new CollectorRepository(context).GetCollectorReportAsync(
             collector.Id,
             new[] { FacilityCode.NPM },
-            new DateOnly(2026, 8, 1),
-            new DateOnly(2026, 8, 31),
+            new DateOnly(2025, 8, 1),
+            new DateOnly(2025, 8, 31),
             CancellationToken.None);
 
         var payee = Assert.Single(report.Payees);
         Assert.Equal(MonthlyRent, payee.AssessedAmount);
 
         var office = await new FacilityReportsRepository(context)
-            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 8, null, CancellationToken.None);
+            .GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2025, 8, null, CancellationToken.None);
         Assert.Equal(Assert.Single(office.StallCompliance).Balance, payee.Balance);
     }
 }

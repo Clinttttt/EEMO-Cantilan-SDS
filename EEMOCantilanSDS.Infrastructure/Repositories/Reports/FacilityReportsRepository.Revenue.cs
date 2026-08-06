@@ -106,6 +106,12 @@ public partial class FacilityReportsRepository
         if (endDate < startDate)
             return 0m;
 
+        // No day beyond today has been earned (DomainRules.EarnedThrough). A closed period is unaffected — its month
+        // ends are already in the past — while the month in progress is charged for the days elapsed and a month
+        // still ahead contributes nothing. That is what makes a current-year report year-to-date rather than a
+        // projected January-to-December receivable.
+        var asOf = PhilippineTime.Today;
+
         var fee = stall.ResolveDailyFee(_npmDailyRate);
         var rent = stall.ResolveMonthlyRent(_npmDailyRate, _npmMonthlyRent);
         var total = 0m;
@@ -118,6 +124,13 @@ public partial class FacilityReportsRepository
             var daysInMonth = DateTime.DaysInMonth(cursor.Year, cursor.Month);
             var monthEnd = new DateOnly(cursor.Year, cursor.Month, daysInMonth);
             if (monthEnd > endDate) monthEnd = endDate;
+            monthEnd = DomainRules.EarnedThrough(monthEnd, asOf);
+
+            if (monthEnd < monthStart)
+            {
+                cursor = cursor.AddMonths(1);
+                continue;
+            }
 
             // Days the space was held (before any forgiveness), and of those, the days nothing is owed for.
             var daysHeld = CountNpmCollectableDays(stall, monthStart, monthEnd);

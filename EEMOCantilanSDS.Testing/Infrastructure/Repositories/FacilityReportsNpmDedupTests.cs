@@ -287,16 +287,19 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         var riki = Stall.Create(facility.Id, "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
         var pantom = Stall.Create(facility.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
 
-        var anaContract = Contract.Create(ana.Id, "Ana Villanueva", "Ana Villanueva", new DateOnly(2026, 1, 1), 3, 900m);
-        var lornaContract = Contract.Create(lorna.Id, "Lorna Guevarra", "Lorna Guevarra", new DateOnly(2026, 1, 1), 3, 900m);
-        var rikiContract = Contract.Create(riki.Id, "Riki Buenades", "Riki Buenades", new DateOnly(2026, 1, 1), 3, 900m);
-        var pantomContract = Contract.Create(pantom.Id, "Pantom Goth", "Pantom Goth", new DateOnly(2026, 1, 1), 3, 900m);
+        // A year that has fully ELAPSED. Twelve months' rent is what a whole year owes, and that is only true once
+        // the year is over: a report for the current year is year-to-date, because a market space is charged per
+        // market day and September cannot be owed in August.
+        var anaContract = Contract.Create(ana.Id, "Ana Villanueva", "Ana Villanueva", new DateOnly(2025, 1, 1), 3, 900m);
+        var lornaContract = Contract.Create(lorna.Id, "Lorna Guevarra", "Lorna Guevarra", new DateOnly(2025, 1, 1), 3, 900m);
+        var rikiContract = Contract.Create(riki.Id, "Riki Buenades", "Riki Buenades", new DateOnly(2025, 1, 1), 3, 900m);
+        var pantomContract = Contract.Create(pantom.Id, "Pantom Goth", "Pantom Goth", new DateOnly(2025, 1, 1), 3, 900m);
 
-        var anaPayment = PaymentRecord.Create(ana.Id, 2026, 6, 900m);
+        var anaPayment = PaymentRecord.Create(ana.Id, 2025, 6, 900m);
         anaPayment.UpdateStatus(PaymentStatus.Partial, 500m);
-        var lornaPayment = PaymentRecord.Create(lorna.Id, 2026, 6, 900m);
+        var lornaPayment = PaymentRecord.Create(lorna.Id, 2025, 6, 900m);
         lornaPayment.UpdateStatus(PaymentStatus.Partial, 600m);
-        var pantomPayment = PaymentRecord.Create(pantom.Id, 2026, 6, 900m);
+        var pantomPayment = PaymentRecord.Create(pantom.Id, 2025, 6, 900m);
         pantomPayment.UpdateStatus(PaymentStatus.Paid);
 
         context.AddRange(facility, ana, lorna, riki, pantom,
@@ -305,7 +308,7 @@ public class FacilityReportsNpmDedupTests : RepositoryTestBase
         await context.SaveChangesAsync();
 
         var repo = new FacilityReportsRepository(context);
-        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2026, null, null, CancellationToken.None);
+        var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Yearly, 2025, null, null, CancellationToken.None);
 
         // Twelve months' rent apiece — ₱10,800 each, ₱43,200 across the four — less the ₱2,000 collected. The
         // calendar plays no part: the daily fee is the installment, not the obligation.

@@ -132,8 +132,10 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         // balance instead of the daily reality (₱30/day). NPM money must always be daily-truth.
         var context = NewContext();
         var today = PhilippineTime.Today;
-        var monthStart = new DateOnly(today.Year, today.Month, 1);
-        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        // A month that has CLOSED, so the obligation under test is the whole month's rent rather than a month still
+        // accruing its days.
+        var monthStart = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.MeatSection);
@@ -156,7 +158,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
-        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        var row = history.Single(h => h.Period == $"{monthStart.Year:0000}-{monthStart.Month:00}");
         var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
         Assert.Equal(2 * FeeRates.NpmDailyFee, row.AmountPaid);                  // ₱60 daily-truth, NOT ₱500
         Assert.Equal(monthCharge, row.TotalBill);                                // the month's days, never beyond its rent
@@ -190,7 +192,11 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
         var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        // Money received is money received: a day paid ahead of itself still counts as collected, even though the
+        // obligation for the month in progress stops at today. That asymmetry is deliberate — the office never
+        // discards a payment it has taken, and it never bills a day the vendor has not yet occupied.
         Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);   // the advance/last-day collection is counted
+        Assert.Equal(FeeRates.NpmDailyFee * today.Day, row.TotalBill);
     }
 
     [Fact]
@@ -198,8 +204,10 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
     {
         var context = NewContext();
         var today = PhilippineTime.Today;
-        var monthStart = new DateOnly(today.Year, today.Month, 1);
-        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
+        // A month that has CLOSED: a whole month owes the month's rent only once the month is over, so the credit
+        // arithmetic is stated against a settled month rather than one still accruing.
+        var monthStart = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
@@ -217,7 +225,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
-        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        var row = history.Single(h => h.Period == $"{monthStart.Year:0000}-{monthStart.Month:00}");
         // The month's rent less three credited installments: the excused days are forgiven against the obligation,
         // not counted out of a day-sum, so a 31-day month reads ₱900 − ₱90 and a 28-day month the same.
         var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
@@ -232,7 +240,11 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
     {
         var context = NewContext();
         var today = PhilippineTime.Today;
-        var monthEnd = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        // A month that has CLOSED. The contract is effective only on its last day, so that single collectable day is
+        // the whole of the obligation — and it is excused. Anchoring on the month in progress would leave that day in
+        // the future, where nothing is owed yet and there would be no row to inspect.
+        var subject = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        var monthEnd = new DateOnly(subject.Year, subject.Month, DateTime.DaysInMonth(subject.Year, subject.Month));
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(facility.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
@@ -246,7 +258,7 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         var repo = new PaymentRepository(context);
         var history = await repo.GetPaymentHistoryAsync(stall.Id, CancellationToken.None);
 
-        var row = history.Single(h => h.Period == $"{today.Year:0000}-{today.Month:00}");
+        var row = history.Single(h => h.Period == $"{subject.Year:0000}-{subject.Month:00}");
         Assert.True(row.IsExcused);          // shown as "Absent", not Unpaid
         Assert.Equal(0m, row.TotalBill);
         Assert.Equal(0m, row.AmountPaid);

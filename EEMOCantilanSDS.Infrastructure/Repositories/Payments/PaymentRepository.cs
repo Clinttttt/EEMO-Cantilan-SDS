@@ -407,21 +407,29 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             int year = m.Year, month = m.Month;
             var period = $"{year:0000}-{month:00}";
             var monthStart = new DateOnly(year, month, 1);
-            var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+            var calendarEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+            // Two windows, deliberately different. The OBLIGATION stops at the days earned, so this grid states the
+            // month in progress the same way the ledger card above it does. COLLECTIONS still range to the calendar
+            // month end, because money the office has taken is never dropped — a vendor who paid a day in advance
+            // must still see it. Same asymmetry the collector's report has always carried.
+            var earnedEnd = DomainRules.EarnedThrough(calendarEnd, PhilippineTime.Today);
+            var monthEnd = calendarEnd;
 
             // NPM is let for a MONTHLY rent and collected in ₱30 installments, so the month's obligation is that
             // rent — ₱900 for a month held in full, whatever the calendar gave it — less the days nothing is owed
             // for. A flat monthly PaymentRecord never overrides the ledger; collected is the installments actually
             // received (plus any month-end adjustment recorded on the month's last one).
-            var daysHeld = CountCollectableDays(stall, monthStart, monthEnd);
-            var daysForgiven = absentDates.Count(d => d >= monthStart && d <= monthEnd);
+            var daysHeld = CountCollectableDays(stall, monthStart, earnedEnd);
+            var daysForgiven = absentDates.Count(d => d >= monthStart && d <= earnedEnd);
             var fee = stall.ResolveDailyFee(rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd));
             var obligation = DomainRules.DailyBilledMonthObligation(
                 fee,
                 stall.ResolveMonthlyRent(
                     rateSnapshot.Resolve(FeeRateKey.NpmDailyStall, monthEnd),
                     rateSnapshot.Resolve(FeeRateKey.NpmMonthlyStall, monthEnd)),
-                monthEnd.Day,
+                // The CALENDAR length, never the clamped end: a month held in full owes the month's rent, and passing
+                // the elapsed-day count here would make every month look like a part month.
+                calendarEnd.Day,
                 daysHeld);
             var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysForgiven);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
@@ -563,11 +571,11 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
             if (monthStart < occupancy.Start) monthStart = occupancy.Start;
             if (monthEnd > occupancy.BillableEnd) monthEnd = occupancy.BillableEnd;
 
-            // And, for a daily-collected space, never past today. NPM rent accrues per market day, so on the fourth
-            // of the month only four days have been earned; billing the whole month made the profile read ₱1,740
-            // against a grid that counted 33 elapsed days, and charged the vendor for 27 days that had not
-            // happened. Monthly-billed facilities are untouched — their rent falls due when the month opens.
-            if (isNpm && monthEnd > PhilippineTime.Today) monthEnd = PhilippineTime.Today;
+            // And, for a daily-collected space, never past today: NPM rent accrues per market day, so on the fourth
+            // of the month only four days have been earned. One rule, shared with the reports, the payment dialog,
+            // the collector's report and the register — see DomainRules.EarnedThrough. Monthly-billed facilities are
+            // untouched: their rent falls due when the month opens.
+            if (isNpm) monthEnd = DomainRules.EarnedThrough(monthEnd, PhilippineTime.Today);
 
             if (monthEnd < monthStart)
                 continue;
@@ -699,6 +707,9 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 // Clamped to the occupancy at both ends, so a handover month charges each lessee only their days.
                 var from = m < windowStart ? windowStart : m;
                 var to = mEndFull < windowEnd ? mEndFull : windowEnd;
+                // Never past today: this list is what a clerk can take money for, so offering the whole of an
+                // in-progress month would collect for days the vendor has not yet occupied. Shared rule.
+                to = DomainRules.EarnedThrough(to, PhilippineTime.Today);
                 if (to < from) continue;
 
                 // Every day of the window is chargeable to this lessee by construction — the window already stops

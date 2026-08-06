@@ -28,17 +28,14 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
     }
 
     [Fact]
-    public async Task CurrentMonth_Obligation_CountsThroughMonthEnd_IncludingFutureDays()
+    public async Task CurrentMonth_Obligation_StopsAtToday_NotAtMonthEnd()
     {
-        // CURRENT behavior: for the in-progress current month, the report's NPM obligation counts EVERY
-        // collectable day through MONTH-END (incl. days that haven't elapsed), because the compliance
-        // window's endDate is the last day of the month and is not clamped to today.
-        // → ExpectedBill = the month's contractual rent (₱30 × 30 = ₱900), whatever the calendar gave the month:
-        // the daily fee is the installment the rent is collected in, not the measure of the obligation.
-        // When the obligation window is later clamped to today, THIS is the number that should change.
+        // The number this file was written to watch change. The report's NPM obligation for the month in progress
+        // counts only the collectable days that have ELAPSED: a market space is charged per market day, so a day
+        // still to come has not been earned. Before this the reports billed the whole month while the stall
+        // profile's ledger billed the days so far, so one stall carried two balances.
         var today = PhilippineTime.Today;
-        var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
-        var monthCharge = DomainRules.DailyBilledMonthObligation(FeeRates.NpmDailyFee, 0m, daysInMonth, daysInMonth);
+        var elapsedCharge = FeeRates.NpmDailyFee * today.Day;
 
         var context = NewContext();
         var (facility, stall, contract) = NewNpmStall(new DateOnly(today.Year, today.Month, 1));
@@ -49,10 +46,10 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         var report = await repo.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, today.Year, today.Month, null, CancellationToken.None);
 
         var c = Assert.Single(report.StallCompliance);
-        Assert.Equal(monthCharge, c.ExpectedBill);                          // full month, never beyond its rent
+        Assert.Equal(elapsedCharge, c.ExpectedBill);                        // the days earned, not the month
         Assert.True(c.ExpectedBill <= FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays);
         Assert.Equal(0m, c.AmountPaid);
-        Assert.Equal(monthCharge, c.Balance);
+        Assert.Equal(elapsedCharge, c.Balance);
     }
 
     [Fact]
