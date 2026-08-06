@@ -46,7 +46,9 @@
     </button>
 </div>
 
-@* Both scopes stay mounted once opened so switching back does not refetch or lose a filter the clerk had set. *@
+@* Only the selected scope is rendered, so switching unmounts the other and it reloads on return. That is the honest
+   trade for keeping two large views out of one another's way; if the office finds the reload costly, the fix is to
+   keep both mounted and hide one, not to share their state. *@
 @if (_scope == Scope.Current)
 {
     <FollowUpQueue />

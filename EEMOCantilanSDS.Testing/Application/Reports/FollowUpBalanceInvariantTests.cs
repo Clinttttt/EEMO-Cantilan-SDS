@@ -42,7 +42,7 @@ public class FollowUpBalanceInvariantTests
         IReadOnlyList<DelinquentStallDto> delinquency,
         IReadOnlyList<ContractAttentionDto> contracts,
         IReadOnlyList<ClosedStallAccountDto>? ended = null,
-        IReadOnlyDictionary<string, decimal>? expiredBalances = null) =>
+        IReadOnlyDictionary<Guid, decimal>? expiredBalances = null) =>
         FollowUpComposer.Compose(
             2026, 8, AsOf,
             delinquency,
@@ -99,10 +99,10 @@ public class FollowUpBalanceInvariantTests
                 LapsedTerm(Stall14, FacilityCode.NPM, "14"),
             },
             // The register would also state each term's balance, and the contract row used to pick it up from here.
-            expiredBalances: new Dictionary<string, decimal>
+            expiredBalances: new Dictionary<Guid, decimal>
             {
-                ["ICE|20"] = 5_400m,
-                ["NPM|14"] = 4_710m,
+                [Stall20] = 5_400m,
+                [Stall14] = 4_710m,
             });
 
         // The money is stated exactly once per stall, by the row that owns it.
@@ -162,6 +162,62 @@ public class FollowUpBalanceInvariantTests
 
         Assert.Equal(33_300m, dto.Items.Where(i => i.Identifier == "Stall 7").Sum(i => i.Amount ?? 0m));
     }
+
+    [Fact]
+    public void StallsSharingANumber_AreTreatedAsSeparateAccounts()
+    {
+        // New Public Market numbers its spaces per section, so "Stall 1" exists in the Vegetable, Fish and Meat
+        // areas at once — three lessees, three accounts. Every key in this composer must therefore be the stall's
+        // identity. A facility-and-number key made one lapsed term suppress the current-month balance of all three,
+        // and summed their register balances into a single figure.
+        var vegetable = Guid.NewGuid();
+        var fish = Guid.NewGuid();
+        var meat = Guid.NewGuid();
+
+        var compliance = new[]
+        {
+            Unpaid(vegetable, "1", "Ana Reyes", 1_020m),
+            Unpaid(fish, "1", "Lorna Buenades", 1_050m),
+            Unpaid(meat, "1", "Pantom Dant", 900m),
+        };
+
+        var dto = FollowUpComposer.Compose(
+            2026, 8, AsOf,
+            Array.Empty<DelinquentStallDto>(),
+            new Dictionary<FacilityCode, FacilityReportsDto> { [FacilityCode.NPM] = ReportOf(compliance) },
+            Array.Empty<OnlinePaymentAwaitingOrDto>(), Array.Empty<SlaughterTransactionDto>(),
+            Array.Empty<TrmTripDto>(), Array.Empty<TpmVendorAttendanceDto>(),
+            Array.Empty<UnreceiptedPaymentDto>(),
+            // Only the Vegetable Area stall's term has lapsed.
+            new[] { LapsedTerm(vegetable, FacilityCode.NPM, "1") },
+            Array.Empty<UtilityBill>(),
+            expiredBalances: new Dictionary<Guid, decimal> { [vegetable] = 32_430m });
+
+        // The two stalls whose terms are live keep their current-period balances; only the lapsed one is diverted to
+        // its contract row. Before this, one lapsed "Stall 1" silenced all three.
+        var current = dto.Items.Where(i => i.ReasonKind == "current").ToList();
+        Assert.Equal(2, current.Count);
+        Assert.Contains(current, i => i.Amount == 1_050m);
+        Assert.Contains(current, i => i.Amount == 900m);
+        Assert.DoesNotContain(current, i => i.Amount == 1_020m);
+
+        // And the lapsed row states its own register balance, not the three summed together.
+        var contract = Assert.Single(dto.Items, i => i.ReasonKind == "contract");
+        Assert.Equal(32_430m, contract.Amount);
+        Assert.Equal(vegetable, contract.StallId);
+    }
+
+    /// <summary>A stall's current-period compliance row, unpaid with a balance.</summary>
+    private static StallComplianceDto Unpaid(Guid stallId, string stallNo, string occupant, decimal balance) =>
+        new(stallId, stallNo, occupant, occupant, "Vegetable Area", string.Empty, 900m, 0m,
+            "Unpaid", 0m, balance, null, 0, 0, null, 0, balance);
+
+    private static FacilityReportsDto ReportOf(IReadOnlyList<StallComplianceDto> compliance) =>
+        new(0m, 0m, 0m, 0m, compliance.Count, compliance.Count, compliance.Count, compliance.Sum(c => c.Balance),
+            Array.Empty<RevenueTrendDto>(), new PaymentStatusDistributionDto(0, 0m, 0, 0m, compliance.Count, 0m),
+            Array.Empty<SectionBreakdownDto>(), Array.Empty<TopStallDto>(),
+            new CollectionPerformanceDto(0, 0, compliance.Count), null, null,
+            Array.Empty<FishKiloTrendDto>(), compliance);
 
     [Fact]
     public void EachScopeKeepsItsOwnAmount()

@@ -52,9 +52,10 @@ public static class FollowUpComposer
         IReadOnlyList<UnreceiptedPaymentDto> unreceipted,
         IReadOnlyList<ContractAttentionDto> contracts,
         IReadOnlyList<UtilityBill> utilityBills,
-        // Total outstanding balance per EXPIRED stall (Key(facility, stallNo) → amount), from the Closed
-        // Accounts register. Lets an expired row show its full balance and be payable. Null = none.
-        IReadOnlyDictionary<string, decimal>? expiredBalances = null,
+        // Balance in full per LAPSED occupancy, keyed by stall identity — a facility-and-number key collapsed the
+        // market's three "Stall 1" spaces into one figure. Lets a lapsed row state its whole balance and be
+        // payable. Null = none.
+        IReadOnlyDictionary<Guid, decimal>? expiredBalances = null,
         // Ended occupancies from the register (closed, lapsed, or handed to another lessee). A lessee whose
         // occupancy ended is no longer the stall's contract holder, so nothing else in this queue can surface
         // their balance — see section 5b. Null = none.
@@ -84,9 +85,11 @@ public static class FollowUpComposer
         // Stalls whose contract has already lapsed are surfaced under "Contract expired" (section 5).
         // Don't ALSO list them as "current-period unpaid" — that double-lists the same expired account
         // (an expired stall belongs in the contract bucket, not the current-period bucket).
-        var expiredContractKeys = contracts
+        // Keyed on stall identity, not facility-and-number: the market numbers spaces per section and has three
+        // stalls called "1", so a number key made one lapsed term suppress the current-month balance of all three.
+        var expiredContractStallIds = contracts
             .Where(c => c.IsExpired)
-            .Select(c => Key(c.FacilityCode, c.StallNo))
+            .Select(c => c.StallId)
             .ToHashSet();
 
         // ── 1) Delinquency (3+ = delinquent, 1–2 = arrears). The span is the caller's: a period screen asks for a
@@ -152,7 +155,7 @@ public static class FollowUpComposer
                 var isUnpaid = s.Status == "Unpaid";
                 var isPartial = s.Status == "Partial";
                 if ((isUnpaid || isPartial) && s.Balance > 0m
-                    && !expiredContractKeys.Contains(Key(code, s.StallNo)))
+                    && !expiredContractStallIds.Contains(s.StallId))
                 {
                     items.Add(new FollowUpItemDto(
                         SecThisPeriod, "Normal",
@@ -302,7 +305,7 @@ public static class FollowUpComposer
 
             var contractBalance = !c.IsExpired || moneyAlreadyStated
                 ? null
-                : expiredBalances is not null && expiredBalances.TryGetValue(key, out var lifetime) && lifetime > 0m
+                : expiredBalances is not null && expiredBalances.TryGetValue(c.StallId, out var lifetime) && lifetime > 0m
                     ? lifetime
                     : periodBalances.TryGetValue(key, out var forPeriod) && forPeriod > 0m
                         ? forPeriod

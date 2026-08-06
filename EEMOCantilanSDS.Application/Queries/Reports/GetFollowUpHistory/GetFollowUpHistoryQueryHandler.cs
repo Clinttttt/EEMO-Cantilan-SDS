@@ -74,9 +74,13 @@ public class GetFollowUpHistoryQueryHandler(
         if (request.AllTime)
         {
             var allAccounts = await stallRepository.GetClosedStallAccountsAsync(ct);
+            // Keyed on stall identity, and only the occupancy that is still in force. Keying by facility-and-number
+            // summed the market's three "Stall 1" spaces into one figure, and including ended occupancies put their
+            // balance on a lapsed contract row as well as on their own row in the register section below — the same
+            // debt two and three times over.
             var allBalances = allAccounts
-                .Where(a => a.Uncollected > 0m)
-                .GroupBy(a => $"{a.FacilityCode}|{a.StallNo}")
+                .Where(a => a.Uncollected > 0m && a.State == InactiveAccountState.Lapsed)
+                .GroupBy(a => a.StallId)
                 .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
 
             var lapsed = (await stallRepository.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, ct))

@@ -57,8 +57,11 @@ public class RegisterAndFollowUpAgreementTests(ITestOutputHelper output)
             if (register.Count == 0) continue;
 
             // The Whole time view's own sources, composed exactly as the query handler composes them.
+            // Keyed by stall identity and limited to the occupancy still in force, exactly as the handler does: the
+            // market numbers spaces per section, so a facility-and-number key summed different stalls together.
             var lifetimeBalances = register
-                .GroupBy(a => $"{a.FacilityCode}|{a.StallNo}")
+                .Where(a => a.State == InactiveAccountState.Lapsed)
+                .GroupBy(a => a.StallId)
                 .ToDictionary(g => g.Key, g => g.Sum(a => a.Uncollected));
             var lapsed = (await stalls.GetContractAttentionAsync(DomainRules.ExpiringSoonMonths, CancellationToken.None))
                 .Where(c => c.IsExpired)
@@ -79,9 +82,11 @@ public class RegisterAndFollowUpAgreementTests(ITestOutputHelper output)
                 await stalls.GetClosedStallAccountsAsync(CancellationToken.None),
                 periodLabelOverride: "Whole time");
 
+            // Grouped by stall identity, matching the register side. The rows carry it, so there is no need to parse
+            // it back out of the display label.
             var carried = queue.Items
-                .Where(i => i.ReasonKind == "contract" && i.Amount > 0m)
-                .GroupBy(i => $"{i.Facility}|{i.Identifier.Replace("Stall ", string.Empty)}")
+                .Where(i => i.ReasonKind == "contract" && i.Amount > 0m && i.StallId is not null)
+                .GroupBy(i => i.StallId!.Value)
                 .ToDictionary(g => g.Key, g => g.Sum(i => i.Amount ?? 0m));
 
             foreach (var (key, owed) in lifetimeBalances)
