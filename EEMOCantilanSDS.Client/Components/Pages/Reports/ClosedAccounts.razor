@@ -48,7 +48,7 @@
         </div>
 
         <div class="ca-filter" role="group" aria-label="Status">
-            <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => _state = null">All Status</button>
+            <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => { _state = null; _endedOnly = false; }">All Status</button>
             <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
             <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed</button>
             <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
@@ -196,6 +196,15 @@
                 keeps collecting, so that balance also appears in the arrears and follow-up lists, and the two
                 figures above are deliberately never added. Renewing writes nothing off.
             </div>
+
+            @if (_endedOnly)
+            {
+                <div class="ca-scope-note no-print">
+                    Showing only accounts whose balance this register alone reports, as quoted on the Financial
+                    Reports. Lapsed terms still under collection are excluded.
+                    <button type="button" class="ca-scope-clear" @onclick="() => _endedOnly = false">Show all inactive accounts</button>
+                </div>
+            }
 
             @if (_error is not null)
             {
@@ -647,6 +656,17 @@
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
     /// <summary>
+    /// Lets a caller land on the accounts it was quoting. The Financial Reports state one figure for balances on
+    /// former occupancies; following it to a page listing all 58 accounts and ₱1.9M answered a different question
+    /// than the one that was clicked. <c>?status=ended</c> opens on those accounts alone.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "status")]
+    public string? StatusFromQuery { get; set; }
+
+    /// <summary>True when the view is scoped to accounts this register alone reports — everything but a lapsed term.</summary>
+    private bool _endedOnly;
+
+    /// <summary>
     /// Accounts whose balance this register alone states: closed, handed to a different lessee, or the prior term of
     /// a lessee who renewed. Nothing else in the system reports this money.
     /// </summary>
@@ -712,6 +732,8 @@
     {
         await FacilityCatalog.EnsureLoadedAsync();
 
+        _endedOnly = string.Equals(StatusFromQuery, "ended", StringComparison.OrdinalIgnoreCase);
+
         if (CachedClosedAccounts is not null)
         {
             ApplyClosedAccounts(CachedClosedAccounts);
@@ -764,6 +786,9 @@
         IEnumerable<ClosedStallAccountDto> q = _accounts;
         if (_year is int y) q = q.Where(r => EndOf(r).Year == y);
         if (_state is InactiveAccountState st) q = q.Where(r => r.State == st);
+
+        // Arrived from a figure that quoted only the accounts this register alone reports.
+        if (_endedOnly) q = q.Where(r => r.State != InactiveAccountState.Lapsed);
         if (_facility is not null) q = q.Where(r => r.FacilityCode.ToString() == _facility);
         if (_section is not null) q = q.Where(r => string.Equals(r.Section, _section, StringComparison.OrdinalIgnoreCase));
         if (HasSearch)
