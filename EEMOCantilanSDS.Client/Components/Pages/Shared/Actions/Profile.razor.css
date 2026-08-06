@@ -1353,6 +1353,12 @@
     flex: 0 0 auto;
 }
 
+/* Name and period on the left, amount and its action on the right — so the period line sits directly under the
+   name instead of being pushed down by the height of the button column. */
+.prof-prior-main {
+    min-width: 0;
+}
+
 .prof-prior-who {
     font-weight: 600;
     font-size: 13px;

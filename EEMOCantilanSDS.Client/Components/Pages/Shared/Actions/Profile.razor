@@ -364,19 +364,9 @@
                                 {
                                     <div class="prof-prior">
                                         <div class="prof-prior-head">
-                                            <span class="prof-prior-who">@prior.Occupant</span>
-                                            <span class="prof-prior-amt-col">
-                                                <span class="prof-prior-amt">₱@prior.Uncollected.ToString("N0")</span>
-                                                @if (prior.Uncollected > 0m && (prior.State == InactiveAccountState.Lapsed || OccupantNameMatchesCurrentTerm(prior)) && prior.ContractId != Guid.Empty)
-                                                {
-                                                    @* Under the amount it settles, not across the card: the action belongs to that figure. *@
-                                                    <button type="button" class="prof-prior-pay" @onclick="() => OpenPriorTermPayment(prior)">
-                                                        Record payment on this term
-                                                    </button>
-                                                }
-                                            </span>
-                                        </div>
-                                        <div class="prof-prior-meta">
+                                            <div class="prof-prior-main">
+                                                <div class="prof-prior-who">@prior.Occupant</div>
+                                                <div class="prof-prior-meta">
                                             @prior.EffectivityDate.ToString("MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
                                             &ndash;
                                             @((prior.OccupancyEndedOn ?? prior.ExpiryDate).ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture))
@@ -390,8 +380,21 @@
                                                 <span class="prof-prior-tag" title="The lessee named on this earlier term is recorded under the same name as the current term. Verify identity before recording a collection against it.">Lessee of record on the current term</span>
                                             }
                                         </div>
+                                            </div>
+                                            <div class="prof-prior-amt-col">
+                                                <span class="prof-prior-amt">₱@prior.Uncollected.ToString("N0")</span>
+                                                @if (prior.Uncollected > 0m && (prior.State == InactiveAccountState.Lapsed || OccupantNameMatchesCurrentTerm(prior)) && prior.ContractId != Guid.Empty)
+                                                {
+                                                    @* Under the amount it settles, not across the card: the action belongs to that figure. *@
+                                                    <button type="button" class="prof-prior-pay" @onclick="() => OpenPriorTermPayment(prior)">
+                                                        Record payment on this term
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
                                     </div>
-                                }                                <div class="prof-prior-note">
+                                }
+                                <div class="prof-prior-note">
                                     @if (_priorTerms.Any(p => p.State == InactiveAccountState.Lapsed))
                                     {
                                         <text>
@@ -607,6 +610,16 @@
                                    here and ₱32,430 on the term before it. Naming the scope keeps the two apart. *@
                                 <div class="prof-hist-stat-key">Current Term Balance</div>
                             </div>
+                            @* Most of the uncollected days in this window can belong to an earlier term, so its
+                               balance is stated beside the current one — otherwise 344 uncollected days sit next to
+                               ₱1,020 and the two cannot be reconciled. Read from the register, not recomputed. *@
+                            @if (PriorTermsOutstanding > 0m)
+                            {
+                                <div class="prof-hist-stat stat-warn">
+                                    <div class="prof-hist-stat-val red">₱@PriorTermsOutstanding.ToString("N0")</div>
+                                    <div class="prof-hist-stat-key">Earlier Terms Balance</div>
+                                </div>
+                            }
                         </div>
                     </div>
 
@@ -841,6 +854,15 @@
 
     /// <summary>Earlier occupancy spans of this stall, used to decide whether a past day was chargeable.</summary>
     private List<(DateOnly Start, DateOnly End)> _occupiedSpans = new();
+
+    /// <summary>
+    /// What this stall's earlier terms still owe, as the register states it. Shown beside the current term's balance
+    /// because the activity grid spans both: without it, hundreds of uncollected days sit next to a figure that only
+    /// covers the days since the current term began.
+    /// </summary>
+    private decimal PriorTermsOutstanding => _priorTerms
+        .Where(p => p.State != InactiveAccountState.Lapsed)
+        .Sum(p => p.Uncollected);
 
     /// <summary>Whether the stall was under some term on this day — the current one, or any earlier one.</summary>
     private bool WasUnderContract(DateOnly day, DateOnly? currentStart)
