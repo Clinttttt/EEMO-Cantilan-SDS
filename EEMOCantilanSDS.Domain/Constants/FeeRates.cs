@@ -79,6 +79,37 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// <para><paramref name="monthlyRent"/> is the rent the space is let for (see
         /// <c>Stall.ResolveMonthlyRent</c>): the LGU's own stated market month, or thirty installments when it has
         /// stated none. <paramref name="daysHeld"/> counts every day of the month the space was under this occupancy,
+        /// The last day of a billing window that has actually been EARNED as of a given date.
+        /// <para>
+        /// A daily-billed market space is charged per market day, so no day beyond the as-of date is owed. A month
+        /// that has closed keeps its whole window; the month in progress stops at the as-of date; a month entirely in
+        /// the future yields a window ending before it starts, which every caller must read as nothing owed.
+        /// </para>
+        /// <para>
+        /// The rule lives here because six paths compute a daily-billed obligation — the stall profile's ledger, its
+        /// 12-month grid, the payment dialog's billable months, the reports and arrears engine, the collector's own
+        /// report, and the inactive-accounts register — and they disagreed about the month in progress: the profile
+        /// stated the days earned while the reports and the collector stated the whole month, so one stall carried two
+        /// different balances depending on which screen the office opened.
+        /// </para>
+        /// <para>Monthly-billed facilities do not use this: their rent falls due when the month opens, by the month.</para>
+        /// </summary>
+        /// <param name="windowEnd">The last day the window would otherwise cover — a month end, or an occupancy's last billable day.</param>
+        /// <param name="asOf">The date the figure is stated as of: today for a live screen, the period end for a closed period.</param>
+        public static DateOnly EarnedThrough(DateOnly windowEnd, DateOnly asOf)
+            => windowEnd < asOf ? windowEnd : asOf;
+
+        /// <summary>
+        /// What a daily-collected space OWES for one calendar month — its canonical contractual obligation.
+        ///
+        /// <para>A month the space was held in FULL owes the monthly rent, whatever the calendar says: this is the
+        /// figure the office's paper states and reconciles against, so a complete year is exactly twelve of them. A
+        /// month held only in part — a mid-month start, a term that lapsed, a space taken over — owes the days it was
+        /// held, one installment each, and never more than the rent.</para>
+        ///
+        /// <para><paramref name="monthlyRent"/> is the rent the space is let for (see
+        /// <c>Stall.ResolveMonthlyRent</c>): the LGU's own stated market month, or thirty installments when it has
+        /// stated none. <paramref name="daysHeld"/> counts every day of the month the space was under this occupancy,
         /// including days already collected; <paramref name="daysInMonth"/> is the calendar length.</para>
         /// </summary>
         public static decimal DailyBilledMonthObligation(decimal dailyFee, decimal monthlyRent, int daysInMonth, int daysHeld)
