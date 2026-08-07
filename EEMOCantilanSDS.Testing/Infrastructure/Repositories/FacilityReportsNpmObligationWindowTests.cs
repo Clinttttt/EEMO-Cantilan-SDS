@@ -35,7 +35,10 @@ public class FacilityReportsNpmObligationWindowTests : RepositoryTestBase
         // still to come has not been earned. Before this the reports billed the whole month while the stall
         // profile's ledger billed the days so far, so one stall carried two balances.
         var today = PhilippineTime.Today;
-        var elapsedCharge = FeeRates.NpmDailyFee * today.Day;
+        // Capped by the month's rent: a month held in full owes the rent and never more, so on the 31st of a 31-day
+        // month this is ₱900 rather than ₱930. fee × day alone would pass most days and fail at a month end.
+        var elapsedCharge = DomainRules.DailyBilledMonthObligation(
+            FeeRates.NpmDailyFee, 0m, DateTime.DaysInMonth(today.Year, today.Month), today.Day);
 
         var context = NewContext();
         var (facility, stall, contract) = NewNpmStall(new DateOnly(today.Year, today.Month, 1));

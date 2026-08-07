@@ -285,11 +285,15 @@ public static class FollowUpComposer
         // What an expired row owes. A cumulative view is given the register's lifetime balances and states those; a
         // view scoped to a period must state THAT period's figure instead, which the facility assessments already
         // hold — a lifetime total shown under a single year's heading is the confusion the office reported.
-        var periodBalances = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        // Keyed on stall identity. A facility-and-number key collapsed the market's three "Stall 1" spaces into one
+        // entry — and because it ASSIGNED rather than accumulated, two of the three balances were silently discarded
+        // and a lapsed row could state a different payor's amount. This is the fallback the period-scoped screens
+        // use, so it was the one that mattered most.
+        var periodBalances = new Dictionary<Guid, decimal>();
         foreach (var (code, report) in facilityReports)
         {
             foreach (var s in report.StallCompliance.Where(s => s.Balance > 0m))
-                periodBalances[Key(code, s.StallNo)] = s.Balance;
+                periodBalances[s.StallId] = s.Balance;
         }
 
         foreach (var c in contracts)
@@ -307,7 +311,7 @@ public static class FollowUpComposer
                 ? null
                 : expiredBalances is not null && expiredBalances.TryGetValue(c.StallId, out var lifetime) && lifetime > 0m
                     ? lifetime
-                    : periodBalances.TryGetValue(key, out var forPeriod) && forPeriod > 0m
+                    : periodBalances.TryGetValue(c.StallId, out var forPeriod) && forPeriod > 0m
                         ? forPeriod
                         : (decimal?)null;
 

@@ -196,7 +196,11 @@ public class PaymentHistoryNpmTests : RepositoryTestBase
         // obligation for the month in progress stops at today. That asymmetry is deliberate — the office never
         // discards a payment it has taken, and it never bills a day the vendor has not yet occupied.
         Assert.Equal(FeeRates.NpmDailyFee, row.AmountPaid);   // the advance/last-day collection is counted
-        Assert.Equal(FeeRates.NpmDailyFee * today.Day, row.TotalBill);
+        // Capped by the month's rent, so this holds on a month end and in February too.
+        Assert.Equal(
+            DomainRules.DailyBilledMonthObligation(
+                FeeRates.NpmDailyFee, 0m, DateTime.DaysInMonth(today.Year, today.Month), today.Day),
+            row.TotalBill);
     }
 
     [Fact]

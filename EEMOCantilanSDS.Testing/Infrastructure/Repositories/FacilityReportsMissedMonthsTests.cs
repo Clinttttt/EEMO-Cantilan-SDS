@@ -190,4 +190,41 @@ public class FacilityReportsMissedMonthsTests : RepositoryTestBase
         // Contract since January; the current month is paid (and excluded anyway); Jan..(currentMonth-1) unpaid.
         Assert.Equal(today.Month - 1, await MissedMonthsFor(repo, FacilityCode.TCC, today.Year, today.Month, "101"));
     }
+
+    [Fact]
+    public async Task AFutureAnchor_IsYearToDate_NotAProjection()
+    {
+        // A Yearly report is anchored at January of the following year so it covers that whole year. For the CURRENT
+        // year that anchor is still ahead, and the repository must clamp it to the last month that has closed —
+        // otherwise a report run in August would state December's rent as already owed. Proven here against the real
+        // repository rather than a mocked one, so it holds without Docker: the guarantee was previously asserted only
+        // against a stub that mocked away the very clamp it credited.
+        var today = PhilippineTime.Today;
+        if (today.Month == 1) return;      // no month of this year has closed yet; nothing to compare
+
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "101", 1000m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Tenant", "Tenant", new DateOnly(today.Year, 1, 1), 3, 1000m);
+
+        context.AddRange(facility, stall, contract);
+        await context.SaveChangesAsync();
+
+        var repo = new FacilityReportsRepository(context);
+
+        // Anchored past the end of the year, as a Yearly report does.
+        var projected = await repo.GetDelinquentStallsAsync(
+            FacilityCode.TCC, today.Year + 1, 1, includeClosed: false, wholeAccount: true, CancellationToken.None);
+        // Anchored at the month in progress, as a Monthly report does.
+        var toDate = await repo.GetDelinquentStallsAsync(
+            FacilityCode.TCC, today.Year, today.Month, includeClosed: false, wholeAccount: true, CancellationToken.None);
+
+        var months = today.Month - 1;                       // January to the last month that closed
+        Assert.Equal(months, Assert.Single(projected).MonthsUnpaid);
+        Assert.Equal(months * 1000m, Assert.Single(projected).OutstandingBalance);
+
+        // And the two agree: the wider anchor bought no extra months.
+        Assert.Equal(Assert.Single(toDate).MonthsUnpaid, Assert.Single(projected).MonthsUnpaid);
+        Assert.Equal(Assert.Single(toDate).OutstandingBalance, Assert.Single(projected).OutstandingBalance);
+    }
 }

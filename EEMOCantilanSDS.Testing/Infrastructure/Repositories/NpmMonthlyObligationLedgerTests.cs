@@ -130,7 +130,11 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
         // collector's report are all asked about the same stall on the same day.
         var today = PhilippineTime.Today;
         var monthStart = new DateOnly(today.Year, today.Month, 1);
-        var earned = FeeRates.NpmDailyFee * today.Day;      // the days of this month that have happened
+        // The days of this month that have happened, capped by the month's rent — a month held in full owes the rent
+        // and never more, so on the 31st of a 31-day month the figure is ₱900, not ₱930. Computing it as fee × day
+        // alone would pass today and fail on a month end or in February.
+        var earned = DomainRules.DailyBilledMonthObligation(
+            FeeRates.NpmDailyFee, MonthlyRent, DateTime.DaysInMonth(today.Year, today.Month), today.Day);
 
         var context = NewContext();
         var (facility, stall, term) = NpmStall(monthStart);
@@ -168,9 +172,8 @@ public class NpmMonthlyObligationLedgerTests : RepositoryTestBase
             collector.Id, new[] { FacilityCode.NPM }, monthStart, today, CancellationToken.None);
         Assert.Equal(earned, Assert.Single(collectorReport.Payees).AssessedAmount);
 
-        // And nothing beyond today is owed anywhere: a month still ahead contributes zero.
-        Assert.True(earned < FeeRates.NpmDailyFee * DomainRules.DailyBilledMonthDays
-            || today.Day >= DomainRules.DailyBilledMonthDays);
+        // And nothing beyond today is owed anywhere: the figure never exceeds the month's own rent.
+        Assert.True(earned <= MonthlyRent, $"earned {earned:N2} must not exceed the month's rent {MonthlyRent:N2}");
     }
 
     [Fact]

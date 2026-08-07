@@ -835,6 +835,16 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                     var daysInMonth = DateTime.DaysInMonth(cursor.Year, cursor.Month);
                     var mEnd = new DateOnly(cursor.Year, cursor.Month, daysInMonth);
                     if (mEnd > billableEnd) mEnd = billableEnd;
+                    // And never past today. An occupancy's billable end can sit in the future — a stall frozen with no
+                    // recorded closure date keeps its term's expiry — so without this the register billed whole
+                    // unearned months and stated a larger balance than the stall profile for the same account. This
+                    // is the sixth path of the earned-obligation rule; the other five already applied it.
+                    mEnd = DomainRules.EarnedThrough(mEnd, today);
+                    if (mEnd < mStart)
+                    {
+                        cursor = cursor.AddMonths(1);
+                        continue;
+                    }
 
                     var daysHeld = mEnd.DayNumber - mStart.DayNumber + 1;
                     var daysForgiven = 0;
