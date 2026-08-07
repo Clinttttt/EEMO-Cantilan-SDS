@@ -442,7 +442,10 @@
                             @if (eff == "collected" && IsDay && IsFishPayor)
                             {
                                 <div class="ce-or ce-fish">
-                                    <label class="ce-or-label">Fish Weight <span class="ce-or-opt">(kg — adds ₱@(_npmFishRate.ToString("0"))/kg on top of the ₱@(_npmDailyRate.ToString("0")) daily fee)</span></label>
+                                    @* The rates are stated only once the office's own answer has arrived; before that
+                                       the label names the charge without quoting a figure that might be another
+                                       municipality's. *@
+                                    <label class="ce-or-label">Fish Weight <span class="ce-or-opt">@(_npmFishRate > 0m && _npmDailyRate > 0m ? $"(kg — adds ₱{_npmFishRate:0}/kg on top of the ₱{_npmDailyRate:0} daily fee)" : "(kg)")</span></label>
                                     <div class="ce-fish-row">
                                         <input class="ce-or-input ce-fish-input" type="number" min="0" step="1" inputmode="numeric" placeholder="0" @bind="CurrentFishKilos" @bind:event="oninput" />
                                         <span class="ce-fish-unit">kg</span>
@@ -548,13 +551,15 @@
     private readonly Dictionary<string, string> _orNumbers = new();
     private readonly Dictionary<string, string> _fishKilos = new();
 
-    // NPM Fish Area payors owe ₱1/kg on top of the ₱30 daily fee, so a collected fish day can carry a weight.
-    private bool IsFishPayor => IsNpm && SelectedStall is not null && SelectedStall.Section == "Fish Area";
+    // Whether this space sits in the section that carries the per-kilo fee, read from the section ENUM. It compared
+    // against "Fish Area" — Cantilan's own wording — so another municipality's fish section, named its own way, was
+    // not recognised and its payors could not record a weight at all. Same fault as the market page's edit path.
+    private bool IsFishPayor => IsNpm && SelectedStall?.CarriesSectionFee == true;
 
-    // Tenant-resolved NPM daily + fish rates (₱30 / ₱1 ordinance fallback keeps Cantilan identical), used in
-    // the fish-weight hint so a custom-fee LGU sees its own rates.
-    private decimal _npmDailyRate = 30m;
-    private decimal _npmFishRate = 1m;
+    // Tenant-resolved NPM daily and per-kilo rates. Zero until the office's own rates answer, so this screen never
+    // quotes Cantilan's ordinance to another municipality; the fish-weight hint states nothing until they arrive.
+    private decimal _npmDailyRate;
+    private decimal _npmFishRate;
 
     private async Task LoadNpmRatesAsync()
     {
@@ -612,7 +617,8 @@
         {
             _payors.Add(new CeStall(
                 s.Id, s.StallNo, string.IsNullOrWhiteSpace(s.ActualOccupant) ? "—" : s.ActualOccupant!,
-                SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate));
+                SectionLabelOf(s), s.MonthlyRate, s.DailyRate, s.ContractDate,
+                CarriesSectionFee: s.Section == MarketSection.FishSection));
         }
         CachedPayors = new CollectionExceptionsPayorState(CurrentFacility, _payors.ToList());
         _loading = false;
@@ -980,5 +986,7 @@
         List<CeStall> Payors);
 
     public sealed record CeStall(Guid Id, string StallNo, string Occupant, string Section,
-        decimal MonthlyRate, decimal? DailyRate, DateTime? ContractDate);
+        decimal MonthlyRate, decimal? DailyRate, DateTime? ContractDate,
+        // From the section ENUM, not its label: the label is one municipality's wording.
+        bool CarriesSectionFee = false);
 }

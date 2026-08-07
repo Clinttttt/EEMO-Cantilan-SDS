@@ -490,18 +490,19 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                 // across web and mobile. Fish fees (₱/kg) are NOT part of the rental obligation, so the
                 // per-payee Amount Paid is rental-only (like the web's per-stall column); fish revenue
                 // still appears in the Total Collection.
-                // Obligation and open items are assessed over the FULL calendar month — the same window the office's
-                // own report uses — so the collector's figures and the office's cannot differ even when the report is
-                // pulled for part of a month. COLLECTED money still counts every paid collection in the month,
-                // including days paid in advance.
+                // The OBLIGATION is assessed over the days earned as of today — the same rule and the same window the
+                // office's own report uses — so the collector's figures and the office's cannot differ even when the
+                // report is pulled mid-month. COLLECTED money is the other side of that asymmetry: it still counts
+                // every paid collection in the calendar month, including days paid in advance, because the office
+                // never discards money it has taken.
                 var collectableDays = CountNpmCollectableDays(s, monthStart, collectionEnd);
                 var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, monthStart, collectionEnd, s));
                 // What was actually received, read from the rows themselves — never recomputed as a count × today's
                 // rate, which would lose a month-end adjustment and restate days stamped at a superseded rate.
                 var rentalPaid = monthlyRentalPaid + paidCollections.Sum(d => d.DailyFee);
-                // The month's contractual rent from the same ledger the office's screen reads — ₱900 for a month
-                // held in full, whatever the calendar gave it — so the collector's report and the office's report
-                // state one figure. The ₱30 fee is the installment this is collected in, not the measure of it.
+                // The rent for the days EARNED, from the same ledger the office's screen reads — a month held in full
+                // owes the month's rent whatever the calendar gave it. The daily fee is the installment this is
+                // collected in, not the measure of it.
                 // Only the days EARNED as of today are assessed: a market space is charged per market day, so a
                 // report run mid-month must not assess days the vendor has not yet occupied. This is the same rule
                 // the office's report and the stall profile apply (DomainRules.EarnedThrough), which is what keeps
@@ -514,7 +515,10 @@ public class CollectorRepository(AppDbContext context, IFeeRateResolver feeRateR
                     DateTime.DaysInMonth(collectionEnd.Year, collectionEnd.Month),
                     assessedDays);
                 var balance = Math.Max(0m, assessed - rentalPaid);
-                var status = balance <= 0m && collectableDays > 0
+                // Paid means a real obligation was met. Judging it on collectable days alone reported "Paid" on the
+                // first of a month for a stall with nothing assessed and nothing collected — a settled account, on a
+                // sheet the collector works from. Nothing earned yet is Unpaid until something is owed.
+                var status = assessed > 0m && balance <= 0m
                     ? PaymentStatus.Paid
                     : rentalPaid > 0m ? PaymentStatus.Partial : PaymentStatus.Unpaid;
 

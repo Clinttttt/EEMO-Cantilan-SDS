@@ -451,7 +451,10 @@ public class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateRes
                 continue;
             }
 
-            var status = amountPaid >= bill && bill > 0m ? PaymentStatus.Paid : PaymentStatus.Partial;
+            // Settled when the money covers what has been earned. Requiring bill > 0 read "Partial" on a month whose
+            // obligation has not started to accrue but which the vendor has already paid into — the first day or two
+            // of a month, paid ahead. Nothing owed and something paid is Paid, not part-paid.
+            var status = amountPaid >= bill ? PaymentStatus.Paid : PaymentStatus.Partial;
             var balance = Math.Max(0m, bill - amountPaid);
             var last = monthDailies.OrderByDescending(d => d.CollectionDate).FirstOrDefault();
 
