@@ -46,6 +46,30 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public static DateOnly ComputeExpiry(DateOnly effectivityDate, int durationYears) =>
             effectivityDate.AddYears(durationYears);
 
+        /// <summary>
+        /// Whether this term owes rent for the given calendar month, for a MONTHLY-billed space.
+        /// <para>
+        /// A term of N years owes exactly N × 12 months' rent, whatever day of the month it began on. The billing
+        /// months are the N × 12 calendar months starting with the month of effectivity: a term running 7 June 2023
+        /// to 7 June 2026 owes June 2023 through May 2026 — thirty-six months — because the last billing month ends
+        /// the day before the anniversary.
+        /// </para>
+        /// <para>
+        /// The obligation used to bill every calendar month the term OVERLAPPED, which counted both part-months whole
+        /// and so charged thirty-seven months for a three-year term (and thirteen for a one-year term). Every
+        /// monthly-billed account in the office was over-stated by one month's rent.
+        /// </para>
+        /// <para>Daily-collected spaces do not use this: they are charged per market day, not by the month.</para>
+        /// </summary>
+        public bool BillsCalendarMonth(int year, int month)
+        {
+            if (DurationYears <= 0) return false;
+
+            var firstBillingMonth = EffectivityDate.Year * 12 + (EffectivityDate.Month - 1);
+            var asked = year * 12 + (month - 1);
+            return asked >= firstBillingMonth && asked < firstBillingMonth + DurationYears * 12;
+        }
+
         public decimal WholeYearRental => MonthlyRentalRate * 12;
         public bool IsExpired => PhilippineTime.Today > ExpiryDate;
         public bool IsExpiringSoon => !IsExpired &&

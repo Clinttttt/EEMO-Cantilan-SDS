@@ -875,12 +875,16 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
             else
             {
                 // Per calendar month this occupancy answered for: a non-Unpaid record's balance, else the full
-                // monthly rent. Excused months owe nothing.
+                // monthly rent. Excused months owe nothing. The walk stops at the term's own last billing month —
+                // a term of N years owes N × 12 months, so it must not spill into the anniversary month, which is
+                // how a three-year term came to read thirty-seven months.
                 var cursor = new DateOnly(startDate.Year, startDate.Month, 1);
                 var endMonth = new DateOnly(billableEnd.Year, billableEnd.Month, 1);
                 while (cursor <= endMonth)
                 {
-                    if (!stallExcused.Contains((cursor.Year, cursor.Month)) && AnswersFor(cursor.Year, cursor.Month))
+                    if (!stallExcused.Contains((cursor.Year, cursor.Month))
+                        && AnswersFor(cursor.Year, cursor.Month)
+                        && contract.BillsCalendarMonth(cursor.Year, cursor.Month))
                     {
                         var rec = stallPayments.FirstOrDefault(p => p.BillingYear == cursor.Year && p.BillingMonth == cursor.Month);
                         uncollected += rec is not null && rec.Status != PaymentStatus.Unpaid

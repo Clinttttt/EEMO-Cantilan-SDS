@@ -558,8 +558,12 @@ public partial class FacilityReportsRepository
             if (CountNpmCollectableDays(stall, monthStart, monthEnd, absentDates) == 0)
                 continue;
 
-            // Admin-excused monthly months are not owed → never missed. The excused set is this year's, so it
-            // only applies to months of the year the caller asked about.
+            // And, for a monthly-billed space, only the term's own billing months. A term of N years owes N × 12,
+            // so the anniversary month is not a further month — counting it left the row stating one month more than
+            // the balance beside it.
+            if (!isNpm && !stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
+                continue;
+
             // An admin-excused month owes nothing, in whatever year it falls. Restricting this to the anchor year
             // made the count disagree with the balance beside it across a year boundary.
             if (!isNpm && excusedMonths is not null && excusedMonths.Contains((cursor.Year, cursor.Month)))

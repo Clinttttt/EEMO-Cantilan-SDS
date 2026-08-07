@@ -414,12 +414,13 @@ public partial class FacilityReportsRepository
         {
             var mStart = cursor;
             var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-            // Skip months that have not started yet (not due), months the contract is not effective,
-            // and admin-excused months (₱0 owed for an approved closure).
+            // Skip months that have not started yet (not due), admin-excused months (₱0 owed for an approved
+            // closure), and months outside the term's own billing months. A term of N years owes N × 12 months —
+            // billing every calendar month the term merely overlapped charged both part-months whole, so a
+            // three-year term read thirty-seven months.
             if (mStart <= today
                 && (excusedMonths is null || !excusedMonths.Contains((cursor.Year, cursor.Month)))
-                && stall.Contracts.Any(c => c.IsActive
-                    && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+                && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
             {
                 total += stall.MonthlyRate;
             }
@@ -467,8 +468,7 @@ public partial class FacilityReportsRepository
                     var mStart = cursor;
                     var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
                     if (mStart <= today
-                        && stall.Contracts.Any(c => c.IsActive
-                            && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+                        && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
                         total += stall.MonthlyRate;   // no record yet → current rate
                 }
             }
@@ -494,8 +494,7 @@ public partial class FacilityReportsRepository
             {
                 var mStart = cursor;
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
-                if (s.Contracts.Any(c => c.IsActive
-                        && c.EffectivityDate <= mEnd && c.EffectivityDate.AddYears(c.DurationYears) >= mStart))
+                if (s.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
                     total += s.MonthlyRate;
                 cursor = cursor.AddMonths(1);
             }

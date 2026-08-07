@@ -110,14 +110,15 @@ public class ClosedStallAccountsHandoverAndPeriodTests : RepositoryTestBase
 
         var repo = new StallRepository(context);
 
-        // In full: June 2023 to June 2026 inclusive — thirty-seven months.
+        // In full: a three-year term owes thirty-six months — June 2023 through May 2026. The anniversary month is
+        // not a thirty-seventh, because the last billing month ends the day before it.
         var lifetime = Assert.Single(await repo.GetClosedStallAccountsAsync(CancellationToken.None));
-        Assert.Equal(37_000m, lifetime.Uncollected);
+        Assert.Equal(36_000m, lifetime.Uncollected);
 
-        // 2026 owes only January to June, the months of that year the term ran.
+        // 2026 owes January to May — the term's last billing month is May, not the anniversary June.
         var year2026 = Assert.Single(await repo.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None));
-        Assert.Equal(6_000m, year2026.Uncollected);
+        Assert.Equal(5_000m, year2026.Uncollected);
 
         // 2023 owes June to December — the term had not begun in January.
         var year2023 = Assert.Single(await repo.GetClosedStallAccountsForPeriodAsync(
@@ -167,10 +168,10 @@ public class ClosedStallAccountsHandoverAndPeriodTests : RepositoryTestBase
         var year2026 = Assert.Single(await repo.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None));
         Assert.Equal(1_000m, year2026.LifetimeCollected);   // February 2026 only
-        Assert.Equal(5_000m, year2026.Uncollected);         // the year's other five months
+        Assert.Equal(4_000m, year2026.Uncollected);         // the year's other four billing months
 
         var lifetime = Assert.Single(await repo.GetClosedStallAccountsAsync(CancellationToken.None));
         Assert.Equal(2_000m, lifetime.LifetimeCollected);   // both payments, on the cumulative reading
-        Assert.Equal(35_000m, lifetime.Uncollected);
+        Assert.Equal(34_000m, lifetime.Uncollected);
     }
 }

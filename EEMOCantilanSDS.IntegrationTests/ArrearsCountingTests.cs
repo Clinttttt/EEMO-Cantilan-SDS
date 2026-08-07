@@ -153,10 +153,10 @@ public class ArrearsCountingTests(PostgresFixture db)
             FacilityCode.TCC, Today.Year, Today.Month, includeClosed: false, wholeAccount: true, CancellationToken.None);
 
         var row = Assert.Single(arrears);
-        // Every month from June 2023 to the term's end, June 2026, at ₱900 — the same 37 months and ₱33,300 the
-        // register states. Nothing is owed after the term lapsed, which is a separate question from this one.
-        Assert.Equal(37, row.MonthsUnpaid);
-        Assert.Equal(33_300m, row.OutstandingBalance);
+        // A three-year term owes thirty-six months at ₱900 — June 2023 through May 2026. Not thirty-seven: the
+        // anniversary month is not a billing month, because the last one ends the day before it.
+        Assert.Equal(36, row.MonthsUnpaid);
+        Assert.Equal(32_400m, row.OutstandingBalance);
         Assert.True(row.TermLapsed, "the term ran out and nothing was handed over, so the row says so");
     }
 
