@@ -289,8 +289,21 @@
                 <div class="imp-continue-note">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
                     <span>
-                        Some numbers already exist in <strong>@_facility.Name@SectionSuffix</strong> — the batch was
-                        renumbered to continue from <strong>#@(_existingMax + 1)</strong> so nothing conflicts.
+                        @if (_autoContinuedClashed)
+                        {
+                            <text>
+                                Some numbers already exist in <strong>@_facility.Name@SectionSuffix</strong> — the batch was
+                                renumbered to continue from <strong>#@(_existingMax + 1)</strong> so nothing conflicts.
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                The list did not carry usable Stall / Space numbers — the batch was numbered
+                                from <strong>#@(_existingMax + 1)</strong>, continuing after
+                                <strong>@_facility.Name@SectionSuffix</strong>.
+                            </text>
+                        }
                         You can still edit any Stall / Space No. below.
                     </span>
                 </div>
@@ -422,6 +435,7 @@
     // stalls, renumber the batch to continue after the current highest number so nothing conflicts.
     private int _existingMax;
     private bool _autoContinued;
+    private bool _autoContinuedClashed;
     // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
     private readonly HashSet<string> _existingOccupants = new(StringComparer.OrdinalIgnoreCase);
     // Stall number → the lessee who last held it, for numbers this file would take over from a vacated space.
@@ -509,6 +523,7 @@
         _fileName = string.Empty;
         _uploadError = null;
         _autoContinued = false;
+        _autoContinuedClashed = false;
         _existingMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
@@ -564,6 +579,7 @@
     private async Task ApplyContinuedNumberingAsync()
     {
         _autoContinued = false;
+        _autoContinuedClashed = false;
         _existingMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
@@ -602,14 +618,19 @@
                 if (on.Length > 0) _existingOccupants.Add(on);
             }
 
-            // Conflict = an imported number already exists, is blank, or repeats within the file.
+            // Conflict = an imported number already exists, is blank, or repeats within the file. The REASON matters
+            // for what the office is told: saying "some numbers already exist" when the list simply arrived without
+            // any is a plain untruth, and on an empty facility it reads as though data were already there.
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var conflict = false;
+            var clashedWithExisting = false;
             foreach (var row in _rows)
             {
                 var sn = GetCell(row, "stallNo").Trim();
-                if (sn.Length == 0 || existing.Contains(sn) || !seen.Add(sn)) { conflict = true; break; }
+                if (existing.Contains(sn)) { conflict = true; clashedWithExisting = true; break; }
+                if (sn.Length == 0 || !seen.Add(sn)) { conflict = true; break; }
             }
+            _autoContinuedClashed = clashedWithExisting;
 
             if (!conflict)
             {
@@ -1067,6 +1088,7 @@
         _result = null;
         _saveError = null;
         _autoContinued = false;
+        _autoContinuedClashed = false;
         _existingMax = 0;
         _applyElectricity = false;
         _applyWater = false;

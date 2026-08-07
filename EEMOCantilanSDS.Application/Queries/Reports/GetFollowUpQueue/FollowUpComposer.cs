@@ -116,7 +116,10 @@ public static class FollowUpComposer
                 Facility: d.FacilityCode,
                 Model: Model(d.FacilityCode),
                 Person: Named(d.Occupant),
-                Identifier: $"Stall {d.StallNo}",
+                // Named with its section where the facility has them. The market numbers spaces per section, so three
+                // different payors were each listed as "Stall 1 · NPM" with nothing to tell them apart — the office
+                // could not know which space a row was about, let alone which one it had just collected from.
+                Identifier: string.IsNullOrWhiteSpace(d.Section) ? $"Stall {d.StallNo}" : $"Stall {d.StallNo} · {d.Section}",
                 Amount: d.OutstandingBalance,
                 Excused: false,
                 Period: delinquencySpanLabel ?? periodLabel,
