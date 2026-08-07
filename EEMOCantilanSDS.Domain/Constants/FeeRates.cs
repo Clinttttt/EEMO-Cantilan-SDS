@@ -100,6 +100,37 @@ namespace EEMOCantilanSDS.Domain.Constants
             => windowEnd < asOf ? windowEnd : asOf;
 
         /// <summary>
+        /// Whether an occupancy's term has run out as of a given date — the difference between a stall the office is
+        /// still letting and one whose lessee has no standing to continue unless the contract is renewed.
+        ///
+        /// <para>The rule lives here because the arithmetic had been written out by hand in three places — the bulk
+        /// import screen, the utility register, and the facility pages via a status flag that does not carry it — and a
+        /// facility page consequently held two contradictory ideas of "current" on one screen: a header counting only
+        /// stalls with a live contract beside a grid listing every stall not formally closed. The same term was
+        /// simultaneously reported as 2 stalls and 5.</para>
+        ///
+        /// <para>A term of zero years is open-ended — a space let without a contract — and never expires. The last day
+        /// of the term is still inside it: a three-year term effective the 7th of June runs THROUGH the 7th of June
+        /// three years on, which is the reading the office's own paper takes.</para>
+        ///
+        /// <para>Expiry is not closure. The lessee is typically still trading and still owes, so an expired term stays
+        /// in arrears, in follow-up and in the register of inactive accounts; it is only excluded from the list of
+        /// stalls being currently let.</para>
+        /// </summary>
+        /// <param name="effectivity">The date the term took effect, or null where no contract is on record.</param>
+        /// <param name="durationYears">The term length in years; zero or less means open-ended.</param>
+        /// <param name="asOf">The date the question is asked as of.</param>
+        public static bool TermHasExpired(DateOnly? effectivity, int durationYears, DateOnly asOf)
+            => effectivity is { } start && durationYears > 0 && start.AddYears(durationYears) < asOf;
+
+        /// <inheritdoc cref="TermHasExpired(DateOnly?, int, DateOnly)"/>
+        public static bool TermHasExpired(DateTime? effectivity, int durationYears, DateTime asOf)
+            => TermHasExpired(
+                effectivity is { } d ? DateOnly.FromDateTime(d) : null,
+                durationYears,
+                DateOnly.FromDateTime(asOf));
+
+        /// <summary>
         /// What a daily-collected space OWES for one calendar month — its canonical contractual obligation.
         ///
         /// <para>A month the space was held in FULL owes the monthly rent, whatever the calendar says: this is the

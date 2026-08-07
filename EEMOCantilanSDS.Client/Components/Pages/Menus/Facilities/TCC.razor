@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.Stalls.CreateStall
 @using EEMOCantilanSDS.Application.Command.Stalls.UpdateStall
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject IStallsApiClient StallsApi
@@ -247,6 +248,7 @@
                     ContractDate = dto.ContractDate,
                     MonthlyRate = dto.MonthlyRate,
                     IsActive = dto.Status == StallStatus.Active,
+                    IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, PhilippineTime.Now),
                     ORNumber = orNumber,
                     IsPaid = isPaid,
                     IsPartial = isPartial,
@@ -331,6 +333,11 @@
         public bool IsPartial { get; set; }
         public decimal PartialAmount { get; set; }
         public bool IsActive { get; set; } = true;
+        /// <summary>The term has run out. The lessee usually remains and still owes, so the account stays in arrears,
+        /// follow-up and the inactive register — it is only excluded from the stalls being currently let.</summary>
+        public bool IsTermExpired { get; set; }
+        /// <summary>Currently let: not closed, and on a term that has not run out.</summary>
+        public bool IsCurrent => IsActive && !IsTermExpired;
         public string ORNumber { get; set; } = string.Empty;
         public string CollectorName { get; set; } = string.Empty;
         public decimal ElecAmount { get; set; }
@@ -360,7 +367,7 @@
         return d;
     }
 
-    IEnumerable<TccStall> ActiveStalls => Stalls.Where(s => s.IsActive);
+    IEnumerable<TccStall> ActiveStalls => Stalls.Where(s => s.IsCurrent);
 
     decimal TotalCollected => ActiveStalls.Where(s => s.IsPaid || s.IsPartial).Sum(s => s.IsPartial ? s.PartialAmount : s.MonthlyRate);
     decimal TotalPending => ActiveStalls.Where(s => !s.IsPaid).Sum(s => s.MonthlyRate - (s.IsPartial ? s.PartialAmount : 0));
@@ -372,11 +379,13 @@
     {
         bool matchStatus = ActiveStatus switch
         {
-            "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
-            "Partial" => s.IsPartial && s.IsActive,
-            "Unpaid" => !s.IsPaid && !s.IsPartial && s.IsActive,
-            "Closed" => !s.IsActive,
-            _ => true
+            "Paid" => s.IsPaid && !s.IsPartial && s.IsCurrent,
+            "Partial" => s.IsPartial && s.IsCurrent,
+            "Unpaid" => !s.IsPaid && !s.IsPartial && s.IsCurrent,
+            // Closed OR lapsed: both are off the list of stalls being let, and the office reads their balances on the
+            // follow-up queue and the register of inactive accounts.
+            "Closed" => !s.IsCurrent,
+            _ => s.IsCurrent
         };
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)

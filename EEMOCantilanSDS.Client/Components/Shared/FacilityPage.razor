@@ -312,8 +312,10 @@
             "Paid" => IsPaidSelector(s) && !IsPartialSelector(s) && IsActiveSelector(s),
             "Partial" => IsPartialSelector(s) && IsActiveSelector(s),
             "Unpaid" => !IsPaidSelector(s) && !IsPartialSelector(s) && IsActiveSelector(s),
+            // Closed OR lapsed: both are off the list of spaces being let, and the office reads their balances on the
+            // follow-up queue and the register of inactive accounts.
             "Closed" => !IsActiveSelector(s),
-            _ => true
+            _ => IsActiveSelector(s)
         };
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || ActualOccupantSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)

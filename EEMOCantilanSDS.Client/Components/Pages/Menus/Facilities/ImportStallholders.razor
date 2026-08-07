@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
@@ -602,7 +603,13 @@
                 // import to reuse (the server renews the same stall). Only ACTIVE stalls block a number or
                 // push the continue-from counter, matching the import's create-vs-renew rule. This is why a
                 // fresh batch reuses the vacated slots instead of jumping past every historical number.
-                var expired = PhilippineTime.Today > r.EffectivityDate.AddYears(r.DurationYears);
+                //
+                // The shared rule is used rather than the arithmetic written out again, because the hand-written form
+                // omitted the open-ended case: a space let WITHOUT a contract carries a term of zero years, so
+                // "today is past effectivity + 0 years" was true of every one of them and the Iceplant and barbecue
+                // spaces — which are all let this way, and all still occupied — were read as vacant and their numbers
+                // offered up for reuse.
+                var expired = DomainRules.TermHasExpired(r.EffectivityDate, r.DurationYears, PhilippineTime.Today);
                 var reusable = r.IsClosed || expired;
                 if (reusable)
                 {

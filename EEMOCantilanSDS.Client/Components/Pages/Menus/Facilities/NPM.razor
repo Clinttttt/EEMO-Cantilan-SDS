@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
 @inject NavigationManager Navigation
@@ -158,11 +159,11 @@
                 </div>
                 <div class="npm-section-mini-stats">
                     <div class="npm-mini-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsActive && s.PaidToday)</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsCurrent && s.PaidToday)</div>
                         <div class="npm-mini-key">Paid Today</div>
                     </div>
                     <div class="npm-mini-stat unpaid-stat">
-                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsActive && !s.PaidToday && !s.AbsentToday)</div>
+                        <div class="npm-mini-val">@FilteredStalls.Count(s => s.IsCurrent && !s.PaidToday && !s.AbsentToday)</div>
                         <div class="npm-mini-key">Pending Today</div>
                     </div>
                     <div class="npm-mini-stat">
@@ -548,6 +549,7 @@
                     HasElectricity = dto.HasElectricity,
                     HasWater = dto.HasWater,
                     IsActive = dto.Status == StallStatus.Active,
+                    IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, PhilippineTime.Now),
                     ORNumber = orNumber,
                     IsPaid = isPaid,
                     IsPartial = isPartial,
@@ -733,6 +735,11 @@
         public bool IsAbsent { get; set; }
         public decimal PartialAmount { get; set; }
         public bool IsActive { get; set; }
+        /// <summary>The term has run out. The lessee usually remains and still owes, so the account stays in arrears,
+        /// follow-up and the inactive register — it is only excluded from the spaces being currently let.</summary>
+        public bool IsTermExpired { get; set; }
+        /// <summary>Currently let: not closed, and on a term that has not run out.</summary>
+        public bool IsCurrent => IsActive && !IsTermExpired;
         public string ORNumber { get; set; } = string.Empty;
         // NPM daily operational status (current month, as of today)
         public bool PaidToday { get; set; }
@@ -771,7 +778,7 @@
         return d;
     }
 
-    IEnumerable<NpmStall> ActiveStalls => Stalls.Where(s => s.IsActive);
+    IEnumerable<NpmStall> ActiveStalls => Stalls.Where(s => s.IsCurrent);
     IEnumerable<NpmStall> StallsBySection(string sec) => ActiveStalls.Where(s => s.Section == sec);
 
     // Section collected this month — from the daily-aware report (matches the Reports page).
@@ -799,11 +806,13 @@
     {
         bool matchStatus = ActiveStatus switch
         {
-            "Paid" => s.IsPaid && !s.IsPartial && s.IsActive,
-            "Partial" => s.IsPartial && s.IsActive,
-            "Unpaid" => !s.IsPaid && !s.IsPartial && !s.IsAbsent && s.IsActive,
-            "Closed" => !s.IsActive,
-            _ => true
+            "Paid" => s.IsPaid && !s.IsPartial && s.IsCurrent,
+            "Partial" => s.IsPartial && s.IsCurrent,
+            "Unpaid" => !s.IsPaid && !s.IsPartial && !s.IsAbsent && s.IsCurrent,
+            // Closed OR lapsed: both are off the list of spaces being let, and the office reads their balances on the
+            // follow-up queue and the register of inactive accounts.
+            "Closed" => !s.IsCurrent,
+            _ => s.IsCurrent
         };
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || s.ActualOccupant.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)

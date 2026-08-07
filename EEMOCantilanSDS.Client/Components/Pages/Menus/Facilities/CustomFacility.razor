@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject NavigationManager Navigation
 
@@ -25,7 +26,7 @@
               StallMapper="@MapStall"
               IsPaidSelector="@(s => s.IsPaid)"
               IsPartialSelector="@(s => s.IsPartial)"
-              IsActiveSelector="@(s => s.IsActive)"
+              IsActiveSelector="@(s => s.IsCurrent)"
               MonthlyRateSelector="@(s => s.MonthlyRate)"
               PartialAmountSelector="@(s => s.PartialAmount)"
               StallNoSelector="@(s => s.StallNo)"
@@ -66,6 +67,11 @@
         public bool IsPartial { get; set; }
         public decimal PartialAmount { get; set; }
         public bool IsActive { get; set; } = true;
+        /// <summary>The term has run out. The lessee usually remains and still owes, so the account stays in arrears,
+        /// follow-up and the inactive register — it is only excluded from the spaces being currently let.</summary>
+        public bool IsTermExpired { get; set; }
+        /// <summary>Currently let: not closed, and on a term that has not run out.</summary>
+        public bool IsCurrent => IsActive && !IsTermExpired;
         public string ORNumber { get; set; } = string.Empty;
     }
 
@@ -81,6 +87,7 @@
             ContractDate = dto.ContractDate,
             MonthlyRate = dto.MonthlyRate,
             IsActive = dto.Status == StallStatus.Active,
+            IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, PhilippineTime.Now),
             ORNumber = orNumber,
             IsPaid = isPaid,
             IsPartial = isPartial,
