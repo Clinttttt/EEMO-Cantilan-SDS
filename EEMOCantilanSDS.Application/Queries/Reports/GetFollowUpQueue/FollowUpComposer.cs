@@ -123,7 +123,13 @@ public static class FollowUpComposer
                 Amount: d.OutstandingBalance,
                 Excused: false,
                 Period: delinquencySpanLabel ?? periodLabel,
-                Status: $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
+                // A daily-billed stall does not owe whole months. Its debt is a run of market days, and the month
+                // count is only the span those days fall in — so a market stall read "37 months" beside a monthly
+                // stall's "36 months" on the identical term dates, inviting the office to think one was over-billed.
+                // Both figures were right; only the word "months" meant two different things.
+                Status: BillsDaily(d.FacilityCode)
+                    ? $"Unpaid · daily fees across {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}"
+                    : $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
                 Action: "View vendor",
                 Link: ProfileLink(d.FacilityCode, d.StallNo),
                 StallId: d.StallId));
@@ -504,4 +510,10 @@ public static class FollowUpComposer
         FacilityCode.TPM => "Weekly market",
         _ => "—"
     };
+
+    /// <summary>
+    /// True where the facility charges by the day rather than by the month, so a month count describes the span the
+    /// debt falls in and not a number of whole months owed.
+    /// </summary>
+    private static bool BillsDaily(FacilityCode code) => code == FacilityCode.NPM;
 }

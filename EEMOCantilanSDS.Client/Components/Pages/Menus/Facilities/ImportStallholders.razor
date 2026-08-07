@@ -1115,6 +1115,15 @@
     }
 
     // ── Facility-aware schemas + sample data (hardcoded) ─────────────────────
+
+    /// <summary>
+    /// Effectivity date carried by the sample rows, taken from the current month rather than written down. A fixed date
+    /// rots: this sample was authored as 2023-06-07 with three-year terms, so from June 2026 onward every row it
+    /// produced arrived already expired and the office was shown a facility full of lapsed contracts it had never
+    /// entered. Starting the term at the top of the present month keeps the sample current in any year — the contract
+    /// is live, nothing has yet been earned, and no row arrives in arrears.
+    /// </summary>
+    private static string SampleEffectivity => PhilippineTime.Today.ToString("yyyy-MM") + "-01";
     public record ColumnDef(string Key, string Label, string Type = "text", string[]? Options = null,
         int MinWidth = 150, string Placeholder = "", string Default = "")
     {
@@ -1172,11 +1181,11 @@
             {
                 // Placeholder names, not any municipality's own payors: the sample teaches the FORMAT, and every LGU
                 // that presses "Use sample data" sees the same neutral rows rather than another office's stallholders.
-                Row(("occupant","Juan Dela Cruz"),("contractName","Maria Dela Cruz"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Maria Clara Santos"),("contractName","Maria Clara Santos"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Pedro Reyes"),("contractName","Pedro Reyes"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Josefa Mercado"),("contractName","Andres Mercado"),("stallNo","4"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
-                Row(("occupant","Lorenzo Bautista"),("contractName","Lorenzo Bautista"),("stallNo","5"),("effectivity","2023-06-07"),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Juan Dela Cruz"),("contractName","Maria Dela Cruz"),("stallNo","1"),("effectivity",SampleEffectivity),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Maria Clara Santos"),("contractName","Maria Clara Santos"),("stallNo","2"),("effectivity",SampleEffectivity),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Pedro Reyes"),("contractName","Pedro Reyes"),("stallNo","3"),("effectivity",SampleEffectivity),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Josefa Mercado"),("contractName","Andres Mercado"),("stallNo","4"),("effectivity",SampleEffectivity),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
+                Row(("occupant","Lorenzo Bautista"),("contractName","Lorenzo Bautista"),("stallNo","5"),("effectivity",SampleEffectivity),("years","3"),("area","4.8"),("monthly","900"),("actualMonthly","900"),("wholeYear","10800")),
             }
         };
 
@@ -1188,9 +1197,9 @@
             Columns = Core(),
             Sample = new()
             {
-                Row(("occupant","Joseph Villamor"),("contractName","Joseph Villamor"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
-                Row(("occupant","Marlon Aguilar"),("contractName","Marlon Aguilar"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
-                Row(("occupant","Jonalyn Ramos"),("contractName","Jonalyn Ramos"),("stallNo","3"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Joseph Villamor"),("contractName","Joseph Villamor"),("stallNo","1"),("effectivity",SampleEffectivity),("years","3"),("area","10.5"),("monthly","2760"),("actualMonthly","2760"),("wholeYear","33120")),
+                Row(("occupant","Marlon Aguilar"),("contractName","Marlon Aguilar"),("stallNo","2"),("effectivity",SampleEffectivity),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
+                Row(("occupant","Jonalyn Ramos"),("contractName","Jonalyn Ramos"),("stallNo","3"),("effectivity",SampleEffectivity),("years","3"),("area","10.5"),("monthly","2400"),("actualMonthly","2400"),("wholeYear","28800")),
                 // The office's own sheet carries spaces held without a signed contract among the contracted ones,
                 // and writes the basis where the leasee's name would go — an extension of a lapsed Tampak contract,
                 // or a space only. Such a row states no term, no area and no contract rental: only the rent charged.
@@ -1212,11 +1221,11 @@
             },
             Sample = new()
             {
-                Row(("occupant","Lucia Ramirez"),("contractName","Lucia Ramirez"),("stallNo","1"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
-                Row(("occupant","Ruel Ramirez"),("contractName","Ruel Ramirez"),("stallNo","2"),("effectivity","2023-06-07"),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
-                Row(("occupant","Florencia Delgado"),("contractName","Florencia Delgado"),("stallNo","13"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3240"),("actualMonthly","3240"),("wholeYear","38880"),("areaLoc","Corner")),
-                Row(("occupant","Gideon Salazar"),("contractName","Gideon Salazar"),("stallNo","16"),("effectivity","2023-06-07"),("years","3"),("area","70"),("monthly","2400"),("actualMonthly","4800"),("wholeYear","57600"),("areaLoc","Corner")),
-                Row(("occupant","Rachel Del Valle"),("contractName","Rachel Del Valle"),("stallNo","22"),("effectivity","2023-06-07"),("years","3"),("area","35"),("monthly","3840"),("actualMonthly","3840"),("wholeYear","46080"),("areaLoc","Corner")),
+                Row(("occupant","Lucia Ramirez"),("contractName","Lucia Ramirez"),("stallNo","1"),("effectivity",SampleEffectivity),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Ruel Ramirez"),("contractName","Ruel Ramirez"),("stallNo","2"),("effectivity",SampleEffectivity),("years","3"),("area","10.5"),("monthly","1200"),("actualMonthly","1200"),("wholeYear","14400"),("areaLoc","Extension")),
+                Row(("occupant","Florencia Delgado"),("contractName","Florencia Delgado"),("stallNo","13"),("effectivity",SampleEffectivity),("years","3"),("area","35"),("monthly","3240"),("actualMonthly","3240"),("wholeYear","38880"),("areaLoc","Corner")),
+                Row(("occupant","Gideon Salazar"),("contractName","Gideon Salazar"),("stallNo","16"),("effectivity",SampleEffectivity),("years","3"),("area","70"),("monthly","2400"),("actualMonthly","4800"),("wholeYear","57600"),("areaLoc","Corner")),
+                Row(("occupant","Rachel Del Valle"),("contractName","Rachel Del Valle"),("stallNo","22"),("effectivity",SampleEffectivity),("years","3"),("area","35"),("monthly","3840"),("actualMonthly","3840"),("wholeYear","46080"),("areaLoc","Corner")),
             }
         };
 
