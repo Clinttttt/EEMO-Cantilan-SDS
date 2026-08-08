@@ -930,7 +930,10 @@
     private static readonly SectionDef[] Sections =
     {
         new(1, "Needs immediate action",
-               "Delinquent accounts, received money still missing its receipt, and expired contracts with active occupants.",
+               // Not every account here has a contract that ran out: some were closed outright, and a space let
+               // without a contract has no term to expire in the first place. What they share is that the lessee's
+               // occupancy is over while the money is not in.
+               "Delinquent accounts, received money still missing its receipt, and balances left by occupancies that have ended.",
                "critical", "alert"),
         new(2, "Needs follow-up this period",
                "Current-period unpaid balances, partial payments, early arrears, and contracts expiring soon.",
