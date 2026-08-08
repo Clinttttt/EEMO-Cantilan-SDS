@@ -2,10 +2,12 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -35,7 +37,8 @@ public class GetFollowUpQueueQueryHandlerTests
 
     private static GetFollowUpQueueQueryHandler Build(
         IReadOnlyList<UnreceiptedPaymentDto>? cash = null,
-        IReadOnlyList<UtilityBill>? utilityBills = null)
+        IReadOnlyList<UtilityBill>? utilityBills = null,
+        IReadOnlyList<ClosedStallAccountDto>? closedAccounts = null)
     {
         var reports = new Mock<IFacilityReportsRepository>();
         var empty = Report(Array.Empty<StallComplianceDto>());
@@ -63,6 +66,11 @@ public class GetFollowUpQueueQueryHandlerTests
             });
 
         var stalls = new Mock<IStallRepository>();
+        // The register of inactive accounts. The live queue reads it to surface occupancies that ended THIS period
+        // and still owe — without this the queue is handed nothing and those balances appear on no screen the office
+        // opens during the month it should be collecting them.
+        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(closedAccounts ?? Array.Empty<ClosedStallAccountDto>());
         stalls.Setup(s => s.GetContractAttentionAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ContractAttentionDto>
             {
@@ -236,5 +244,62 @@ public class GetFollowUpQueueQueryHandlerTests
         var water = Assert.Single(misc, i => i.Reason == "Water balance");
         Assert.Equal(100m, water.Amount);
         Assert.Contains("Unpaid", water.Status);
+    }
+
+    [Fact]
+    public async Task AnAccountClosedThisPeriod_ThatStillOwes_AppearsOnTheLiveQueue()
+    {
+        var stallId = Guid.NewGuid();
+        var contractId = Guid.NewGuid();
+        var today = PhilippineTime.Today;
+        var closed = new ClosedStallAccountDto(
+            stallId, InactiveAccountState.Closed, FacilityCode.TCC, "Tampak Commercial Center", "04",
+            "Bernadette Lim", null,
+            EffectivityDate: new DateOnly(today.Year, today.Month, 1),
+            DurationYears: 0, MonthlyRate: 1_500m,
+            ClosedOn: today, ExpiryDate: today,
+            LifetimeCollected: 0m, Uncollected: 1_500m, ClosedBy: "EEMO Admin",
+            OccupancyEndedOn: today, ContractId: contractId);
+
+        var handler = Build(closedAccounts: new[] { closed });
+
+        var dto = (await handler.Handle(new GetFollowUpQueueQuery(today.Year, today.Month), CancellationToken.None)).Value!;
+
+        // The lessee has gone but the ₱1,500 has not been collected, and this is the month the office is working. The
+        // live queue was handed no inactive accounts at all, so this balance appeared on no screen anyone opens during
+        // the period it should be collected in — it surfaced only if somebody thought to open the whole-time view.
+        var row = Assert.Single(dto.Items, i => i.Reason == "Closed account balance");
+        Assert.Equal(1_500m, row.Amount);
+        Assert.Equal("Bernadette Lim", row.Person);
+        Assert.Equal(FacilityCode.TCC, row.Facility);
+        Assert.Equal(stallId, row.StallId);
+        // The term must travel with the row, or a payment recorded from it would settle whoever holds the stall now.
+        Assert.Equal(contractId, row.ContractId);
+        // A closed account's balance is final, so the row states the whole of it rather than a slice of the month.
+        Assert.Contains("balance in full", row.Status);
+    }
+
+    [Fact]
+    public async Task AnAccountClosedInAnEarlierPeriod_StaysOffTheLiveQueue()
+    {
+        var today = PhilippineTime.Today;
+        var longClosed = new DateOnly(today.Year - 2, 3, 14);
+        var closed = new ClosedStallAccountDto(
+            Guid.NewGuid(), InactiveAccountState.Closed, FacilityCode.TCC, "Tampak Commercial Center", "05",
+            "Jessie Navarro", null,
+            EffectivityDate: new DateOnly(today.Year - 3, 1, 1),
+            DurationYears: 0, MonthlyRate: 900m,
+            ClosedOn: longClosed, ExpiryDate: longClosed,
+            LifetimeCollected: 0m, Uncollected: 900m, ClosedBy: "EEMO Admin",
+            OccupancyEndedOn: longClosed);
+
+        var handler = Build(closedAccounts: new[] { closed });
+
+        var dto = (await handler.Handle(new GetFollowUpQueueQuery(today.Year, today.Month), CancellationToken.None)).Value!;
+
+        // Otherwise the month's work queue slowly becomes the register: every account ever closed, restated on the
+        // collector's list forever. Older ended accounts are read where they belong — the Whole-time History and the
+        // register of inactive accounts.
+        Assert.DoesNotContain(dto.Items, i => i.Person == "Jessie Navarro");
     }
 }

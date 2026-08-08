@@ -48,6 +48,28 @@ public class GetFollowUpQueueQueryHandler(
             .ToList();
         var utilityBills = await utilityBillRepository.GetForMonthAsync(year, month, ct);
 
+        // ── Accounts that ended THIS period and still owe ──
+        // An occupancy closed or handed over during the month the office is working is current follow-up work: the
+        // lessee has gone but the money has not been collected, and this is the last period in which anyone will be
+        // looking. The live queue was given no inactive accounts at all, so those balances appeared nowhere on it —
+        // ₱1,500 owed by a lessee closed on the 8th was simply off the screen until somebody thought to open the
+        // whole-time view.
+        //
+        // Only occupancies that ended inside the period, so the queue does not silently become the register: older
+        // ended accounts stay where they are read, on the Whole-time History and the register of inactive accounts.
+        // The whole remaining balance is stated, not the period's slice of it, because a closed account's balance is
+        // final — nothing further will be billed and there is no later period for the remainder to surface in.
+        var periodStart = new DateOnly(year, month, 1);
+        var periodEnd = DomainRules.EarnedThrough(periodStart.AddMonths(1).AddDays(-1), PhilippineTime.Today);
+        var endedThisPeriod = (await stallRepository.GetClosedStallAccountsAsync(ct))
+            .Where(a => a.Uncollected > 0m)
+            .Where(a =>
+            {
+                var ended = a.OccupancyEndedOn ?? a.ClosedOn ?? a.ExpiryDate;
+                return ended >= periodStart && ended <= periodEnd;
+            })
+            .ToList();
+
         var dto = FollowUpComposer.Compose(
             year, month, PhilippineTime.Today,
             delinquency, facilityReports, awaitingOr,
@@ -56,7 +78,8 @@ public class GetFollowUpQueueQueryHandler(
             // months to the last month that closed — not August's. The rows stay, because the collector must still
             // see who is behind; what changes is that the amount no longer claims to be this month's. The whole
             // account is stated in the Whole-time History.
-            delinquencySpanLabel: RollingYearLabel(year, month));
+            delinquencySpanLabel: RollingYearLabel(year, month),
+            endedOccupancies: endedThisPeriod);
 
         return Result<FollowUpQueueDto>.Success(dto);
     }
