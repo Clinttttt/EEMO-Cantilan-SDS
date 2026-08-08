@@ -1,0 +1,62 @@
+namespace EEMOCantilanSDS.Domain.Common;
+
+/// <summary>
+/// The identifier carried by a space the office does not number.
+///
+/// <para>
+/// A stall let under a signed contract has a number on the office's own list. A space let WITHOUT one — a barbecue
+/// stand, an ice-plant space, a commercial-centre space held on an extension — has no number there at all: the sheet
+/// leaves the contract columns blank and identifies the occupancy by the lessee. The system nonetheless requires an
+/// identifier for every space it records.
+/// </para>
+///
+/// <para>
+/// It used to satisfy that requirement by continuing the facility's ordinary numbering, which quietly spent numbers
+/// belonging to real stalls: an un-numbered commercial-centre space was recorded as "4", and the office could then no
+/// longer register the actual stall 4, because the number was reported as occupied. The sheet blanks the number for
+/// such a row, so the office could not even see which of its numbers had been taken.
+/// </para>
+///
+/// <para>
+/// Un-numbered spaces therefore carry their own series — <c>SP-1</c>, <c>SP-2</c> — which cannot collide with a
+/// numeric stall number and reads on screen as what it is. The series is a plain identifier string, so nothing that
+/// keys, routes or links by stall number needs to change.
+/// </para>
+/// </summary>
+public static class SpaceNumber
+{
+    /// <summary>Marks an identifier as belonging to a space the office does not number.</summary>
+    public const string Prefix = "SP-";
+
+    /// <summary>True where the identifier is one of ours rather than an office stall number.</summary>
+    public static bool IsSpace(string? stallNo) =>
+        !string.IsNullOrWhiteSpace(stallNo)
+        && stallNo.TrimStart().StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The identifier for the nth un-numbered space.</summary>
+    public static string Format(int ordinal) => $"{Prefix}{ordinal}";
+
+    /// <summary>
+    /// The highest ordinal already used among the given identifiers, or zero where none are ours. Anything after the
+    /// prefix that is not a whole number is ignored rather than throwing: the column is free text the office types
+    /// into, and a malformed entry must not stop an import.
+    /// </summary>
+    public static int HighestOrdinal(IEnumerable<string?> stallNos)
+    {
+        var highest = 0;
+        foreach (var no in stallNos)
+        {
+            if (!IsSpace(no)) continue;
+            var tail = no!.Trim()[Prefix.Length..];
+            if (int.TryParse(tail, out var ordinal) && ordinal > highest) highest = ordinal;
+        }
+        return highest;
+    }
+
+    /// <summary>
+    /// How the identifier reads on screen. A numbered stall is "Stall 4"; an un-numbered space is named as a space,
+    /// because calling it "Stall SP-1" would assert the very numbering the office does not have.
+    /// </summary>
+    public static string Describe(string? stallNo) =>
+        IsSpace(stallNo) ? $"Space {stallNo!.Trim()}" : $"Stall {stallNo}";
+}

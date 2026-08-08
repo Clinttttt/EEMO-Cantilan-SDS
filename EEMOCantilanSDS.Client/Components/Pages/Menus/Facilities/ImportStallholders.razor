@@ -300,9 +300,16 @@
                         else
                         {
                             <text>
-                                The list did not carry usable Stall / Space numbers — the batch was numbered
-                                from <strong>#@(_existingMax + 1)</strong>, continuing after
-                                <strong>@_facility.Name@SectionSuffix</strong>.
+                                The list did not carry usable Stall / Space numbers, so the batch was numbered
+                                for you, continuing after <strong>@_facility.Name@SectionSuffix</strong>.
+                                @if (_numberedSpaces > 0)
+                                {
+                                    <text>
+                                        A space held without a signed contract has no stall number on the office's own
+                                        list, so those rows take the separate
+                                        <strong>@SpaceNumber.Prefix</strong> series instead of a stall number.
+                                    </text>
+                                }
                             </text>
                         }
                         You can still edit any Stall / Space No. below.
@@ -435,6 +442,12 @@
     // Auto-continue stall numbering: when imported numbers would collide with the facility's existing
     // stalls, renumber the batch to continue after the current highest number so nothing conflicts.
     private int _existingMax;
+    /// <summary>Highest ordinal already used by the facility's un-numbered spaces, so a batch continues that series
+    /// rather than spending a stall number.</summary>
+    private int _existingSpaceMax;
+    /// <summary>How many rows in this batch were given a space identifier rather than a stall number, so the note can
+    /// tell the office that happened instead of leaving it to be discovered in the table.</summary>
+    private int _numberedSpaces;
     private bool _autoContinued;
     private bool _autoContinuedClashed;
     // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
@@ -525,7 +538,9 @@
         _uploadError = null;
         _autoContinued = false;
         _autoContinuedClashed = false;
+        _numberedSpaces = 0;
         _existingMax = 0;
+        _existingSpaceMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
     }
@@ -555,6 +570,10 @@
     private static int ParseStallInt(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return 0;
+        // An un-numbered space carries its own series and is NOT part of the facility's numbering, so it must not push
+        // the counter: reading "SP-4" as 4 would make the next contracted stall number 5 while stalls 1 to 4 stood
+        // empty — the same theft as before, in the opposite direction.
+        if (SpaceNumber.IsSpace(value)) return 0;
         var m = System.Text.RegularExpressions.Regex.Match(value, @"\d+");
         return m.Success && int.TryParse(m.Value, out var n) ? n : 0;
     }
@@ -581,7 +600,9 @@
     {
         _autoContinued = false;
         _autoContinuedClashed = false;
+        _numberedSpaces = 0;
         _existingMax = 0;
+        _existingSpaceMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
         if (_facility is null || _rows.Count == 0) return;
@@ -619,6 +640,9 @@
 
                 if (sn.Length > 0) existing.Add(sn);
                 _existingMax = Math.Max(_existingMax, ParseStallInt(sn));
+                // The two series are tracked apart, so a batch of un-numbered spaces continues SP-n and leaves the
+                // facility's stall numbers alone.
+                _existingSpaceMax = Math.Max(_existingSpaceMax, SpaceNumber.HighestOrdinal(new[] { sn }));
 
                 // Flag likely duplicates only against genuinely active stallholders (the server skips these).
                 var on = NormalizeName(r.ActualOccupant);
@@ -645,8 +669,7 @@
                 return;
             }
 
-            for (var i = 0; i < _rows.Count; i++)
-                _rows[i]["stallNo"] = (_existingMax + 1 + i).ToString();
+            AssignBatchNumbers();
             _autoContinued = true;
             NoteTakeovers(vacated);
         }
@@ -681,8 +704,37 @@
 
         // Keep an auto-continued batch contiguous after a removal (re-sequence from the facility's max).
         if (_autoContinued)
-            for (var i = 0; i < _rows.Count; i++)
-                _rows[i]["stallNo"] = (_existingMax + 1 + i).ToString();
+            AssignBatchNumbers();
+    }
+
+    /// <summary>
+    /// Numbers a batch the office left un-numbered, taking each row from the series it belongs to.
+    ///
+    /// <para>A row with a signed contract continues the facility's ordinary numbering. A row WITHOUT one is a space the
+    /// office does not number at all, and continuing the ordinary numbering for it spent a number belonging to a real
+    /// stall: an un-numbered commercial-centre space was recorded as "4", after which the actual stall 4 could not be
+    /// registered because the number was reported occupied — and the sheet blanks the number on such a row, so the
+    /// office could not see which of its numbers had gone.</para>
+    /// </summary>
+    private void AssignBatchNumbers()
+    {
+        var nextStall = _existingMax + 1;
+        var nextSpace = _existingSpaceMax + 1;
+        _numberedSpaces = 0;
+
+        foreach (var row in _rows)
+        {
+            var signed = ArrangementFromContractCell(GetCell(row, "contractName")) == OccupancyArrangement.SignedContract;
+            if (signed)
+            {
+                row["stallNo"] = (nextStall++).ToString();
+            }
+            else
+            {
+                row["stallNo"] = SpaceNumber.Format(nextSpace++);
+                _numberedSpaces++;
+            }
+        }
     }
 
     private static Dictionary<string, string> NewRow(FacilityImportConfig cfg)
@@ -1096,7 +1148,9 @@
         _saveError = null;
         _autoContinued = false;
         _autoContinuedClashed = false;
+        _numberedSpaces = 0;
         _existingMax = 0;
+        _existingSpaceMax = 0;
         _applyElectricity = false;
         _applyWater = false;
         _existingOccupants.Clear();

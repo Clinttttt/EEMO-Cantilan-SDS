@@ -602,4 +602,34 @@ public class BulkImportStallholdersCommandHandlerTests
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("section"));
     }
+
+    [Fact]
+    public async Task AnUnNumberedSpace_IsAcceptedAndDoesNotOccupyAStallNumber()
+    {
+        // A commercial-centre space held on an extension has no number on the office's list. It used to be given the
+        // next ordinary stall number, which then reported that number as occupied — so the office could no longer
+        // register the actual stall of the same number. The two now coexist in one batch.
+        SetupFacility(FacilityCode.TCC);
+        SetupUnique(true);
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.TCC, null, new List<ImportStallRow>
+        {
+            Row(1, "Joseph Villamor", "4") with { Arrangement = OccupancyArrangement.SignedContract },
+            Row(2, "Bernadette Lim", SpaceNumber.Format(1)) with { Arrangement = OccupancyArrangement.Extension },
+            Row(3, "Jessie Navarro", SpaceNumber.Format(2)) with { Arrangement = OccupancyArrangement.SpaceOnly },
+        });
+
+        var result = await Handler().Handle(cmd, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value!.CreatedCount);
+        Assert.All(result.Value!.Results, r => Assert.Null(r.Error));
+
+        // The stall number the office issues and the identifiers for its un-numbered spaces are different values, so
+        // neither can consume the other.
+        var recorded = result.Value!.Results.Select(r => r.StallNo).ToList();
+        Assert.Contains("4", recorded);
+        Assert.Contains("SP-1", recorded);
+        Assert.Contains("SP-2", recorded);
+        Assert.Equal(recorded.Count, recorded.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
 }

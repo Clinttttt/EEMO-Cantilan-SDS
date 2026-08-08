@@ -124,7 +124,7 @@ public static class FollowUpComposer
                 // Named with its section where the facility has them. The market numbers spaces per section, so three
                 // different payors were each listed as "Stall 1 · NPM" with nothing to tell them apart — the office
                 // could not know which space a row was about, let alone which one it had just collected from.
-                Identifier: string.IsNullOrWhiteSpace(d.Section) ? $"Stall {d.StallNo}" : $"Stall {d.StallNo} · {d.Section}",
+                Identifier: string.IsNullOrWhiteSpace(d.Section) ? Where(d.StallNo) : $"{Where(d.StallNo)} · {d.Section}",
                 Amount: d.OutstandingBalance,
                 Excused: false,
                 Period: delinquencySpanLabel ?? periodLabel,
@@ -154,7 +154,7 @@ public static class FollowUpComposer
                     items.Add(new FollowUpItemDto(
                         SecVerify, "Review", "Excused / Absent", "excused",
                         code, Model(code), Named(s.Occupant),
-                        s.StallNo.StartsWith("Stall", StringComparison.OrdinalIgnoreCase) ? s.StallNo : $"Stall {s.StallNo}",
+                        s.StallNo.StartsWith("Stall", StringComparison.OrdinalIgnoreCase) ? s.StallNo : Where(s.StallNo),
                         0m, true, periodLabel,
                         s.Status is "Absent" or "Excused" ? "Excused · full period" : $"Excused · {s.AbsentDays} days",
                         "Verify absence", ProfileLink(code, s.StallNo), s.StallId));
@@ -178,7 +178,7 @@ public static class FollowUpComposer
                         code, Model(code), Named(s.Occupant),
                         // Named with its section where the facility has them, for the same reason the delinquency
                         // rows are: three different market spaces are each called "Stall 1".
-                        string.IsNullOrWhiteSpace(s.Section) ? $"Stall {s.StallNo}" : $"Stall {s.StallNo} · {s.Section}",
+                        string.IsNullOrWhiteSpace(s.Section) ? Where(s.StallNo) : $"{Where(s.StallNo)} · {s.Section}",
                         s.Balance, false, currentPeriodLabel ?? periodLabel,
                         isPartial ? "Partial" : "Unpaid",
                         "View vendor", ProfileLink(code, s.StallNo), s.StallId));
@@ -218,7 +218,7 @@ public static class FollowUpComposer
             items.Add(new FollowUpItemDto(
                 SecImmediate, "High", "Missing OR", "missingor",
                 a.Facility, Model(a.Facility), Named(a.PayorName),
-                $"Stall {a.StallNo} · online",
+                $"{Where(a.StallNo)} · online",
                 a.Amount, false, a.Period,
                 "Paid · awaiting OR", "Encode OR", "/online-payments"));
         }
@@ -281,7 +281,7 @@ public static class FollowUpComposer
                 items.Add(new FollowUpItemDto(
                     SecOperational, "Normal", "Daily receipt · OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant),
-                    $"Stall {u.StallNo} · {u.Count} day{(u.Count == 1 ? "" : "s")}",
+                    $"{Where(u.StallNo)} · {u.Count} day{(u.Count == 1 ? "" : "s")}",
                     u.Amount, false, uPeriod,
                     "Paid daily · OR blank", "Add OR", "/npm",
                     StallId: u.StallId));
@@ -290,7 +290,7 @@ public static class FollowUpComposer
             {
                 items.Add(new FollowUpItemDto(
                     SecImmediate, "High", "Missing OR", "missingor",
-                    u.Facility, Model(u.Facility), Named(u.Occupant), $"Stall {u.StallNo}",
+                    u.Facility, Model(u.Facility), Named(u.Occupant), Where(u.StallNo),
                     u.Amount, false, uPeriod,
                     "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallNo),
                     StallId: u.StallId));
@@ -349,7 +349,7 @@ public static class FollowUpComposer
                 c.IsExpired ? "High" : "Normal",
                 c.IsExpired ? "Contract expired" : "Contract expiring",
                 "contract",
-                c.FacilityCode, Model(c.FacilityCode), Named(c.Occupant), $"Stall {c.StallNo}",
+                c.FacilityCode, Model(c.FacilityCode), Named(c.Occupant), Where(c.StallNo),
                 contractBalance, false,
                 c.IsExpired ? expiredPeriod : expiredOn,
                 c.IsExpired ? expiredStatus : "Expiring soon",
@@ -398,7 +398,7 @@ public static class FollowUpComposer
                     "High",
                     account.State == InactiveAccountState.Closed ? "Closed account balance" : "Past occupancy balance",
                     "contract",
-                    account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), $"Stall {account.StallNo}",
+                    account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), Where(account.StallNo),
                     account.Uncollected, false,
                     // The part of this occupancy that falls inside the view's window, beside the figure that window
                     // assessed. The cumulative view states the whole occupancy against the whole balance.
@@ -488,7 +488,7 @@ public static class FollowUpComposer
             FacilityCode.NPM,
             "Utility billing",
             Named(occupant),
-            $"Stall {stallNo} - {utilityName}",
+            $"{SpaceNumber.Describe(stallNo)} - {utilityName}",
             balance,
             false,
             periodLabel,
@@ -518,6 +518,12 @@ public static class FollowUpComposer
         FacilityCode.TPM => "Weekly market",
         _ => "—"
     };
+
+    /// <summary>
+    /// How a row names the space it concerns. A numbered stall reads "Stall 4"; a space the office does not number
+    /// reads as a space, because "Stall SP-1" would assert a stall number that does not exist on its list.
+    /// </summary>
+    private static string Where(string? stallNo) => SpaceNumber.Describe(stallNo);
 
     /// <summary>
     /// True where the facility charges by the day rather than by the month, so a month count describes the span the
