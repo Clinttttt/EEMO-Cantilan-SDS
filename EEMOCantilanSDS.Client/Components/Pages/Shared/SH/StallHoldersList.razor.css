@@ -450,6 +450,14 @@
     color: var(--text-subtle);
 }
 
+/* The one cell a no-contract row states across the contract columns. Matches the Stall Holder List menu sheet, so
+   the same space reads the same way whichever of the two the office prints. */
+.lsh-nc {
+    text-align: center;
+    color: var(--text-muted);
+    letter-spacing: .01em;
+}
+
 .txt-partial {
     color: #b87333;
     font-weight: 600;

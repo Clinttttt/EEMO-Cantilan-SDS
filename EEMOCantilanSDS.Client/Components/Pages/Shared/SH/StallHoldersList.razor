@@ -177,15 +177,30 @@
                                     }
                                     @foreach (var s in sectionStalls)
                                     {
+                                        @* A space held without a signed contract has no leasee name, effectivity,
+                                           term, area or contract rate to state, so the sheet says so once across
+                                           those columns and only the rent actually charged appears. Written the same
+                                           way as the Stall Holder List menu sheet: the two print the same register,
+                                           and this one used to state an effectivity date, "No contract" under No. of
+                                           Years, and a peso figure under Monthly Rentals per Contract for a space
+                                           that has no contract to carry any of them. *@
+                                        var noContract = !s.HasSignedContract;
                                         <tr class="@(!s.IsActive ? "row-closed" : "")">
                                             <td class="c">@rowNum</td>
                                             <td class="tl fw @(!s.IsActive ? "txt-closed" : "")">@s.ActualOccupant</td>
-                                            <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
-                                            <td class="c">@s.StallNo</td>
-                                            <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
-                                            <td class="c">@TermLabel(s)</td>
-                                            <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
-                                            <td class="r">@(s.IsActive ? $"₱{s.MonthlyRate:N2}" : "—")</td>
+                                            @if (noContract)
+                                            {
+                                                <td class="lsh-nc" colspan="5">@NoContractLabel(s)</td>
+                                            }
+                                            else
+                                            {
+                                                <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
+                                                <td class="c">@s.StallNo</td>
+                                                <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
+                                                <td class="c">@TermLabel(s)</td>
+                                                <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
+                                            }
+                                            <td class="r">@(s.IsActive && !noContract ? $"₱{s.MonthlyRate:N2}" : "—")</td>
                                             <td class="r">@(s.IsActive ? $"₱{s.ActualMonthlyRental:N2}" : "—")</td>
                                             <td class="r">@(s.IsActive ? $"₱{s.WholeYearRental:N2}" : "—")</td>
 
@@ -368,12 +383,14 @@
                     {
                         Csv(sectionName),
                         Csv(s.ActualOccupant),
-                        Csv(s.ContractName),
+                        // The contract columns are left empty where there is no contract, matching the sheet, so the
+                        // exported file cannot state a contract rate the printed register says does not exist.
+                        Csv(s.HasSignedContract ? s.ContractName : NoContractLabel(s)),
                         Csv(s.StallNo),
-                        Csv(s.ContractDate?.ToString("M/d/yyyy") ?? ""),
+                        Csv(s.HasSignedContract ? s.ContractDate?.ToString("M/d/yyyy") ?? "" : ""),
                         Csv(s.HasSignedContract && s.DurationYears > 0 ? s.DurationYears.ToString() : ""),
-                        Csv(s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : ""),
-                        Csv(s.IsActive ? s.MonthlyRate.ToString("0.00") : ""),
+                        Csv(s.HasSignedContract && s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : ""),
+                        Csv(s.IsActive && s.HasSignedContract ? s.MonthlyRate.ToString("0.00") : ""),
                         Csv(s.IsActive ? s.ActualMonthlyRental.ToString("0.00") : ""),
                         Csv(s.IsActive ? s.WholeYearRental.ToString("0.00") : "")
                     }));
@@ -398,6 +415,28 @@
         !s.HasSignedContract ? "No contract"
         : s.DurationYears > 0 ? $"{s.DurationYears} yr{(s.DurationYears == 1 ? "" : "s")}"
         : "—";
+
+    /// <summary>
+    /// What the office writes where a signed contract would be named. Kept word-for-word the same as the Stall Holder
+    /// List menu sheet: the two print the same register, and reading "No contract" in one column here beside
+    /// "No contract (extension)" spanning the contract columns there made the same space look like two arrangements.
+    /// An extension names the facility it extends, in that LGU's own short name.
+    /// </summary>
+    private string NoContractLabel(NpmStall s)
+    {
+        var facility = ResolvedFacilityCode;
+        return s.Arrangement switch
+        {
+            OccupancyArrangement.Extension when facility is { } code
+                => $"No contract (Extension {FacilityCatalog.ShortNameOf(code)})",
+            OccupancyArrangement.Extension => "No contract (extension)",
+            _ => "No contract (space only)",
+        };
+    }
+
+    /// <summary>This sheet's facility, where the query string names one the tenant actually has.</summary>
+    private FacilityCode? ResolvedFacilityCode =>
+        Enum.TryParse<FacilityCode>(Facility, ignoreCase: true, out var code) ? code : null;
 
     // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
     static string Csv(string value) =>
@@ -437,6 +476,9 @@
         // term for spaces let without a contract, which have none.
         public int DurationYears { get; set; }
         public bool HasSignedContract { get; set; } = true;
+        /// <summary>How the space is held where there is no signed contract — an extension of another facility, or
+        /// the space alone. Decides the wording the office's own sheet prints across the contract columns.</summary>
+        public OccupancyArrangement Arrangement { get; set; }
         // Always assigned from the API row below. No hardcoded default: a fallback figure here would be
         // one municipality's rate shown to every other one.
         public decimal MonthlyRate { get; set; }
@@ -504,6 +546,7 @@
                         ContractDate = row.EffectivityDate == default ? null : row.EffectivityDate.ToDateTime(TimeOnly.MinValue),
                         DurationYears = row.DurationYears,
                         HasSignedContract = row.HasSignedContract,
+                        Arrangement = row.Arrangement,
                         MonthlyRate = row.MonthlyRentalRate,
                         ActualMonthlyRental = row.ActualMonthlyRental,
                         WholeYearRental = row.WholeYearRental,
