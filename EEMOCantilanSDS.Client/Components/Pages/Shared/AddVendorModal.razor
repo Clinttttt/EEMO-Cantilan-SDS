@@ -187,7 +187,9 @@
                                    such a space as stall 4 left the actual stall 4 unregisterable. It carries an
                                    identifier of its own instead, shown here so the record is not silent about it. *@
                                 <label class="avm-label">Space No.</label>
-                                <div class="avm-readonly">@Form.StallNo</div>
+                                @* A dash, not the identifier: the office does not number these, and the note below
+                                   says so. The identifier is still assigned behind this and still keys the record. *@
+                                <div class="avm-readonly">—</div>
                                 <span class="avm-hint-muted">
                                     Not a numbered stall — the office does not number a space held without a contract,
                                     so this keeps none of the facility's stall numbers.
@@ -606,7 +608,11 @@
         <div class="avm-nested-dialog" role="dialog" aria-modal="true"
              aria-labelledby="avm-reuse-title" tabindex="-1" @ref="_reuseDialog"
              @onkeydown="OnReuseKeyDown" @onclick:stopPropagation="true">
-            <div class="avm-nested-head" id="avm-reuse-title">Stall @Form.StallNo is already registered</div>
+            @* The reuse offer only ever fires on a number the clerk typed, so a space identifier cannot reach it —
+               guarded all the same, since a dangling "Stall  is already registered" would be worse than a rewording. *@
+            <div class="avm-nested-head" id="avm-reuse-title">@(SpaceNumber.IsSpace(Form.StallNo)
+                ? "This space is already registered"
+                : $"Stall {Form.StallNo} is already registered")</div>
             <div class="avm-nested-body">
                 <p>@ReuseOfferMessage</p>
             </div>

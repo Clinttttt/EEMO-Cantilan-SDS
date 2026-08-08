@@ -129,7 +129,7 @@
                     {
                         <button class="ce-stall @(IsSelected(st) ? "ce-stall-on" : "")" type="button" @onclick="() => SelectStall(st)">
                             <div class="ce-stall-top">
-                                <span class="ce-stall-no">@st.StallNo</span>
+                                <span class="ce-stall-no">@SpaceNumber.Display(st.StallNo)</span>
                                 @if (!string.IsNullOrEmpty(st.Section))
                                 {
                                     <span class="ce-stall-badge ce-badge-green">@st.Section</span>
@@ -290,8 +290,7 @@
                         <div class="ce-main-title">@SelectedStall.Occupant</div>
                         <div class="ce-main-sub">
                             <span class="ce-tag">@_facility</span>
-                            Stall @SelectedStall.StallNo
-                            @if (!string.IsNullOrEmpty(SelectedStall.Section)) { <text> · @SelectedStall.Section</text> }
+                            @SpaceNumber.Line(SpaceNumber.Describe(SelectedStall.StallNo), SelectedStall.Section)
                         </div>
                     </div>
                     <div class="ce-main-period">@(IsNpm ? PeriodLabel : _year.ToString())</div>

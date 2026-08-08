@@ -418,7 +418,10 @@
             <div class="eemo-modal-header"><div class="eemo-modal-title">Reopen Stall?</div></div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
-                    Reopen stall @_reopenTarget.StallNo (@_reopenTarget.Occupant)? It resumes the same contract and
+                    @* Named by lessee where the office numbers nothing, so the sentence never reads "stall  (name)". *@
+                    Resume @(SpaceNumber.IsSpace(_reopenTarget.StallNo)
+                                ? $"the space held by {_reopenTarget.Occupant}"
+                                : $"stall {_reopenTarget.StallNo} ({_reopenTarget.Occupant})")? It resumes the same contract and
                     the closed period is recorded as excused — it will not be back-billed.
                 </p>
                 @if (_actionError is not null)
@@ -453,7 +456,9 @@
                 else if (_assignPreview is not null)
                 {
                     <p class="confirm-text">
-                        Stall @_assignTarget.StallNo is held by another lessee, so a new stall is registered for
+                        @(SpaceNumber.IsSpace(_assignTarget.StallNo)
+                            ? "This space is held by another lessee"
+                            : $"Stall {_assignTarget.StallNo} is held by another lessee"), so a new stall is registered for
                         <strong>@_assignPreview.Occupant</strong> in <strong>@_assignPreview.FacilityName</strong>@(string.IsNullOrWhiteSpace(_assignPreview.SectionLabel) ? "" : $" ({_assignPreview.SectionLabel})").
                         Their closed account and its <strong>@Money(_assignTarget.Uncollected)</strong> balance are
                         left as they are, and stay collectable.
@@ -497,7 +502,7 @@
 {
     <div class="eemo-modal-overlay" @onclick="CloseModals">
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew Stall @_renewTarget.StallNo</div></div>
+            <div class="eemo-modal-header"><div class="eemo-modal-title">@(SpaceNumber.IsSpace(_renewTarget.StallNo) ? "Renew Space" : $"Renew Stall {_renewTarget.StallNo}")</div></div>
             <div class="eemo-modal-body">
                 @if (!_renewEditing)
                 {
@@ -515,7 +520,10 @@
                        a renewal, and the register row is identified by it. *@
                     <div class="ca-renew-facts">
                         <div><span>Facility</span><strong>@_renewTarget.FacilityName</strong></div>
-                        <div><span>Stall / space no.</span><strong>@_renewTarget.StallNo</strong></div>
+                        @if (!SpaceNumber.IsSpace(_renewTarget.StallNo))
+                        {
+                            <div><span>Stall / space no.</span><strong>@_renewTarget.StallNo</strong></div>
+                        }
                         @if (!string.IsNullOrWhiteSpace(_renewTarget.Section))
                         {
                             <div><span>Section</span><strong>@_renewTarget.Section</strong></div>
@@ -623,10 +631,18 @@
             <div class="eemo-modal-header"><div class="eemo-modal-title">Remove Account?</div></div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
-                    Remove @(_removeTarget.State == InactiveAccountState.Closed ? "closed" : "expired") stall
-                    <strong>@_removeTarget.StallNo</strong> (@_removeTarget.Occupant) from the roster?
-                    Its collection history is kept for audit, but the stall <strong>number @_removeTarget.StallNo is freed</strong>
-                    for reuse. Only closed/expired accounts can be removed — a currently active stall never can.
+                    Remove @(_removeTarget.State == InactiveAccountState.Closed ? "closed" : "expired")
+                    @(SpaceNumber.IsSpace(_removeTarget.StallNo) ? "space" : "stall")
+                    @if (!SpaceNumber.IsSpace(_removeTarget.StallNo))
+                    {
+                        <strong>@_removeTarget.StallNo</strong>
+                    }
+                    (@_removeTarget.Occupant) from the roster?
+                    @* A space the office does not number frees no number, so the sentence does not claim one. *@
+                    Its collection history is kept for audit@(SpaceNumber.IsSpace(_removeTarget.StallNo)
+                        ? "."
+                        : $", but the stall number {_removeTarget.StallNo} is freed for reuse.")
+                    Only closed/expired accounts can be removed — a currently active stall never can.
                 </p>
                 @if (_actionError is not null)
                 {

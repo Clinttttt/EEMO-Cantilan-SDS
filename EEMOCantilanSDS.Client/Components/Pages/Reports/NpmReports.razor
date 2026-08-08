@@ -154,7 +154,7 @@
                                 @foreach (var row in rows)
                                 {
                                     <tr>
-                                        <td>@row.StallNo</td>
+                                        <td>@SpaceNumber.Display(row.StallNo)</td>
                                         <td>@row.Payor</td>
                                         <td>@row.Classification</td>
                                         <td>&#8369;@row.MonthlyDue.ToString("N2")</td>
@@ -353,7 +353,7 @@ else if (ShowUtilityBilling)
                             @foreach (var row in FilteredUtilityRows)
                             {
                                 <tr class="utility-row-click" @onclick="() => OpenStallHistory(row)" title="View full utility history">
-                                    <td class="stall-no">@row.StallNo</td>
+                                    <td class="stall-no">@SpaceNumber.Display(row.StallNo)</td>
                                     <td>
                                         <strong class="utility-payor-name">@row.Payor</strong>
                                         <span class="utility-payor-note">@row.Note</span>
@@ -411,7 +411,9 @@ else if (ShowUtilityBilling)
                         <div class="utility-hist-head">
                             <div>
                                 <h3>Utility History · @HistoryRow.Payor</h3>
-                                <p>Stall @HistoryRow.StallNo · @HistoryRow.Section</p>
+                                @* The stall part is dropped for a space the office does not number; the payor above
+                                   identifies the account, as the office's own list does. *@
+                                <p>@SpaceNumber.Line(SpaceNumber.Describe(HistoryRow.StallNo), HistoryRow.Section)</p>
                             </div>
                             <button type="button" class="utility-hist-x" @onclick="CloseUtilHistory" aria-label="Close">&times;</button>
                         </div>
@@ -1173,7 +1175,7 @@ else
                 @foreach (var row in DelinquentStalls)
                 {
                     <tr>
-                        <td class="stall-no">@row.StallNo</td>
+                        <td class="stall-no">@SpaceNumber.Display(row.StallNo)</td>
                         <td>@row.Occupant</td>
                         <td>@row.Section</td>
                         <td><span class="status-badge @row.StatusCss">@row.Status</span></td>
@@ -1217,7 +1219,7 @@ else
                 @foreach (var s in AllStalls)
                 {
                     <tr class="@(s.IsAbsent ? "row-absent" : s.IsPaid ? "" : s.IsPartial ? "row-partial" : "row-unpaid")">
-                        <td class="stall-no">@s.StallNo</td>
+                        <td class="stall-no">@SpaceNumber.Display(s.StallNo)</td>
                         <td>@s.Occupant</td>
                         <td class="text-muted">@s.ContractName</td>
                         <td>@s.Section</td>
@@ -1267,7 +1269,7 @@ else
                     @foreach (var r in RegisterRows)
                     {
                         <tr class="@(r.IsMismatch ? "row-mismatch" : "")">
-                            <td class="stall-no">@r.StallNo</td>
+                            <td class="stall-no">@SpaceNumber.Display(r.StallNo)</td>
                             <td>@r.Occupant</td>
                             <td>@r.ContractName</td>
                             <td>@r.Effectivity</td>

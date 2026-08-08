@@ -254,7 +254,7 @@
                                 @foreach (var p in payors)
                                 {
                                     <tr class="@RowClass(p.Status)">
-                                        <td>@p.StallNo</td>
+                                        <td>@SpaceNumber.Display(p.StallNo)</td>
                                         <td>@p.Payor</td>
                                         <td class="me-num">@Money(isDaily ? p.DailyRate : p.MonthlyRate)</td>
                                         <td><span class="me-status @StatusClass(p.Status)">@p.Status</span></td>

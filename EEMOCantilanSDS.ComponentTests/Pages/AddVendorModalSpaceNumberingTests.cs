@@ -77,6 +77,10 @@ public class AddVendorModalSpaceNumberingTests : TestContext
         // And the clerk is no longer asked to type one — the office issues none for such a space.
         Assert.Single(cut.FindAll(".avm-readonly"));
         Assert.Contains("Not a numbered stall", cut.Markup);
+
+        // The identifier is assigned behind the form but never shown: the office's own list has no number for these,
+        // so putting one in front of the clerk would invite them to treat it as one.
+        Assert.DoesNotContain("SP-1", cut.Markup);
     }
 
     [Fact]

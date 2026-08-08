@@ -514,7 +514,7 @@
                         else
                         {
                             <td>@(string.IsNullOrWhiteSpace(r.NameOnContract) ? "—" : r.NameOnContract)</td>
-                            <td class="sh-c">@r.StallNo</td>
+                            <td class="sh-c">@SpaceNumber.Display(r.StallNo)</td>
                             <td class="sh-c">@(r.EffectivityDate == default ? "—" : r.EffectivityDate.ToString("M/d/yyyy"))</td>
                             <td class="sh-c">@(r.DurationYears > 0 ? r.DurationYears + " yr" + (r.DurationYears != 1 ? "s" : "") : "—")</td>
                             <td class="sh-c">@(r.AreaSqm is > 0 ? $"{r.AreaSqm} sq.m." : "—")</td>

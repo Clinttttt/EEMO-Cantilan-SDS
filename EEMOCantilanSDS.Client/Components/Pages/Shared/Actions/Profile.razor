@@ -136,7 +136,9 @@
                     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
                 </div>
                 <div class="prof-hero-identity">
-                    <div class="prof-hero-stall-no">Stall @Stall.StallNo</div>
+                    @* Empty for a space the office does not number — the occupant's name below carries the identity,
+                       as it does on the office's own list. *@
+                    <div class="prof-hero-stall-no">@SpaceNumber.Describe(Stall.StallNo)</div>
                     <div class="prof-hero-name">@Stall.ActualOccupant</div>
                     <div class="prof-hero-meta">
                         <span class="prof-hero-chip">
@@ -182,10 +184,15 @@
                                 <span class="prof-field-label">Facility</span>
                                 <span class="prof-field-val">@Stall.Facility</span>
                             </div>
-                            <div class="prof-field">
-                                <span class="prof-field-label">Stall / Space No.</span>
-                                <span class="prof-field-val mono">@Stall.StallNo</span>
-                            </div>
+                            @* Not shown at all for a space the office does not number: its own list has no such
+                               column for these, so an empty field would invite the clerk to fill one in. *@
+                            @if (!SpaceNumber.IsSpace(Stall.StallNo))
+                            {
+                                <div class="prof-field">
+                                    <span class="prof-field-label">Stall / Space No.</span>
+                                    <span class="prof-field-val mono">@Stall.StallNo</span>
+                                </div>
+                            }
                             <div class="prof-field">
                                 <span class="prof-field-label">Section / Area</span>
                                 <span class="prof-field-val">@Stall.Section</span>
@@ -713,7 +720,7 @@
             <div class="eemo-modal-header">
                 <div>
                     <div class="eemo-modal-title">Edit Stall Details</div>
-                    <div class="eemo-modal-sub">Stall @Stall.StallNo · @Stall.ActualOccupant</div>
+                    <div class="eemo-modal-sub">@SpaceNumber.Line(SpaceNumber.Describe(Stall.StallNo), Stall.ActualOccupant)</div>
                     <div class="prof-edit-note">Greyed fields are managed elsewhere and cannot be changed here.</div>
                 </div>
                 <button class="eemo-modal-close" @onclick="() => ShowEditModal = false">

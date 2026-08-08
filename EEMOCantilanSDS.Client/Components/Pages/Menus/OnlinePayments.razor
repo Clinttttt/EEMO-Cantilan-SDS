@@ -245,7 +245,7 @@
                                 <div class="op-muted">@(item.Method ?? "PayMongo")</div>
                             </td>
                             <td>
-                                <div class="op-strong">@item.Facility · Stall @item.StallNo</div>
+                                <div class="op-strong">@SpaceNumber.Line(item.Facility.ToString(), SpaceNumber.Describe(item.StallNo))</div>
                                 <div class="op-muted">@item.Period</div>
                             </td>
                             <td class="op-mono">@item.Reference</td>
@@ -323,7 +323,7 @@
                             <td class="op-strong">@h.PayorName</td>
                             <td>
                                 <div class="op-strong">@h.Facility</div>
-                                <div class="op-muted">Stall @h.StallNo</div>
+                                <div class="op-muted">@SpaceNumber.Describe(h.StallNo)</div>
                             </td>
                             <td class="op-mono">@h.Period</td>
                             <td>@MethodLabel(h.Method)</td>

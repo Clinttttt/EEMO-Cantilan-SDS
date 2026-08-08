@@ -39,7 +39,9 @@ else
                         <span class="pp-bal-period">@item.Period</span>
                         <span class="pp-badge badge-unpaid">Unpaid</span>
                     </div>
-                    <div class="pp-bal-sub">@PayorFormat.FacilityName(item.Facility) · Stall @item.StallNo@(KindLabel(item.Kind))</div>
+                    @* A space the office does not number contributes no stall part; the facility and the payor's own
+                       account identify it, as the office's own list does. *@
+                    <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(item.Facility), SpaceNumber.Describe(item.StallNo))@(KindLabel(item.Kind))</div>
                 </div>
                 <div class="pp-bal-right">
                     @if (item.Kind == PayorPayableKind.NpmFish)
@@ -71,7 +73,9 @@ else
                 <div class="pp-sheet-handle"></div>
                 <div class="pp-sheet-title">Fish daily fee</div>
                 <div class="pp-sheet-sub">
-                    Stall @FishItem.StallNo · declare the kilos you sold on an uncollected day and pay it online
+                    @* Reads as a sentence whether or not there is a stall number to name. *@
+                    @(SpaceNumber.IsSpace(FishItem.StallNo) ? "Your space:" : $"{SpaceNumber.Describe(FishItem.StallNo)}:")
+                    declare the kilos you sold on an uncollected day and pay it online
                     (for when the collector wasn't around). The collector still weighs it in person when present.
                 </div>
 

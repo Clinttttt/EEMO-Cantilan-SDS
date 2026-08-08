@@ -114,7 +114,7 @@
                             @foreach (var row in PrintRows)
                             {
                                 <tr>
-                                    <td>@row.StallNo</td>
+                                    <td>@SpaceNumber.Display(row.StallNo)</td>
                                     <td>@row.Occupant</td>
                                     <td class="text-muted-cell">@row.ContractName</td>
                                     <td>&#8369;@row.MonthlyRate.ToString("N2")</td>
@@ -354,7 +354,7 @@ else
             @foreach (var row in DelinquentStalls)
             {
                 <div class="delinq-row">
-                    <span class="stall-no">@row.StallNo</span>
+                    <span class="stall-no">@SpaceNumber.Display(row.StallNo)</span>
                     <span>@row.Occupant</span>
                     <span class="text-muted">&#8369;@row.MonthlyRate.ToString("N0")</span>
                     <span><span class="status-badge @row.StatusCss">@row.Status</span></span>
@@ -393,7 +393,7 @@ else
                     @foreach (var s in AllStalls)
                     {
                         <tr class="@(s.IsPaid ? "" : s.IsPartial ? "row-partial" : "row-unpaid")">
-                            <td class="stall-no">@s.StallNo</td>
+                            <td class="stall-no">@SpaceNumber.Display(s.StallNo)</td>
                             <td>@s.Occupant</td>
                             <td class="text-muted">@s.ContractName</td>
                             <td>@(s.AreaSqm > 0 ? s.AreaSqm.ToString("0.##") : "—")</td>

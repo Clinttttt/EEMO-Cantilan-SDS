@@ -596,7 +596,7 @@
                         @foreach (var s in _report.StallCompliance)
                         {
                             <tr>
-                                <td class="hist-stall">@s.StallNo</td>
+                                <td class="hist-stall">@SpaceNumber.Display(s.StallNo)</td>
                                 <td>@(string.IsNullOrWhiteSpace(s.Occupant) ? "—" : s.Occupant)</td>
                                 <td class="hist-r">@(s.MonthlyRate > 0 ? $"₱{s.MonthlyRate:N2}" : s.DailyRate > 0 ? $"₱{s.DailyRate:N2}/day" : "—")</td>
                                 <td><span class="hist-status hist-@s.Status.ToLowerInvariant()">@s.Status</span></td>

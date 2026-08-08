@@ -195,7 +195,7 @@
                                             else
                                             {
                                                 <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
-                                                <td class="c">@s.StallNo</td>
+                                                <td class="c">@SpaceNumber.Display(s.StallNo)</td>
                                                 <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
                                                 <td class="c">@TermLabel(s)</td>
                                                 <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>
@@ -261,7 +261,7 @@
                                         <td class="c">@rowNum</td>
                                         <td class="tl fw @(!s.IsActive ? "txt-closed" : "")">@s.ActualOccupant</td>
                                         <td class="tl txt-muted">@(string.IsNullOrEmpty(s.ContractName) ? "—" : s.ContractName)</td>
-                                        <td class="c">@s.StallNo</td>
+                                        <td class="c">@SpaceNumber.Display(s.StallNo)</td>
                                         <td class="c">@(s.ContractDate.HasValue? s.ContractDate.Value.ToString("M/d/yyyy") : "—")</td>
                                         <td class="c">@TermLabel(s)</td>
                                         <td class="c">@(s.AreaSqm > 0 ? $"{s.AreaSqm} sq.m." : "—")</td>

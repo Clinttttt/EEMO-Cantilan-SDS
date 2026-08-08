@@ -69,4 +69,15 @@ public static class SpaceNumber
     /// </summary>
     public static string Describe(string? stallNo) =>
         IsSpace(stallNo) ? string.Empty : $"Stall {stallNo}";
+
+    /// <summary>
+    /// Joins the parts of a one-line label with " · ", dropping any that are absent.
+    ///
+    /// <para>This lives here because the absence it exists for originates here: the stall part of a label is
+    /// legitimately empty for a space the office does not number, and interpolating it directly left lines reading
+    /// " · Fish Area" or "Stall  · TCC" with a separator and nothing before it. Every screen that names a space needs
+    /// the same rule, so it is stated once rather than copied into each page.</para>
+    /// </summary>
+    public static string Line(params string?[] parts) =>
+        string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
 }

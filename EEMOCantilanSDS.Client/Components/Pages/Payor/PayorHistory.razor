@@ -29,7 +29,7 @@ else
                 <div class="pp-hist-left">
                     <div class="pp-hist-period">@h.Item.Period</div>
                     <div class="pp-hist-sub">
-                        @PayorFormat.FacilityName(h.Facility) · Stall @h.StallNo
+                        @SpaceNumber.Line(PayorFormat.FacilityName(h.Facility), SpaceNumber.Describe(h.StallNo))
                         @if (!string.IsNullOrWhiteSpace(h.Item.ORNumber))
                         {
                             <span class="pp-hist-or">· OR @h.Item.ORNumber</span>
@@ -93,7 +93,12 @@ else
                     <div class="pp-rcpt-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(Selected.Item.ORNumber) ? "Pending validation" : Selected.Item.ORNumber)</strong></div>
                     <div class="pp-rcpt-row"><span>Date</span><strong>@(Selected.Item.PaidAt?.ToString("MMMM d, yyyy") ?? "—")</strong></div>
                     <div class="pp-rcpt-row"><span>Payor</span><strong>@Name</strong></div>
-                    <div class="pp-rcpt-row"><span>Account</span><strong>Stall @Selected.StallNo</strong></div>
+                    @* Omitted rather than left blank for a space the office does not number: an empty value on a
+                       receipt reads as a printing fault. The payor and facility name the account elsewhere. *@
+                    @if (!SpaceNumber.IsSpace(Selected.StallNo))
+                    {
+                        <div class="pp-rcpt-row"><span>Account</span><strong>@SpaceNumber.Describe(Selected.StallNo)</strong></div>
+                    }
                     <div class="pp-rcpt-row"><span>Period</span><strong>@Selected.Item.Period</strong></div>
                 </div>
 

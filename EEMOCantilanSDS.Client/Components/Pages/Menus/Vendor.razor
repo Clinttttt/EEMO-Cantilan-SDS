@@ -347,8 +347,12 @@
                     <div>
                         <div class="detail-name">@DetailVendor.ActualOccupant</div>
                         <div class="detail-meta">
-                            <span>Stall @DetailVendor.StallNo</span>
-                            <span class="detail-sep">·</span>
+                            @* Omitted with its separator for a space the office does not number. *@
+                            @if (!SpaceNumber.IsSpace(DetailVendor.StallNo))
+                            {
+                                <span>@SpaceNumber.Describe(DetailVendor.StallNo)</span>
+                                <span class="detail-sep">·</span>
+                            }
                             <span>@DetailVendor.FacilityCode</span>
                             <span class="detail-sep">·</span>
                             <span>@DetailVendor.Section</span>

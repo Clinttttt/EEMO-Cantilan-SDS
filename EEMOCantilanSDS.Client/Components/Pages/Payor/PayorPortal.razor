@@ -49,7 +49,7 @@ else
                 </div>
                 <div class="pp-acct-info">
                     <div class="pp-acct-facility">@PayorFormat.FacilityName(acct.Facility)</div>
-                    <div class="pp-acct-sub">Stall @acct.StallNo · @acct.Occupant</div>
+                    <div class="pp-acct-sub">@SpaceNumber.Line(SpaceNumber.Describe(acct.StallNo), acct.Occupant)</div>
                 </div>
                 <div class="pp-acct-rate">
                     <span class="pp-acct-rate-val">@PayorFormat.Currency(acct.MonthlyRate)</span>
