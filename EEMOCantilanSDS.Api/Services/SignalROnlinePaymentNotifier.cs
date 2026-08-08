@@ -18,8 +18,21 @@ public sealed class SignalROnlinePaymentNotifier(
     {
         try
         {
-            await hubContext.Clients.All.SendAsync(
-                OnlinePaymentHub.PaymentReceivedEvent, notification, cancellationToken);
+            // Addressed to the paying LGU's own group. This used to be Clients.All, so a payment settled for one
+            // municipality raised a toast carrying the payor reference, billing period and peso amount on every
+            // collector's and administrator's screen across every municipality on the platform. A notification with no
+            // tenant on it reaches nobody rather than everybody.
+            if (string.IsNullOrWhiteSpace(notification.TenantCode))
+            {
+                logger.LogWarning(
+                    "Online-payment notification for reference {Reference} carried no tenant, so it was not delivered.",
+                    notification.Reference);
+                return;
+            }
+
+            await hubContext.Clients
+                .Group(OnlinePaymentHub.GroupFor(notification.TenantCode))
+                .SendAsync(OnlinePaymentHub.PaymentReceivedEvent, notification, cancellationToken);
         }
         catch (Exception ex)
         {

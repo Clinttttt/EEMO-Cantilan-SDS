@@ -90,7 +90,8 @@ public sealed class OnlinePaymentSettlementService(
                     transaction.PaidAt ?? DateTime.UtcNow,
                     record.StallId,
                     record.BillingYear,
-                    record.BillingMonth),
+                    record.BillingMonth,
+                    tenantContext.TenantCode),
                 cancellationToken);
         }
         catch { /* notification is non-critical; the payment is already recorded */ }
@@ -132,7 +133,8 @@ public sealed class OnlinePaymentSettlementService(
                     transaction.PaidAt ?? DateTime.UtcNow,
                     stallId,
                     year,
-                    month),
+                    month,
+                    tenantContext.TenantCode),
                 cancellationToken);
         }
         catch { /* notification is non-critical; the payment is already recorded */ }
@@ -204,7 +206,8 @@ public sealed class OnlinePaymentSettlementService(
                     transaction.PaidAt ?? DateTime.UtcNow,
                     stallId,
                     year,
-                    month),
+                    month,
+                    tenantContext.TenantCode),
                 cancellationToken);
         }
         catch { /* notification is non-critical; the payment is already recorded */ }
@@ -247,7 +250,8 @@ public sealed class OnlinePaymentSettlementService(
                     transaction.PaidAt ?? DateTime.UtcNow,
                     stallId,
                     year,
-                    month),
+                    month,
+                    tenantContext.TenantCode),
                 cancellationToken);
         }
         catch { /* notification is non-critical; the payment is already recorded */ }

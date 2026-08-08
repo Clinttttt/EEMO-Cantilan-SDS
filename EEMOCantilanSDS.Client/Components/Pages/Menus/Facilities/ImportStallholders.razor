@@ -914,13 +914,9 @@
 
     // Pulls the first valid number out of a cell, ignoring currency symbols, thousands separators
     // and unit suffixes — e.g. "₱1,200.00" -> "1200.00", "4.8 sq.m." -> "4.8", "3 yrs" -> "3".
-    private static string NormalizeNumber(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
-        var noThousands = raw.Replace(",", string.Empty);
-        var match = System.Text.RegularExpressions.Regex.Match(noThousands, @"-?\d+(\.\d+)?");
-        return match.Success ? match.Value : string.Empty;
-    }
+    // The rule lives in the domain (SheetNumber) so it can be tested: this is a money parser, and its previous
+    // reading of "1.500,00" as 1.50 was a thousandfold under-billing that no test could reach from inside a page.
+    private static string NormalizeNumber(string raw) => SheetNumber.Normalize(raw);
 
     private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
@@ -1082,11 +1078,17 @@
 
     private ImportStallRow BuildRow(Dictionary<string, string> row, int rowNumber)
     {
-        DateTime? effectivity = DateTime.TryParse(GetCell(row, "effectivity"), out var dt) ? dt : null;
-        int years = int.TryParse(GetCell(row, "years"), out var y) ? y : 0;
-        double? area = double.TryParse(GetCell(row, "area"), out var a) ? a : null;
-        decimal monthly = decimal.TryParse(GetCell(row, "monthly"), out var m) ? m : 0m;
-        decimal? actualMonthly = decimal.TryParse(GetCell(row, "actualMonthly"), out var am) ? am : null;
+        // Parsed invariantly, and against the value NormalizeNumber has already reduced to a '.' decimal point. These
+        // used to use the ambient culture: on Blazor Server that is the SERVER's culture, not the clerk's, so the same
+        // sheet could be read differently depending on where the container happened to be configured — and nothing in
+        // the app pins it. The date cell is normalised the same way, invariantly, a few lines above its own parse.
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        DateTime? effectivity = DateTime.TryParse(GetCell(row, "effectivity"), inv,
+            System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
+        int years = int.TryParse(GetCell(row, "years"), System.Globalization.NumberStyles.Integer, inv, out var y) ? y : 0;
+        double? area = double.TryParse(GetCell(row, "area"), System.Globalization.NumberStyles.Float, inv, out var a) ? a : null;
+        decimal monthly = decimal.TryParse(GetCell(row, "monthly"), System.Globalization.NumberStyles.Number, inv, out var m) ? m : 0m;
+        decimal? actualMonthly = decimal.TryParse(GetCell(row, "actualMonthly"), System.Globalization.NumberStyles.Number, inv, out var am) ? am : null;
         var contractName = GetCell(row, "contractName");
         var areaLoc = GetCell(row, "areaLoc");
 
