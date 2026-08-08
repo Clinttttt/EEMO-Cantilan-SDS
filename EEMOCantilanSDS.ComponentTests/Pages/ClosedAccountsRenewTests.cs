@@ -196,4 +196,40 @@ public class ClosedAccountsRenewTests : TestContext
             Assert.DoesNotContain("Total Uncollected", cut.Markup);
         }, RenderTimeout);
     }
+
+    [Fact]
+    public void AClosedAccountNobodyElseHolds_OffersResume_NotAssignNewStall()
+    {
+        // A space let without a contract, closed the same day it was recorded, and nobody else in it. The register
+        // decided such a stall had been re-let — counting the account's own occupancy as its successor — and offered
+        // "Assign new stall" as the only action: the office was told the space was taken by the lessee it had just
+        // closed, with no way to put her back and no way to remove the account.
+        var closed = ExpiredAccount() with
+        {
+            State = InactiveAccountState.Closed,
+            FacilityCode = FacilityCode.TCC,
+            FacilityName = "Tampak Commercial Center",
+            StallNo = "4",
+            Occupant = "Bernadette Lim",
+            ContractName = null,
+            DurationYears = 0,
+            MonthlyRate = 1_500m,
+            Uncollected = 1_500m,
+            ClosedOn = new DateOnly(2026, 8, 8),
+            ClosedBy = "head",
+            Section = "",
+            StallReLet = false,
+        };
+
+        // The array picks the plain render overload; the single-row one waits for a renew button this row will not have.
+        var cut = Render(new[] { closed });
+
+        cut.WaitForAssertion(() =>
+        {
+            var resume = cut.Find(".ca-row-reopen");
+            // Icon-only controls name nothing to a screen reader on their own, and this is a government record.
+            Assert.Equal("Resume account", resume.GetAttribute("aria-label"));
+            Assert.DoesNotContain("Assign new stall", cut.Markup);
+        }, RenderTimeout);
+    }
 }

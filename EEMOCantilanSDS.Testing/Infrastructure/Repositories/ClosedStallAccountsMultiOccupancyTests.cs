@@ -67,6 +67,32 @@ public class ClosedStallAccountsMultiOccupancyTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task AClosedOpenEndedAccount_IsNotTreatedAsItsOwnSuccessor()
+    {
+        var context = NewContext();
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "4", 1_500m, ApplicableFees.BaseRental);
+        // A space let WITHOUT a contract — the office's "No contract (extension)". A term of zero years expires on the
+        // day it takes effect, so the occupancy's window ends today and still counts as in force.
+        var today = PhilippineTime.Today;
+        var openEnded = Term(stall.Id, "Bernadette Lim", today, years: 0, rate: 1_500m);
+        stall.Close(today, "head");
+
+        context.AddRange(facility, stall, openEnded);
+        await context.SaveChangesAsync();
+
+        var row = Assert.Single(await new StallRepository(context).GetClosedStallAccountsAsync(CancellationToken.None));
+
+        // The flag asks whether somebody ELSE holds the stall. Counting this account's own occupancy made a closed
+        // open-ended lessee her own successor: the register decided the space had been re-let, told the office it was
+        // taken by the very lessee it had just closed, and offered "Assign new stall" as the only action — no way to
+        // resume the account and no way to remove it.
+        Assert.False(row.StallReLet);
+        Assert.Equal(InactiveAccountState.Closed, row.State);
+        Assert.Equal("Bernadette Lim", row.Occupant);
+    }
+
+    [Fact]
     public async Task EachLesseesMoneyStaysOnTheirOwnAccount()
     {
         var context = NewContext();

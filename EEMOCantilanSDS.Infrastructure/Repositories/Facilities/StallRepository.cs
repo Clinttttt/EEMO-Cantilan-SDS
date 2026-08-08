@@ -958,7 +958,13 @@ public class StallRepository(AppDbContext context, IFeeRateResolver feeRateResol
                 occupancy.End,
                 // Somebody else holds this stall now, so this row is history only: the register must not offer to
                 // renew or reopen it, which would act on the sitting lessee's occupancy.
-                stall.Occupancies(today).Any(o => o.IsCurrent),
+                //
+                // "Somebody ELSE" is the point, so this row's own occupancy is excluded. A term of zero years — a space
+                // let without a contract — expires on the day it takes effect, so a space let and closed on the same
+                // day left its own window still in force. The register concluded the stall had been re-let, told the
+                // office the space was taken by the very lessee it had just closed, and offered "Assign new stall" as
+                // the only action: no way to resume the account, and no way to remove it.
+                stall.Occupancies(today).Any(o => o.IsCurrent && o.Contract.Id != contract.Id),
                 // The term this row is the record of, so an action on THIS lessee cannot pick up the sitting one's.
                 contract.Id,
                 // The space as measured on the stall today — what a renewal is checked against.

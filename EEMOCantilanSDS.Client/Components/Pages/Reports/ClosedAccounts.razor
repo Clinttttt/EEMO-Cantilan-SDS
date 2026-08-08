@@ -300,15 +300,17 @@
                                             </td>
                                             <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ClosedBy) ? "—" : r.ClosedBy)</td>
                                             <td class="ca-act no-print">
+                                              <div class="ca-act-icons">
                                                 @if (r.State == InactiveAccountState.Renewed)
                                                 {
                                                     @* The same lessee is still in this stall on a fresh term. There
                                                        is nothing to renew and nothing to assign — the row is the
                                                        record of their earlier term, and its balance is still theirs. *@
-                                                    <a class="ca-row-btn ca-row-view"
+                                                    <a class="ca-row-icon ca-row-view"
                                                        href="/profile/@r.FacilityCode.ToString().ToLowerInvariant()/@r.StallNo"
+                                                       aria-label="View account"
                                                        title="The same lessee holds this stall on a new term. Open their account to collect this balance.">
-                                                        View account
+                                                        @IconView
                                                     </a>
                                                 }
                                                 else if (r.StallReLet)
@@ -317,26 +319,48 @@
                                                        of a past occupancy: it cannot be renewed in place. If the
                                                        payor returns, they are placed in a stall of their own —
                                                        this account and its balance stay exactly as they are. *@
-                                                    <button class="ca-row-btn ca-row-renew" type="button"
+                                                    <button class="ca-row-icon ca-row-renew" type="button"
                                                             @onclick="() => OpenAssignNewStall(r)"
+                                                            aria-label="Assign new stall"
                                                             title="This stall is taken. Place this payor in a new stall; this account and its balance are untouched.">
-                                                        Assign new stall
+                                                        @IconAssign
                                                     </button>
                                                 }
                                                 else if (r.State == InactiveAccountState.Closed)
                                                 {
-                                                    <button class="ca-row-btn ca-row-reopen" type="button" @onclick="() => OpenReopen(r)">Reopen</button>
+                                                    @* The stall was frozen and nobody else has taken it, so the same
+                                                       lessee can be put back in the same space. "Resume" is the plain
+                                                       word for that: where the space was let without a contract there
+                                                       is no term to renew, and "Reopen" read as an office procedure
+                                                       rather than what happens to the vendor. *@
+                                                    <button class="ca-row-icon ca-row-reopen" type="button"
+                                                            @onclick="() => OpenReopen(r)"
+                                                            aria-label="Resume account"
+                                                            title="Resume this account — put this lessee back in the same space. The balance stays exactly as it is.">
+                                                        @IconResume
+                                                    </button>
                                                 }
                                                 else
                                                 {
-                                                    <button class="ca-row-btn ca-row-renew" type="button" @onclick="() => OpenRenew(r)">Renew</button>
+                                                    <button class="ca-row-icon ca-row-renew" type="button"
+                                                            @onclick="() => OpenRenew(r)"
+                                                            aria-label="Renew term"
+                                                            title="Renew this term. Renewing writes nothing off.">
+                                                        @IconRenew
+                                                    </button>
                                                 }
                                                 @if (!r.StallReLet)
                                                 {
                                                     <AuthorizeView Roles="SuperAdmin" Context="authCtx">
-                                                        <button class="ca-row-btn ca-row-remove" type="button" @onclick="() => OpenRemove(r)" title="Remove this inactive account (frees the stall number)">Remove</button>
+                                                        <button class="ca-row-icon ca-row-remove" type="button"
+                                                                @onclick="() => OpenRemove(r)"
+                                                                aria-label="Remove account"
+                                                                title="Remove this inactive account (frees the stall number)">
+                                                            @IconRemove
+                                                        </button>
                                                     </AuthorizeView>
                                                 }
+                                              </div>
                                             </td>
                                         </tr>
                                         n++;
@@ -617,6 +641,16 @@
 @code {
     // ── Data ──
     private List<ClosedStallAccountDto> _accounts = new();
+
+    // ── Row action glyphs ──
+    // Sized by attribute rather than by stylesheet: a hand-built render fragment carries no CSS-isolation attribute,
+    // so a scoped ".ca-row-icon svg" rule would never match it and the icons would render at their natural size.
+    private static readonly RenderFragment IconView = @<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>;
+    private static readonly RenderFragment IconAssign = @<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l7-4 7 4v13" /><path d="M10 21v-6h4v6" /><path d="M19 4v6" /><path d="M16 7h6" /></svg>;
+    private static readonly RenderFragment IconResume = @<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M11 10l5 3-5 3v-6Z" /></svg>;
+    private static readonly RenderFragment IconRenew = @<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 4v5h-5" /></svg>;
+    private static readonly RenderFragment IconRemove = @<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M6 7l1 13h10l1-13" /><path d="M9 7V4h6v3" /></svg>;
+
     private bool _loading = true;
     private string? _error;
 

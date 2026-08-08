@@ -185,6 +185,22 @@
 .ca-row-remove { border-color: color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
 .ca-row-remove:hover { background: var(--red); color: #fff; }
 
+/* ── Row actions as icons ──
+   The action column carried two or three worded buttons ("Assign new stall", "Remove") and could not hold them at
+   the width the register's other columns need. Square icon buttons fit, and match the vendor roster's own row
+   actions. Each keeps a title and an aria-label: an icon on its own names nothing to a screen reader, and this is
+   a government record. */
+.ca-act-icons { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.ca-act .ca-row-icon + .ca-row-icon { margin-left: 0; }
+.ca-row-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; padding: 0; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--navy);
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+}
+.ca-row-icon:hover { box-shadow: 0 4px 10px rgba(9, 31, 52, .12); }
+.ca-row-icon:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
 /* ── Renew form (inside the shared eemo-modal) ── */
 .ca-form { display: flex; flex-direction: column; gap: 12px; }
 .ca-form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 650; color: var(--text-muted); }
