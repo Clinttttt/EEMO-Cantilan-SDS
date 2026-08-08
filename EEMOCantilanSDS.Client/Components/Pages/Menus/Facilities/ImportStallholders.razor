@@ -290,29 +290,38 @@
                 <div class="imp-continue-note">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg>
                     <span>
-                        @if (_autoContinuedClashed)
+                        @* Says which rows changed and why. It used to announce that the whole batch had been
+                           renumbered, which was both alarming and untrue: numbers the office supplied are kept. *@
+                        @if (_renumberedClash > 0)
                         {
                             <text>
-                                Some numbers already exist in <strong>@_facility.Name@SectionSuffix</strong> — the batch was
-                                renumbered to continue from <strong>#@(_existingMax + 1)</strong> so nothing conflicts.
+                                <strong>@_renumberedClash</strong>
+                                @(_renumberedClash == 1 ? "row" : "rows")
+                                carried a Stall / Space No. already in use in
+                                <strong>@_facility.Name@SectionSuffix</strong>, so
+                                @(_renumberedClash == 1 ? "it was" : "they were") given the next free number.
                             </text>
                         }
-                        else
+                        @if (_numberedBlank > 0)
                         {
                             <text>
-                                The list did not carry usable Stall / Space numbers, so the batch was numbered
-                                for you, continuing after <strong>@_facility.Name@SectionSuffix</strong>.
-                                @if (_numberedSpaces > 0)
-                                {
-                                    <text>
-                                        A space held without a signed contract has no stall number on the office's own
-                                        list, so those rows take the separate
-                                        <strong>@SpaceNumber.Prefix</strong> series instead of a stall number.
-                                    </text>
-                                }
+                                <strong>@_numberedBlank</strong>
+                                @(_numberedBlank == 1 ? "row" : "rows")
+                                arrived without a Stall / Space No. and
+                                @(_numberedBlank == 1 ? "was" : "were") numbered from the next free one.
                             </text>
                         }
-                        You can still edit any Stall / Space No. below.
+                        @if (_numberedSpaces > 0)
+                        {
+                            <text>
+                                <strong>@_numberedSpaces</strong>
+                                @(_numberedSpaces == 1 ? "row is a space" : "rows are spaces")
+                                held without a signed contract. The office does not number these, so
+                                @(_numberedSpaces == 1 ? "it keeps" : "they keep")
+                                none of the facility's stall numbers.
+                            </text>
+                        }
+                        Every other number is exactly as your list had it. You can still edit any Stall / Space No. below.
                     </span>
                 </div>
             }
@@ -448,6 +457,10 @@
     /// <summary>How many rows in this batch were given a space identifier rather than a stall number, so the note can
     /// tell the office that happened instead of leaving it to be discovered in the table.</summary>
     private int _numberedSpaces;
+    /// <summary>Rows whose stall number clashed with an active stall or an earlier row, so they were given another.</summary>
+    private int _renumberedClash;
+    /// <summary>Rows that arrived with no stall number and were given the next free one.</summary>
+    private int _numberedBlank;
     private bool _autoContinued;
     private bool _autoContinuedClashed;
     // Occupant names already active in this facility — used to flag likely-duplicate imports (informational only).
@@ -539,6 +552,8 @@
         _autoContinued = false;
         _autoContinuedClashed = false;
         _numberedSpaces = 0;
+        _renumberedClash = 0;
+        _numberedBlank = 0;
         _existingMax = 0;
         _existingSpaceMax = 0;
         _existingOccupants.Clear();
@@ -601,6 +616,8 @@
         _autoContinued = false;
         _autoContinuedClashed = false;
         _numberedSpaces = 0;
+        _renumberedClash = 0;
+        _numberedBlank = 0;
         _existingMax = 0;
         _existingSpaceMax = 0;
         _existingOccupants.Clear();
@@ -649,27 +666,16 @@
                 if (on.Length > 0) _existingOccupants.Add(on);
             }
 
-            // Conflict = an imported number already exists, is blank, or repeats within the file. The REASON matters
-            // for what the office is told: saying "some numbers already exist" when the list simply arrived without
-            // any is a plain untruth, and on an empty facility it reads as though data were already there.
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var conflict = false;
-            var clashedWithExisting = false;
-            foreach (var row in _rows)
-            {
-                var sn = GetCell(row, "stallNo").Trim();
-                if (existing.Contains(sn)) { conflict = true; clashedWithExisting = true; break; }
-                if (sn.Length == 0 || !seen.Add(sn)) { conflict = true; break; }
-            }
-            _autoContinuedClashed = clashedWithExisting;
+            // What must change, row by row. A number the office supplied and that does not clash is KEPT: the whole
+            // batch used to be rewritten from the facility's highest number the moment any single cell was blank,
+            // duplicated, or already taken, so one bad cell in a mixed list silently renumbered every other row —
+            // overwriting the physical stall numbers the office's collections are keyed on.
+            AssignBatchNumbers(existing);
 
-            if (!conflict)
-            {
-                NoteTakeovers(vacated);
-                return;
-            }
+            _autoContinued = _renumberedClash > 0 || _numberedBlank > 0 || _numberedSpaces > 0;
+            _autoContinuedClashed = _renumberedClash > 0;
 
-            AssignBatchNumbers();
+            NoteTakeovers(vacated);
             _autoContinued = true;
             NoteTakeovers(vacated);
         }
@@ -702,37 +708,51 @@
         if (index < 0 || index >= _rows.Count) return;
         _rows.RemoveAt(index);
 
-        // Keep an auto-continued batch contiguous after a removal (re-sequence from the facility's max).
-        if (_autoContinued)
-            AssignBatchNumbers();
+        // Deliberately NOT re-sequenced. It used to renumber the batch after a removal to keep the assigned numbers
+        // contiguous, which now risks overwriting a number the office supplied and that was rightly left alone. A gap
+        // in the numbers this screen handed out is cosmetic; changing the office's own numbering is not.
     }
 
     /// <summary>
-    /// Numbers a batch the office left un-numbered, taking each row from the series it belongs to.
+    /// Gives a number to the rows that need one, and leaves alone every number the office supplied.
     ///
-    /// <para>A row with a signed contract continues the facility's ordinary numbering. A row WITHOUT one is a space the
-    /// office does not number at all, and continuing the ordinary numbering for it spent a number belonging to a real
-    /// stall: an un-numbered commercial-centre space was recorded as "4", after which the actual stall 4 could not be
-    /// registered because the number was reported occupied — and the sheet blanks the number on such a row, so the
-    /// office could not see which of its numbers had gone.</para>
+    /// <para>This used to rewrite the WHOLE batch from the facility's highest number as soon as any single cell was
+    /// blank, duplicated, or already taken. The office's own lists are routinely mixed — numbered stalls beside
+    /// un-numbered spaces — so one blank cell renumbered every other row in the file. On a second or partial import
+    /// into a populated facility that silently overwrote the physical stall numbers its collections are keyed on.</para>
+    ///
+    /// <para>Now each row is decided on its own: a space the office does not number takes the space series whatever
+    /// the cell says, a blank or clashing stall number is given the next free one, and anything else is the office's
+    /// number and is kept exactly as written.</para>
     /// </summary>
-    private void AssignBatchNumbers()
+    /// <param name="activeNumbers">
+    /// Numbers held by stalls that are still active. Vacated numbers — closed or lapsed — are deliberately absent, so
+    /// a row reclaiming one is treated as the office renewing that stall rather than as a clash.
+    /// </param>
+    private void AssignBatchNumbers(HashSet<string> activeNumbers)
     {
-        var nextStall = _existingMax + 1;
-        var nextSpace = _existingSpaceMax + 1;
+        var decisions = ImportNumbering.Assign(
+            _rows.Select(r => (
+                SuppliedStallNo: (string?)GetCell(r, "stallNo"),
+                HasSignedContract: ArrangementFromContractCell(GetCell(r, "contractName")) == OccupancyArrangement.SignedContract)),
+            activeNumbers,
+            _existingMax,
+            _existingSpaceMax);
+
+        _renumberedClash = 0;
+        _numberedBlank = 0;
         _numberedSpaces = 0;
 
-        foreach (var row in _rows)
+        for (var i = 0; i < _rows.Count; i++)
         {
-            var signed = ArrangementFromContractCell(GetCell(row, "contractName")) == OccupancyArrangement.SignedContract;
-            if (signed)
+            var decision = decisions[i];
+            _rows[i]["stallNo"] = decision.StallNo;
+
+            switch (decision.Outcome)
             {
-                row["stallNo"] = (nextStall++).ToString();
-            }
-            else
-            {
-                row["stallNo"] = SpaceNumber.Format(nextSpace++);
-                _numberedSpaces++;
+                case NumberingOutcome.RenumberedClash: _renumberedClash++; break;
+                case NumberingOutcome.NumberedBlank: _numberedBlank++; break;
+                case NumberingOutcome.NumberedSpace: _numberedSpaces++; break;
             }
         }
     }
@@ -1151,6 +1171,8 @@
         _autoContinued = false;
         _autoContinuedClashed = false;
         _numberedSpaces = 0;
+        _renumberedClash = 0;
+        _numberedBlank = 0;
         _existingMax = 0;
         _existingSpaceMax = 0;
         _applyElectricity = false;
