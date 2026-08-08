@@ -165,16 +165,33 @@
                         </div>
 
                         <div class="avm-group">
-                            <label class="avm-label">Stall / Space No. <span class="avm-req">*</span></label>
-                            <input class="avm-input @(GetFieldError("StallNo") != string.Empty ? "form-input-error" : "")" type="text" placeholder="e.g. 01, T4, B-02"
-                                   @bind="Form.StallNo" @bind:event="oninput" />
-                            @if (GetFieldError("StallNo") != string.Empty)
+                            @if (Form.HasSignedContract)
                             {
-                                <span class="form-error">@GetFieldError("StallNo")</span>
+                                <label class="avm-label">Stall / Space No. <span class="avm-req">*</span></label>
+                                <input class="avm-input @(GetFieldError("StallNo") != string.Empty ? "form-input-error" : "")" type="text" placeholder="e.g. 01, T4, B-02"
+                                       @bind="Form.StallNo" @bind:event="oninput" />
+                                @if (GetFieldError("StallNo") != string.Empty)
+                                {
+                                    <span class="form-error">@GetFieldError("StallNo")</span>
+                                }
+                                else if (!IsEditing && !string.IsNullOrEmpty(_lastSuggested) && Form.StallNo == _lastSuggested)
+                                {
+                                    <span class="avm-hint-muted">Auto-suggested next number — you can edit it.</span>
+                                }
                             }
-                            else if (!IsEditing && !string.IsNullOrEmpty(_lastSuggested) && Form.StallNo == _lastSuggested)
+                            else
                             {
-                                <span class="avm-hint-muted">Auto-suggested next number — you can edit it.</span>
+                                @* The office does not number a space held without a signed contract: its own list
+                                   leaves the column blank and identifies the occupancy by the lessee. So the clerk is
+                                   not asked for a number, and none is taken from the facility's numbering — recording
+                                   such a space as stall 4 left the actual stall 4 unregisterable. It carries an
+                                   identifier of its own instead, shown here so the record is not silent about it. *@
+                                <label class="avm-label">Space No.</label>
+                                <div class="avm-readonly">@Form.StallNo</div>
+                                <span class="avm-hint-muted">
+                                    Not a numbered stall — the office does not number a space held without a contract,
+                                    so this keeps none of the facility's stall numbers.
+                                </span>
                             }
                         </div>
                     </div>
@@ -709,7 +726,11 @@
             // admin has typed themselves (i.e. only replace an empty field or our own prior suggestion).
             if (string.IsNullOrWhiteSpace(Form.StallNo) || Form.StallNo == _lastSuggested)
             {
-                var suggestion = SuggestNextStallNo(ExistingStallNos);
+                // Each basis of occupancy draws from its own series: a signed contract from the facility's stall
+                // numbers, a space held without one from the space series, which cannot collide with them.
+                var suggestion = Form.HasSignedContract
+                    ? SuggestNextStallNo(ExistingStallNos)
+                    : NextSpaceNo();
                 if (!string.IsNullOrEmpty(suggestion))
                 {
                     Form.StallNo = suggestion;
@@ -753,6 +774,11 @@
         foreach (var raw in existing)
         {
             if (string.IsNullOrWhiteSpace(raw)) continue;
+            // A space the office does not number is not part of this numbering, so it must not be read as a stall
+            // number: "SP-4" would otherwise be taken as 4 and push the next stall to 5 with stalls 1 to 4 empty,
+            // or - where a facility holds nothing but un-numbered spaces - make "SP-" look like the house prefix
+            // and suggest SP-5 for a stall held under a signed contract.
+            if (SpaceNumber.IsSpace(raw)) continue;
             anyEntries = true;
             var m = System.Text.RegularExpressions.Regex.Match(raw.Trim(), @"^(.*?)(\d+)\s*$");
             if (!m.Success) continue;
@@ -895,14 +921,35 @@
         Form.Arrangement = arrangement;
 
         if (arrangement == OccupancyArrangement.SignedContract)
+        {
+            // Back to a numbered stall: drop the space identifier and offer the facility's next stall number, so the
+            // form does not save a space identifier against a signed contract.
+            if (SpaceNumber.IsSpace(Form.StallNo))
+            {
+                var stallSuggestion = SuggestNextStallNo(ExistingStallNos);
+                Form.StallNo = stallSuggestion;
+                _lastSuggested = stallSuggestion;
+            }
             return;
+        }
 
         // Nothing on a signed contract applies: no name on one, and no term. Clearing them here means the record
         // cannot carry particulars the office does not hold, whatever was typed before the basis was changed.
         Form.ContractName = string.Empty;
         Form.ContractYears = 0;
         _customYears = false;
+
+        // Nor does a stall number. The office does not number these spaces at all, so the clerk is not asked for one
+        // and none is taken from the facility's numbering - recording such a space as stall 4 made the actual stall 4
+        // unregisterable. It takes the next identifier in the space series instead.
+        var spaceSuggestion = NextSpaceNo();
+        Form.StallNo = spaceSuggestion;
+        _lastSuggested = spaceSuggestion;
     }
+
+    /// <summary>The next identifier in this facility's series for spaces it does not number.</summary>
+    private string NextSpaceNo() =>
+        SpaceNumber.Format(SpaceNumber.HighestOrdinal(ExistingStallNos ?? Array.Empty<string>()) + 1);
 
     private async Task OnSectionSelected(string value)
     {

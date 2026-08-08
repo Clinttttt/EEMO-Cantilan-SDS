@@ -936,3 +936,19 @@
 .avm-util-add:hover {
     opacity: .8;
 }
+
+/* The identifier given to a space the office does not number. Stated rather than typed: the clerk is not asked for a
+   stall number, because the office issues none for such a space and taking one from the facility's numbering left the
+   real stall of that number unregisterable. Shown, not hidden, so the record is not silent about what it carries. */
+.avm-readonly {
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    font-weight: 650;
+    color: var(--text-muted);
+    background: var(--bg-subtle, #f4f6f8);
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
