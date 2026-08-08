@@ -217,9 +217,46 @@ public class GetFollowUpHistoryQueryHandlerTests
         Assert.Contains(dto.Items, i => i.ReasonKind == "delinquent" && i.Amount == 48_000m);
         Assert.Contains(dto.Items, i => i.ReasonKind == "arrears" && i.Amount == 4_800m);
 
-        // And no stall states its money twice, which is what made this safe to switch on.
-        foreach (var group in dto.Items.Where(i => i.Amount > 0m).GroupBy(i => $"{i.Facility}|{i.Identifier}"))
+        // And no stall states the same money twice, which is what made this safe to switch on. The guarantee is per
+        // WINDOW, not per stall: the delinquency figures cover months that have already elapsed and stop at the
+        // earned-through date, while a current-period row is the month in progress. A payor behind on both is two
+        // distinct debts and says so, but neither window may be stated twice over.
+        foreach (var group in dto.Items.Where(i => i.Amount > 0m)
+                     .GroupBy(i => $"{i.Facility}|{i.Identifier}|{(i.ReasonKind == "current" ? "in-progress" : "elapsed")}"))
             Assert.Single(group);
+    }
+
+    [Fact]
+    public async Task TheWholeTimeView_IncludesTheMonthInProgress()
+    {
+        var (handler, _, _, _, _) = Build();
+
+        var wholeTime = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
+        var oneYear = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12), CancellationToken.None)).Value!;
+
+        // "What is still owed in total" cannot answer with less than a single year does. The whole-time view left the
+        // current month out on the grounds that a month has no meaning across all time, so it showed nothing
+        // outstanding at all for accounts that a year view listed as unpaid — the office reading two contradictory
+        // answers to the same question depending on which scope it picked.
+        var currentInAYear = oneYear.Items.Where(i => i.ReasonKind == "current").ToList();
+        Assert.NotEmpty(currentInAYear);
+        foreach (var item in currentInAYear)
+            Assert.Contains(wholeTime.Items, w => w.ReasonKind == "current"
+                && w.Identifier == item.Identifier && w.Facility == item.Facility && w.Amount == item.Amount);
+    }
+
+    [Fact]
+    public async Task TheMonthInProgress_StatesItsOwnMonthAndNotTheWholeTimeHeading()
+    {
+        var (handler, _, _, _, _) = Build();
+
+        var dto = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None)).Value!;
+
+        // One month's rent must not be presented as a lifetime figure. The page heading is "Whole time"; the row is
+        // December 2025's.
+        var current = Assert.Single(dto.Items, i => i.ReasonKind == "current" && i.Amount == 1_500m);
+        Assert.Equal("December 2025", current.Period);
+        Assert.DoesNotContain(dto.Items, i => i.ReasonKind == "current" && i.Period == "Whole time");
     }
 
     [Fact]

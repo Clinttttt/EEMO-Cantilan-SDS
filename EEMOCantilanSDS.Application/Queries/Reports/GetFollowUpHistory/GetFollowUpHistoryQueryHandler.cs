@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
 using EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using System.Globalization;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -95,10 +96,24 @@ public class GetFollowUpHistoryQueryHandler(
             var wholeAccountDelinquency = await reportsRepository.GetDelinquentStallsAsync(
                 null, year, month, includeClosed: false, wholeAccount: true, ct);
 
+            // ── The month in progress ──
+            // A cumulative view still has a current month, and that month's rent is still owed. Leaving it out on the
+            // grounds that "a month has no meaning across all time" made the whole-time page state that nothing at all
+            // was outstanding while the very same accounts, viewed one year at a time, showed five unpaid balances —
+            // the page meant to answer "what is still owed in total" answering with less than a single year did.
+            //
+            // It cannot double count: the delinquency figures above cover months that have ALREADY elapsed and stop at
+            // the earned-through date, so the month in progress is not in them. The rows carry their own month rather
+            // than the page's heading, so one month's rent is never stated as a lifetime figure.
+            var currentMonthReports = new Dictionary<FacilityCode, FacilityReportsDto>();
+            foreach (var code in FollowUpComposer.StallFacilities)
+                currentMonthReports[code] = await reportsRepository.GetFacilityReportsAsync(
+                    code, ReportPeriod.Monthly, year, month, null, ct);
+
             return FollowUpComposer.Compose(
                 year, month, PhilippineTime.Today,
                 wholeAccountDelinquency,
-                new Dictionary<FacilityCode, FacilityReportsDto>(),
+                currentMonthReports,
                 Array.Empty<OnlinePaymentAwaitingOrDto>(),
                 Array.Empty<SlaughterTransactionDto>(),
                 Array.Empty<TrmTripDto>(),
@@ -111,7 +126,9 @@ public class GetFollowUpHistoryQueryHandler(
                 periodLabelOverride: "Whole time",
                 // These figures are each account's entire position, so the rows say so rather than borrowing the
                 // page's heading.
-                delinquencySpanLabel: "Whole account");
+                delinquencySpanLabel: "Whole account",
+                // The current month's rows state that month, not "Whole time".
+                currentPeriodLabel: new DateOnly(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture));
         }
 
         var facilityReports = new Dictionary<FacilityCode, FacilityReportsDto>();

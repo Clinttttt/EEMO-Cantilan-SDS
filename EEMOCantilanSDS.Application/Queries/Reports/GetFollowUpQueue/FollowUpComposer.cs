@@ -74,7 +74,12 @@ public static class FollowUpComposer
         // entire position. Labelling those rows with the page's month made a current-period screen state a
         // multi-month debt as August's — the same scope confusion that put "37 months" under "January – December
         // 2026". Null keeps the page's period label, which is right only where the two genuinely coincide.
-        string? delinquencySpanLabel = null)
+        string? delinquencySpanLabel = null,
+        // What period the CURRENT-PERIOD figures belong to, when it is not the page's own heading. The month in
+        // progress is its own thing: a cumulative "Whole time" view still has a current month, and its unpaid rent is
+        // still owed — but labelling that row "Whole time" would state one month's rent as a lifetime figure. Null
+        // keeps the page's period label, which is right wherever the page IS a period.
+        string? currentPeriodLabel = null)
     {
         var periodLabel = periodLabelOverride
             ?? new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
@@ -170,8 +175,11 @@ public static class FollowUpComposer
                         SecThisPeriod, "Normal",
                         isPartial ? "Partial payment" : "Current-period unpaid",
                         "current",
-                        code, Model(code), Named(s.Occupant), $"Stall {s.StallNo}",
-                        s.Balance, false, periodLabel,
+                        code, Model(code), Named(s.Occupant),
+                        // Named with its section where the facility has them, for the same reason the delinquency
+                        // rows are: three different market spaces are each called "Stall 1".
+                        string.IsNullOrWhiteSpace(s.Section) ? $"Stall {s.StallNo}" : $"Stall {s.StallNo} · {s.Section}",
+                        s.Balance, false, currentPeriodLabel ?? periodLabel,
                         isPartial ? "Partial" : "Unpaid",
                         "View vendor", ProfileLink(code, s.StallNo), s.StallId));
                 }
