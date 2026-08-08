@@ -64,11 +64,30 @@ public class SpaceNumberTests
     }
 
     [Fact]
-    public void ASpaceIsDescribedAsASpace_NotAsAStall()
+    public void ASpaceShowsNothingToTheOffice_WhileAStallShowsItsNumber()
     {
-        // "Stall SP-1" would assert the very numbering the office does not have.
-        Assert.Equal("Space SP-1", SpaceNumber.Describe("SP-1"));
+        // The office's own list leaves the column empty for a space it does not number and identifies the occupancy by
+        // the lessee. The identifier still exists behind this and is still what the system keys, links and routes on —
+        // it is simply not a fact the office would recognise, so it is not put in front of them.
+        Assert.Equal(string.Empty, SpaceNumber.Display("SP-1"));
+        Assert.Equal(string.Empty, SpaceNumber.Display("sp-12"));
+        Assert.Equal("4", SpaceNumber.Display("4"));
+        Assert.Equal("101", SpaceNumber.Display("101"));
+
+        // And nothing reads "Stall SP-1" either: naming it would assert the numbering that does not exist.
+        Assert.Equal(string.Empty, SpaceNumber.Describe("SP-1"));
         Assert.Equal("Stall 4", SpaceNumber.Describe("4"));
         Assert.Equal("Stall 101", SpaceNumber.Describe("101"));
+    }
+
+    [Fact]
+    public void TheIdentifierStillExists_EvenThoughItIsNeverShown()
+    {
+        // Blanking the display must not blank the key: the system needs this value to link, dedupe and route.
+        var assigned = SpaceNumber.Format(3);
+        Assert.Equal("SP-3", assigned);
+        Assert.True(SpaceNumber.IsSpace(assigned));
+        Assert.Equal(3, SpaceNumber.HighestOrdinal(new[] { assigned }));
+        Assert.Equal(string.Empty, SpaceNumber.Display(assigned));
     }
 }

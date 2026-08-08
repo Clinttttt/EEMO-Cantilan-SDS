@@ -1,5 +1,6 @@
 @page "/vendors"
 @using EEMOCantilanSDS.Application.Dtos.Vendors
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject IJSRuntime JS
@@ -234,7 +235,9 @@
                                         <tr class="@(!v.IsActive ? "row-inactive" : "") vendor-row" @onclick="() => OpenDetail(v)">
                                             <td>
                                                 <div class="stall-num-cell">
-                                                    <span>@v.StallNo</span>
+                                                    @* Blank for a space the office does not number, matching its own
+                                                       list. The vendor is identified by name on such a row. *@
+                                                    <span>@SpaceNumber.Display(v.StallNo)</span>
                                                 </div>
                                             </td>
                                             <td>

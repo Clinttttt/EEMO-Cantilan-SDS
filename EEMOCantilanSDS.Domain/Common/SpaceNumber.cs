@@ -54,9 +54,19 @@ public static class SpaceNumber
     }
 
     /// <summary>
-    /// How the identifier reads on screen. A numbered stall is "Stall 4"; an un-numbered space is named as a space,
-    /// because calling it "Stall SP-1" would assert the very numbering the office does not have.
+    /// What the office sees. A numbered stall shows its number; a space the office does not number shows NOTHING,
+    /// because that is what its own list shows — the column is left empty and the occupancy is identified by the
+    /// lessee. The identifier still exists and is still what the system keys, links and routes on; it is simply not a
+    /// fact about the space that the office would recognise, so it is not put in front of them.
+    /// </summary>
+    public static string Display(string? stallNo) =>
+        IsSpace(stallNo) ? string.Empty : (stallNo ?? string.Empty).Trim();
+
+    /// <summary>
+    /// How the identifier reads in a sentence — "Stall 4". Empty for a space the office does not number, for the same
+    /// reason as <see cref="Display"/>: naming it would assert a numbering that does not exist. Callers composing a
+    /// label from several parts must therefore drop empty ones rather than emitting a stray separator.
     /// </summary>
     public static string Describe(string? stallNo) =>
-        IsSpace(stallNo) ? $"Space {stallNo!.Trim()}" : $"Stall {stallNo}";
+        IsSpace(stallNo) ? string.Empty : $"Stall {stallNo}";
 }

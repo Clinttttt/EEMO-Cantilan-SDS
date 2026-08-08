@@ -454,9 +454,11 @@ public class GetFinancialReportQueryHandler(
         FacilityCode: d.FacilityCode,
         StallNo: d.StallNo,
         Location: string.IsNullOrWhiteSpace(d.Section)
-            ? $"{d.FacilityCode} · {SpaceNumber.Describe(d.StallNo)}"
+            // Parts that are absent are dropped rather than interpolated: a space the office does not number
+            // contributes no stall part, and would otherwise leave a trailing separator after the facility.
+            ? JoinParts(d.FacilityCode.ToString(), SpaceNumber.Describe(d.StallNo))
             // The market numbers per section, so three different payors would all read "NPM · Stall 1".
-            : $"{d.FacilityCode} · {d.Section} · {SpaceNumber.Describe(d.StallNo)}",
+            : JoinParts(d.FacilityCode.ToString(), d.Section, SpaceNumber.Describe(d.StallNo)),
         Balance: d.OutstandingBalance,
         UnpaidMonths: d.MonthsUnpaid,
         TermLapsed: d.TermLapsed,
@@ -595,4 +597,11 @@ public class GetFinancialReportQueryHandler(
     // Head-named custom facilities use their stored name; canonical facilities keep the fixed label.
     private static string ReportName(FacilityCode code, IReadOnlyDictionary<FacilityCode, string> names) =>
         names.TryGetValue(code, out var n) && !string.IsNullOrWhiteSpace(n) ? n : FacilityName(code);
+
+    /// <summary>
+    /// Joins the parts of an account's location, dropping any that are absent. The stall part is legitimately empty
+    /// for a space the office does not number, and interpolating it left a trailing separator after the facility.
+    /// </summary>
+    private static string JoinParts(params string?[] parts) =>
+        string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
 }

@@ -103,7 +103,7 @@
                 {
                     <div class="ops-card @GetRowClass(s)">
                         <div class="ops-card-top">
-                            <div class="ops-stall-no">@GetStallNo(s)</div>
+                            <div class="ops-stall-no">@GetStallNoForDisplay(s)</div>
                             @if (GetPaidToday(s))
                             {
                                 <span class="today-pill today-paid">
@@ -189,7 +189,7 @@
                     var partial = GetIsPartial(s);
                     <div class="ops-card @GetRowClass(s)">
                         <div class="ops-card-top">
-                            <div class="ops-stall-no">@GetStallNo(s)</div>
+                            <div class="ops-stall-no">@GetStallNoForDisplay(s)</div>
                             @if (paid)
                             {
                                 <span class="today-pill today-paid">
@@ -286,7 +286,7 @@
                         @foreach (var s in FilteredStalls)
                         {
                             <tr class="@GetRowClass(s) data-row">
-                                <td>@GetStallNo(s)</td>
+                                <td>@GetStallNoForDisplay(s)</td>
                                 <td>@GetActualOccupant(s)</td>
                                 <td>
                                     @{
@@ -368,6 +368,13 @@
 
     // Helper methods using reflection to access stall properties generically
     private string GetStallNo(TStall stall) => GetPropertyValue<string>(stall, "StallNo") ?? "";
+
+    /// <summary>
+    /// The number as the office would see it: blank for a space it does not number, matching its own list. Kept apart
+    /// from <see cref="GetStallNo"/> because that value is also used as a row key, and a blank key would collide
+    /// across every un-numbered space in the facility.
+    /// </summary>
+    private string GetStallNoForDisplay(TStall stall) => SpaceNumber.Display(GetStallNo(stall));
     private Guid GetStallId(TStall stall) => GetPropertyValue<Guid>(stall, "StallGuid");
     private string GetActualOccupant(TStall stall) => GetPropertyValue<string>(stall, "ActualOccupant") ?? "";
     private string GetContractName(TStall stall) => GetPropertyValue<string>(stall, "ContractName") ?? "";

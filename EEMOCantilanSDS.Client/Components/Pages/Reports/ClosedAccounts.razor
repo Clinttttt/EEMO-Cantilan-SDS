@@ -283,7 +283,10 @@
                                         <tr>
                                             <td class="ca-c">@n</td>
                                             <td class="ca-c ca-status-text">@StateLabel(r.State)</td>
-                                            <td class="ca-c">@r.StallNo</td>
+                                            @* Blank for a space the office does not number, matching its own list.
+                                               The identifier still exists behind this and still drives the link
+                                               below; it is simply not a fact the office would recognise. *@
+                                            <td class="ca-c">@SpaceNumber.Display(r.StallNo)</td>
                                             <td class="ca-fw">@r.Occupant</td>
                                             <td class="ca-muted">@(string.IsNullOrWhiteSpace(r.ContractName) ? "—" : r.ContractName)</td>
                                             <td class="ca-c ca-period">@r.EffectivityDate.ToString("MMM yyyy") <span>→</span> @EndOf(r).ToString("MMM d, yyyy")</td>

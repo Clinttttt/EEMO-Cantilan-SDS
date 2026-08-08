@@ -124,7 +124,7 @@ public static class FollowUpComposer
                 // Named with its section where the facility has them. The market numbers spaces per section, so three
                 // different payors were each listed as "Stall 1 · NPM" with nothing to tell them apart — the office
                 // could not know which space a row was about, let alone which one it had just collected from.
-                Identifier: string.IsNullOrWhiteSpace(d.Section) ? Where(d.StallNo) : $"{Where(d.StallNo)} · {d.Section}",
+                Identifier: Label(Where(d.StallNo), d.Section),
                 Amount: d.OutstandingBalance,
                 Excused: false,
                 Period: delinquencySpanLabel ?? periodLabel,
@@ -178,7 +178,7 @@ public static class FollowUpComposer
                         code, Model(code), Named(s.Occupant),
                         // Named with its section where the facility has them, for the same reason the delinquency
                         // rows are: three different market spaces are each called "Stall 1".
-                        string.IsNullOrWhiteSpace(s.Section) ? Where(s.StallNo) : $"{Where(s.StallNo)} · {s.Section}",
+                        Label(Where(s.StallNo), s.Section),
                         s.Balance, false, currentPeriodLabel ?? periodLabel,
                         isPartial ? "Partial" : "Unpaid",
                         "View vendor", ProfileLink(code, s.StallNo), s.StallId));
@@ -218,7 +218,7 @@ public static class FollowUpComposer
             items.Add(new FollowUpItemDto(
                 SecImmediate, "High", "Missing OR", "missingor",
                 a.Facility, Model(a.Facility), Named(a.PayorName),
-                $"{Where(a.StallNo)} · online",
+                Label(Where(a.StallNo), "online"),
                 a.Amount, false, a.Period,
                 "Paid · awaiting OR", "Encode OR", "/online-payments"));
         }
@@ -281,7 +281,7 @@ public static class FollowUpComposer
                 items.Add(new FollowUpItemDto(
                     SecOperational, "Normal", "Daily receipt · OR", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant),
-                    $"{Where(u.StallNo)} · {u.Count} day{(u.Count == 1 ? "" : "s")}",
+                    Label(Where(u.StallNo), $"{u.Count} day{(u.Count == 1 ? "" : "s")}"),
                     u.Amount, false, uPeriod,
                     "Paid daily · OR blank", "Add OR", "/npm",
                     StallId: u.StallId));
@@ -488,7 +488,11 @@ public static class FollowUpComposer
             FacilityCode.NPM,
             "Utility billing",
             Named(occupant),
-            $"{SpaceNumber.Describe(stallNo)} - {utilityName}",
+            // " - " rather than " · " here because the utility rows have always read that way, and the stall part is
+            // dropped entirely for a space the office does not number.
+            string.IsNullOrWhiteSpace(SpaceNumber.Describe(stallNo))
+                ? utilityName
+                : $"{SpaceNumber.Describe(stallNo)} - {utilityName}",
             balance,
             false,
             periodLabel,
@@ -521,9 +525,17 @@ public static class FollowUpComposer
 
     /// <summary>
     /// How a row names the space it concerns. A numbered stall reads "Stall 4"; a space the office does not number
-    /// reads as a space, because "Stall SP-1" would assert a stall number that does not exist on its list.
+    /// contributes nothing, because its own list leaves that column empty and identifies the occupancy by the lessee.
     /// </summary>
     private static string Where(string? stallNo) => SpaceNumber.Describe(stallNo);
+
+    /// <summary>
+    /// Joins the parts of a row's label, dropping any that are empty. Needed because the stall part is legitimately
+    /// absent for a space the office does not number, and a naive interpolation would leave a row reading " · Fish
+    /// Area" with a separator and nothing before it.
+    /// </summary>
+    private static string Label(params string?[] parts) =>
+        string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
 
     /// <summary>
     /// True where the facility charges by the day rather than by the month, so a month count describes the span the

@@ -240,7 +240,7 @@
                                             case "payor":
                                                 <td>
                                                     <div class="fq-person">@it.Person</div>
-                                                    <div class="fq-sub">@it.Identifier · @it.Facility · @it.Model</div>
+                                                    <div class="fq-sub">@RowSubtitle(it.Identifier, it.Facility.ToString(), it.Model)</div>
                                                 </td>
                                                 break;
                                             case "periodstatus":
@@ -313,7 +313,7 @@
             <div class="fq-modal-head">
                 <div>
                     <div class="fq-modal-title">Add OR — @_orItem.Person</div>
-                    <div class="fq-modal-sub">@_orItem.Identifier · @_orItem.Facility · @_orItem.Period</div>
+                    <div class="fq-modal-sub">@RowSubtitle(_orItem.Identifier, _orItem.Facility.ToString(), _orItem.Period)</div>
                 </div>
                 <button type="button" class="fq-modal-x" @onclick="CloseAddOr" aria-label="Close">&times;</button>
             </div>
@@ -489,7 +489,11 @@
     private const string HiddenStorageKey = "eemo.followup.hidden";
     private HashSet<string> _hidden = new();
 
-    private static string HideKey(FollowUpItemDto i) => $"{i.Facility}|{i.ReasonKind}|{i.Identifier}|{i.Period}";
+    // Keyed on the stall's identity where there is one. The identifier alone stopped being enough once a space the
+    // office does not number began showing no number at all: two such spaces in the same facility, with the same
+    // reason and period, produced identical keys, so dismissing one row would have dismissed the other with it.
+    private static string HideKey(FollowUpItemDto i) =>
+        $"{i.Facility}|{i.ReasonKind}|{i.StallId?.ToString() ?? i.Identifier}|{i.Period}";
 
     // Count of still-visible "Contract expired" items in Needs immediate action (expired contracts
     // are ReasonKind "contract" in section 1; expiring-soon ones live in section 2).
@@ -870,13 +874,22 @@
         await Load();   // paid utilities drop off the queue; partials refresh their balances
     }
 
+    /// <summary>
+    /// A row's second line, dropping any part that is absent. The stall part is legitimately empty for a space the
+    /// office does not number, and interpolating it directly left the line reading " · TCC · Monthly rental" with a
+    /// separator and nothing before it.
+    /// </summary>
+    private static string RowSubtitle(params string?[] parts) =>
+        string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
+
     private static string StallNoForUtility(FollowUpItemDto item)
     {
         const string prefix = "Stall ";
-        var value = item.Identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? item.Identifier[prefix.Length..]
-            : item.Identifier;
+        // No "Stall " part means there is no stall number to show — a space the office does not number. The modal is
+        // given nothing rather than the identifier the system keys on internally.
+        if (!item.Identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return string.Empty;
 
+        var value = item.Identifier[prefix.Length..];
         var separator = value.IndexOf(" - ", StringComparison.Ordinal);
         return (separator >= 0 ? value[..separator] : value).Trim();
     }
