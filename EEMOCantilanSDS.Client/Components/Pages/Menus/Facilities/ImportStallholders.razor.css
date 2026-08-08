@@ -390,3 +390,18 @@
 .imp-takeover-note svg {
     stroke: var(--amber-600, #b45309);
 }
+
+
+/* Queries raised against the sheet's own Delinquent and Whole Year figures. One line per row so the clerk can find the
+   row on the sheet in front of them, rather than a paragraph they have to unpick. */
+.imp-query-list {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.imp-query-list li {
+    font-weight: 500;
+}

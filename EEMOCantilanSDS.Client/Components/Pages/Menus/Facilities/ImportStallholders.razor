@@ -326,6 +326,32 @@
                 </div>
             }
 
+            @if (_sheetQueries.Count > 0)
+            {
+                @* The office's own Delinquent (₱) and Whole Year Rental are not saved — arrears are computed from the
+                   term and the payments, and whole-year rental is derived — so storing them would state the same money
+                   twice. They are checked instead, which is the reconciliation the office does by hand, and this is
+                   where the N × 12 error announced itself: a three-year term stating 37 months' rent.
+
+                   Only impossibilities are raised. An import carries no payment history, so a figure LOWER than the
+                   term supports is exactly what a part-paid account looks like and is never questioned. *@
+                <div class="imp-continue-note imp-takeover-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                    <span>
+                        @_sheetQueries.Count @(_sheetQueries.Count == 1 ? "figure on this sheet cannot" : "figures on this sheet cannot")
+                        be right for the term beside @(_sheetQueries.Count == 1 ? "it" : "them"). Worth checking before
+                        you save — the import records the term and the rent, and works the balance out itself, so
+                        nothing here is imported either way:
+                        <ul class="imp-query-list">
+                            @foreach (var q in _sheetQueries)
+                            {
+                                <li>Row @q.RowNumber · @q.Occupant — @q.Message</li>
+                            }
+                        </ul>
+                    </span>
+                </div>
+            }
+
             @if (_takeovers.Count > 0)
             {
                 @* A number the office has vacated is reused rather than skipped, which means the space changes
@@ -468,6 +494,16 @@
     // Stall number → the lessee who last held it, for numbers this file would take over from a vacated space.
     private readonly Dictionary<string, string> _takeovers = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>A figure on the office's sheet that the term beside it cannot support.</summary>
+    private sealed record SheetQuery(int RowNumber, string Occupant, string Message);
+
+    /// <summary>
+    /// Queries raised against the sheet's own Delinquent (₱) and Whole Year Rental figures. Neither is imported —
+    /// arrears are computed from the term and the payments, and whole-year rental is derived — so these are a check,
+    /// not an input, and raising them can never change what is saved.
+    /// </summary>
+    private readonly List<SheetQuery> _sheetQueries = new();
+
     private string BackUrl => _facility is null ? "/menu" : $"/{_facility.ShortCode.ToLower()}";
 
     protected override async Task OnParametersSetAsync()
@@ -558,6 +594,7 @@
         _existingSpaceMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
+        _sheetQueries.Clear();
     }
 
     public record NpmSectionOption(string Name, string Desc, string Css, string Icon);
@@ -622,6 +659,7 @@
         _existingSpaceMax = 0;
         _existingOccupants.Clear();
         _takeovers.Clear();
+        _sheetQueries.Clear();
         if (_facility is null || _rows.Count == 0) return;
 
         try
@@ -675,6 +713,7 @@
             _autoContinued = _renumberedClash > 0 || _numberedBlank > 0 || _numberedSpaces > 0;
             _autoContinuedClashed = _renumberedClash > 0;
 
+            CheckSheetFigures();
             NoteTakeovers(vacated);
             _autoContinued = true;
             NoteTakeovers(vacated);
@@ -690,6 +729,67 @@
     /// lessee on the sheet — the previous occupancy is ended and its payor links revoked, exactly as the Add Vendor
     /// takeover does — so the preview says so before anything is saved rather than reporting it afterwards.
     /// </summary>
+    /// <summary>
+    /// Raises a query against the sheet's own Delinquent (₱) and Whole Year Rental figures where the term beside them
+    /// cannot support what they state.
+    ///
+    /// <para>Neither figure is imported. Arrears are computed from the term and the payments recorded against it, and
+    /// whole-year rental is derived from the rent, so storing either would state the same money twice — a stated arrears
+    /// figure would be added ON TOP of what the system already calculates for those months. Checking them costs
+    /// nothing and is the reconciliation the office does by hand.</para>
+    ///
+    /// <para>Only impossibilities are raised. An import carries no payment history, so a figure LOWER than the term
+    /// supports is exactly what a part-paid account looks like and is never questioned; an office warned wrongly stops
+    /// reading warnings.</para>
+    /// </summary>
+    private void CheckSheetFigures()
+    {
+        _sheetQueries.Clear();
+
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            var row = _rows[i];
+            var occupant = GetCell(row, "occupant");
+            if (string.IsNullOrWhiteSpace(occupant)) continue;
+
+            var signed = ArrangementFromContractCell(GetCell(row, "contractName")) == OccupancyArrangement.SignedContract;
+            var monthly = SheetNumber.ToDecimal(GetCell(row, "actualMonthly")) is { } am && am > 0m
+                ? am
+                : SheetNumber.ToDecimal(GetCell(row, "monthly")) ?? 0m;
+
+            // Whole-year rental is derived from the rent, so a disagreement means one of the two numbers on the row is
+            // wrong — the arithmetic slip that stays invisible until the year is totalled.
+            var statedWholeYear = SheetNumber.ToDecimal(GetCell(row, "wholeYear")) ?? 0m;
+            if (SheetReconciliation.WholeYearDisagreesWithMonthly(statedWholeYear, monthly))
+            {
+                _sheetQueries.Add(new SheetQuery(i + 1, occupant,
+                    $"whole year states {Peso(statedWholeYear)}, but twelve months at {Peso(monthly)} is {Peso(monthly * 12)}"));
+            }
+
+            // Arrears are only checkable against a term. An open-ended space has none, so nothing is asserted.
+            if (!signed) continue;
+
+            var statedArrears = SheetNumber.ToDecimal(GetCell(row, "delinquent")) ?? 0m;
+            var years = int.TryParse(SheetNumber.Normalize(GetCell(row, "years")), out var y) ? y : 0;
+            if (!DateOnly.TryParse(NormalizeDate(GetCell(row, "effectivity")),
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var effectivity))
+                continue;
+
+            if (SheetReconciliation.ArrearsExceedsWhatTermCouldBill(
+                    statedArrears, effectivity, years, monthly, PhilippineTime.Today))
+            {
+                var ceiling = SheetReconciliation.MaximumBillableToDate(
+                    effectivity, years, monthly, PhilippineTime.Today);
+                _sheetQueries.Add(new SheetQuery(i + 1, occupant,
+                    $"delinquent states {Peso(statedArrears)}, but this term can have billed at most {Peso(ceiling)} so far"));
+            }
+        }
+    }
+
+    private static string Peso(decimal amount) =>
+        "₱" + amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+
     private void NoteTakeovers(Dictionary<string, string> vacated)
     {
         _takeovers.Clear();
