@@ -37,12 +37,22 @@ public class TermExpiryRuleTests
     [Fact]
     public void An_open_ended_space_never_expires()
     {
-        // A space let without a contract carries a term of zero years. Written out by hand as
-        // "today is past effectivity plus zero years", this was TRUE of every such space from the day after it was
-        // let — so the iceplant and barbecue spaces, all let this way and all still occupied, read as vacant and had
-        // their numbers offered up for reuse by the next import.
+        // A space let without a contract is recorded with the open-ended sentinel, which is what the production data
+        // actually carries — Contract.Create sets it for every unsigned arrangement. A term of zero is treated the
+        // same way for safety.
+        Assert.False(DomainRules.TermHasExpired(Start, DomainRules.OpenEndedTermYears, new DateOnly(2026, 8, 8)));
         Assert.False(DomainRules.TermHasExpired(Start, 0, new DateOnly(2026, 8, 8)));
         Assert.False(DomainRules.TermHasExpired(Start, 0, new DateOnly(2099, 1, 1)));
+    }
+
+    [Fact]
+    public void An_open_ended_term_does_not_quietly_expire_once_its_sentinel_years_elapse()
+    {
+        // The sentinel is 99 years, so plain arithmetic gives the right answer for a lifetime and the wrong one after
+        // that. The rule names the sentinel instead, so the answer does not depend on how far away 99 years happens
+        // to be — and a reader can see which reading was meant.
+        var farFuture = Start.AddYears(DomainRules.OpenEndedTermYears).AddDays(1);
+        Assert.False(DomainRules.TermHasExpired(Start, DomainRules.OpenEndedTermYears, farFuture));
     }
 
     [Fact]

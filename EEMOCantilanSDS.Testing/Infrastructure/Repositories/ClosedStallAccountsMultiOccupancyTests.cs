@@ -72,10 +72,11 @@ public class ClosedStallAccountsMultiOccupancyTests : RepositoryTestBase
         var context = NewContext();
         var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
         var stall = Stall.Create(facility.Id, "4", 1_500m, ApplicableFees.BaseRental);
-        // A space let WITHOUT a contract — the office's "No contract (extension)". A term of zero years expires on the
-        // day it takes effect, so the occupancy's window ends today and still counts as in force.
+        // A space let WITHOUT a contract — the office's "No contract (extension)". Contract.Create records these with
+        // the open-ended sentinel, which is what the production rows carry, so the occupancy's window runs far into
+        // the future and never falls out of force by itself.
         var today = PhilippineTime.Today;
-        var openEnded = Term(stall.Id, "Bernadette Lim", today, years: 0, rate: 1_500m);
+        var openEnded = Term(stall.Id, "Bernadette Lim", today, years: DomainRules.OpenEndedTermYears, rate: 1_500m);
         stall.Close(today, "head");
 
         context.AddRange(facility, stall, openEnded);

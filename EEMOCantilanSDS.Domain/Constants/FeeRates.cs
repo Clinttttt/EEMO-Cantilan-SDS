@@ -109,19 +109,28 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// stalls with a live contract beside a grid listing every stall not formally closed. The same term was
         /// simultaneously reported as 2 stalls and 5.</para>
         ///
-        /// <para>A term of zero years is open-ended — a space let without a contract — and never expires. The last day
-        /// of the term is still inside it: a three-year term effective the 7th of June runs THROUGH the 7th of June
-        /// three years on, which is the reading the office's own paper takes.</para>
+        /// <para>An open-ended term never expires — a space let without a contract has no term to run out. Such an
+        /// occupancy is recorded with <see cref="OpenEndedTermYears"/>, and a term of zero or fewer years is treated
+        /// the same way. Both are named here rather than left to arithmetic: 99 years happens to fall far enough in
+        /// the future to give the right answer today, but it would be the wrong answer eventually, and nothing in the
+        /// expression would have said which reading was intended.</para>
+        ///
+        /// <para>The last day of the term is still inside it: a three-year term effective the 7th of June runs THROUGH
+        /// the 7th of June three years on, which is the reading the office's own paper takes.</para>
         ///
         /// <para>Expiry is not closure. The lessee is typically still trading and still owes, so an expired term stays
         /// in arrears, in follow-up and in the register of inactive accounts; it is only excluded from the list of
         /// stalls being currently let.</para>
         /// </summary>
         /// <param name="effectivity">The date the term took effect, or null where no contract is on record.</param>
-        /// <param name="durationYears">The term length in years; zero or less means open-ended.</param>
+        /// <param name="durationYears">The term length in years; zero or less, or <see cref="OpenEndedTermYears"/>,
+        /// means open-ended.</param>
         /// <param name="asOf">The date the question is asked as of.</param>
         public static bool TermHasExpired(DateOnly? effectivity, int durationYears, DateOnly asOf)
-            => effectivity is { } start && durationYears > 0 && start.AddYears(durationYears) < asOf;
+            => effectivity is { } start
+               && durationYears > 0
+               && durationYears != OpenEndedTermYears
+               && start.AddYears(durationYears) < asOf;
 
         /// <inheritdoc cref="TermHasExpired(DateOnly?, int, DateOnly)"/>
         public static bool TermHasExpired(DateTime? effectivity, int durationYears, DateTime asOf)
