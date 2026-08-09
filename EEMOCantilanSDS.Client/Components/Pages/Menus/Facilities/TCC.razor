@@ -296,20 +296,6 @@
         },
         new()
         {
-            // Reached from the facility itself, because that is where the office already goes to look at these
-            // spaces. Head/admin only, matching the page it opens.
-            Label = "Import History",
-            Icon = """<svg viewBox="0 0 24 24"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>""",
-            ClassName = "btn-outline",
-            Title = "Record payments already collected, from the office's own books",
-            OnClickHandler = async () =>
-            {
-                Navigation.NavigateTo("/import-history/tcc");
-                await Task.CompletedTask;
-            }
-        },
-        new()
-        {
             Label = "Add New",
             Icon = """<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>""",
             ClassName = "btn-primary",

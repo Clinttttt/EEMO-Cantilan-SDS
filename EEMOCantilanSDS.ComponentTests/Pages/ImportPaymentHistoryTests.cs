@@ -109,6 +109,43 @@ public class ImportPaymentHistoryTests : TestContext
     }
 
     [Fact]
+    public void TheSampleOfferSitsBesideTheTemplate()
+    {
+        var cut = Render("tcc");
+
+        // The same pair of choices the stallholder import offers, so the two screens read alike.
+        Assert.Contains("Download CSV template", cut.Markup);
+        Assert.Contains("Use sample data instead", cut.Markup);
+    }
+
+    [Fact]
+    public void TheSampleIsDatedFromTheCurrentMonth_SoItCannotRot()
+    {
+        var cut = Render("tcc");
+
+        cut.Find("button.iph-link-btn").Click();
+
+        // The stallholder sample was written with a fixed date and, three years on, produced rows that arrived
+        // already expired. A payment sample dated in the past would be rejected month by month and read as the
+        // feature being broken, so it is derived from today.
+        var thisMonth = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        Assert.Contains($"{thisMonth.AddMonths(-1):yyyy-MM}", cut.Markup);
+        Assert.Contains($"{thisMonth.AddMonths(-3):yyyy-MM}", cut.Markup);
+    }
+
+    [Fact]
+    public void TheSampleShowsAPartPaidMonth()
+    {
+        var cut = Render("tcc");
+
+        cut.Find("button.iph-link-btn").Click();
+
+        // So the office meets the part-paid case in the sample rather than for the first time in its own history,
+        // where a remaining balance could be mistaken for a failed import.
+        Assert.Contains("1,200", cut.Markup);
+    }
+
+    [Fact]
     public void NothingIsSentUntilThereAreRowsToSend()
     {
         Render("tcc");

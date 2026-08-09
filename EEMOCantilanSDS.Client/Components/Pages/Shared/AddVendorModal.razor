@@ -582,6 +582,18 @@
                         Import list
                     </button>
                 }
+                @if (IsHistoryImportSupported)
+                {
+                    @* Beside the list import because both are the same kind of act - bringing the office's existing
+                       paper into the system - and this is where a clerk setting a facility up already is. Only on the
+                       monthly-billed facilities: the market is collected per market day, so its history is not one
+                       row per month. *@
+                    <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImportHistory"
+                            title="Record payments already collected, from the office's own books">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>
+                        Import history
+                    </button>
+                }
                 <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
                 <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
                     @(IsEditing ? "Save Changes" : "Add Vendor")
@@ -984,6 +996,22 @@
     {
         if (IsImportSupported)
             Navigation.NavigateTo($"/import/{Form.FacilityCode.ToLowerInvariant()}");
+    }
+
+    /// <summary>
+    /// The monthly-billed facilities, where one row is one month. The market bills per market day, so its history
+    /// cannot be expressed that way and the option is not offered for it - the same rule the page and the server
+    /// enforce, stated here so the button never leads to a refusal.
+    /// </summary>
+    private static readonly HashSet<string> HistoryImportFacilities = new(StringComparer.OrdinalIgnoreCase)
+        { "TCC", "NCC", "BBQ", "ICE" };
+
+    private bool IsHistoryImportSupported => HistoryImportFacilities.Contains(Form.FacilityCode);
+
+    private void HandleImportHistory()
+    {
+        if (IsHistoryImportSupported)
+            Navigation.NavigateTo($"/import-history/{Form.FacilityCode.ToLowerInvariant()}");
     }
 
     // ── Shared models ─────────────────────────────────────────────────────────

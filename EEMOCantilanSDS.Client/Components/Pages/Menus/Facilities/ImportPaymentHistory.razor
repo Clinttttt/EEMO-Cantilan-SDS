@@ -163,7 +163,12 @@
             </label>
 
             <div class="iph-template">
-                <a class="iph-link" href="@TemplateHref" download="@($"{FacilityShort}-payment-history-template.csv")">Download CSV template</a>
+                <a class="iph-link" href="@TemplateHref" download="@($"{FacilityShort}-payment-history-template.csv")">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    Download CSV template
+                </a>
+                <span class="iph-foot-sep">·</span>
+                <button class="iph-link iph-link-btn" type="button" @onclick="LoadSample">Use sample data instead</button>
             </div>
 
             <div class="iph-columns">
@@ -188,9 +193,42 @@
 
             @if (_rows.Count > 0)
             {
+                @* Shown before saving, as the stallholder import does. Read-only rather than editable: a history is
+                   a record of what already happened, so a wrong figure belongs corrected on the office's own sheet
+                   and re-uploaded, not quietly retyped here where the file and the ledger would then disagree. *@
+                <div class="iph-table-wrap">
+                    <table class="iph-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Stall / Space</th>
+                                <th>Occupant</th>
+                                <th>Period</th>
+                                <th class="iph-r">Amount Paid</th>
+                                <th>OR No.</th>
+                                <th>Date Paid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _rows)
+                            {
+                                <tr>
+                                    <td class="iph-c">@row.RowNumber</td>
+                                    <td>@row.StallNo</td>
+                                    <td>@row.Occupant</td>
+                                    <td class="iph-c">@($"{row.BillingYear:0000}-{row.BillingMonth:00}")</td>
+                                    <td class="iph-r">@Peso(row.AmountPaid)</td>
+                                    <td>@row.OrNumber</td>
+                                    <td class="iph-c">@(row.DatePaid?.ToString("d MMM yyyy") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
                 <div class="iph-ready">
                     <div>
-                        <strong>@_rows.Count</strong> @(_rows.Count == 1 ? "row" : "rows") read from <strong>@_fileName</strong>
+                        <strong>@_rows.Count</strong> @(_rows.Count == 1 ? "row" : "rows") from <strong>@_fileName</strong>
                     </div>
                     <div class="iph-actions">
                         <button class="iph-btn" type="button" @onclick="Reset" disabled="@_saving">Discard</button>
@@ -249,6 +287,46 @@
             var example = CsvCell.Row("1", "Joseph Villamor", "2025-03", "2400.00", "OR-100234", "2025-03-05");
             var csv = header + "\n" + example + "\n";
             return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(csv);
+        }
+    }
+
+    /// <summary>
+    /// Sample rows, so the office can see the shape before preparing its own file - the same offer the stallholder
+    /// import makes.
+    ///
+    /// <para>Dated from the CURRENT month backwards rather than written down, for the reason the stallholder sample
+    /// had to be changed: a fixed date rots, and a sample of payments for months a contract no longer covers would
+    /// be rejected row by row and read as the feature being broken. Three months back, one of them short of the
+    /// rent so the part-paid case is visible.</para>
+    /// </summary>
+    private void LoadSample()
+    {
+        _error = null;
+        _result = null;
+        _rows.Clear();
+        _fileName = "Sample data";
+
+        var thisMonth = PhilippineTime.Today;
+        var rowNumber = 0;
+
+        foreach (var back in new[] { 3, 2, 1 })
+        {
+            var period = thisMonth.AddMonths(-back);
+            rowNumber++;
+
+            // The middle month is deliberately short, so the office sees what a part payment looks like before it
+            // meets one in its own history.
+            var amount = back == 2 ? 1_200m : 2_400m;
+
+            _rows.Add(new ImportPaymentRow(
+                RowNumber: rowNumber,
+                StallNo: "1",
+                Occupant: "Joseph Villamor",
+                BillingYear: period.Year,
+                BillingMonth: period.Month,
+                AmountPaid: amount,
+                OrNumber: $"OR-{100_000 + rowNumber}",
+                DatePaid: new DateTime(period.Year, period.Month, 5)));
         }
     }
 

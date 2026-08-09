@@ -123,15 +123,44 @@
 
 .iph-template {
     margin-top: 12px;
-    text-align: center;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+}
+
+.iph-foot-sep {
+    color: var(--text-subtle, #9aa7b4);
 }
 
 .iph-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
     font-weight: 650;
     color: var(--navy);
     text-decoration: none;
     border-bottom: 1px solid color-mix(in srgb, var(--navy) 35%, transparent);
+}
+
+.iph-link svg {
+    width: 15px;
+    height: 15px;
+}
+
+/* The sample offer is a button, not a link, because it changes state rather than navigating - styled to match the
+   template link so the pair reads as one row of choices, as it does on the stallholder import. */
+.iph-link-btn {
+    padding: 0;
+    background: none;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--navy) 35%, transparent);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--navy);
+    cursor: pointer;
 }
 
 .iph-columns {
