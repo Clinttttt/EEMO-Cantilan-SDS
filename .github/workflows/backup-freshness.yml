@@ -23,6 +23,11 @@ on:
   schedule:
     - cron: '0 3 * * *'    # 03:00 UTC = 11:00 Philippine time, well after the 01:00 PHT backup
   workflow_dispatch:
+    inputs:
+      max_age_hours:
+        description: 'Hours before a backup counts as stale. Set 0 to rehearse the alarm.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -31,6 +36,9 @@ permissions:
 
 # The number of hours after which a backup is considered stale. The backup runs daily, so 26 hours
 # allows for a late start and a slow dump without tolerating a missed day.
+#
+# Overridable on a manual run so the alarm can be REHEARSED. An alarm nobody has ever heard is the same
+# problem as a backup nobody has ever restored: run this with 0 and it must fail and raise an issue.
 env:
   MAX_AGE_HOURS: 26
 
@@ -46,6 +54,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          # A manual run may override the threshold to rehearse the alarm.
+          THRESHOLD="${{ inputs.max_age_hours }}"
+          if [ -z "$THRESHOLD" ]; then THRESHOLD="$MAX_AGE_HOURS"; fi
+          echo "Threshold: ${THRESHOLD}h"
 
           # conclusion=success rather than status: a run that is still going is not yet a backup.
           LATEST=$(gh api \
@@ -74,12 +87,12 @@ jobs:
             echo "| --- | --- |"
             echo "| Newest successful backup | $LATEST |"
             echo "| Age | ${AGE_HOURS} hours |"
-            echo "| Threshold | ${MAX_AGE_HOURS} hours |"
+            echo "| Threshold | ${THRESHOLD} hours |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$AGE_HOURS" -gt "$MAX_AGE_HOURS" ]; then
+          if [ "$AGE_HOURS" -gt "$THRESHOLD" ]; then
             echo "stale=true" >> "$GITHUB_OUTPUT"
-            echo "detail=The newest successful backup is ${AGE_HOURS} hours old (threshold ${MAX_AGE_HOURS})." >> "$GITHUB_OUTPUT"
+            echo "detail=The newest successful backup is ${AGE_HOURS} hours old (threshold ${THRESHOLD})." >> "$GITHUB_OUTPUT"
             echo "::error title=Backup is stale::Newest successful backup is ${AGE_HOURS}h old."
           else
             echo "stale=false" >> "$GITHUB_OUTPUT"
