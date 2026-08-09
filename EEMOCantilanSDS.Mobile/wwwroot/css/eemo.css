@@ -2216,3 +2216,22 @@ html, body, #app {
 .balance-recap-row strong { color: var(--navy-primary); font-weight: 700; }
 .balance-recap-due strong { color: var(--error-red); }
 
+
+/* ── Form fields are at least 16px on touch screens ──
+   iOS zooms the page when a focused field's text is smaller than 16px, and the viewport meta used to suppress
+   that by forbidding zoom altogether - which also stopped a collector enlarging anything and failed WCAG 2.1
+   (1.4.4 Resize Text). Sizing the fields properly removes the cause instead of banning the symptom, and larger
+   field text is easier to read in sunlight, which is where this app is actually used. */
+.form-input,
+.form-select,
+input[type="text"],
+input[type="number"],
+input[type="search"],
+input[type="tel"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+select,
+textarea {
+    font-size: 16px;
+}

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -88,4 +89,50 @@ public class AuditInterceptorTests
         await context.SaveChangesAsync();
         Assert.Equal(2, await context.AuditLogs.CountAsync(a => a.EntityType == "AdminUser"));
     }
+
+    [Fact]
+    public async Task ChangingAnOccupancy_LeavesATrail()
+    {
+        // Stall was audited; Contract was not. So the facts that DECIDE what a payor owes - who the lessee is,
+        // the rent, the term, the effectivity date, whether it was terminated - could be changed with nothing
+        // recorded at all. A register whose figures can move without a trace is not a record the office can stand
+        // behind, and this is the table an audit would ask about first.
+        var actorId = Guid.NewGuid();
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.UserId).Returns(actorId);
+        currentUser.SetupGet(c => c.Username).Returns("head");
+        currentUser.SetupGet(c => c.Role).Returns("Admin");
+
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(new AuditSaveChangesInterceptor(currentUser.Object))
+            .Options;
+
+        using var context = new AppDbContext(options);
+
+        var contract = Contract.Create(
+            stallId: Guid.NewGuid(),
+            actualOccupant: "Bernadette Lim",
+            nameOnContract: "Bernadette Lim",
+            effectivityDate: new DateOnly(2026, 8, 1),
+            durationYears: 3,
+            monthlyRate: 1_500m);
+
+        context.Add(contract);
+        await context.SaveChangesAsync();
+
+        var created = await context.AuditLogs.SingleAsync(a => a.EntityType == nameof(Contract));
+        Assert.Equal("Created", created.Action);
+        Assert.Equal(contract.Id, created.EntityId);
+        Assert.Equal("head", created.ActorName);
+
+        // And a later edit is its own entry, so the sequence of changes can be followed rather than only the
+        // latest state being visible. Changing a term silently is exactly what an audit would want to see.
+        contract.UpdateTerms(new DateOnly(2026, 9, 1), durationYears: 5, updatedBy: "head");
+
+        await context.SaveChangesAsync();
+
+        Assert.Equal(2, await context.AuditLogs.CountAsync(a => a.EntityType == nameof(Contract)));
+    }
+
 }

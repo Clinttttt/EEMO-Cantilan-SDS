@@ -420,10 +420,8 @@
     }
 
     // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
-    private static string Csv(string value) =>
-        value.Contains(',') || value.Contains('"') || value.Contains('\n')
-            ? "\"" + value.Replace("\"", "\"\"") + "\""
-            : value;
+    // Delegates to the shared rule so every export is neutralised against formula injection, not just quoted.
+    private static string Csv(string value) => CsvCell.Escape(value);
 
     private static string Money(decimal v) => "₱" + v.ToString("N2");
 

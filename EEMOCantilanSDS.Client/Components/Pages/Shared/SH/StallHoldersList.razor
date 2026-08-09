@@ -438,11 +438,8 @@
     private FacilityCode? ResolvedFacilityCode =>
         Enum.TryParse<FacilityCode>(Facility, ignoreCase: true, out var code) ? code : null;
 
-    // Quote a field only when it needs it, and double any embedded quote (RFC 4180).
-    static string Csv(string value) =>
-        value.Contains(',') || value.Contains('"') || value.Contains('\n')
-            ? "\"" + value.Replace("\"", "\"\"") + "\""
-            : value;
+    // The shared rule: quotes per RFC 4180 AND neutralises a cell Excel would run as a formula.
+    static string Csv(string value) => CsvCell.Escape(value);
 
     IEnumerable<string> VisibleSections => ActiveSection == "All"
         ? PresentSections

@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Pinch-zoom is deliberately NOT blocked. maximum-scale=1.0 with user-scalable=no was here to stop iOS
+         zooming when a field takes focus, but it also stops a collector enlarging anything - a WCAG 2.1 failure
+         (1.4.4 Resize Text) and a real problem for a field app read in sunlight by someone who needs larger text.
+         The focus-zoom it was guarding against is prevented properly instead, by giving inputs a 16px font size. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>EEMOCantilanSDS.Mobile</title>
     <base href="/" />
     <link rel="stylesheet" href="/css/site.min.css" asp-append-version="true" />

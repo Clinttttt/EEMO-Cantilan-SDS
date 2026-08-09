@@ -439,7 +439,7 @@
                 <div class="eemo-drawer-header-sub">@(IsEditingAdmin ? "Update administrator details." : "Create a web administrator account.")</div>
             </div>
         </div>
-        <button class="eemo-drawer-header-close" @onclick="CloseAdminDrawer">
+        <button class="eemo-drawer-header-close" @onclick="CloseAdminDrawer" aria-label="Close">
             <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
         </button>
     </div>
@@ -613,7 +613,7 @@
                         <div class="eemo-modal-sub">@ResetTargetName</div>
                     </div>
                 </div>
-                <button class="eemo-modal-close" @onclick="CloseReset">
+                <button class="eemo-modal-close" @onclick="CloseReset" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>

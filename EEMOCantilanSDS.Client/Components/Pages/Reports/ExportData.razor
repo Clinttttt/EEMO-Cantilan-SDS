@@ -452,8 +452,8 @@
         }
     }
 
-    private static string Csv(params string[] fields) =>
-        string.Join(",", fields.Select(f => f.Contains(',') || f.Contains('"') ? $"\"{f.Replace("\"", "\"\"")}\"" : f));
+    // The shared rule: quotes per RFC 4180 AND neutralises a cell Excel would run as a formula.
+    private static string Csv(params string[] fields) => CsvCell.Row(fields);
 
     public sealed record ExportDataPageState(
         int Year,

@@ -55,11 +55,11 @@
                     </button>
                 </div>
                 <div class="period-date-selector">
-                    <button class="date-nav-btn" @onclick="NavigatePrevious">
+                    <button class="date-nav-btn" @onclick="NavigatePrevious" aria-label="Previous period">
                         <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                     </button>
                     <span class="current-period">@GetCurrentPeriodLabel()</span>
-                    <button class="date-nav-btn" @onclick="NavigateNext">
+                    <button class="date-nav-btn" @onclick="NavigateNext" aria-label="Next period">
                         <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                     </button>
                 </div>

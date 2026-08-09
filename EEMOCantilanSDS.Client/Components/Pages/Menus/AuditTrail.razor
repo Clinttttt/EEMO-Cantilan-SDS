@@ -547,13 +547,9 @@
         _csvHref = "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
     }
 
-    private static string Csv(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        var needsQuote = value.Contains(',') || value.Contains('"') || value.Contains('\n');
-        var escaped = value.Replace("\"", "\"\"");
-        return needsQuote ? $"\"{escaped}\"" : escaped;
-    }
+    // The shared rule: quotes per RFC 4180 AND neutralises a cell Excel would run as a formula. The audit trail
+    // exports free text that users typed, so it is the likeliest of the four to carry one.
+    private static string Csv(string value) => CsvCell.Escape(value);
 
     // Stored audit timestamps are UTC; the UI shows Philippine time (UTC+8, no DST).
     private static DateTime ToPh(DateTime utc) => utc.AddHours(8);

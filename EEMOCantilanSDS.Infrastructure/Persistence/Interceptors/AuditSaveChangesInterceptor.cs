@@ -30,7 +30,12 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         typeof(OnlinePaymentTransaction),
         // Account / payor / stall management
         typeof(AdminUser), typeof(CollectorUser), typeof(PayorUser),
-        typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink)
+        typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink),
+        // The occupancy itself. Stall was audited but Contract was not, so the facts that DECIDE what a payor
+        // owes - who the lessee is, the rent, the term, the effectivity date, whether it was terminated - could
+        // be changed with nothing recorded. A register whose figures can move without a trace is not a record
+        // the office can stand behind, and this is the table an audit would ask about first.
+        typeof(Contract)
     ];
 
     // User-account types whose login/token-refresh updates are routine and must NOT flood the trail.

@@ -59,7 +59,7 @@
                     Market Days
                 </div>
                 <div class="tpm-cal-nav">
-                    <button class="tpm-cal-nav-btn" @onclick="PrevMonth">
+                    <button class="tpm-cal-nav-btn" @onclick="PrevMonth" aria-label="Previous month">
                         <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                     </button>
                     <span class="tpm-cal-month">@CalendarMonth.ToString("MMMM yyyy")</span>
@@ -304,7 +304,7 @@
         <div class="tpm-modal" @onclick:stopPropagation="true">
             <div class="tpm-modal-header">
                 <div class="tpm-modal-title">Add Vendor</div>
-                <button class="tpm-modal-close" @onclick="CloseAddVendorModal">
+                <button class="tpm-modal-close" @onclick="CloseAddVendorModal" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
@@ -348,7 +348,7 @@
         <div class="tpm-modal" @onclick:stopPropagation="true">
             <div class="tpm-modal-header">
                 <div class="tpm-modal-title">Enter OR Number</div>
-                <button class="tpm-modal-close" @onclick="CloseOrModal">
+                <button class="tpm-modal-close" @onclick="CloseOrModal" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
@@ -394,7 +394,7 @@
         <div class="tpm-modal" @onclick:stopPropagation="true">
             <div class="tpm-modal-header">
                 <div class="tpm-modal-title">Edit Vendor</div>
-                <button class="tpm-modal-close" @onclick="CloseEditModal">
+                <button class="tpm-modal-close" @onclick="CloseEditModal" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>

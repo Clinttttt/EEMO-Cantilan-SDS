@@ -295,7 +295,7 @@
                 <div class="eemo-drawer-header-sub">@(IsEditing ? "Update collector account information." : "Create a new collector account for field collection.")</div>
             </div>
         </div>
-        <button class="eemo-drawer-header-close" @onclick="CloseModal">
+        <button class="eemo-drawer-header-close" @onclick="CloseModal" aria-label="Close">
             <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
         </button>
     </div>
@@ -531,7 +531,7 @@
                     <div class="eemo-modal-title">Send Message</div>
                     <div class="eemo-modal-sub">Push a notification to @MessageTarget.FullName's device.</div>
                 </div>
-                <button class="eemo-modal-close" @onclick="CloseMessage">
+                <button class="eemo-modal-close" @onclick="CloseMessage" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>

@@ -10,11 +10,11 @@
     </div>
 
     <div class="cal-nav">
-        <button class="cal-nav-btn" @onclick="PrevYear">
+        <button class="cal-nav-btn" @onclick="PrevYear" aria-label="Previous year">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </button>
         <span class="cal-month-label">@CurrentYear</span>
-        <button class="cal-nav-btn" @onclick="NextYear" disabled="@(!CanGoNext)">
+        <button class="cal-nav-btn" @onclick="NextYear" disabled="@(!CanGoNext)" aria-label="Next year">
             <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
         </button>
     </div>
@@ -83,7 +83,7 @@
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
             <div class="eemo-modal-header">
                 <div class="eemo-modal-title">@SelectedMonth.Value.ToString("MMMM yyyy") Payment</div>
-                <button class="eemo-modal-close" @onclick="ClosePaymentModal">
+                <button class="eemo-modal-close" @onclick="ClosePaymentModal" aria-label="Close">
                     <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
             </div>
