@@ -120,12 +120,16 @@ jobs:
 
           # 3. It is a dump of THIS database, not of an empty or wrong one. These tables exist as
           #    schema objects whether or not they hold rows, so the check is stable on a quiet day.
+          #    pg_restore --list writes entries as "TABLE <schema> <name> <owner>", unquoted - an earlier
+          #    version of this check looked for quoted names, found none, and failed a perfectly good dump.
           MISSING=""
           for t in Users Municipalities Facilities Stalls Contracts PaymentRecords; do
-            grep -q "\"$t\"" /tmp/backup-toc.txt || MISSING="$MISSING $t"
+            grep -qE "TABLE [^ ]+ ${t}( |$)" /tmp/backup-toc.txt || MISSING="$MISSING $t"
           done
           if [ -n "$MISSING" ]; then
             echo "::error title=Backup incomplete::Expected tables absent from the dump:$MISSING"
+            echo "Table entries actually present:"
+            grep -E "^[0-9;].* TABLE " /tmp/backup-toc.txt | head -40
             exit 1
           fi
 
