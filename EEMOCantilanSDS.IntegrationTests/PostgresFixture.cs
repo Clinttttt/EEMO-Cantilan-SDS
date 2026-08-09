@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace EEMOCantilanSDS.IntegrationTests;
@@ -77,6 +78,13 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// A context on the throwaway database, reading as the given tenant. <see cref="Guid.Empty"/> reads across
     /// tenants, which is how the platform operator sees it.
     /// </summary>
+    /// <summary>
+    /// A raw connection to the test database, for the few things that are properties of the SERVER rather
+    /// than of the model - notably the advisory lock that stops two instances migrating at once, whose whole
+    /// behaviour is about what one session can see of another.
+    /// </summary>
+    public NpgsqlConnection CreateRawConnection() => new(ConnectionString);
+
     public AppDbContext CreateContext(Guid municipalityId)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
